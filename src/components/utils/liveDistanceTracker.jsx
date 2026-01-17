@@ -365,6 +365,13 @@ class LiveDistanceTracker {
    */
   async updateTimeOnDuty() {
     try {
+      // CRITICAL: Only calculate live time when driver is on_duty
+      // For completed routes or when off_duty, the backend (getDeliveryStats) calculates time
+      if (!this.currentUser || this.currentUser.driver_status !== 'on_duty') {
+        console.log('⏭️ [LiveDistanceTracker] Driver not on_duty - skipping live time calculation');
+        return;
+      }
+
       // Get today's deliveries for this driver
       const todayStr = new Date().toISOString().split('T')[0];
       const todayDeliveries = await base44.entities.Delivery.filter({
@@ -389,27 +396,33 @@ class LiveDistanceTracker {
         return;
       }
 
-      const firstStopTime = new Date(completedStops[0].actual_delivery_time);
-      
-      // Determine end time based on route completion status
-      let endTime;
-      const allPatientDeliveries = todayDeliveries.filter(d => d && d.patient_id);
-      const routeComplete = allPatientDeliveries.length > 0 &&
-        allPatientDeliveries.every(d => finishedStatuses.includes(d.status));
-      
-      if (routeComplete) {
-        // Route complete - use last stop's completion time
-        endTime = new Date(completedStops[completedStops.length - 1].actual_delivery_time);
-        console.log('⏱️ [Time On Duty] Route complete - using last stop time');
-      } else {
-        // Still on duty - use current device time
-        endTime = new Date();
-        console.log('⏱️ [Time On Duty] Route active - using current time');
+      // Extract local time minutes from ISO string (NO UTC conversion)
+      const extractLocalMinutes = (timeStr) => {
+        if (!timeStr) return null;
+        const match = timeStr.match(/T(\d{2}):(\d{2})/);
+        if (match) {
+          return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+        }
+        return null;
+      };
+
+      const firstStopMinutes = extractLocalMinutes(completedStops[0].actual_delivery_time);
+      if (firstStopMinutes === null) {
+        console.warn('⚠️ [LiveDistanceTracker] Could not parse first stop time');
+        return;
       }
 
-      // Calculate total elapsed time (first stop to end time)
-      const totalElapsedMs = endTime.getTime() - firstStopTime.getTime();
-      const totalElapsedMinutes = Math.floor(totalElapsedMs / 60000);
+      // Use current device time (local)
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      // Calculate elapsed time in minutes
+      let elapsedMinutes = currentMinutes - firstStopMinutes;
+      
+      // Handle day boundary crossing (e.g., started at 23:00, now is 01:00)
+      if (elapsedMinutes < 0) {
+        elapsedMinutes += 24 * 60;
+      }
 
       // Get total break time from DriverDailyActivity
       const dailyActivities = await base44.entities.DriverDailyActivity.filter({
@@ -419,15 +432,15 @@ class LiveDistanceTracker {
       const dailyActivity = dailyActivities?.[0];
       const totalBreakMinutes = dailyActivity?.total_break_time_minutes || 0;
 
-      // Time on duty = (End Time - First Stop) - Total Break Time
-      const timeOnDutyMinutes = Math.max(0, totalElapsedMinutes - totalBreakMinutes);
+      // Time on duty = (Current Time - First Stop) - Total Break Time
+      const timeOnDutyMinutes = Math.max(0, elapsedMinutes - totalBreakMinutes);
 
-      console.log(`⏱️ [LiveDistanceTracker] Time calculation:
-        First stop: ${firstStopTime.toLocaleTimeString()}
-        End time: ${endTime.toLocaleTimeString()} ${routeComplete ? '(Last Stop)' : '(Current)'}
-        Elapsed: ${totalElapsedMinutes} min
-        Total breaks: ${totalBreakMinutes} min
-        Time on duty: ${timeOnDutyMinutes} min`);
+      console.log(`⏱️ [LiveDistanceTracker] Live Time On Duty:
+        First stop: ${Math.floor(firstStopMinutes/60)}:${String(firstStopMinutes%60).padStart(2,'0')}
+        Current: ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}
+        Elapsed: ${elapsedMinutes} min
+        Breaks: ${totalBreakMinutes} min
+        Duty: ${timeOnDutyMinutes} min`);
 
       // Dispatch event to update UI
       window.dispatchEvent(new CustomEvent('timeOnDutyUpdated', {
