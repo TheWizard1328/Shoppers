@@ -242,6 +242,25 @@ export default function StopCard({
     return !delivery.patient_id && !!delivery.store_id;
   }, [delivery?.patient_id, delivery?.store_id]);
 
+  // Check if this is an InterStore Pickup (store pickup where patient name contains InterStore)
+  const isInterStorePickup = useMemo(() => {
+    if (!delivery) return false;
+    
+    // For pickups, check if patient_name (denormalized) contains InterStore
+    const patientName = (delivery.patient_name || '').toLowerCase();
+    if (patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store')) {
+      return true;
+    }
+    
+    // Also check delivery notes for InterStore marker (in case it was added there)
+    const deliveryNotes = (delivery.delivery_notes || '').toLowerCase();
+    if (deliveryNotes.includes('interstore pickup') || deliveryNotes.includes('inter-store pickup') || deliveryNotes.includes('isp')) {
+      return true;
+    }
+    
+    return false;
+  }, [delivery]);
+
   const canChangeDriver = useMemo(() => {
     if (!delivery || !currentUser || !onDriverChange) return false;
     if (isPickup) return false;
@@ -368,25 +387,6 @@ export default function StopCard({
     
     return false;
   }, [delivery, patient]);
-
-  // Check if this is an InterStore Pickup (store pickup where patient name contains InterStore)
-  const isInterStorePickup = useMemo(() => {
-    if (!delivery || !isPickup) return false;
-    
-    // For pickups, check if patient_name (denormalized) contains InterStore
-    const patientName = (delivery.patient_name || '').toLowerCase();
-    if (patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store')) {
-      return true;
-    }
-    
-    // Also check delivery notes for InterStore marker (in case it was added there)
-    const deliveryNotes = (delivery.delivery_notes || '').toLowerCase();
-    if (deliveryNotes.includes('interstore pickup') || deliveryNotes.includes('inter-store pickup') || deliveryNotes.includes('isp')) {
-      return true;
-    }
-    
-    return false;
-  }, [delivery, isPickup]);
 
   const shouldRedact = useMemo(() => {
     if (!delivery || !currentUser) return false;
