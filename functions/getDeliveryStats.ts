@@ -534,7 +534,7 @@ Deno.serve(async (req) => {
           performanceStats.totalExtraKm = totalExtraKm;
           performanceStats.extraKmLimit = extraKmLimit;
 
-          // Total Time on Duty: Use AppUser duty tracking with break deductions, fallback to stop times
+          // Total Time on Duty: ALWAYS calculate (for current and past routes)
           // CRITICAL: Times are stored as LOCAL device time - extract HH:MM directly, no UTC conversion
           const extractLocalTimeMinutes = (timeStr) => {
             if (!timeStr) return null;
@@ -547,7 +547,6 @@ Deno.serve(async (req) => {
             return null;
           };
           
-          // CRITICAL: Time on Duty = (last stop - first stop) - breaks from DriverDailyActivity
           // Get break time from DriverDailyActivity for this driver and date
           const dailyActivities = await base44.asServiceRole.entities.DriverDailyActivity.filter({
             driver_id: driverId,
@@ -556,7 +555,7 @@ Deno.serve(async (req) => {
           const dailyActivity = dailyActivities?.[0];
           const breakTimeMinutes = dailyActivity?.total_break_time_minutes || 0;
           
-          // Calculate from first finished stop to last finished stop, minus breaks
+          // Calculate from first finished stop to last finished stop (or current time if on_duty), minus breaks
           const finishedWithTimes = todayDeliveries
             .filter(d => d.actual_delivery_time)
             .map(d => ({ ...d, localMinutes: extractLocalTimeMinutes(d.actual_delivery_time) }))
@@ -566,14 +565,36 @@ Deno.serve(async (req) => {
           let totalDutyMinutes = 0;
           if (finishedWithTimes.length > 0) {
             const firstMinutes = finishedWithTimes[0].localMinutes;
-            const lastMinutes = finishedWithTimes[finishedWithTimes.length - 1].localMinutes;
+            
+            // Determine end time: last stop OR current time if driver is on_duty
+            let endMinutes;
+            const allPatientDeliveries = todayDeliveries.filter(d => d && d.patient_id);
+            const routeComplete = allPatientDeliveries.length > 0 &&
+              allPatientDeliveries.every(d => finishedStatuses.includes(d.status));
+            
+            if (routeComplete) {
+              // Route complete - use last stop's completion time
+              endMinutes = finishedWithTimes[finishedWithTimes.length - 1].localMinutes;
+              console.log(`⏱️ [TIME CALC] Route complete - using last stop time`);
+            } else {
+              // Still on duty - use current device time
+              const now = new Date();
+              endMinutes = now.getHours() * 60 + now.getMinutes();
+              console.log(`⏱️ [TIME CALC] Route active - using current time`);
+            }
             
             // Calculate raw duration and deduct breaks
-            const rawDurationMinutes = lastMinutes - firstMinutes;
+            let rawDurationMinutes = endMinutes - firstMinutes;
+            
+            // Handle day boundary crossing
+            if (rawDurationMinutes < 0) {
+              rawDurationMinutes += 24 * 60;
+            }
+            
             totalDutyMinutes = Math.max(0, rawDurationMinutes - breakTimeMinutes);
             
             console.log(`⏱️ [TIME CALC] First: ${finishedWithTimes[0].actual_delivery_time} (${Math.floor(firstMinutes/60)}:${String(firstMinutes%60).padStart(2,'0')})`);
-            console.log(`⏱️ [TIME CALC] Last: ${finishedWithTimes[finishedWithTimes.length - 1].actual_delivery_time} (${Math.floor(lastMinutes/60)}:${String(lastMinutes%60).padStart(2,'0')})`);
+            console.log(`⏱️ [TIME CALC] End: ${Math.floor(endMinutes/60)}:${String(endMinutes%60).padStart(2,'0')} ${routeComplete ? '(Last Stop)' : '(Current)'}`);
             console.log(`⏱️ [TIME CALC] Raw: ${rawDurationMinutes}min, Breaks: ${breakTimeMinutes}min, Duty: ${totalDutyMinutes}min`);
           }
           
