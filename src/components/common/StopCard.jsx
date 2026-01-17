@@ -2039,7 +2039,7 @@ export default function StopCard({
                           {isRetrying ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                           <span className="text-white">Retry</span>
                         </Button> :
-                    delivery.status !== 'completed' && delivery.status !== 'cancelled' && (
+                    delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
                     isNextDelivery ?
                     <Button
                       onClick={async (e) => {
