@@ -1866,9 +1866,104 @@ export default function StopCard({
                       </Button>
                   }
 
-                    {/* Start/Complete/Retry button and menu - right aligned */}
+                    {/* Start/Complete/Restart button and menu - right aligned */}
                     <div className="flex items-center ml-auto">
-                      {delivery.status === 'failed' && onStatusUpdate ?
+                      {/* Restart button for completed/failed/cancelled on today's date when route not finished */}
+                      {FINISHED_STATUSES.includes(delivery.status) && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted ?
+                    <Button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        fabControlEvents.deactivateFAB();
+                        setIsEntityUpdating(true);
+                        await new Promise((resolve) => setTimeout(resolve, 100));
+
+                        try {
+                          // CRITICAL: Verify delivery still exists before restarting
+                          const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                          if (!deliveryExists || deliveryExists.length === 0) {
+                            console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
+                            throw new Error('This delivery has been deleted. Please refresh the page.');
+                          }
+
+                          console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
+
+                          // Step 1: Clear all isNextDelivery flags for this driver/date
+                          const driverDeliveries = allDeliveries.filter((d) =>
+                          d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                          );
+
+                          for (const d of driverDeliveries) {
+                            if (d.isNextDelivery) {
+                              await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+                            }
+                          }
+
+                          // Step 2: Set restarted delivery to in_transit/en_route and isNextDelivery: true
+                          const newStatus = isPickup ? 'en_route' : 'in_transit';
+                          await updateDeliveryLocal(delivery.id, {
+                            status: newStatus,
+                            isNextDelivery: true,
+                            actual_delivery_time: null,
+                            delivery_notes: ''
+                          }, { skipSmartRefresh: true });
+
+                          // Step 3: Run recursive route optimization
+                          try {
+                            const now = new Date();
+                            const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                            console.log('🔄 [Restart Delivery] Running optimizeRouteRealTime...');
+                            await base44.functions.invoke('optimizeRouteRealTime', {
+                              driverId: delivery.driver_id,
+                              deliveryDate: delivery.delivery_date,
+                              currentLocalTime: currentLocalTime,
+                              generatePolyline: false
+                            });
+                            console.log('✅ [Restart Delivery] Route optimized');
+
+                            // CRITICAL: Refresh UI to show reordered stops
+                            invalidate('Delivery');
+                            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                            console.log('✅ [Restart Delivery] UI refreshed with new stop order');
+                          } catch (optimizeError) {
+                            console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
+                          }
+
+                          // Step 4: Refresh data and sync UI
+                          invalidate('Delivery');
+                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+                          console.log('✅ [RESTART] Delivery restarted successfully');
+
+                          // CRITICAL: Trigger map update
+                          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                            detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                          }));
+
+                          // Send notification to dispatchers
+                          if (userHasRole(currentUser, 'driver')) {
+                            await notifyDriverRetry({
+                              driver: currentUser,
+                              patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                              delivery,
+                              store,
+                              appUsers
+                            });
+                          }
+                        } finally {
+                          setIsEntityUpdating(false);
+                          await new Promise((resolve) => setTimeout(resolve, 100));
+
+                          // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
+                          fabControlEvents.reactivateFAB(true);
+                        }
+                      }}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
+                      disabled={false}>
+                          <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
+                          <span className="text-white">Restart</span>
+                        </Button> :
+                      delivery.status === 'failed' && onStatusUpdate ?
                     <Button
                       onClick={async (e) => {
                         e.stopPropagation();
@@ -2390,89 +2485,7 @@ export default function StopCard({
                             </DropdownMenuItem>
                         }
 
-                          {isCompleted && onRestart && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted &&
-                        <>
-                              <DropdownMenuSeparator className="bg-slate-200" />
-                              <DropdownMenuItem className="text-base md:text-sm py-2.5 md:py-1.5" onClick={async (e) => {
-                            e.stopPropagation();
 
-                            // CRITICAL: Deactivate FAB before restart
-                            fabControlEvents.deactivateFAB();
-                            setIsEntityUpdating(true);
-                            await new Promise((resolve) => setTimeout(resolve, 100));
-
-                            try {
-                              // CRITICAL: Verify delivery still exists before restarting
-                              const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                              if (!deliveryExists || deliveryExists.length === 0) {
-                                console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
-                                throw new Error('This delivery has been deleted. Please refresh the page.');
-                              }
-
-                              console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
-
-                              // Step 1: Clear all isNextDelivery flags for this driver/date
-                              const driverDeliveries = allDeliveries.filter((d) =>
-                              d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                              );
-
-                              for (const d of driverDeliveries) {
-                                if (d.isNextDelivery) {
-                                  await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
-                                }
-                              }
-
-                              // Step 2: Set restarted delivery to in_transit/en_route and isNextDelivery: true
-                              const newStatus = isPickup ? 'en_route' : 'in_transit';
-                              await updateDeliveryLocal(delivery.id, {
-                                status: newStatus,
-                                isNextDelivery: true
-                              }, { skipSmartRefresh: true });
-
-                              // Step 3: Run recursive route optimization
-                              try {
-                                const now = new Date();
-                                const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                console.log('🔄 [Restart Delivery] Running optimizeRouteRealTime...');
-                                await base44.functions.invoke('optimizeRouteRealTime', {
-                                  driverId: delivery.driver_id,
-                                  deliveryDate: delivery.delivery_date,
-                                  currentLocalTime: currentLocalTime,
-                                  generatePolyline: false
-                                });
-                                console.log('✅ [Restart Delivery] Route optimized');
-
-                                // CRITICAL: Refresh UI to show reordered stops
-                                invalidate('Delivery');
-                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                console.log('✅ [Restart Delivery] UI refreshed with new stop order');
-                              } catch (optimizeError) {
-                                console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
-                              }
-
-                              // Step 4: Refresh data and sync UI
-                              invalidate('Delivery');
-                              await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                              console.log('✅ [RESTART] Delivery restarted successfully');
-
-                              // CRITICAL: Trigger map update
-                              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                              }));
-                            } finally {
-                              setIsEntityUpdating(false);
-                              await new Promise((resolve) => setTimeout(resolve, 100));
-
-                              // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
-                              fabControlEvents.reactivateFAB(true);
-                            }
-                          }}>
-                                <RotateCcw className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                                Restart Delivery
-                              </DropdownMenuItem>
-                            </>
-                        }
 
                           {/* Failed/Cancel menu item - for active deliveries */}
                           {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate &&
