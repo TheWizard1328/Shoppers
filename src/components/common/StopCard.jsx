@@ -348,9 +348,21 @@ export default function StopCard({
 
   // Check if this is an InterStore delivery (DropOff or Pickup)
   const isInterStore = useMemo(() => {
-    if (!delivery || !patient) return false;
-    const patientName = (patient.full_name || '').toLowerCase();
-    return patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store');
+    if (!delivery) return false;
+    
+    // Check patient name
+    const patientName = (patient?.full_name || delivery.patient_name || '').toLowerCase();
+    if (patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store')) {
+      return true;
+    }
+    
+    // Check delivery notes
+    const deliveryNotes = (delivery.delivery_notes || '').toLowerCase();
+    if (deliveryNotes.includes('interstore') || deliveryNotes.includes('inter-store') || deliveryNotes.includes('inter store')) {
+      return true;
+    }
+    
+    return false;
   }, [delivery, patient]);
 
   const shouldRedact = useMemo(() => {
