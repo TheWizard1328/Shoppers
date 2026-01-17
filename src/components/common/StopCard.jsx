@@ -412,6 +412,10 @@ export default function StopCard({
   const shouldShowStoreBadge = useMemo(() => shouldShowStoreBadges(currentUser), [currentUser]);
 
   const finalDisplayName = useMemo(() => {
+    // InterStore stops (pickups and dropoffs) are store data, never redact
+    if (isInterStore || isInterStorePickup) {
+      return displayName;
+    }
     if (isStrippedDelivery && !shouldRedact) {
       if (store?.name) {
         return `${store.name} ${isPickup ? 'Pickup' : 'Delivery'}`;
@@ -421,21 +425,25 @@ export default function StopCard({
     if (!shouldRedact) return displayName;
     const firstName = patient?.full_name?.split(' ')[0] || '';
     return firstName + ' *****';
-  }, [isStrippedDelivery, shouldRedact, displayName, patient, isPickup, store]);
+  }, [isStrippedDelivery, shouldRedact, displayName, patient, isPickup, store, isInterStore, isInterStorePickup]);
 
   const finalDisplayAddress = useMemo(() => {
+    // InterStore stops are store data, never redact
+    if (isInterStore || isInterStorePickup) return displayAddress;
     if (isStrippedDelivery) return '';
     if (!shouldRedact) return displayAddress;
     const firstPart = displayAddress?.split(' ')[0] || '';
     return firstPart + ' *****';
-  }, [isStrippedDelivery, shouldRedact, displayAddress]);
+  }, [isStrippedDelivery, shouldRedact, displayAddress, isInterStore, isInterStorePickup]);
 
   const finalDisplayPhone = useMemo(() => {
+    // InterStore stops are store data, never redact
+    if (isInterStore || isInterStorePickup) return displayPhone;
     if (isStrippedDelivery) return null;
     if (!shouldRedact) return displayPhone;
     if (!displayPhone) return null;
     return `(***) ***-${displayPhone.replace(/\D/g, '').slice(-4)}`;
-  }, [isStrippedDelivery, shouldRedact, displayPhone]);
+  }, [isStrippedDelivery, shouldRedact, displayPhone, isInterStore, isInterStorePickup]);
 
   const { hasFutureRetry, hasFutureReturn, hasCompletedDelivery } = useMemo(() => {
     if (delivery.status !== 'failed' || isPickup || !patient) {
