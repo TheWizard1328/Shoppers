@@ -1468,14 +1468,14 @@ export default function DeliveryMap({
         isStaleLocation = true;
       }
 
-      // CRITICAL: RULE 1 - Mobile drivers/admins: SKIP SELF (blue dot shows instead), show others in same city
+      // CRITICAL: RULE 1 - Mobile: ALWAYS SKIP SELF (blue dot shows instead)
+      if (isMobile && isCurrentUserMarker) {
+        console.log('🚫 [driverLocationMarkers] BLOCKED self on mobile:', user.user_name);
+        return null;
+      }
+      
+      // CRITICAL: Show other drivers in same city (admins see all cities)
       if (isMobile && (isCurrentUserDriver || isCurrentUserAdmin) && !isPureDispatcher) {
-        if (isCurrentUserMarker) {
-          console.log('🚫 [driverLocationMarkers] BLOCKED self on mobile:', user.user_name);
-          return null;
-        }
-        
-        // Show other drivers in same city (admins see all cities)
         if (!isCurrentUserAdmin && currentUserCityId && user.city_id !== currentUserCityId) {
           return null;
         }
