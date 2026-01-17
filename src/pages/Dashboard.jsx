@@ -6877,8 +6877,47 @@ function Dashboard() {
                     }
                   }
 
-                  // CRITICAL: Drivers no longer get stripped cards for completed routes
-                  // They should see full details for all their deliveries
+                  // CRITICAL: For drivers, mark all deliveries as stripped when route is complete
+                  // EXCEPT for InterStore deliveries and regular Store Pickups
+                  if (isDriver && !isDispatcher && !isAdmin) {
+                    const finishedStatuses = ['completed', 'failed', 'cancelled'];
+                    const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
+                    d && d.driver_id === currentUser.id
+                    );
+
+                    // Helper to detect returns by markers
+                    const checkIsReturn = (d) => {
+                      if (!d || !d.patient_id) return false;
+                      const patient = patients.find((p) => p && p.id === d.patient_id);
+                      const notes = d.delivery_notes || '';
+                      const patientName = d.patient_name || '';
+                      const patientFullName = patient?.full_name || '';
+                      return notes.toLowerCase().includes('(rtn)') ||
+                      patientName.toLowerCase().includes('(rtn)') ||
+                      patientFullName.toLowerCase().includes('(rtn)') ||
+                      /\breturn\b/i.test(notes) ||
+                      /\breturn\b/i.test(patientName) ||
+                      /\breturn\b/i.test(patientFullName);
+                    };
+
+                    const routeComplete = allDriverDeliveries.length > 0 &&
+                    allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d));
+
+                    if (routeComplete) {
+                      // CRITICAL: Check if this is an InterStore delivery or Store Pickup
+                      const isInterStore = delivery.patient_name?.toLowerCase().includes('interstore') || 
+                                           delivery.delivery_notes?.toLowerCase().includes('interstore');
+                      const isStorePickup = !delivery.patient_id;
+                      
+                      // Don't strip InterStore deliveries or Store Pickups
+                      if (!isInterStore && !isStorePickup) {
+                        return {
+                          ...delivery,
+                          _isStripped: true
+                        };
+                      }
+                    }
+                  }
 
                   return delivery;
                 })}
