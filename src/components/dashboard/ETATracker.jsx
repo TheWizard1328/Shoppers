@@ -93,47 +93,6 @@ export default function ETATracker({
           return;
         }
 
-        const now = Date.now();
-        const currentLocation = currentUser?.current_latitude && currentUser?.current_longitude
-          ? { lat: currentUser.current_latitude, lon: currentUser.current_longitude }
-          : null;
-
-        if (!currentLocation) {
-          console.log('⏸️ [ETATracker] No driver location available');
-          return;
-        }
-
-        // Check if location changed by more than 500m
-        let shouldUpdate = false;
-        
-        if (!lastLocationRef.current) {
-          // First run - update
-          shouldUpdate = true;
-          console.log('🚀 [ETATracker] Initial ETA update');
-        } else {
-          const distance = calculateDistance(
-            lastLocationRef.current.lat,
-            lastLocationRef.current.lon,
-            currentLocation.lat,
-            currentLocation.lon
-          );
-
-          // Update if driver moved >500m (0.5km)
-          if (distance >= 0.5) {
-            shouldUpdate = true;
-            console.log(`🚗 [ETATracker] Driver in motion - moved ${(distance * 1000).toFixed(0)}m`);
-          }
-        }
-
-        if (!shouldUpdate) {
-          console.log('⏸️ [ETATracker] Driver stationary (<500m) - skipping update');
-          return;
-        }
-
-        // Store current location for next comparison
-        lastLocationRef.current = currentLocation;
-        lastUpdateTimeRef.current = now;
-
         console.log('🔄 [ETATracker] Updating ETAs...');
 
         // Get travel durations from backend - CRITICAL: Pass local time as HH:mm string
@@ -195,13 +154,24 @@ export default function ETATracker({
       }
     };
 
-    // Update ETAs immediately
+    // Listen for events that should trigger ETA updates
+    const handleETAUpdateEvent = () => {
+      console.log('🔔 [ETATracker] Event received - updating ETAs');
+      updateETAs();
+    };
+
+    // CRITICAL: Listen for status changes, route optimization, and pending->in_transit transitions
+    window.addEventListener('deliveryStatusChanged', handleETAUpdateEvent);
+    window.addEventListener('routeOptimizationComplete', handleETAUpdateEvent);
+    window.addEventListener('pendingToInTransit', handleETAUpdateEvent);
+
+    // Update ETAs immediately on mount
     updateETAs();
 
-    // Check for updates every 5 minutes (300000ms) - only updates if driver moved >500m
-    intervalRef.current = setInterval(updateETAs, 300000);
-
     return () => {
+      window.removeEventListener('deliveryStatusChanged', handleETAUpdateEvent);
+      window.removeEventListener('routeOptimizationComplete', handleETAUpdateEvent);
+      window.removeEventListener('pendingToInTransit', handleETAUpdateEvent);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;

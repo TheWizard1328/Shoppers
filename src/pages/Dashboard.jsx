@@ -5444,6 +5444,16 @@ function Dashboard() {
         hasAutoSelectedRef.current = false;
       }
 
+      // CRITICAL: Dispatch event to trigger ETA updates for completed/failed/cancelled
+      window.dispatchEvent(new CustomEvent('deliveryStatusChanged', {
+        detail: { 
+          deliveryId, 
+          newStatus, 
+          driverId: targetDelivery.driver_id, 
+          deliveryDate 
+        }
+      }));
+
       // CRITICAL: Only re-lock and re-trigger FAB if original phase was Phase 2
       if (currentPhase === 2) {
         console.log(`🔒 [STATUS] Re-locking FAB to Phase 2 after status update`);

@@ -1540,6 +1540,11 @@ export default function StopCard({
                             console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, delivery_time_start: ${deliveryTimeStart}`);
                           }
 
+                          // CRITICAL: Dispatch event to trigger ETA updates for pending->in_transit transitions
+                          window.dispatchEvent(new CustomEvent('pendingToInTransit', {
+                            detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                          }));
+
                           // CRITICAL: Dispatch deliveriesUpdated event IMMEDIATELY after status changes
                           // This ensures map route lines update before waiting for optimization
                           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -1778,6 +1783,11 @@ export default function StopCard({
                                   tracking_number: newTR,
                                   delivery_time_start: deliveryTimeStart
                                 }, true);
+
+                                // CRITICAL: Dispatch event to trigger ETA updates
+                                window.dispatchEvent(new CustomEvent('pendingToInTransit', {
+                                  detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                }));
 
                                 // CRITICAL: Trigger immediate map update
                                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
