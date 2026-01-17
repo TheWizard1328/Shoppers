@@ -755,14 +755,11 @@ export default function DeliveryMap({
   const safeUsers = Array.isArray(realtimeAppUsers) ? realtimeAppUsers : [];
 
   // CRITICAL: ALWAYS use users prop directly (contains fresh AppUser data from context)
-  // Don't merge with driverLocations to prevent bouncing between offline and online data
+  // Update immediately when users change - no complex comparison needed
   useEffect(() => {
-    // Simply use users array directly - it already has the latest AppUser location data
-    setRealtimeAppUsers(prev => {
-      const prevKey = prev.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.location_updated_at}`).join('|');
-      const newKey = users.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.location_updated_at}`).join('|');
-      return prevKey === newKey ? prev : users;
-    });
+    if (users && users.length > 0) {
+      setRealtimeAppUsers(users);
+    }
   }, [users]);
 
   // State to force re-render of driverRoutes when deliveries update
@@ -781,13 +778,9 @@ export default function DeliveryMap({
         return;
       }
       
-      // CRITICAL: Handle bulk updates (from smart refresh)
+      // CRITICAL: Handle bulk updates (from smart refresh) - update immediately
       if (appUsers && appUsers.length > 0) {
-        setRealtimeAppUsers(prev => {
-          const prevKey = prev.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.location_updated_at}`).join('|');
-          const newKey = appUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.location_updated_at}`).join('|');
-          return prevKey === newKey ? prev : appUsers;
-        });
+        setRealtimeAppUsers(appUsers);
       }
     };
 
@@ -1433,10 +1426,12 @@ export default function DeliveryMap({
       const driverId = user.id || user.user_id;
       if (!driverId) return null;
 
-     // CRITICAL: Skip current user's shared marker on mobile (blue dot shows instead)
-      if (isMobile && driverId === currentUser?.id) return null;
-
       const isCurrentUserMarker = driverId === currentUserId;
+
+      // CRITICAL: On mobile, ALWAYS skip current user's shared marker (blue GPS dot shows instead)
+      if (isMobile && isCurrentUserMarker) {
+        return null;
+      }
 
       // CRITICAL: Skip inactive users
       if (user.status === 'inactive') {
@@ -1468,13 +1463,8 @@ export default function DeliveryMap({
         isStaleLocation = true;
       }
 
-      // CRITICAL: RULE 1 - Mobile: ALWAYS SKIP SELF (blue dot shows instead)
-      if (isMobile && isCurrentUserMarker) {
-        console.log('🚫 [driverLocationMarkers] BLOCKED self on mobile:', user.user_name);
-        return null;
-      }
-      
       // CRITICAL: Show other drivers in same city (admins see all cities)
+      // Self is already filtered out above on mobile
       if (isMobile && (isCurrentUserDriver || isCurrentUserAdmin) && !isPureDispatcher) {
         if (!isCurrentUserAdmin && currentUserCityId && user.city_id !== currentUserCityId) {
           return null;
