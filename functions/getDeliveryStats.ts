@@ -267,6 +267,9 @@ Deno.serve(async (req) => {
     // HELPER FUNCTIONS
     // ===========================================
     
+    // CRITICAL: Define finishedStatuses globally for reuse
+    const finishedStatuses = ['completed', 'failed', 'cancelled'];
+    
     // Helper: Check if delivery is a return (based on notes/name with "(RTN)" or "Return")
     // CRITICAL: Only match explicit return markers, not partial matches like "returned" in other contexts
     const isReturn = (d) => {
