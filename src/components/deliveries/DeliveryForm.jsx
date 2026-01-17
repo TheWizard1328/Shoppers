@@ -3734,7 +3734,7 @@ export default function DeliveryForm({
                             <SelectTrigger className="h-9">
                               <SelectValue placeholder="Select store" />
                             </SelectTrigger>
-                            <SelectContent className="z-[10011]">
+                            <SelectContent className="z-[10030]">
                               {availableStores.map((store) => {
                               const baseStoreId = store._originalStoreId || store.id;
                               const timeSlot = store._timeSlot || null;
@@ -3763,7 +3763,7 @@ export default function DeliveryForm({
                             <SelectTrigger className="h-9">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="z-[10011]">
+                            <SelectContent className="z-[10030]">
                               {delivery ? (
                                 isPickupMode ? (
                                   <>
