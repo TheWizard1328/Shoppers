@@ -378,8 +378,9 @@ class LiveDistanceTracker {
         .filter(d => d && finishedStatuses.includes(d.status) && d.actual_delivery_time)
         .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
 
+      // CRITICAL: Count ALL active stops (patient deliveries + pickups)
       const activeStops = todayDeliveries.filter(d => 
-        d && !finishedStatuses.includes(d.status)
+        d && !finishedStatuses.includes(d.status) && d.status !== 'pending'
       );
 
       // If no completed stops yet, time is 0
