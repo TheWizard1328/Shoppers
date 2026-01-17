@@ -359,15 +359,12 @@ class LiveDistanceTracker {
   }
 
   /**
-   * Calculate time on duty based on first stop completion to now
-   * Subtracts total break time from DriverDailyActivity
+   * Calculate time on duty based on first stop completion to now (or last stop if route complete)
+   * Formula: (End Time - First Stop Completed Time) - Total Time On Break
+   * All times use device local time (no UTC offset)
    */
   async updateTimeOnDuty() {
     try {
-      if (!this.currentUser || this.currentUser.driver_status !== 'on_duty') {
-        return;
-      }
-
       // Get today's deliveries for this driver
       const todayStr = new Date().toISOString().split('T')[0];
       const todayDeliveries = await base44.entities.Delivery.filter({
@@ -375,7 +372,7 @@ class LiveDistanceTracker {
         delivery_date: todayStr
       });
 
-      // Find first completed stop (earliest actual_delivery_time)
+      // Find first and last completed stops (sorted by actual_delivery_time)
       const finishedStatuses = ['completed', 'failed', 'cancelled'];
       const completedStops = todayDeliveries
         .filter(d => d && finishedStatuses.includes(d.status) && d.actual_delivery_time)
@@ -392,10 +389,26 @@ class LiveDistanceTracker {
         return;
       }
 
-      // Calculate time from first stop to now
       const firstStopTime = new Date(completedStops[0].actual_delivery_time);
-      const now = Date.now();
-      const totalElapsedMs = now - firstStopTime.getTime();
+      
+      // Determine end time based on route completion status
+      let endTime;
+      const allPatientDeliveries = todayDeliveries.filter(d => d && d.patient_id);
+      const routeComplete = allPatientDeliveries.length > 0 &&
+        allPatientDeliveries.every(d => finishedStatuses.includes(d.status));
+      
+      if (routeComplete) {
+        // Route complete - use last stop's completion time
+        endTime = new Date(completedStops[completedStops.length - 1].actual_delivery_time);
+        console.log('⏱️ [Time On Duty] Route complete - using last stop time');
+      } else {
+        // Still on duty - use current device time
+        endTime = new Date();
+        console.log('⏱️ [Time On Duty] Route active - using current time');
+      }
+
+      // Calculate total elapsed time (first stop to end time)
+      const totalElapsedMs = endTime.getTime() - firstStopTime.getTime();
       const totalElapsedMinutes = Math.floor(totalElapsedMs / 60000);
 
       // Get total break time from DriverDailyActivity
@@ -406,22 +419,14 @@ class LiveDistanceTracker {
       const dailyActivity = dailyActivities?.[0];
       const totalBreakMinutes = dailyActivity?.total_break_time_minutes || 0;
 
-      // CRITICAL: If currently on break, add current break session time
-      let activeBreakMinutes = 0;
-      if (this.currentUser.driver_status === 'on_break' && dailyActivity?.break_start_time) {
-        const breakStart = new Date(dailyActivity.break_start_time).getTime();
-        const currentBreakMs = now - breakStart;
-        activeBreakMinutes = Math.floor(currentBreakMs / 60000);
-      }
-
-      // Time on duty = (first stop to now) - (total break time) - (active break time)
-      const timeOnDutyMinutes = Math.max(0, totalElapsedMinutes - totalBreakMinutes - activeBreakMinutes);
+      // Time on duty = (End Time - First Stop) - Total Break Time
+      const timeOnDutyMinutes = Math.max(0, totalElapsedMinutes - totalBreakMinutes);
 
       console.log(`⏱️ [LiveDistanceTracker] Time calculation:
         First stop: ${firstStopTime.toLocaleTimeString()}
+        End time: ${endTime.toLocaleTimeString()} ${routeComplete ? '(Last Stop)' : '(Current)'}
         Elapsed: ${totalElapsedMinutes} min
         Total breaks: ${totalBreakMinutes} min
-        Active break: ${activeBreakMinutes} min
         Time on duty: ${timeOnDutyMinutes} min`);
 
       // Dispatch event to update UI
