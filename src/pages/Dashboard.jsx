@@ -1926,13 +1926,27 @@ function Dashboard() {
       saveSetting(currentUser.id, 'fab_map_cycle_phase', newMapViewPhase);
     }
 
-    // Scroll to next delivery card
+    // CRITICAL: Auto-center to next delivery card for ALL phases
     setTimeout(() => {
       const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
       if (nextCard) {
         const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
         if (cardElement) {
           cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          console.log(`📍 [FAB Click] Auto-centered to next delivery card (Phase ${newMapViewPhase})`);
+        }
+      } else {
+        // Fallback: if no next delivery, center on first incomplete
+        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+        const firstIncomplete = deliveriesWithStopOrder.find((d) => 
+          d && !finishedStatuses.includes(d.status)
+        );
+        if (firstIncomplete) {
+          const cardElement = document.getElementById(`stop-card-${firstIncomplete.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log('📍 [FAB Click] Auto-centered to first incomplete card');
+          }
         }
       }
     }, 300);
