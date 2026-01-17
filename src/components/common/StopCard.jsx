@@ -350,15 +350,15 @@ export default function StopCard({
   const isInterStore = useMemo(() => {
     if (!delivery) return false;
     
-    // Check patient name
+    // Check patient name (from patient entity or denormalized field)
     const patientName = (patient?.full_name || delivery.patient_name || '').toLowerCase();
     if (patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store')) {
       return true;
     }
     
-    // Check delivery notes
-    const deliveryNotes = (delivery.delivery_notes || '').toLowerCase();
-    if (deliveryNotes.includes('interstore') || deliveryNotes.includes('inter-store') || deliveryNotes.includes('inter store')) {
+    // Check patient notes (NOT delivery notes or driver notes)
+    const patientNotes = (patient?.notes || '').toLowerCase();
+    if (patientNotes.includes('interstore') || patientNotes.includes('inter-store') || patientNotes.includes('inter store')) {
       return true;
     }
     
