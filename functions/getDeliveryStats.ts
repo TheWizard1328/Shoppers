@@ -558,12 +558,17 @@ Deno.serve(async (req) => {
           const dailyActivity = dailyActivities?.[0];
           const breakTimeMinutes = dailyActivity?.total_break_time_minutes || 0;
           
+          console.log(`⏱️ [TIME ON DUTY] Driver: ${driverId}, Date: ${todayStr}`);
+          console.log(`⏱️ [TIME ON DUTY] Break time from DB: ${breakTimeMinutes} min`);
+          
           // Calculate from first finished stop to last finished stop (or current time if on_duty), minus breaks
           const finishedWithTimes = todayDeliveries
-            .filter(d => d.actual_delivery_time)
+            .filter(d => d && d.actual_delivery_time)
             .map(d => ({ ...d, localMinutes: extractLocalTimeMinutes(d.actual_delivery_time) }))
-            .filter(d => d.localMinutes !== null)
+            .filter(d => d && d.localMinutes !== null)
             .sort((a, b) => a.localMinutes - b.localMinutes);
+
+          console.log(`⏱️ [TIME ON DUTY] Finished stops: ${finishedWithTimes.length}`);
 
           let totalDutyMinutes = 0;
           if (finishedWithTimes.length > 0) {
@@ -599,12 +604,14 @@ Deno.serve(async (req) => {
             console.log(`⏱️ [TIME CALC] First: ${finishedWithTimes[0].actual_delivery_time} (${Math.floor(firstMinutes/60)}:${String(firstMinutes%60).padStart(2,'0')})`);
             console.log(`⏱️ [TIME CALC] End: ${Math.floor(endMinutes/60)}:${String(endMinutes%60).padStart(2,'0')} ${routeComplete ? '(Last Stop)' : '(Current)'}`);
             console.log(`⏱️ [TIME CALC] Raw: ${rawDurationMinutes}min, Breaks: ${breakTimeMinutes}min, Duty: ${totalDutyMinutes}min`);
+          } else {
+            console.log(`⚠️ [TIME ON DUTY] No completed stops found - returning 00:00`);
           }
           
           const hours = Math.floor(totalDutyMinutes / 60);
           const minutes = totalDutyMinutes % 60;
           performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-          console.log(`✅ [TIME RESULT] ${performanceStats.totalTimeOnDuty}`);
+          console.log(`✅ [TIME RESULT] Final time on duty: ${performanceStats.totalTimeOnDuty}`);
         }
       } else if (uniqueDriverIds.length > 0) {
         // ALL DRIVERS MODE - aggregate stats across all drivers
