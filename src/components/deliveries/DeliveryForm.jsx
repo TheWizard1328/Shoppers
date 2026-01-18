@@ -1261,8 +1261,8 @@ export default function DeliveryForm({
 
         // Handle matches
         if (result.exactMatches && result.exactMatches.length === 1) {
-          console.log('✅ [DeliveryForm] Single exact match - auto-selecting');
-          await handlePatientSelect(result.exactMatches[0].patient);
+          console.log('✅ [DeliveryForm] Single exact match - populating form only');
+          await handlePatientSelect(result.exactMatches[0].patient, false);
         } else if (result.exactMatches && result.exactMatches.length > 1) {
           console.log('⚠️ [DeliveryForm] Multiple exact matches - showing popup');
           setScanMatches(result.exactMatches);
