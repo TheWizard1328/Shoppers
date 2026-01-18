@@ -721,8 +721,9 @@ export default function PayrollSummaryCard({
                     <Button 
                       size="sm" 
                       onClick={() => setShowConfirmDialog(true)} 
-                      disabled={isFinalizing || isLoadingRecords || !allDriversFinalized}
-                      className={`gap-2 ${allDriversFinalized ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                      disabled={isFinalizing || isLoadingRecords || !allDriversFinalized || !canFinalize}
+                      className={`gap-2 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                      title={!canFinalize ? 'Cannot finalize until pay period ends' : ''}
                     >
                       {allDriversFinalized ? (
                         <>
