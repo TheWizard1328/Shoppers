@@ -625,17 +625,6 @@ export default function PayrollSummaryCard({
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + d.deductions, 0);
   const grandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + d.grossPay, 0);
 
-  // Get finalization status for each driver
-  const getDriverPayrollRecord = (driverId) => {
-    return payrollRecords.find(r => r.driver_id === driverId);
-  };
-
-  // Check if current driver has finalized (for driver view)
-  const currentDriverRecord = isDriver && currentUser ? getDriverPayrollRecord(currentUser.id) : null;
-  const isCurrentDriverFinalized = currentDriverRecord?.status === 'driver_finalized' || 
-                                    currentDriverRecord?.status === 'admin_finalized' ||
-                                    currentDriverRecord?.status === 'paid';
-
   // Count finalized drivers for admin view
   const driversWithDeliveriesIds = useMemo(() => {
     return driversWithDeliveries.map(d => d.driver.id);
