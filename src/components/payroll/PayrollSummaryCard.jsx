@@ -864,12 +864,27 @@ export default function PayrollSummaryCard({
         <div className="space-y-4">
           {payrollData.filter(data => data.totalDeliveries > 0).map((data, idx) => {
           const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
+          const driverPayrollRecord = getDriverPayrollRecord(data.driver.id);
+          const driverHasConfirmed = driverPayrollRecord?.status === 'driver_finalized' || 
+                                      driverPayrollRecord?.status === 'admin_finalized' ||
+                                      driverPayrollRecord?.status === 'paid';
+          const adminHasFinalized = driverPayrollRecord?.status === 'admin_finalized' ||
+                                     driverPayrollRecord?.status === 'paid';
+          
+          // For admins: show badge when driver confirmed
+          // For drivers: show badge when admin finalized
+          const showBadge = isAdmin ? driverHasConfirmed : adminHasFinalized;
           
           return (
           <div key={data.driver.id} className="p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left */}
-              <h3 className="font-semibold mb-1" style={{ color: 'var(--text-slate-900)' }}>
+              <h3 className="font-semibold mb-1 flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 {data.driver.user_name || data.driver.full_name}
+                {showBadge && (
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500" title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
+                    <CheckCircle className="w-3.5 h-3.5 text-white" />
+                  </span>
+                )}
               </h3>
 
               {/* Stats and Pay Summary - Side by Side */}
