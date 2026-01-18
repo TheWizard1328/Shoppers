@@ -399,7 +399,7 @@ export default function DriverPayroll() {
               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
                 {sortedDrivers.map(driver => (
-                  <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
+                  <SelectItem key={driver.user_id} value={driver.user_id} style={{ color: 'var(--text-slate-900)' }}>
                     {getDriverDisplayName(driver)}
                   </SelectItem>
                 ))}
