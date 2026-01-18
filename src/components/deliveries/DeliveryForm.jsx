@@ -3174,6 +3174,12 @@ export default function DeliveryForm({
           </CardHeader>
 
           {error && <div className="p-3 bg-red-100 text-red-700 text-sm text-center" style={{ background: '#fee2e2', color: '#991b1b' }}>Error: {error}</div>}
+          {isPayrollLocked && payrollLockMessage && (
+            <div className="p-3 bg-amber-100 text-amber-900 text-sm text-center border-b border-amber-200 flex items-center justify-center gap-2" style={{ background: '#fef3c7', color: '#78350f' }}>
+              <AlertCircle className="w-4 h-4" />
+              <span>{payrollLockMessage}</span>
+            </div>
+          )}
 
           <CardContent className="p-4 flex-1 relative overflow-hidden">
             <div className="space-y-3 h-full flex flex-col">
