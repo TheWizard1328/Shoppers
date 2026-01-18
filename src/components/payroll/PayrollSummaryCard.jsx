@@ -67,8 +67,14 @@ export default function PayrollSummaryCard({
   const periodStartStr = currentPeriod?.start ? currentPeriod.start.toISOString().split('T')[0] : null;
   const periodEndStr = currentPeriod?.end ? currentPeriod.end.toISOString().split('T')[0] : null;
 
-  // Fetch existing payroll records for this period
+  // Use external payroll records if provided, otherwise fetch locally
   useEffect(() => {
+    if (externalPayrollRecords) {
+      setPayrollRecords(externalPayrollRecords);
+      setIsLoadingRecords(false);
+      return;
+    }
+
     if (!periodStartStr || !periodEndStr) return;
 
     const fetchPayrollRecords = async () => {
@@ -90,7 +96,7 @@ export default function PayrollSummaryCard({
     };
 
     fetchPayrollRecords();
-  }, [periodStartStr, periodEndStr]);
+  }, [periodStartStr, periodEndStr, externalPayrollRecords]);
 
   // Get finalization status for each driver
   const getDriverPayrollRecord = (driverId) => {
