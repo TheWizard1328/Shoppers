@@ -1,8 +1,16 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, Calculator } from 'lucide-react';
+import { Download, Calculator, CheckCircle, AlertCircle } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 /**
  * Payroll Summary Card
