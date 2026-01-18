@@ -443,6 +443,9 @@ export default function DriverPayroll() {
           onFinalizePayroll={(data) => {
             console.log('Payroll finalized:', data);
           }}
+          onPayrollRecordsChange={(records) => {
+            setPayrollRecords(records);
+          }}
         />
       </div>
     </div>
