@@ -56,6 +56,13 @@ export default function StoreMetricsPanel() {
   const exportToPDF = () => {
     if (!metrics?.stores) return;
 
+    // Sort stores: paying fees first, then alphabetically
+    const sortedStores = [...metrics.stores].sort((a, b) => {
+      if (a.pays_app_fees && !b.pays_app_fees) return -1;
+      if (!a.pays_app_fees && b.pays_app_fees) return 1;
+      return a.store_name.localeCompare(b.store_name);
+    });
+
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -69,7 +76,7 @@ export default function StoreMetricsPanel() {
     // Summary section
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Generated: ${format(new Date(), 'MMM d, yyyy h:mm a')}`, margin, 28);
+    doc.text(`Generated: ${format(new Date(), 'MMM dd, yyyy h:mm a')}`, margin, 28);
     
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
@@ -103,7 +110,7 @@ export default function StoreMetricsPanel() {
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(8);
 
-    metrics.stores.forEach((store, idx) => {
+    sortedStores.forEach((store, idx) => {
       if (y > pageHeight - 25) {
         doc.addPage();
         y = 20;
@@ -125,7 +132,7 @@ export default function StoreMetricsPanel() {
       startX += colWidths[1];
       
       const feePeriod = store.current_fee_period 
-        ? `${store.current_fee_period.start} → ${store.current_fee_period.end || 'Present'}`
+        ? `${format(new Date(store.current_fee_period.start + 'T00:00:00'), 'MMM dd, yyyy')} → ${store.current_fee_period.end ? format(new Date(store.current_fee_period.end + 'T00:00:00'), 'MMM dd, yyyy') : 'Present'}`
         : '—';
       doc.text(feePeriod.substring(0, 28), startX, y);
       startX += colWidths[2];
