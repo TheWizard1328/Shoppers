@@ -298,10 +298,9 @@ export default function PayrollSummaryCard({
     
     // Second page: Portrait with detailed summaries
     doc.addPage('portrait');
+    const portraitWidth = doc.internal.pageSize.getWidth();
     
-    let y = 20;
-    const leftMargin = 14;
-    const pageWidth = doc.internal.pageSize.getWidth();
+    y = 20;
     
     // Title
     doc.setFontSize(18);
