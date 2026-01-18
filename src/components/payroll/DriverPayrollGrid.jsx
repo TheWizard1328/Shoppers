@@ -129,6 +129,11 @@ export default function DriverPayrollGrid({
     const oversizedCountMap = {};
     const storeHasData = {};
     
+    console.log(`🔍 [Payroll Grid] Building data map for driver: ${selectedDriverId}`);
+    console.log(`   - Period: ${currentPeriod?.label}`);
+    console.log(`   - Filtered deliveries count: ${filteredDeliveries.length}`);
+    console.log(`   - All stores count: ${allSortedStores.length}`);
+    
     periodDays.forEach(day => {
       const dateKey = format(day, 'yyyy-MM-dd');
       deliveryMap[dateKey] = {};
@@ -154,11 +159,17 @@ export default function DriverPayrollGrid({
       }
     });
 
-    // Filter to only stores that have data in this period
-    const storesWithDataList = allSortedStores.filter(store => storeHasData[store.id]);
+    // CRITICAL: For individual driver selection, show ALL stores (not just stores with data)
+    // This ensures consistency when switching between drivers
+    const storesWithDataList = selectedDriverId === 'all' 
+      ? allSortedStores.filter(store => storeHasData[store.id])
+      : allSortedStores;
+
+    console.log(`   - Stores with data: ${Object.keys(storeHasData).length}`);
+    console.log(`   - Showing stores: ${storesWithDataList.length}`);
 
     return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, storesWithData: storesWithDataList };
-  }, [filteredDeliveries, periodDays, allSortedStores, patients, appUsers]);
+  }, [filteredDeliveries, periodDays, allSortedStores, patients, appUsers, selectedDriverId, currentPeriod]);
 
   // Use stores with data for display (hide empty columns)
   const sortedStores = storesWithData.length > 0 ? storesWithData : allSortedStores;
