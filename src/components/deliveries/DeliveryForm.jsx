@@ -319,6 +319,25 @@ export default function DeliveryForm({
   // Ref to track if we're loading an existing delivery (prevent patient auto-load from clearing PUID)
   const isLoadingExistingDelivery = useRef(false);
 
+  // Check payroll lock status when editing a delivery
+  useEffect(() => {
+    if (!delivery || !delivery.delivery_date || !delivery.driver_id) return;
+
+    const checkLock = async () => {
+      const { isLocked, payrollRecord } = await checkPayrollLock(delivery.delivery_date, delivery.driver_id);
+      setIsPayrollLocked(isLocked);
+      
+      if (isLocked && payrollRecord) {
+        const periodLabel = `${new Date(payrollRecord.pay_period_start).toLocaleDateString()} - ${new Date(payrollRecord.pay_period_end).toLocaleDateString()}`;
+        setPayrollLockMessage(`This delivery is locked. Payroll for ${periodLabel} has been finalized.`);
+      } else {
+        setPayrollLockMessage(null);
+      }
+    };
+
+    checkLock();
+  }, [delivery?.id, delivery?.delivery_date, delivery?.driver_id]);
+
   useEffect(() => {
     if (delivery) {
       isLoadingExistingDelivery.current = true;
