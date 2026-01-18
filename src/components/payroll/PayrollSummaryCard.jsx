@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, Calculator, CheckCircle, AlertCircle } from 'lucide-react';
+import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
   Dialog,
@@ -11,6 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { base44 } from '@/api/base44Client';
+import { useUser } from '../utils/UserContext';
+import { userHasRole } from '../utils/userRoles';
 
 /**
  * Payroll Summary Card
