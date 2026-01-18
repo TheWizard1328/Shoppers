@@ -137,6 +137,13 @@ export default function PayrollSummaryCard({
         await base44.entities.Payroll.create(payrollRecord);
       }
 
+      // Send notification to all admins
+      await notifyDriverConfirmedPayroll({
+        driver: currentUser,
+        periodLabel: currentPeriod?.label || 'this period',
+        appUsers
+      });
+
       // Refresh records
       const records = await base44.entities.Payroll.filter({
         pay_period_start: periodStartStr,
