@@ -226,6 +226,15 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                       const storeId = getStoreId(store.abbreviation, month);
                       const value = getValue(store.abbreviation, month);
                       const isStoreMonthSelected = selectedStoreMonth?.month === month && selectedStoreMonth?.storeId === storeId;
+                      
+                      // Check if this is a future month with zero value - leave blank
+                      const now = new Date();
+                      const currentYear = now.getFullYear();
+                      const currentMonth = now.getMonth() + 1; // 1-indexed
+                      const isFutureMonth = parseInt(selectedYear) > currentYear || 
+                        (parseInt(selectedYear) === currentYear && month > currentMonth);
+                      const shouldShowBlank = isFutureMonth && (value === null || value === undefined || value === 0);
+                      
                       return (
                         <td
                           key={store.abbreviation}
@@ -241,7 +250,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                             }
                           }}>
 
-                          {formatValue(value, storeId, month)}
+                          {shouldShowBlank ? '' : formatValue(value, storeId, month)}
                         </td>);
 
                     })}
