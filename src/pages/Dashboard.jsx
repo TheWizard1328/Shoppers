@@ -6763,7 +6763,7 @@ function Dashboard() {
 
         <div
           ref={stopCardsContainerRef}
-          className="horizontal-cards-container absolute bottom-0 left-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end min-h-[145px] max-h-[80vh]"
+          className="horizontal-cards-container absolute bottom-0 left-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col items-center justify-end min-h-[145px] max-h-[80vh]"
           onClick={() => {
             if (retractClustersRef.current) {
               retractClustersRef.current();
