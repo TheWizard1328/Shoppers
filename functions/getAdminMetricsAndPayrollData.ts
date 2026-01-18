@@ -87,7 +87,8 @@ Deno.serve(async (req) => {
       const appUsers = await base44.asServiceRole.entities.AppUser.list();
       const patients = await base44.asServiceRole.entities.Patient.list();
       const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-      const appFeeRate = appSettings[0]?.setting_value?.app_fee_rate || 0;
+      const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
+      console.log('📊 [AdminMetrics] App Fee Rate:', appFeeRate);
 
       const metrics = processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate);
       
