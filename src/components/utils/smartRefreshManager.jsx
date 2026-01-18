@@ -1748,6 +1748,11 @@ class SmartRefreshManager {
         this.lastRefreshTimes.stores = 0;
         break;
         
+      case 'Payroll':
+        // Reset payroll refresh timer
+        this.lastRefreshTimes.payroll = 0;
+        break;
+        
       default:
         console.log(`📡 [SmartRefresh] Unknown entity in broadcast: ${entityName}`);
     }
