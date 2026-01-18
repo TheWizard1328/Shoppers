@@ -31,6 +31,7 @@ export default function PayrollSummaryCard({
   appUsers,
   patients,
   cities,
+  stores,
   selectedYear,
   selectedDriverId,
   payPeriod,
