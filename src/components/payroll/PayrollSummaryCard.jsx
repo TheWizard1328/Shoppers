@@ -43,8 +43,11 @@ export default function PayrollSummaryCard({
   selectedYear,
   selectedDriverId,
   payPeriod,
-  currentPeriod
+  currentPeriod,
+  onFinalizePayroll
 }) {
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isFinalized, setIsFinalized] = useState(false);
 
   // Calculate payroll for each driver for the current period
   const payrollData = useMemo(() => {
