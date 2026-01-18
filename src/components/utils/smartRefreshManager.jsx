@@ -1793,6 +1793,87 @@ class SmartRefreshManager {
   }
   
   /**
+   * Smart refresh for Payroll records
+   * CRITICAL: Used by DriverPayroll page to sync payroll confirmation status
+   */
+  async refreshPayrollRecords(currentRecords, periodStart, periodEnd) {
+    try {
+      if (!this.shouldRefresh('payroll')) {
+        return null;
+      }
+      
+      if (!periodStart || !periodEnd) {
+        return null;
+      }
+      
+      this.markRefreshed('payroll');
+      await this.waitForRateLimit();
+      
+      const queryFilter = {
+        pay_period_start: periodStart,
+        pay_period_end: periodEnd
+      };
+      
+      const updatedRecords = await base44.entities.Payroll.filter(queryFilter);
+      
+      // Record success
+      this.recordSuccess();
+      
+      if (!updatedRecords) {
+        return null;
+      }
+      
+      // Check for changes
+      const currentIds = new Set(currentRecords.map(r => r.id));
+      const updatedIds = new Set(updatedRecords.map(r => r.id));
+      
+      // Check for new records or status changes
+      let hasChanges = false;
+      
+      // New records added
+      if (updatedRecords.some(r => !currentIds.has(r.id))) {
+        hasChanges = true;
+      }
+      
+      // Existing records changed
+      if (!hasChanges) {
+        for (const updated of updatedRecords) {
+          const current = currentRecords.find(r => r.id === updated.id);
+          if (current && current.status !== updated.status) {
+            hasChanges = true;
+            break;
+          }
+        }
+      }
+      
+      if (!hasChanges) {
+        return null;
+      }
+      
+      console.log(`📊 [SmartRefresh] Payroll records updated: ${updatedRecords.length} records`);
+      
+      return {
+        hasChanges: true,
+        payrollRecords: updatedRecords
+      };
+      
+    } catch (error) {
+      // CRITICAL: Record error for exponential backoff
+      this.recordError();
+      
+      if (error.response?.status === 429 || error.message?.includes('429')) {
+        console.warn('⏰ [SmartRefresh] Rate limit on payroll - skipping cycle');
+        this.notifyRateLimit(true);
+      } else if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
+        console.warn('🔌 [SmartRefresh] WebSocket error on payroll - skipping cycle');
+      } else {
+        console.warn('⚠️ [SmartRefresh] Error refreshing payroll (non-fatal):', error.message || error);
+      }
+      return null;
+    }
+  }
+  
+  /**
    * CRITICAL: Check and restart offline sync if it failed to start
    * Called periodically by the smart refresh cycle
    */
