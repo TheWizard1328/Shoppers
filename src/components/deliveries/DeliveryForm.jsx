@@ -2280,7 +2280,8 @@ export default function DeliveryForm({
       if (highlightedPatientIndex >= 0 && filteredPatients.length > 0) {
         const selectedPat = filteredPatients[highlightedPatientIndex];
         if (selectedPat) {
-          handlePatientSelect(selectedPat);
+          // CRITICAL: Populate form only when pressing Enter (single selection)
+          handlePatientSelect(selectedPat, false);
           setPatientSearch('');
           setHighlightedPatientIndex(-1);
         }
