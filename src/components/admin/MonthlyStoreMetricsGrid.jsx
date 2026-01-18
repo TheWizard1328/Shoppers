@@ -113,12 +113,18 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     if (metricsViewMode === 'deliveries') {
       // Total = Completed Deliveries + After Hours + Failed
       const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0);
-      // Only add envelope adjustment if toggle is on AND this store has envelope data
-      const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
-      const envelopeAdjustment = (showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0) 
-        ? (envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount) 
-        : 0;
-      value = totalDeliveries + envelopeAdjustment;
+      
+      if (showEnvelopeAdjustedTotals) {
+        // When toggle is ON: combine deliveries + envelope adjustment into single value
+        const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
+        const envelopeAdjustment = (envelopeInfo?.totalEnvelopeValue > 0) 
+          ? (envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount) 
+          : 0;
+        value = totalDeliveries + envelopeAdjustment;
+      } else {
+        // When toggle is OFF: show base deliveries (formatValue will add envelope in brackets)
+        value = totalDeliveries;
+      }
     } else {
       value = storeData.fees || 0;
     }
@@ -126,16 +132,19 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
   };
 
   // Format value based on view mode
-  const formatValue = (value, storeId = null, month = null) => {
+  const formatValue = (value, storeId = null, month = null, baseValue = null) => {
     if (value === null || value === undefined) return '';
     if (metricsViewMode === 'fees') {
       return `$${value.toFixed(2)}`;
     }
 
-    if (showEnvelopeAdjustedTotals && metricsViewMode === 'deliveries' && storeId && month && month !== 'yearTotal') {
+    // When toggle is OFF: show "deliveries(envelope)" like "74(34)"
+    // When toggle is ON: show combined adjusted total like "94"
+    if (!showEnvelopeAdjustedTotals && metricsViewMode === 'deliveries' && storeId && month && month !== 'yearTotal') {
       const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeId]?.[month];
       if (envelopeInfo && envelopeInfo.totalEnvelopeValue > 0) {
-        return `${value.toLocaleString()} (${envelopeInfo.totalEnvelopeValue})`;
+        // Show base deliveries with envelope count in brackets
+        return `${value.toLocaleString()}(${envelopeInfo.totalEnvelopeValue})`;
       }
     }
     
