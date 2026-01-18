@@ -491,7 +491,8 @@ class SmartRefreshManager {
       appUsers: 0,
       todayPatients: 0,
       patients: 0,
-      stores: 0
+      stores: 0,
+      payroll: 0
     };
     
     // Clear error cooldown
