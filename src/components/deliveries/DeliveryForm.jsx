@@ -212,6 +212,8 @@ export default function DeliveryForm({
   const [extractedData, setExtractedData] = useState(null);
   const [hasPendingDeletes, setHasPendingDeletes] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isPayrollLocked, setIsPayrollLocked] = useState(false);
+  const [payrollLockMessage, setPayrollLockMessage] = useState(null);
 
   // Camera state
   const videoRef = useRef(null);
