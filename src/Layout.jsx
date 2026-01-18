@@ -2089,6 +2089,16 @@ export default function Layout({ children, currentPageName }) {
         icon: BarChart3
       });
     }
+
+    // Square Management - App Owner only
+    if (realUser && isAppOwner(realUser)) {
+      items.push({
+        title: "Square COD",
+        pageName: 'SquareManagement',
+        url: createPageUrl("SquareManagement"),
+        icon: CreditCard
+      });
+    }
     return items;
   }, [entityCounts.cities, entityCounts.stores, entityCounts.users, realUser, adminImportEnabled, drivers.length]);
 
