@@ -173,38 +173,126 @@ export default function PayrollSummaryCard({
     });
   }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod]);
 
-  // Export to CSV
+  // Export to PDF
   const handleExport = () => {
     if (!currentPeriod) return;
 
     const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
-    let csv = `Driver Payroll - ${currentPeriod.label}\n`;
-    csv += `Period: ${formatDate(currentPeriod.start)} - ${formatDate(currentPeriod.end)}\n`;
-    csv += `Pay Period Type: ${payPeriod.charAt(0).toUpperCase() + payPeriod.slice(1)}\n\n`;
-
-    csv += 'Driver,Pay Rate,Deliveries,Base Pay,Extra KM Pay,Oversized Pay,Total\n';
-
-    payrollData.forEach((data) => {
-      csv += `${data.driver.user_name || data.driver.full_name},$${data.payRate.toFixed(2)},${data.totalDeliveries},$${data.totalBasePay.toFixed(2)},$${data.totalExtraKmPay.toFixed(2)},$${data.totalOversizedPay.toFixed(2)},$${data.grandTotal.toFixed(2)}\n`;
+    const doc = new jsPDF();
+    
+    let y = 20;
+    const leftMargin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Driver Payroll Report', leftMargin, y);
+    y += 10;
+    
+    // Period info
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Period: ${currentPeriod.label}`, leftMargin, y);
+    y += 6;
+    doc.text(`${formatDate(currentPeriod.start)} - ${formatDate(currentPeriod.end)}`, leftMargin, y);
+    y += 6;
+    doc.text(`Pay Period Type: ${payPeriod.charAt(0).toUpperCase() + payPeriod.slice(1)}`, leftMargin, y);
+    y += 12;
+    
+    // Driver sections
+    payrollData.filter(data => data.grossPay > 0).forEach((data, idx) => {
+      // Check if we need a new page
+      if (y > 250) {
+        doc.addPage();
+        y = 20;
+      }
+      
+      const driverName = data.driver.user_name || data.driver.full_name;
+      
+      // Driver name header
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(driverName, leftMargin, y);
+      y += 7;
+      
+      // Stats - left side
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      
+      const col1 = leftMargin;
+      const col2 = leftMargin + 50;
+      const col3 = leftMargin + 100;
+      
+      // Row 1: Rates
+      doc.text(`Rate: $${data.payRate.toFixed(2)}`, col1, y);
+      doc.text(`KM Rate: $${data.extraKmRate.toFixed(3)}/km`, col2, y);
+      doc.text(`OS Rate: $${data.oversizedRate.toFixed(2)}`, col3, y);
+      y += 5;
+      
+      // Row 2: Totals
+      doc.text(`Del: ${data.totalDeliveries} = $${data.totalBasePay.toFixed(2)}`, col1, y);
+      doc.text(`KM: ${data.totalExtraKm.toFixed(2)} = $${data.totalExtraKmPay.toFixed(2)}`, col2, y);
+      doc.text(`OS: ${data.oversizedCount} = $${data.totalOversizedPay.toFixed(2)}`, col3, y);
+      y += 5;
+      
+      // Row 3: Failed/Returns
+      doc.text(`Failed: ${data.failedCount}`, col1, y);
+      doc.text(`Returns: ${data.returnsCount}`, col2, y);
+      y += 7;
+      
+      // Pay summary - right aligned
+      const rightCol = pageWidth - 14;
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Net:`, rightCol - 40, y - 14);
+      doc.text(`$${(data.grandTotal || 0).toFixed(2)}`, rightCol, y - 14, { align: 'right' });
+      
+      doc.text(`Tax:`, rightCol - 40, y - 9);
+      doc.text(`$${(data.taxAmount || 0).toFixed(2)}`, rightCol, y - 9, { align: 'right' });
+      
+      doc.text(`Deductions:`, rightCol - 40, y - 4);
+      doc.text(`$${(data.deductions || 0).toFixed(2)}`, rightCol, y - 4, { align: 'right' });
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(`Gross:`, rightCol - 40, y + 2);
+      doc.text(`$${(data.grossPay || 0).toFixed(2)}`, rightCol, y + 2, { align: 'right' });
+      
+      y += 8;
+      
+      // Separator line
+      doc.setDrawColor(200, 200, 200);
+      doc.line(leftMargin, y, pageWidth - leftMargin, y);
+      y += 8;
     });
-
-    // Grand total across all drivers
+    
+    // Grand total for all drivers
     if (payrollData.length > 1) {
-      const allDriversTotal = payrollData.reduce((sum, d) => sum + d.grandTotal, 0);
-      const allDeliveries = payrollData.reduce((sum, d) => sum + d.totalDeliveries, 0);
-      csv += `\nTOTAL,,${allDeliveries},,,,${allDriversTotal.toFixed(2)}\n`;
+      if (y > 260) {
+        doc.addPage();
+        y = 20;
+      }
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total Payroll (All Drivers)', leftMargin, y);
+      
+      const rightCol = pageWidth - 14;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Net: $${grandTotalAllDrivers.toFixed(2)}`, rightCol, y, { align: 'right' });
+      y += 5;
+      doc.text(`Tax: $${grandTotalTax.toFixed(2)}`, rightCol, y, { align: 'right' });
+      y += 5;
+      doc.text(`Deductions: $${grandTotalDeductions.toFixed(2)}`, rightCol, y, { align: 'right' });
+      y += 6;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text(`Gross: $${grandTotalGross.toFixed(2)}`, rightCol, y, { align: 'right' });
     }
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `payroll_${currentPeriod.label.replace(/\s+/g, '_')}_${selectedYear}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    
+    // Save the PDF
+    doc.save(`payroll_${currentPeriod.label.replace(/\s+/g, '_')}_${selectedYear}.pdf`);
   };
 
   // Format currency
