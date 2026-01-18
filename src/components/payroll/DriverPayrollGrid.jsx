@@ -31,6 +31,20 @@ export default function DriverPayrollGrid({
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extraKm'
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { smartRefreshActivity } = useAppData();
+  const navigate = useNavigate();
+
+  // Navigate to dashboard with selected date and driver
+  const handleNavigateToDashboard = (dateObj) => {
+    const dateStr = format(dateObj, 'yyyy-MM-dd');
+    // Set global filters for the dashboard
+    globalFilters.setSelectedDate(dateObj);
+    if (selectedDriverId && selectedDriverId !== 'all') {
+      globalFilters.setSelectedDriverId(selectedDriverId);
+    } else {
+      globalFilters.setSelectedDriverId('all');
+    }
+    navigate(createPageUrl('Dashboard'));
+  };
 
   // Track smart refresh activity - pulse animation when actively refreshing
   useEffect(() => {
