@@ -313,9 +313,10 @@ export default function DriverPayroll() {
 
   const filteredStores = useMemo(() => {
     if (!payrollData?.stores) return [];
-    let filtered = payrollData.stores;
+    // Filter out inactive stores first, then filter by city
+    let filtered = payrollData.stores.filter(s => s.status !== 'inactive');
     if (selectedCityId && selectedCityId !== 'all') {
-      filtered = payrollData.stores.filter(s => s.city_id === selectedCityId);
+      filtered = filtered.filter(s => s.city_id === selectedCityId);
     }
     return sortStores(filtered);
   }, [payrollData?.stores, selectedCityId]);
