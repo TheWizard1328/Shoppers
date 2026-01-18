@@ -278,6 +278,84 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
             KM Limit: Minimum km before extra pay starts
           </p>
 
+          {/* Deductions Section */}
+          <div className="pt-2 border-t">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2 block flex items-center gap-1">
+              <DollarSign className="w-3 h-3" />
+              Recurring Deductions
+            </Label>
+            
+            {/* Existing Deductions */}
+            {formData.deductions.length > 0 && (
+              <div className="space-y-1 mb-3">
+                {formData.deductions.map((deduction, idx) => (
+                  <div key={idx} className="flex items-center gap-2 p-2 bg-slate-50 rounded">
+                    <span className="flex-1 text-sm text-slate-700">{deduction.name}</span>
+                    <span className="text-sm font-medium text-slate-900">${deduction.amount.toFixed(2)}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          deductions: prev.deductions.filter((_, i) => i !== idx)
+                        }));
+                      }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Add New Deduction */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="Deduction name"
+                value={newDeductionName}
+                onChange={(e) => setNewDeductionName(e.target.value)}
+                className="flex-1 h-8 text-sm"
+              />
+              <Input
+                type="number"
+                placeholder="Amount"
+                value={newDeductionAmount}
+                onChange={(e) => setNewDeductionAmount(e.target.value)}
+                className="w-24 h-8 text-sm"
+                step="0.01"
+                min="0"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 px-2"
+                disabled={!newDeductionName.trim() || !newDeductionAmount || parseFloat(newDeductionAmount) <= 0}
+                onClick={() => {
+                  if (newDeductionName.trim() && parseFloat(newDeductionAmount) > 0) {
+                    setFormData(prev => ({
+                      ...prev,
+                      deductions: [
+                        ...prev.deductions,
+                        { name: newDeductionName.trim(), amount: parseFloat(newDeductionAmount) }
+                      ]
+                    }));
+                    setNewDeductionName('');
+                    setNewDeductionAmount('');
+                  }
+                }}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>
+              These deductions will be applied to each payroll period
+            </p>
+          </div>
+
           {/* Pay Rate History */}
           {driver.pay_rate_history && driver.pay_rate_history.length > 0 && (
             <div className="pt-2 border-t">
