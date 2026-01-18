@@ -360,7 +360,7 @@ export default function PayrollSummaryCard({
       y += 7;
       
       // Pay summary - right aligned
-      const rightCol = pageWidth - 14;
+      const rightCol = portraitWidth - 14;
       doc.setFont('helvetica', 'normal');
       doc.text(`Net:`, rightCol - 40, y - 14);
       doc.text(`$${(data.grandTotal || 0).toFixed(2)}`, rightCol, y - 14, { align: 'right' });
