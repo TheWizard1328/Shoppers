@@ -178,7 +178,126 @@ export default function PayrollSummaryCard({
     if (!currentPeriod) return;
 
     const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const doc = new jsPDF();
+    
+    // First page: Landscape with grid/chart
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const leftMargin = 14;
+    
+    // Title on landscape page
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Driver Payroll Summary', leftMargin, 15);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${currentPeriod.label} | ${formatDate(currentPeriod.start)} - ${formatDate(currentPeriod.end)}`, leftMargin, 22);
+    
+    // Build grid data
+    const periodStart = currentPeriod.start;
+    const periodEnd = currentPeriod.end;
+    const dates = [];
+    let currentDate = new Date(periodStart);
+    while (currentDate <= periodEnd) {
+      dates.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    // Calculate table dimensions
+    const tableTop = 30;
+    const rowHeight = 8;
+    const driverColWidth = 45;
+    const dateColWidth = Math.min(18, (pageWidth - leftMargin * 2 - driverColWidth - 25) / dates.length);
+    const totalColWidth = 22;
+    
+    // Header row - dates
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Driver', leftMargin + 2, tableTop + 5);
+    
+    dates.forEach((date, i) => {
+      const x = leftMargin + driverColWidth + (i * dateColWidth);
+      const dayLabel = date.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
+      const dateLabel = date.getDate().toString();
+      doc.text(dayLabel, x + dateColWidth/2, tableTop + 3, { align: 'center' });
+      doc.text(dateLabel, x + dateColWidth/2, tableTop + 7, { align: 'center' });
+    });
+    
+    doc.text('Total', leftMargin + driverColWidth + (dates.length * dateColWidth) + totalColWidth/2, tableTop + 5, { align: 'center' });
+    
+    // Draw header line
+    doc.setDrawColor(100, 100, 100);
+    doc.line(leftMargin, tableTop + rowHeight, pageWidth - leftMargin, tableTop + rowHeight);
+    
+    // Data rows
+    doc.setFont('helvetica', 'normal');
+    let y = tableTop + rowHeight + 6;
+    
+    payrollData.filter(data => data.grossPay > 0).forEach((data, idx) => {
+      const driverName = (data.driver.user_name || data.driver.full_name || '').substring(0, 12);
+      doc.text(driverName, leftMargin + 2, y);
+      
+      // Get deliveries per day for this driver
+      const driverId = data.driver.user_id || data.driver.id;
+      let rowTotal = 0;
+      
+      dates.forEach((date, i) => {
+        const dateStr = date.toISOString().split('T')[0];
+        const dayDeliveries = deliveries.filter(d => {
+          if (!d || d.driver_id !== driverId) return false;
+          if (d.delivery_date !== dateStr) return false;
+          if (!d.patient_id && !d.after_hours_pickup) return false;
+          return d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+        }).length;
+        
+        rowTotal += dayDeliveries;
+        const x = leftMargin + driverColWidth + (i * dateColWidth);
+        
+        if (dayDeliveries > 0) {
+          doc.text(dayDeliveries.toString(), x + dateColWidth/2, y, { align: 'center' });
+        }
+      });
+      
+      // Row total
+      doc.setFont('helvetica', 'bold');
+      doc.text(rowTotal.toString(), leftMargin + driverColWidth + (dates.length * dateColWidth) + totalColWidth/2, y, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      
+      y += rowHeight;
+    });
+    
+    // Grand total row
+    doc.setDrawColor(100, 100, 100);
+    doc.line(leftMargin, y - 3, pageWidth - leftMargin, y - 3);
+    y += 3;
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL', leftMargin + 2, y);
+    
+    let grandTotal = 0;
+    dates.forEach((date, i) => {
+      const dateStr = date.toISOString().split('T')[0];
+      const dayTotal = payrollData.reduce((sum, data) => {
+        const driverId = data.driver.user_id || data.driver.id;
+        return sum + deliveries.filter(d => {
+          if (!d || d.driver_id !== driverId) return false;
+          if (d.delivery_date !== dateStr) return false;
+          if (!d.patient_id && !d.after_hours_pickup) return false;
+          return d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+        }).length;
+      }, 0);
+      
+      grandTotal += dayTotal;
+      const x = leftMargin + driverColWidth + (i * dateColWidth);
+      if (dayTotal > 0) {
+        doc.text(dayTotal.toString(), x + dateColWidth/2, y, { align: 'center' });
+      }
+    });
+    
+    doc.text(grandTotal.toString(), leftMargin + driverColWidth + (dates.length * dateColWidth) + totalColWidth/2, y, { align: 'center' });
+    
+    // Second page: Portrait with detailed summaries
+    doc.addPage('portrait');
     
     let y = 20;
     const leftMargin = 14;
