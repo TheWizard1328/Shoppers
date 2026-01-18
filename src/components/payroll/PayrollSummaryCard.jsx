@@ -255,120 +255,74 @@ export default function PayrollSummaryCard({
           const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
           
           return (
-          <div key={data.driver.id} className="p-3 rounded-lg flex flex-col" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
-            <div className="flex items-start justify-between mb-2">
-              <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+          <div key={data.driver.id} className="p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
+              {/* Driver Name - Top Left */}
+              <h3 className="font-semibold mb-1" style={{ color: 'var(--text-slate-900)' }}>
                 {data.driver.user_name || data.driver.full_name}
               </h3>
-              {/* Gross Total - Top Right */}
-              <div className="flex flex-col items-end gap-0.5">
-                {hasTaxOrDeductions ? (
-                  <>
-                    <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                      <span className="mr-1">Net:</span>
-                      <span className="font-semibold">{formatCurrency(data.grandTotal)}</span>
+
+              {/* Stats and Pay Summary - Side by Side */}
+              <div className="flex justify-between items-start">
+                {/* Left: 8 Stats in 2 columns */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                  <div className="flex items-center">
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.payRate)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.oversizedRate)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
+                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">{data.failedCount}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Ret:</span>
+                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.returnsCount}</span>
+                  </div>
+                </div>
+
+                {/* Right: Pay Summary */}
+                <div className="flex flex-col items-end text-xs ml-4">
+                  <div style={{ color: 'var(--text-slate-600)' }}>
+                    <span className="mr-1">Net:</span>
+                    <span className="font-semibold">{formatCurrency(data.grandTotal)}</span>
+                  </div>
+                  {data.taxAmount > 0 ? (
+                    <div style={{ color: 'var(--text-slate-600)' }}>
+                      <span className="mr-1">Tax ({data.provinceCode} {(data.taxRate * 100).toFixed(0)}%):</span>
+                      <span className="font-semibold">{formatCurrency(data.taxAmount)}</span>
                     </div>
-                    {data.taxAmount > 0 && (
-                      <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                        <span className="mr-1">Tax ({data.provinceCode} {(data.taxRate * 100).toFixed(0)}%):</span>
-                        <span className="font-semibold">{formatCurrency(data.taxAmount)}</span>
-                      </div>
-                    )}
-                    {data.deductions > 0 && (
-                      <div className="text-xs text-red-600">
-                        <span className="mr-1">Deductions:</span>
-                        <span className="font-semibold">-{formatCurrency(data.deductions)}</span>
-                      </div>
-                    )}
-                    <div className="text-lg font-bold text-emerald-600">
-                      {formatCurrency(data.grossPay)}
+                  ) : (
+                    <div style={{ color: 'var(--text-slate-400)' }}>
+                      <span className="mr-1">Tax:</span>
+                      <span>-</span>
                     </div>
-                  </>
-                ) : (
-                  <div className="text-lg font-bold text-emerald-600">
+                  )}
+                  <div style={{ color: 'var(--text-slate-400)' }}>
+                    <span className="mr-1">Deductions:</span>
+                    <span className="italic text-[10px]">Coming soon</span>
+                  </div>
+                  <div className="text-lg font-bold text-emerald-600 mt-1">
                     {formatCurrency(data.grossPay)}
                   </div>
-                )}
-              </div>
-            </div>
-              {/* Desktop: 4-Column Layout */}
-              <div className="hidden md:block">
-                {/* Pay Rates Row */}
-                <div className="flex text-xs mb-1.5">
-                  <div className="flex items-center w-36">
-                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] text-center" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.payRate)}</span>
-                  </div>
-                  <div className="flex items-center w-36">
-                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] text-center" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
-                  </div>
-                  <div className="flex items-center w-36">
-                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] text-center" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.oversizedRate)}</span>
-                  </div>
-                  <div className="flex items-center w-36">
-                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
-                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px] text-center">{data.failedCount}</span>
-                  </div>
-                </div>
-                {/* Totals Row */}
-                <div className="flex text-xs">
-                  <div className="flex items-center w-36">
-                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
-                  </div>
-                  <div className="flex items-center w-36">
-                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
-                  </div>
-                  <div className="flex items-center w-36">
-                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
-                  </div>
-                  <div className="flex items-center w-36">
-                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
-                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap">{data.returnsCount}</span>
-                  </div>
-                </div>
-              </div>
-              {/* Mobile: 2-Column, 4-Row Layout */}
-              <div className="md:hidden grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                {/* Row 1: Rate & Deliveries */}
-                <div className="flex items-center">
-                  <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.payRate)}</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
-                </div>
-                {/* Row 2: KM Rate & KM Total */}
-                <div className="flex items-center">
-                  <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
-                </div>
-                {/* Row 3: OS Rate & OS Total */}
-                <div className="flex items-center">
-                  <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.oversizedRate)}</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
-                </div>
-                {/* Row 4: Failed & Returns */}
-                <div className="flex items-center">
-                  <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
-                  <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">{data.failedCount}</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Ret:</span>
-                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.returnsCount}</span>
                 </div>
               </div>
             </div>
