@@ -1020,8 +1020,9 @@ export default function DeliveryForm({
 
     const patientsToAdd = filteredPatients.filter((p) => selectedPatientIds.has(p.id));
 
+    // CRITICAL: Auto-add to staged for multiple patients
     for (const patient of patientsToAdd) {
-      await handlePatientSelect(patient);
+      await handlePatientSelect(patient, true);
     }
 
     setSelectedPatientIds(new Set());
