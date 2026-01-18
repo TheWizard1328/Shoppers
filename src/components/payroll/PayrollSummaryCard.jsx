@@ -165,7 +165,9 @@ export default function PayrollSummaryCard({
   const handleAdminFinalize = async () => {
     setIsFinalizing(true);
     try {
-      for (const driverData of payrollData.filter(d => d.totalDeliveries > 0)) {
+      const driversWithDeliveries = payrollData.filter(d => d.totalDeliveries > 0);
+      
+      for (const driverData of driversWithDeliveries) {
         const existingRecord = getDriverPayrollRecord(driverData.driver.id);
         
         if (existingRecord) {
@@ -176,6 +178,14 @@ export default function PayrollSummaryCard({
           });
         }
       }
+
+      // Send notification to all drivers
+      await notifyAdminApprovedPayroll({
+        admin: currentUser,
+        periodLabel: currentPeriod?.label || 'this period',
+        driversWithDeliveries,
+        appUsers
+      });
 
       // Refresh records
       const records = await base44.entities.Payroll.filter({
@@ -190,7 +200,7 @@ export default function PayrollSummaryCard({
       if (onFinalizePayroll) {
         onFinalizePayroll({
           period: currentPeriod,
-          payrollData: payrollData.filter(d => d.totalDeliveries > 0),
+          payrollData: driversWithDeliveries,
           grandTotals: {
             net: grandTotalAllDrivers,
             tax: grandTotalTax,
