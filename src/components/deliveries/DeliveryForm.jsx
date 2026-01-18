@@ -230,10 +230,10 @@ export default function DeliveryForm({
   // Desktop form width threshold (max-w-4xl = 896px + padding)
   const DESKTOP_FORM_WIDTH = 825;
 
-  // Rule 1: Use mobile layout if screen width < desktop form width (regardless of device type)
+  // Rule 1: Use mobile layout (hidden staged panel) only if screen width < desktop form width
   const useMobileLayout = screenWidth < DESKTOP_FORM_WIDTH;
 
-  // Rule 2: Use fullscreen ONLY if mobile layout AND on mobile device (never fullscreen on desktop)
+  // Rule 2: Use fullscreen ONLY if using mobile layout AND on mobile device
   const useFullscreen = useMobileLayout && isMobileDevice;
 
   // Track screen dimensions
