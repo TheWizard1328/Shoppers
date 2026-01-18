@@ -321,7 +321,7 @@ export default function PayrollSummaryCard({
     y += 12;
     
     // Driver sections
-    payrollData.filter(data => data.grossPay > 0).forEach((data, idx) => {
+    payrollData.filter(data => data.totalDeliveries > 0).forEach((data, idx) => {
       // Check if we need a new page
       if (y > 250) {
         doc.addPage();
