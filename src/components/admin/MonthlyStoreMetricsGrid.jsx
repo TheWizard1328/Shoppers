@@ -227,13 +227,8 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                       const value = getValue(store.abbreviation, month);
                       const isStoreMonthSelected = selectedStoreMonth?.month === month && selectedStoreMonth?.storeId === storeId;
                       
-                      // Check if this is a future month with zero value - leave blank
-                      const now = new Date();
-                      const currentYear = now.getFullYear();
-                      const currentMonth = now.getMonth() + 1; // 1-indexed
-                      const isFutureMonth = parseInt(selectedYear) > currentYear || 
-                        (parseInt(selectedYear) === currentYear && month > currentMonth);
-                      const shouldShowBlank = isFutureMonth && (value === null || value === undefined || value === 0);
+                      // Leave blank if value is 0, null, or undefined
+                      const shouldShowBlank = value === null || value === undefined || value === 0;
                       
                       return (
                         <td
@@ -241,7 +236,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                           className={`text-center p-2 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''}`}
                           style={{ color: (value !== null && value !== undefined && value > 0) ? getStoreColor(store) : '#94a3b8' }}
                           onClick={() => {
-                            if (value !== null && value !== undefined) {
+                            if (value !== null && value !== undefined && value > 0) {
                               // Get the actual storeId from the store object, not from getStoreId
                               const actualStoreId = store.storeId || storeId;
                               if (actualStoreId) {
@@ -255,14 +250,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
 
                     })}
                     <td className="text-center p-2 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
-                      {(() => {
-                        const now = new Date();
-                        const currentYear = now.getFullYear();
-                        const currentMonth = now.getMonth() + 1;
-                        const isFutureMonth = parseInt(selectedYear) > currentYear || 
-                          (parseInt(selectedYear) === currentYear && month > currentMonth);
-                        return (isFutureMonth && monthTotal === 0) ? '' : formatValue(monthTotal);
-                      })()}
+                      {monthTotal === 0 ? '' : formatValue(monthTotal)}
                     </td>
                   </tr>);
 
