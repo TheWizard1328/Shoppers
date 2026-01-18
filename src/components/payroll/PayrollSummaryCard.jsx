@@ -669,26 +669,69 @@ export default function PayrollSummaryCard({
             <Calculator className="w-5 h-5" />
             Payroll Summary
           </CardTitle>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
               <Download className="w-4 h-4" />
               Export PDF
             </Button>
-            {onFinalizePayroll && !isFinalized && (
+            
+            {/* Driver Finalize Button - only for drivers viewing their own payroll */}
+            {isDriver && selectedDriverId === currentUser?.id && !isCurrentDriverFinalized && (
               <Button 
                 size="sm" 
                 onClick={() => setShowConfirmDialog(true)} 
+                disabled={isFinalizing || isLoadingRecords}
                 className="gap-2 bg-emerald-600 hover:bg-emerald-700"
               >
                 <CheckCircle className="w-4 h-4" />
-                Finalize Payroll
+                {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
               </Button>
             )}
-            {isFinalized && (
+            
+            {/* Driver Finalized Status */}
+            {isDriver && isCurrentDriverFinalized && (
               <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
                 <CheckCircle className="w-4 h-4" />
-                Finalized
+                Confirmed
               </div>
+            )}
+
+            {/* Admin View: Show finalization progress */}
+            {isAdmin && driversWithDeliveriesIds.length > 0 && (
+              <>
+                {!isAdminFinalized && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      <Users className="w-3 h-3 inline mr-1" />
+                      {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
+                    </span>
+                    <Button 
+                      size="sm" 
+                      onClick={() => setShowConfirmDialog(true)} 
+                      disabled={isFinalizing || isLoadingRecords || !allDriversFinalized}
+                      className={`gap-2 ${allDriversFinalized ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    >
+                      {allDriversFinalized ? (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          {isFinalizing ? 'Finalizing...' : 'Finalize All'}
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="w-4 h-4" />
+                          Awaiting Drivers
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+                {isAdminFinalized && (
+                  <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
+                    <CheckCircle className="w-4 h-4" />
+                    Finalized
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
