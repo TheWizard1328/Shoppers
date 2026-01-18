@@ -233,7 +233,8 @@ export default function DeliveryForm({
   // Rule 1: Use mobile layout (hidden staged panel) only if screen width < desktop form width
   const useMobileLayout = screenWidth < DESKTOP_FORM_WIDTH;
 
-  // Rule 2: Use fullscreen ONLY if using mobile layout AND on mobile device
+  // Rule 2: Use fullscreen ONLY if screen is too narrow AND on mobile device
+  // Wide mobile screens should show the normal desktop-style layout
   const useFullscreen = useMobileLayout && isMobileDevice;
 
   // Track screen dimensions
