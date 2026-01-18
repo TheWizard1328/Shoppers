@@ -231,11 +231,12 @@ export default function DeliveryForm({
   const DESKTOP_FORM_WIDTH = 825;
 
   // Rule 1: Use mobile layout (hidden staged panel) only if screen width < desktop form width
+  // This is PURELY screen-width based - wide mobile screens should show the staged panel
   const useMobileLayout = screenWidth < DESKTOP_FORM_WIDTH;
 
-  // Rule 2: Use fullscreen ONLY if screen is too narrow AND on mobile device
-  // Wide mobile screens should show the normal desktop-style layout
-  const useFullscreen = useMobileLayout && isMobileDevice;
+  // Rule 2: Use fullscreen layout ONLY if screen is too narrow
+  // CRITICAL: Do NOT use isMobileDevice here - wide mobile screens should get desktop-style layout
+  const useFullscreen = useMobileLayout;
 
   // Track screen dimensions
   useEffect(() => {
