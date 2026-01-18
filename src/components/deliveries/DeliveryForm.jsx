@@ -3396,8 +3396,8 @@ export default function DeliveryForm({
                                     return newSet;
                                   });
                                 } else {
-                                  // Direct add
-                                  handlePatientSelect(patient);
+                                  // Direct add - populate form only (don't auto-add to staged)
+                                  handlePatientSelect(patient, false);
                                   setPatientSearch('');
                                   setHighlightedPatientIndex(-1);
                                 }
