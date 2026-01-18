@@ -576,12 +576,13 @@ export function getAdminUsers(appUsers) {
 
 /**
  * 9. Driver confirms their payroll
- * Message FROM driver TO all admins
+ * Message FROM driver TO all admins (excluding optional excludeUserId)
  */
 export async function notifyDriverConfirmedPayroll({
   driver,
   periodLabel,
-  appUsers
+  appUsers,
+  excludeUserId = null
 }) {
   const admins = getAdminUsers(appUsers);
   if (!admins || admins.length === 0) return;
@@ -591,6 +592,7 @@ export async function notifyDriverConfirmedPayroll({
 
   for (const admin of admins) {
     if (admin.user_id === driver?.id) continue; // Don't notify self if driver is also admin
+    if (excludeUserId && admin.user_id === excludeUserId) continue; // Exclude specified user
     await sendDeliveryMessage({
       senderId: driver?.id,
       senderName: driverName,
