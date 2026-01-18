@@ -28,9 +28,12 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
     extra_km_limit: formatRate(driver.extra_km_limit),
     oversized_item_rate: formatRate(driver.oversized_item_rate),
     gst_hst_enabled: driver.gst_hst_enabled || false,
-    pay_cycle_type: driver.pay_cycle_type || 'monthly'
+    pay_cycle_type: driver.pay_cycle_type || 'monthly',
+    deductions: driver.deductions || []
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [newDeductionName, setNewDeductionName] = useState('');
+  const [newDeductionAmount, setNewDeductionAmount] = useState('');
 
   const handleSave = async () => {
     setIsSaving(true);
