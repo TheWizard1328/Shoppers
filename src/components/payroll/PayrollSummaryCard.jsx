@@ -496,12 +496,77 @@ export default function PayrollSummaryCard({
             <Calculator className="w-5 h-5" />
             Payroll Summary
           </CardTitle>
-          <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-            <Download className="w-4 h-4" />
-            Export PDF
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              <Download className="w-4 h-4" />
+              Export PDF
+            </Button>
+            {onFinalizePayroll && !isFinalized && (
+              <Button 
+                size="sm" 
+                onClick={() => setShowConfirmDialog(true)} 
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Finalize Payroll
+              </Button>
+            )}
+            {isFinalized && (
+              <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
+                <CheckCircle className="w-4 h-4" />
+                Finalized
+              </div>
+            )}
+          </div>
         </div>
       </CardHeader>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+              Confirm Payroll Finalization
+            </DialogTitle>
+            <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
+              You are about to finalize the payroll for <strong>{currentPeriod?.label}</strong>.
+              <br /><br />
+              <strong>Total Gross Pay:</strong> {formatCurrency(grandTotalGross)}
+              <br />
+              <strong>Drivers with Pay:</strong> {driversWithDeliveries.length}
+              <br /><br />
+              Please review the summary above before confirming. This action will mark the payroll as finalized for this period.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                setShowConfirmDialog(false);
+                setIsFinalized(true);
+                if (onFinalizePayroll) {
+                  onFinalizePayroll({
+                    period: currentPeriod,
+                    payrollData: payrollData.filter(d => d.totalDeliveries > 0),
+                    grandTotals: {
+                      net: grandTotalAllDrivers,
+                      tax: grandTotalTax,
+                      deductions: grandTotalDeductions,
+                      gross: grandTotalGross
+                    }
+                  });
+                }
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              Confirm & Finalize
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <CardContent>
         <div className="space-y-4">
           {payrollData.filter(data => data.totalDeliveries > 0).map((data, idx) => {
