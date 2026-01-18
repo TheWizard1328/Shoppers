@@ -730,8 +730,10 @@ export default function PayrollSummaryCard({
               Export PDF
             </Button>
             
-            {/* Driver Finalize Button - only for drivers viewing their own payroll */}
-            {isDriver && selectedDriverId === currentUser?.id && !isCurrentDriverFinalized && (
+            {/* Driver Finalize Button - for drivers OR admin-drivers viewing their own payroll (single driver mode) */}
+            {((isDriver && selectedDriverId === currentUser?.id) || 
+              (isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)) && 
+              !isCurrentDriverFinalized && (
               <Button 
                 size="sm" 
                 onClick={() => setShowConfirmDialog(true)} 
@@ -744,8 +746,9 @@ export default function PayrollSummaryCard({
               </Button>
             )}
             
-            {/* Driver Finalized Status */}
-            {isDriver && isCurrentDriverFinalized && (
+            {/* Driver Finalized Status - for drivers OR admin-drivers viewing their own payroll */}
+            {((isDriver && isCurrentDriverFinalized) || 
+              (isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id && isCurrentDriverFinalized)) && (
               <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
                 <CheckCircle className="w-4 h-4" />
                 Confirmed
@@ -875,17 +878,37 @@ export default function PayrollSummaryCard({
           // For drivers: show badge when admin finalized
           const showBadge = isAdmin ? driverHasConfirmed : adminHasFinalized;
           
+          // Check if this is the current admin-driver's own card in "All Drivers" mode
+          const isOwnCardInAllDriversMode = isAdmin && 
+                                             userHasRole(currentUser, 'driver') && 
+                                             selectedDriverId === 'all' && 
+                                             data.driver.id === currentUser?.id;
+          const canShowConfirmButton = isOwnCardInAllDriversMode && !driverHasConfirmed && canFinalize;
+          
           return (
           <div key={data.driver.id} className="p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
-              {/* Driver Name - Top Left */}
-              <h3 className="font-semibold mb-1 flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
-                {data.driver.user_name || data.driver.full_name}
-                {showBadge && (
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500" title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
-                    <CheckCircle className="w-3.5 h-3.5 text-white" />
-                  </span>
+              {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
+                  {data.driver.user_name || data.driver.full_name}
+                  {showBadge && (
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500" title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
+                      <CheckCircle className="w-3.5 h-3.5 text-white" />
+                    </span>
+                  )}
+                </h3>
+                {canShowConfirmButton && (
+                  <Button 
+                    size="sm" 
+                    onClick={() => handleDriverFinalize(data)} 
+                    disabled={isFinalizing || isLoadingRecords}
+                    className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs h-7 px-2"
+                  >
+                    <CheckCircle className="w-3 h-3" />
+                    {isFinalizing ? '...' : 'Confirm My Payroll'}
+                  </Button>
                 )}
-              </h3>
+              </div>
 
               {/* Stats and Pay Summary - Side by Side */}
               <div className="flex justify-between items-start">
