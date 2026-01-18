@@ -380,7 +380,7 @@ export default function PayrollSummaryCard({
       
       // Separator line
       doc.setDrawColor(200, 200, 200);
-      doc.line(leftMargin, y, portraitWidth - leftMargin, y);
+      doc.line(14, y, portraitWidth - 14, y);
       y += 8;
     });
     
@@ -393,7 +393,7 @@ export default function PayrollSummaryCard({
       
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text('Total Payroll (All Drivers)', leftMargin, y);
+      doc.text('Total Payroll (All Drivers)', 14, y);
       
       const rightCol = portraitWidth - 14;
       doc.setFontSize(10);
