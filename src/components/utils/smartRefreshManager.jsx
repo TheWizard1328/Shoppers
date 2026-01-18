@@ -244,7 +244,8 @@ class SmartRefreshManager {
       appUsers: 0,
       todayPatients: 0,
       patients: 0,
-      stores: 0
+      stores: 0,
+      payroll: 0
     };
     
     // CRITICAL: Clear the API fetch flag to reset fetch behavior
