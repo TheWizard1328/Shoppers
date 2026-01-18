@@ -425,11 +425,12 @@ export default function PayrollSummaryCard({
     }).format(amount);
   };
 
-  // Grand totals across all displayed drivers
-  const grandTotalAllDrivers = payrollData.reduce((sum, d) => sum + d.grandTotal, 0);
-  const grandTotalTax = payrollData.reduce((sum, d) => sum + d.taxAmount, 0);
-  const grandTotalDeductions = payrollData.reduce((sum, d) => sum + d.deductions, 0);
-  const grandTotalGross = payrollData.reduce((sum, d) => sum + d.grossPay, 0);
+  // Grand totals across all displayed drivers (only those with deliveries)
+  const driversWithDeliveries = payrollData.filter(d => d.totalDeliveries > 0);
+  const grandTotalAllDrivers = driversWithDeliveries.reduce((sum, d) => sum + d.grandTotal, 0);
+  const grandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + d.taxAmount, 0);
+  const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + d.deductions, 0);
+  const grandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + d.grossPay, 0);
 
   if (payrollData.length === 0) {
     return (
