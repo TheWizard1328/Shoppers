@@ -3189,7 +3189,7 @@ export default function DeliveryForm({
             </div>
           )}
 
-          <CardContent className="p-4 flex-1 relative overflow-hidden">
+          <CardContent className={`p-4 flex-1 relative overflow-hidden ${isFormLockedByPayroll ? 'opacity-50 pointer-events-none' : ''}`}>
             <div className="space-y-3 h-full flex flex-col">
               {/* Section 1: Patient Search - STATIC */}
               <div className={`flex gap-3 ${useMobileLayout ? 'flex-col' : ''} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
