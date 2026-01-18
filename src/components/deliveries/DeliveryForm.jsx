@@ -454,6 +454,14 @@ export default function DeliveryForm({
   [formData.status]
   );
 
+  // Disable form if payroll is locked (unless admin)
+  const isFormLockedByPayroll = useMemo(() => {
+    if (!delivery || !isPayrollLocked) return false;
+    // Admins can still edit
+    if (currentUser && userHasRole(currentUser, 'admin')) return false;
+    return true;
+  }, [delivery, isPayrollLocked, currentUser]);
+
   useEffect(() => {
     if (delivery && isCompletionStatus && !delivery.actual_delivery_time) {
       setCompletionTime(format(new Date(), 'HH:mm'));
