@@ -263,38 +263,40 @@ export default function PayrollSummaryCard({
 
               {/* Stats and Pay Summary - Side by Side */}
               <div className="flex justify-between items-start">
-                {/* Left: 8 Stats in 2 columns */}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                {/* Left: 8 Stats in 4 columns x 2 rows */}
+                <div className="grid grid-cols-4 gap-x-4 gap-y-0.5 text-xs">
+                  {/* Row 1: Rates */}
                   <div className="flex items-center">
-                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
                     <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.payRate)}</span>
                   </div>
                   <div className="flex items-center">
-                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
                     <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
                   </div>
                   <div className="flex items-center">
-                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
                     <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.oversizedRate)}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
                   </div>
                   <div className="flex items-center">
                     <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
                     <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">{data.failedCount}</span>
                   </div>
+                  {/* Row 2: Totals */}
                   <div className="flex items-center">
-                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Ret:</span>
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
                     <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.returnsCount}</span>
                   </div>
                 </div>
@@ -305,20 +307,13 @@ export default function PayrollSummaryCard({
                     <span className="mr-1">Net:</span>
                     <span className="font-semibold">{formatCurrency(data.grandTotal)}</span>
                   </div>
-                  {data.taxAmount > 0 ? (
-                    <div style={{ color: 'var(--text-slate-600)' }}>
-                      <span className="mr-1">Tax ({data.provinceCode} {(data.taxRate * 100).toFixed(0)}%):</span>
-                      <span className="font-semibold">{formatCurrency(data.taxAmount)}</span>
-                    </div>
-                  ) : (
-                    <div style={{ color: 'var(--text-slate-400)' }}>
-                      <span className="mr-1">Tax:</span>
-                      <span>-</span>
-                    </div>
-                  )}
-                  <div style={{ color: 'var(--text-slate-400)' }}>
+                  <div style={{ color: 'var(--text-slate-600)' }}>
+                    <span className="mr-1">Tax:</span>
+                    <span className="font-semibold">{formatCurrency(data.taxAmount || 0)}</span>
+                  </div>
+                  <div style={{ color: 'var(--text-slate-600)' }}>
                     <span className="mr-1">Deductions:</span>
-                    <span className="italic text-[10px]">Coming soon</span>
+                    <span className="font-semibold">{formatCurrency(data.deductions || 0)}</span>
                   </div>
                   <div className="text-lg font-bold text-emerald-600 mt-1">
                     {formatCurrency(data.grossPay)}
