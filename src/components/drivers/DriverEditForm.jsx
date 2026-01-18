@@ -47,6 +47,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         pay_cycle_type: formData.pay_cycle_type
       };
 
+      // Include deductions in updates
+      updates.deductions = formData.deductions;
+
       // Check if pay rates changed (compare as numbers)
       const newPayRate = parseFloat(formData.pay_rate_per_delivery) || 0;
       const newKmRate = parseFloat(formData.extra_km_rate) || 0;
