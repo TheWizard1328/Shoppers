@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart3, DollarSign, Store, Package, RefreshCw, Loader2, Download, Calendar } from 'lucide-react';
+import { BarChart3, DollarSign, Store, Package, RefreshCw, Loader2, FileText, Calendar } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 
@@ -52,61 +53,117 @@ export default function StoreMetricsPanel() {
     }).format(amount || 0);
   };
 
-  const exportToCSV = () => {
+  const exportToPDF = () => {
     if (!metrics?.stores) return;
 
-    const headers = [
-      'Store Name',
-      'Abbreviation',
-      'Pays App Fees',
-      'Fee Period Start',
-      'Fee Period End',
-      'Total Deliveries',
-      'Billable Deliveries',
-      'Billable While Paying',
-      'Fee Rate',
-      'Total Fees Owed'
-    ];
+    const doc = new jsPDF('landscape');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
 
-    const rows = metrics.stores.map(store => [
-      store.store_name,
-      store.store_abbreviation || '',
-      store.pays_app_fees ? 'Yes' : 'No',
-      store.current_fee_period?.start || '',
-      store.current_fee_period?.end || 'Present',
-      store.total_deliveries,
-      store.billable_deliveries,
-      store.billable_while_paying,
-      store.app_fee_rate.toFixed(2),
-      store.total_fees_owed.toFixed(2)
-    ]);
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Store App Fee Metrics - ${MONTH_NAMES[parseInt(selectedMonth) - 1]} ${selectedYear}`, margin, 20);
 
-    // Add totals row
-    rows.push([
-      'TOTALS',
-      '',
-      `${metrics.totals.stores_paying_fees} stores`,
-      '',
-      '',
-      '',
-      metrics.totals.total_billable_deliveries,
-      metrics.totals.total_billable_while_paying,
-      metrics.totals.app_fee_rate.toFixed(2),
-      metrics.totals.total_fees_owed.toFixed(2)
-    ]);
+    // Summary section
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated: ${format(new Date(), 'MMM d, yyyy h:mm a')}`, margin, 28);
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    const summaryY = 38;
+    doc.text(`Stores Paying Fees: ${metrics.totals.stores_paying_fees} / ${metrics.totals.total_stores}`, margin, summaryY);
+    doc.text(`Billable Deliveries: ${metrics.totals.total_billable_while_paying}`, margin + 80, summaryY);
+    doc.text(`Fee Rate: ${formatCurrency(metrics.totals.app_fee_rate)}`, margin + 160, summaryY);
+    doc.text(`Total Fees Owed: ${formatCurrency(metrics.totals.total_fees_owed)}`, margin + 220, summaryY);
 
-    const csvContent = [
-      `Store Metrics Report - ${MONTH_NAMES[parseInt(selectedMonth) - 1]} ${selectedYear}`,
-      '',
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
+    // Table headers
+    const headers = ['Store', 'Status', 'Fee Period', 'Total', 'Billable', 'Billable (Paying)', 'Fees Owed'];
+    const colWidths = [55, 30, 60, 25, 25, 40, 35];
+    let startX = margin;
+    let y = 50;
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `store_metrics_${selectedYear}_${selectedMonth}.csv`;
-    link.click();
+    // Header row
+    doc.setFillColor(241, 245, 249);
+    doc.rect(margin, y - 5, pageWidth - margin * 2, 10, 'F');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(51, 65, 85);
+    
+    headers.forEach((header, i) => {
+      doc.text(header, startX, y);
+      startX += colWidths[i];
+    });
+
+    // Table rows
+    y += 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(8);
+
+    metrics.stores.forEach((store, idx) => {
+      if (y > pageHeight - 25) {
+        doc.addPage();
+        y = 20;
+      }
+
+      // Alternate row background
+      if (store.pays_app_fees) {
+        doc.setFillColor(254, 252, 232);
+        doc.rect(margin, y - 4, pageWidth - margin * 2, 8, 'F');
+      } else if (idx % 2 === 0) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y - 4, pageWidth - margin * 2, 8, 'F');
+      }
+
+      startX = margin;
+      doc.text(store.store_name.substring(0, 25), startX, y);
+      startX += colWidths[0];
+      doc.text(store.pays_app_fees ? 'Paying' : 'Not Paying', startX, y);
+      startX += colWidths[1];
+      
+      const feePeriod = store.current_fee_period 
+        ? `${store.current_fee_period.start} → ${store.current_fee_period.end || 'Present'}`
+        : '—';
+      doc.text(feePeriod.substring(0, 28), startX, y);
+      startX += colWidths[2];
+      
+      doc.text(store.total_deliveries.toString(), startX, y);
+      startX += colWidths[3];
+      doc.text(store.billable_deliveries.toString(), startX, y);
+      startX += colWidths[4];
+      doc.text(store.billable_while_paying.toString(), startX, y);
+      startX += colWidths[5];
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text(formatCurrency(store.total_fees_owed), startX, y);
+      doc.setFont('helvetica', 'normal');
+
+      y += 8;
+    });
+
+    // Totals row
+    y += 4;
+    doc.setFillColor(226, 232, 240);
+    doc.rect(margin, y - 4, pageWidth - margin * 2, 10, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    
+    startX = margin;
+    doc.text('TOTAL', startX, y);
+    startX += colWidths[0];
+    doc.text(`${metrics.totals.stores_paying_fees} stores`, startX, y);
+    startX += colWidths[1] + colWidths[2] + colWidths[3];
+    doc.text(metrics.totals.total_billable_deliveries.toString(), startX, y);
+    startX += colWidths[4];
+    doc.text(metrics.totals.total_billable_while_paying.toString(), startX, y);
+    startX += colWidths[5];
+    doc.setTextColor(5, 150, 105);
+    doc.text(formatCurrency(metrics.totals.total_fees_owed), startX, y);
+
+    doc.save(`store_metrics_${selectedYear}_${selectedMonth}.pdf`);
   };
 
   if (isLoading) {
@@ -230,9 +287,9 @@ export default function StoreMetricsPanel() {
                 Refresh
               </Button>
 
-              <Button variant="outline" onClick={exportToCSV} disabled={!metrics?.stores?.length}>
-                <Download className="w-4 h-4 mr-2" />
-                Export CSV
+              <Button variant="outline" onClick={exportToPDF} disabled={!metrics?.stores?.length}>
+                <FileText className="w-4 h-4 mr-2" />
+                Export PDF
               </Button>
             </div>
           </div>
