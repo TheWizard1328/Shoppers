@@ -255,7 +255,14 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
 
                     })}
                     <td className="text-center p-2 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
-                      {formatValue(monthTotal)}
+                      {(() => {
+                        const now = new Date();
+                        const currentYear = now.getFullYear();
+                        const currentMonth = now.getMonth() + 1;
+                        const isFutureMonth = parseInt(selectedYear) > currentYear || 
+                          (parseInt(selectedYear) === currentYear && month > currentMonth);
+                        return (isFutureMonth && monthTotal === 0) ? '' : formatValue(monthTotal);
+                      })()}
                     </td>
                   </tr>);
 
