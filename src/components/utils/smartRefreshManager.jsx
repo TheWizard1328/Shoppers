@@ -31,7 +31,8 @@ class SmartRefreshManager {
       appUsers: 20000,           // 20s - driver status, assignments (includes driver_status)
       todayPatients: 60000,      // 60s - patients on today's routes
       patients: 120000,          // 2min - all other patients
-      stores: 300000             // 5min - store data (rarely changes)
+      stores: 300000,            // 5min - store data (rarely changes)
+      payroll: 30000             // 30s - payroll records (when on DriverPayroll page)
     };
     
     // Track last refresh time for each entity type
@@ -43,7 +44,8 @@ class SmartRefreshManager {
       appUsers: 0,
       todayPatients: 0,
       patients: 0,
-      stores: 0
+      stores: 0,
+      payroll: 0
     };
     
     // Rate limit protection
