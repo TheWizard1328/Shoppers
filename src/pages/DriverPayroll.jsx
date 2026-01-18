@@ -312,16 +312,25 @@ export default function DriverPayroll() {
     if (!currentPeriod) return;
     const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
     const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
+    console.log(`📥 [DriverPayroll] Fetching payroll records for ${periodStartStr} to ${periodEndStr}`);
     try {
       const records = await base44.entities.Payroll.filter({
         pay_period_start: periodStartStr,
         pay_period_end: periodEndStr
       });
+      console.log(`✅ [DriverPayroll] Found ${records?.length || 0} payroll records`);
       setPayrollRecords(records || []);
     } catch (error) {
       console.error('Failed to refresh payroll records:', error);
     }
   }, [currentPeriod]);
+
+  // Load payroll records when period changes (initial load and period navigation)
+  useEffect(() => {
+    if (!currentPeriod || !hasInitialized) return;
+    console.log(`🔄 [DriverPayroll] Period changed, loading payroll records...`);
+    refreshPayrollRecords();
+  }, [currentPeriod, hasInitialized, refreshPayrollRecords]);
 
   // Subscribe to Payroll entity changes for real-time updates
   useEffect(() => {
