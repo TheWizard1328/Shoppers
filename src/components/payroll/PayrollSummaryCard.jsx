@@ -235,7 +235,7 @@ export default function PayrollSummaryCard({
     doc.setFont('helvetica', 'normal');
     let y = tableTop + rowHeight + 6;
     
-    payrollData.filter(data => data.grossPay > 0).forEach((data, idx) => {
+    payrollData.filter(data => data.totalDeliveries > 0).forEach((data, idx) => {
       const driverName = (data.driver.user_name || data.driver.full_name || '').substring(0, 12);
       doc.text(driverName, leftMargin + 2, y);
       
