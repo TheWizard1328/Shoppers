@@ -770,7 +770,7 @@ export default function DeliveryForm({
     fetchPredictions();
   }, [delivery, formData.delivery_date, currentUser, stores, allDeliveries, predictionTrigger]);
 
-  const handlePatientSelect = useCallback(async (patient) => {
+  const handlePatientSelect = useCallback(async (patient, autoAddToStaged = false) => {
     if (!patient) return;
     
     // CRITICAL: Check if patient is already in staged list
