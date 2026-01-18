@@ -640,6 +640,16 @@ export default function PayrollSummaryCard({
   }, [driversWithDeliveriesIds, payrollRecords]);
 
   const allDriversFinalized = finalizedDriversCount === driversWithDeliveriesIds.length && driversWithDeliveriesIds.length > 0;
+
+  // Check if finalization is allowed (today must be on or after pay period end date)
+  const canFinalize = useMemo(() => {
+    if (!currentPeriod?.end) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const periodEnd = new Date(currentPeriod.end);
+    periodEnd.setHours(0, 0, 0, 0);
+    return today >= periodEnd;
+  }, [currentPeriod?.end]);
   
   // Check if admin has finalized
   const isAdminFinalized = useMemo(() => {
