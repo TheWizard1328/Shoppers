@@ -5,9 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Plus, Trash2, Save, X } from 'lucide-react';
+import { Plus, Trash2, Save, X, Info } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
+import { notificationRules, NOTIFICATION_EVENTS } from '@/components/utils/notificationRules';
 
 export default function MessageRulesManager() {
   const [rules, setRules] = useState([]);
@@ -200,6 +201,63 @@ export default function MessageRulesManager() {
             <p><code className="bg-slate-100 px-1 rounded">{'{{patientName}}'}</code> - Patient's name</p>
             <p><code className="bg-slate-100 px-1 rounded">{'{{storeName}}'}</code> - Store name</p>
             <p><code className="bg-slate-100 px-1 rounded">{'{{deliveryList}}'}</code> - List of deliveries</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Built-in Notification Rules Reference */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Info className="w-4 h-4 text-blue-500" />
+            <CardTitle className="text-sm">Built-in Notification Rules (Hardcoded)</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-slate-500 mb-4">
+            These rules are defined in the codebase and show how notifications are formatted. 
+            They cannot be edited from this UI but serve as a reference for creating custom rules.
+          </p>
+          <div className="space-y-3">
+            {Object.entries(NOTIFICATION_EVENTS).map(([key, eventName]) => {
+              const rule = notificationRules[eventName];
+              if (!rule) return null;
+              
+              // Generate sample message
+              const sampleData = {
+                driverName: 'John D',
+                patientName: 'Jane Smith',
+                storeName: 'Main Pharmacy',
+                deliveryList: '\n• Jane Smith\n• Bob Wilson'
+              };
+              const sampleMessage = rule.buildMessage(sampleData);
+              
+              return (
+                <div key={eventName} className="border rounded-lg p-3 bg-slate-50">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <h4 className="font-semibold text-slate-900 text-sm">{eventName}</h4>
+                        {rule.enabled ? (
+                          <Badge className="bg-green-100 text-green-800 text-xs">Enabled</Badge>
+                        ) : (
+                          <Badge className="bg-gray-100 text-gray-800 text-xs">Disabled</Badge>
+                        )}
+                        {rule.inApp && (
+                          <Badge variant="outline" className="text-xs">In-App</Badge>
+                        )}
+                        <Badge variant="secondary" className="text-xs">
+                          {Array.isArray(rule.recipients) ? rule.recipients.join(', ') : rule.recipients}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-slate-600 italic bg-white p-2 rounded border">
+                        "{sampleMessage}"
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
