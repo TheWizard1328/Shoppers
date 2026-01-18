@@ -316,6 +316,7 @@ export default function PayrollSummaryCard({
                     <span className="font-semibold">{formatCurrency(data.deductions || 0)}</span>
                   </div>
                   <div className="text-lg font-bold text-emerald-600 mt-1">
+                    <span className="mr-1">Gross:</span>
                     {formatCurrency(data.grossPay)}
                   </div>
                 </div>
