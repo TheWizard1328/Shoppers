@@ -314,7 +314,7 @@ export default function AdminMetrics() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -373,6 +373,38 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-blue-100 rounded-lg">
+                  <Store className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Stores Paying</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {metricsData.storeFeeTotals?.stores_paying_fees || 0} / {metricsData.storeFeeTotals?.total_stores || 0}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-slate-100 rounded-lg">
+                  <DollarSign className="w-6 h-6 text-slate-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Fee Rate</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {formatCurrency(metricsData.storeFeeTotals?.app_fee_rate || 0)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="bg-amber-50 border-amber-200">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -380,9 +412,13 @@ export default function AdminMetrics() {
                   <DollarSign className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-amber-700">{selectedYear} Total Fees</p>
+                  <p className="text-sm text-amber-700">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Fees</p>
                   <p className="text-2xl font-bold text-amber-900">
-                    {formatCurrency(metricsData.storeFeeTotals?.total_fees_owed || 0)}
+                    {formatCurrency(
+                      selectedMonth 
+                        ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
+                        : (metricsData.storeFeeTotals?.total_fees_owed || 0)
+                    )}
                   </p>
                 </div>
               </div>
@@ -696,52 +732,7 @@ export default function AdminMetrics() {
           </Card>
         </div>
 
-        {/* App Fees Summary */}
-        {metricsData.storeFeeTotals && (
-          <Card className="border-amber-200 bg-amber-50/30">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-amber-900">
-                <DollarSign className="w-5 h-5" />
-                App Fees Summary ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
-              </CardTitle>
-              <CardDescription>
-                Stores with "Pays App Fees" enabled - {metricsData.storeFeeTotals?.stores_paying_fees || 0} of {metricsData.storeFeeTotals?.total_stores || 0} stores
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 bg-white rounded-lg border">
-                  <p className="text-sm text-slate-500">Billable Deliveries</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {metricsData.storeFeeTotals?.total_billable_while_paying?.toLocaleString() || 0}
-                  </p>
-                </div>
-                <div className="p-4 bg-white rounded-lg border">
-                  <p className="text-sm text-slate-500">Fee Rate</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {formatCurrency(metricsData.storeFeeTotals?.app_fee_rate || 0)}
-                  </p>
-                </div>
-                <div className="p-4 bg-white rounded-lg border">
-                  <p className="text-sm text-slate-500">Stores Paying</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {metricsData.storeFeeTotals?.stores_paying_fees || 0}
-                  </p>
-                </div>
-                <div className="p-4 bg-amber-100 rounded-lg border border-amber-300">
-                  <p className="text-sm text-amber-700">{selectedMonth ? 'Month' : 'Total'} Fees Owed</p>
-                  <p className="text-2xl font-bold text-amber-900">
-                    {formatCurrency(
-                      selectedMonth 
-                        ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
-                        : (metricsData.storeFeeTotals?.total_fees_owed || 0)
-                    )}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+
       </div>
     </div>
   );
