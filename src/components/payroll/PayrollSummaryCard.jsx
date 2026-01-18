@@ -334,7 +334,7 @@ export default function PayrollSummaryCard({
           </CardTitle>
           <Button size="sm" variant="outline" onClick={handleExport} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
             <Download className="w-4 h-4" />
-            Export CSV
+            Export PDF
           </Button>
         </div>
       </CardHeader>
