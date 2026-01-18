@@ -155,7 +155,7 @@ export default function DriverPayroll() {
   // Determine if current user is a driver (not admin)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
-  // Fetch payroll data
+  // Fetch payroll data - only refetch when year or city changes, NOT when driver changes
   useEffect(() => {
     const fetchPayroll = async () => {
       if (!currentUser) return;
@@ -164,7 +164,7 @@ export default function DriverPayroll() {
         const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
           payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
-          payrollDriverId: selectedDriverId === 'all' ? null : selectedDriverId
+          payrollDriverId: null // Always fetch all drivers, filter locally
         });
         setPayrollData(response?.data?.payrollData || response?.payrollData);
       } catch (error) {
@@ -177,7 +177,7 @@ export default function DriverPayroll() {
     if (hasInitialized) {
       fetchPayroll();
     }
-  }, [selectedYear, selectedCityId, selectedDriverId, currentUser, hasInitialized]);
+  }, [selectedYear, selectedCityId, currentUser, hasInitialized]);
 
   // Initialize defaults based on user role - runs ONCE on mount
   useEffect(() => {
@@ -265,7 +265,15 @@ export default function DriverPayroll() {
   const currentPeriod = allPeriods[selectedPeriodIndex] || allPeriods[0];
 
   // Auto-select current period when pay period type or year changes
+  // Track previous values to only reset when necessary
+  const prevPayPeriodRef = React.useRef(payPeriod);
+  const prevYearRef = React.useRef(selectedYear);
   useEffect(() => {
+    // Only reset period index if payPeriod or year actually changed
+    if (prevPayPeriodRef.current === payPeriod && prevYearRef.current === selectedYear) return;
+    prevPayPeriodRef.current = payPeriod;
+    prevYearRef.current = selectedYear;
+
     const today = new Date();
     if (selectedYear === today.getFullYear()) {
       const idx = findCurrentPeriodIndex(allPeriods, today);
@@ -274,7 +282,7 @@ export default function DriverPayroll() {
       // If viewing past year, default to last period
       setSelectedPeriodIndex(allPeriods.length - 1);
     }
-  }, [payPeriod, selectedYear, allPeriods.length]);
+  }, [payPeriod, selectedYear, allPeriods]);
 
   // Navigation handlers
   const goToPrevPeriod = () => {
