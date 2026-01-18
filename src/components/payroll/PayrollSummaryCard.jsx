@@ -764,7 +764,7 @@ export default function PayrollSummaryCard({
                     <Button 
                       size="sm" 
                       onClick={() => setShowConfirmDialog(true)} 
-                      disabled={isFinalizing || isLoadingRecords || !allDriversFinalized || !canFinalize}
+                      disabled={isFinalizing || isLoadingRecords || !canFinalize}
                       className={`gap-2 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                       title={!canFinalize ? 'Cannot finalize until pay period ends' : ''}
                     >
@@ -776,7 +776,7 @@ export default function PayrollSummaryCard({
                       ) : (
                         <>
                           <Clock className="w-4 h-4" />
-                          Awaiting Drivers
+                          {isFinalizing ? 'Finalizing...' : 'Finalize All'}
                         </>
                       )}
                     </Button>
