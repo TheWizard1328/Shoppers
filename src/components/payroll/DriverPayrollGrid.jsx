@@ -471,7 +471,16 @@ export default function DriverPayrollGrid({
                       className="text-center px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10 border-r-2 border-slate-300"
                       style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-100)' : 'var(--bg-white)' }}
                     >
-                      {dayNum}
+                      <div className="flex items-center justify-center gap-0.5">
+                        <span>{dayNum}</span>
+                        <button
+                          onClick={() => handleNavigateToDashboard(dateObj)}
+                          className="p-0.5 rounded hover:bg-slate-200 transition-colors opacity-50 hover:opacity-100"
+                          title={`View ${format(dateObj, 'MMM d')} on Dashboard`}
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                      </div>
                     </td>
                     {sortedStores.map((store) => {
                       const value = viewMode === 'extraKm' 
