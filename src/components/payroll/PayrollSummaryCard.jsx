@@ -139,18 +139,25 @@ export default function PayrollSummaryCard({
         driver_finalized_at: new Date().toISOString()
       };
 
+      let savedRecord;
       if (existingRecord) {
-        await base44.entities.Payroll.update(existingRecord.id, payrollRecord);
+        savedRecord = await base44.entities.Payroll.update(existingRecord.id, payrollRecord);
+        console.log('✅ [Payroll] Updated existing record:', existingRecord.id, savedRecord);
       } else {
-        await base44.entities.Payroll.create(payrollRecord);
+        savedRecord = await base44.entities.Payroll.create(payrollRecord);
+        console.log('✅ [Payroll] Created new record:', savedRecord);
       }
 
       // Send notification to all admins
-      await notifyDriverConfirmedPayroll({
-        driver: currentUser,
-        periodLabel: currentPeriod?.label || 'this period',
-        appUsers
-      });
+      try {
+        await notifyDriverConfirmedPayroll({
+          driver: currentUser,
+          periodLabel: currentPeriod?.label || 'this period',
+          appUsers
+        });
+      } catch (notifyError) {
+        console.warn('Failed to send notification:', notifyError);
+      }
 
       // Refresh records - use external refresh if available for real-time sync
       if (refreshPayrollRecords) {
@@ -160,13 +167,15 @@ export default function PayrollSummaryCard({
           pay_period_start: periodStartStr,
           pay_period_end: periodEndStr
         });
+        console.log('📥 [Payroll] Refreshed records after driver finalize:', records?.length);
         setPayrollRecords(records || []);
         if (onPayrollRecordsChange) {
           onPayrollRecordsChange(records || []);
         }
       }
     } catch (error) {
-      console.error('Failed to finalize payroll:', error);
+      console.error('❌ [Payroll] Failed to finalize payroll:', error);
+      alert('Failed to save payroll confirmation. Please try again.');
     } finally {
       setIsFinalizing(false);
       setShowConfirmDialog(false);
