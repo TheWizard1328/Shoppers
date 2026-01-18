@@ -250,7 +250,7 @@ export default function DriverPayrollGrid({
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-2">
           {/* Responsive flexbox layout - wraps automatically based on width */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3">
             {/* Section 1: Title with refresh spinner */}
             <CardTitle className="flex items-center gap-2 text-base flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>
               <Table className="w-5 h-5" />
@@ -266,7 +266,7 @@ export default function DriverPayrollGrid({
             </CardTitle>
             
             {/* Spacer - pushes remaining items to the right on wide screens */}
-            <div className="flex-1 min-w-0" />
+            <div className="flex-1 min-w-[100px]" />
             
             {/* Section 2: View Mode Toggle */}
             <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
@@ -291,7 +291,7 @@ export default function DriverPayrollGrid({
             </div>
             
             {/* Section 3: Pay Period Type Buttons */}
-            <div className="flex gap-1 flex-shrink-0 flex-wrap">
+            <div className="flex gap-1 flex-shrink-0 flex-wrap justify-center">
               <Button
                 size="sm"
                 variant={payPeriod === 'weekly' ? 'default' : 'outline'}
