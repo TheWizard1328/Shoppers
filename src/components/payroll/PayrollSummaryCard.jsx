@@ -380,7 +380,7 @@ export default function PayrollSummaryCard({
       
       // Separator line
       doc.setDrawColor(200, 200, 200);
-      doc.line(leftMargin, y, pageWidth - leftMargin, y);
+      doc.line(leftMargin, y, portraitWidth - leftMargin, y);
       y += 8;
     });
     
