@@ -305,7 +305,7 @@ export default function PayrollSummaryCard({
     // Title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('Driver Payroll Report', leftMargin, y);
+    doc.text('Driver Payroll Report', 14, y);
     y += 10;
     
     // Period info
