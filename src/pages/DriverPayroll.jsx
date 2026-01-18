@@ -307,6 +307,39 @@ export default function DriverPayroll() {
     }
   };
 
+  // Function to refresh payroll records (called after finalization)
+  const refreshPayrollRecords = useCallback(async () => {
+    if (!currentPeriod) return;
+    const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
+    const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
+    try {
+      const records = await base44.entities.Payroll.filter({
+        pay_period_start: periodStartStr,
+        pay_period_end: periodEndStr
+      });
+      setPayrollRecords(records || []);
+    } catch (error) {
+      console.error('Failed to refresh payroll records:', error);
+    }
+  }, [currentPeriod]);
+
+  // Subscribe to Payroll entity changes for real-time updates
+  useEffect(() => {
+    if (!currentPeriod) return;
+
+    const unsubscribe = base44.entities.Payroll.subscribe((event) => {
+      console.log(`🔔 [DriverPayroll] Payroll entity ${event.type}:`, event.id);
+      // Refresh records when any payroll record is created or updated
+      if (event.type === 'create' || event.type === 'update') {
+        refreshPayrollRecords();
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [currentPeriod, refreshPayrollRecords]);
+
   const sortedCities = useMemo(() => {
     if (!payrollData?.cities) return [];
     return [...payrollData.cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
