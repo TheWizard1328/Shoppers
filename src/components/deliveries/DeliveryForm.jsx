@@ -2130,6 +2130,27 @@ export default function DeliveryForm({
           return d;
         });
         await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
+        
+        // SQUARE INTEGRATION: Create COD items for deliveries with COD amounts
+        for (const delivery of deliveriesReadyForDB) {
+          if (delivery.cod_total_amount_required > 0 && delivery.patient_id && delivery.driver_id) {
+            try {
+              const store = stores?.find(s => s && s.id === delivery.store_id);
+              console.log('💳 [Square] Creating COD item for delivery:', delivery.patient_name, delivery.cod_total_amount_required);
+              await base44.functions.invoke('squareCreateCodItem', {
+                deliveryId: delivery.id || delivery._tempId,
+                patientName: delivery.patient_name,
+                storeAbbreviation: store?.abbreviation || '',
+                codAmount: delivery.cod_total_amount_required,
+                deliveryDate: delivery.delivery_date
+              });
+              console.log('✅ [Square] COD item created for:', delivery.patient_name);
+            } catch (squareError) {
+              console.warn('⚠️ [Square] Failed to create COD item:', squareError.message);
+              // Don't block the delivery save if Square fails
+            }
+          }
+        }
         console.log('[AddToRoute] ✅ Batch save completed successfully');
       }
 
