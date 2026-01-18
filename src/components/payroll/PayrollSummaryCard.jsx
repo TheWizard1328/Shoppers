@@ -148,12 +148,13 @@ export default function PayrollSummaryCard({
         console.log('✅ [Payroll] Created new record:', savedRecord);
       }
 
-      // Send notification to all admins
+      // Send notification to admins (excluding self if admin-driver)
       try {
         await notifyDriverConfirmedPayroll({
           driver: currentUser,
           periodLabel: currentPeriod?.label || 'this period',
-          appUsers
+          appUsers,
+          excludeUserId: isAdmin ? currentUser?.id : null // Don't notify self if admin-driver
         });
       } catch (notifyError) {
         console.warn('Failed to send notification:', notifyError);
@@ -755,8 +756,9 @@ export default function PayrollSummaryCard({
               </div>
             )}
 
-            {/* Admin View: Show finalization progress */}
-            {isAdmin && driversWithDeliveriesIds.length > 0 && (
+            {/* Admin View: Show finalization progress - but NOT if admin-driver is viewing their own payroll */}
+            {isAdmin && driversWithDeliveriesIds.length > 0 && 
+              !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) && (
               <>
                 {!isAdminFinalized && (
                   <div className="flex items-center gap-2">
@@ -797,8 +799,8 @@ export default function PayrollSummaryCard({
         </div>
       </CardHeader>
 
-      {/* Driver Confirmation Dialog */}
-      <Dialog open={showConfirmDialog && isDriver} onOpenChange={setShowConfirmDialog}>
+      {/* Driver Confirmation Dialog - also for admin-drivers viewing their own payroll */}
+      <Dialog open={showConfirmDialog && (isDriver || (isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id))} onOpenChange={setShowConfirmDialog}>
         <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
@@ -831,8 +833,8 @@ export default function PayrollSummaryCard({
         </DialogContent>
       </Dialog>
 
-      {/* Admin Confirmation Dialog */}
-      <Dialog open={showConfirmDialog && isAdmin} onOpenChange={setShowConfirmDialog}>
+      {/* Admin Confirmation Dialog - but NOT for admin-drivers viewing their own payroll */}
+      <Dialog open={showConfirmDialog && isAdmin && !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
         <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
