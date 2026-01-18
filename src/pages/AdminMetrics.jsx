@@ -288,14 +288,7 @@ export default function AdminMetrics() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="show-envelope-totals"
-                checked={showEnvelopeAdjustedTotals}
-                onCheckedChange={setShowEnvelopeAdjustedTotals}
-              />
-              <Label htmlFor="show-envelope-totals" className="text-xs whitespace-nowrap">Envelope Totals</Label>
-            </div>
+
             <Select value={selectedYear} onValueChange={handleYearChange}>
               <SelectTrigger className="w-[120px] md:w-[140px]">
                 <SelectValue />
@@ -442,6 +435,7 @@ export default function AdminMetrics() {
               setSelectedMonth(null);
             }}
             onViewModeChange={(mode) => setMetricsViewMode(mode)}
+            onEnvelopeToggleChange={setShowEnvelopeAdjustedTotals}
           />
         </div>
 

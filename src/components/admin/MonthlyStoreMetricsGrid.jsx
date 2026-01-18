@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Table, DollarSign } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -11,7 +13,7 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  * 1. Total deliveries per store per month
  * 2. Total payable app fees per store per month
  */
-export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView, onViewModeChange, metricsViewMode, showEnvelopeAdjustedTotals }) {
+export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView, onViewModeChange, metricsViewMode, showEnvelopeAdjustedTotals, onEnvelopeToggleChange }) {
 
   if (!metricsData) return null;
 
@@ -168,6 +170,17 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
             }
             Monthly Store {metricsViewMode === 'deliveries' ? 'Deliveries' : 'App Fees'} ({selectedYear})
           </CardTitle>
+          
+          {/* Centered Envelope Totals Toggle */}
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="envelope-totals-grid"
+              checked={showEnvelopeAdjustedTotals}
+              onCheckedChange={onEnvelopeToggleChange}
+            />
+            <Label htmlFor="envelope-totals-grid" className="text-xs whitespace-nowrap">Envelope Totals</Label>
+          </div>
+          
           <div className="flex gap-2">
             {(selectedMonth || selectedStoreMonth) &&
             <Button
