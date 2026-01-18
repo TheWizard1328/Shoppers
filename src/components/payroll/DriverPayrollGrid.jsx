@@ -79,9 +79,14 @@ export default function DriverPayrollGrid({
   // Filter deliveries for current period and driver
   // Exclude pickups (no patient_id) UNLESS it's an after_hours_pickup
   const filteredDeliveries = useMemo(() => {
-    if (!deliveries || !currentPeriod) return [];
+    if (!deliveries || !currentPeriod) {
+      console.log(`⚠️ [Payroll Grid Filter] Missing data - deliveries: ${!!deliveries}, currentPeriod: ${!!currentPeriod}`);
+      return [];
+    }
     
-    return deliveries.filter(d => {
+    console.log(`🔍 [Payroll Grid Filter] Input - Total deliveries: ${deliveries.length}, Period: ${currentPeriod.label}, Driver: ${selectedDriverId}`);
+    
+    const filtered = deliveries.filter(d => {
       if (!d || !d.delivery_date) return false;
       const date = new Date(d.delivery_date + 'T00:00:00');
       if (date < currentPeriod.start || date > currentPeriod.end) return false;
@@ -98,6 +103,13 @@ export default function DriverPayrollGrid({
       if (!d.patient_id && !d.after_hours_pickup) return false;
       return true;
     });
+    
+    console.log(`✅ [Payroll Grid Filter] Filtered to ${filtered.length} deliveries`);
+    if (filtered.length > 0) {
+      console.log(`   Sample delivery:`, filtered[0]);
+    }
+    
+    return filtered;
   }, [deliveries, currentPeriod, selectedDriverId]);
 
   // Get extra km limit for a driver

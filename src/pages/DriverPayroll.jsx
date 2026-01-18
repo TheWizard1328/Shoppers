@@ -161,12 +161,21 @@ export default function DriverPayroll() {
       if (!currentUser) return;
       setIsLoadingPayroll(true);
       try {
+        console.log(`📥 [DriverPayroll] Fetching payroll data - Year: ${selectedYear}, City: ${selectedCityId}`);
         const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
           payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
           payrollDriverId: null // Always fetch all drivers, filter locally
         });
-        setPayrollData(response?.data?.payrollData || response?.payrollData);
+        const data = response?.data?.payrollData || response?.payrollData;
+        console.log(`✅ [DriverPayroll] Received payroll data:`, {
+          deliveries: data?.deliveries?.length || 0,
+          drivers: data?.drivers?.length || 0,
+          stores: data?.stores?.length || 0,
+          appUsers: data?.appUsers?.length || 0,
+          patients: data?.patients?.length || 0
+        });
+        setPayrollData(data);
       } catch (error) {
         console.error('Failed to fetch payroll data:', error);
       } finally {
