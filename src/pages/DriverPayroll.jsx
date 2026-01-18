@@ -479,6 +479,8 @@ export default function DriverPayroll() {
           onPayrollRecordsChange={(records) => {
             setPayrollRecords(records);
           }}
+          payrollRecords={payrollRecords}
+          refreshPayrollRecords={refreshPayrollRecords}
         />
       </div>
     </div>
