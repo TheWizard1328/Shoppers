@@ -30,8 +30,68 @@ export default function DriverPayrollGrid({
 }) {
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extraKm'
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [headerLayout, setHeaderLayout] = useState('single'); // 'single', 'title-viewmode', 'title-paycycle', 'viewmode-paycycle', 'three'
   const { smartRefreshActivity } = useAppData();
   const navigate = useNavigate();
+  
+  // Refs for measuring section widths
+  const containerRef = useRef(null);
+  const titleRef = useRef(null);
+  const viewModeRef = useRef(null);
+  const payCycleRef = useRef(null);
+  
+  // Calculate optimal layout based on container width
+  const calculateLayout = useCallback(() => {
+    if (!containerRef.current || !titleRef.current || !viewModeRef.current || !payCycleRef.current) return;
+    
+    const containerWidth = containerRef.current.offsetWidth;
+    const titleWidth = titleRef.current.offsetWidth;
+    const viewModeWidth = viewModeRef.current.offsetWidth;
+    const payCycleWidth = payCycleRef.current.offsetWidth;
+    const gap = 12; // gap-3 = 12px
+    
+    // Check if all three fit on one row
+    if (titleWidth + viewModeWidth + payCycleWidth + gap * 2 <= containerWidth) {
+      setHeaderLayout('single');
+      return;
+    }
+    
+    // Check if title + viewMode fit (payCycle goes to row 2)
+    if (titleWidth + viewModeWidth + gap <= containerWidth) {
+      setHeaderLayout('title-viewmode');
+      return;
+    }
+    
+    // Check if title + payCycle fit (viewMode goes to row 2)
+    if (titleWidth + payCycleWidth + gap <= containerWidth) {
+      setHeaderLayout('title-paycycle');
+      return;
+    }
+    
+    // Check if viewMode + payCycle fit together (both go to row 2)
+    if (viewModeWidth + payCycleWidth + gap <= containerWidth) {
+      setHeaderLayout('viewmode-paycycle');
+      return;
+    }
+    
+    // All three on separate rows
+    setHeaderLayout('three');
+  }, []);
+  
+  // Measure and recalculate on mount and resize
+  useEffect(() => {
+    calculateLayout();
+    
+    const resizeObserver = new ResizeObserver(() => {
+      calculateLayout();
+    });
+    
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+    
+    return () => resizeObserver.disconnect();
+  }, [calculateLayout]);
 
   // Navigate to dashboard with selected date and driver
   const handleNavigateToDashboard = (dateObj) => {
