@@ -50,7 +50,9 @@ export default function PayrollSummaryCard({
   payPeriod,
   currentPeriod,
   onFinalizePayroll,
-  onPayrollRecordsChange
+  onPayrollRecordsChange,
+  payrollRecords: externalPayrollRecords,
+  refreshPayrollRecords
 }) {
   const { currentUser } = useUser();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
