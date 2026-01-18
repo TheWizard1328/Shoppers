@@ -141,12 +141,12 @@ export default function PayrollSummaryCard({
         }
       }
 
-      // Deductions - sum up all recurring deductions from AppUser
+      // Deductions - only apply if there are deliveries (totalPay > 0)
       const deductionsArray = Array.isArray(appUser?.deductions) ? appUser.deductions : [];
-      const totalDeductions = deductionsArray.reduce((sum, d) => sum + (d?.amount || 0), 0);
+      const totalDeductions = totalPay > 0 ? deductionsArray.reduce((sum, d) => sum + (d?.amount || 0), 0) : 0;
 
-      // Gross = Net + Tax - Deductions
-      const grossPay = totalPay + taxAmount - totalDeductions;
+      // Gross = Net + Tax - Deductions (only calculate if there's actual pay)
+      const grossPay = totalPay > 0 ? totalPay + taxAmount - totalDeductions : 0;
 
       return {
         driver: { ...driver, id: driverId }, // Ensure consistent id
