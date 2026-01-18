@@ -316,111 +316,99 @@ export default function AdminMetrics() {
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-emerald-100 rounded-lg">
-                  <Package className="w-6 h-6 text-emerald-600" />
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-slate-500 mb-2">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Deliveries</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                  <Package className="w-5 h-5 text-emerald-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Deliveries</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {(selectedMonth 
-                      ? (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics 
-                          ? (metricsData.envelopeMetrics.yearTotals.adjustedDeliveries / 12)
-                          : metricsData.monthlyData?.[selectedMonth - 1]?.billable
-                        )
-                      : (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics
-                          ? metricsData.envelopeMetrics.yearTotals.adjustedDeliveries 
-                          : metricsData.yearTotals?.billable
-                        )
-                    )?.toLocaleString() || 0}
-                  </p>
-                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {(selectedMonth 
+                    ? (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics 
+                        ? (metricsData.envelopeMetrics.yearTotals.adjustedDeliveries / 12)
+                        : metricsData.monthlyData?.[selectedMonth - 1]?.billable
+                      )
+                    : (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics
+                        ? metricsData.envelopeMetrics.yearTotals.adjustedDeliveries 
+                        : metricsData.yearTotals?.billable
+                      )
+                  )?.toLocaleString() || 0}
+                </p>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-orange-100 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-orange-600" />
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-slate-500 mb-2">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Non-Billable</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <TrendingUp className="w-5 h-5 text-orange-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Non-Billable</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {(selectedMonth 
-                      ? metricsData.monthlyData?.[selectedMonth - 1]?.nonBillable 
-                      : metricsData.yearTotals?.nonBillable
-                    )?.toLocaleString() || 0}
-                  </p>
-                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {(selectedMonth 
+                    ? metricsData.monthlyData?.[selectedMonth - 1]?.nonBillable 
+                    : metricsData.yearTotals?.nonBillable
+                  )?.toLocaleString() || 0}
+                </p>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <Truck className="w-6 h-6 text-purple-600" />
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-slate-500 mb-2">Active Drivers</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Truck className="w-5 h-5 text-purple-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-slate-500">Active Drivers</p>
-                  <p className="text-2xl font-bold text-slate-900">{metricsData.yearTotals?.activeDrivers || 0}</p>
-                </div>
+                <p className="text-2xl font-bold text-slate-900">{metricsData.yearTotals?.activeDrivers || 0}</p>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <Store className="w-6 h-6 text-blue-600" />
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-slate-500 mb-2">Stores Paying</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Store className="w-5 h-5 text-blue-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-slate-500">Stores Paying</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {metricsData.storeFeeTotals?.stores_paying_fees || 0} / {metricsData.storeFeeTotals?.total_stores || 0}
-                  </p>
-                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {metricsData.storeFeeTotals?.stores_paying_fees || 0} / {metricsData.storeFeeTotals?.total_stores || 0}
+                </p>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-slate-100 rounded-lg">
-                  <DollarSign className="w-6 h-6 text-slate-600" />
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-slate-500 mb-2">Fee Rate</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-slate-100 rounded-lg">
+                  <DollarSign className="w-5 h-5 text-slate-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-slate-500">Fee Rate</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {formatCurrency(metricsData.storeFeeTotals?.app_fee_rate || 0)}
-                  </p>
-                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {formatCurrency(metricsData.storeFeeTotals?.app_fee_rate || 0)}
+                </p>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-amber-50 border-amber-200">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-amber-500 rounded-lg">
-                  <DollarSign className="w-6 h-6 text-white" />
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-amber-700 mb-2">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Fees</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-500 rounded-lg">
+                  <DollarSign className="w-5 h-5 text-white" />
                 </div>
-                <div>
-                  <p className="text-sm text-amber-700">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Fees</p>
-                  <p className="text-2xl font-bold text-amber-900">
-                    {formatCurrency(
-                      selectedMonth 
-                        ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
-                        : (metricsData.storeFeeTotals?.total_fees_owed || 0)
-                    )}
-                  </p>
-                </div>
+                <p className="text-2xl font-bold text-amber-900">
+                  {formatCurrency(
+                    selectedMonth 
+                      ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
+                      : (metricsData.storeFeeTotals?.total_fees_owed || 0)
+                  )}
+                </p>
               </div>
             </CardContent>
           </Card>
