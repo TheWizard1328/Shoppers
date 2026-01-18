@@ -228,7 +228,7 @@ export default function DeliveryForm({
   const formRef = useRef(null);
 
   // Desktop form width threshold (max-w-4xl = 896px + padding)
-  const DESKTOP_FORM_WIDTH = 850;
+  const DESKTOP_FORM_WIDTH = 825;
 
   // Rule 1: Use mobile layout if screen width < desktop form width (regardless of device type)
   const useMobileLayout = screenWidth < DESKTOP_FORM_WIDTH;
