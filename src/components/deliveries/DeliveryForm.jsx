@@ -34,6 +34,7 @@ import {
   batchCreateDeliveriesLocal } from
 '../utils/entityMutations';
 import DeliveryFormStaged from './DeliveryFormStaged';
+import { checkPayrollLock } from '../utils/payrollLockManager';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
