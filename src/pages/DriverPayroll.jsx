@@ -318,10 +318,18 @@ export default function DriverPayroll() {
 
   const cityFilteredDeliveries = useMemo(() => {
     if (!payrollData?.deliveries) return [];
-    if (selectedCityId === 'all') return payrollData.deliveries;
     
-    const cityStoreIds = new Set(filteredStores.map(s => s.id));
-    return payrollData.deliveries.filter(d => d && cityStoreIds.has(d.store_id));
+    let filtered = payrollData.deliveries;
+    
+    // Filter by city (store-based)
+    if (selectedCityId !== 'all') {
+      const cityStoreIds = new Set(filteredStores.map(s => s.id));
+      filtered = filtered.filter(d => d && cityStoreIds.has(d.store_id));
+    }
+    
+    // DON'T filter by driver here - let grid and summary handle it
+    // This ensures all driver data is available for calculations
+    return filtered;
   }, [payrollData?.deliveries, selectedCityId, filteredStores]);
 
   if (isLoadingPayroll) {
