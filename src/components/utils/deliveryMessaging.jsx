@@ -558,3 +558,80 @@ export async function notifyDriverReturn({
     });
   }
 }
+
+// ============ PAYROLL NOTIFICATION FUNCTIONS ============
+
+/**
+ * Get all admin users (app_roles includes 'admin')
+ */
+export function getAdminUsers(appUsers) {
+  if (!appUsers) return [];
+  return appUsers.filter(user => {
+    if (!user || !user.app_roles) return false;
+    if (!user.app_roles.includes('admin')) return false;
+    if (user.status !== 'active') return false;
+    return true;
+  });
+}
+
+/**
+ * 9. Driver confirms their payroll
+ * Message FROM driver TO all admins
+ */
+export async function notifyDriverConfirmedPayroll({
+  driver,
+  periodLabel,
+  appUsers
+}) {
+  const admins = getAdminUsers(appUsers);
+  if (!admins || admins.length === 0) return;
+
+  const driverName = driver?.user_name || driver?.full_name || 'Driver';
+  const content = `💰 ${driverName} has confirmed his/her payroll for ${periodLabel}.`;
+
+  for (const admin of admins) {
+    if (admin.user_id === driver?.id) continue; // Don't notify self if driver is also admin
+    await sendDeliveryMessage({
+      senderId: driver?.id,
+      senderName: driverName,
+      receiverId: admin.user_id,
+      receiverName: admin.user_name,
+      content
+    });
+  }
+}
+
+/**
+ * 10. Admin approves/finalizes payroll for all drivers
+ * Message FROM admin TO each driver with deliveries
+ */
+export async function notifyAdminApprovedPayroll({
+  admin,
+  periodLabel,
+  driversWithDeliveries,
+  appUsers
+}) {
+  if (!driversWithDeliveries || driversWithDeliveries.length === 0) return;
+
+  const adminName = admin?.user_name || admin?.full_name || 'Admin';
+
+  for (const driverData of driversWithDeliveries) {
+    const driverId = driverData.driver?.id || driverData.driver?.user_id;
+    if (!driverId) continue;
+    if (driverId === admin?.id) continue; // Don't message self
+
+    // Find driver's AppUser for name
+    const driverAppUser = appUsers?.find(au => au?.user_id === driverId || au?.id === driverId);
+    const driverName = driverAppUser?.user_name || driverData.driver?.user_name || driverData.driver?.full_name || 'Driver';
+
+    const content = `✅ ${driverName}, your payroll for ${periodLabel} has been confirmed and is in process.`;
+
+    await sendDeliveryMessage({
+      senderId: admin?.id,
+      senderName: adminName,
+      receiverId: driverId,
+      receiverName: driverName,
+      content
+    });
+  }
+}
