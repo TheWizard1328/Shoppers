@@ -438,6 +438,10 @@ export default function DriverPayroll() {
           selectedDriverId={selectedDriverId}
           payPeriod={payPeriod}
           currentPeriod={currentPeriod}
+          onFinalizePayroll={(data) => {
+            console.log('Payroll finalized:', data);
+            // TODO: Save finalized payroll to Payroll entity if needed
+          }}
         />
       </div>
     </div>
