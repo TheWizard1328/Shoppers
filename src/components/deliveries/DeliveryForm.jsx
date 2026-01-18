@@ -1116,9 +1116,9 @@ export default function DeliveryForm({
 
       // Check for exact matches first
       if (result.exactMatches && result.exactMatches.length === 1) {
-        // Single exact match - auto-select it
-        console.log('✅ [DeliveryForm] Single exact match found - auto-selecting patient');
-        await handlePatientSelect(result.exactMatches[0].patient);
+        // Single exact match - populate form only (don't auto-add to staged)
+        console.log('✅ [DeliveryForm] Single exact match found - populating form only');
+        await handlePatientSelect(result.exactMatches[0].patient, false);
       } else if (result.exactMatches && result.exactMatches.length > 1) {
         // Multiple exact matches - show popup with exact matches only
         console.log('⚠️ [DeliveryForm] Multiple exact matches found - showing selection popup');
