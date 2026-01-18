@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Save, Calendar } from 'lucide-react';
+import { X, Save, Calendar, Plus, Trash2, DollarSign } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
