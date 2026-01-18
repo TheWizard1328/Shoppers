@@ -45,12 +45,182 @@ export default function PayrollSummaryCard({
   stores,
   selectedYear,
   selectedDriverId,
+  selectedCityId,
   payPeriod,
   currentPeriod,
-  onFinalizePayroll
+  onFinalizePayroll,
+  onPayrollRecordsChange
 }) {
+  const { currentUser } = useUser();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [isFinalized, setIsFinalized] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [payrollRecords, setPayrollRecords] = useState([]);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(false);
+
+  const isAdmin = currentUser && userHasRole(currentUser, 'admin');
+  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !isAdmin;
+
+  // Format period dates for querying
+  const periodStartStr = currentPeriod?.start ? currentPeriod.start.toISOString().split('T')[0] : null;
+  const periodEndStr = currentPeriod?.end ? currentPeriod.end.toISOString().split('T')[0] : null;
+
+  // Fetch existing payroll records for this period
+  useEffect(() => {
+    if (!periodStartStr || !periodEndStr) return;
+
+    const fetchPayrollRecords = async () => {
+      setIsLoadingRecords(true);
+      try {
+        const records = await base44.entities.Payroll.filter({
+          pay_period_start: periodStartStr,
+          pay_period_end: periodEndStr
+        });
+        setPayrollRecords(records || []);
+        if (onPayrollRecordsChange) {
+          onPayrollRecordsChange(records || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch payroll records:', error);
+      } finally {
+        setIsLoadingRecords(false);
+      }
+    };
+
+    fetchPayrollRecords();
+  }, [periodStartStr, periodEndStr]);
+
+  // Get finalization status for each driver
+  const getDriverPayrollRecord = (driverId) => {
+    return payrollRecords.find(r => r.driver_id === driverId);
+  };
+
+  // Check if current driver has finalized (for driver view)
+  const currentDriverRecord = isDriver && currentUser ? getDriverPayrollRecord(currentUser.id) : null;
+  const isCurrentDriverFinalized = currentDriverRecord?.status === 'driver_finalized' || 
+                                    currentDriverRecord?.status === 'admin_finalized' ||
+                                    currentDriverRecord?.status === 'paid';
+
+  // Count finalized drivers for admin view
+  const driversWithDeliveriesIds = useMemo(() => {
+    return payrollData.filter(d => d.totalDeliveries > 0).map(d => d.driver.id);
+  }, [payrollData]);
+
+  const finalizedDriversCount = useMemo(() => {
+    return driversWithDeliveriesIds.filter(driverId => {
+      const record = getDriverPayrollRecord(driverId);
+      return record?.status === 'driver_finalized' || 
+             record?.status === 'admin_finalized' ||
+             record?.status === 'paid';
+    }).length;
+  }, [driversWithDeliveriesIds, payrollRecords]);
+
+  const allDriversFinalized = finalizedDriversCount === driversWithDeliveriesIds.length && driversWithDeliveriesIds.length > 0;
+  
+  // Check if admin has finalized
+  const isAdminFinalized = useMemo(() => {
+    if (driversWithDeliveriesIds.length === 0) return false;
+    return driversWithDeliveriesIds.every(driverId => {
+      const record = getDriverPayrollRecord(driverId);
+      return record?.status === 'admin_finalized' || record?.status === 'paid';
+    });
+  }, [driversWithDeliveriesIds, payrollRecords]);
+
+  // Handle driver finalization
+  const handleDriverFinalize = async (driverData) => {
+    setIsFinalizing(true);
+    try {
+      const existingRecord = getDriverPayrollRecord(driverData.driver.id);
+      
+      const payrollRecord = {
+        driver_id: driverData.driver.id,
+        city_id: selectedCityId || null,
+        pay_period_start: periodStartStr,
+        pay_period_end: periodEndStr,
+        pay_period_type: payPeriod,
+        total_deliveries: driverData.totalDeliveries,
+        total_extra_km: driverData.totalExtraKm,
+        total_oversized_deliveries: driverData.oversizedCount,
+        gross_pay: driverData.grossPay,
+        net_pay: driverData.grandTotal,
+        total_deductions: driverData.deductions,
+        deductions: driverData.deductionsArray,
+        pay_rate_per_delivery: driverData.payRate,
+        extra_km_rate: driverData.extraKmRate,
+        extra_km_limit: driverData.extraKmLimit,
+        oversized_item_rate: driverData.oversizedRate,
+        gst_hst_enabled: driverData.gstHstEnabled,
+        status: 'driver_finalized',
+        driver_finalized_at: new Date().toISOString()
+      };
+
+      if (existingRecord) {
+        await base44.entities.Payroll.update(existingRecord.id, payrollRecord);
+      } else {
+        await base44.entities.Payroll.create(payrollRecord);
+      }
+
+      // Refresh records
+      const records = await base44.entities.Payroll.filter({
+        pay_period_start: periodStartStr,
+        pay_period_end: periodEndStr
+      });
+      setPayrollRecords(records || []);
+      if (onPayrollRecordsChange) {
+        onPayrollRecordsChange(records || []);
+      }
+    } catch (error) {
+      console.error('Failed to finalize payroll:', error);
+    } finally {
+      setIsFinalizing(false);
+      setShowConfirmDialog(false);
+    }
+  };
+
+  // Handle admin finalization (all drivers)
+  const handleAdminFinalize = async () => {
+    setIsFinalizing(true);
+    try {
+      for (const driverData of payrollData.filter(d => d.totalDeliveries > 0)) {
+        const existingRecord = getDriverPayrollRecord(driverData.driver.id);
+        
+        if (existingRecord) {
+          await base44.entities.Payroll.update(existingRecord.id, {
+            status: 'admin_finalized',
+            admin_finalized_at: new Date().toISOString(),
+            admin_finalized_by: currentUser?.id
+          });
+        }
+      }
+
+      // Refresh records
+      const records = await base44.entities.Payroll.filter({
+        pay_period_start: periodStartStr,
+        pay_period_end: periodEndStr
+      });
+      setPayrollRecords(records || []);
+      if (onPayrollRecordsChange) {
+        onPayrollRecordsChange(records || []);
+      }
+
+      if (onFinalizePayroll) {
+        onFinalizePayroll({
+          period: currentPeriod,
+          payrollData: payrollData.filter(d => d.totalDeliveries > 0),
+          grandTotals: {
+            net: grandTotalAllDrivers,
+            tax: grandTotalTax,
+            deductions: grandTotalDeductions,
+            gross: grandTotalGross
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to admin finalize payroll:', error);
+    } finally {
+      setIsFinalizing(false);
+      setShowConfirmDialog(false);
+    }
+  };
 
   // Calculate payroll for each driver for the current period
   const payrollData = useMemo(() => {
