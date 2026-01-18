@@ -308,90 +308,177 @@ export default function DriverPayrollGrid({
   return (
     <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader className="pb-3">
-        <div className="flex flex-col gap-2">
-          {/* Responsive flexbox layout - wraps automatically based on width */}
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            {/* Section 1: Title with refresh spinner */}
-            <CardTitle className="flex items-center gap-2 text-base flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>
+        <div className="flex flex-col gap-2" ref={containerRef}>
+          {/* Hidden measurement elements */}
+          <div className="absolute opacity-0 pointer-events-none flex gap-3" style={{ visibility: 'hidden' }}>
+            <div ref={titleRef} className="flex items-center gap-2 text-base flex-shrink-0">
               <Table className="w-5 h-5" />
               {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
-              <button
-                onClick={handleManualRefresh}
-                disabled={isRefreshing}
-                className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50"
-                title="Refresh data"
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
-              </button>
-            </CardTitle>
-            
-            {/* Spacer - pushes remaining items to the right on wide screens */}
-            <div className="flex-1 min-w-[100px]" />
-            
-            {/* Section 2: View Mode Toggle */}
-            <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
-              <Button
-                size="sm"
-                variant={viewMode === 'deliveries' ? 'default' : 'ghost'}
-                onClick={() => setViewMode('deliveries')}
-                className="text-xs h-6 px-2 gap-1"
-              >
-                <Package className="w-3 h-3" />
-                Deliveries
-              </Button>
-              <Button
-                size="sm"
-                variant={viewMode === 'extraKm' ? 'default' : 'ghost'}
-                onClick={() => setViewMode('extraKm')}
-                className="text-xs h-6 px-2 gap-1"
-              >
-                <Ruler className="w-3 h-3" />
-                Extra KM
-              </Button>
+              <span className="p-1"><RefreshCw className="w-4 h-4" /></span>
             </div>
-            
-            {/* Section 3: Pay Period Type Buttons */}
-            <div className="flex gap-1 flex-shrink-0 flex-wrap justify-center">
-              <Button
-                size="sm"
-                variant={payPeriod === 'weekly' ? 'default' : 'outline'}
-                onClick={() => onPayPeriodChange('weekly')}
-                className="text-xs h-7 px-2"
-                style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
-              >
-                Weekly
-              </Button>
-              <Button
-                size="sm"
-                variant={payPeriod === 'biweekly' ? 'default' : 'outline'}
-                onClick={() => onPayPeriodChange('biweekly')}
-                className="text-xs h-7 px-2"
-                style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
-              >
-                <span className="hidden sm:inline">Bi-Weekly</span>
-                <span className="sm:hidden">Bi-Wkly</span>
-              </Button>
-              <Button
-                size="sm"
-                variant={payPeriod === 'semimonthly' ? 'default' : 'outline'}
-                onClick={() => onPayPeriodChange('semimonthly')}
-                className="text-xs h-7 px-2"
-                style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
-              >
-                <span className="hidden sm:inline">Semi-Monthly</span>
-                <span className="sm:hidden">Semi-Mo</span>
-              </Button>
-              <Button
-                size="sm"
-                variant={payPeriod === 'monthly' ? 'default' : 'outline'}
-                onClick={() => onPayPeriodChange('monthly')}
-                className="text-xs h-7 px-2"
-                style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
-              >
-                Monthly
-              </Button>
+            <div ref={viewModeRef} className="flex gap-1 rounded-lg p-0.5">
+              <span className="text-xs h-6 px-2">Deliveries</span>
+              <span className="text-xs h-6 px-2">Extra KM</span>
+            </div>
+            <div ref={payCycleRef} className="flex gap-1">
+              <span className="text-xs h-7 px-2">Weekly</span>
+              <span className="text-xs h-7 px-2">Bi-Weekly</span>
+              <span className="text-xs h-7 px-2">Semi-Monthly</span>
+              <span className="text-xs h-7 px-2">Monthly</span>
             </div>
           </div>
+          
+          {/* Dynamic layout based on calculated layout mode */}
+          {headerLayout === 'single' && (
+            <div className="flex items-center justify-between gap-3">
+              {/* Title */}
+              <CardTitle className="flex items-center gap-2 text-base flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>
+                <Table className="w-5 h-5" />
+                {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
+                <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
+                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                </button>
+              </CardTitle>
+              {/* View Mode Toggle */}
+              <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+                <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                  <Package className="w-3 h-3" />Deliveries
+                </Button>
+                <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                  <Ruler className="w-3 h-3" />Extra KM
+                </Button>
+              </div>
+              {/* Pay Cycle Buttons */}
+              <div className="flex gap-1 flex-shrink-0">
+                <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
+                <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
+                <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Monthly</Button>
+                <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+              </div>
+            </div>
+          )}
+          
+          {headerLayout === 'title-viewmode' && (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-2 text-base flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>
+                  <Table className="w-5 h-5" />
+                  {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
+                  <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
+                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                  </button>
+                </CardTitle>
+                <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+                  <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                    <Package className="w-3 h-3" />Deliveries
+                  </Button>
+                  <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                    <Ruler className="w-3 h-3" />Extra KM
+                  </Button>
+                </div>
+              </div>
+              <div className="flex justify-center">
+                <div className="flex gap-1 flex-shrink-0">
+                  <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
+                  <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
+                  <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Monthly</Button>
+                  <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+                </div>
+              </div>
+            </>
+          )}
+          
+          {headerLayout === 'title-paycycle' && (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-2 text-base flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>
+                  <Table className="w-5 h-5" />
+                  {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
+                  <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
+                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                  </button>
+                </CardTitle>
+                <div className="flex gap-1 flex-shrink-0">
+                  <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
+                  <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
+                  <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Monthly</Button>
+                  <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+                </div>
+              </div>
+              <div className="flex justify-center">
+                <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+                  <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                    <Package className="w-3 h-3" />Deliveries
+                  </Button>
+                  <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                    <Ruler className="w-3 h-3" />Extra KM
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+          
+          {headerLayout === 'viewmode-paycycle' && (
+            <>
+              <div className="flex justify-center">
+                <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
+                  <Table className="w-5 h-5" />
+                  {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
+                  <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
+                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                  </button>
+                </CardTitle>
+              </div>
+              <div className="flex items-center justify-center gap-3">
+                <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+                  <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                    <Package className="w-3 h-3" />Deliveries
+                  </Button>
+                  <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                    <Ruler className="w-3 h-3" />Extra KM
+                  </Button>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
+                  <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
+                  <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Mo</Button>
+                  <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+                </div>
+              </div>
+            </>
+          )}
+          
+          {headerLayout === 'three' && (
+            <>
+              <div className="flex justify-center">
+                <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
+                  <Table className="w-5 h-5" />
+                  {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
+                  <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
+                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                  </button>
+                </CardTitle>
+              </div>
+              <div className="flex justify-center">
+                <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+                  <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                    <Package className="w-3 h-3" />Deliveries
+                  </Button>
+                  <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                    <Ruler className="w-3 h-3" />Extra KM
+                  </Button>
+                </div>
+              </div>
+              <div className="flex justify-center">
+                <div className="flex gap-1 flex-shrink-0 flex-wrap justify-center">
+                  <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
+                  <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Wkly</Button>
+                  <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Mo</Button>
+                  <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+                </div>
+              </div>
+            </>
+          )}
           
           {/* Period Navigation */}
           <div className="flex items-center justify-center gap-3">
