@@ -350,6 +350,29 @@ export default function DriverPayroll() {
     };
   }, [currentPeriod, refreshPayrollRecords]);
 
+  // Smart refresh for payroll records - polls every 30 seconds
+  useEffect(() => {
+    if (!currentPeriod || !hasInitialized) return;
+
+    const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
+    const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
+
+    const refreshInterval = setInterval(async () => {
+      const result = await smartRefreshManager.refreshPayrollRecords(
+        payrollRecords,
+        periodStartStr,
+        periodEndStr
+      );
+      
+      if (result?.hasChanges) {
+        console.log(`📊 [DriverPayroll] Smart refresh detected payroll changes`);
+        setPayrollRecords(result.payrollRecords);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [currentPeriod, hasInitialized, payrollRecords]);
+
   const sortedCities = useMemo(() => {
     if (!payrollData?.cities) return [];
     return [...payrollData.cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
