@@ -676,7 +676,7 @@ export default function PayrollSummaryCard({
                         </div>
                       )}
                       <div className="text-2xl font-bold text-emerald-700 mt-1">
-                        <span className="text-xs font-normal mr-1" style={{ color: 'var(--text-slate-500)' }}>Gross:</span>
+                        <span className="text-2xl font-bold mr-1">Gross:</span>
                         {formatCurrency(grandTotalGross)}
                       </div>
                     </>
