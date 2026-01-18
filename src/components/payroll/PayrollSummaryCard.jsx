@@ -371,7 +371,7 @@ export default function PayrollSummaryCard({
       doc.text(`$${(data.taxAmount || 0).toFixed(2)}`, rightCol, y - 9, { align: 'right' });
       
       doc.text(`Deductions:`, rightCol - 40, y - 4);
-      doc.text(`$${(data.deductions || 0).toFixed(2)}`, rightCol, y - 4, { align: 'right' });
+      doc.text(`-$${(data.deductions || 0).toFixed(2)}`, rightCol, y - 4, { align: 'right' });
       
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
