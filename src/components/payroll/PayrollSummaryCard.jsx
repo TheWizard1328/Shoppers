@@ -526,7 +526,7 @@ export default function PayrollSummaryCard({
                       </tr>
                       <tr style={{ color: 'var(--text-slate-600)' }}>
                         <td className="text-right pr-1">Deductions:</td>
-                        <td className="text-right">$</td>
+                        <td className="text-right">-$</td>
                         <td className="text-right font-semibold">{(data.deductions || 0).toFixed(2)}</td>
                       </tr>
                       <tr className="text-lg font-bold text-emerald-600">
