@@ -311,11 +311,11 @@ export default function PayrollSummaryCard({
     // Period info
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Period: ${currentPeriod.label}`, leftMargin, y);
+    doc.text(`Period: ${currentPeriod.label}`, 14, y);
     y += 6;
-    doc.text(`${formatDate(currentPeriod.start)} - ${formatDate(currentPeriod.end)}`, leftMargin, y);
+    doc.text(`${formatDate(currentPeriod.start)} - ${formatDate(currentPeriod.end)}`, 14, y);
     y += 6;
-    doc.text(`Pay Period Type: ${payPeriod.charAt(0).toUpperCase() + payPeriod.slice(1)}`, leftMargin, y);
+    doc.text(`Pay Period Type: ${payPeriod.charAt(0).toUpperCase() + payPeriod.slice(1)}`, 14, y);
     y += 12;
     
     // Driver sections
@@ -331,16 +331,16 @@ export default function PayrollSummaryCard({
       // Driver name header
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text(driverName, leftMargin, y);
+      doc.text(driverName, 14, y);
       y += 7;
       
       // Stats - left side
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       
-      const col1 = leftMargin;
-      const col2 = leftMargin + 50;
-      const col3 = leftMargin + 100;
+      const col1 = 14;
+      const col2 = 64;
+      const col3 = 114;
       
       // Row 1: Rates
       doc.text(`Rate: $${data.payRate.toFixed(2)}`, col1, y);
