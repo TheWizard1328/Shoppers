@@ -876,6 +876,14 @@ export default function DeliveryForm({
 
     setFormData(updatedFormData);
 
+    // CRITICAL: If NOT auto-adding to staged (single patient selection), just populate form and return
+    if (!autoAddToStaged) {
+      console.log('📝 [handlePatientSelect] Single selection - populating form only, not auto-adding to staged');
+      setPatientSearch('');
+      setHighlightedPatientIndex(-1);
+      return;
+    }
+
     if (!patientStore || !autoSelectedDriverId) {
       return;
     }
