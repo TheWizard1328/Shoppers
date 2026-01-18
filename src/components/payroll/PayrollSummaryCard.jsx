@@ -737,48 +737,68 @@ export default function PayrollSummaryCard({
         </div>
       </CardHeader>
 
-      {/* Confirmation Dialog */}
-      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+      {/* Driver Confirmation Dialog */}
+      <Dialog open={showConfirmDialog && isDriver} onOpenChange={setShowConfirmDialog}>
         <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
-              <AlertCircle className="w-5 h-5 text-amber-500" />
-              Confirm Payroll Finalization
+              <CheckCircle className="w-5 h-5 text-emerald-500" />
+              Confirm Your Payroll
             </DialogTitle>
             <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
-              You are about to finalize the payroll for <strong>{currentPeriod?.label}</strong>.
+              You are confirming your payroll for <strong>{currentPeriod?.label}</strong>.
               <br /><br />
-              <strong>Total Gross Pay:</strong> {formatCurrency(grandTotalGross)}
-              <br />
-              <strong>Drivers with Pay:</strong> {driversWithDeliveries.length}
+              <strong>Total Gross Pay:</strong> {formatCurrency(payrollData.find(d => d.driver.id === currentUser?.id)?.grossPay || 0)}
               <br /><br />
-              Please review the summary above before confirming. This action will mark the payroll as finalized for this period.
+              Please review your deliveries and pay above before confirming. Once confirmed, you will not be able to edit any stops for this pay period.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
               Cancel
             </Button>
             <Button 
               onClick={() => {
-                setShowConfirmDialog(false);
-                setIsFinalized(true);
-                if (onFinalizePayroll) {
-                  onFinalizePayroll({
-                    period: currentPeriod,
-                    payrollData: payrollData.filter(d => d.totalDeliveries > 0),
-                    grandTotals: {
-                      net: grandTotalAllDrivers,
-                      tax: grandTotalTax,
-                      deductions: grandTotalDeductions,
-                      gross: grandTotalGross
-                    }
-                  });
-                }
+                const myData = payrollData.find(d => d.driver.id === currentUser?.id);
+                if (myData) handleDriverFinalize(myData);
               }}
+              disabled={isFinalizing}
               className="bg-emerald-600 hover:bg-emerald-700"
             >
-              Confirm & Finalize
+              {isFinalizing ? 'Confirming...' : 'Confirm My Payroll'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Confirmation Dialog */}
+      <Dialog open={showConfirmDialog && isAdmin} onOpenChange={setShowConfirmDialog}>
+        <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+              Finalize All Driver Payrolls
+            </DialogTitle>
+            <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
+              You are about to finalize payroll for <strong>{currentPeriod?.label}</strong>.
+              <br /><br />
+              <strong>Total Gross Pay:</strong> {formatCurrency(grandTotalGross)}
+              <br />
+              <strong>Drivers Confirmed:</strong> {finalizedDriversCount}/{driversWithDeliveriesIds.length}
+              <br /><br />
+              This will lock all deliveries for this pay period. Drivers will no longer be able to edit stops.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAdminFinalize}
+              disabled={isFinalizing}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {isFinalizing ? 'Finalizing...' : 'Finalize All Payrolls'}
             </Button>
           </DialogFooter>
         </DialogContent>
