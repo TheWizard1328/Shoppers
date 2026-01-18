@@ -1313,7 +1313,8 @@ export default function DeliveryForm({
     setShowMatchPopup(false);
     setScanMatches([]);
     setExtractedData(null);
-    await handlePatientSelect(patient);
+    // CRITICAL: Don't auto-add to staged when selecting from popup (single selection)
+    await handlePatientSelect(patient, false);
   }, [handlePatientSelect]);
 
   const handleStagedDeliveryClick = useCallback((staged) => {
