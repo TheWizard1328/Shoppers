@@ -44,7 +44,8 @@ import {
   Stethoscope,
   MoreVertical,
   MessageCircle,
-  DollarSign
+  DollarSign,
+  CreditCard
 } from "lucide-react";
 import {
   Popover,
