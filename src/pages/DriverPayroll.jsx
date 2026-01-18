@@ -9,6 +9,7 @@ import { userHasRole } from '../components/utils/userRoles';
 import { base44 } from '@/api/base44Client';
 import DriverPayrollGrid from '../components/payroll/DriverPayrollGrid';
 import PayrollSummaryCard from '../components/payroll/PayrollSummaryCard';
+import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 
 // Helper: Get first Monday of a given year
 const getFirstMondayOfYear = (year) => {
