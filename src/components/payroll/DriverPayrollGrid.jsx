@@ -78,18 +78,27 @@ export default function DriverPayrollGrid({
 
   // Filter deliveries for current period and driver
   // Exclude pickups (no patient_id) UNLESS it's an after_hours_pickup
-  const filteredDeliveries = useMemo(() => deliveries.filter(d => {
-    if (!d || !d.delivery_date) return false;
-    const date = new Date(d.delivery_date + 'T00:00:00');
-    if (date < currentPeriod.start || date > currentPeriod.end) return false;
-    // Count completed, failed, and cancelled (for after_hours_pickup)
-    const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
-    if (!validStatus) return false;
-    if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return false;
-    // Exclude pickups (no patient_id) unless it's an after_hours_pickup
-    if (!d.patient_id && !d.after_hours_pickup) return false;
-    return true;
-  }), [deliveries, currentPeriod, selectedDriverId]);
+  const filteredDeliveries = useMemo(() => {
+    if (!deliveries || !currentPeriod) return [];
+    
+    return deliveries.filter(d => {
+      if (!d || !d.delivery_date) return false;
+      const date = new Date(d.delivery_date + 'T00:00:00');
+      if (date < currentPeriod.start || date > currentPeriod.end) return false;
+      // Count completed, failed, and cancelled (for after_hours_pickup)
+      const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+      if (!validStatus) return false;
+      
+      // CRITICAL: Only filter by driver if selectedDriverId is set AND not 'all'
+      if (selectedDriverId && selectedDriverId !== 'all') {
+        if (d.driver_id !== selectedDriverId) return false;
+      }
+      
+      // Exclude pickups (no patient_id) unless it's an after_hours_pickup
+      if (!d.patient_id && !d.after_hours_pickup) return false;
+      return true;
+    });
+  }, [deliveries, currentPeriod, selectedDriverId]);
 
   // Get extra km limit for a driver
   const getDriverExtraKmLimit = (driverId) => {
