@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Download, Calculator } from 'lucide-react';
+import { Download, Calculator } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 
 /**
  * Payroll Summary Card
