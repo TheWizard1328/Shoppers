@@ -168,7 +168,8 @@ export default function PayrollSummaryCard({
         taxRate,
         taxAmount,
         provinceCode,
-        deductions,
+        deductions: totalDeductions,
+        deductionsArray,
         grossPay
       };
     });
