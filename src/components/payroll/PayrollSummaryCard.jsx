@@ -199,14 +199,18 @@ export default function PayrollSummaryCard({
         appUsers
       });
 
-      // Refresh records
-      const records = await base44.entities.Payroll.filter({
-        pay_period_start: periodStartStr,
-        pay_period_end: periodEndStr
-      });
-      setPayrollRecords(records || []);
-      if (onPayrollRecordsChange) {
-        onPayrollRecordsChange(records || []);
+      // Refresh records - use external refresh if available for real-time sync
+      if (refreshPayrollRecords) {
+        await refreshPayrollRecords();
+      } else {
+        const records = await base44.entities.Payroll.filter({
+          pay_period_start: periodStartStr,
+          pay_period_end: periodEndStr
+        });
+        setPayrollRecords(records || []);
+        if (onPayrollRecordsChange) {
+          onPayrollRecordsChange(records || []);
+        }
       }
 
       if (onFinalizePayroll) {
