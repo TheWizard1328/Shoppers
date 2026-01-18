@@ -4325,7 +4325,7 @@ export default function DeliveryForm({
                     }
                   }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                  disabled={isSaving || !isFormValid || isPatientFormOpen}>
+                  disabled={isSaving || !isFormValid || isPatientFormOpen || isFormLockedByPayroll}>
                         {isSaving ?
                   <>
                             <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
