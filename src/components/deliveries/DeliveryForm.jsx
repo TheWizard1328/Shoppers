@@ -2366,6 +2366,21 @@ export default function DeliveryForm({
       ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) &&
       delivery.status !== formData.status;
 
+      // SQUARE INTEGRATION: Delete COD item when delivery is completed or failed
+      if (statusChangedToCompletion && delivery?.id && (formData.status === 'completed' || formData.status === 'failed')) {
+        try {
+          console.log('💳 [Square] Deleting COD item for completed/failed delivery:', delivery.id);
+          await base44.functions.invoke('squareDeleteCodItem', {
+            deliveryId: delivery.id,
+            reason: formData.status
+          });
+          console.log('✅ [Square] COD item deleted');
+        } catch (squareError) {
+          console.warn('⚠️ [Square] Failed to delete COD item:', squareError.message);
+          // Don't block the delivery update if Square fails
+        }
+      }
+
       // CRITICAL: Save to both offline and online databases using local-first approach
       // offlineMutations handles: pausing smart refresh, saving to offline DB, syncing to backend, restarting smart refresh
       if (delivery?.id) {
