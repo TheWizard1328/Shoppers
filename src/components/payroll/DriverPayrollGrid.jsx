@@ -1,10 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, ChevronLeft, ChevronRight, Package, Ruler, RefreshCw } from 'lucide-react';
+import { Table, ChevronLeft, ChevronRight, Package, Ruler, RefreshCw, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { smartRefreshManager } from '@/components/utils/smartRefreshManager';
+import { globalFilters } from '@/components/utils/globalFilters';
+import { createPageUrl } from '../../utils';
 
 /**
  * Driver Payroll Grid
