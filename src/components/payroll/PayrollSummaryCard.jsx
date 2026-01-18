@@ -395,7 +395,7 @@ export default function PayrollSummaryCard({
       doc.setFont('helvetica', 'bold');
       doc.text('Total Payroll (All Drivers)', leftMargin, y);
       
-      const rightCol = pageWidth - 14;
+      const rightCol = portraitWidth - 14;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`Net: $${grandTotalAllDrivers.toFixed(2)}`, rightCol, y, { align: 'right' });
