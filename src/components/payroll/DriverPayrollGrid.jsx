@@ -177,11 +177,13 @@ export default function DriverPayrollGrid({
       }
     });
 
-    // CRITICAL: For individual driver selection, show ALL stores (not just stores with data)
+    // CRITICAL: For individual driver selection, show ALL ACTIVE stores (not just stores with data)
     // This ensures consistency when switching between drivers
+    // Always filter out inactive stores
+    const activeStores = allSortedStores.filter(store => store.status !== 'inactive');
     const storesWithDataList = selectedDriverId === 'all' 
-      ? allSortedStores.filter(store => storeHasData[store.id])
-      : allSortedStores;
+      ? activeStores.filter(store => storeHasData[store.id])
+      : activeStores;
 
     console.log(`   - Stores with data: ${Object.keys(storeHasData).length}`);
     console.log(`   - Showing stores: ${storesWithDataList.length}`);
