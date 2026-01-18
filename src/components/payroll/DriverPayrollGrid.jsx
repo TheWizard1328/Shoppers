@@ -86,6 +86,12 @@ export default function DriverPayrollGrid({
     
     console.log(`🔍 [Payroll Grid Filter] Input - Total deliveries: ${deliveries.length}, Period: ${currentPeriod.label}, Driver: ${selectedDriverId}`);
     
+    // Debug: Show unique driver IDs in the deliveries
+    const uniqueDriverIds = [...new Set(deliveries.map(d => d.driver_id).filter(Boolean))];
+    console.log(`   Available driver IDs in data:`, uniqueDriverIds);
+    console.log(`   Looking for driver ID: "${selectedDriverId}"`);
+    console.log(`   Match exists: ${uniqueDriverIds.includes(selectedDriverId)}`);
+    
     const filtered = deliveries.filter(d => {
       if (!d || !d.delivery_date) return false;
       const date = new Date(d.delivery_date + 'T00:00:00');
