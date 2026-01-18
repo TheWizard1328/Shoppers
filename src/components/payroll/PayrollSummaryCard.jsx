@@ -642,11 +642,47 @@ export default function PayrollSummaryCard({
   };
 
   // Grand totals across all displayed drivers (only those with deliveries)
-  const driversWithDeliveries = payrollData.filter(d => d.totalDeliveries > 0);
+  const driversWithDeliveries = useMemo(() => payrollData.filter(d => d.totalDeliveries > 0), [payrollData]);
   const grandTotalAllDrivers = driversWithDeliveries.reduce((sum, d) => sum + d.grandTotal, 0);
   const grandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + d.taxAmount, 0);
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + d.deductions, 0);
   const grandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + d.grossPay, 0);
+
+  // Get finalization status for each driver
+  const getDriverPayrollRecord = (driverId) => {
+    return payrollRecords.find(r => r.driver_id === driverId);
+  };
+
+  // Check if current driver has finalized (for driver view)
+  const currentDriverRecord = isDriver && currentUser ? getDriverPayrollRecord(currentUser.id) : null;
+  const isCurrentDriverFinalized = currentDriverRecord?.status === 'driver_finalized' || 
+                                    currentDriverRecord?.status === 'admin_finalized' ||
+                                    currentDriverRecord?.status === 'paid';
+
+  // Count finalized drivers for admin view
+  const driversWithDeliveriesIds = useMemo(() => {
+    return driversWithDeliveries.map(d => d.driver.id);
+  }, [driversWithDeliveries]);
+
+  const finalizedDriversCount = useMemo(() => {
+    return driversWithDeliveriesIds.filter(driverId => {
+      const record = getDriverPayrollRecord(driverId);
+      return record?.status === 'driver_finalized' || 
+             record?.status === 'admin_finalized' ||
+             record?.status === 'paid';
+    }).length;
+  }, [driversWithDeliveriesIds, payrollRecords]);
+
+  const allDriversFinalized = finalizedDriversCount === driversWithDeliveriesIds.length && driversWithDeliveriesIds.length > 0;
+  
+  // Check if admin has finalized
+  const isAdminFinalized = useMemo(() => {
+    if (driversWithDeliveriesIds.length === 0) return false;
+    return driversWithDeliveriesIds.every(driverId => {
+      const record = getDriverPayrollRecord(driverId);
+      return record?.status === 'admin_finalized' || record?.status === 'paid';
+    });
+  }, [driversWithDeliveriesIds, payrollRecords]);
 
   if (payrollData.length === 0) {
     return (
