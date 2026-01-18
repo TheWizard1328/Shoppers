@@ -100,30 +100,7 @@ export default function PayrollSummaryCard({
                                     currentDriverRecord?.status === 'admin_finalized' ||
                                     currentDriverRecord?.status === 'paid';
 
-  // Count finalized drivers for admin view
-  const driversWithDeliveriesIds = useMemo(() => {
-    return payrollData.filter(d => d.totalDeliveries > 0).map(d => d.driver.id);
-  }, [payrollData]);
 
-  const finalizedDriversCount = useMemo(() => {
-    return driversWithDeliveriesIds.filter(driverId => {
-      const record = getDriverPayrollRecord(driverId);
-      return record?.status === 'driver_finalized' || 
-             record?.status === 'admin_finalized' ||
-             record?.status === 'paid';
-    }).length;
-  }, [driversWithDeliveriesIds, payrollRecords]);
-
-  const allDriversFinalized = finalizedDriversCount === driversWithDeliveriesIds.length && driversWithDeliveriesIds.length > 0;
-  
-  // Check if admin has finalized
-  const isAdminFinalized = useMemo(() => {
-    if (driversWithDeliveriesIds.length === 0) return false;
-    return driversWithDeliveriesIds.every(driverId => {
-      const record = getDriverPayrollRecord(driverId);
-      return record?.status === 'admin_finalized' || record?.status === 'paid';
-    });
-  }, [driversWithDeliveriesIds, payrollRecords]);
 
   // Handle driver finalization
   const handleDriverFinalize = async (driverData) => {
