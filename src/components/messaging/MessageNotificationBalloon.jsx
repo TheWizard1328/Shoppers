@@ -95,7 +95,10 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
           onClick={handleClick}
           className="fixed top-4 right-4 z-[10002] max-w-sm w-full cursor-pointer"
         >
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow">
+          <div 
+            className="rounded-xl shadow-2xl overflow-hidden hover:shadow-xl transition-shadow"
+            style={{ background: 'var(--bg-white)', border: '1px solid var(--border-slate-200)' }}
+          >
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -119,17 +122,17 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-900 text-sm">
+                  <p className="font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>
                     {notification.sender_name || 'Unknown'}
                   </p>
-                  <p className="text-slate-600 text-sm mt-1 line-clamp-2">
+                  <p className="text-sm mt-1 line-clamp-2" style={{ color: 'var(--text-slate-600)' }}>
                     {notification.content}
                   </p>
                 </div>
               </div>
               
               <div className="mt-3 flex items-center justify-between">
-                <span className="text-xs text-slate-400">Tap to reply</span>
+                <span className="text-xs" style={{ color: 'var(--text-slate-400)' }}>Tap to reply</span>
                 <span className="text-xs text-blue-500 font-medium">View →</span>
               </div>
             </div>

@@ -215,11 +215,11 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" style={{ background: 'var(--bg-white)' }}>
       {/* Search */}
-      <div className="p-3 border-b">
+      <div className="p-3" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
           <Input
             placeholder="Search conversations..."
             value={searchQuery}
@@ -233,13 +233,14 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
       <div className="flex-1 overflow-y-auto">
         {/* Load More button at top */}
         {hasMoreMessages && !isLoading && filteredConversations.length > 0 && (
-          <div className="p-2 border-b bg-slate-50">
+          <div className="p-2" style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleLoadMore}
               disabled={isLoadingMore}
-              className="w-full text-xs text-slate-600 hover:text-slate-900"
+              className="w-full text-xs"
+              style={{ color: 'var(--text-slate-600)' }}
             >
               {isLoadingMore ? (
                 <>
@@ -257,7 +258,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
         )}
 
         {filteredConversations.length === 0 && availableUsers.length === 0 && (
-          <div className="text-center text-slate-500 py-8">
+          <div className="text-center py-8" style={{ color: 'var(--text-slate-500)' }}>
             <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>{searchQuery ? 'No users found' : 'No conversations yet'}</p>
             {!searchQuery && <p className="text-xs mt-1">Search for a user to start chatting</p>}
@@ -268,9 +269,13 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
           <div
             key={conv.id}
             onClick={() => onSelectConversation(conv.id, conv.otherUserId, conv.otherUserName)}
-            className={`p-3 border-b cursor-pointer hover:bg-slate-50 transition-colors group ${
-              selectedConversationId === conv.id ? 'bg-slate-100' : ''
-            }`}
+            className="p-3 cursor-pointer transition-colors group"
+            style={{ 
+              borderBottom: '1px solid var(--border-slate-200)',
+              background: selectedConversationId === conv.id ? 'var(--bg-slate-100)' : 'transparent'
+            }}
+            onMouseEnter={(e) => { if (selectedConversationId !== conv.id) e.currentTarget.style.background = 'var(--bg-slate-50)'; }}
+            onMouseLeave={(e) => { if (selectedConversationId !== conv.id) e.currentTarget.style.background = 'transparent'; }}
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-semibold flex-shrink-0">
@@ -278,7 +283,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-900 truncate">
+                  <span className="font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>
                     {conv.otherUserName || 'Unknown User'}
                   </span>
                   <div className="flex items-center gap-2">
@@ -296,10 +301,10 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
                     </button>
                   </div>
                 </div>
-                <p className="text-sm text-slate-500 truncate">
+                <p className="text-sm truncate" style={{ color: 'var(--text-slate-500)' }}>
                   {conv.lastMessage?.content}
                 </p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs" style={{ color: 'var(--text-slate-400)' }}>
                   {conv.lastMessage?.created_date && format(new Date(conv.lastMessage.created_date), 'MMM d, h:mm a')}
                 </p>
               </div>
@@ -310,7 +315,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
         {/* New conversation options - only shown when searching */}
         {availableUsers.length > 0 && (
           <>
-            <div className="px-3 py-2 bg-slate-50 text-xs font-semibold text-slate-500 uppercase">
+            <div className="px-3 py-2 text-xs font-semibold uppercase" style={{ background: 'var(--bg-slate-50)', color: 'var(--text-slate-500)' }}>
               Start New Chat
             </div>
             {availableUsers.map(user => (
@@ -321,13 +326,16 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
                   onSelectConversation(convId, user.id, user.user_name || user.full_name);
                   setSearchQuery('');
                 }}
-                className="p-3 border-b cursor-pointer hover:bg-slate-50 transition-colors"
+                className="p-3 cursor-pointer transition-colors"
+                style={{ borderBottom: '1px solid var(--border-slate-200)' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-slate-50)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-slate-400 flex items-center justify-center text-white font-semibold flex-shrink-0">
                     {(user.user_name || user.full_name || '?')[0].toUpperCase()}
                   </div>
-                  <span className="font-medium text-slate-700">
+                  <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>
                     {user.user_name || user.full_name}
                   </span>
                 </div>

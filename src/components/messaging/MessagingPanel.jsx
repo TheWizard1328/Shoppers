@@ -29,21 +29,24 @@ export default function MessagingPanel({ currentUser, users, onClose, initialCon
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden">
+      <div className="rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)' }}>
         {/* Header */}
-        <div className="p-4 border-b flex items-center justify-between bg-slate-50">
-          <h2 className="text-lg font-semibold text-slate-900">Messages</h2>
+        <div className="p-4 flex items-center justify-between" style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>Messages</h2>
           <Button variant="ghost" size="icon" onClick={handleCloseMessaging}>
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
           </Button>
         </div>
 
         {/* Content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Conversations list - hidden on mobile when chat is open */}
-          <div className={`w-full lg:w-80 border-r flex-shrink-0 ${
-            selectedConversation ? 'hidden lg:flex lg:flex-col' : 'flex flex-col'
-          }`}>
+          <div 
+            className={`w-full lg:w-80 flex-shrink-0 ${
+              selectedConversation ? 'hidden lg:flex lg:flex-col' : 'flex flex-col'
+            }`}
+            style={{ borderRight: '1px solid var(--border-slate-200)' }}
+          >
             <ConversationsList
               currentUser={currentUser}
               users={users}
@@ -67,7 +70,7 @@ export default function MessagingPanel({ currentUser, users, onClose, initialCon
                 onMessagesRead={handleMessagesRead}
               />
             ) : (
-              <div className="flex-1 flex items-center justify-center text-slate-500">
+              <div className="flex-1 flex items-center justify-center" style={{ color: 'var(--text-slate-500)' }}>
                 <p>Select a conversation to start messaging</p>
               </div>
             )}
