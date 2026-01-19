@@ -2773,6 +2773,7 @@ export default function DeliveryForm({
     setPatientSearch('');
     setError(null);
     setEditingStagedId(null);
+    setNewPatientMode(null);
     setFormData((prev) => ({
       ...prev, patient_id: '', patient_name: '', patient_phone: '',
       unit_number: '', delivery_instructions: '', delivery_notes: '',
