@@ -1693,18 +1693,23 @@ export default function DeliveryForm({
       return updatedStaged;
     }));
 
+    // CRITICAL: Clear form completely after updating staged
     setHasChanges(true);
     setError(null);
     setEditingStagedId(null);
     setSelectedPatient(null);
+    setSelectedPatientIds(new Set());
     setPatientSearch('');
+    setHighlightedPatientIndex(-1);
     setFormData((prev) => ({
       ...prev, patient_id: '', patient_name: '', patient_phone: '',
       unit_number: '', delivery_instructions: '', delivery_notes: '',
       prescription_number: '', cod_total_amount_required: 0,
       cod_payments: [], cod_payment_type: 'No Payment', cod_amount: '',
       mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
-      dont_ring_bell: false, back_door: false, signature_needed: false, no_charge: false, store_id: '',
+      dont_ring_bell: false, back_door: false, signature_needed: false, 
+      fridge_item: false, oversized: false, no_charge: false, store_id: '',
+      time_window_start: '', time_window_end: '',
       recurring: false, recurring_daily: false,
       recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
       recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
