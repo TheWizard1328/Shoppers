@@ -2687,6 +2687,23 @@ export default function DeliveryForm({
         }
       }
 
+      // SQUARE INTEGRATION: Delete COD item if COD was removed (checkbox unchecked)
+      const codWasRemoved = delivery?.cod_total_amount_required > 0 && 
+        (formData.cod_total_amount_required === 0 || !formData.cod_total_amount_required);
+      
+      if (codWasRemoved && delivery?.id) {
+        try {
+          console.log('💳 [Square] Deleting COD item - COD was removed from delivery:', delivery.id);
+          await base44.functions.invoke('squareDeleteCodItem', {
+            deliveryId: delivery.id,
+            reason: 'cod_removed'
+          });
+          console.log('✅ [Square] COD item deleted (COD removed)');
+        } catch (squareError) {
+          console.warn('⚠️ [Square] Failed to delete COD item:', squareError.message);
+        }
+      }
+
       // CRITICAL: Save to both offline and online databases using local-first approach
       // offlineMutations handles: pausing smart refresh, saving to offline DB, syncing to backend, restarting smart refresh
       if (delivery?.id) {

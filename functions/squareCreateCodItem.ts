@@ -24,10 +24,10 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Square credentials not configured' }, { status: 500 });
     }
 
-    // Format: [Month]/[Day](Store Abbreviation)-Patient Name
+    // Format: [MM]/[DD](Store Abbreviation)-Patient Name
     const date = new Date(deliveryDate + 'T00:00:00');
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     const storeAbbr = storeAbbreviation || 'XX';
     const itemName = `${month}/${day}(${storeAbbr})-${patientName}`;
 
