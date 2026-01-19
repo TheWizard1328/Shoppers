@@ -88,6 +88,15 @@ Deno.serve(async (req) => {
                   priceCents = variation.item_variation_data.price_money.amount || 0;
                 }
 
+                // Determine the location_id - use first matching location from our configs
+                let locationId = null;
+                if (item.present_at_all_locations) {
+                  locationId = locationIds[0]; // Default to first configured location
+                } else {
+                  // Find first location that matches
+                  locationId = presentAtLocations.find(locId => locationIds.includes(locId)) || locationIds[0];
+                }
+
                 catalogItems.push({
                   catalog_object_id: item.id,
                   variation_id: variation.id,
@@ -95,6 +104,7 @@ Deno.serve(async (req) => {
                   description: item.item_data.description || '',
                   price_cents: priceCents,
                   price_dollars: priceCents / 100,
+                  location_id: locationId,
                   present_at_locations: presentAtLocations,
                   present_at_all: item.present_at_all_locations || false,
                   updated_at: item.updated_at,
