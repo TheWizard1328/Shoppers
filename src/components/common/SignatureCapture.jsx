@@ -78,8 +78,8 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '' }
   };
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[50000] bg-black flex items-center justify-center pt-safe pl-safe pr-safe pb-safe">
-      <div className="bg-white w-full h-full flex flex-col relative">
+    <div className="fixed inset-0 z-[50000] bg-black flex items-center justify-center pt-safe pl-safe pr-safe pb-safe" style={{ aspectRatio: 'auto', orientation: 'landscape' }}>
+      <div className="bg-white w-full h-full flex flex-col relative" style={{ maxHeight: '100vh', maxWidth: '100vw' }}>
         {/* Header - visible and accessible */}
         <div className="border-b px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 flex-shrink-0 gap-3">
           <div className="flex items-center gap-3 min-w-0">
