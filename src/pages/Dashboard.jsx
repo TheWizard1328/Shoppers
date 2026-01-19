@@ -1168,16 +1168,22 @@ function Dashboard() {
 
   // Subscribe to global filter changes AND URL params
   useEffect(() => {
-    // Check URL params on mount
+    // Check URL params on mount AND on location changes
     const urlParams = new URLSearchParams(window.location.search);
     const dateParam = urlParams.get('date');
     
     if (dateParam) {
-      console.log(`📅 [Dashboard Mount] URL date param found: ${dateParam}`);
+      console.log(`📅 [Dashboard Effect] URL date param found: ${dateParam}`);
       const dateObj = new Date(dateParam + 'T00:00:00');
-      setSelectedDate(dateObj);
-      setCalendarMonth(dateObj);
-      globalFilters.setSelectedDate(dateParam);
+      const currentDateStr = format(selectedDate, 'yyyy-MM-dd');
+      
+      // Only update if different from current state
+      if (dateParam !== currentDateStr) {
+        console.log(`📅 [Dashboard Effect] Applying URL date: ${dateParam}`);
+        setSelectedDate(dateObj);
+        setCalendarMonth(dateObj);
+        globalFilters.setSelectedDate(dateParam);
+      }
     }
     
     const unsubscribe = globalFilters.subscribe((newFilters) => {
@@ -1195,7 +1201,7 @@ function Dashboard() {
     });
     
     return unsubscribe;
-  }, []); // Listen for driver status break/resume events from DriverStatusToggle
+  }, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {
             console.log('🗺️ [Dashboard] Driver going on break - unlocking FAB and zooming to phase 1');
             // Save current phase for later restoration
