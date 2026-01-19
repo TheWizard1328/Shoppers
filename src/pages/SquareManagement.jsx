@@ -205,7 +205,7 @@ export default function SquareManagement() {
                       <td className="p-3">{getStatusBadge(tx.status)}</td>
                       <td className="p-3">{getPaymentMethodBadge(tx.payment_method)}</td>
                       <td className="p-3 text-sm text-slate-500">
-                        {tx.created_date ? format(new Date(tx.created_date), 'MMM d, h:mm a') : 'N/A'}
+                        {tx.created_date ? new Date(tx.created_date).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
                       </td>
                       <td className="p-3">
                         {tx.status === 'pending' && (
