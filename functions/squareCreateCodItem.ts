@@ -101,6 +101,7 @@ Deno.serve(async (req) => {
         const variationId = existingItem.item_data?.variations?.[0]?.id;
         
         if (variationId) {
+          const variationVersion = existingItem.item_data?.variations?.[0]?.version;
           const updateResponse = await fetch(`${SQUARE_BASE_URL}/catalog/object`, {
             method: 'POST',
             headers: {
@@ -114,18 +115,31 @@ Deno.serve(async (req) => {
                 type: 'ITEM',
                 id: catalogObjectId,
                 version: catalogVersion,
+                present_at_all_locations: false,
+                present_at_location_ids: [locationId],
                 item_data: {
                   name: itemName,
                   variations: [{
                     type: 'ITEM_VARIATION',
                     id: variationId,
+                    version: variationVersion,
+                    present_at_all_locations: false,
+                    present_at_location_ids: [locationId],
                     item_variation_data: {
                       name: 'Regular',
                       pricing_type: 'FIXED_PRICING',
                       price_money: {
                         amount: amountCents,
                         currency: 'CAD'
-                      }
+                      },
+                      location_overrides: [{
+                        location_id: locationId,
+                        pricing_type: 'FIXED_PRICING',
+                        price_money: {
+                          amount: amountCents,
+                          currency: 'CAD'
+                        }
+                      }]
                     }
                   }]
                 }
@@ -155,12 +169,14 @@ Deno.serve(async (req) => {
           object: {
             type: 'ITEM',
             id: `#${deliveryId}`,
+            present_at_all_locations: false,
             present_at_location_ids: [locationId],
             item_data: {
               name: itemName,
               variations: [{
                 type: 'ITEM_VARIATION',
                 id: `#${deliveryId}-variation`,
+                present_at_all_locations: false,
                 present_at_location_ids: [locationId],
                 item_variation_data: {
                   name: 'Regular',
