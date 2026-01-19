@@ -649,7 +649,7 @@ export default function PatientForm({
               {/* Container 1: Store/Status/Time Windows */}
               <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)' }}>
                 <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-3 space-y-1">
+                  <div className="col-span-4 space-y-1">
                     <Label htmlFor="status" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Status</Label>
                     <Select
                       value={formData.status}
@@ -664,7 +664,7 @@ export default function PatientForm({
                     </Select>
                   </div>
 
-                  <div className="col-span-3 space-y-1">
+                  <div className="col-span-4 space-y-1">
                     <Label htmlFor="time_window_start" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Deliver After</Label>
                     <Input
                       id="time_window_start"
@@ -675,7 +675,7 @@ export default function PatientForm({
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
 
-                  <div className="col-span-3 space-y-1">
+                  <div className="col-span-4 space-y-1">
                     <Label htmlFor="time_window_end" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Deliver Before</Label>
                     <Input
                       id="time_window_end"
@@ -684,10 +684,6 @@ export default function PatientForm({
                       onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
                       className="h-10 md:h-9 text-sm"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
-                  </div>
-
-                  <div className="col-span-3 space-y-1">
-                    {/* Empty placeholder to maintain grid alignment */}
                   </div>
                 </div>
 
