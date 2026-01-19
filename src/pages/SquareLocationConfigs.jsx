@@ -39,11 +39,34 @@ export default function SquareLocationConfigs() {
       ]);
       setConfigs(configsData || []);
       setStores(storesData || []);
+      
+      // Fetch location details from Square
+      fetchLocationBalances();
     } catch (error) {
       console.error("Failed to load data:", error);
       toast.error("Failed to load Square location configs");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchLocationBalances = async () => {
+    setIsFetchingBalances(true);
+    try {
+      const response = await base44.functions.invoke('getSquareLocationBalances');
+      const data = response?.data || response;
+      
+      if (data?.locations) {
+        const detailsMap = {};
+        data.locations.forEach(loc => {
+          detailsMap[loc.configId] = loc;
+        });
+        setLocationDetails(detailsMap);
+      }
+    } catch (error) {
+      console.error("Failed to fetch Square location details:", error);
+    } finally {
+      setIsFetchingBalances(false);
     }
   };
 
