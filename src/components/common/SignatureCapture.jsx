@@ -70,11 +70,14 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '' }
     setHasSignature(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const canvas = canvasRef.current;
-    canvas.toBlob((blob) => {
-      onSave(blob);
-    }, 'image/png');
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        onSave(blob);
+        resolve();
+      }, 'image/png');
+    });
   };
 
   return ReactDOM.createPortal(
