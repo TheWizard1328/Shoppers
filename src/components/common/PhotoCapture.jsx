@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { X, Camera, Trash2, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
