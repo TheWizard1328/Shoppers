@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, CreditCard, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, CreditCard, AlertCircle, RefreshCw, MapPin, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SquareLocationConfigs() {
@@ -16,6 +16,8 @@ export default function SquareLocationConfigs() {
   const [stores, setStores] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
+  const [locationDetails, setLocationDetails] = useState({});
+  const [isFetchingBalances, setIsFetchingBalances] = useState(false);
   const [editingConfig, setEditingConfig] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
