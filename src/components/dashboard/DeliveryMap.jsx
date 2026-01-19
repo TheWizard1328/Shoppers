@@ -15,6 +15,7 @@ import { createRoot } from 'react-dom/client';
 import { getStoredRouteCoordinates } from '../utils/routePolylineManager';
 import { isMobileDevice } from '../utils/deviceUtils';
 import MapCrosshair from './MapCrosshair';
+import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { base44 } from '@/api/base44Client';
 
 // Fix for default icon issue with Webpack
@@ -2297,10 +2298,16 @@ export default function DeliveryMap({
               <span className="font-medium">Notes:</span> {delivery.delivery_notes}
             </div>
           )}
-        </div>
-      </div>
-    );
-  };
+
+          {!isPickup && (
+            <div className="border-t pt-1.5 mt-1.5" style={{ borderColor: 'var(--border-slate-200)' }}>
+              <SpecialSymbolsBadges delivery={delivery} patient={patient} size="sm" />
+            </div>
+          )}
+          </div>
+          </div>
+          );
+          };
 
   return (
     <div className="absolute inset-0">
