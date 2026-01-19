@@ -2063,9 +2063,15 @@ export default function StopCard({
                           }}
                           size="sm"
                           variant="outline"
-                          className="h-10 md:h-8 w-10 md:w-8 p-0 border-slate-300 hover:bg-slate-100"
+                          className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                            delivery.signature_image_url 
+                              ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' 
+                              : 'border-slate-300 hover:bg-slate-100'
+                          }`}
                         >
-                          <Pen className="w-5 h-5 md:w-4 md:h-4 text-slate-700" />
+                          <Pen className={`w-5 h-5 md:w-4 md:h-4 ${
+                            delivery.signature_image_url ? 'text-emerald-700' : 'text-slate-700'
+                          }`} />
                         </Button>
 
                         {/* Photo Button */}
@@ -2076,9 +2082,15 @@ export default function StopCard({
                           }}
                           size="sm"
                           variant="outline"
-                          className="h-10 md:h-8 w-10 md:w-8 p-0 border-slate-300 hover:bg-slate-100"
+                          className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                            delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0
+                              ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' 
+                              : 'border-slate-300 hover:bg-slate-100'
+                          }`}
                         >
-                          <Camera className="w-5 h-5 md:w-4 md:h-4 text-slate-700" />
+                          <Camera className={`w-5 h-5 md:w-4 md:h-4 ${
+                            delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-slate-700'
+                          }`} />
                         </Button>
                       </div>
                     )}
