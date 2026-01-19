@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
         // 3. If there are in-progress stops but no incomplete pickup for this store, create a new one
         console.log(`⚠️ In-progress stops exist but no incomplete pickup for store ${storeId}. Creating new pickup.`);
 
-        const newStopId = generateStopId();
+        const newStopId = generateShortStopId();
 
         // Calculate pickup time: 5 minutes from now
         const pickupTime = new Date(now.getTime() + 5 * 60 * 1000);
