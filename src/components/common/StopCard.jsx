@@ -2060,25 +2060,21 @@ export default function StopCard({
               <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
                 <>
-                    {/* Proof of Delivery Buttons */}
+                    {/* Proof of Delivery Buttons - Only on next delivery, OR completed with captured proof */}
                     {!isPickup && (
-                      // Show for isNextDelivery (active) OR for completed deliveries with captured proof
-                      (isNextDelivery && !isFinishedDelivery) || 
-                      (delivery.status === 'completed' && (delivery.signature_image_url || (delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0)))
-                    ) && (
                       <div className="flex items-center gap-2">
-                        {/* Signature Button - show if active OR completed with signature */}
-                        {((isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.signature_image_url)) && (
+                        {/* Signature Button - show ONLY on next delivery OR completed with signature */}
+                        {(isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.signature_image_url) ? (
                           <Button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (!isFinishedDelivery) {
+                              if (delivery.status !== 'completed') {
                                 setShowSignatureCapture(true);
                               }
                             }}
                             size="sm"
                             variant="outline"
-                            disabled={isFinishedDelivery}
+                            disabled={delivery.status === 'completed'}
                             className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
                               delivery.signature_image_url 
                                 ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' 
@@ -2089,20 +2085,20 @@ export default function StopCard({
                               delivery.signature_image_url ? 'text-emerald-700' : 'text-slate-700'
                             }`} />
                           </Button>
-                        )}
+                        ) : null}
 
-                        {/* Photo Button - show if active OR completed with photos */}
-                        {((isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0)) && (
+                        {/* Photo Button - show ONLY on next delivery OR completed with photos */}
+                        {(isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0) ? (
                           <Button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (!isFinishedDelivery) {
+                              if (delivery.status !== 'completed') {
                                 setShowPhotoCapture(true);
                               }
                             }}
                             size="sm"
                             variant="outline"
-                            disabled={isFinishedDelivery}
+                            disabled={delivery.status === 'completed'}
                             className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
                               delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0
                                 ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' 
@@ -2113,7 +2109,7 @@ export default function StopCard({
                               delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-slate-700'
                             }`} />
                           </Button>
-                        )}
+                        ) : null}
                       </div>
                     )}
 
