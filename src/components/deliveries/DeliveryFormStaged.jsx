@@ -52,6 +52,14 @@ export default function DeliveryFormStaged({
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium truncate flex-1 min-w-0">{staged.patient_name}</span>
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      {/* New Patient badge - show if patient has no last_delivery_date */}
+                      {(() => {
+                        const stagedPatient = patients?.find(p => p && p.id === staged.patient_id);
+                        const isNewPatient = staged.first_delivery || (stagedPatient && !stagedPatient.last_delivery_date);
+                        return isNewPatient ? (
+                          <Badge className="bg-purple-500 text-white text-[10px] px-1.5 py-0 h-4 font-bold">N</Badge>
+                        ) : null;
+                      })()}
                       {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
                        <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
                          {staged.store_abbreviation}
