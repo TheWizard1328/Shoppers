@@ -1157,31 +1157,41 @@ export default function StopCard({
             document.body
           )}
 
-          {/* Signature Capture - Landscape Mode */}
+          {/* Signature Capture - Full Screen Landscape */}
           {showSignatureCapture &&
             <SignatureCapture
               customerName={displayName}
               onSave={async (signatureBlob) => {
-                setShowSignatureCapture(false);
-                
                 try {
+                  console.log('📝 [Signature] Starting upload...', signatureBlob);
+                  
                   // Upload signature immediately
                   const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureBlob });
                   const signatureUrl = uploadResult.file_url;
                   
-                  // Update delivery with signature
+                  console.log('📝 [Signature] Upload complete:', signatureUrl);
+                  
+                  // Update delivery with signature DIRECTLY
                   await base44.entities.Delivery.update(delivery.id, {
                     signature_image_url: signatureUrl
                   });
                   
-                  // Refresh data to show green button
+                  console.log('📝 [Signature] Database updated');
+                  
+                  // Close modal
+                  setShowSignatureCapture(false);
+                  
+                  // Force immediate refresh
                   invalidate('Delivery');
                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                   
+                  console.log('📝 [Signature] UI refreshed - signature should now show green');
+                  
                   toast.success('Signature saved!');
                 } catch (error) {
-                  console.error('Failed to save signature:', error);
-                  toast.error('Failed to save signature');
+                  console.error('❌ [Signature] Save failed:', error);
+                  toast.error(`Failed to save signature: ${error.message}`);
+                  setShowSignatureCapture(false);
                 }
               }}
               onCancel={() => setShowSignatureCapture(false)}
@@ -1192,9 +1202,9 @@ export default function StopCard({
           {showPhotoCapture &&
             <PhotoCapture
               onSave={async (photoBlobs) => {
-                setShowPhotoCapture(false);
-                
                 try {
+                  console.log('📷 [Photos] Starting upload...', photoBlobs.length, 'photos');
+                  
                   // Upload photos immediately
                   const uploadPromises = photoBlobs.map((blob) =>
                     base44.integrations.Core.UploadFile({ file: blob })
@@ -1202,20 +1212,30 @@ export default function StopCard({
                   const results = await Promise.all(uploadPromises);
                   const newPhotoUrls = results.map((r) => r.file_url);
                   
-                  // Update delivery with photos
+                  console.log('📷 [Photos] Upload complete:', newPhotoUrls);
+                  
+                  // Update delivery with photos DIRECTLY
                   const existingPhotos = delivery.proof_photo_urls || [];
                   await base44.entities.Delivery.update(delivery.id, {
                     proof_photo_urls: [...existingPhotos, ...newPhotoUrls]
                   });
                   
-                  // Refresh data to show green button
+                  console.log('📷 [Photos] Database updated');
+                  
+                  // Close modal
+                  setShowPhotoCapture(false);
+                  
+                  // Force immediate refresh
                   invalidate('Delivery');
                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                   
+                  console.log('📷 [Photos] UI refreshed - photos should now show green');
+                  
                   toast.success(`${photoBlobs.length} photo(s) saved!`);
                 } catch (error) {
-                  console.error('Failed to save photos:', error);
-                  toast.error('Failed to save photos');
+                  console.error('❌ [Photos] Save failed:', error);
+                  toast.error(`Failed to save photos: ${error.message}`);
+                  setShowPhotoCapture(false);
                 }
               }}
               onCancel={() => setShowPhotoCapture(false)}

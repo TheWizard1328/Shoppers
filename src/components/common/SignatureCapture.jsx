@@ -77,20 +77,32 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '' }
   };
 
   return (
-    <div className="fixed inset-0 z-[10020] bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col">
-        <div className="border-b p-4 flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900">Customer Signature</h3>
-            {customerName && <p className="text-sm text-slate-600">For: {customerName}</p>}
+    <div className="fixed inset-0 z-[10020] bg-black flex items-center justify-center">
+      <div className="bg-white w-full h-full flex flex-col">
+        {/* Header - compact for landscape */}
+        <div className="border-b px-4 py-2 flex items-center justify-between bg-slate-50 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <h3 className="text-base font-semibold text-slate-900">Customer Signature</h3>
+            {customerName && <span className="text-sm text-slate-600">— {customerName}</span>}
           </div>
-          <Button variant="ghost" size="icon" onClick={onCancel}>
-            <X className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={clearSignature} disabled={!hasSignature}>
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Clear
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={!hasSignature} className="bg-emerald-600 hover:bg-emerald-700">
+              <Check className="w-4 h-4 mr-2" />
+              Save
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onCancel}>
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
 
-        <div className="p-6">
-          <div className="border-2 border-dashed border-slate-300 rounded-lg bg-slate-50 relative">
+        {/* Signature Canvas - Full screen */}
+        <div className="flex-1 p-3 bg-slate-50 overflow-hidden">
+          <div className="w-full h-full border-2 border-slate-300 rounded-lg bg-white relative">
             <canvas
               ref={canvasRef}
               onMouseDown={startDrawing}
@@ -100,24 +112,13 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '' }
               onTouchStart={startDrawing}
               onTouchMove={draw}
               onTouchEnd={stopDrawing}
-              className="w-full h-64 touch-none cursor-crosshair"
+              className="w-full h-full touch-none cursor-crosshair"
               style={{ touchAction: 'none' }}
             />
-            <div className="absolute top-2 left-2 text-xs text-slate-400 pointer-events-none">
-              Sign here
+            <div className="absolute top-4 left-4 text-lg text-slate-400 pointer-events-none font-light">
+              Sign here with your finger
             </div>
           </div>
-        </div>
-
-        <div className="border-t p-4 flex gap-3 justify-end">
-          <Button variant="outline" onClick={clearSignature} disabled={!hasSignature}>
-            <RotateCcw className="w-4 h-4 mr-2" />
-            Clear
-          </Button>
-          <Button onClick={handleSave} disabled={!hasSignature} className="bg-emerald-600 hover:bg-emerald-700">
-            <Check className="w-4 h-4 mr-2" />
-            Save Signature
-          </Button>
         </div>
       </div>
     </div>
