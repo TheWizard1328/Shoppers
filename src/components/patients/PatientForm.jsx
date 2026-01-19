@@ -288,15 +288,15 @@ export default function PatientForm({
         Math.cos(assignedStore.latitude * Math.PI / 180) * Math.cos(addressData.latitude * Math.PI / 180) *
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        distanceFromStore = R * c;
+        distanceFromStore = parseFloat((R * c).toFixed(2)); // Round to 2 decimal places
       }
     }
 
     const newFormData = {
       ...formData,
       address: abbreviatedAddress,
-      latitude: addressData.latitude,
-      longitude: addressData.longitude,
+      latitude: parseFloat(addressData.latitude.toFixed(7)), // Round to 7 decimal places
+      longitude: parseFloat(addressData.longitude.toFixed(7)), // Round to 7 decimal places
       distance_from_store: distanceFromStore
     };
 
