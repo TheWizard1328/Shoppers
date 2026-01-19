@@ -367,7 +367,7 @@ export default function PatientForm({
           Math.cos(assignedStore.latitude * Math.PI / 180) * Math.cos(dataToSave.latitude * Math.PI / 180) *
           Math.sin(dLon / 2) * Math.sin(dLon / 2);
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          dataToSave.distance_from_store = R * c;
+          dataToSave.distance_from_store = parseFloat((R * c).toFixed(2)); // Round to 2 decimal places
         }
         // Otherwise preserve the manually edited value
       }
