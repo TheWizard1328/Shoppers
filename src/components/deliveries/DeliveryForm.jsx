@@ -565,7 +565,7 @@ export default function DeliveryForm({
     if (!searchLower) return [];
     let availablePatients = patients || [];
 
-    // Get IDs of already staged patients
+    // Get IDs of already staged patients (to mark them, not exclude them)
     const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean));
 
     if (userHasRole(currentUser, 'dispatcher')) {
@@ -580,8 +580,6 @@ export default function DeliveryForm({
     // First try active patients only
     let results = availablePatients.filter((patient) => {
       if (!patient) return false;
-      // Exclude patients already in staged list
-      if (stagedPatientIds.has(patient.id)) return false;
 
       // Filter out inactive patients
       if (patient.status === 'inactive') return false;
@@ -600,8 +598,6 @@ export default function DeliveryForm({
     if (results.length === 0) {
       results = availablePatients.filter((patient) => {
         if (!patient) return false;
-        // Exclude patients already in staged list
-        if (stagedPatientIds.has(patient.id)) return false;
 
         // ONLY include inactive patients now
         if (patient.status !== 'inactive') return false;
@@ -617,8 +613,15 @@ export default function DeliveryForm({
       });
     }
 
-    // Sort: Most recently delivered first, then (Temp to the bottom
+    // Sort: Staged patients to bottom, then most recently delivered first, then (Temp to the bottom
     results.sort((a, b) => {
+      const aIsStaged = stagedPatientIds.has(a.id);
+      const bIsStaged = stagedPatientIds.has(b.id);
+      
+      // Staged items to the bottom
+      if (aIsStaged && !bIsStaged) return 1;
+      if (!aIsStaged && bIsStaged) return -1;
+      
       const aIsTemp = a.full_name?.toLowerCase().includes('(temp') || false;
       const bIsTemp = b.full_name?.toLowerCase().includes('(temp') || false;
 
@@ -633,7 +636,11 @@ export default function DeliveryForm({
       return bDate - aDate;
     });
 
-    return results.slice(0, 50);
+    // Mark patients that are already staged
+    return results.slice(0, 50).map(patient => ({
+      ...patient,
+      _isAlreadyStaged: stagedPatientIds.has(patient.id)
+    }));
   }, [patientSearch, patients, currentUser, formData.patient_id, stagedDeliveries]);
 
   const hasAnyDaySelected = useMemo(() => {
