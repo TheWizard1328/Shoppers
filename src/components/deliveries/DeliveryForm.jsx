@@ -4263,6 +4263,7 @@ export default function DeliveryForm({
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
                           <Input
+                          ref={patientNameInputRef}
                           value={formData.patient_name}
                           onChange={(e) => setFormData((prev) => ({ ...prev, patient_name: e.target.value }))}
                           placeholder="Patient name"
