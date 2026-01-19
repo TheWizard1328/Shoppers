@@ -2369,7 +2369,8 @@ export default function DeliveryForm({
                 patientName: delivery.patient_name,
                 storeAbbreviation: store?.abbreviation || '',
                 codAmount: delivery.cod_total_amount_required,
-                deliveryDate: delivery.delivery_date
+                deliveryDate: delivery.delivery_date,
+                storeId: delivery.store_id
               });
               console.log('✅ [Square] COD item created for:', delivery.patient_name);
             } catch (squareError) {
@@ -2662,7 +2663,8 @@ export default function DeliveryForm({
             patientName: formData.patient_name,
             storeAbbreviation: store?.abbreviation || '',
             codAmount: codAmountDollars,
-            deliveryDate: formData.delivery_date
+            deliveryDate: formData.delivery_date,
+            storeId: formData.store_id
           });
           console.log('✅ [Square] COD item created');
         } catch (squareError) {
