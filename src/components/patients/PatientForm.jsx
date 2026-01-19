@@ -442,7 +442,20 @@ export default function PatientForm({
         savedPatientId = savedPatient.id;
         console.log('  ✅ Created patient in offline DB');
         if (returnPatientOnSave) {
-          onSave(savedPatient, true);
+          // CRITICAL: Merge saved patient with dataToSave to ensure ALL fields are passed back
+          // This ensures location data (latitude, longitude, distance_from_store) is included
+          const completePatient = {
+            ...dataToSave,
+            ...savedPatient,
+            id: savedPatient.id
+          };
+          console.log('  📤 Returning complete patient data with location:', {
+            id: completePatient.id,
+            latitude: completePatient.latitude,
+            longitude: completePatient.longitude,
+            distance_from_store: completePatient.distance_from_store
+          });
+          onSave(completePatient, true);
           return;
         }
       }
