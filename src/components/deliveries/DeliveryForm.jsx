@@ -787,6 +787,15 @@ export default function DeliveryForm({
   const handlePatientSelect = useCallback(async (patient, autoAddToStaged = false) => {
     if (!patient) return;
     
+    console.log('🔍 [handlePatientSelect] Called with patient:', {
+      id: patient.id,
+      name: patient.full_name,
+      latitude: patient.latitude,
+      longitude: patient.longitude,
+      distance_from_store: patient.distance_from_store,
+      autoAddToStaged: autoAddToStaged
+    });
+    
     // CRITICAL: Check if patient is already in staged list
     const alreadyStaged = stagedDeliveries.some(s => s.patient_id === patient.id);
     if (alreadyStaged) {
@@ -963,7 +972,7 @@ export default function DeliveryForm({
       console.warn('⚠️ [handlePatientSelect] ensurePickupForDelivery failed, using fallback PUID:', error.message);
     }
 
-    setStagedDeliveries((prev) => [...prev, {
+    const stagedDelivery = {
       ...updatedFormData,
       delivery_time_start: patient.time_window_start || '',
       delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
@@ -977,8 +986,20 @@ export default function DeliveryForm({
       distanceFromStore: distanceFromStore,
       delivery_address: patient.address || patientStore.address,
       isNextDelivery: false,
-      paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null
-    }]);
+      paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null,
+      // CRITICAL: Include patient coordinates for map markers
+      latitude: patient.latitude,
+      longitude: patient.longitude
+    };
+    
+    console.log('📦 [handlePatientSelect] Adding to staged with coordinates:', {
+      patient_name: stagedDelivery.patient_name,
+      latitude: stagedDelivery.latitude,
+      longitude: stagedDelivery.longitude,
+      distanceFromStore: stagedDelivery.distanceFromStore
+    });
+    
+    setStagedDeliveries((prev) => [...prev, stagedDelivery]);
 
     setHasChanges(true);
 
