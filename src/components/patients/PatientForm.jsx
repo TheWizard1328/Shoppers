@@ -657,7 +657,7 @@ export default function PatientForm({
                       <SelectTrigger className="h-10 md:h-9 text-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="max-h-[200px] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+                      <SelectContent className="max-h-[200px] overflow-y-auto z-[99999]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="inactive">Inactive</SelectItem>
                       </SelectContent>
