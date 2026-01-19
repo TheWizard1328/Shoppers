@@ -1166,10 +1166,11 @@ export default function DeliveryForm({
           setIsPatientFormOpen(true);
           onCreatePatient((createdPatient) => {
             setIsPatientFormOpen(false);
+            // CRITICAL: Auto-add new patient to staged (true parameter)
             handlePatientSelect({
               ...createdPatient,
               ...newPatientData
-            });
+            }, true);
           }, newPatientData);
         }
       }
@@ -1307,10 +1308,11 @@ export default function DeliveryForm({
             setIsPatientFormOpen(true);
             onCreatePatient((createdPatient) => {
               setIsPatientFormOpen(false);
+              // CRITICAL: Auto-add new patient to staged (true parameter)
               handlePatientSelect({
                 ...createdPatient,
                 ...newPatientData
-              });
+              }, true);
             }, newPatientData);
           }
         }
@@ -1522,7 +1524,8 @@ export default function DeliveryForm({
       onCreatePatient((createdPatient) => {
         setIsPatientFormOpen(false);
         setNewPatientMode(null);
-        handlePatientSelect(createdPatient, false);
+        // CRITICAL: Auto-add new patient to staged (true parameter)
+        handlePatientSelect(createdPatient, true);
       }, {
         full_name: patient.full_name || '',
         phone: patient.phone || '',
@@ -3775,7 +3778,8 @@ export default function DeliveryForm({
                           onCreatePatient((newPatient) => {
                             setIsPatientFormOpen(false);
                             setNewPatientMode(null);
-                            handlePatientSelect(newPatient, false);
+                            // CRITICAL: Auto-add new patient to staged (true parameter)
+                            handlePatientSelect(newPatient, true);
                           }, {
                             full_name: '',
                             phone: '',
