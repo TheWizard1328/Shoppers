@@ -703,31 +703,40 @@ function Dashboard() {
       const completedDeliveries = activeDeliveries.filter((d) => d && finishedStatuses.includes(d.status));
       const incompleteDeliveries = activeDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
 
-      // Sort completed by actual_delivery_time
+      // CRITICAL: Sort completed by stop_order (imported from active routes), fallback to actual_delivery_time
       completedDeliveries.sort((a, b) => {
         if (!a || !b) return 0;
+        
+        // Sort by stop_order if both have it
+        if (a.stop_order && b.stop_order) {
+          return a.stop_order - b.stop_order;
+        }
+        
+        // Fallback to actual_delivery_time
         if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
         return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
       });
 
-      // Find the isNextDelivery delivery
-      const nextDeliveryIdx = incompleteDeliveries.findIndex((d) => d && d.isNextDelivery === true);
-      const nextDelivery = nextDeliveryIdx >= 0 ? incompleteDeliveries.splice(nextDeliveryIdx, 1)[0] : null;
-
-      // Sort remaining incomplete by ETA
+      // CRITICAL: Sort incomplete by stop_order (imported from active routes), fallback to ETA
       incompleteDeliveries.sort((a, b) => {
         if (!a || !b) return 0;
+        
+        // Sort by stop_order if both have it
+        if (a.stop_order && b.stop_order) {
+          return a.stop_order - b.stop_order;
+        }
+        
+        // Fallback to ETA
         const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
         const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
         return etaA.localeCompare(etaB);
       });
 
-      // Combine: completed + nextDelivery + remaining + pending at end
+      // Combine: completed + incomplete + pending at end (no special handling for isNextDelivery)
       const sortedDeliveries = [
       ...completedDeliveries,
-      ...(nextDelivery ? [nextDelivery] : []),
       ...incompleteDeliveries,
-      ...pendingDeliveries // CRITICAL: Add pending deliveries at the end
+      ...pendingDeliveries
       ];
 
       // CRITICAL: Include ALL deliveries (including pending) in result
