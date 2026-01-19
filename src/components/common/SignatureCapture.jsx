@@ -77,7 +77,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '' }
     }, 'image/png');
   };
 
-  return (
+  return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[50000] bg-black flex items-center justify-center pt-safe pl-safe pr-safe pb-safe">
       <div className="bg-white w-full h-full flex flex-col relative">
         {/* Header - visible and accessible */}
