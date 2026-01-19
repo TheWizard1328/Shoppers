@@ -183,6 +183,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
