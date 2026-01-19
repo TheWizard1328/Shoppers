@@ -138,6 +138,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '' }
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
