@@ -77,7 +77,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '' }
   };
 
   return (
-    <div className="fixed inset-0 z-[10020] bg-black flex items-center justify-center">
+    <div className="fixed inset-0 z-[99999] bg-black flex items-center justify-center">
       <div className="bg-white w-full h-full flex flex-col">
         {/* Header - compact for landscape */}
         <div className="border-b px-4 py-2 flex items-center justify-between bg-slate-50 flex-shrink-0">
