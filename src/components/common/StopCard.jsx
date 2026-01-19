@@ -1641,6 +1641,25 @@ export default function StopCard({
                               delivery_time_start: deliveryTimeStart
                             }, { skipSmartRefresh: true });
                             console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, delivery_time_start: ${deliveryTimeStart}`);
+
+                            // SQUARE INTEGRATION: Create COD item if applicable
+                            if (pendingDelivery.cod_total_amount_required > 0 && pendingDelivery.patient_id) {
+                              try {
+                                const storeForCod = stores.find(s => s && s.id === pendingDelivery.store_id);
+                                const codAmountDollars = pendingDelivery.cod_total_amount_required;
+                                console.log('💳 [Square] Creating COD item for accepted/assigned delivery:', pendingDelivery.id, 'Amount:', codAmountDollars);
+                                await base44.functions.invoke('squareCreateCodItem', {
+                                  deliveryId: pendingDelivery.id,
+                                  patientName: pendingDelivery.patient_name,
+                                  storeAbbreviation: storeForCod?.abbreviation || '',
+                                  codAmount: codAmountDollars,
+                                  deliveryDate: pendingDelivery.delivery_date
+                                });
+                                console.log('✅ [Square] COD item created for:', pendingDelivery.patient_name);
+                              } catch (squareError) {
+                                console.error('⚠️ [Square] Failed to create COD item:', squareError);
+                              }
+                            }
                           }
 
                           // CRITICAL: Dispatch event to trigger ETA updates for pending->in_transit transitions
