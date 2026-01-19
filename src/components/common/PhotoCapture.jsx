@@ -84,8 +84,8 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
   }, []);
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[99999] bg-black flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-[99999] bg-black flex items-center justify-center" style={{ aspectRatio: 'auto', orientation: 'landscape' }}>
+      <div className="bg-white rounded-xl shadow-2xl w-full h-full md:max-w-2xl md:max-h-[90vh] flex flex-col">
         <div className="border-b p-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-slate-900">Proof of Delivery Photos</h3>
           <Button variant="ghost" size="icon" onClick={handleCancel}>
