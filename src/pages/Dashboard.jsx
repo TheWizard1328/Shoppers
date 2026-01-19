@@ -254,6 +254,15 @@ function Dashboard() {
   const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
 
   const [selectedDate, setSelectedDate] = useState(() => {
+    // CRITICAL: Check URL params first, then globalFilters
+    const urlParams = new URLSearchParams(window.location.search);
+    const dateParam = urlParams.get('date');
+    
+    if (dateParam) {
+      console.log(`📅 [Dashboard Init] Using URL date: ${dateParam}`);
+      return new Date(dateParam + 'T00:00:00');
+    }
+    
     const saved = globalFilters.getSelectedDate();
     return typeof saved === 'string' && saved ? new Date(saved + 'T00:00:00') : new Date();
   });
