@@ -1170,9 +1170,13 @@ export default function StopCard({
                   const signatureUrl = uploadResult.file_url;
                   
                   // Update delivery with signature
-                  await updateDeliveryLocal(delivery.id, {
+                  await base44.entities.Delivery.update(delivery.id, {
                     signature_image_url: signatureUrl
-                  }, { skipSmartRefresh: true });
+                  });
+                  
+                  // Refresh data to show green button
+                  invalidate('Delivery');
+                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                   
                   toast.success('Signature saved!');
                 } catch (error) {
@@ -1200,9 +1204,13 @@ export default function StopCard({
                   
                   // Update delivery with photos
                   const existingPhotos = delivery.proof_photo_urls || [];
-                  await updateDeliveryLocal(delivery.id, {
+                  await base44.entities.Delivery.update(delivery.id, {
                     proof_photo_urls: [...existingPhotos, ...newPhotoUrls]
-                  }, { skipSmartRefresh: true });
+                  });
+                  
+                  // Refresh data to show green button
+                  invalidate('Delivery');
+                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                   
                   toast.success(`${photoBlobs.length} photo(s) saved!`);
                 } catch (error) {
