@@ -1121,6 +1121,20 @@ export default function StopCard({
                       await new Promise((resolve) => setTimeout(resolve, 100));
 
                       try {
+                        // CRITICAL: Delete Square COD item if delivery has COD and is in_transit
+                        if (delivery.status === 'in_transit' && delivery.cod_total_amount_required > 0 && delivery.patient_id) {
+                          try {
+                            console.log('💳 [Delete] Deleting Square COD item for:', delivery.id);
+                            await base44.functions.invoke('squareDeleteCodItem', {
+                              deliveryId: delivery.id,
+                              reason: 'delivery_deleted'
+                            });
+                            console.log('✅ [Delete] Square COD item deleted');
+                          } catch (squareError) {
+                            console.error('⚠️ [Delete] Failed to delete Square COD item:', squareError);
+                          }
+                        }
+
                         await onDeleteDelivery(delivery.id);
                       } finally {
                         setShowDeleteConfirm(false);

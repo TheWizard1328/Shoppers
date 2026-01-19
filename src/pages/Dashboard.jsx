@@ -4956,6 +4956,20 @@ function Dashboard() {
       const driverId = targetDelivery.driver_id;
       const deliveryDate = targetDelivery.delivery_date;
 
+      // CRITICAL: Delete Square COD item if delivery has COD and is in_transit
+      if (targetDelivery.status === 'in_transit' && targetDelivery.cod_total_amount_required > 0 && targetDelivery.patient_id) {
+        try {
+          console.log('💳 [Delete] Deleting Square COD item for:', deliveryId);
+          await base44.functions.invoke('squareDeleteCodItem', {
+            deliveryId: deliveryId,
+            reason: 'delivery_deleted'
+          });
+          console.log('✅ [Delete] Square COD item deleted');
+        } catch (squareError) {
+          console.error('⚠️ [Delete] Failed to delete Square COD item:', squareError);
+        }
+      }
+
       // CRITICAL: Use deleteDeliveryLocal which handles UI update, offline DB, and backend sync
       console.log('🗑️ [DELETE] Using deleteDeliveryLocal for complete deletion...');
       const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
