@@ -1333,6 +1333,207 @@ export default function DeliveryForm({
     await handlePatientSelect(patient, false);
   }, [handlePatientSelect]);
 
+  // Handler for "Duplicate Patient" button - creates new patient with same info but empty name
+  const handleDuplicatePatient = useCallback((patient) => {
+    if (!patient) return;
+    
+    setNewPatientMode('duplicate');
+    setSelectedPatient(null); // Clear selected patient since we're creating new
+    setPatientSearch('');
+    setHighlightedPatientIndex(-1);
+    
+    // Find patient's store
+    const patientStore = stores.find((s) => s && s.id === patient.store_id);
+    
+    // Auto-select driver based on patient's store
+    let autoSelectedDriverId = '';
+    let autoSelectedDriverName = '';
+    
+    if (patient.store_id && formData.delivery_date && stores && drivers && patientStore) {
+      const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
+      const dayOfWeek = selectedDate.getDay();
+      const deliveryAMPM = determineDeliveryAMPM(patient);
+      
+      let amDriverIdField = '';
+      let pmDriverIdField = '';
+      if (dayOfWeek === 6) {
+        amDriverIdField = 'saturday_am_driver_id';
+        pmDriverIdField = 'saturday_pm_driver_id';
+      } else if (dayOfWeek === 0) {
+        amDriverIdField = 'sunday_am_driver_id';
+        pmDriverIdField = 'sunday_pm_driver_id';
+      } else {
+        amDriverIdField = 'weekday_am_driver_id';
+        pmDriverIdField = 'weekday_pm_driver_id';
+      }
+      
+      const preferredDriverIdField = deliveryAMPM === 'PM' ? pmDriverIdField : amDriverIdField;
+      const fallbackDriverIdField = deliveryAMPM === 'PM' ? amDriverIdField : pmDriverIdField;
+      
+      let driverId = patientStore[preferredDriverIdField];
+      if (!driverId) driverId = patientStore[fallbackDriverIdField];
+      
+      if (driverId) {
+        const driver = drivers.find((d) => d && d.id === driverId);
+        if (driver) {
+          autoSelectedDriverId = driverId;
+          autoSelectedDriverName = getDriverNameForStorage(driver);
+        }
+      }
+    }
+    
+    // Fill form with patient data but clear patient_id (to create new) and name
+    setFormData((prev) => ({
+      ...prev,
+      patient_id: '', // Empty to create new patient
+      patient_name: '', // Clear name for user to enter
+      patient_phone: patient.phone || '',
+      unit_number: patient.unit_number || '',
+      time_window_start: patient.time_window_start || '',
+      time_window_end: patient.time_window_end || '',
+      mailbox_ok: patient.mailbox_ok || false,
+      call_upon_arrival: patient.call_upon_arrival || false,
+      ring_bell: patient.ring_bell || false,
+      dont_ring_bell: patient.dont_ring_bell || false,
+      back_door: patient.back_door || false,
+      signature_needed: patient.signature_needed || false,
+      delivery_instructions: patient.notes || '',
+      store_id: patient.store_id || '',
+      driver_id: autoSelectedDriverId,
+      driver_name: autoSelectedDriverName,
+      recurring: patient.recurring || false,
+      recurring_daily: patient.recurring_daily || false,
+      recurring_weekly_mon: patient.recurring_weekly_mon || false,
+      recurring_weekly_tue: patient.recurring_weekly_tue || false,
+      recurring_weekly_wed: patient.recurring_weekly_wed || false,
+      recurring_weekly_thu: patient.recurring_weekly_thu || false,
+      recurring_weekly_fri: patient.recurring_weekly_fri || false,
+      recurring_weekly_sat: patient.recurring_weekly_sat || false,
+      recurring_weekly_sun: patient.recurring_weekly_sun || false,
+      recurring_biweekly: patient.recurring_biweekly || false,
+      recurring_weekly_x4: patient.recurring_weekly_x4 || false,
+      recurring_monthly: patient.recurring_monthly || false,
+      recurring_bimonthly: patient.recurring_bimonthly || false
+    }));
+    
+    // Store original patient data for reference when creating new patient
+    setSelectedPatient({ ...patient, _duplicateSource: true });
+    
+    // Focus name input after a short delay
+    setTimeout(() => patientNameInputRef.current?.focus(), 150);
+  }, [formData.delivery_date, stores, drivers]);
+
+  // Handler for "New Address" button - creates new patient with same info but empty address/unit
+  const handleNewAddressPatient = useCallback((patient) => {
+    if (!patient) return;
+    
+    setNewPatientMode('new_address');
+    setSelectedPatient(null); // Clear selected patient since we're creating new
+    setPatientSearch('');
+    setHighlightedPatientIndex(-1);
+    
+    // Find patient's store
+    const patientStore = stores.find((s) => s && s.id === patient.store_id);
+    
+    // Auto-select driver based on patient's store
+    let autoSelectedDriverId = '';
+    let autoSelectedDriverName = '';
+    
+    if (patient.store_id && formData.delivery_date && stores && drivers && patientStore) {
+      const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
+      const dayOfWeek = selectedDate.getDay();
+      const deliveryAMPM = determineDeliveryAMPM(patient);
+      
+      let amDriverIdField = '';
+      let pmDriverIdField = '';
+      if (dayOfWeek === 6) {
+        amDriverIdField = 'saturday_am_driver_id';
+        pmDriverIdField = 'saturday_pm_driver_id';
+      } else if (dayOfWeek === 0) {
+        amDriverIdField = 'sunday_am_driver_id';
+        pmDriverIdField = 'sunday_pm_driver_id';
+      } else {
+        amDriverIdField = 'weekday_am_driver_id';
+        pmDriverIdField = 'weekday_pm_driver_id';
+      }
+      
+      const preferredDriverIdField = deliveryAMPM === 'PM' ? pmDriverIdField : amDriverIdField;
+      const fallbackDriverIdField = deliveryAMPM === 'PM' ? amDriverIdField : pmDriverIdField;
+      
+      let driverId = patientStore[preferredDriverIdField];
+      if (!driverId) driverId = patientStore[fallbackDriverIdField];
+      
+      if (driverId) {
+        const driver = drivers.find((d) => d && d.id === driverId);
+        if (driver) {
+          autoSelectedDriverId = driverId;
+          autoSelectedDriverName = getDriverNameForStorage(driver);
+        }
+      }
+    }
+    
+    // Fill form with patient data but clear patient_id (to create new), address and unit_number
+    setFormData((prev) => ({
+      ...prev,
+      patient_id: '', // Empty to create new patient
+      patient_name: patient.full_name || '',
+      patient_phone: patient.phone || '',
+      unit_number: '', // Clear unit number
+      time_window_start: patient.time_window_start || '',
+      time_window_end: patient.time_window_end || '',
+      mailbox_ok: patient.mailbox_ok || false,
+      call_upon_arrival: patient.call_upon_arrival || false,
+      ring_bell: patient.ring_bell || false,
+      dont_ring_bell: patient.dont_ring_bell || false,
+      back_door: patient.back_door || false,
+      signature_needed: patient.signature_needed || false,
+      delivery_instructions: patient.notes || '',
+      store_id: patient.store_id || '',
+      driver_id: autoSelectedDriverId,
+      driver_name: autoSelectedDriverName,
+      recurring: patient.recurring || false,
+      recurring_daily: patient.recurring_daily || false,
+      recurring_weekly_mon: patient.recurring_weekly_mon || false,
+      recurring_weekly_tue: patient.recurring_weekly_tue || false,
+      recurring_weekly_wed: patient.recurring_weekly_wed || false,
+      recurring_weekly_thu: patient.recurring_weekly_thu || false,
+      recurring_weekly_fri: patient.recurring_weekly_fri || false,
+      recurring_weekly_sat: patient.recurring_weekly_sat || false,
+      recurring_weekly_sun: patient.recurring_weekly_sun || false,
+      recurring_biweekly: patient.recurring_biweekly || false,
+      recurring_weekly_x4: patient.recurring_weekly_x4 || false,
+      recurring_monthly: patient.recurring_monthly || false,
+      recurring_bimonthly: patient.recurring_bimonthly || false
+    }));
+    
+    // Store original patient data with cleared address for reference when creating new patient
+    setSelectedPatient({ ...patient, address: '', _newAddressSource: true });
+    
+    // Trigger patient form to open with the address field ready
+    if (onCreatePatient) {
+      setIsPatientFormOpen(true);
+      onCreatePatient((createdPatient) => {
+        setIsPatientFormOpen(false);
+        setNewPatientMode(null);
+        handlePatientSelect(createdPatient, false);
+      }, {
+        full_name: patient.full_name || '',
+        phone: patient.phone || '',
+        store_id: patient.store_id || '',
+        address: '', // Empty address
+        unit_number: '', // Empty unit
+        notes: patient.notes || '',
+        mailbox_ok: patient.mailbox_ok || false,
+        call_upon_arrival: patient.call_upon_arrival || false,
+        ring_bell: patient.ring_bell || false,
+        dont_ring_bell: patient.dont_ring_bell || false,
+        back_door: patient.back_door || false,
+        _isNew: true,
+        _focusAddress: true // Signal to focus address field
+      });
+    }
+  }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect]);
+
   const handleStagedDeliveryClick = useCallback((staged) => {
     console.log('📦 [DeliveryForm] Clicking staged item:', staged);
     console.log('📦 PUID in staged:', staged.puid);
