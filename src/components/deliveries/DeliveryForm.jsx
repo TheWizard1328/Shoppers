@@ -3721,6 +3721,34 @@ export default function DeliveryForm({
                                     <div className="text-xs text-slate-600 truncate">{patient.address}</div>
                                     {patient.phone && <div className="text-xs text-slate-500 truncate">{patient.phone}</div>}
                                   </button>
+                                  
+                                  {/* Duplicate and New Address buttons */}
+                                  <div className="flex flex-col gap-1 ml-1">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 hover:bg-blue-100"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDuplicatePatient(patient);
+                                      }}
+                                      title="Duplicate Patient (same address, new name)">
+                                      <Copy className="w-3 h-3 text-blue-600" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 hover:bg-purple-100"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleNewAddressPatient(patient);
+                                      }}
+                                      title="New Address (same name, new address)">
+                                      <MapPin className="w-3 h-3 text-purple-600" />
+                                    </Button>
+                                  </div>
                                 </div>);
 
                       })}
