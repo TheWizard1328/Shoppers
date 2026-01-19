@@ -165,10 +165,21 @@ export default function SquareLocationConfigs() {
           <h1 className="text-2xl font-bold text-slate-900">Square Location Configs</h1>
           <p className="text-slate-500 mt-1">Manage Square Location IDs for COD processing</p>
         </div>
-        <Button onClick={() => handleOpenDialog()} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-          <Plus className="w-4 h-4" />
-          Add Location
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={fetchLocationBalances} 
+            disabled={isFetchingBalances}
+            className="gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${isFetchingBalances ? 'animate-spin' : ''}`} />
+            Refresh from Square
+          </Button>
+          <Button onClick={() => handleOpenDialog()} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+            <Plus className="w-4 h-4" />
+            Add Location
+          </Button>
+        </div>
       </div>
 
       {configs.length === 0 ? (
