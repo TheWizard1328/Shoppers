@@ -4,17 +4,32 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
-import { Building, MapPin, X } from 'lucide-react';
+import { Building, MapPin, X, CreditCard } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { sortUsers } from '../utils/sorting';
 import { PhoneInput } from "@/components/ui/phone-input";
 import { motion } from 'framer-motion';
 import { useAppData } from '../utils/AppDataContext';
+import { base44 } from '@/api/base44Client';
 
 export default function StoreForm({ store, cities = [], drivers = [], allUsers = [], onSave, onCancel }) {
   // Safely get context - may not be available if rendered outside AppDataProvider
   const appDataContext = useAppData();
   const setIsFormOverlayOpen = appDataContext?.setIsFormOverlayOpen;
+  
+  const [squareLocationConfigs, setSquareLocationConfigs] = useState([]);
+  
+  useEffect(() => {
+    const loadSquareConfigs = async () => {
+      try {
+        const configs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
+        setSquareLocationConfigs(configs || []);
+      } catch (error) {
+        console.error('Failed to load Square location configs:', error);
+      }
+    };
+    loadSquareConfigs();
+  }, []);
   
   // Helper to find driver ID based on name, for backward compatibility during initialization
   const findDriverIdFromName = (driverName, allDrivers) => {
@@ -74,6 +89,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
       color: "", // This field was removed from the outline, but keeping it in defaultData and `store` merge for robustness.
       dispatcher_name: "",
       dispatcher_id: null,
+      square_location_config_id: null,
       status: "active",
       // Weekday fields
       weekday_am_start: "09:00",
@@ -452,6 +468,40 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                             </div>
                         </div>
                     </div>
+
+                    {/* Square Location Config */}
+                    {squareLocationConfigs.length > 0 && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="square_location_config_id" style={{ color: 'var(--text-slate-900)' }}>
+                            <span className="flex items-center gap-2">
+                              <CreditCard className="w-4 h-4" />
+                              Square Location (COD)
+                            </span>
+                          </Label>
+                          <Select
+                            value={formData.square_location_config_id || 'null'}
+                            onValueChange={(value) => setFormData({ ...formData, square_location_config_id: value === 'null' ? null : value })}>
+                            <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                              <SelectValue placeholder="Select Square location...">
+                                {formData.square_location_config_id
+                                  ? squareLocationConfigs.find((c) => c.id === formData.square_location_config_id)?.name
+                                  : "No Square location assigned"}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                              <SelectItem value="null" style={{ color: 'var(--text-slate-900)' }}>No Square location</SelectItem>
+                              {squareLocationConfigs.map((config) => (
+                                <SelectItem key={config.id} value={config.id} style={{ color: 'var(--text-slate-900)' }}>
+                                  {config.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-slate-500 mt-1">Used for COD payment processing</p>
+                        </div>
+                      </div>
+                    )}
                 </div>
 
                 {/* Driver Assignments & Pickup Times Section - NEW TABLE LAYOUT */}
