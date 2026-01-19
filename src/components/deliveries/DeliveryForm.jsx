@@ -186,6 +186,11 @@ export default function DeliveryForm({
   const patientSearchInputRef = useRef(null);
   const codAmountInputRef = useRef(null);
   const addPatientButtonRef = useRef(null);
+  const patientNameInputRef = useRef(null);
+  const patientAddressInputRef = useRef(null);
+  
+  // State for creating new patient from existing patient data
+  const [newPatientMode, setNewPatientMode] = useState(null); // 'duplicate' | 'new_address' | null
   const [stagedDeliveries, setStagedDeliveries] = useState([]);
   const [projectedDeliveries, setProjectedDeliveries] = useState([]);
   const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
