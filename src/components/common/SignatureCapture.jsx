@@ -77,24 +77,40 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '' }
   };
 
   return (
-    <div className="fixed inset-0 z-[99999] bg-black flex items-center justify-center">
-      <div className="bg-white w-full h-full flex flex-col">
-        {/* Header - compact for landscape */}
-        <div className="border-b px-4 py-2 flex items-center justify-between bg-slate-50 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <h3 className="text-base font-semibold text-slate-900">Customer Signature</h3>
-            {customerName && <span className="text-sm text-slate-600">— {customerName}</span>}
+    <div className="fixed inset-0 z-[50000] bg-black flex items-center justify-center pt-safe pl-safe pr-safe pb-safe">
+      <div className="bg-white w-full h-full flex flex-col relative">
+        {/* Header - visible and accessible */}
+        <div className="border-b px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 flex-shrink-0 gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <h3 className="text-base font-semibold text-slate-900 truncate">Customer Signature</h3>
+            {customerName && <span className="text-sm text-slate-600 truncate hidden sm:inline">— {customerName}</span>}
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={clearSignature} disabled={!hasSignature}>
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={clearSignature} 
+              disabled={!hasSignature}
+              className="flex-1 sm:flex-none"
+            >
               <RotateCcw className="w-4 h-4 mr-2" />
               Clear
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={!hasSignature} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button 
+              size="sm" 
+              onClick={handleSave} 
+              disabled={!hasSignature} 
+              className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700"
+            >
               <Check className="w-4 h-4 mr-2" />
               Save
             </Button>
-            <Button variant="ghost" size="icon" onClick={onCancel}>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={onCancel}
+              className="flex-shrink-0"
+            >
               <X className="w-5 h-5" />
             </Button>
           </div>
