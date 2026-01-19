@@ -1658,53 +1658,61 @@ export default function DeliveryForm({
           return;
         }
         
-        console.log('➕ [handleAddToStaging] Creating new patient from Duplicate/New mode:', formData.patient_name);
-        
-        try {
-          // Create new patient with form data
-          const newPatientData = {
-            full_name: formData.patient_name,
-            address: selectedPatient.address || '', // Use original address for duplicate, empty for new_address
-            phone: formData.patient_phone || '',
-            unit_number: formData.unit_number || '',
-            store_id: formData.store_id,
-            notes: formData.delivery_instructions || '',
-            mailbox_ok: formData.mailbox_ok || false,
-            call_upon_arrival: formData.call_upon_arrival || false,
-            ring_bell: formData.ring_bell || false,
-            dont_ring_bell: formData.dont_ring_bell || false,
-            back_door: formData.back_door || false,
-            signature_needed: formData.signature_needed || false,
-            recurring: formData.recurring || false,
-            recurring_daily: formData.recurring_daily || false,
-            recurring_weekly_mon: formData.recurring_weekly_mon || false,
-            recurring_weekly_tue: formData.recurring_weekly_tue || false,
-            recurring_weekly_wed: formData.recurring_weekly_wed || false,
-            recurring_weekly_thu: formData.recurring_weekly_thu || false,
-            recurring_weekly_fri: formData.recurring_weekly_fri || false,
-            recurring_weekly_sat: formData.recurring_weekly_sat || false,
-            recurring_weekly_sun: formData.recurring_weekly_sun || false,
-            recurring_biweekly: formData.recurring_biweekly || false,
-            recurring_weekly_x4: formData.recurring_weekly_x4 || false,
-            recurring_monthly: formData.recurring_monthly || false,
-            recurring_bimonthly: formData.recurring_bimonthly || false,
-            latitude: selectedPatient.latitude,
-            longitude: selectedPatient.longitude,
-            distance_from_store: selectedPatient.distance_from_store,
-            status: 'active'
-          };
+        // CRITICAL: Check if we already have a patient_id in formData (patient was already created)
+        // This prevents duplicate creation when the form state was updated but patient lookup failed
+        if (formData.patient_id) {
+          console.log('⏸️ [handleAddToStaging] Patient already has ID, skipping creation:', formData.patient_id);
+          patient = { id: formData.patient_id, full_name: formData.patient_name };
+          isNewPatient = false;
+        } else {
+          console.log('➕ [handleAddToStaging] Creating new patient from Duplicate/New mode:', formData.patient_name);
           
-          patient = await createPatientLocal(newPatientData);
-          isNewPatient = true;
-          
-          // Update formData with new patient_id
-          setFormData(prev => ({ ...prev, patient_id: patient.id }));
-          
-          console.log('✅ [handleAddToStaging] New patient created:', patient.id, patient.full_name);
-        } catch (error) {
-          console.error('Failed to create new patient:', error);
-          setError('Failed to create new patient. Please try again.');
-          return;
+          try {
+            // Create new patient with form data
+            const newPatientData = {
+              full_name: formData.patient_name,
+              address: selectedPatient.address || '', // Use original address for duplicate, empty for new_address
+              phone: formData.patient_phone || '',
+              unit_number: formData.unit_number || '',
+              store_id: formData.store_id,
+              notes: formData.delivery_instructions || '',
+              mailbox_ok: formData.mailbox_ok || false,
+              call_upon_arrival: formData.call_upon_arrival || false,
+              ring_bell: formData.ring_bell || false,
+              dont_ring_bell: formData.dont_ring_bell || false,
+              back_door: formData.back_door || false,
+              signature_needed: formData.signature_needed || false,
+              recurring: formData.recurring || false,
+              recurring_daily: formData.recurring_daily || false,
+              recurring_weekly_mon: formData.recurring_weekly_mon || false,
+              recurring_weekly_tue: formData.recurring_weekly_tue || false,
+              recurring_weekly_wed: formData.recurring_weekly_wed || false,
+              recurring_weekly_thu: formData.recurring_weekly_thu || false,
+              recurring_weekly_fri: formData.recurring_weekly_fri || false,
+              recurring_weekly_sat: formData.recurring_weekly_sat || false,
+              recurring_weekly_sun: formData.recurring_weekly_sun || false,
+              recurring_biweekly: formData.recurring_biweekly || false,
+              recurring_weekly_x4: formData.recurring_weekly_x4 || false,
+              recurring_monthly: formData.recurring_monthly || false,
+              recurring_bimonthly: formData.recurring_bimonthly || false,
+              latitude: selectedPatient.latitude,
+              longitude: selectedPatient.longitude,
+              distance_from_store: selectedPatient.distance_from_store,
+              status: 'active'
+            };
+            
+            patient = await createPatientLocal(newPatientData);
+            isNewPatient = true;
+            
+            // Update formData with new patient_id
+            setFormData(prev => ({ ...prev, patient_id: patient.id }));
+            
+            console.log('✅ [handleAddToStaging] New patient created:', patient.id, patient.full_name);
+          } catch (error) {
+            console.error('Failed to create new patient:', error);
+            setError('Failed to create new patient. Please try again.');
+            return;
+          }
         }
       } else if (!patient && !formData.patient_name) {
         setError('Patient information missing.');
