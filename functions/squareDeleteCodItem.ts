@@ -11,10 +11,10 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { deliveryId, reason } = await req.json();
+    const { deliveryId, transactionId, catalogObjectId, reason } = await req.json();
 
-    if (!deliveryId) {
-      return Response.json({ error: 'Missing required field: deliveryId' }, { status: 400 });
+    if (!deliveryId && !transactionId && !catalogObjectId) {
+      return Response.json({ error: 'Missing required field: deliveryId, transactionId, or catalogObjectId' }, { status: 400 });
     }
 
     const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
@@ -23,23 +23,24 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Square credentials not configured' }, { status: 500 });
     }
 
-    // Find the SquareTransaction for this delivery
-    const transactions = await base44.asServiceRole.entities.SquareTransaction.filter({
-      delivery_id: deliveryId,
-      status: 'pending'
-    });
+    let transaction = null;
+    let catalogIdToDelete = catalogObjectId;
 
-    if (transactions.length === 0) {
-      // No pending Square item to delete
-      return Response.json({ success: true, message: 'No pending Square item found' });
+    // Find the transaction by various methods
+    if (transactionId) {
+      // Direct transaction ID lookup
+      const transactions = await base44.asServiceRole.entities.SquareTransaction.filter({ id: transactionId });
+      transaction = transactions[0];
+      catalogIdToDelete = transaction?.square_catalog_object_id || catalogObjectId;
+    } else if (deliveryId) {
+      // Find by delivery ID (any status, not just pending)
+      const transactions = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId });
+      transaction = transactions[0];
+      catalogIdToDelete = transaction?.square_catalog_object_id || catalogObjectId;
     }
-
-    const transaction = transactions[0];
-    const catalogObjectId = transaction.square_catalog_object_id;
-
-    if (catalogObjectId) {
+    if (catalogIdToDelete) {
       // Delete the catalog item from Square
-      const deleteResponse = await fetch(`${SQUARE_BASE_URL}/catalog/object/${catalogObjectId}`, {
+      const deleteResponse = await fetch(`${SQUARE_BASE_URL}/catalog/object/${catalogIdToDelete}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -54,21 +55,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Update our transaction record
-    const newStatus = reason === 'failed' ? 'failed' : 'completed';
-    await base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
-      status: newStatus,
-      raw_square_data: {
-        ...transaction.raw_square_data,
-        deleted_at: new Date().toISOString(),
-        deleted_reason: reason || 'completed'
-      }
-    });
+    // Update our transaction record if we have one
+    if (transaction) {
+      const newStatus = reason === 'failed' ? 'failed' : 'cancelled';
+      await base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
+        status: newStatus,
+        raw_square_data: {
+          ...transaction.raw_square_data,
+          deleted_at: new Date().toISOString(),
+          deleted_reason: reason || 'manual_delete'
+        }
+      });
+    }
 
     return Response.json({
       success: true,
-      deletedCatalogId: catalogObjectId,
-      transactionStatus: newStatus
+      deletedCatalogId: catalogIdToDelete,
+      transactionStatus: transaction ? 'cancelled' : 'deleted_from_square'
     });
 
   } catch (error) {
