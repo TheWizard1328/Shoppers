@@ -975,10 +975,13 @@ export default function DeliveryForm({
     const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id));
     setProjectedDeliveries(filteredPredictions);
 
+    // CRITICAL: Clear form completely after adding to staged
     setError(null);
     setSelectedPatient(null);
     setSelectedPatientIds(new Set());
     setPatientSearch('');
+    setHighlightedPatientIndex(-1);
+    setEditingStagedId(null);
     setFormData((prev) => ({
       ...prev,
       patient_id: '',
@@ -998,7 +1001,12 @@ export default function DeliveryForm({
       dont_ring_bell: false,
       back_door: false,
       signature_needed: false,
+      fridge_item: false,
+      oversized: false,
+      no_charge: false,
       store_id: '',
+      time_window_start: '',
+      time_window_end: '',
       recurring: false,
       recurring_daily: false,
       recurring_weekly_mon: false,
@@ -1013,6 +1021,7 @@ export default function DeliveryForm({
       recurring_monthly: false,
       recurring_bimonthly: false
     }));
+    setSelectedPickupOption('');
 
     setTimeout(() => patientSearchInputRef.current?.focus(), 100);
   }, [formData, stores, drivers, allDeliveries, stagedDeliveries]);
