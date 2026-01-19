@@ -4060,8 +4060,8 @@ export default function DeliveryForm({
               }
 
               {/* Scrollable container for Sections 4 & 5 on desktop */}
-              <div className={`flex gap-3 max-w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
-                <div className={`flex flex-col gap-3 ${delivery || useMobileLayout ? 'flex-1' : 'flex-[13] overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
+              <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
+                <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {/* Section 1: Notes */}
                   <div className="space-y-2 p-3 rounded-lg border overflow-hidden" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
