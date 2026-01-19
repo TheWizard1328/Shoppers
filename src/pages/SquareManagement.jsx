@@ -13,6 +13,8 @@ export default function SquareManagement() {
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [locationIds, setLocationIds] = useState([]);
+  const [locationConfigs, setLocationConfigs] = useState([]);
+  const [stores, setStores] = useState([]);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
@@ -39,6 +41,20 @@ export default function SquareManagement() {
   };
 
   useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [configs, storesData] = await Promise.all([
+          base44.entities.SquareLocationConfig.filter({ status: 'active' }),
+          base44.entities.Store.list()
+        ]);
+        setLocationConfigs(configs || []);
+        setStores(storesData || []);
+      } catch (err) {
+        console.error('Failed to load configs/stores:', err);
+      }
+    };
+    
+    loadData();
     syncFromSquare();
   }, []);
 
@@ -180,6 +196,7 @@ export default function SquareManagement() {
                   <tr className="border-b text-left text-sm text-slate-500">
                     <th className="p-3">Item Name</th>
                     <th className="p-3">Amount</th>
+                    <th className="p-3">Location / Store</th>
                     <th className="p-3">Catalog ID</th>
                     <th className="p-3">Last Updated</th>
                     <th className="p-3">Actions</th>
@@ -200,6 +217,29 @@ export default function SquareManagement() {
                         <span className="font-semibold text-emerald-600">
                           ${(item.price_dollars || 0).toFixed(2)}
                         </span>
+                      </td>
+                      <td className="p-3">
+                        {(() => {
+                          const locationId = item.location_id;
+                          const config = locationConfigs.find(c => c.square_location_id === locationId);
+                          const store = stores.find(s => s.square_location_config_id === config?.id);
+                          
+                          return (
+                            <div className="space-y-1">
+                              <div className="text-sm font-medium text-slate-700">
+                                {config?.name || 'Unknown Location'}
+                              </div>
+                              {store && (
+                                <div className="text-xs text-slate-500">
+                                  {store.name}
+                                </div>
+                              )}
+                              <div className="text-xs text-slate-400 font-mono truncate max-w-[180px]">
+                                {locationId}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="p-3">
                         <div className="text-xs text-slate-500 font-mono truncate max-w-[150px]">
