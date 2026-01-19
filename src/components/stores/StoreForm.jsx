@@ -313,7 +313,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold pb-2" style={{ color: 'var(--text-slate-900)', borderBottom: '1px solid var(--border-slate-200)' }}>Basic Information</h3>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <Label htmlFor="name" style={{ color: 'var(--text-slate-900)' }}>Store Name *</Label>
                             <Input
@@ -337,6 +337,20 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 required
                 style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
+                        </div>
+
+                        <div>
+                            <Label htmlFor="status" style={{ color: 'var(--text-slate-900)' }}>Store Status</Label>
+                            <div className="flex items-center gap-3 h-10 mt-1">
+                                <Switch
+                                    id="status"
+                                    checked={formData.status !== 'inactive'}
+                                    onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'active' : 'inactive' })}
+                                />
+                                <Label htmlFor="status" className={`font-medium ${formData.status === 'inactive' ? 'text-red-600' : 'text-green-600'}`}>
+                                    {formData.status === 'inactive' ? 'Inactive' : 'Active'}
+                                </Label>
+                            </div>
                         </div>
                     </div>
 
@@ -398,7 +412,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
                             <Label htmlFor="latitude" style={{ color: 'var(--text-slate-900)' }}>Latitude</Label>
                             <Input
@@ -426,9 +440,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <Label htmlFor="dispatcher_id" style={{ color: 'var(--text-slate-900)' }}>Assigned Dispatcher</Label>
                             <Select
@@ -455,28 +467,10 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
-                            <Label htmlFor="status" style={{ color: 'var(--text-slate-900)' }}>Store Status</Label>
-                            <div className="flex items-center gap-3 h-10 mt-1">
-                                <Switch
-                                    id="status"
-                                    checked={formData.status !== 'inactive'}
-                                    onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'active' : 'inactive' })}
-                                />
-                                <Label htmlFor="status" className={`font-medium ${formData.status === 'inactive' ? 'text-red-600' : 'text-green-600'}`}>
-                                    {formData.status === 'inactive' ? 'Inactive' : 'Active'}
-                                </Label>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Square Location Config */}
-                    {squareLocationConfigs.length > 0 && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
                           <Label htmlFor="square_location_config_id" style={{ color: 'var(--text-slate-900)' }}>
                             <span className="flex items-center gap-2">
                               <CreditCard className="w-4 h-4" />
-                              Square Location (COD)
+                              Square Location
                             </span>
                           </Label>
                           <Select
@@ -486,7 +480,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                               <SelectValue placeholder="Select Square location...">
                                 {formData.square_location_config_id
                                   ? squareLocationConfigs.find((c) => c.id === formData.square_location_config_id)?.name
-                                  : "No Square location assigned"}
+                                  : "None"}
                               </SelectValue>
                             </SelectTrigger>
                             <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
@@ -498,10 +492,8 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                               ))}
                             </SelectContent>
                           </Select>
-                          <p className="text-xs text-slate-500 mt-1">Used for COD payment processing</p>
                         </div>
-                      </div>
-                    )}
+                    </div>
                 </div>
 
                 {/* Driver Assignments & Pickup Times Section - NEW TABLE LAYOUT */}
