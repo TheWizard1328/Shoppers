@@ -3818,6 +3818,12 @@ export default function DeliveryForm({
                                   <button
                               type="button"
                               onClick={(e) => {
+                                if (isAlreadyStaged) {
+                                  // Already staged - just clear search, don't add again
+                                  setPatientSearch('');
+                                  setHighlightedPatientIndex(-1);
+                                  return;
+                                }
                                 if (e.shiftKey || e.ctrlKey || e.metaKey) {
                                   // Multi-select mode
                                   setSelectedPatientIds((prev) => {
@@ -3836,9 +3842,14 @@ export default function DeliveryForm({
                                   setHighlightedPatientIndex(-1);
                                 }
                               }}
-                              className="flex-1 text-left">
+                              className={`flex-1 text-left ${isAlreadyStaged ? 'cursor-not-allowed' : ''}`}>
                                     <div className="font-medium truncate flex items-center gap-1.5">
                                       {patient.full_name}
+                                      {isAlreadyStaged && (
+                                        <Badge className="bg-amber-200 text-amber-800 text-[10px] px-1.5 py-0 h-4">
+                                          STAGED
+                                        </Badge>
+                                      )}
                                       {storeAbbr && shouldShowStoreBadges(currentUser) && (() => {
                                   const patientStoreData = stores?.find((s) => s && s.id === patient.store_id);
                                   const storeColor = patientStoreData ? getStoreColor(patientStoreData) : '#64748b';
