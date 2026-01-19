@@ -1157,9 +1157,21 @@ function Dashboard() {
     localStorage.setItem('rxdeliver_show_routes', String(showRoutes));
   }, [showRoutes]);
 
+  // Subscribe to global filter changes AND URL params
   useEffect(() => {
+    // Check URL params on mount
+    const urlParams = new URLSearchParams(window.location.search);
+    const dateParam = urlParams.get('date');
+    
+    if (dateParam) {
+      console.log(`📅 [Dashboard Mount] URL date param found: ${dateParam}`);
+      const dateObj = new Date(dateParam + 'T00:00:00');
+      setSelectedDate(dateObj);
+      setCalendarMonth(dateObj);
+      globalFilters.setSelectedDate(dateParam);
+    }
+    
     const unsubscribe = globalFilters.subscribe((newFilters) => {
-
       if (newFilters.selectedDate) {
         const dateObj = typeof newFilters.selectedDate === 'string' ?
         new Date(newFilters.selectedDate + 'T00:00:00') :
@@ -1169,13 +1181,12 @@ function Dashboard() {
       }
 
       if (newFilters.selectedDriverId !== undefined) {
-
-
-
-
-
         // This subscription handles changes from other components
-      }});return unsubscribe;}, []); // Listen for driver status break/resume events from DriverStatusToggle
+      }
+    });
+    
+    return unsubscribe;
+  }, []); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {
             console.log('🗺️ [Dashboard] Driver going on break - unlocking FAB and zooming to phase 1');
             // Save current phase for later restoration
