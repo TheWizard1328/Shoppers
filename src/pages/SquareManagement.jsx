@@ -4,12 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { RefreshCw, DollarSign, CheckCircle, XCircle, Clock, CreditCard } from "lucide-react";
+import { RefreshCw, DollarSign, CheckCircle, XCircle, Clock, CreditCard, Trash2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function SquareManagement() {
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const fetchTransactions = async () => {
     setIsLoading(true);
@@ -64,6 +66,33 @@ export default function SquareManagement() {
       check: 'bg-amber-100 text-amber-800'
     };
     return <Badge className={config[method] || 'bg-slate-100'}>{method}</Badge>;
+  };
+
+  const handleDelete = async (transaction) => {
+    if (!window.confirm(`Delete COD item "${transaction.item_name}"?\n\nThis will remove it from Square and mark the record as cancelled.`)) {
+      return;
+    }
+
+    setDeletingId(transaction.id);
+    try {
+      // Call the delete function
+      await base44.functions.invoke('squareDeleteCodItem', {
+        deliveryId: transaction.delivery_id,
+        reason: 'manual_delete'
+      });
+
+      // Update local state
+      setTransactions(prev => prev.map(t => 
+        t.id === transaction.id ? { ...t, status: 'cancelled' } : t
+      ));
+
+      toast.success('COD item deleted from Square');
+    } catch (err) {
+      console.error('Delete failed:', err);
+      toast.error('Failed to delete: ' + err.message);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   // Summary stats
@@ -153,6 +182,7 @@ export default function SquareManagement() {
                     <th className="p-3">Status</th>
                     <th className="p-3">Payment</th>
                     <th className="p-3">Created</th>
+                    <th className="p-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -176,6 +206,23 @@ export default function SquareManagement() {
                       <td className="p-3">{getPaymentMethodBadge(tx.payment_method)}</td>
                       <td className="p-3 text-sm text-slate-500">
                         {tx.created_date ? format(new Date(tx.created_date), 'MMM d, h:mm a') : 'N/A'}
+                      </td>
+                      <td className="p-3">
+                        {tx.status === 'pending' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(tx)}
+                            disabled={deletingId === tx.id}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            {deletingId === tx.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -10,10 +10,10 @@ import DriverPayroll from './pages/DriverPayroll';
 import DriverSettings from './pages/DriverSettings';
 import Home from './pages/Home';
 import Patients from './pages/Patients';
+import SquareLocationConfigs from './pages/SquareLocationConfigs';
 import SquareManagement from './pages/SquareManagement';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
-import SquareLocationConfigs from './pages/SquareLocationConfigs';
 import __Layout from './Layout.jsx';
 
 
@@ -30,10 +30,10 @@ export const PAGES = {
     "DriverSettings": DriverSettings,
     "Home": Home,
     "Patients": Patients,
+    "SquareLocationConfigs": SquareLocationConfigs,
     "SquareManagement": SquareManagement,
     "Stores": Stores,
     "Users": Users,
-    "SquareLocationConfigs": SquareLocationConfigs,
 }
 
 export const pagesConfig = {
