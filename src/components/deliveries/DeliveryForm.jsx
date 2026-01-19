@@ -4064,10 +4064,10 @@ export default function DeliveryForm({
                 <div className={`flex flex-col gap-3 ${delivery || useMobileLayout ? 'flex-1' : 'flex-[13] overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {/* Section 1: Notes */}
-                  <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <div className="space-y-2 p-3 rounded-lg border overflow-hidden" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     {!isPickupMode ?
                     <div className="flex gap-3">
-                        <div className="flex-1 space-y-1">
+                        <div className="flex-1 min-w-0 space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
                           <Textarea
                           value={formData.delivery_instructions || selectedPatient?.notes || ''}
@@ -4077,7 +4077,7 @@ export default function DeliveryForm({
                           disabled={isSaving} />
                         </div>
 
-                        <div className="flex-1 space-y-1">
+                        <div className="flex-1 min-w-0 space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver Notes</Label>
                           <Textarea
                           value={formData.delivery_notes}
