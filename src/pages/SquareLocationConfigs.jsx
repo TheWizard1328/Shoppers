@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, CreditCard, AlertCircle, RefreshCw, MapPin, DollarSign } from "lucide-react";
+import { Plus, Pencil, Trash2, CreditCard, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SquareLocationConfigs() {
@@ -16,8 +16,6 @@ export default function SquareLocationConfigs() {
   const [stores, setStores] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
-  const [locationDetails, setLocationDetails] = useState({});
-  const [isFetchingBalances, setIsFetchingBalances] = useState(false);
   const [editingConfig, setEditingConfig] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -39,34 +37,11 @@ export default function SquareLocationConfigs() {
       ]);
       setConfigs(configsData || []);
       setStores(storesData || []);
-      
-      // Fetch location details from Square
-      fetchLocationBalances();
     } catch (error) {
       console.error("Failed to load data:", error);
       toast.error("Failed to load Square location configs");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchLocationBalances = async () => {
-    setIsFetchingBalances(true);
-    try {
-      const response = await base44.functions.invoke('getSquareLocationBalances');
-      const data = response?.data || response;
-      
-      if (data?.locations) {
-        const detailsMap = {};
-        data.locations.forEach(loc => {
-          detailsMap[loc.configId] = loc;
-        });
-        setLocationDetails(detailsMap);
-      }
-    } catch (error) {
-      console.error("Failed to fetch Square location details:", error);
-    } finally {
-      setIsFetchingBalances(false);
     }
   };
 
@@ -165,21 +140,10 @@ export default function SquareLocationConfigs() {
           <h1 className="text-2xl font-bold text-slate-900">Square Location Configs</h1>
           <p className="text-slate-500 mt-1">Manage Square Location IDs for COD processing</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={fetchLocationBalances} 
-            disabled={isFetchingBalances}
-            className="gap-2"
-          >
-            <RefreshCw className={`w-4 h-4 ${isFetchingBalances ? 'animate-spin' : ''}`} />
-            Refresh from Square
-          </Button>
-          <Button onClick={() => handleOpenDialog()} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-            <Plus className="w-4 h-4" />
-            Add Location
-          </Button>
-        </div>
+        <Button onClick={() => handleOpenDialog()} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+          <Plus className="w-4 h-4" />
+          Add Location
+        </Button>
       </div>
 
       {configs.length === 0 ? (
@@ -227,50 +191,6 @@ export default function SquareLocationConfigs() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  {/* Square Location Details */}
-                  {locationDetails[config.id] && !locationDetails[config.id].error && (
-                    <div className="bg-slate-50 rounded-lg p-3 mb-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-700">Square Location Info</span>
-                        <Badge variant={locationDetails[config.id].status === 'ACTIVE' ? 'default' : 'secondary'} className="text-xs">
-                          {locationDetails[config.id].status}
-                        </Badge>
-                      </div>
-                      {locationDetails[config.id].businessName && (
-                        <div className="text-sm text-slate-600">
-                          <span className="font-medium">Business:</span> {locationDetails[config.id].businessName}
-                        </div>
-                      )}
-                      {locationDetails[config.id].address && (
-                        <div className="flex items-center gap-1 text-sm text-slate-600">
-                          <MapPin className="w-3 h-3" />
-                          {locationDetails[config.id].address}
-                        </div>
-                      )}
-                      {locationDetails[config.id].balance !== null && (
-                        <div className="flex items-center gap-1 text-sm font-medium text-emerald-600">
-                          <DollarSign className="w-3 h-3" />
-                          Balance: ${locationDetails[config.id].balance?.toFixed(2)} {locationDetails[config.id].currency}
-                        </div>
-                      )}
-                      {locationDetails[config.id].capabilities?.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {locationDetails[config.id].capabilities.slice(0, 4).map(cap => (
-                            <Badge key={cap} variant="outline" className="text-xs bg-white">
-                              {cap.replace('CREDIT_CARD_PROCESSING', 'Cards').replace('AUTOMATIC_TRANSFERS', 'Auto-Transfer')}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {locationDetails[config.id]?.error && (
-                    <div className="bg-red-50 rounded-lg p-3 mb-3 flex items-center gap-2 text-sm text-red-600">
-                      <AlertCircle className="w-4 h-4" />
-                      {locationDetails[config.id].error}
-                    </div>
-                  )}
-                  
                   {config.notes && (
                     <p className="text-sm text-slate-600 mb-3">{config.notes}</p>
                   )}
