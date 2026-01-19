@@ -4958,7 +4958,20 @@ function Dashboard() {
       setShowPatientForm(false);
 
       if (patientFormCallback && savedPatient && !editingPatient) {
-        patientFormCallback(savedPatient);
+        // CRITICAL: Merge patientData (which has location fields from PatientForm) with savedPatient (which has the ID)
+        // This ensures latitude, longitude, and distance_from_store are passed back to DeliveryForm
+        const completePatient = {
+          ...patientData,
+          ...savedPatient,
+          id: savedPatient.id
+        };
+        console.log('📤 [Dashboard] Returning complete patient with location to DeliveryForm:', {
+          id: completePatient.id,
+          latitude: completePatient.latitude,
+          longitude: completePatient.longitude,
+          distance_from_store: completePatient.distance_from_store
+        });
+        patientFormCallback(completePatient);
       }
 
       setEditingPatient(null);
