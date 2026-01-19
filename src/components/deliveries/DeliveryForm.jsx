@@ -2276,6 +2276,34 @@ export default function DeliveryForm({
   }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId]);
 
   const handleSearchKeyDown = useCallback((e) => {
+    // Handle Escape key - always trigger Clear button behavior
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      // If there's form data, clear the form (like clicking Clear button)
+      if (hasFormData) {
+        handleClearForm();
+      } else {
+        // Just clear the search field
+        setPatientSearch('');
+        setHighlightedPatientIndex(-1);
+      }
+      return;
+    }
+
+    // Handle Enter key on empty search field - trigger Done or Add button
+    if (e.key === 'Enter' && !patientSearch.trim()) {
+      e.preventDefault();
+      if (buttonState === 'done') {
+        handleBatchSave();
+      } else if (buttonState === 'add' && isFormValid) {
+        handleAddToStaging();
+      } else if (buttonState === 'updateStaged' && isFormValid) {
+        handleUpdateStaged();
+      }
+      return;
+    }
+
+    // Rest of the key handling requires patientSearch to have content
     if (!patientSearch) return;
 
     if (e.key === 'ArrowDown') {
@@ -2291,14 +2319,6 @@ export default function DeliveryForm({
       setHighlightedPatientIndex((prev) => prev > 0 ? prev - 1 : -1);
     } else if (e.key === 'Enter') {
       e.preventDefault();
-
-      // If search field is empty, trigger Done button if available
-      if (!patientSearch.trim()) {
-        if (buttonState === 'done') {
-          handleBatchSave();
-          return;
-        }
-      }
 
       if (highlightedPatientIndex >= 0 && filteredPatients.length > 0) {
         const selectedPat = filteredPatients[highlightedPatientIndex];
@@ -2325,12 +2345,8 @@ export default function DeliveryForm({
         if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();else
         if (buttonState === 'add' && isFormValid) handleAddToStaging();
       }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      setPatientSearch('');
-      setHighlightedPatientIndex(-1);
     }
-  }, [patientSearch, filteredPatients, highlightedPatientIndex, handlePatientSelect, hasFormData, buttonState, isFormValid, handleBatchSave, handleUpdateStaged, handleAddToStaging, onCreatePatient, currentUser]);
+  }, [patientSearch, filteredPatients, highlightedPatientIndex, handlePatientSelect, hasFormData, buttonState, isFormValid, handleBatchSave, handleUpdateStaged, handleAddToStaging, onCreatePatient, currentUser, handleClearForm]);
 
   useEffect(() => {
     setHighlightedPatientIndex(-1);
