@@ -155,18 +155,28 @@ Deno.serve(async (req) => {
           object: {
             type: 'ITEM',
             id: `#${deliveryId}`,
+            present_at_location_ids: [locationId],
             item_data: {
               name: itemName,
               variations: [{
                 type: 'ITEM_VARIATION',
                 id: `#${deliveryId}-variation`,
+                present_at_location_ids: [locationId],
                 item_variation_data: {
                   name: 'Regular',
                   pricing_type: 'FIXED_PRICING',
                   price_money: {
                     amount: amountCents,
                     currency: 'CAD'
-                  }
+                  },
+                  location_overrides: [{
+                    location_id: locationId,
+                    pricing_type: 'FIXED_PRICING',
+                    price_money: {
+                      amount: amountCents,
+                      currency: 'CAD'
+                    }
+                  }]
                 }
               }]
             }
