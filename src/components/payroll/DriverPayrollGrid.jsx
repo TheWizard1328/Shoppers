@@ -95,9 +95,12 @@ export default function DriverPayrollGrid({
 
   // Navigate to dashboard with selected date and driver
   const handleNavigateToDashboard = (dateObj) => {
-    const dateStr = format(dateObj, 'yyyy-MM-dd');
+    // CRITICAL: globalFilters.setSelectedDate expects a Date object, not a string
+    // Create a new Date object to ensure it's a valid date (not just a reference)
+    const targetDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+    
     // Set global filters for the dashboard
-    globalFilters.setSelectedDate(dateObj);
+    globalFilters.setSelectedDate(targetDate);
     if (selectedDriverId && selectedDriverId !== 'all') {
       globalFilters.setSelectedDriverId(selectedDriverId);
     } else {
