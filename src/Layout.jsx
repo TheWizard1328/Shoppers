@@ -2098,6 +2098,12 @@ export default function Layout({ children, currentPageName }) {
         url: createPageUrl("SquareManagement"),
         icon: CreditCard
       });
+      items.push({
+        title: "Square Locations",
+        pageName: 'SquareLocationConfigs',
+        url: createPageUrl("SquareLocationConfigs"),
+        icon: CreditCard
+      });
     }
     return items;
   }, [entityCounts.cities, entityCounts.stores, entityCounts.users, realUser, adminImportEnabled, drivers.length]);
