@@ -1,11 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import { format } from 'npm:date-fns';
 
-function generateStopId() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = 'SID-';
-    for (let i = 0; i < 8; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
+function generateShortStopId() {
+    // Generate a 3-character alphanumeric ID (same format as frontend)
+    const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let result = '';
+    for (let i = 0; i < 3; i++) {
+        result += characters.charAt(Math.floor(Math.random() * characters.length));
     }
     return result;
 }
