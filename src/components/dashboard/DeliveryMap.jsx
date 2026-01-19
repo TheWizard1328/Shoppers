@@ -2423,7 +2423,8 @@ export default function DeliveryMap({
             // If we still don't have a start point, don't draw the line
             if (!startPoint) return null;
             
-            return (
+            return [
+              // Blue polyline from current location to next stop
               <Polyline
                 key={`driver-to-next-stop-${nextStop.id}`}
                 positions={[
@@ -2439,8 +2440,25 @@ export default function DeliveryMap({
                   lineCap: 'round'
                 }}
                 pane="overlayPane"
-              />
-            );
+              />,
+              
+              // Colored polyline through all remaining stops
+              ...(allIncompleteStops.length >= 2 ? [
+                <Polyline
+                  key={`driver-full-route-${currentUser.id}`}
+                  positions={allIncompleteStops.map(stop => [stop.latitude, stop.longitude])}
+                  pathOptions={{
+                    color: '#3B82F6', // Use blue for current driver's route
+                    weight: 3,
+                    opacity: 0.6,
+                    dashArray: '8, 4',
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                  }}
+                  pane="overlayPane"
+                />
+              ] : [])
+            ];
           }
           
           // CRITICAL: For pure dispatchers (not drivers) viewing assigned drivers
