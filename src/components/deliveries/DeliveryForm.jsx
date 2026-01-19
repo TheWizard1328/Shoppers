@@ -2357,12 +2357,12 @@ export default function DeliveryForm({
         });
         await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
         
-        // SQUARE INTEGRATION: Create COD items for deliveries with COD amounts
+        // SQUARE INTEGRATION: Create COD items only for in_transit deliveries (not pending)
         for (const delivery of deliveriesReadyForDB) {
-          if (delivery.cod_total_amount_required > 0 && delivery.patient_id && delivery.driver_id) {
+          if (delivery.cod_total_amount_required > 0 && delivery.patient_id && delivery.driver_id && delivery.status === 'in_transit') {
             try {
               const store = stores?.find(s => s && s.id === delivery.store_id);
-              console.log('💳 [Square] Creating COD item for delivery:', delivery.patient_name, delivery.cod_total_amount_required);
+              console.log('💳 [Square] Creating COD item for in_transit delivery:', delivery.patient_name, delivery.cod_total_amount_required);
               await base44.functions.invoke('squareCreateCodItem', {
                 deliveryId: delivery.id || delivery._tempId,
                 patientName: delivery.patient_name,
@@ -2642,6 +2642,29 @@ export default function DeliveryForm({
         console.log('📅 [DeliveryForm] Date changed - keeping in_transit status and setting 10:00 AM start time');
         dataToSave.status = 'in_transit';
         dataToSave.delivery_time_start = '10:00';
+      }
+
+      // Check if status changed to in_transit (trigger Square COD creation)
+      const statusChangedToInTransit = delivery &&
+      formData.status === 'in_transit' &&
+      delivery.status !== 'in_transit';
+
+      // SQUARE INTEGRATION: Create COD item when delivery transitions to in_transit
+      if (statusChangedToInTransit && delivery?.id && formData.cod_total_amount_required > 0) {
+        try {
+          const store = stores?.find(s => s && s.id === formData.store_id);
+          console.log('💳 [Square] Creating COD item for in_transit delivery:', delivery.id);
+          await base44.functions.invoke('squareCreateCodItem', {
+            deliveryId: delivery.id,
+            patientName: formData.patient_name,
+            storeAbbreviation: store?.abbreviation || '',
+            codAmount: formData.cod_total_amount_required / 100,
+            deliveryDate: formData.delivery_date
+          });
+          console.log('✅ [Square] COD item created');
+        } catch (squareError) {
+          console.warn('⚠️ [Square] Failed to create COD item:', squareError.message);
+        }
       }
 
       // Check if status changed to a completion status (completed, cancelled, failed)
