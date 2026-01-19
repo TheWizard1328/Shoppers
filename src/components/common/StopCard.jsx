@@ -1907,6 +1907,26 @@ export default function StopCard({
                                   delivery_time_start: deliveryTimeStart
                                 }, true);
 
+                                // SQUARE INTEGRATION: Create COD item if applicable
+                                if (projectedDelivery.cod_total_amount_required > 0 && projectedDelivery.patient_id) {
+                                  try {
+                                    const storeForCod = stores.find(s => s && s.id === projectedDelivery.store_id);
+                                    const codAmountDollars = projectedDelivery.cod_total_amount_required;
+                                    console.log('💳 [Square] Creating COD item for single accept:', projectedDelivery.id, 'Amount:', codAmountDollars);
+                                    await base44.functions.invoke('squareCreateCodItem', {
+                                      deliveryId: projectedDelivery.id,
+                                      patientName: projectedDelivery.patient_name,
+                                      storeAbbreviation: storeForCod?.abbreviation || '',
+                                      codAmount: codAmountDollars,
+                                      deliveryDate: projectedDelivery.delivery_date,
+                                      storeId: projectedDelivery.store_id
+                                    });
+                                    console.log('✅ [Square] COD item created for:', projectedDelivery.patient_name);
+                                  } catch (squareError) {
+                                    console.error('⚠️ [Square] Failed to create COD item:', squareError);
+                                  }
+                                }
+
                                 // CRITICAL: Dispatch event to trigger ETA updates
                                 window.dispatchEvent(new CustomEvent('pendingToInTransit', {
                                   detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
