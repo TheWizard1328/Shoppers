@@ -1818,7 +1818,8 @@ export default function DeliveryForm({
       store_abbreviation: store.abbreviation,
       distanceFromStore: distanceFromStore,
       delivery_address: patient?.address || store.address,
-      paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null
+      paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null,
+      first_delivery: isNewPatient || !patient?.last_delivery_date // Mark as first delivery if new patient or no last delivery date
     }]);
 
     setHasChanges(true);
@@ -1835,6 +1836,7 @@ export default function DeliveryForm({
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
     setEditingStagedId(null);
+    setNewPatientMode(null); // Reset new patient mode
     setFormData((prev) => ({
       ...prev, patient_id: '', patient_name: '', patient_phone: '',
       unit_number: '', delivery_instructions: '', delivery_notes: '',
@@ -1853,7 +1855,7 @@ export default function DeliveryForm({
     setSelectedPickupOption('');
 
     setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-  }, [formData, isFormValid, patients, stores, isPickupMode]);
+  }, [formData, isFormValid, patients, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries]);
 
   const handleUpdateStaged = useCallback(async () => {
     if (!editingStagedId) return;
