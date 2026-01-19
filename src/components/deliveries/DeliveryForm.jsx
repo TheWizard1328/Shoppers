@@ -4278,7 +4278,9 @@ export default function DeliveryForm({
                         </div>
                       </div> :
 
-                    <div className="flex gap-3">
+                    <div className="space-y-2">
+                      {/* Row 1: Store, Status, PUID */}
+                      <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
                           <Select
@@ -4295,7 +4297,13 @@ export default function DeliveryForm({
                             const storeId = selectedStore?._originalStoreId || value;
                             const timeSlot = selectedStore?._timeSlot || null;
                             const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                            setFormData((prev) => ({ ...prev, store_id: storeId, ampm_deliveries: timeSlot, puid: newPuid || '' }));
+                            setFormData((prev) => ({ 
+                              ...prev, 
+                              store_id: storeId, 
+                              ampm_deliveries: timeSlot, 
+                              puid: newPuid || '',
+                              stop_id: isPickupMode ? newPuid || '' : prev.stop_id
+                            }));
                             if (isPickupMode) setSelectedPickupOption(value);
                           }}
                           disabled={isSaving || isPickupMode && delivery}>
@@ -4354,30 +4362,47 @@ export default function DeliveryForm({
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Time Window</Label>
-                          <div className="flex gap-1">
-                            <div className="flex-1 relative">
-                              <Input
-                                type="time"
-                                value={formData.time_window_start}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
-                                disabled={isSaving}
-                                placeholder="Start"
-                                className="h-9 text-sm" />
-                            </div>
-                            <div className="flex-1 relative">
-                              <Input
-                                type="time"
-                                value={formData.time_window_end}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
-                                disabled={isSaving}
-                                placeholder="End"
-                                className="h-9 text-sm" />
+                        {isPickupMode && (
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup ID</Label>
+                            <Input
+                              value={formData.puid || formData.stop_id || ''}
+                              disabled
+                              placeholder="Auto-generated"
+                              className="h-9 text-sm bg-slate-100" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Row 2: Time Window */}
+                      {!isPickupMode && (
+                        <div className="flex gap-3">
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Time Window</Label>
+                            <div className="flex gap-1">
+                              <div className="flex-1 relative">
+                                <Input
+                                  type="time"
+                                  value={formData.time_window_start}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
+                                  disabled={isSaving}
+                                  placeholder="Start"
+                                  className="h-9 text-sm" />
+                              </div>
+                              <div className="flex-1 relative">
+                                <Input
+                                  type="time"
+                                  value={formData.time_window_end}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
+                                  disabled={isSaving}
+                                  placeholder="End"
+                                  className="h-9 text-sm" />
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      )}
+                    </div>
                     }
                     </div>
 
