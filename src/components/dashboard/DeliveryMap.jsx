@@ -2606,6 +2606,65 @@ export default function DeliveryMap({
           return polylines.length > 0 ? polylines : null;
         })()}
 
+        {/* NEW: Colored dashed polylines for remaining stops on shared driver routes */}
+        {isViewingCurrentDate && driverLocationMarkers.length > 0 && (() => {
+          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+          const polylines = [];
+          
+          driverLocationMarkers.forEach(location => {
+            const driverId = location.driver_id || location.id;
+            
+            // Skip the current user's marker (already handled above)
+            if (driverId === currentUser?.id) return;
+            
+            // Get all incomplete stops for this driver
+            const driverIncompleteDeliveries = deliveryMarkers.filter(d => 
+              d && 
+              d.driver_id === driverId &&
+              !finishedStatuses.includes(d.status) &&
+              d.status !== 'pending'
+            ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+            
+            const driverIncompletePickups = pickupMarkers.filter(p => 
+              p && 
+              p.driver_id === driverId &&
+              !finishedStatuses.includes(p.status) &&
+              p.status !== 'pending'
+            ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+            
+            const driverAllIncomplete = [...driverIncompletePickups, ...driverIncompleteDeliveries]
+              .sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+            
+            // Need at least 2 stops to draw a route
+            if (driverAllIncomplete.length < 2) return;
+            
+            // Get driver's color
+            const driverObj = safeUsers.find(u => u && u.id === driverId);
+            const driverColor = driverObj ? getDriverColor(driverObj) : '#607D8B';
+            
+            // Build the complete route line from first stop through all remaining stops
+            const routeCoordinates = driverAllIncomplete.map(stop => [stop.latitude, stop.longitude]);
+            
+            polylines.push(
+              <Polyline
+                key={`shared-driver-route-${driverId}`}
+                positions={routeCoordinates}
+                pathOptions={{
+                  color: driverColor, // Driver's color
+                  weight: 3,
+                  opacity: 0.6,
+                  dashArray: '8, 4', // Dashed line
+                  lineJoin: 'round',
+                  lineCap: 'round'
+                }}
+                pane="overlayPane"
+              />
+            );
+          });
+          
+          return polylines.length > 0 ? polylines : null;
+        })()}
+
         {/* Draw Routes - NOW WITH INTERACTIVE HIGHLIGHTING */}
         {showRoutes && driverRoutes.map((route, index) => {
           const isHighlighted = highlightedRouteId === route.driverId;
