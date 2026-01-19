@@ -2650,20 +2650,22 @@ export default function DeliveryForm({
       delivery.status !== 'in_transit';
 
       // SQUARE INTEGRATION: Create COD item when delivery transitions to in_transit
+      // Note: formData.cod_total_amount_required is in CENTS (multiplied by 100 in form)
       if (statusChangedToInTransit && delivery?.id && formData.cod_total_amount_required > 0) {
         try {
           const store = stores?.find(s => s && s.id === formData.store_id);
-          console.log('💳 [Square] Creating COD item for in_transit delivery:', delivery.id);
+          const codAmountDollars = formData.cod_total_amount_required / 100;
+          console.log('💳 [Square] Creating COD item for in_transit delivery:', delivery.id, 'Amount:', codAmountDollars);
           await base44.functions.invoke('squareCreateCodItem', {
             deliveryId: delivery.id,
             patientName: formData.patient_name,
             storeAbbreviation: store?.abbreviation || '',
-            codAmount: formData.cod_total_amount_required / 100,
+            codAmount: codAmountDollars,
             deliveryDate: formData.delivery_date
           });
           console.log('✅ [Square] COD item created');
         } catch (squareError) {
-          console.warn('⚠️ [Square] Failed to create COD item:', squareError.message);
+          console.error('⚠️ [Square] Failed to create COD item:', squareError);
         }
       }
 
