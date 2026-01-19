@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Edit, Trash2, Palette, Save, X, Copy, Check, DollarSign, Calendar } from "lucide-react";
+import { Edit, Trash2, Palette, Save, X, Copy, Check, DollarSign, Calendar, CreditCard } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -122,6 +122,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   style={{ backgroundColor: currentStoreColor, color: 'white' }}>
 
                       {store.abbreviation}
+                    </Badge>
+                  }
+                  {store.square_location_config_id &&
+                  <Badge variant="outline" className="px-1.5 py-0.5 text-xs font-medium rounded-md inline-flex items-center gap-1" style={{ borderColor: '#10b981', color: '#059669' }}>
+                      <CreditCard className="w-3 h-3" />
                     </Badge>
                   }
                 </div>
