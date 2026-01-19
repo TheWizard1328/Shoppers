@@ -2281,7 +2281,27 @@ export default function DeliveryForm({
       e.preventDefault();
       // If there's form data, clear the form (like clicking Clear button)
       if (hasFormData) {
-        handleClearForm();
+        // Inline clear form logic to avoid circular dependency
+        setSelectedPatient(null);
+        setSelectedPatientIds(new Set());
+        setPatientSearch('');
+        setError(null);
+        setEditingStagedId(null);
+        setFormData((prev) => ({
+          ...prev, patient_id: '', patient_name: '', patient_phone: '',
+          unit_number: '', delivery_instructions: '', delivery_notes: '',
+          prescription_number: '', cod_total_amount_required: 0,
+          cod_payments: [], cod_payment_type: 'No Payment', cod_amount: '',
+          mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
+          dont_ring_bell: false, back_door: false, signature_needed: false, no_charge: false, store_id: '',
+          recurring: false, recurring_daily: false,
+          recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
+          recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
+          recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
+          recurring_monthly: false, recurring_bimonthly: false
+        }));
+        setSelectedPickupOption('');
+        setTimeout(() => patientSearchInputRef.current?.focus(), 100);
       } else {
         // Just clear the search field
         setPatientSearch('');
@@ -2346,7 +2366,7 @@ export default function DeliveryForm({
         if (buttonState === 'add' && isFormValid) handleAddToStaging();
       }
     }
-  }, [patientSearch, filteredPatients, highlightedPatientIndex, handlePatientSelect, hasFormData, buttonState, isFormValid, handleBatchSave, handleUpdateStaged, handleAddToStaging, onCreatePatient, currentUser, handleClearForm]);
+  }, [patientSearch, filteredPatients, highlightedPatientIndex, handlePatientSelect, hasFormData, buttonState, isFormValid, handleBatchSave, handleUpdateStaged, handleAddToStaging, onCreatePatient, currentUser]);
 
   useEffect(() => {
     setHighlightedPatientIndex(-1);
