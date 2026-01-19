@@ -3745,11 +3745,30 @@ export default function DeliveryForm({
                         size="sm"
                         className="w-full mt-3 gap-2"
                         onClick={() => {
+                          // Clear form for totally new patient entry (same behavior as Duplicate/New buttons)
+                          setNewPatientMode('new');
+                          setSelectedPatient(null);
+                          setPatientSearch('');
+                          setHighlightedPatientIndex(-1);
+                          
+                          // Open patient form with empty data but preserve store context if dispatcher
+                          const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
+                          const dispatcherStoreIds = isDispatcher ? (currentUser.store_ids || []) : [];
+                          const defaultStoreId = dispatcherStoreIds.length === 1 ? dispatcherStoreIds[0] : '';
+                          
                           setIsPatientFormOpen(true);
                           onCreatePatient((newPatient) => {
                             setIsPatientFormOpen(false);
-                            handlePatientSelect(newPatient);
-                            setPatientSearch('');
+                            setNewPatientMode(null);
+                            handlePatientSelect(newPatient, false);
+                          }, {
+                            full_name: '',
+                            phone: '',
+                            store_id: defaultStoreId,
+                            address: '',
+                            unit_number: '',
+                            notes: '',
+                            _isNew: true
                           });
                         }}>
                                 <Plus className="w-4 h-4" />
