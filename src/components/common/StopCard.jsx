@@ -2052,17 +2052,20 @@ export default function StopCard({
               <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
                 <>
-                    {/* Proof of Delivery Buttons - Only show for isNextDelivery and not finished and not pickup */}
-                    {isNextDelivery && !isFinishedDelivery && !isPickup && (
+                    {/* Proof of Delivery Buttons - Show for all patient deliveries, disabled for finished */}
+                    {!isPickup && (
                       <div className="flex items-center gap-2">
                         {/* Signature Button */}
                         <Button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setShowSignatureCapture(true);
+                            if (!isFinishedDelivery) {
+                              setShowSignatureCapture(true);
+                            }
                           }}
                           size="sm"
                           variant="outline"
+                          disabled={isFinishedDelivery}
                           className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
                             delivery.signature_image_url 
                               ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' 
@@ -2078,10 +2081,13 @@ export default function StopCard({
                         <Button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setShowPhotoCapture(true);
+                            if (!isFinishedDelivery) {
+                              setShowPhotoCapture(true);
+                            }
                           }}
                           size="sm"
                           variant="outline"
+                          disabled={isFinishedDelivery}
                           className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
                             delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0
                               ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' 
