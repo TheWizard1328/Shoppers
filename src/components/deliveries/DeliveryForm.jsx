@@ -4083,7 +4083,7 @@ export default function DeliveryForm({
                 <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {/* Section 1: Notes */}
-                  <div className="space-y-2 p-3 rounded-lg border overflow-hidden" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     {!isPickupMode ?
                     <div className="flex gap-3">
                         <div className="flex-1 min-w-0 space-y-1">
@@ -4092,7 +4092,7 @@ export default function DeliveryForm({
                           value={formData.delivery_instructions || selectedPatient?.notes || ''}
                           onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))}
                           placeholder="Patient delivery instructions..."
-                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                          className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none"
                           disabled={isSaving} />
                         </div>
 
@@ -4102,7 +4102,7 @@ export default function DeliveryForm({
                           value={formData.delivery_notes}
                           onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
                           placeholder="Driver notes for this delivery..."
-                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                          className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none"
                           disabled={isSaving} />
                         </div>
                       </div> :
@@ -4112,7 +4112,7 @@ export default function DeliveryForm({
                         value={formData.delivery_notes}
                         onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
                         placeholder="Notes for this pickup..."
-                        className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                        className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none"
                         disabled={isSaving} />
                       </div>
                     }
