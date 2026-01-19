@@ -11,17 +11,48 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate } = await req.json();
+    const { deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId } = await req.json();
 
     if (!deliveryId || !patientName || !codAmount) {
       return Response.json({ error: 'Missing required fields: deliveryId, patientName, codAmount' }, { status: 400 });
     }
 
     const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN');
-    const locationId = Deno.env.get('SQUARE_LOCATION_ID');
 
-    if (!accessToken || !locationId) {
-      return Response.json({ error: 'Square credentials not configured' }, { status: 500 });
+    if (!accessToken) {
+      return Response.json({ error: 'Square access token not configured' }, { status: 500 });
+    }
+
+    // Get the store's Square location ID from SquareLocationConfig
+    let locationId = null;
+    
+    if (storeId) {
+      // Look up the store to get its square_location_config_id
+      const stores = await base44.asServiceRole.entities.Store.filter({ id: storeId });
+      const store = stores?.[0];
+      
+      if (store?.square_location_config_id) {
+        // Look up the SquareLocationConfig to get the actual Square location ID
+        const configs = await base44.asServiceRole.entities.SquareLocationConfig.filter({ 
+          id: store.square_location_config_id 
+        });
+        const config = configs?.[0];
+        
+        if (config?.square_location_id && config?.status === 'active') {
+          locationId = config.square_location_id;
+          console.log(`📍 [Square] Using store-specific location: ${locationId} for store ${storeAbbreviation}`);
+        }
+      }
+    }
+
+    // Fallback to default location if no store-specific config found
+    if (!locationId) {
+      locationId = Deno.env.get('SQUARE_LOCATION_ID');
+      console.log(`📍 [Square] Using default location: ${locationId}`);
+    }
+
+    if (!locationId) {
+      return Response.json({ error: 'No Square location configured for this store' }, { status: 500 });
     }
 
     // Format: [MM]/[DD](Store Abbreviation)-Patient Name
