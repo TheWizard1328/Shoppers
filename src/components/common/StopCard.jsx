@@ -1653,7 +1653,8 @@ export default function StopCard({
                                   patientName: pendingDelivery.patient_name,
                                   storeAbbreviation: storeForCod?.abbreviation || '',
                                   codAmount: codAmountDollars,
-                                  deliveryDate: pendingDelivery.delivery_date
+                                  deliveryDate: pendingDelivery.delivery_date,
+                                  storeId: pendingDelivery.store_id
                                 });
                                 console.log('✅ [Square] COD item created for:', pendingDelivery.patient_name);
                               } catch (squareError) {
