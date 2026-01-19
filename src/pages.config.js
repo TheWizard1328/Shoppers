@@ -1,4 +1,3 @@
-import AdminMetrics from './pages/AdminMetrics';
 import AdminUtilities from './pages/AdminUtilities';
 import AppUsers from './pages/AppUsers';
 import Cities from './pages/Cities';
@@ -18,7 +17,6 @@ import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "AdminMetrics": AdminMetrics,
     "AdminUtilities": AdminUtilities,
     "AppUsers": AppUsers,
     "Cities": Cities,
