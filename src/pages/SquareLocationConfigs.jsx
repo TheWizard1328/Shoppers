@@ -227,6 +227,50 @@ export default function SquareLocationConfigs() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
+                  {/* Square Location Details */}
+                  {locationDetails[config.id] && !locationDetails[config.id].error && (
+                    <div className="bg-slate-50 rounded-lg p-3 mb-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-700">Square Location Info</span>
+                        <Badge variant={locationDetails[config.id].status === 'ACTIVE' ? 'default' : 'secondary'} className="text-xs">
+                          {locationDetails[config.id].status}
+                        </Badge>
+                      </div>
+                      {locationDetails[config.id].businessName && (
+                        <div className="text-sm text-slate-600">
+                          <span className="font-medium">Business:</span> {locationDetails[config.id].businessName}
+                        </div>
+                      )}
+                      {locationDetails[config.id].address && (
+                        <div className="flex items-center gap-1 text-sm text-slate-600">
+                          <MapPin className="w-3 h-3" />
+                          {locationDetails[config.id].address}
+                        </div>
+                      )}
+                      {locationDetails[config.id].balance !== null && (
+                        <div className="flex items-center gap-1 text-sm font-medium text-emerald-600">
+                          <DollarSign className="w-3 h-3" />
+                          Balance: ${locationDetails[config.id].balance?.toFixed(2)} {locationDetails[config.id].currency}
+                        </div>
+                      )}
+                      {locationDetails[config.id].capabilities?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {locationDetails[config.id].capabilities.slice(0, 4).map(cap => (
+                            <Badge key={cap} variant="outline" className="text-xs bg-white">
+                              {cap.replace('CREDIT_CARD_PROCESSING', 'Cards').replace('AUTOMATIC_TRANSFERS', 'Auto-Transfer')}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {locationDetails[config.id]?.error && (
+                    <div className="bg-red-50 rounded-lg p-3 mb-3 flex items-center gap-2 text-sm text-red-600">
+                      <AlertCircle className="w-4 h-4" />
+                      {locationDetails[config.id].error}
+                    </div>
+                  )}
+                  
                   {config.notes && (
                     <p className="text-sm text-slate-600 mb-3">{config.notes}</p>
                   )}
