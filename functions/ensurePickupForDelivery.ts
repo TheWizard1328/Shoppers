@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
             store_id: storeId,
             driver_id: driverId,
             driver_name: driverName,
-            status: 'Ready For Pickup',
+            status: 'en_route',
             delivery_time_start: pickupTimeStr,
             delivery_time_end: '',
             time_window_start: pickupTimeStr,
