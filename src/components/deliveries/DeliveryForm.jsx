@@ -934,23 +934,11 @@ export default function DeliveryForm({
       }
     }
 
-    // CRITICAL: Use patient's location data for distance calculation
-    // Use existing distance_from_store if available, otherwise calculate from lat/lng
+    // Use existing distance_from_store if available, otherwise calculate
     let distanceFromStore = patient.distance_from_store;
-    const patientLat = patient.latitude;
-    const patientLng = patient.longitude;
-    
-    console.log('📍 [handlePatientSelect] Patient location data:', {
-      name: patient.full_name,
-      latitude: patientLat,
-      longitude: patientLng,
-      distance_from_store: distanceFromStore
-    });
-    
-    if ((distanceFromStore === null || distanceFromStore === undefined) && patientLat && patientLng) {
-      if (patientStore.latitude && patientStore.longitude) {
-        distanceFromStore = calculateDistance(patientStore.latitude, patientStore.longitude, patientLat, patientLng);
-        console.log('📍 [handlePatientSelect] Calculated distance:', distanceFromStore);
+    if (distanceFromStore === null || distanceFromStore === undefined) {
+      if (patient.latitude && patient.longitude && patientStore.latitude && patientStore.longitude) {
+        distanceFromStore = calculateDistance(patientStore.latitude, patientStore.longitude, patient.latitude, patient.longitude);
       }
     }
 
