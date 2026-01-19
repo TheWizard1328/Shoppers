@@ -3790,12 +3790,13 @@ export default function DeliveryForm({
                         const storeAbbr = patientStore?.abbreviation || '';
                         const isHighlighted = index === highlightedPatientIndex;
                         const isSelected = selectedPatientIds.has(patient.id);
+                        const isAlreadyStaged = patient._isAlreadyStaged;
 
                         return (
                           <div
                             key={patient.id}
                             id={`patient-item-${index}`}
-                            className={`w-full text-left p-2 transition-colors text-sm flex items-start gap-2 ${isHighlighted ? 'bg-emerald-50 border-l-4 border-emerald-500' : 'hover:bg-slate-50'} ${isSelected ? 'bg-blue-50' : ''}`
+                            className={`w-full text-left p-2 transition-colors text-sm flex items-start gap-2 ${isHighlighted ? 'bg-emerald-50 border-l-4 border-emerald-500' : 'hover:bg-slate-50'} ${isSelected ? 'bg-blue-50' : ''} ${isAlreadyStaged ? 'bg-amber-50 opacity-70' : ''}`
                             }>
                                   {(isMultiSelectMode || selectedPatientIds.size > 0) &&
                             <Checkbox
