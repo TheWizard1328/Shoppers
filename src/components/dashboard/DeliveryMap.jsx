@@ -127,7 +127,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
         font-weight: bold;
         color: ${textColor};
         box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        border: 2px solid ${statusColor};
+        border: ${isOtherDriver ? '3px' : '2px'} solid ${statusColor};
         opacity: ${isOtherDriver ? 0.75 : 1};
         position: relative;
       ">
