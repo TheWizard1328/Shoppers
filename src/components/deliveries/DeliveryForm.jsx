@@ -2407,7 +2407,10 @@ export default function DeliveryForm({
               extra_time: updated.extra_time || 0,
               time_window_start: updated.time_window_start || '',
               time_window_end: updated.time_window_end || '',
-              paid_km_override: updated.paid_km_override ?? null
+              paid_km_override: updated.paid_km_override ?? null,
+              store_id: updated.store_id || '',
+              ampm_deliveries: updated.ampm_deliveries || null,
+              puid: updated.puid || ''
             };
 
             console.log(`[AddToRoute] 🔄 New Status will be: ${updateData.status}`);
