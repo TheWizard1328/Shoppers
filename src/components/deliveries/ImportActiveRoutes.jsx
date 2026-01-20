@@ -794,14 +794,28 @@ export default function ImportActiveRoutes({
           effectiveStopOrder = existingDelivery.stop_order || 0;
         }
         
+        // CRITICAL: Preserve existing first_delivery flag if already true
+        const effectiveFirstDelivery = existingDelivery.first_delivery === true ? true : newDeliveryData.first_delivery;
+        
+        // CRITICAL: Preserve existing failed/cancelled status - don't change to completed unless import has actual completion time
+        let effectiveStatus = deliveryStatus;
+        if ((existingDelivery.status === 'failed' || existingDelivery.status === 'cancelled') && 
+            deliveryStatus === 'completed' && 
+            !actualDeliveryTime) {
+          // Keep existing failed/cancelled status if import doesn't have actual completion time
+          effectiveStatus = existingDelivery.status;
+        }
+        
         const updatedDeliveryData = {
           ...newDeliveryData,
           id: existingDelivery.id,
           delivery_notes: existingDelivery.delivery_notes || null,
           // CRITICAL: Use effective stop_order (preserves existing for active stops)
           stop_order: effectiveStopOrder,
-          // CRITICAL: Always use imported status
-          status: deliveryStatus,
+          // CRITICAL: Use effective status (preserves failed/cancelled)
+          status: effectiveStatus,
+          // CRITICAL: Use effective first_delivery (preserves existing true values)
+          first_delivery: effectiveFirstDelivery,
           // CRITICAL: Always use imported actual_delivery_time
           actual_delivery_time: actualDeliveryTime
         };
