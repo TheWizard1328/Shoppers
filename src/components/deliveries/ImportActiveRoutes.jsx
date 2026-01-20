@@ -19,6 +19,7 @@ import { getAllDriverUsers } from '../utils/driverSelectors';
 import { offlineDB } from '../utils/offlineDatabase';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { driverLocationPoller } from '../utils/driverLocationPoller';
+import { processDeliveryNotes } from '../utils/notesProcessor';
 
 // Utility function for delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -657,131 +658,10 @@ export default function ImportActiveRoutes({
         }
       }
 
-      // Clean and process notes - apply same logic as Past Routes importer
-      let cleanedNotes = rawNotes.replace(/ - /g, '\n');
-      const notesLowerCleaned = cleanedNotes.toLowerCase();
-
-      // Parse special flags from notes
-      if (notesLowerCleaned.includes('first delivery')) {
-        newDeliveryData.first_delivery = true;
-        cleanedNotes = cleanedNotes.replace(/first delivery/gi, '').trim();
-        cleanedNotes = cleanedNotes.replace(/^[,\s\n]+|[,\s\n]+$/g, '').replace(/\s{2,}/g, ' ').replace(/\n{2,}/g, '\n');
-      }
-
-      if (notesLowerCleaned.match(/\bsignature\b/i)) {
-        newDeliveryData.signature_needed = true;
-      }
-
-      if (notesLowerCleaned.match(/\b(fridge|cold|refrigerat(?:e|ed|or)?|refrig)\b/i)) {
-        newDeliveryData.fridge_item = true;
-      }
-
-      if (notesLowerCleaned.match(/\b(oversized|large|bulky|big)\b/i)) {
-        newDeliveryData.oversized = true;
-      }
-
-      if (notesLowerCleaned.match(/\bafter[\s-]?hours\b/i)) {
-        newDeliveryData.after_hours_pickup = true;
-      }
-
-      // Parse COD from notes
-      // For incomplete stops: set cod_total_amount_required (amount owed)
-      // For completed stops: set cod_payments (amount collected) with payment type from import
-      if (patientId) {
-        const codRegex = /(cod|dod)\s*[\$]?\s*([\d.]+)\s*(cash|debit|credit|check|cheque)?/gi;
-        const codMatches = [...cleanedNotes.matchAll(codRegex)];
-
-        if (codMatches.length > 0) {
-          const codPayments = [];
-          let totalCodAmount = 0;
-
-          codMatches.forEach((match) => {
-            const codType = (match[1] || '').toLowerCase();
-            const amount = parseFloat(match[2]);
-            let paymentType = (match[3] || '').toLowerCase();
-
-            if (codType === 'dod') {
-              paymentType = 'Debit';
-            } else if (paymentType === 'cash') {
-              paymentType = 'Cash';
-            } else if (paymentType === 'debit') {
-              paymentType = 'Debit';
-            } else if (paymentType === 'credit') {
-              paymentType = 'Credit';
-            } else if (paymentType === 'check' || paymentType === 'cheque') {
-              paymentType = 'Check';
-            } else {
-              paymentType = 'Cash';
-            }
-
-            if (amount > 0) {
-              codPayments.push({ type: paymentType, amount });
-              totalCodAmount += amount;
-            }
-          });
-
-          if (codPayments.length > 0) {
-            // CRITICAL: For incomplete stops, only set the amount required (not collected yet)
-            // For completed stops, mark as collected with payment type
-            const isCompleted = deliveryStatus === 'completed' || deliveryStatus === 'failed' || deliveryStatus === 'cancelled';
-            
-            if (isCompleted) {
-              // Stop is complete - COD was collected
-              newDeliveryData.cod_payments = codPayments;
-              newDeliveryData.cod_total_amount_required = totalCodAmount;
-              newDeliveryData.cod_payment_type = codPayments[0].type;
-              newDeliveryData.cod_amount = totalCodAmount.toString();
-            } else {
-              // Stop is incomplete - COD is required but not yet collected
-              newDeliveryData.cod_payments = [];
-              newDeliveryData.cod_total_amount_required = totalCodAmount;
-              newDeliveryData.cod_payment_type = 'No Payment';
-              newDeliveryData.cod_amount = '';
-            }
-          }
-        }
-      }
-
-      // Filter notes to remove parsed information (same as Past Routes importer)
-      const linesToRemove = [
-        /(?:unit|apt|apartment|suite)\s*#?\s*\d+/i,
-        /#\d+/i,
-        /\d+\s+buzz\s+\d+/i,
-        /(?:cod|dod)\s*[\$]?\s*[\d.]+/i,
-        /\b(cash|debit|credit|check|cheque)\b/i,
-        /\bsignature\b/i,
-        /\b(fridge|cold|refrigerat(?:e|ed|or)?|refrig)\b/i,
-        /\b(oversized|large|bulky|big)\b/i,
-        /\bafter[\s-]?hours\b/i,
-        /\b(failed|cancel|cancelled|return|pickup|pick up)\b/i,
-        /\bfirst delivery\b/i
-      ];
-
-      const noteLines = cleanedNotes.split('\n');
-      const filteredNoteLines = noteLines.filter((noteLine) => {
-        const noteLineLower = noteLine.toLowerCase().trim();
-
-        if (!noteLineLower) return false;
-
-        if (noteLineLower.includes('interstore')) {
-          return true;
-        }
-
-        for (const pattern of linesToRemove) {
-          if (pattern.test(noteLine)) {
-            return false;
-          }
-        }
-
-        return true;
-      });
-
-      cleanedNotes = filteredNoteLines.join('\n').trim();
-
+      // CRITICAL: Use shared notes processor for consistency with Past Routes importer
+      const isCompletedStatus = deliveryStatus === 'completed' || deliveryStatus === 'failed' || deliveryStatus === 'cancelled';
+      const cleanedNotes = processDeliveryNotes(rawNotes, newDeliveryData, patient, isPickup, isCompletedStatus);
       newDeliveryData.delivery_notes = cleanedNotes;
-      if (newDeliveryData.delivery_notes === '' || newDeliveryData.delivery_notes === '-') {
-        newDeliveryData.delivery_notes = null;
-      }
 
       const matchResult = matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
       const existingDelivery = matchResult?.match || null;

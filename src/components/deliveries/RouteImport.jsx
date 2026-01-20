@@ -19,6 +19,7 @@ import { getAllDriverUsers } from '../utils/driverSelectors';
 import { offlineDB } from '../utils/offlineDatabase';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { driverLocationPoller } from '../utils/driverLocationPoller';
+import { processDeliveryNotes } from '../utils/notesProcessor';
 
 // Utility function for delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -789,16 +790,8 @@ export default function RouteImport({
         }
       }
 
-      let cleanedNotes = rawNotes.replace(/ - /g, '\n');
-      const notesLower = cleanedNotes.toLowerCase();
-
-      if (notesLower.includes('first delivery')) {
-        newDeliveryData.first_delivery = true;
-        cleanedNotes = cleanedNotes.replace(/first delivery/gi, '').trim();
-        cleanedNotes = cleanedNotes.replace(/^[,\s\n]+|[,\s\n]+$/g, '').replace(/\s{2,}/g, ' ').replace(/\n{2,}/g, '\n');
-      }
-
       // CRITICAL: For pickups with 'failed' in notes, set status to 'cancelled'
+      const notesLower = rawNotes.toLowerCase();
       if (isPickup && notesLower.includes('failed')) {
         newDeliveryData.status = statusMap['Cancelled'];
       } else if (notesLower.includes('failed')) {
@@ -806,105 +799,10 @@ export default function RouteImport({
       } else if (notesLower.includes('cancel')) {
         newDeliveryData.status = statusMap['Cancelled'];
       }
-      // REMOVED: Return status detection - returns are identified by notes/patient name markers only
-
-      if (notesLower.match(/\bsignature\b/i)) {
-        newDeliveryData.signature_needed = true;
-      }
-
-      if (notesLower.match(/\b(fridge|cold|refrigerat(?:e|ed|or)?|refrig)\b/i)) {
-        newDeliveryData.fridge_item = true;
-      }
-
-      if (notesLower.match(/\b(oversized|large|bulky|big)\b/i)) {
-        newDeliveryData.oversized = true;
-      }
-
-      if (notesLower.match(/\bafter[\s-]?hours\b/i)) {
-        newDeliveryData.after_hours_pickup = true;
-      }
-
-      if (patientId) {
-        const codRegex = /(cod|dod)\s*[\$]?\s*([\d.]+)\s*(cash|debit|credit|check|cheque)?/gi;
-        const codMatches = [...cleanedNotes.matchAll(codRegex)];
-
-        if (codMatches.length > 0) {
-          const codPayments = [];
-          let totalCodAmount = 0;
-
-          codMatches.forEach((match, idx) => {
-            const codType = (match[1] || '').toLowerCase();
-            const amount = parseFloat(match[2]);
-            let paymentType = (match[3] || '').toLowerCase();
-
-            if (codType === 'dod') {
-              paymentType = 'Debit';
-            } else if (paymentType === 'cash') {
-              paymentType = 'Cash';
-            } else if (paymentType === 'debit') {
-              paymentType = 'Debit';
-            } else if (paymentType === 'credit') {
-              paymentType = 'Credit';
-            } else if (paymentType === 'check' || paymentType === 'cheque') {
-              paymentType = 'Check';
-            } else {
-              paymentType = 'Cash';
-            }
-
-            if (amount > 0) {
-              codPayments.push({ type: paymentType, amount });
-              totalCodAmount += amount;
-            }
-          });
-
-          if (codPayments.length > 0) {
-            newDeliveryData.cod_payments = codPayments;
-            newDeliveryData.cod_total_amount_required = totalCodAmount;
-            newDeliveryData.cod_payment_type = codPayments[0].type;
-            newDeliveryData.cod_amount = totalCodAmount.toString();
-          }
-        }
-      }
-
-      const linesToRemove = [
-      /(?:unit|apt|apartment|suite)\s*#?\s*\d+/i,
-      /#\d+/i,
-      /\d+\s+buzz\s+\d+/i,
-      /(?:cod|dod)\s*[\$]?\s*[\d.]+/i,
-      /\b(cash|debit|credit|check|cheque)\b/i,
-      /\bsignature\b/i,
-      /\b(fridge|cold|refrigerat(?:e|ed|or)?|refrig)\b/i,
-      /\b(oversized|large|bulky|big)\b/i,
-      /\bafter[\s-]?hours\b/i,
-      /\b(failed|cancel|cancelled|return|pickup|pick up)\b/i,
-      /\bfirst delivery\b/i];
-
-
-      const noteLines = cleanedNotes.split('\n');
-      const filteredNoteLines = noteLines.filter((noteLine) => {
-        const noteLineLower = noteLine.toLowerCase().trim();
-
-        if (!noteLineLower) return false;
-
-        if (noteLineLower.includes('interstore')) {
-          return true;
-        }
-
-        for (const pattern of linesToRemove) {
-          if (pattern.test(noteLine)) {
-            return false;
-          }
-        }
-
-        return true;
-      });
-
-      cleanedNotes = filteredNoteLines.join('\n').trim();
-
+      
+      // CRITICAL: Use shared notes processor for consistency
+      const cleanedNotes = processDeliveryNotes(rawNotes, newDeliveryData, patient, isPickup, true);
       newDeliveryData.delivery_notes = cleanedNotes;
-      if (newDeliveryData.delivery_notes === '' || newDeliveryData.delivery_notes === '-') {
-        newDeliveryData.delivery_notes = null;
-      }
 
       const matchResult = matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
       const existingDelivery = matchResult?.match || null;
