@@ -2859,6 +2859,28 @@ export default function DeliveryForm({
 
 
 
+      // AUTO BACK ON DUTY: If driver is on_break and completes their next stop, auto set to on_duty
+      if (statusChangedToCompletion && delivery && formData.status === 'completed') {
+        try {
+          // Check if this was the isNextDelivery stop
+          if (delivery.isNextDelivery) {
+            // Get driver's AppUser to check status
+            const appUsers = await base44.entities.AppUser.filter({ user_id: formData.driver_id });
+            const driverAppUser = appUsers?.[0];
+            
+            if (driverAppUser && driverAppUser.driver_status === 'on_break') {
+              console.log('🔄 [DeliveryForm] Auto setting driver back to on_duty (completed next stop while on break)');
+              await base44.entities.AppUser.update(driverAppUser.id, {
+                driver_status: 'on_duty'
+              });
+              console.log('✅ [DeliveryForm] Driver auto-set to on_duty');
+            }
+          }
+        } catch (error) {
+          console.error('❌ [DeliveryForm] Auto back-on-duty failed:', error);
+        }
+      }
+
       // CRITICAL: Always reorder stops after any delivery update or status change
       if (delivery && delivery.driver_id && delivery.delivery_date) {
         console.log('🔄 [DeliveryForm] Reordering stops after delivery update...');
