@@ -629,22 +629,29 @@ export default function ImportActiveRoutes({
         newDeliveryData.back_door = patient.back_door || false;
         newDeliveryData.signature_needed = patient.signature_needed || false;
         
-        // CRITICAL: Set time windows from patient record ONLY if patient has them
-        // Otherwise leave blank (do NOT use CSV end time)
+        // CRITICAL: Set time windows from patient record ONLY for pending deliveries
+        // For active stops (in_transit/en_route), preserve imported times from CSV
+        const isActiveStop = newDeliveryData.status === 'in_transit' || newDeliveryData.status === 'en_route';
+        
         if (patient.time_window_start) {
           newDeliveryData.time_window_start = patient.time_window_start;
-          // Only override delivery_time_start if not already set from import
-          if (!newDeliveryData.delivery_time_start) {
+          // Only override delivery_time_start if NOT imported and NOT an active stop
+          if (!newDeliveryData.delivery_time_start && !isActiveStop) {
             newDeliveryData.delivery_time_start = patient.time_window_start;
           }
         }
         if (patient.time_window_end) {
           newDeliveryData.time_window_end = patient.time_window_end;
-          newDeliveryData.delivery_time_end = patient.time_window_end;
+          // Only set delivery_time_end for non-active stops
+          if (!isActiveStop) {
+            newDeliveryData.delivery_time_end = patient.time_window_end;
+          }
         } else {
-          // Patient has no time_window_end - ensure we leave it blank
-          newDeliveryData.time_window_end = null;
-          newDeliveryData.delivery_time_end = null;
+          // Patient has no time_window_end - ensure we leave it blank unless already set
+          if (!isActiveStop) {
+            newDeliveryData.time_window_end = null;
+            newDeliveryData.delivery_time_end = null;
+          }
         }
       } else {
         newDeliveryData.patient_id = null;
