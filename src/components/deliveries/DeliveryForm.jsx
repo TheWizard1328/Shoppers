@@ -4791,6 +4791,43 @@ export default function DeliveryForm({
                 }
               </div>
             </div>
+                    <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Deliveries: (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})</Label>
+                    <DeliveryFormStaged
+                      sortedStagedDeliveries={sortedStagedDeliveries}
+                      sortedProjectedDeliveries={sortedProjectedDeliveries}
+                      stores={stores}
+                      patients={patients}
+                      currentUser={currentUser}
+                      editingStagedId={editingStagedId}
+                      isMobileDevice={isMobileDevice}
+                      handleStagedDeliveryClick={handleStagedDeliveryClick}
+                      handleClearForm={handleClearForm}
+                      stagedDeliveries={stagedDeliveries}
+                      fullPredictionListRef={fullPredictionListRef}
+                      setProjectedDeliveries={setProjectedDeliveries}
+                      setStagedDeliveries={setStagedDeliveries}
+                      setEditingStagedId={setEditingStagedId}
+                      patientSearchInputRef={patientSearchInputRef}
+                      confirmAddProjectedToStaged={confirmAddProjectedToStaged}
+                      setDeleteConfirmation={setDeleteConfirmation}
+                      isLoadingPredictions={isLoadingPredictions}
+                    />
+
+                    {/* Refresh Projections Button */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-2 text-xs"
+                      onClick={() => setPredictionTrigger((prev) => prev + 1)}
+                      disabled={isLoadingPredictions}
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                      {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
+                    </Button>
+                  </div>
+                }
+              </div>
+            </div>
 
             {/* Mobile Staged Panel */}
             <AnimatePresence>
