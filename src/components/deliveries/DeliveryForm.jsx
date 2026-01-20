@@ -4786,12 +4786,12 @@ export default function DeliveryForm({
                         disabled={isLoadingPredictions}
                         style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                         {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
-                      </Button>
-                    </div>
-                  )}
+                    </Button>
+                  </div>
+                )}
 
-                  {/* Mobile Staged Panel */}
-                  <AnimatePresence>
+                {/* Mobile Staged Panel */}
+                <AnimatePresence>
                     {!delivery && useMobileLayout && showStagedPanel &&
                 <motion.div
                   initial={{ opacity: 0 }}
