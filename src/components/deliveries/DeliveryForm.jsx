@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -3668,7 +3669,7 @@ export default function DeliveryForm({
           {isPayrollLocked && payrollLockMessage && (
             <div className="p-3 bg-amber-100 text-amber-900 text-sm text-center border-b border-amber-200 flex items-center justify-center gap-2" style={{ background: '#fef3c7', color: '#78350f' }}>
               <AlertCircle className="w-4 h-4" />
-              <span>{payrollLockMessage}</span>
+              <span>{payrollLockLockMessage}</span>
             </div>
           )}
 
@@ -3864,10 +3865,10 @@ export default function DeliveryForm({
                                       onCheckedChange={(checked) => {
                                         setSelectedPatientIds((prev) => {
                                           const newSet = new Set(prev);
-                                          if (checked) {
-                                            newSet.add(patient.id);
-                                          } else {
+                                          if (newSet.has(patient.id)) {
                                             newSet.delete(patient.id);
+                                          } else {
+                                            newSet.add(patient.id);
                                           }
                                           return newSet;
                                         });
@@ -4754,43 +4755,6 @@ export default function DeliveryForm({
                 {/* Staged Panel - STATIC - Show when screen is wide enough, regardless of device type */}
                 {!delivery && !useMobileLayout &&
                   <div className="w-[300px] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                    <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Deliveries: (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})</Label>
-                    <DeliveryFormStaged
-                      sortedStagedDeliveries={sortedStagedDeliveries}
-                      sortedProjectedDeliveries={sortedProjectedDeliveries}
-                      stores={stores}
-                      patients={patients}
-                      currentUser={currentUser}
-                      editingStagedId={editingStagedId}
-                      isMobileDevice={isMobileDevice}
-                      handleStagedDeliveryClick={handleStagedDeliveryClick}
-                      handleClearForm={handleClearForm}
-                      stagedDeliveries={stagedDeliveries}
-                      fullPredictionListRef={fullPredictionListRef}
-                      setProjectedDeliveries={setProjectedDeliveries}
-                      setStagedDeliveries={setStagedDeliveries}
-                      setEditingStagedId={setEditingStagedId}
-                      patientSearchInputRef={patientSearchInputRef}
-                      confirmAddProjectedToStaged={confirmAddProjectedToStaged}
-                      setDeleteConfirmation={setDeleteConfirmation}
-                      isLoadingPredictions={isLoadingPredictions}
-                    />
-
-                    {/* Refresh Projections Button */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-2 text-xs"
-                      onClick={() => setPredictionTrigger((prev) => prev + 1)}
-                      disabled={isLoadingPredictions}
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                      {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
-                    </Button>
-                  </div>
-                }
-              </div>
-            </div>
                     <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Deliveries: (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})</Label>
                     <DeliveryFormStaged
                       sortedStagedDeliveries={sortedStagedDeliveries}
