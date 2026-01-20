@@ -1395,13 +1395,16 @@ export default function Layout({ children, currentPageName }) {
         const isDriver = userHasRole(currentUser, 'driver');
         const isDispatcher = userHasRole(currentUser, 'dispatcher');
 
+        // CRITICAL: Only filter by driver if NOT in "all drivers" mode
+        // When selectedDriverId is 'all', fetch ALL drivers' data for complete sync
         if (isDriver && !isDispatcher && !isAdmin) {
+          // Driver users always see only their own deliveries (no "all" option for drivers)
           filters.deliveryFilter.driver_id = currentUser.id;
-        }
-
-        if (selectedDriverId && selectedDriverId !== 'all') {
+        } else if (selectedDriverId && selectedDriverId !== 'all') {
+          // Admin/Dispatcher with specific driver selected - filter by that driver
           filters.deliveryFilter.driver_id = selectedDriverId;
         }
+        // When selectedDriverId === 'all', DO NOT add driver_id filter - fetch all drivers
 
         if (isEntityUpdating) return;
 
