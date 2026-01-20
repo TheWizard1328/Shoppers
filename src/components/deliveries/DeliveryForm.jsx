@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -4350,7 +4349,7 @@ export default function DeliveryForm({
 
                         {/* Row 2: Completion Time only (no time windows for finished stops) */}
                         <div className="flex gap-3">
-                          <div className="flex-1 space-y-1">
+                          <div className="w-1/3 space-y-1">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completion Time *</Label>
                             <Input
                               type="time"
