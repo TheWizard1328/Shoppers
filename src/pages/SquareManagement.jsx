@@ -126,10 +126,44 @@ export default function SquareManagement() {
     }
   };
 
+  // Filter items based on user role
+  const filteredCatalogItems = React.useMemo(() => {
+    if (!currentUser) return [];
+    
+    const isAppOwner = currentUser.role === 'App Owner';
+    if (isAppOwner) {
+      return catalogItems;
+    }
+    
+    const isDriver = currentUser.app_roles?.includes('driver');
+    if (!isDriver) {
+      return [];
+    }
+    
+    // Get driver's assigned store IDs from deliveries
+    const driverStoreIds = new Set(
+      stores
+        .filter(s => {
+          const config = locationConfigs.find(c => c.id === s.square_location_config_id);
+          return config && catalogItems.some(item => item.location_id === config.square_location_id);
+        })
+        .map(s => s.id)
+    );
+    
+    // Filter items to only those in locations assigned to driver's stores
+    return catalogItems.filter(item => {
+      const config = locationConfigs.find(c => c.square_location_id === item.location_id);
+      if (!config) return false;
+      
+      const store = stores.find(s => s.square_location_config_id === config.id);
+      return store && driverStoreIds.has(store.id);
+    });
+  }, [catalogItems, currentUser, stores, locationConfigs]);
+
   // Summary stats
   const stats = {
-    total: catalogItems.length,
-    totalAmount: catalogItems.reduce((sum, i) => sum + (i.price_dollars || 0), 0),
+    total: filteredCatalogItems.length,
+    totalAmount: filteredCatalogItems.reduce((sum, i) => sum + (i.price_dollars || 0), 0),
     locations: locationIds.length
   };
 
