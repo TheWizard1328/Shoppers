@@ -107,6 +107,7 @@ export default function FailureReasonDialog({
               onChange={(e) => setAdditionalNotes(e.target.value)}
               placeholder="Add any additional details..."
               className="text-sm resize-none h-20"
+              autoFocus={false}
             />
           </div>
 
@@ -115,6 +116,7 @@ export default function FailureReasonDialog({
               variant="outline"
               className="flex-1"
               onClick={handleClose}
+              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
             >
               Cancel
             </Button>
