@@ -64,7 +64,7 @@ export default function FailureReasonDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md z-[10020] border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+      <DialogContent className="max-w-md z-[10020] border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }} onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <AlertCircle className="w-5 h-5" />
