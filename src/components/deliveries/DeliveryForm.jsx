@@ -4789,8 +4789,7 @@ export default function DeliveryForm({
                     </Button>
                   </div>
                 }
-                </div>
-                </div>
+              </div>
 
                 {/* Mobile Staged Panel */}
                 <AnimatePresence>
