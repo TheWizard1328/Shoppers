@@ -14,12 +14,14 @@ import { toast } from "sonner";
 export default function SquareLocationConfigs() {
   const [configs, setConfigs] = useState([]);
   const [stores, setStores] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [editingConfig, setEditingConfig] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     square_location_id: "",
+    driver_id: "",
     status: "active",
     notes: ""
   });
@@ -31,12 +33,19 @@ export default function SquareLocationConfigs() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [configsData, storesData] = await Promise.all([
+      const [configsData, storesData, appUsersData] = await Promise.all([
         base44.entities.SquareLocationConfig.list(),
-        base44.entities.Store.list()
+        base44.entities.Store.list(),
+        base44.entities.AppUser.list()
       ]);
       setConfigs(configsData || []);
       setStores(storesData || []);
+      
+      // Filter to only drivers
+      const driversList = appUsersData.filter(u => 
+        u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active'
+      );
+      setDrivers(driversList || []);
     } catch (error) {
       console.error("Failed to load data:", error);
       toast.error("Failed to load Square location configs");
@@ -51,6 +60,7 @@ export default function SquareLocationConfigs() {
       setFormData({
         name: config.name || "",
         square_location_id: config.square_location_id || "",
+        driver_id: config.driver_id || "",
         status: config.status || "active",
         notes: config.notes || ""
       });
@@ -59,6 +69,7 @@ export default function SquareLocationConfigs() {
       setFormData({
         name: "",
         square_location_id: "",
+        driver_id: "",
         status: "active",
         notes: ""
       });
@@ -72,6 +83,7 @@ export default function SquareLocationConfigs() {
     setFormData({
       name: "",
       square_location_id: "",
+      driver_id: "",
       status: "active",
       notes: ""
     });
@@ -195,7 +207,17 @@ export default function SquareLocationConfigs() {
                     <p className="text-sm text-slate-600 mb-3">{config.notes}</p>
                   )}
                   <div className="flex items-center gap-2 text-sm">
-                    <span className="text-slate-500">Assigned to:</span>
+                    <span className="text-slate-500">Driver:</span>
+                    {config.driver_id ? (
+                      <Badge variant="outline" className="text-xs">
+                        {drivers.find(d => d.user_id === config.driver_id)?.user_name || 'Unknown'}
+                      </Badge>
+                    ) : (
+                      <span className="text-slate-400 italic">No driver assigned</span>
+                    )}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm mt-2">
+                    <span className="text-slate-500">Stores:</span>
                     {assignedStores.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {assignedStores.map(store => (
@@ -207,7 +229,7 @@ export default function SquareLocationConfigs() {
                     ) : (
                       <span className="text-slate-400 italic">No stores assigned</span>
                     )}
-                  </div>
+                    </div>
                 </CardContent>
               </Card>
             );
@@ -240,6 +262,22 @@ export default function SquareLocationConfigs() {
                 onChange={(e) => setFormData({ ...formData, square_location_id: e.target.value })}
               />
               <p className="text-xs text-slate-500">Find this in your Square Dashboard under Locations</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="driver_id">Assigned Driver</Label>
+              <Select value={formData.driver_id || ""} onValueChange={(value) => setFormData({ ...formData, driver_id: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select driver (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={null}>None</SelectItem>
+                  {drivers.map(driver => (
+                    <SelectItem key={driver.id} value={driver.user_id}>
+                      {driver.user_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
