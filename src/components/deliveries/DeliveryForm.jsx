@@ -4752,7 +4752,7 @@ export default function DeliveryForm({
                 </div>
 
                 {/* Staged Panel - STATIC - Show when screen is wide enough, regardless of device type */}
-                {!delivery && !useMobileLayout &&
+                {!delivery && !useMobileLayout && (
                   <div className="w-[300px] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Deliveries: (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})</Label>
                     <DeliveryFormStaged
