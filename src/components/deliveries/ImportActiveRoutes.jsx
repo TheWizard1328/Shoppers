@@ -1383,12 +1383,26 @@ export default function ImportActiveRoutes({
             if (d.driver_id) allDriversInRange.add(d.driver_id);
           });
           
-          for (const driverId of allDriversInRange) {
-            // Fetch fresh deliveries for this driver/date range
-            const driverDeliveries = await base44.entities.Delivery.filter({
-              driver_id: driverId,
+          // CRITICAL: Fetch ALL deliveries once for the date range to avoid N+1 queries
+          console.log(`📥 [Reorder] Fetching all deliveries for ${minDate} to ${maxDate} (${allDriversInRange.size} drivers)`);
+          const allDeliveriesForRange = await retryWithBackoff(async () => {
+            return await base44.entities.Delivery.filter({
               delivery_date: { $gte: minDate, $lte: maxDate }
-            });
+            }, '-delivery_date', 5000);
+          }, 3, 2000, 2);
+          
+          // Map by driver_id for quick lookup
+          const deliveriesByDriver = {};
+          (allDeliveriesForRange || []).forEach(d => {
+            if (!d.driver_id) return;
+            if (!deliveriesByDriver[d.driver_id]) {
+              deliveriesByDriver[d.driver_id] = [];
+            }
+            deliveriesByDriver[d.driver_id].push(d);
+          });
+          
+          for (const driverId of allDriversInRange) {
+            const driverDeliveries = deliveriesByDriver[driverId] || [];
             
             // Group by date
             const deliveriesByDate = {};
@@ -1476,12 +1490,26 @@ export default function ImportActiveRoutes({
             if (d.driver_id) allDriversInRange.add(d.driver_id);
           });
           
-          for (const driverId of allDriversInRange) {
-            // Fetch FRESH deliveries after reordering
-            const allDriverDeliveries = await base44.entities.Delivery.filter({
-              driver_id: driverId,
+          // CRITICAL: Fetch ALL deliveries once for the date range to avoid N+1 queries
+          console.log(`📥 [NextDelivery] Fetching all deliveries for ${minDate} to ${maxDate} (${allDriversInRange.size} drivers)`);
+          const allFreshDeliveries = await retryWithBackoff(async () => {
+            return await base44.entities.Delivery.filter({
               delivery_date: { $gte: minDate, $lte: maxDate }
-            });
+            }, '-delivery_date', 5000);
+          }, 3, 2000, 2);
+          
+          // Map by driver_id for quick lookup
+          const deliveriesByDriverForFlags = {};
+          (allFreshDeliveries || []).forEach(d => {
+            if (!d.driver_id) return;
+            if (!deliveriesByDriverForFlags[d.driver_id]) {
+              deliveriesByDriverForFlags[d.driver_id] = [];
+            }
+            deliveriesByDriverForFlags[d.driver_id].push(d);
+          });
+          
+          for (const driverId of allDriversInRange) {
+            const allDriverDeliveries = deliveriesByDriverForFlags[driverId] || [];
             
             const deliveriesByDate = {};
             allDriverDeliveries.forEach(d => {
@@ -1531,14 +1559,14 @@ export default function ImportActiveRoutes({
       driverLocationPoller.resume();
       console.log('▶️ [ImportActiveRoutes] Resumed smart refresh and location poller');
 
-      // CRITICAL: Load ALL drivers' deliveries for the date range to ensure "Show All" has complete data
+      // CRITICAL: Reuse cached deliveries from reorder step (already fetched, no extra API call)
       const { minDate, maxDate } = cachedDateRange;
-      
+
       if (minDate && maxDate) {
-        console.log(`📥 [ImportActiveRoutes] Fetching all drivers' deliveries for ${minDate} to ${maxDate}`);
-        const allDriversDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: { $gte: minDate, $lte: maxDate }
-        });
+       console.log(`📥 [ImportActiveRoutes] Retrieving cached deliveries for ${minDate} to ${maxDate}`);
+       // Note: allFreshDeliveries was already fetched during the nextDelivery flags step above
+       // Reuse it instead of fetching again
+       const allDriversDeliveries = allFreshDeliveries || [];
         
         // CRITICAL: Dispatch event with full deliveries array to update UI immediately
         window.dispatchEvent(new CustomEvent('deliveriesImported', {
