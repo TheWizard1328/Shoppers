@@ -1405,6 +1405,12 @@ class SmartRefreshManager {
         cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
       }
       
+      // CRITICAL: When in "all drivers" mode (no driver_id in filter), fetch ALL drivers' deliveries
+      // This ensures "Show All" checkbox has complete data for all drivers
+      if (filters.deliveryFilter && filters.deliveryFilter.driver_id) {
+        cityOnlyFilter.driver_id = filters.deliveryFilter.driver_id;
+      }
+      
       let fetchedDeliveries;
       try {
         fetchedDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
