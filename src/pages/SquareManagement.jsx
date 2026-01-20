@@ -135,28 +135,19 @@ export default function SquareManagement() {
       return catalogItems;
     }
     
-    const isDriver = currentUser.app_roles?.includes('driver');
-    if (!isDriver) {
+    // Get user's assigned store IDs
+    const userStoreIds = new Set(currentUser.store_ids || []);
+    if (userStoreIds.size === 0) {
       return [];
     }
     
-    // Get driver's assigned store IDs from deliveries
-    const driverStoreIds = new Set(
-      stores
-        .filter(s => {
-          const config = locationConfigs.find(c => c.id === s.square_location_config_id);
-          return config && catalogItems.some(item => item.location_id === config.square_location_id);
-        })
-        .map(s => s.id)
-    );
-    
-    // Filter items to only those in locations assigned to driver's stores
+    // Filter items to only those in locations assigned to user's stores
     return catalogItems.filter(item => {
       const config = locationConfigs.find(c => c.square_location_id === item.location_id);
       if (!config) return false;
       
       const store = stores.find(s => s.square_location_config_id === config.id);
-      return store && driverStoreIds.has(store.id);
+      return store && userStoreIds.has(store.id);
     });
   }, [catalogItems, currentUser, stores, locationConfigs]);
 
