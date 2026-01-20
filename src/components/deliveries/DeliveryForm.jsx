@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -4772,7 +4771,7 @@ export default function DeliveryForm({
                       setStagedDeliveries={setStagedDeliveries}
                       setEditingStagedId={setEditingStagedId}
                       patientSearchInputRef={patientSearchInputRef}
-                      confirmAddProjectedToStaged={confirmAddAddProjectedToStaged}
+                      confirmAddProjectedToStaged={confirmAddProjectedToStaged}
                       setDeleteConfirmation={setDeleteConfirmation}
                       isLoadingPredictions={isLoadingPredictions}
                     />
