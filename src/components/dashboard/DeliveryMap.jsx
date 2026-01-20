@@ -60,9 +60,9 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 // CRITICAL: Memoized icon cache to prevent re-creation on every render
 const simpleCircleIconCache = new Map();
 
-const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, borderColor = 'white', isOtherDriver = false) => {
+const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, borderColor = 'white', isOtherDriver = false, clusterCount = 0) => {
   // Use caching to prevent icon re-creation causing pulsation
-  const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}_${borderColor}_${isOtherDriver}`;
+  const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}`;
   
   if (simpleCircleIconCache.has(cacheKey)) {
     return simpleCircleIconCache.get(cacheKey);
@@ -73,8 +73,8 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
     'Ready For Pickup': '#3B82F6', // Blue
     'in_transit': '#3B82F6', // Blue
     'en_route': '#3B82F6', // Blue
-    'completed': '#10B981', // Green
-    'delivered': '#10B981', // Green
+    'completed': '#059669', // Darker Green
+    'delivered': '#059669', // Darker Green
     'failed': '#EF4444', // Red
     'cancelled': '#EF4444', // Red
     'returned': '#F97316' // Orange
@@ -129,8 +129,29 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
         box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         border: 2px solid ${statusColor};
         opacity: ${isOtherDriver ? 0.75 : 1};
+        position: relative;
       ">
         ${number || ''}
+        ${clusterCount > 1 ? `
+          <div style="
+            position: absolute;
+            top: -3px;
+            right: -3px;
+            background: #EF4444;
+            border: 1px solid white;
+            border-radius: 50%;
+            width: 10px;
+            height: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 6px;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            z-index: 10;
+          ">${clusterCount}</div>
+        ` : ''}
       </div>
     `,
     className: 'custom-simple-circle-icon',
@@ -2922,7 +2943,7 @@ export default function DeliveryMap({
             <Marker
               key={`pickup-${pickup.id}`}
               position={markerPosition}
-              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor, pickup.isOtherDriver) : createStoreIcon(
+              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount) : createStoreIcon(
                 pickup.status, 
                 pickup.pinColor, 
                 isFanned, 
@@ -3219,7 +3240,7 @@ export default function DeliveryMap({
             <Marker
               key={`delivery-${delivery.id}`}
               position={markerPosition}
-              icon={delivery.useSimpleCircle || delivery.isOtherDriver ? createSimpleCircleIcon(delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver) : createDeliveryIcon(
+              icon={delivery.useSimpleCircle || delivery.isOtherDriver ? createSimpleCircleIcon(delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver, delivery.duplicateCount) : createDeliveryIcon(
                 delivery.status,
                 delivery.pinColor,
                 isFanned,
