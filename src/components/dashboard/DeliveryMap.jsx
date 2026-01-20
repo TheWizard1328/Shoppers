@@ -2601,81 +2601,149 @@ export default function DeliveryMap({
           return null;
         })()}
 
-        {/* NEW: Polylines for all shared driver routes - blue from current location to next stop, then colored through remaining stops */}
-        {isViewingCurrentDate && driverLocationMarkers.length > 0 && (() => {
+        {/* Polylines for shared driver routes (with or without visible location markers) */}
+        {isViewingCurrentDate && (isAllDriversMode || showOtherDriverDeliveries) && (() => {
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           const polylines = [];
+          const processedDrivers = new Set([currentUser?.id]); // Track processed drivers to avoid duplicates
           
-          driverLocationMarkers.forEach(location => {
-            const driverId = location.driver_id || location.id;
-            
-            // Skip the current user's marker (already handled above)
-            if (driverId === currentUser?.id) return;
-            
-            // Get all incomplete stops for this driver
-            const driverIncompleteDeliveries = deliveryMarkers.filter(d => 
-              d && 
-              d.driver_id === driverId &&
-              !finishedStatuses.includes(d.status) &&
-              d.status !== 'pending'
-            ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-            
-            const driverIncompletePickups = pickupMarkers.filter(p => 
-              p && 
-              p.driver_id === driverId &&
-              !finishedStatuses.includes(p.status) &&
-              p.status !== 'pending'
-            ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-            
-            const driverAllIncomplete = [...driverIncompletePickups, ...driverIncompleteDeliveries]
-              .sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-            
-            if (driverAllIncomplete.length === 0) return;
-            
-            const startPoint = [location.latitude, location.longitude];
-            const nextStop = driverAllIncomplete[0];
-            
-            // Get driver's color for the route
-            const driverObj = safeUsers.find(u => u && u.id === driverId);
-            const driverColor = driverObj ? getDriverColor(driverObj) : '#607D8B';
-            
-            // 1) BLUE polyline from current location to next stop
-            polylines.push(
-              <Polyline
-                key={`shared-location-to-next-${driverId}-${nextStop.id}`}
-                positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
-                pathOptions={{
-                  color: '#3B82F6', // Blue
-                  weight: 4,
-                  opacity: 0.7,
-                  dashArray: '10, 5',
-                  lineJoin: 'round',
-                  lineCap: 'round'
-                }}
-                pane="overlayPane"
-              />
-            );
-            
-            // 2) COLORED polyline through all remaining stops (from next stop onwards)
-            if (driverAllIncomplete.length >= 2) {
-              const routeCoordinates = driverAllIncomplete.map(stop => [stop.latitude, stop.longitude]);
+          // If we have driver location markers, use them
+          if (driverLocationMarkers.length > 0) {
+            driverLocationMarkers.forEach(location => {
+              const driverId = location.driver_id || location.id;
+              if (processedDrivers.has(driverId)) return;
+              processedDrivers.add(driverId);
+              
+              const driverIncompleteDeliveries = deliveryMarkers.filter(d => 
+                d && d.driver_id === driverId && !finishedStatuses.includes(d.status) && d.status !== 'pending'
+              ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+              
+              const driverIncompletePickups = pickupMarkers.filter(p => 
+                p && p.driver_id === driverId && !finishedStatuses.includes(p.status) && p.status !== 'pending'
+              ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+              
+              const driverAllIncomplete = [...driverIncompletePickups, ...driverIncompleteDeliveries]
+                .sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+              
+              if (driverAllIncomplete.length === 0) return;
+              
+              const driverObj = safeUsers.find(u => u && u.id === driverId);
+              const driverColor = driverObj ? getDriverColor(driverObj) : '#607D8B';
+              const nextStop = driverAllIncomplete[0];
+              
               polylines.push(
                 <Polyline
-                  key={`shared-driver-route-${driverId}`}
-                  positions={routeCoordinates}
+                  key={`driver-to-next-${driverId}-${nextStop.id}`}
+                  positions={[[location.latitude, location.longitude], [nextStop.latitude, nextStop.longitude]]}
                   pathOptions={{
-                    color: driverColor,
-                    weight: 3,
-                    opacity: 0.6,
-                    dashArray: '8, 4',
+                    color: '#3B82F6',
+                    weight: 4,
+                    opacity: 0.7,
+                    dashArray: '10, 5',
                     lineJoin: 'round',
                     lineCap: 'round'
                   }}
                   pane="overlayPane"
                 />
               );
-            }
-          });
+              
+              if (driverAllIncomplete.length >= 2) {
+                polylines.push(
+                  <Polyline
+                    key={`driver-route-${driverId}`}
+                    positions={driverAllIncomplete.map(stop => [stop.latitude, stop.longitude])}
+                    pathOptions={{
+                      color: driverColor,
+                      weight: 3,
+                      opacity: 0.6,
+                      dashArray: '8, 4',
+                      lineJoin: 'round',
+                      lineCap: 'round'
+                    }}
+                    pane="overlayPane"
+                  />
+                );
+              }
+            });
+          } else {
+            // No location markers visible - still draw polylines from last completed stop or home location
+            const otherDriverIds = new Set(
+              [...deliveryMarkers, ...pickupMarkers]
+                .filter(m => m && m.driver_id !== currentUser?.id && !processedDrivers.has(m.driver_id))
+                .map(m => m.driver_id)
+            );
+            
+            otherDriverIds.forEach(driverId => {
+              const driverIncompleteDeliveries = deliveryMarkers.filter(d => 
+                d && d.driver_id === driverId && !finishedStatuses.includes(d.status) && d.status !== 'pending'
+              ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+              
+              const driverIncompletePickups = pickupMarkers.filter(p => 
+                p && p.driver_id === driverId && !finishedStatuses.includes(p.status) && p.status !== 'pending'
+              ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+              
+              const driverAllIncomplete = [...driverIncompletePickups, ...driverIncompleteDeliveries]
+                .sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+              
+              if (driverAllIncomplete.length === 0) return;
+              
+              const driverObj = safeUsers.find(u => u && u.id === driverId);
+              const driverColor = driverObj ? getDriverColor(driverObj) : '#607D8B';
+              const nextStop = driverAllIncomplete[0];
+              
+              // Find last completed stop or use home location as start point
+              let startPoint = null;
+              const allDriverStops = [...deliveryMarkers, ...pickupMarkers].filter(m => m && m.driver_id === driverId);
+              const completedStops = allDriverStops
+                .filter(s => finishedStatuses.includes(s.status) && s.actual_delivery_time)
+                .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+              
+              if (completedStops.length > 0) {
+                startPoint = [completedStops[0].latitude, completedStops[0].longitude];
+              } else {
+                const driver = safeUsers.find(u => u && u.id === driverId);
+                if (driver?.home_latitude && driver?.home_longitude) {
+                  startPoint = [driver.home_latitude, driver.home_longitude];
+                }
+              }
+              
+              if (!startPoint) return;
+              
+              polylines.push(
+                <Polyline
+                  key={`driver-to-next-no-marker-${driverId}-${nextStop.id}`}
+                  positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
+                  pathOptions={{
+                    color: '#3B82F6',
+                    weight: 4,
+                    opacity: 0.7,
+                    dashArray: '10, 5',
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                  }}
+                  pane="overlayPane"
+                />
+              );
+              
+              if (driverAllIncomplete.length >= 2) {
+                polylines.push(
+                  <Polyline
+                    key={`driver-route-no-marker-${driverId}`}
+                    positions={driverAllIncomplete.map(stop => [stop.latitude, stop.longitude])}
+                    pathOptions={{
+                      color: driverColor,
+                      weight: 3,
+                      opacity: 0.6,
+                      dashArray: '8, 4',
+                      lineJoin: 'round',
+                      lineCap: 'round'
+                    }}
+                    pane="overlayPane"
+                  />
+                );
+              }
+            });
+          }
           
           return polylines.length > 0 ? polylines : null;
         })()}
