@@ -536,7 +536,22 @@ export default function ImportActiveRoutes({
       // RULE: Determine status based on pending indicator (col 5), stop order, times, and pickup type
       const isPendingIndicator = pendingIndicator < 0; // Column 5 negative = pending
       
-      if (originalStopOrder > 0 && deliveryStartTimeStr && !deliveryEndTimeStr) {
+      // CRITICAL: Check for FAILED status in notes FIRST before any other status logic
+      const notesLower = rawNotes.toLowerCase();
+      if (notesLower.includes('failed')) {
+        // Failed status - set from notes, may or may not have completion time
+        deliveryStatus = isPickup ? 'cancelled' : 'failed';
+        // Use completion time if available
+        if (originalStopOrder > 0 && deliveryStartTimeStr) {
+          actualDeliveryTime = `${currentDate}T${deliveryStartTimeStr}:00`;
+        }
+      } else if (notesLower.includes('cancel')) {
+        // Cancelled status
+        deliveryStatus = 'cancelled';
+        if (originalStopOrder > 0 && deliveryStartTimeStr) {
+          actualDeliveryTime = `${currentDate}T${deliveryStartTimeStr}:00`;
+        }
+      } else if (originalStopOrder > 0 && deliveryStartTimeStr && !deliveryEndTimeStr) {
         // Completed - has stop order > 0, has start time only
         deliveryStatus = 'completed';
         // CRITICAL: Save as local time string (YYYY-MM-DDTHH:MM:SS) without timezone
@@ -596,20 +611,8 @@ export default function ImportActiveRoutes({
         puid: importedPuid || null // Use imported PUID from column 13
       };
 
-      // Handle failure detection from notes (for ANY status, not just completed)
-      const notesLower = rawNotes.toLowerCase();
-      if (notesLower.includes('failed')) {
-        if (isPickup) {
-          newDeliveryData.status = 'cancelled';
-          newDeliveryData.actual_delivery_time = actualDeliveryTime;
-        } else {
-          newDeliveryData.status = 'failed';
-          newDeliveryData.actual_delivery_time = actualDeliveryTime;
-        }
-      } else if (notesLower.includes('cancel')) {
-        newDeliveryData.status = 'cancelled';
-        newDeliveryData.actual_delivery_time = actualDeliveryTime;
-      }
+      // CRITICAL: Note - failure detection already handled in status determination section above
+      // This prevents overriding the early FAILED/CANCELLED detection
 
       if (patientId) {
         newDeliveryData.patient_id = patientId;
