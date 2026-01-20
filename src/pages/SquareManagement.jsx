@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RefreshCw, DollarSign, CheckCircle, XCircle, Clock, CreditCard, Trash2, Loader2, CloudDownload } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,6 +17,8 @@ export default function SquareManagement() {
   const [locationConfigs, setLocationConfigs] = useState([]);
   const [stores, setStores] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [drivers, setDrivers] = useState([]);
+  const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
@@ -47,12 +50,19 @@ export default function SquareManagement() {
         const user = await base44.auth.me();
         setCurrentUser(user);
         
-        const [configs, storesData] = await Promise.all([
+        const [configs, storesData, appUsersData] = await Promise.all([
           base44.entities.SquareLocationConfig.filter({ status: 'active' }),
-          base44.entities.Store.list()
+          base44.entities.Store.list(),
+          base44.entities.AppUser.list()
         ]);
         setLocationConfigs(configs || []);
         setStores(storesData || []);
+        
+        // Filter to only active drivers
+        const driversList = appUsersData.filter(u => 
+          u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active'
+        );
+        setDrivers(driversList || []);
       } catch (err) {
         console.error('Failed to load configs/stores:', err);
       }
@@ -126,30 +136,33 @@ export default function SquareManagement() {
     }
   };
 
-  // Filter items based on user role
+  // Filter items based on user role and selected driver filter
   const filteredCatalogItems = React.useMemo(() => {
     if (!currentUser) return [];
     
     const isAppOwner = currentUser.role === 'App Owner';
+    
+    // App owners can filter by driver
     if (isAppOwner) {
+      if (selectedDriverFilter && selectedDriverFilter !== 'all') {
+        // Filter by driver's location configs
+        const driverConfigs = locationConfigs.filter(c => c.driver_id === selectedDriverFilter);
+        const driverLocationIds = driverConfigs.map(c => c.square_location_id);
+        return catalogItems.filter(item => 
+          driverLocationIds.includes(item.location_id)
+        );
+      }
       return catalogItems;
     }
     
-    // Get user's assigned store IDs
-    const userStoreIds = new Set(currentUser.store_ids || []);
-    if (userStoreIds.size === 0) {
-      return [];
-    }
+    // Drivers see only items for their assigned location configs
+    const driverConfigs = locationConfigs.filter(c => c.driver_id === currentUser.id);
+    const driverLocationIds = driverConfigs.map(c => c.square_location_id);
     
-    // Filter items to only those in locations assigned to user's stores
-    return catalogItems.filter(item => {
-      const config = locationConfigs.find(c => c.square_location_id === item.location_id);
-      if (!config) return false;
-      
-      const store = stores.find(s => s.square_location_config_id === config.id);
-      return store && userStoreIds.has(store.id);
-    });
-  }, [catalogItems, currentUser, stores, locationConfigs]);
+    return catalogItems.filter(item => 
+      driverLocationIds.includes(item.location_id)
+    );
+  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs]);
 
   // Summary stats
   const stats = {
@@ -168,10 +181,27 @@ export default function SquareManagement() {
             <p className="text-sm text-slate-500">Track and manage COD payments via Square</p>
           </div>
         </div>
-        <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2">
-          <CloudDownload className={`w-4 h-4 ${isSyncing ? 'animate-pulse' : ''}`} />
-          {isSyncing ? 'Syncing...' : 'Sync from Square'}
-        </Button>
+        <div className="flex items-center gap-3">
+          {currentUser?.role === 'App Owner' && drivers.length > 0 && (
+            <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="All Drivers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Drivers</SelectItem>
+                {drivers.map(driver => (
+                  <SelectItem key={driver.id} value={driver.user_id}>
+                    {driver.user_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2">
+            <CloudDownload className={`w-4 h-4 ${isSyncing ? 'animate-pulse' : ''}`} />
+            {isSyncing ? 'Syncing...' : 'Sync from Square'}
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
