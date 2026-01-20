@@ -2456,8 +2456,10 @@ export default function DeliveryMap({
             // If we still don't have a start point, don't draw the line
             if (!startPoint) return null;
             
+            const driverColor = getDriverColor(currentUser);
+            
             return [
-              // Blue polyline from current location to next stop
+              // Blue polyline from current location to next stop ONLY
               <Polyline
                 key={`driver-to-next-stop-${nextStop.id}`}
                 positions={[
@@ -2475,13 +2477,13 @@ export default function DeliveryMap({
                 pane="overlayPane"
               />,
               
-              // Colored polyline through all remaining stops
+              // Colored polyline through all remaining stops (from next stop onwards)
               ...(allIncompleteStops.length >= 2 ? [
                 <Polyline
                   key={`driver-full-route-${currentUser.id}`}
                   positions={allIncompleteStops.map(stop => [stop.latitude, stop.longitude])}
                   pathOptions={{
-                    color: '#3B82F6', // Use blue for current driver's route
+                    color: driverColor, // Driver-specific color
                     weight: 3,
                     opacity: 0.6,
                     dashArray: '8, 4',
