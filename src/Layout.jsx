@@ -3005,6 +3005,26 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                           }
 
+                    {(isAppOwner(currentUser) || userHasRole(currentUser, 'driver')) &&
+                        <Link
+                          to={createPageUrl('SquareManagement')}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                            currentPageName === 'SquareManagement' ?
+                              'shadow-sm' :
+                              'hover:opacity-80'}`
+                          }
+                          style={currentPageName === 'SquareManagement' ? {
+                            background: 'var(--bg-slate-100)',
+                            color: 'var(--text-slate-900)'
+                          } : {
+                            color: 'var(--text-slate-600)'
+                          }}>
+                          <CreditCard className="w-5 h-5" />
+                          <span className="font-semibold">Square COD</span>
+                          </Link>
+                          }
+
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                         <Link
                           to={createPageUrl('DriverPayroll')}
