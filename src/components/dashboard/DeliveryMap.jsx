@@ -2656,9 +2656,8 @@ export default function DeliveryMap({
               />
             );
             
-            // 2) COLORED polyline through all remaining stops (ONLY for current driver, not future stops)
-            // For other drivers, only show blue dashed line to next stop
-            if (driverId === currentUser?.id && driverAllIncomplete.length >= 2) {
+            // 2) COLORED polyline through all remaining stops (from next stop onwards)
+            if (driverAllIncomplete.length >= 2) {
               const routeCoordinates = driverAllIncomplete.map(stop => [stop.latitude, stop.longitude]);
               polylines.push(
                 <Polyline
