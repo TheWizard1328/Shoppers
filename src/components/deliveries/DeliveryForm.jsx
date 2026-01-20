@@ -4849,11 +4849,11 @@ export default function DeliveryForm({
                       {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
                     </Button>
                   </motion.div>
-                    </motion.div>
-                  }
-                </AnimatePresence>
-              </div>
-            </CardContent>
+                  </motion.div>
+                }
+              </AnimatePresence>
+            </div>
+          </CardContent>
 
           <CardFooter className="border-t p-3 flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between w-full gap-4">
