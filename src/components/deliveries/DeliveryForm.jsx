@@ -4791,7 +4791,7 @@ export default function DeliveryForm({
                 )}
               </div>
 
-              {/* Mobile Staged Panel */}
+            {/* Mobile Staged Panel */}
               <AnimatePresence>
               {!delivery && useMobileLayout && showStagedPanel &&
                 <motion.div
