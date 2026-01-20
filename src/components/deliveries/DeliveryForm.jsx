@@ -4775,19 +4775,20 @@ export default function DeliveryForm({
                       isLoadingPredictions={isLoadingPredictions}
                     />
 
-                    {/* Refresh Projections Button */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-2 text-xs"
-                      onClick={() => setPredictionTrigger((prev) => prev + 1)}
-                      disabled={isLoadingPredictions}
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                      {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
-                    </Button>
-                  </div>
-                )}
+                      {/* Refresh Projections Button */}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-2 text-xs"
+                        onClick={() => setPredictionTrigger((prev) => prev + 1)}
+                        disabled={isLoadingPredictions}
+                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                        {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
 
             {/* Mobile Staged Panel */}
