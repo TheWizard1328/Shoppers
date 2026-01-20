@@ -4273,82 +4273,111 @@ export default function DeliveryForm({
                   'opacity-50 pointer-events-none' : ''}`
                   } style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       {isCompletionStatus && delivery ?
-                    <div className="flex gap-3">
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
-                          <Select
-                          value={(() => {
-                            if (formData.store_id && formData.ampm_deliveries) {
-                              const variantId = `${formData.store_id}_${formData.ampm_deliveries}`;
-                              const variantExists = availableStores.some((s) => s && s.id === variantId);
-                              if (variantExists) return variantId;
-                            }
-                            return formData.store_id || "";
-                          })()}
-                          onValueChange={(value) => {
-                            const selectedStore = availableStores.find((s) => s.id === value);
-                            const storeId = selectedStore?._originalStoreId || value;
-                            const timeSlot = selectedStore?._timeSlot || null;
-                            const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                            setFormData((prev) => ({ ...prev, store_id: storeId, ampm_deliveries: timeSlot, puid: newPuid || '' }));
-                            if (isPickupMode) setSelectedPickupOption(value);
-                          }}
-                          disabled={isSaving || isPickupMode && delivery}>
-                            <SelectTrigger className="h-9">
-                              <SelectValue placeholder="Select store" />
-                            </SelectTrigger>
-                            <SelectContent className="z-[10030]">
-                              {availableStores.map((store) => {
-                              const baseStoreId = store._originalStoreId || store.id;
-                              const timeSlot = store._timeSlot || null;
-                              const puid = getPickupStopIdForDelivery(baseStoreId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                              const baseStoreName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
-                              const displayName = `${baseStoreName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}${isAppOwner(currentUser) && puid ? ` {${puid}}` : ''}`;
-                              return <SelectItem key={store.id} value={store.id}>{displayName}</SelectItem>;
-                            })}
-                            </SelectContent>
-                          </Select>
+                    <div className="space-y-2">
+                        {/* Row 1: Store and Status */}
+                        <div className="flex gap-3">
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
+                            <Select
+                            value={(() => {
+                              if (formData.store_id && formData.ampm_deliveries) {
+                                const variantId = `${formData.store_id}_${formData.ampm_deliveries}`;
+                                const variantExists = availableStores.some((s) => s && s.id === variantId);
+                                if (variantExists) return variantId;
+                              }
+                              return formData.store_id || "";
+                            })()}
+                            onValueChange={(value) => {
+                              const selectedStore = availableStores.find((s) => s.id === value);
+                              const storeId = selectedStore?._originalStoreId || value;
+                              const timeSlot = selectedStore?._timeSlot || null;
+                              const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
+                              setFormData((prev) => ({ ...prev, store_id: storeId, ampm_deliveries: timeSlot, puid: newPuid || '' }));
+                              if (isPickupMode) setSelectedPickupOption(value);
+                            }}
+                            disabled={isSaving || isPickupMode && delivery}>
+                              <SelectTrigger className="h-9">
+                                <SelectValue placeholder="Select store" />
+                              </SelectTrigger>
+                              <SelectContent className="z-[10030]">
+                                {availableStores.map((store) => {
+                                const baseStoreId = store._originalStoreId || store.id;
+                                const timeSlot = store._timeSlot || null;
+                                const puid = getPickupStopIdForDelivery(baseStoreId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
+                                const baseStoreName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
+                                const displayName = `${baseStoreName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}${isAppOwner(currentUser) && puid ? ` {${puid}}` : ''}`;
+                                return <SelectItem key={store.id} value={store.id}>{displayName}</SelectItem>;
+                              })}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Status' : 'Status'}</Label>
+                            <Select
+                            value={formData.status}
+                            onValueChange={(value) => {
+                              setFormData((prev) => ({ ...prev, status: value }));
+                              if (delivery && ['completed', 'failed', 'cancelled', 'returned'].includes(value)) {
+                                setCompletionTime(format(new Date(), 'HH:mm'));
+                              }
+                            }}
+                            disabled={isSaving}>
+                              <SelectTrigger className="h-9">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="z-[10030]">
+                                {isPickupMode ? (
+                                  <>
+                                    <SelectItem value="en_route">En Route</SelectItem>
+                                    <SelectItem value="completed">Completed</SelectItem>
+                                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                                  </>
+                                ) : (
+                                  <>
+                                    <SelectItem value="pending">Pending</SelectItem>
+                                    <SelectItem value="in_transit">In Transit</SelectItem>
+                                    <SelectItem value="completed">Completed</SelectItem>
+                                    <SelectItem value="failed">Failed</SelectItem>
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Status' : 'Status'}</Label>
-                          <Select
-                          value={formData.status}
-                          onValueChange={(value) => {
-                            setFormData((prev) => ({ ...prev, status: value }));
-                            if (delivery && ['completed', 'failed', 'cancelled', 'returned'].includes(value)) {
-                              setCompletionTime(format(new Date(), 'HH:mm'));
-                            }
-                          }}
-                          disabled={isSaving}>
-                            <SelectTrigger className="h-9">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="z-[10030]">
-                              {isPickupMode ? (
-                                <>
-                                  <SelectItem value="en_route">En Route</SelectItem>
-                                  <SelectItem value="completed">Completed</SelectItem>
-                                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                                </>
-                              ) : (
-                                <>
-                                  <SelectItem value="pending">Pending</SelectItem>
-                                  <SelectItem value="in_transit">In Transit</SelectItem>
-                                  <SelectItem value="completed">Completed</SelectItem>
-                                  <SelectItem value="failed">Failed</SelectItem>
-                                </>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completion Time *</Label>
-                          <Input
-                            type="time"
-                            value={completionTime}
-                            onChange={(e) => setCompletionTime(e.target.value)}
-                            disabled={isSaving}
-                            className="h-9 text-sm" />
+
+                        {/* Row 2: Completion Time and Time Windows */}
+                        <div className="flex gap-3">
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completion Time *</Label>
+                            <Input
+                              type="time"
+                              value={completionTime}
+                              onChange={(e) => setCompletionTime(e.target.value)}
+                              disabled={isSaving}
+                              className="h-9 text-sm" />
+                          </div>
+                          {!isPickupMode && (
+                            <>
+                              <div className="flex-1 space-y-1">
+                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Window Start</Label>
+                                <Input
+                                  type="time"
+                                  value={formData.time_window_start}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
+                                  disabled={isSaving}
+                                  className="h-9 text-sm" />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Window End</Label>
+                                <Input
+                                  type="time"
+                                  value={formData.time_window_end}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
+                                  disabled={isSaving}
+                                  className="h-9 text-sm" />
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div> :
 
