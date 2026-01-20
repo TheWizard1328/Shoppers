@@ -4792,7 +4792,7 @@ export default function DeliveryForm({
               </div>
 
             {/* Mobile Staged Panel */}
-              <AnimatePresence>
+            <AnimatePresence>
               {!delivery && useMobileLayout && showStagedPanel &&
                 <motion.div
                   initial={{ opacity: 0 }}
