@@ -41,9 +41,13 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
   const handleColorSave = async (newColor) => {
     try {
-      // Only update the color field, don't pass the entire store object
-      await onSave({ ...store, color: newColor });
-      setEditableStore({ ...store, color: newColor });
+      // Use Store entity directly to update only the color field
+      const { Store } = await import('@/entities/Store');
+      await Store.update(store.id, { color: newColor });
+      // Invalidate cache and trigger UI refresh
+      const { invalidate } = await import('@/components/utils/dataManager');
+      invalidate('Store');
+      window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id } }));
       setEditingColor(false);
     } catch (error) {
       console.error("Error saving store color:", error);
