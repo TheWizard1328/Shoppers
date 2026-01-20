@@ -17,6 +17,14 @@ export default function FailureReasonDialog({
   const [selectedReason, setSelectedReason] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
 
+  // Reset state when dialog opens/closes
+  React.useEffect(() => {
+    if (!isOpen) {
+      setSelectedReason('');
+      setAdditionalNotes('');
+    }
+  }, [isOpen]);
+
   const failureReasons = isPickup ? [
     'No Deliveries',
     'Store Closed',
