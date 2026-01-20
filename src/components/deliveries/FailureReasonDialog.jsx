@@ -56,31 +56,33 @@ export default function FailureReasonDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md z-[10020]">
+      <DialogContent className="max-w-md z-[10020] border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <AlertCircle className="w-5 h-5" />
-            {statusType === 'cancelled' ? 'Cancel' : 'Mark as Failed'} - {isPickup ? 'Pickup' : 'Delivery'}
+            <span style={{ color: 'var(--text-slate-900)' }}>
+              {statusType === 'cancelled' ? 'Cancel' : 'Mark as Failed'} - {isPickup ? 'Pickup' : 'Delivery'}
+            </span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
             Please select a reason for marking this {isPickup ? 'pickup' : 'delivery'} as {statusType}.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="bg-slate-50 rounded-lg p-3">
-            <p className="text-sm font-semibold text-slate-700">{deliveryName}</p>
+          <div className="rounded-lg p-3 border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{deliveryName}</p>
           </div>
 
           <div className="space-y-3">
-            <Label className="text-sm font-semibold text-slate-700">
+            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
               Reason {isPickup && statusType === 'cancelled' ? 'for Cancellation' : 'for Failure'}:
             </Label>
             <RadioGroup value={selectedReason} onValueChange={setSelectedReason}>
               {failureReasons.map((reason) => (
                 <div key={reason} className="flex items-center space-x-2">
                   <RadioGroupItem value={reason} id={reason} />
-                  <Label htmlFor={reason} className="text-sm text-slate-700 cursor-pointer">
+                  <Label htmlFor={reason} className="text-sm cursor-pointer" style={{ color: 'var(--text-slate-700)' }}>
                     {reason}
                   </Label>
                 </div>
@@ -89,7 +91,7 @@ export default function FailureReasonDialog({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-slate-700">
+            <Label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
               Additional Notes (Optional):
             </Label>
             <Textarea
