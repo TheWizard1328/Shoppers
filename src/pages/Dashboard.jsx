@@ -2399,35 +2399,6 @@ function Dashboard() {
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
 
-        // CRITICAL: Check if selected date is in the past
-        const todayStrPhase2 = format(new Date(), 'yyyy-MM-dd');
-        const selectedDateStrPhase2 = format(selectedDate, 'yyyy-MM-dd');
-        const isPastDatePhase2 = selectedDateStrPhase2 < todayStrPhase2;
-
-        // CRITICAL: Check driver status
-        const driver = users.find((u) => u && u.id === currentUser?.id);
-        const isDriverOnDuty = driver && driver.driver_status === 'on_duty';
-
-        // CRITICAL: Reactivate Phase 1 if driver is off duty OR date is in the past
-        if (!isDriverOnDuty || isPastDatePhase2) {
-          console.log(`🔄 [Phase 2] Conditions not met (on_duty: ${isDriverOnDuty}, isPast: ${isPastDatePhase2}) - switching to Phase 1`);
-          setMapViewPhase(1);
-          setMapViewTrigger((prev) => prev + 1);
-          
-          // Set 3-second unlock timer for Phase 1
-          const lockDuration = 3000;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-          mapLockTimeoutRef.current = setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
-            }
-          }, lockDuration);
-          return;
-        }
-
         if (nextStopCoordinates) {
           const bounds = [
           [driverLocation.latitude, driverLocation.longitude],
