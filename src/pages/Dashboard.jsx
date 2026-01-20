@@ -78,6 +78,7 @@ import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 import SmartPrioritizationPanel from '../components/dashboard/SmartPrioritizationPanel';
 import DualStatsMarquee from '../components/dashboard/DualStatsMarquee';
+import EndOfDayStatsDialog from '../components/dashboard/EndOfDayStatsDialog';
 
 // FIXED: StatBadge - simple component without hooks to avoid violations
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
@@ -353,6 +354,8 @@ function Dashboard() {
   const [deliveryStats, setDeliveryStats] = useState(null);
   const [liveDistance, setLiveDistance] = useState(0); // Live accumulated distance from liveDistanceTracker
   const [liveTimeOnDuty, setLiveTimeOnDuty] = useState(null); // Live time on duty (null = use backend value)
+  const [showEndOfDayStats, setShowEndOfDayStats] = useState(false);
+  const [endOfDayDriver, setEndOfDayDriver] = useState(null);
 
   // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
@@ -5368,7 +5371,7 @@ function Dashboard() {
 
       // Helper to detect return deliveries by markers
       const isReturnByMarkers = (d) => {
-        if (!d || d.patient_id) return false; // Returns are pickups
+        if (!d || !d.patient_id) return false;
         const patient = patients.find((p) => p && p.id === d.patient_id);
         const notes = d.delivery_notes || '';
         const patientName = d.patient_name || '';
@@ -5390,6 +5393,14 @@ function Dashboard() {
         patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturnByMarkers(d));
 
       console.log(`🔍 [Route Complete Check] Patient deliveries: ${patientDeliveriesOnly.length}, All finished: ${routeComplete}, New status: ${newStatus}`);
+
+      // CRITICAL: Show end of day stats dialog when last stop is completed/failed/cancelled
+      if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id) {
+        console.log('🎉 [STATUS UPDATE] Route complete - showing end of day stats');
+        const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
+        setEndOfDayDriver(completedDriver);
+        setShowEndOfDayStats(true);
+      }
 
       if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id) {
         const summaryKey = `${driverId}_${targetDelivery.delivery_date}`;
@@ -7245,6 +7256,21 @@ function Dashboard() {
               await refreshUser();
             }
           }} />
+        }
+      </AnimatePresence>
+
+      {/* End of Day Stats Dialog */}
+      <AnimatePresence>
+        {showEndOfDayStats &&
+        <EndOfDayStatsDialog
+          isOpen={showEndOfDayStats}
+          onClose={() => {
+            setShowEndOfDayStats(false);
+            setEndOfDayDriver(null);
+          }}
+          deliveries={filteredDeliveries}
+          driver={endOfDayDriver || currentUser}
+          deliveryDate={format(selectedDate, 'yyyy-MM-dd')} />
         }
       </AnimatePresence>
 
