@@ -5002,10 +5002,10 @@ export default function DeliveryForm({
       {/* Delete Pending Confirmation Dialog */}
       {deleteConfirmation.show && deleteConfirmation.staged &&
       <div className="fixed inset-0 z-[10020] bg-black/60 flex items-center justify-center p-4">
-          <div className="rounded-lg shadow-xl max-w-sm w-full p-4" style={{ background: 'var(--bg-white)' }}>
+          <div className="rounded-lg shadow-xl max-w-sm w-full p-4 border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
             <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Delete Pending Delivery?</h3>
             <p className="text-sm mb-4" style={{ color: 'var(--text-slate-600)' }}>
-              Are you sure you want to delete the pending delivery for <strong>{deleteConfirmation.staged.patient_name}</strong>? This action cannot be undone.
+              Are you sure you want to delete the pending delivery for <strong style={{ color: 'var(--text-slate-900)' }}>{deleteConfirmation.staged.patient_name}</strong>? This action cannot be undone.
             </p>
             <div className="flex gap-2 justify-end">
               <Button
