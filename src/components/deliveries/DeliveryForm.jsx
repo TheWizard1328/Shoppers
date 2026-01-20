@@ -4747,8 +4747,8 @@ export default function DeliveryForm({
                           onChange={(checked) => setFormData((prev) => ({ ...prev, after_hours_pickup: checked }))}
                           disabled={isSaving} />
                       </div>
-                  </div>
-                }
+                    </div>
+                  }
 
                 {/* Staged Panel - STATIC - Show when screen is wide enough, regardless of device type */}
                 {!delivery && !useMobileLayout && (
