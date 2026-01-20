@@ -15,6 +15,7 @@ export default function SquareManagement() {
   const [locationIds, setLocationIds] = useState([]);
   const [locationConfigs, setLocationConfigs] = useState([]);
   const [stores, setStores] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
