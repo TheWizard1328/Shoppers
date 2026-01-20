@@ -4848,6 +4848,7 @@ export default function DeliveryForm({
                       {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
                     </Button>
                   </motion.div>
+                </motion.div>
                 }
               </AnimatePresence>
             </div>
