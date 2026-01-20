@@ -221,7 +221,7 @@ export default function SquareManagement() {
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full" />
             </div>
-          ) : catalogItems.length === 0 ? (
+          ) : filteredCatalogItems.length === 0 ? (
             <div className="text-center py-12 text-slate-500">
               <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No active COD items in Square</p>
@@ -241,7 +241,7 @@ export default function SquareManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {catalogItems.map((item) => (
+                  {filteredCatalogItems.map((item) => (
                     <tr key={item.catalog_object_id} className="border-b hover:bg-slate-50">
                       <td className="p-3">
                         <div className="font-medium">{item.name || 'N/A'}</div>
