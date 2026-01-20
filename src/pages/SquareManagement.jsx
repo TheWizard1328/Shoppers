@@ -44,6 +44,9 @@ export default function SquareManagement() {
   useEffect(() => {
     const loadData = async () => {
       try {
+        const user = await base44.auth.me();
+        setCurrentUser(user);
+        
         const [configs, storesData] = await Promise.all([
           base44.entities.SquareLocationConfig.filter({ status: 'active' }),
           base44.entities.Store.list()
