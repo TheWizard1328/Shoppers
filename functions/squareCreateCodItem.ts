@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     // Convert dollars to cents for Square
     const amountCents = Math.round(codAmount * 100);
 
-    // First, search for existing catalog item with this name
+    // First, search for existing catalog item with this name AND amount
     const searchResponse = await fetch(`${SQUARE_BASE_URL}/catalog/search`, {
       method: 'POST',
       headers: {
@@ -88,14 +88,57 @@ Deno.serve(async (req) => {
     let catalogVersion = null;
 
     if (searchData.objects && searchData.objects.length > 0) {
-      // Find exact match
-      const existingItem = searchData.objects.find(obj => 
-        obj.item_data?.name === itemName
-      );
+      // Find exact match by name AND amount to prevent duplicates
+      const existingItem = searchData.objects.find(obj => {
+        if (obj.item_data?.name !== itemName) return false;
+        // Check if amount matches
+        const variation = obj.item_data?.variations?.[0];
+        const existingAmount = variation?.item_variation_data?.price_money?.amount;
+        return existingAmount === amountCents;
+      });
 
       if (existingItem) {
+        console.log(`✅ [Square] Found existing item with matching name and amount: ${itemName} ($${codAmount})`);
         catalogObjectId = existingItem.id;
         catalogVersion = existingItem.version;
+        
+        // Return early - item already exists with correct amount
+        const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.filter({
+          delivery_id: deliveryId,
+          status: 'pending'
+        });
+        
+        if (existingTransactions.length === 0) {
+          await base44.asServiceRole.entities.SquareTransaction.create({
+            square_catalog_object_id: catalogObjectId,
+            square_catalog_version: catalogVersion,
+            item_name: itemName,
+            amount: codAmount,
+            amount_cents: amountCents,
+            type: 'collection',
+            status: 'pending',
+            delivery_id: deliveryId
+          });
+        }
+        
+        return Response.json({
+          success: true,
+          catalogObjectId,
+          catalogVersion,
+          itemName,
+          alreadyExisted: true
+        });
+      }
+      
+      // Name matches but amount differs - update it
+      const itemWithDifferentAmount = searchData.objects.find(obj => 
+        obj.item_data?.name === itemName
+      );
+      
+      if (itemWithDifferentAmount) {
+        console.log(`🔄 [Square] Found item with same name but different amount - updating: ${itemName}`);
+        catalogObjectId = itemWithDifferentAmount.id;
+        catalogVersion = itemWithDifferentAmount.version;
 
         // Update existing item with new price
         const variationId = existingItem.item_data?.variations?.[0]?.id;
