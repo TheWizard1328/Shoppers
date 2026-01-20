@@ -212,7 +212,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
   // Enhanced handleDriverSelect with correct field mapping
   const handleDriverSelect = (driverId, timeSlot) => {
-    const selectedDriver = sortedDrivers.find((d) => d && d.id === driverId);
+    const selectedDriver = driverId !== "null" ? sortedDrivers.find((d) => d && d.id === driverId) : null;
 
     console.log('[StoreForm] Driver selected:', {
       timeSlot,
@@ -243,7 +243,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
         [mapping.nameField]: selectedDriver ? selectedDriver.user_name || selectedDriver.full_name : ""
       };
 
-      console.log('[StoreForm] Updated formData:', {
+      console.log('[StoreForm] Updated formData after driver select:', {
         [mapping.idField]: updated[mapping.idField],
         [mapping.nameField]: updated[mapping.nameField]
       });
