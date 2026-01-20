@@ -4138,7 +4138,7 @@ export default function DeliveryForm({
                 </div>
               }
 
-              {/* Scrollable container for Sections 4 & 5 on desktop */}
+              {/* Scrollable container for Sections 4 & 5 on desktop AND Staged Panel */}
               <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
                 <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
