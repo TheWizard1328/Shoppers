@@ -4183,6 +4183,58 @@ function Dashboard() {
         // Refresh data will pull from offline DB first
         await refreshData();
 
+        // CRITICAL: After batch save, check if we should optimize the route
+        // Optimization runs once all transitioning stops are in_transit/en_route
+        try {
+          console.log('🔍 [AddToRoute] Checking if route optimization should run...');
+          
+          // Get the driver from the first staged delivery
+          const batchDriverId = stagedDeliveries[0]?.driver_id;
+          if (batchDriverId) {
+            // Fetch all deliveries for this driver on this date
+            const allDriverDeliveries = await base44.entities.Delivery.filter({
+              driver_id: batchDriverId,
+              delivery_date: batchDeliveryDate
+            });
+
+            // Check if ALL stops are now in_transit or en_route (no pending, no en_route pickups left)
+            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+            const allActive = allDriverDeliveries.every((d) => 
+              d && (d.status === 'in_transit' || d.status === 'en_route' || finishedStatuses.includes(d.status))
+            );
+
+            // Check if there are any incomplete stops
+            const hasIncompleteStops = allDriverDeliveries.some((d) => 
+              d && d.status !== 'pending' && !finishedStatuses.includes(d.status)
+            );
+
+            if (allActive && hasIncompleteStops) {
+              console.log('✅ [AddToRoute] All stops transitioned to active - optimizing route...');
+              
+              const now = new Date();
+              const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+              await base44.functions.invoke('optimizeRouteRealTime', {
+                driverId: batchDriverId,
+                deliveryDate: batchDeliveryDate,
+                currentLocalTime: localTimeString,
+                deviceTime: now.toISOString(),
+                generatePolyline: true
+              });
+
+              console.log('✅ [AddToRoute] Route optimization complete');
+              
+              // Refresh to show optimized stop orders and ETAs
+              invalidateDeliveriesForDate(batchDeliveryDate);
+              await refreshData();
+            } else {
+              console.log('⏭️ [AddToRoute] Not all stops active yet - skipping optimization');
+            }
+          }
+        } catch (optimizeError) {
+          console.warn('⚠️ [AddToRoute] Route optimization failed:', optimizeError.message);
+        }
+
         // Don't close form - let DeliveryForm handle it
         return;
       }
