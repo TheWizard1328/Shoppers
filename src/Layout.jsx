@@ -2090,14 +2090,8 @@ export default function Layout({ children, currentPageName }) {
       });
     }
 
-    // Square Management - App Owner only
+    // Square Locations - App Owner only
     if (realUser && isAppOwner(realUser)) {
-      items.push({
-        title: "Square COD",
-        pageName: 'SquareManagement',
-        url: createPageUrl("SquareManagement"),
-        icon: CreditCard
-      });
       items.push({
         title: "Square Locations",
         pageName: 'SquareLocationConfigs',
