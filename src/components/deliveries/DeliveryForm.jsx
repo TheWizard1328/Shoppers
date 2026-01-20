@@ -4851,6 +4851,7 @@ export default function DeliveryForm({
                   </motion.div>
                 }
               </AnimatePresence>
+              </div>
             </div>
           </CardContent>
 
