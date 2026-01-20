@@ -4788,7 +4788,7 @@ export default function DeliveryForm({
                       {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
                     </Button>
                   </div>
-                }
+                )}
               </div>
 
                 {/* Mobile Staged Panel */}
