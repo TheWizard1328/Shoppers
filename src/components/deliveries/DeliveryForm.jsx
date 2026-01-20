@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { X, Save, Package, Search, Clock, Plus, Trash2, CheckCircle, Edit2, Camera, Phone, Bell, BellOff, Mailbox, StickyNote, Copy, MapPin } from "lucide-react";
+import { X, Save, Package, Search, Clock, Plus, Trash2, CheckCircle, Edit2, Camera, Phone, Bell, BellOff, Mailbox, StickyNote, Copy, MapPin, AlertCircle } from "lucide-react";
 import PatientMatchPopup from './PatientMatchPopup';
 import { sortUsers } from "../utils/sorting";
 import { Badge } from "@/components/ui/badge";
@@ -31,18 +32,20 @@ import {
   createDeliveryLocal,
   updateDeliveryLocal,
   deleteDeliveryLocal,
-  batchCreateDeliveriesLocal } from
+  batchCreateDeliveriesLocal
+} from
 '../utils/entityMutations';
 import DeliveryFormStaged from './DeliveryFormStaged';
 import { checkPayrollLock } from '../utils/payrollLockManager';
 
-const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
-<div className="flex items-center space-x-2">
+const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
+  <div className="flex items-center space-x-2">
     <Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
     <Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>
       {label}
     </Label>
-  </div>;
+  </div>
+);
 
 
 const statusColorMap = {
@@ -3762,7 +3765,7 @@ export default function DeliveryForm({
                       title="Scan prescription label">
 
                         {isScanning ?
-                      <div className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full" /> :
+                      <div className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full"></div> :
 
                       <Camera className="w-4 h-4" />
                       }
@@ -4345,7 +4348,7 @@ export default function DeliveryForm({
                           </div>
                         </div>
 
-                        {/* Row 2: Completion Time and Time Windows */}
+                        {/* Row 2: Completion Time only (no time windows for finished stops) */}
                         <div className="flex gap-3">
                           <div className="flex-1 space-y-1">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completion Time *</Label>
@@ -4356,28 +4359,6 @@ export default function DeliveryForm({
                               disabled={isSaving}
                               className="h-9 text-sm" />
                           </div>
-                          {!isPickupMode && (
-                            <>
-                              <div className="flex-1 space-y-1">
-                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Window Start</Label>
-                                <Input
-                                  type="time"
-                                  value={formData.time_window_start}
-                                  onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
-                                  disabled={isSaving}
-                                  className="h-9 text-sm" />
-                              </div>
-                              <div className="flex-1 space-y-1">
-                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Window End</Label>
-                                <Input
-                                  type="time"
-                                  value={formData.time_window_end}
-                                  onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
-                                  disabled={isSaving}
-                                  className="h-9 text-sm" />
-                              </div>
-                            </>
-                          )}
                         </div>
                       </div> :
 
@@ -5105,6 +5086,6 @@ export default function DeliveryForm({
           </div>
         </div>
       }
-    </div>);
-
+    </div>
+  );
 }
