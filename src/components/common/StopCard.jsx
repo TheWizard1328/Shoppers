@@ -58,7 +58,8 @@ const statusConfig = {
   'completed': { label: 'Complete', color: 'bg-emerald-100 text-emerald-800' },
   'delivered': { label: 'Complete', color: 'bg-emerald-100 text-emerald-800' },
   'failed': { label: 'Failed', color: 'bg-red-100 text-red-800' },
-  'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' }
+  'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' },
+  'returned': { label: 'Return', color: 'bg-orange-100 text-orange-800' }
 };
 
 // MOVED OUTSIDE COMPONENT: Define finished statuses as a constant (no 'returned' status)
@@ -959,14 +960,10 @@ export default function StopCard({
                 <Badge
                   variant="secondary" 
                   className={`text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-full hover:bg-secondary/80 border-transparent inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+                    isReturnDelivery ? 'bg-orange-500' :
                     delivery.status === 'failed' || delivery.status === 'cancelled' ? 'bg-red-500' : 'bg-emerald-500'
                   }`}
                   style={{ color: isPickup && delivery.after_hours_pickup && FINISHED_STATUSES.includes(delivery.status) ? '#3b82f6' : 'white' }}>
-
-
-
-
-
                     {isReturnDelivery ? 'Return' : statusConfig[delivery.status]?.label || delivery.status}
                   </Badge>
               </div>

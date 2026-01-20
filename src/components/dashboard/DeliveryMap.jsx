@@ -361,13 +361,13 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
 };
 
 // Helper function to create delivery pin markers with circle/square based on PM status
-const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false) => {
-  // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
+const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false) => {
+  // CRITICAL: Returns take precedence over other statuses for color
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextBlue = isNextInLine && !isFinished && hasIncompleteStops;
   const isPending = status === 'pending';
   
-  const statusColor = shouldShowNextBlue ? '#3B82F6' : getInnerSymbolColor(status, false);
+  const statusColor = isReturn ? '#F97316' : (shouldShowNextBlue ? '#3B82F6' : getInnerSymbolColor(status, false));
   const hasYellowHalo = isFirstTime && zoomLevel >= ZOOM_LEVELS.SIMPLIFY_ROUTES;
   const hasDuplicates = duplicateCount > 1;
   const showNumber = zoomLevel >= ZOOM_LEVELS.HIDE_NUMBERS && number;
@@ -1006,6 +1006,10 @@ export default function DeliveryMap({
       } : null);
 
       const isFirstTime = isFirstTimeDelivery(delivery);
+      
+      // CRITICAL: Check if this is a return delivery (patient name contains "Return")
+      const patientNameLower = (patient?.full_name || delivery.patient_name || '').toLowerCase();
+      const isReturn = patientNameLower.includes('return') || patientNameLower.includes('(rtn)');
 
       const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher');
       const isStopInDispatcherStore = isCurrentUserDispatcher && currentUser.store_ids && store && currentUser.store_ids.includes(store.id);
@@ -1086,7 +1090,8 @@ export default function DeliveryMap({
         isNextInLine,
         markerType: 'delivery',
         useSimpleCircle,
-        isOtherDriver // NEW
+        isOtherDriver, // NEW
+        isReturn // NEW: Flag for return deliveries
       };
     }).filter(Boolean);
 
@@ -3240,7 +3245,7 @@ export default function DeliveryMap({
             <Marker
               key={`delivery-${delivery.id}`}
               position={markerPosition}
-              icon={delivery.useSimpleCircle || delivery.isOtherDriver ? createSimpleCircleIcon(delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver, delivery.duplicateCount) : createDeliveryIcon(
+              icon={delivery.useSimpleCircle || delivery.isOtherDriver ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver, delivery.duplicateCount) : createDeliveryIcon(
                 delivery.status,
                 delivery.pinColor,
                 isFanned,
@@ -3253,7 +3258,8 @@ export default function DeliveryMap({
                 isHighlighted,
                 hasIncompleteStops,
                 delivery.ampm_deliveries === 'PM', // CRITICAL: Pass PM flag
-                delivery.isOtherDriver // NEW
+                delivery.isOtherDriver, // NEW
+                delivery.isReturn // NEW: Return flag
               )}
               zIndexOffset={dynamicZIndex}
               draggable={!delivery.useSimpleCircle && !delivery.isOtherDriver && isFanned}
