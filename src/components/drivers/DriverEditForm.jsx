@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Save, Calendar, Plus, Trash2, DollarSign } from 'lucide-react';
+import { X, Save, Calendar, Plus, Trash2, DollarSign, CreditCard } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
 
@@ -30,11 +31,26 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
     gst_hst_enabled: driver.gst_hst_enabled || false,
     pay_cycle_type: driver.pay_cycle_type || 'monthly',
     deductions: driver.deductions || [],
-    pay_rate_history: driver.pay_rate_history || []
+    pay_rate_history: driver.pay_rate_history || [],
+    square_location_ids: driver.square_location_ids || []
   });
   const [isSaving, setIsSaving] = useState(false);
   const [newDeductionName, setNewDeductionName] = useState('');
   const [newDeductionAmount, setNewDeductionAmount] = useState('');
+  const [squareLocations, setSquareLocations] = useState([]);
+
+  // Load Square locations on mount
+  useEffect(() => {
+    const loadSquareLocations = async () => {
+      try {
+        const locations = await base44.entities.SquareLocationConfig.list();
+        setSquareLocations(locations || []);
+      } catch (error) {
+        console.error('Failed to load Square locations:', error);
+      }
+    };
+    loadSquareLocations();
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -53,6 +69,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
 
       // CRITICAL: Include edited pay_rate_history in updates (allows manual deletion)
       updates.pay_rate_history = formData.pay_rate_history;
+
+      // Include Square location assignments
+      updates.square_location_ids = formData.square_location_ids;
 
       // Check if pay rates changed (compare as numbers)
       const newPayRate = parseFloat(formData.pay_rate_per_delivery) || 0;
@@ -280,6 +299,28 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
             KM Limit: Minimum km before extra pay starts
           </p>
+
+          {/* Square Card Locations */}
+          {squareLocations.length > 0 && (
+            <div className="pt-2 border-t">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2 block flex items-center gap-1">
+                <CreditCard className="w-3 h-3" />
+                Square Card Locations
+              </Label>
+              <MultiSelect
+                options={squareLocations.map((loc) => ({
+                  label: loc.name,
+                  value: loc.id
+                }))}
+                value={formData.square_location_ids}
+                onChange={(values) => setFormData((prev) => ({ ...prev, square_location_ids: values }))}
+                placeholder="Select Square card locations..."
+              />
+              <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>
+                Assign Square terminals/cards for COD processing
+              </p>
+            </div>
+          )}
 
           {/* Deductions Section */}
           <div className="pt-2 border-t">
