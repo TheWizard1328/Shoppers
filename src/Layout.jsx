@@ -613,6 +613,7 @@ export default function Layout({ children, currentPageName }) {
   const [catalogItems, setCatalogItems] = useState([]);
   const [totalCodsDue, setTotalCodsDue] = useState(0);
   const [squareLocationConfigs, setSquareLocationConfigs] = useState([]);
+  const [squareTransactions, setSquareTransactions] = useState([]);
   const { deviceType, os } = getUserAgentInfo();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
