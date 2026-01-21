@@ -1578,8 +1578,9 @@ export default function Layout({ children, currentPageName }) {
       // Start first refresh after initial load settles
       performUnifiedRefresh();
 
-      // Then refresh every 60 seconds (increased from 30s to reduce rate limits)
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 60000);
+      // Then refresh every 15 seconds (aggressive refresh, but only after offline DB loads)
+      // Smart refresh manager gates these based on individual entity intervals
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 15000);
       }, 15000); // Wait 15 seconds before starting to let initial load complete
 
     return () => {
