@@ -47,7 +47,8 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
         store_ids: appUser.store_ids || [],
         sort_order: appUser.sort_order || 0,
         home_latitude: appUser.home_latitude || null,
-        home_longitude: appUser.home_longitude || null
+        home_longitude: appUser.home_longitude || null,
+        pay_rate_history: appUser.pay_rate_history || []
       });
     } else {
       // Reset form data when appUser is null (adding new user)
@@ -62,7 +63,8 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
         store_ids: [],
         sort_order: 0,
         home_latitude: null,
-        home_longitude: null
+        home_longitude: null,
+        pay_rate_history: []
       });
     }
   }, [appUser]);
