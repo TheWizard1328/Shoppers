@@ -10,6 +10,8 @@ import { cleanAddressAndNotes } from "../utils/addressParser";
 import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
 import MissingPatientsPopup from "./MissingPatientsPopup";
+import { executeDataOperation } from "../utils/dataOperationManager";
+import { offlineDB } from "../utils/offlineDatabase";
 
 export default function PatientImport({ onImportComplete, onImportStart, currentUser, onClose }) {
   const [files, setFiles] = useState([]);
@@ -733,15 +735,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
   const confirmAndImport = async () => {
     console.log("PatientImport: Starting confirmation and import process...");
-    // Notify parent to pause smart refresh
+    
     if (onImportStart) {
       onImportStart();
     }
-    console.log("PatientImport: Paused smart refresh");
     
-    // CRITICAL: Import to offline DB first, let smart refresh sync to backend
-    const { offlineDB } = await import('../utils/offlineDatabase');
-    const { pauseOfflineMutations, resumeOfflineMutations } = await import('../utils/offlineMutations');
     setShowPreview(false);
     setIsProcessing(true);
     setImportResult(null);
@@ -757,215 +755,197 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       totalFiles: 0
     });
 
-    // Declare variables outside try-catch for broader scope
     let totalCreated = 0;
     let totalUpdated = 0;
     let totalGeocoded = 0;
     let importErrors = [...previewChanges.errors];
 
     try {
-      // Adaptive delay parameters
-      let delayMs = 100;
-      let trend = 'up';
-      let operationsInSegment = 0;
-      let segmentFailures = 0;
-      const segmentSize = 75;
+      // CRITICAL: Use centralized data operation manager
+      await executeDataOperation(async () => {
+        console.log('📥 [PatientImport] Starting patient import with data operation manager');
+        
+        // Retry queue arrays
+        const failedCreations = [];
+        const failedUpdates = [];
 
-      // Retry queue arrays
-      const failedCreations = []; // Stores { data: patientData, fileName, rowNumber, errorMsg }
-      const failedUpdates = []; // Stores { id, data, existing, changes, fileName, rowNumber, willGeocode, errorMsg }
-
-      // Process patients to create
-      if (previewChanges.toCreate.length > 0) {
-        console.log(`PatientImport: Processing ${previewChanges.toCreate.length} new patients for creation.`);
-        setImportProgress((prev) => ({
-          ...prev,
-          phase: 'creating',
-          current: 0,
-          total: previewChanges.toCreate.length
-        }));
-
-        const patientsForBulkCreate = [];
-        for (let i = 0; i < previewChanges.toCreate.length; i++) {
-          const item = previewChanges.toCreate[i];
-          const patientData = { ...item.data };
-          console.log(`PatientImport: Preparing new patient ${i + 1}/${previewChanges.toCreate.length}: ${patientData.full_name}`);
-
-          // Geocoding for new patients if coordinates missing
-          const currentLat = parseFloat(patientData.latitude);
-          const currentLon = parseFloat(patientData.longitude);
-          if (item.willGeocode || isNaN(currentLat) || isNaN(currentLon)) {
-            console.log(`PatientImport: Geocoding new patient: ${patientData.full_name}, Address: ${patientData.address}`);
-            try {
-              const geocodeResult = await retryWithBackoff(async () => {
-                return await base44.integrations.Core.InvokeLLM({ // Changed to base44.integrations.Core.InvokeLLM
-                  prompt: `Geocode this address and return only coordinates: ${patientData.address}`,
-                  add_context_from_internet: true,
-                  response_json_schema: {
-                    type: "object",
-                    properties: {
-                      latitude: { type: "number" },
-                      longitude: { type: "number" }
-                    }
-                  }
-                });
-              });
-
-              if (geocodeResult && typeof geocodeResult.latitude === 'number' && typeof geocodeResult.longitude === 'number') {
-                patientData.latitude = geocodeResult.latitude;
-                patientData.longitude = geocodeResult.longitude;
-                totalGeocoded++;
-                console.log(`PatientImport: Geocoded ${patientData.full_name}: Lat ${geocodeResult.latitude}, Lon ${geocodeResult.longitude}`);
-              } else {
-                throw new Error("LLM returned invalid geocode results.");
-              }
-            } catch (geocodeError) {
-              console.warn(`PatientImport: Geocoding failed for ${patientData.address} (new patient):`, geocodeError);
-              const errorMsg = `Geocoding failed for ${patientData.full_name} (${patientData.address}) from ${item.fileName} Row ${item.rowNumber}: ${geocodeError.message}`;
-              importErrors.push(errorMsg); // Add specific error message to the list
-              setImportProgress((prev) => ({ ...prev, errors: importErrors.length })); // Update error count
-            }
-            await delay(300); // Fixed delay for LLM calls
-          }
-          patientsForBulkCreate.push(patientData);
-        }
-
-        try {
-          console.log(`PatientImport: Creating ${patientsForBulkCreate.length} new patients...`);
-          
-          // CRITICAL: Use base44.entities.Patient.bulkCreate to save directly to backend
-          // This ensures patients are saved to BOTH offline and online databases
-          const createdPatients = await base44.entities.Patient.bulkCreate(patientsForBulkCreate);
-          totalCreated += createdPatients.length;
-          console.log(`PatientImport: Successfully created ${createdPatients.length} patients in backend.`);
-
+        // Process patients to create
+        if (previewChanges.toCreate.length > 0) {
+          console.log(`PatientImport: Processing ${previewChanges.toCreate.length} new patients for creation.`);
           setImportProgress((prev) => ({
             ...prev,
-            created: prev.created + createdPatients.length,
-            current: patientsForBulkCreate.length
+            phase: 'creating',
+            current: 0,
+            total: previewChanges.toCreate.length
           }));
-          
-          // Delay between bulk operations
-          await delay(200);
-        } catch (error) {
-          console.error("PatientImport: Bulk creation failed:", error);
-          patientsForBulkCreate.forEach((patientData, index) => {
-            const originalPreviewItem = previewChanges.toCreate[index];
-            const errorMsg = `Creation failed for ${patientData.full_name} (${patientData.address}) from ${originalPreviewItem?.fileName || 'Unknown'} Row ${originalPreviewItem?.rowNumber || 0}: ${error.message}`;
-            importErrors.push(errorMsg);
 
-            failedCreations.push({
-              data: patientData,
-              fileName: originalPreviewItem?.fileName || 'Unknown',
-              rowNumber: originalPreviewItem?.rowNumber || 0,
-              errorMsg: errorMsg
-            });
-          });
-          setImportProgress((prev) => ({ ...prev, errors: importErrors.length }));
-        }
-      }
+          const patientsForBulkCreate = [];
+          for (let i = 0; i < previewChanges.toCreate.length; i++) {
+            const item = previewChanges.toCreate[i];
+            const patientData = { ...item.data };
 
-      // Process patients to update
-      if (previewChanges.toUpdate.length > 0) {
-        console.log(`PatientImport: Processing ${previewChanges.toUpdate.length} patients for update.`);
-        setImportProgress((prev) => ({
-          ...prev,
-          phase: 'updating',
-          current: 0,
-          total: previewChanges.toUpdate.length
-        }));
-
-        for (let i = 0; i < previewChanges.toUpdate.length; i++) {
-          const item = previewChanges.toUpdate[i];
-          const { id } = item;
-          const patientData = { ...item.data }; // Clone to avoid modifying original preview data
-          console.log(`PatientImport: Updating patient ${i + 1}/${previewChanges.toUpdate.length}: ${patientData.full_name} (ID: ${id})`);
-
-          // Geocoding for updated patients if coordinates missing
-          const currentLat = parseFloat(patientData.latitude);
-          const currentLon = parseFloat(patientData.longitude);
-          if (item.willGeocode || isNaN(currentLat) || isNaN(currentLon)) {
-            console.log(`PatientImport: Geocoding updated patient: ${patientData.full_name}, Address: ${patientData.address}`);
-            try {
-              const geocodeResult = await retryWithBackoff(async () => {
-                return await base44.integrations.Core.InvokeLLM({ // Changed to base44.integrations.Core.InvokeLLM
-                  prompt: `Geocode this address and return only coordinates: ${patientData.address}`,
-                  add_context_from_internet: true,
-                  response_json_schema: {
-                    type: "object",
-                    properties: {
-                      latitude: { type: "number" },
-                      longitude: { type: "number" }
+            // Geocoding for new patients if coordinates missing
+            const currentLat = parseFloat(patientData.latitude);
+            const currentLon = parseFloat(patientData.longitude);
+            if (item.willGeocode || isNaN(currentLat) || isNaN(currentLon)) {
+              try {
+                const geocodeResult = await retryWithBackoff(async () => {
+                  return await base44.integrations.Core.InvokeLLM({
+                    prompt: `Geocode this address and return only coordinates: ${patientData.address}`,
+                    add_context_from_internet: true,
+                    response_json_schema: {
+                      type: "object",
+                      properties: {
+                        latitude: { type: "number" },
+                        longitude: { type: "number" }
+                      }
                     }
-                  }
+                  });
+                }, 3, 2000, 2); // Increased retry delay
+
+                if (geocodeResult && typeof geocodeResult.latitude === 'number' && typeof geocodeResult.longitude === 'number') {
+                  patientData.latitude = geocodeResult.latitude;
+                  patientData.longitude = geocodeResult.longitude;
+                  totalGeocoded++;
+                }
+              } catch (geocodeError) {
+                console.warn(`PatientImport: Geocoding failed for ${patientData.address}:`, geocodeError);
+                const errorMsg = `Geocoding failed for ${patientData.full_name} from ${item.fileName} Row ${item.rowNumber}: ${geocodeError.message}`;
+                importErrors.push(errorMsg);
+                setImportProgress((prev) => ({ ...prev, errors: importErrors.length }));
+              }
+              await delay(500); // Increased delay for geocoding calls
+            }
+            patientsForBulkCreate.push(patientData);
+          }
+
+          // CRITICAL: Smaller batches to prevent rate limits
+          const BATCH_SIZE = 10;
+          const batches = [];
+          for (let i = 0; i < patientsForBulkCreate.length; i += BATCH_SIZE) {
+            batches.push(patientsForBulkCreate.slice(i, i + BATCH_SIZE));
+          }
+
+          for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+            const batch = batches[batchIndex];
+            try {
+              const createdPatients = await retryWithBackoff(async () => {
+                return await base44.entities.Patient.bulkCreate(batch);
+              }, 5, 3000, 2); // Increased retry delay
+              
+              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, createdPatients);
+              
+              totalCreated += createdPatients.length;
+              setImportProgress((prev) => ({
+                ...prev,
+                created: prev.created + createdPatients.length,
+                current: prev.current + batch.length
+              }));
+              
+              // Delay between batches
+              if (batchIndex < batches.length - 1) {
+                await delay(3000); // 3 second delay between batches
+              }
+            } catch (error) {
+              console.error("PatientImport: Batch creation failed:", error);
+              batch.forEach((patientData, index) => {
+                const originalIndex = batchIndex * BATCH_SIZE + index;
+                const originalPreviewItem = previewChanges.toCreate[originalIndex];
+                const errorMsg = `Creation failed for ${patientData.full_name}: ${error.message}`;
+                importErrors.push(errorMsg);
+                failedCreations.push({
+                  data: patientData,
+                  fileName: originalPreviewItem?.fileName || 'Unknown',
+                  rowNumber: originalPreviewItem?.rowNumber || 0,
+                  errorMsg: errorMsg
                 });
               });
-
-              if (geocodeResult && typeof geocodeResult.latitude === 'number' && typeof geocodeResult.longitude === 'number') {
-                patientData.latitude = geocodeResult.latitude;
-                patientData.longitude = geocodeResult.longitude;
-                totalGeocoded++;
-                console.log(`PatientImport: Geocoded ${patientData.full_name}: Lat ${geocodeResult.latitude}, Lon ${geocodeResult.longitude}`);
-              } else {
-                throw new Error("LLM returned invalid geocode results.");
-              }
-            } catch (geocodeError) {
-              console.warn(`PatientImport: Geocoding failed for ${patientData.address} (update patient):`, geocodeError);
-              const errorMsg = `Geocoding failed for ${patientData.full_name} (${patientData.address}) from ${item.fileName} Row ${item.rowNumber}: ${geocodeError.message}`;
-              importErrors.push(errorMsg); // Add specific error message to the list
-              setImportProgress((prev) => ({ ...prev, errors: importErrors.length })); // Update error count
+              setImportProgress((prev) => ({ ...prev, errors: importErrors.length }));
             }
-            await delay(300); // Fixed delay for LLM calls
-          }
-
-          try {
-            await retryWithBackoff(async () => {
-              await base44.entities.Patient.update(id, patientData);
-            });
-            totalUpdated++;
-            console.log(`PatientImport: Successfully updated patient ${patientData.full_name} (ID: ${id}).`);
-            setImportProgress((prev) => ({
-              ...prev,
-              updated: prev.updated + 1,
-              current: i + 1
-            }));
-
-            operationsInSegment++;
-
-            // Adaptive delay adjustment
-            if (operationsInSegment >= segmentSize) {
-              if (segmentFailures === 0) {
-                // If no failures, try to optimize delay
-                if (trend === 'up') {
-                  delayMs = Math.min(delayMs + 25, 300); // Increase up to 300ms
-                  if (delayMs >= 300) trend = 'down'; // Once maxed, try to go down
-                } else {// trend === 'down'
-                  delayMs = Math.max(delayMs - 25, 100); // Decrease down to 100ms
-                  if (delayMs <= 100) trend = 'up'; // Once min, try to go up
-                }
-              } else {
-                // If there were failures, increase delay or keep it at max
-                delayMs = Math.min(delayMs + 50, 500); // Increase more aggressively or cap at higher value
-              }
-              console.log(`PatientImport: Adaptive delay adjusted to ${delayMs}ms (trend: ${trend}, failures in segment: ${segmentFailures})`);
-              operationsInSegment = 0;
-              segmentFailures = 0;
-            }
-
-            await delay(delayMs); // Apply the current adaptive delay
-          } catch (error) {
-            console.error(`PatientImport: Update failed for patient ${id}:`, error);
-            const errorMsg = `Update failed for patient ID ${id} (${patientData.full_name}) from ${item.fileName} Row ${item.rowNumber}: ${error.message}`;
-            importErrors.push(errorMsg);
-            setImportProgress((prev) => ({ ...prev, errors: importErrors.length }));
-            segmentFailures++;
-
-            failedUpdates.push({ ...item, data: patientData, errorMsg: errorMsg });
-
-            await delay(300);
           }
         }
-      }
+
+        // Process patients to update - with batching
+        if (previewChanges.toUpdate.length > 0) {
+          console.log(`PatientImport: Processing ${previewChanges.toUpdate.length} patients for update.`);
+          setImportProgress((prev) => ({
+            ...prev,
+            phase: 'updating',
+            current: 0,
+            total: previewChanges.toUpdate.length
+          }));
+
+          // CRITICAL: Process in batches with geocoding
+          const UPDATE_BATCH_SIZE = 5;
+          for (let batchStart = 0; batchStart < previewChanges.toUpdate.length; batchStart += UPDATE_BATCH_SIZE) {
+            const batch = previewChanges.toUpdate.slice(batchStart, batchStart + UPDATE_BATCH_SIZE);
+            
+            for (const item of batch) {
+              const { id } = item;
+              const patientData = { ...item.data };
+
+              // Geocoding if needed
+              const currentLat = parseFloat(patientData.latitude);
+              const currentLon = parseFloat(patientData.longitude);
+              if (item.willGeocode || isNaN(currentLat) || isNaN(currentLon)) {
+                try {
+                  const geocodeResult = await retryWithBackoff(async () => {
+                    return await base44.integrations.Core.InvokeLLM({
+                      prompt: `Geocode this address and return only coordinates: ${patientData.address}`,
+                      add_context_from_internet: true,
+                      response_json_schema: {
+                        type: "object",
+                        properties: {
+                          latitude: { type: "number" },
+                          longitude: { type: "number" }
+                        }
+                      }
+                    });
+                  }, 3, 2000, 2);
+
+                  if (geocodeResult && typeof geocodeResult.latitude === 'number' && typeof geocodeResult.longitude === 'number') {
+                    patientData.latitude = geocodeResult.latitude;
+                    patientData.longitude = geocodeResult.longitude;
+                    totalGeocoded++;
+                  }
+                } catch (geocodeError) {
+                  const errorMsg = `Geocoding failed for ${patientData.full_name}: ${geocodeError.message}`;
+                  importErrors.push(errorMsg);
+                  setImportProgress((prev) => ({ ...prev, errors: importErrors.length }));
+                }
+                await delay(500);
+              }
+
+              try {
+                await retryWithBackoff(async () => {
+                  const updated = await base44.entities.Patient.update(id, patientData);
+                  await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updated]);
+                  return updated;
+                }, 5, 2000, 2);
+                
+                totalUpdated++;
+                setImportProgress((prev) => ({
+                  ...prev,
+                  updated: prev.updated + 1,
+                  current: batchStart + batch.indexOf(item) + 1
+                }));
+                
+                await delay(800); // Increased delay between updates
+              } catch (error) {
+                const errorMsg = `Update failed for ${patientData.full_name}: ${error.message}`;
+                importErrors.push(errorMsg);
+                setImportProgress((prev) => ({ ...prev, errors: importErrors.length }));
+                failedUpdates.push({ ...item, data: patientData, errorMsg });
+                await delay(800);
+              }
+            }
+            
+            // Delay between batches
+            if (batchStart + UPDATE_BATCH_SIZE < previewChanges.toUpdate.length) {
+              await delay(2000); // 2 second delay between update batches
+            }
+          }
+        }
 
       // --- Retry failed creations (offline DB) ---
       if (failedCreations.length > 0) {
@@ -1076,45 +1056,44 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         }
       }
 
-      const aggregatedResults = {
-        created: totalCreated,
-        updated: totalUpdated,
-        geocoded: totalGeocoded,
-        errors: importErrors, // Contains all final errors after retries
-        retriedCreationsAttempted: failedCreations.length, // How many were initially failed and queued for retry
-        retriedUpdatesAttempted: failedUpdates.length, // How many were initially failed and queued for retry
-        fileResults: [{
-          fileName: files.map((f) => f.name).join(', '),
+        const aggregatedResults = {
           created: totalCreated,
           updated: totalUpdated,
-          errors: importErrors, // This should also be the final set of errors
-          geocoded: totalGeocoded
-        }]
-      };
+          geocoded: totalGeocoded,
+          errors: importErrors,
+          retriedCreationsAttempted: failedCreations.length,
+          retriedUpdatesAttempted: failedUpdates.length,
+          fileResults: [{
+            fileName: files.map((f) => f.name).join(', '),
+            created: totalCreated,
+            updated: totalUpdated,
+            errors: importErrors,
+            geocoded: totalGeocoded
+          }]
+        };
 
-      setImportResult(aggregatedResults);
-      setImportProgress((prev) => ({
-        ...prev,
-        phase: 'complete',
-        currentFile: '',
-        filesCompleted: files.length,
-        totalFiles: files.length,
-        // Ensure the final error count displayed matches the final importErrors array length
-        errors: importErrors.length
-      }));
+        setImportResult(aggregatedResults);
+        setImportProgress((prev) => ({
+          ...prev,
+          phase: 'complete',
+          currentFile: '',
+          filesCompleted: files.length,
+          totalFiles: files.length,
+          errors: importErrors.length
+        }));
 
-      console.log("PatientImport: Offline import complete. Smart refresh will sync to backend.");
-      
-      if (onImportComplete) {
-        console.log("PatientImport: Calling onImportComplete callback.");
-        onImportComplete(aggregatedResults);
-      }
-      console.log("PatientImport: Import process finished successfully:", aggregatedResults);
+        console.log("PatientImport: Import complete via data operation manager");
+        
+        if (onImportComplete) {
+          onImportComplete(aggregatedResults);
+        }
+        
+        return true; // Signal success
+      }, { restartDelay: 2000 }); // 2 second delay before restarting smart refresh
 
     } catch (error) {
-      console.error("PatientImport: Overall import error during confirmation:", error);
+      console.error("PatientImport: Overall import error:", error);
       alert(`Import failed: ${error.message}`);
-      // If an uncaught error occurs here, ensure progress and results reflect failure
       importErrors.push(`Overall import process failed: ${error.message}`);
 
       setImportProgress((prev) => ({
@@ -1123,6 +1102,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         errors: importErrors.length,
         currentFile: ''
       }));
+      
       if (!importResult) {
         setImportResult({
           created: totalCreated,
@@ -1134,7 +1114,6 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       }
     } finally {
       setIsProcessing(false);
-      console.log("PatientImport: Import process ended.");
     }
   };
 

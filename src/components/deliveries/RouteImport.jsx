@@ -20,6 +20,7 @@ import { offlineDB } from '../utils/offlineDatabase';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { driverLocationPoller } from '../utils/driverLocationPoller';
 import { processDeliveryNotes } from '../utils/notesProcessor';
+import { executeDataOperation } from '../utils/dataOperationManager';
 
 // Utility function for delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -1201,198 +1202,154 @@ export default function RouteImport({
     const failedUpdates = [];
 
     try {
-      // CRITICAL: Pause smart refresh and location poller during import to prevent rate limits
-      smartRefreshManager.pause();
-      driverLocationPoller.pause();
-      console.log('⏸️ [RouteImport] Paused smart refresh and location poller for import');
-      
-      // CRITICAL: Import to offline DB first, let smart refresh sync to backend
-      const { offlineDB } = await import('../utils/offlineDatabase');
+      // CRITICAL: Use centralized data operation manager
+      await executeDataOperation(async () => {
+        driverLocationPoller.pause();
+        console.log('📥 [RouteImport] Starting import with data operation manager');
+        
+        const { offlineDB } = await import('../utils/offlineDatabase');
 
-      setProgressMessage('Loading latest patient and store data from cache...');
-      // CRITICAL: Use getData to respect rate limiting
-      const freshPatients = await getData('Patient', '-created_date', null, false);
-      const freshStores = await getData('Store', '-created_date', null, false);
+        setProgressMessage('Loading latest patient and store data from cache...');
+        const freshPatients = await getData('Patient', '-created_date', null, false);
+        const freshStores = await getData('Store', '-created_date', null, false);
 
-      const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
-      const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
+        const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
+        const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
 
-      batchUpdateAMPM(deliveriesToCreateFiltered);
-      batchUpdateAMPM(deliveriesToUpdateFiltered);
+        batchUpdateAMPM(deliveriesToCreateFiltered);
+        batchUpdateAMPM(deliveriesToUpdateFiltered);
 
-      // BATCH CREATE: Use bulkCreate DIRECTLY to backend (skip offline DB for imports)
-      if (deliveriesToCreateFiltered.length > 0) {
-        setImportProgress((prev) => ({
-          ...prev,
-          phase: 'creating',
-          total: deliveriesToCreateFiltered.length,
-          current: 0
-        }));
-        setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries...`);
+        // BATCH CREATE with smaller batches and longer delays
+        if (deliveriesToCreateFiltered.length > 0) {
+          setImportProgress((prev) => ({
+            ...prev,
+            phase: 'creating',
+            total: deliveriesToCreateFiltered.length,
+            current: 0
+          }));
+          setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries...`);
 
-        // Clean all deliveries for batch creation
-        const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
+          const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-        // Batch create in chunks of 25 to avoid API limits (smaller chunks = less rate limiting)
-        const BATCH_SIZE = 25;
-        const batches = [];
-        for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
-          batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
-        }
+          // CRITICAL: Smaller batch size (10 instead of 25)
+          const BATCH_SIZE = 10;
+          const batches = [];
+          for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
+            batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
+          }
 
-        let totalCreated = 0;
-        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-          const batch = batches[batchIndex];
-          try {
+          let totalCreated = 0;
+          for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+            const batch = batches[batchIndex];
+            try {
+              const createdDeliveries = await retryWithBackoff(async () => {
+                return await base44.entities.Delivery.bulkCreate(batch);
+              }, 5, 4000, 2); // Increased retry delay to 4s
 
-            // CRITICAL: Create directly on backend using bulkCreate
-            const createdDeliveries = await retryWithBackoff(async () => {
-              return await base44.entities.Delivery.bulkCreate(batch);
-            }, 3, 2000, 2);
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
 
-            // Save backend records to IndexedDB for instant UI update
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
-
-            // Count successful creates
-            batch.forEach((cleanData) => {
-              overallResults.created++;
-              overallResults.completed++;
-              if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
-                overallResults.returned++;
-              }
-            });
-
-            totalCreated += batch.length;
-            setImportProgress((prev) => ({
-              ...prev,
-              created: totalCreated,
-              current: totalCreated
-            }));
-
-            // Delay between batches to avoid rate limits
-            if (batchIndex < batches.length - 1) {
-              await delay(1500);
-            }
-          } catch (error) {
-            console.warn(`⚠️ Batch ${batchIndex + 1} bulkCreate failed, falling back to individual creates:`, error.message);
-
-            // Fallback: try individual backend creates for this batch
-            for (const cleanData of batch) {
-              try {
-                const createdDelivery = await retryWithBackoff(async () => {
-                  return await base44.entities.Delivery.create(cleanData);
-                }, 3, 1000, 2);
-                
-                // Save to IndexedDB
-                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
-
+              batch.forEach((cleanData) => {
                 overallResults.created++;
                 overallResults.completed++;
                 if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
                   overallResults.returned++;
                 }
-                totalCreated++;
-                setImportProgress((prev) => ({
-                  ...prev,
-                  created: totalCreated,
-                  current: totalCreated
-                }));
-                await delay(500);
-              } catch (individualError) {
-                console.warn(`⚠️ Individual create failed for ${cleanData.delivery_id || 'unknown'}:`, individualError.message);
-                failedCreations.push({ data: cleanData, error: individualError.message });
+              });
 
-                if (individualError.message && individualError.message.includes('Invalid time value')) {
-                  setImportError({
-                    message: `Invalid time value error`,
-                    record: {
-                      driver: cleanData.driver_name || 'Unknown',
-                      date: cleanData.delivery_date || 'Unknown',
-                      store: freshStores.find((s) => s.id === cleanData.store_id)?.name || cleanData.store_id || 'Unknown',
-                      patient: cleanData.patient_name || 'Store Pickup',
-                      stopId: cleanData.stop_id || 'N/A',
-                      trackingNumber: cleanData.tracking_number || 'N/A',
-                      time: cleanData.actual_delivery_time || 'N/A',
-                      deliveryId: cleanData.delivery_id || 'N/A'
-                    },
-                    lineNumber: null,
-                    phase: 'create'
-                  });
-                  throw new Error(`Import stopped due to invalid time value. See error details.`);
+              totalCreated += batch.length;
+              setImportProgress((prev) => ({
+                ...prev,
+                created: totalCreated,
+                current: totalCreated
+              }));
+
+              // CRITICAL: Longer delay between batches (3s instead of 1.5s)
+              if (batchIndex < batches.length - 1) {
+                await delay(3000);
+              }
+            } catch (error) {
+              console.warn(`⚠️ Batch ${batchIndex + 1} bulkCreate failed:`, error.message);
+
+              for (const cleanData of batch) {
+                try {
+                  const createdDelivery = await retryWithBackoff(async () => {
+                    return await base44.entities.Delivery.create(cleanData);
+                  }, 3, 2000, 2);
+                  
+                  await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
+
+                  overallResults.created++;
+                  overallResults.completed++;
+                  if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
+                    overallResults.returned++;
+                  }
+                  totalCreated++;
+                  setImportProgress((prev) => ({
+                    ...prev,
+                    created: totalCreated,
+                    current: totalCreated
+                  }));
+                  await delay(1000); // Increased delay
+                } catch (individualError) {
+                  failedCreations.push({ data: cleanData, error: individualError.message });
                 }
               }
             }
           }
         }
-      }
 
-      // Updates: Update directly on backend (not just offline DB)
-      if (deliveriesToUpdateFiltered.length > 0) {
-        setImportProgress((prev) => ({
-          ...prev,
-          phase: 'updating',
-          total: deliveriesToUpdateFiltered.length,
-          current: 0
-        }));
-        setProgressMessage(`Updating ${deliveriesToUpdateFiltered.length} existing deliveries...`);
+        // BATCH UPDATE with delays
+        if (deliveriesToUpdateFiltered.length > 0) {
+          setImportProgress((prev) => ({
+            ...prev,
+            phase: 'updating',
+            total: deliveriesToUpdateFiltered.length,
+            current: 0
+          }));
+          setProgressMessage(`Updating ${deliveriesToUpdateFiltered.length} existing deliveries...`);
 
-        for (let i = 0; i < deliveriesToUpdateFiltered.length; i++) {
-          const deliveryData = deliveriesToUpdateFiltered[i];
-
-          try {
-            const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
-            if (!id) {
-              throw new Error('Missing delivery ID');
-            }
-
-            const cleanPayload = cleanDeliveryData(updatePayload);
-
-            // CRITICAL: Update directly on backend
-            const updatedDelivery = await retryWithBackoff(async () => {
-              return await base44.entities.Delivery.update(id, cleanPayload);
-            }, 3, 1000, 2);
+          // CRITICAL: Process in small batches
+          const UPDATE_BATCH_SIZE = 5;
+          for (let i = 0; i < deliveriesToUpdateFiltered.length; i += UPDATE_BATCH_SIZE) {
+            const batch = deliveriesToUpdateFiltered.slice(i, i + UPDATE_BATCH_SIZE);
             
-            // Update IndexedDB with backend response for instant UI update
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+            for (const deliveryData of batch) {
+              try {
+                const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
+                if (!id) throw new Error('Missing delivery ID');
 
-            overallResults.updated++;
-            overallResults.completed++;
-            if (isReturnDelivery(cleanPayload, freshPatients, freshStores)) {
-              overallResults.returned++;
-            }
-            setImportProgress((prev) => ({
-              ...prev,
-              updated: prev.updated + 1,
-              current: i + 1
-            }));
-            await delay(300);
-          } catch (error) {
-            console.warn(`⚠️ Backend update failed for delivery ID ${deliveryData.id}:`, error.message);
-            failedUpdates.push({ data: deliveryData, error: error.message });
-            setImportProgress((prev) => ({ ...prev, current: i + 1 }));
+                const cleanPayload = cleanDeliveryData(updatePayload);
 
-            if (error.message && error.message.includes('Invalid time value')) {
-              setImportError({
-                message: `Invalid time value error`,
-                record: {
-                  driver: deliveryData.driver_name || 'Unknown',
-                  date: deliveryData.delivery_date || 'Unknown',
-                  store: freshStores.find((s) => s.id === deliveryData.store_id)?.name || deliveryData.store_id || 'Unknown',
-                  patient: deliveryData.patient_name || 'Store Pickup',
-                  stopId: deliveryData.stop_id || 'N/A',
-                  trackingNumber: deliveryData.tracking_number || 'N/A',
-                  time: deliveryData.actual_delivery_time || 'N/A',
-                  deliveryId: deliveryData.delivery_id || deliveryData.id || 'N/A'
-                },
-                lineNumber: null,
-                phase: 'update'
-              });
-              throw new Error(`Import stopped due to invalid time value. See error details.`);
+                const updatedDelivery = await retryWithBackoff(async () => {
+                  return await base44.entities.Delivery.update(id, cleanPayload);
+                }, 5, 2000, 2);
+                
+                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+
+                overallResults.updated++;
+                overallResults.completed++;
+                if (isReturnDelivery(cleanPayload, freshPatients, freshStores)) {
+                  overallResults.returned++;
+                }
+                setImportProgress((prev) => ({
+                  ...prev,
+                  updated: prev.updated + 1,
+                  current: i + batch.indexOf(deliveryData) + 1
+                }));
+                await delay(800); // Increased delay
+              } catch (error) {
+                failedUpdates.push({ data: deliveryData, error: error.message });
+                setImportProgress((prev) => ({ ...prev, current: i + batch.indexOf(deliveryData) + 1 }));
+                await delay(800);
+              }
             }
-            await delay(500);
+            
+            // Delay between update batches
+            if (i + UPDATE_BATCH_SIZE < deliveriesToUpdateFiltered.length) {
+              await delay(2000);
+            }
           }
         }
-      }
 
       // Retry failed operations - directly on backend
       const totalFailed = failedCreations.length + failedUpdates.length;
@@ -1475,24 +1432,23 @@ export default function RouteImport({
         }
       }
 
-      setImportProgress((prev) => ({
-        ...prev,
-        phase: 'complete',
-        current: prev.total,
-        filesCompleted: prev.totalFiles,
-        currentFile: ''
-      }));
+        setImportProgress((prev) => ({
+          ...prev,
+          phase: 'complete',
+          current: prev.total,
+          filesCompleted: prev.totalFiles,
+          currentFile: ''
+        }));
 
-      
-      // Show results immediately - data is already on backend
-      setImportResult(overallResults);
-      setProgressPercent(100);
-      setProgressMessage('Import complete!');
-      
-      // CRITICAL: Resume smart refresh and location poller after import
-      smartRefreshManager.restart(); // Reset timers and resume
-      driverLocationPoller.resume();
-      console.log('▶️ [RouteImport] Resumed smart refresh and location poller after import');
+        setImportResult(overallResults);
+        setProgressPercent(100);
+        setProgressMessage('Import complete!');
+        
+        driverLocationPoller.resume();
+        console.log('✅ [RouteImport] Import operation complete');
+        
+        return true; // Signal success
+      }, { restartDelay: 2000 }); // 2 second delay before restarting smart refresh
 
     } catch (error) {
       console.error("❌ Overall import error:", error);
@@ -1516,12 +1472,9 @@ export default function RouteImport({
         lineNumber: null,
         phase: 'import'
       });
-    } finally {
-      // CRITICAL: Always resume smart refresh and location poller, even on error
-      smartRefreshManager.restart();
-      driverLocationPoller.resume();
-      console.log('▶️ [RouteImport] Resumed smart refresh and location poller (finally block)');
       
+      driverLocationPoller.resume();
+    } finally {
       setIsProcessing(false);
       setTimeout(() => setShowProgress(false), 1000);
     }
