@@ -4,10 +4,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { X } from 'lucide-react';
+import { X, Calendar, Trash2 } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { useAppData } from '../utils/AppDataContext';
+import { format } from 'date-fns';
 
 export default function AppUserForm({ appUser, authUsers, stores, cities, onSave, onCancel }) {
   const { setIsFormOverlayOpen } = useAppData();
