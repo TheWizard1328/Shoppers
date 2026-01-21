@@ -7,6 +7,20 @@ import { invalidate } from "./dataManager";
 import { touchUserCache } from "./auth";
 import { queueEntityRequest } from "./requestQueue";
 
+// Module-level cache for isOfflineDBLoadComplete (imported dynamically)
+let _isOfflineDBLoadComplete = null;
+
+// Initialize offline DB check function asynchronously
+(async () => {
+  try {
+    const mod = await import('./dataManager');
+    _isOfflineDBLoadComplete = mod.isOfflineDBLoadComplete;
+  } catch (e) {
+    console.warn('⚠️ [SmartRefresh] Failed to import dataManager - offline DB checks disabled');
+    _isOfflineDBLoadComplete = () => true; // Fallback - assume DB is loaded
+  }
+})();
+
 class SmartRefreshManager {
   constructor() {
     // Master toggle - can be disabled via AppSettings
@@ -523,18 +537,17 @@ class SmartRefreshManager {
    * CRITICAL: Block refresh until offline DB is loaded
    */
   shouldRefresh(type) {
-    // CRITICAL: Don't start smart refresh until offline DB has loaded
-    const { isOfflineDBLoadComplete } = require('./dataManager');
-    if (!isOfflineDBLoadComplete()) {
-      console.log(`⏸️ [SmartRefresh] Skipping ${type} refresh - waiting for offline DB load`);
-      return false;
-    }
-    
-    const now = Date.now();
-    const lastRefresh = this.lastRefreshTimes[type] || 0;
-    const interval = this.intervals[type] || 15000;
-    return (now - lastRefresh) >= interval;
-  }
+     // CRITICAL: Don't start smart refresh until offline DB has loaded
+     if (_isOfflineDBLoadComplete && !_isOfflineDBLoadComplete()) {
+       console.log(`⏸️ [SmartRefresh] Skipping ${type} refresh - waiting for offline DB load`);
+       return false;
+     }
+
+     const now = Date.now();
+     const lastRefresh = this.lastRefreshTimes[type] || 0;
+     const interval = this.intervals[type] || 15000;
+     return (now - lastRefresh) >= interval;
+   }
   
   /**
    * Mark a refresh type as completed
