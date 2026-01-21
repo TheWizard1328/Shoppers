@@ -7,6 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RefreshCw, DollarSign, CheckCircle, XCircle, Clock, CreditCard, Trash2, Loader2, CloudDownload } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
+import LocationSummaryCard from "@/components/square/LocationSummaryCard";
+import TransactionHistoryPanel from "@/components/square/TransactionHistoryPanel";
+import CODItemDetailModal from "@/components/square/CODItemDetailModal";
+import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 
 export default function SquareManagement() {
   const [catalogItems, setCatalogItems] = useState([]);
