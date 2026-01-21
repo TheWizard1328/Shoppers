@@ -6206,7 +6206,7 @@ function Dashboard() {
                       stores: 0
                     };
 
-                    const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
+                    const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false, showAllDriverMarkers);
 
                     // STEP 1.5: Force refresh driver locations
                     console.log('📍 [Refresh Spinner] Refreshing driver locations...');
