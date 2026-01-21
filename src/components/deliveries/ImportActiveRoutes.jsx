@@ -22,8 +22,8 @@ import { driverLocationPoller } from '../utils/driverLocationPoller';
 import { processDeliveryNotes } from '../utils/notesProcessor';
 import { executeDataOperation } from '../utils/dataOperationManager';
 import { 
-  batchCreateDeliveries as batchCreateDeliveriesRaw,
-  updateDelivery as updateDeliveryRaw
+  batchCreateDeliveriesLocal,
+  updateDeliveryLocal
 } from '../utils/offlineMutations';
 
 // Utility function for delay
