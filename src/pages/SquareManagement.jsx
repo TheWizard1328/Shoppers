@@ -121,21 +121,17 @@ export default function SquareManagement() {
     );
   };
 
-  // Check if item has a recent payment (last 7 days)
+  // Check if item has a completed collection (payment actually collected)
   const hasRecentPayment = (itemName, itemAmount, locationId) => {
-    console.log('Checking payment for:', { itemName, itemAmount, locationId });
-    console.log('Recent transactions:', recentTransactions);
-    
     const match = recentTransactions.some(t => {
       const nameMatch = t.item_name === itemName;
       const amountMatch = Math.abs(t.amount - itemAmount) < 0.01;
+      // CRITICAL: Only show as paid if it's a completed COLLECTION, not prepayment or pending
+      const isCompletedCollection = t.type === 'collection' && t.status === 'completed';
       
-      console.log('Transaction:', t.item_name, t.amount, 'Match:', nameMatch && amountMatch);
-      
-      return nameMatch && amountMatch;
+      return nameMatch && amountMatch && isCompletedCollection;
     });
     
-    console.log('Final match result:', match);
     return match;
   };
 
