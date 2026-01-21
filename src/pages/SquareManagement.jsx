@@ -379,7 +379,7 @@ export default function SquareManagement() {
                           </span>
                           {hasRecentPayment(item.name, item.price_dollars, item.location_id) && (
                             <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
-                              Payment Recorded
+                              *Paid*
                             </Badge>
                           )}
                         </div>
