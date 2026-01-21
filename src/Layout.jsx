@@ -610,6 +610,9 @@ export default function Layout({ children, currentPageName }) {
   const [selectedStoreId, setSelectedStoreId] = useState(null);
   const [openMenu, setOpenMenu] = useState(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [catalogItems, setCatalogItems] = useState([]);
+  const [totalCodsDue, setTotalCodsDue] = useState(0);
+  const [squareLocationConfigs, setSquareLocationConfigs] = useState([]);
   const { deviceType, os } = getUserAgentInfo();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
