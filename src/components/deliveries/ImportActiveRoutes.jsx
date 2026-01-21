@@ -26,6 +26,10 @@ import {
   updateDelivery, 
   batchCreateDeliveries 
 } from '../utils/dataOperationManager';
+import { 
+  batchCreateDeliveries as batchCreateDeliveriesLocal,
+  updateDelivery as updateDeliveryLocal
+} from '../utils/entityMutations';
 
 // Utility function for delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -1172,9 +1176,9 @@ export default function ImportActiveRoutes({
 
           const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-          // Use batch create from dataOperationManager (writes to IndexedDB first, syncs in background)
+          // Use direct batch create (already inside executeDataOperation, no need to pause again)
           try {
-            await batchCreateDeliveries(cleanedDeliveries);
+            await batchCreateDeliveriesLocal(cleanedDeliveries);
 
             cleanedDeliveries.forEach((cleanData) => {
               overallResults.created++;
@@ -1214,8 +1218,8 @@ export default function ImportActiveRoutes({
 
               const cleanPayload = cleanDeliveryData(updatePayload);
 
-              // Use local-first update (writes to IndexedDB first, syncs in background)
-              await updateDelivery(id, cleanPayload);
+              // Use direct update (already inside executeDataOperation, no need to pause again)
+              await updateDeliveryLocal(id, cleanPayload);
 
               overallResults.updated++;
               if (cleanPayload.status === 'completed') overallResults.completed++;
@@ -1415,9 +1419,9 @@ export default function ImportActiveRoutes({
                   allUpdates.push({ id: firstIncomplete.id, data: { isNextDelivery: true } });
                 }
                 
-                // Process stop order updates using local-first approach
+                // Process stop order updates (direct calls, already inside executeDataOperation)
                 for (const update of allUpdates) {
-                  await updateDelivery(update.id, update.data);
+                  await updateDeliveryLocal(update.id, update.data);
                 }
                 
                 console.log(`✅ [ImportActiveRoutes] Processed ${allUpdates.length} stop updates for ${driverId} on ${date}`);
