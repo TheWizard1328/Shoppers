@@ -244,7 +244,7 @@ export default function SquareLocationConfigs() {
             <DialogTitle>{editingConfig ? "Edit Square Location" : "Add Square Location"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="name">Name *</Label>
                 <Input
