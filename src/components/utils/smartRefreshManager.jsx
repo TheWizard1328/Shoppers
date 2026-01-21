@@ -1445,15 +1445,22 @@ class SmartRefreshManager {
       // Offline DB is only used as fallback when API fails
       await this.waitForRateLimit();
       const cityOnlyFilter = { delivery_date: dateStr };
-      
-      if (filters.deliveryFilter && filters.deliveryFilter.store_id) {
-        cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
-      }
-      
-      // CRITICAL: When in "all drivers" mode (no driver_id in filter), fetch ALL drivers' deliveries
-      // This ensures "Show All" checkbox has complete data for all drivers
-      if (filters.deliveryFilter && filters.deliveryFilter.driver_id) {
-        cityOnlyFilter.driver_id = filters.deliveryFilter.driver_id;
+
+      // CRITICAL: If showAllDrivers is true, fetch ALL drivers' deliveries, ignore driver_id filter
+      if (!showAllDrivers) {
+        if (filters.deliveryFilter && filters.deliveryFilter.store_id) {
+          cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
+        }
+
+        if (filters.deliveryFilter && filters.deliveryFilter.driver_id) {
+          cityOnlyFilter.driver_id = filters.deliveryFilter.driver_id;
+        }
+      } else {
+        // Show All mode - only filter by store if specified, fetch all drivers
+        if (filters.deliveryFilter && filters.deliveryFilter.store_id) {
+          cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
+        }
+        console.log('📡 [SmartRefresh] Show All Drivers mode - fetching ALL drivers deliveries for', dateStr);
       }
       
       let fetchedDeliveries;
