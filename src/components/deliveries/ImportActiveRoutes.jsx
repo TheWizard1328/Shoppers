@@ -26,8 +26,8 @@ import { executeDataOperation } from '../utils/dataOperationManager';
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
 // Utility function for retrying operations with exponential backoff
-// CRITICAL: Increased delays and retries to handle rate limits better
-const retryWithBackoff = async (fn, retries = 5, delayMs = 2000, factor = 2) => {
+// CRITICAL: ULTRA CONSERVATIVE delays to prevent rate limits
+const retryWithBackoff = async (fn, retries = 3, delayMs = 8000, factor = 2) => {
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
@@ -35,8 +35,8 @@ const retryWithBackoff = async (fn, retries = 5, delayMs = 2000, factor = 2) => 
       const isRateLimit = error.message?.includes('429') || error.message?.includes('rate limit') || error.response?.status === 429;
       
       if (i < retries - 1) {
-        // CRITICAL: Much longer delays for rate limits
-        const baseWait = isRateLimit ? 5000 : delayMs;
+        // CRITICAL: VERY long delays for rate limits (minimum 10 seconds)
+        const baseWait = isRateLimit ? 10000 : delayMs;
         const waitTime = Math.round(baseWait * Math.pow(factor, i));
         console.warn(`⚠️ Operation failed${isRateLimit ? ' (RATE LIMIT)' : ''}, retrying in ${waitTime}ms... (Attempt ${i + 1}/${retries})`);
         console.warn(`Error: ${error.message}`);
@@ -1170,75 +1170,47 @@ export default function ImportActiveRoutes({
 
           const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-          // CRITICAL: VERY small batch size (3 instead of 5)
-          const BATCH_SIZE = 3;
-          const batches = [];
-          for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
-            batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
-          }
-
+          // CRITICAL: ONE-AT-A-TIME processing (no batching at all)
           let totalCreated = 0;
-          for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-            const batch = batches[batchIndex];
+          for (let i = 0; i < cleanedDeliveries.length; i++) {
+            const cleanData = cleanedDeliveries[i];
+            
             try {
-              const createdDeliveries = await retryWithBackoff(async () => {
-                return await base44.entities.Delivery.bulkCreate(batch);
-              }, 5, 6000, 2); // Increased to 6 seconds base delay
-
-              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
-
-              batch.forEach((cleanData) => {
-                overallResults.created++;
-                if (cleanData.status === 'completed') overallResults.completed++;
-                if (cleanData.status === 'in_transit' || cleanData.status === 'en_route') overallResults.enRoute++;
-                if (cleanData.status === 'pending') overallResults.pending++;
-                if (cleanData.status === 'failed') overallResults.failed++;
+              const createdDelivery = await retryWithBackoff(async () => {
+                return await base44.entities.Delivery.create(cleanData);
               });
 
-              totalCreated += batch.length;
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
+
+              overallResults.created++;
+              if (cleanData.status === 'completed') overallResults.completed++;
+              if (cleanData.status === 'in_transit' || cleanData.status === 'en_route') overallResults.enRoute++;
+              if (cleanData.status === 'pending') overallResults.pending++;
+              if (cleanData.status === 'failed') overallResults.failed++;
+              totalCreated++;
+              
               setImportProgress((prev) => ({
                 ...prev,
                 created: totalCreated,
                 current: totalCreated
               }));
-
-              // CRITICAL: Very long delay between batches (6 seconds)
-              if (batchIndex < batches.length - 1) {
-                await delay(6000);
+              
+              // CRITICAL: Long delay between EACH create (2.5 seconds)
+              await delay(2500);
+              
+              // Extra delay every 5 creates
+              if ((i + 1) % 5 === 0 && i + 1 < cleanedDeliveries.length) {
+                console.log(`⏸️ Extra cooldown after ${i + 1} creates...`);
+                await delay(5000);
               }
             } catch (error) {
-              console.warn(`⚠️ Batch ${batchIndex + 1} bulkCreate failed:`, error.message);
-
-              // Fallback to individual creates with LONG delays
-              for (const cleanData of batch) {
-                try {
-                  const createdDelivery = await retryWithBackoff(async () => {
-                    return await base44.entities.Delivery.create(cleanData);
-                  }, 3, 3000, 2);
-                  
-                  await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
-
-                  overallResults.created++;
-                  if (cleanData.status === 'completed') overallResults.completed++;
-                  if (cleanData.status === 'in_transit' || cleanData.status === 'en_route') overallResults.enRoute++;
-                  if (cleanData.status === 'pending') overallResults.pending++;
-                  if (cleanData.status === 'failed') overallResults.failed++;
-                  totalCreated++;
-                  setImportProgress((prev) => ({
-                    ...prev,
-                    created: totalCreated,
-                    current: totalCreated
-                  }));
-                  await delay(2000); // 2s between individual fallback creates
-                } catch (individualError) {
-                  failedCreations.push({ data: cleanData, error: individualError.message });
-                }
-              }
+              console.warn(`⚠️ Create failed for delivery:`, error.message);
+              failedCreations.push({ data: cleanData, error: error.message });
             }
           }
         }
 
-        // BATCH UPDATE - ULTRA CONSERVATIVE
+        // ONE-AT-A-TIME UPDATES - no batching
         if (deliveriesToUpdateFiltered.length > 0) {
           setImportProgress((prev) => ({
             ...prev,
@@ -1248,124 +1220,121 @@ export default function ImportActiveRoutes({
           }));
           setProgressMessage(`Updating ${deliveriesToUpdateFiltered.length} existing deliveries...`);
 
-          // CRITICAL: Very small batches (3 instead of 5)
-          const UPDATE_BATCH_SIZE = 3;
-          for (let i = 0; i < deliveriesToUpdateFiltered.length; i += UPDATE_BATCH_SIZE) {
-            const batch = deliveriesToUpdateFiltered.slice(i, i + UPDATE_BATCH_SIZE);
+          for (let i = 0; i < deliveriesToUpdateFiltered.length; i++) {
+            const deliveryData = deliveriesToUpdateFiltered[i];
             
-            for (const deliveryData of batch) {
-              try {
-                const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
-                if (!id) throw new Error('Missing delivery ID');
+            try {
+              const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
+              if (!id) throw new Error('Missing delivery ID');
 
-                const cleanPayload = cleanDeliveryData(updatePayload);
+              const cleanPayload = cleanDeliveryData(updatePayload);
 
-                const updatedDelivery = await retryWithBackoff(async () => {
-                  return await base44.entities.Delivery.update(id, cleanPayload);
-                }, 5, 4000, 2); // Increased to 4s base delay
-                
-                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+              const updatedDelivery = await retryWithBackoff(async () => {
+                return await base44.entities.Delivery.update(id, cleanPayload);
+              });
+              
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
 
-                overallResults.updated++;
-                if (cleanPayload.status === 'completed') overallResults.completed++;
-                if (cleanPayload.status === 'in_transit' || cleanPayload.status === 'en_route') overallResults.enRoute++;
-                if (cleanPayload.status === 'pending') overallResults.pending++;
-                if (cleanPayload.status === 'failed') overallResults.failed++;
-                setImportProgress((prev) => ({
-                  ...prev,
-                  updated: prev.updated + 1,
-                  current: i + batch.indexOf(deliveryData) + 1
-                }));
-                
-                await delay(1500); // Increased to 1.5s between updates
-              } catch (error) {
-                console.warn(`⚠️ Backend update failed for delivery ID ${deliveryData.id}:`, error.message);
-                failedUpdates.push({ data: deliveryData, error: error.message });
-                setImportProgress((prev) => ({ ...prev, current: i + batch.indexOf(deliveryData) + 1 }));
-                await delay(1500);
+              overallResults.updated++;
+              if (cleanPayload.status === 'completed') overallResults.completed++;
+              if (cleanPayload.status === 'in_transit' || cleanPayload.status === 'en_route') overallResults.enRoute++;
+              if (cleanPayload.status === 'pending') overallResults.pending++;
+              if (cleanPayload.status === 'failed') overallResults.failed++;
+              
+              setImportProgress((prev) => ({
+                ...prev,
+                updated: prev.updated + 1,
+                current: i + 1
+              }));
+              
+              // CRITICAL: Long delay between EACH update (2.5 seconds)
+              await delay(2500);
+              
+              // Extra delay every 5 updates
+              if ((i + 1) % 5 === 0 && i + 1 < deliveriesToUpdateFiltered.length) {
+                console.log(`⏸️ Extra cooldown after ${i + 1} updates...`);
+                await delay(5000);
               }
-            }
-            
-            // Very long delay between update batches
-            if (i + UPDATE_BATCH_SIZE < deliveriesToUpdateFiltered.length) {
-              await delay(5000); // 5 second delay between update batches
+            } catch (error) {
+              console.warn(`⚠️ Backend update failed for delivery ID ${deliveryData.id}:`, error.message);
+              failedUpdates.push({ data: deliveryData, error: error.message });
+              setImportProgress((prev) => ({ ...prev, current: i + 1 }));
+              await delay(2500);
             }
           }
         }
 
-      // Retry failed operations
-      const totalFailed = failedCreations.length + failedUpdates.length;
-      if (totalFailed > 0) {
-        setImportProgress((prev) => ({
-          ...prev,
-          phase: 'retrying',
-          total: totalFailed,
-          current: 0
-        }));
-        setProgressMessage(`Retrying ${totalFailed} failed operations...`);
+        // Retry failed operations - with extra long delays
+        const totalFailed = failedCreations.length + failedUpdates.length;
+        if (totalFailed > 0) {
+          setImportProgress((prev) => ({
+            ...prev,
+            phase: 'retrying',
+            total: totalFailed,
+            current: 0
+          }));
+          setProgressMessage(`Retrying ${totalFailed} failed operations...`);
 
-        for (let i = 0; i < failedCreations.length; i++) {
-          const { data: cleanData } = failedCreations[i];
+          for (let i = 0; i < failedCreations.length; i++) {
+            const { data: cleanData } = failedCreations[i];
 
-          try {
-            const createdDelivery = await retryWithBackoff(async () => {
-              return await base44.entities.Delivery.create(cleanData);
-            }, 3, 2000, 2);
-            
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
-            
-            overallResults.created++;
-            if (cleanData.status === 'completed') overallResults.completed++;
-            if (cleanData.status === 'in_transit' || cleanData.status === 'en_route') overallResults.enRoute++;
-            if (cleanData.status === 'pending') overallResults.pending++;
-            setImportProgress((prev) => ({
-              ...prev,
-              created: prev.created + 1,
-              current: i + 1
-            }));
-          } catch (error) {
-            console.error(`❌ Retry create failed:`, error);
-            overallResults.errors.push(`Failed to create ${cleanData.patient_name || 'Store Pickup'}: ${error.message}`);
-            overallResults.failed++;
-            setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: i + 1 }));
-          }
-          await delay(1000);
-        }
-
-        const failedUpdateOffset = failedCreations.length;
-        for (let i = 0; i < failedUpdates.length; i++) {
-          const { data: deliveryData } = failedUpdates[i];
-          const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
-
-          try {
-            if (!id) {
-              throw new Error('Missing delivery ID');
+            try {
+              const createdDelivery = await retryWithBackoff(async () => {
+                return await base44.entities.Delivery.create(cleanData);
+              });
+              
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
+              
+              overallResults.created++;
+              if (cleanData.status === 'completed') overallResults.completed++;
+              if (cleanData.status === 'in_transit' || cleanData.status === 'en_route') overallResults.enRoute++;
+              if (cleanData.status === 'pending') overallResults.pending++;
+              setImportProgress((prev) => ({
+                ...prev,
+                created: prev.created + 1,
+                current: i + 1
+              }));
+            } catch (error) {
+              console.error(`❌ Retry create failed:`, error);
+              overallResults.errors.push(`Failed to create ${cleanData.patient_name || 'Store Pickup'}: ${error.message}`);
+              overallResults.failed++;
+              setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: i + 1 }));
             }
-
-            const updatedDelivery = await retryWithBackoff(async () => {
-              return await base44.entities.Delivery.update(id, cleanDeliveryData(updatePayload));
-            }, 3, 2000, 2);
-            
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
-            
-            overallResults.updated++;
-            if (updatePayload.status === 'completed') overallResults.completed++;
-            if (updatePayload.status === 'in_transit' || updatePayload.status === 'en_route') overallResults.enRoute++;
-            if (updatePayload.status === 'pending') overallResults.pending++;
-            setImportProgress((prev) => ({
-              ...prev,
-              updated: prev.updated + 1,
-              current: failedUpdateOffset + i + 1
-            }));
-          } catch (error) {
-            console.error(`❌ Retry update failed:`, error);
-            overallResults.errors.push(`Failed to update ${deliveryData.patient_name || 'Store Pickup'}: ${error.message}`);
-            overallResults.failed++;
-            setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: failedUpdateOffset + i + 1 }));
+            await delay(3000); // 3s between retry attempts
           }
-          await delay(1000);
+
+          const failedUpdateOffset = failedCreations.length;
+          for (let i = 0; i < failedUpdates.length; i++) {
+            const { data: deliveryData } = failedUpdates[i];
+            const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
+
+            try {
+              if (!id) throw new Error('Missing delivery ID');
+
+              const updatedDelivery = await retryWithBackoff(async () => {
+                return await base44.entities.Delivery.update(id, cleanDeliveryData(updatePayload));
+              });
+              
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+              
+              overallResults.updated++;
+              if (updatePayload.status === 'completed') overallResults.completed++;
+              if (updatePayload.status === 'in_transit' || updatePayload.status === 'en_route') overallResults.enRoute++;
+              if (updatePayload.status === 'pending') overallResults.pending++;
+              setImportProgress((prev) => ({
+                ...prev,
+                updated: prev.updated + 1,
+                current: failedUpdateOffset + i + 1
+              }));
+            } catch (error) {
+              console.error(`❌ Retry update failed:`, error);
+              overallResults.errors.push(`Failed to update ${deliveryData.patient_name || 'Store Pickup'}: ${error.message}`);
+              overallResults.failed++;
+              setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: failedUpdateOffset + i + 1 }));
+            }
+            await delay(3000); // 3s between retry attempts
+          }
         }
-      }
 
       setImportProgress((prev) => ({
         ...prev,
@@ -1399,10 +1368,11 @@ export default function ImportActiveRoutes({
               return await base44.entities.Delivery.filter({
                 delivery_date: { $gte: minDate, $lte: maxDate }
               }, '-delivery_date', 5000);
-            }, 3, 3000, 2);
+            });
             
-            // Add longer delay after large fetch
-            await delay(2000);
+            // CRITICAL: Very long cooldown after large fetch (8 seconds)
+            console.log('⏸️ Cooling down after large fetch...');
+            await delay(8000);
             
             // Map by driver_id for quick lookup
             const deliveriesByDriver = {};
@@ -1481,31 +1451,32 @@ export default function ImportActiveRoutes({
                   allUpdates.push({ id: firstIncomplete.id, data: { isNextDelivery: true } });
                 }
                 
-                // CRITICAL: Process updates SEQUENTIALLY (not parallel) with delays
+                // CRITICAL: Process updates ONE-AT-A-TIME with long delays
                 for (let i = 0; i < allUpdates.length; i++) {
                   const update = allUpdates[i];
                   
                   await retryWithBackoff(async () => {
                     return await base44.entities.Delivery.update(update.id, update.data);
-                  }, 3, 3000, 2);
+                  });
                   
-                  // Delay between each update to prevent flooding
-                  await delay(1000);
+                  // CRITICAL: 2 second delay between EACH update
+                  await delay(2000);
                   
-                  // Extra delay every 10 updates
-                  if ((i + 1) % 10 === 0 && i + 1 < allUpdates.length) {
-                    await delay(3000);
+                  // Extra 5 second cooldown every 5 updates
+                  if ((i + 1) % 5 === 0 && i + 1 < allUpdates.length) {
+                    console.log(`⏸️ Cooldown after ${i + 1} reorder updates...`);
+                    await delay(5000);
                   }
                 }
                 
                 console.log(`✅ [ImportActiveRoutes] Processed ${allUpdates.length} stop updates for ${driverId} on ${date}`);
                 
-                // Delay between dates
-                await delay(1000);
+                // Long delay between dates
+                await delay(3000);
               }
               
-              // Delay between drivers
-              await delay(1500);
+              // Long delay between drivers
+              await delay(5000);
             }
           }
         } catch (reorderError) {
