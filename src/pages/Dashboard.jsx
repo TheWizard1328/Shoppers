@@ -5259,9 +5259,10 @@ function Dashboard() {
       }
 
       const driverId = targetDelivery.driver_id;
+      const deliveryDate = targetDelivery.delivery_date;
+      const isPickup = !targetDelivery.patient_id;
       const currentTime = new Date();
       let currentTimeISO = currentTime.toISOString();
-      const currentTimeHHMM = format(currentTime, 'HH:mm');
 
       const updateData = { status: newStatus, ...extraData };
 
@@ -5273,35 +5274,26 @@ function Dashboard() {
         updateData.delivery_time_start = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
       }
 
-      // CRITICAL: Calculate "as the crow flies" distance from previous completed stop
+      // CRITICAL: Calculate travel distance from LOCAL data (no API call)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         updateData.isNextDelivery = false;
         
-        // CRITICAL: Re-fetch latest deliveries to ensure we have the most up-to-date data
-        const latestDeliveries = await base44.entities.Delivery.filter({
-          driver_id: driverId,
-          delivery_date: deliveryDate
-        });
-        
-        // Calculate travel distance from previous completed stop
+        // Get completed stops from LOCAL state
         const finishedStatuses = ['completed', 'failed', 'cancelled'];
-        const completedStops = latestDeliveries
-          .filter((d) => d && finishedStatuses.includes(d.status))
+        const completedStops = deliveriesWithStopOrder
+          .filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate && finishedStatuses.includes(d.status))
           .sort((a, b) => {
             if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
             return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
           });
         
         if (completedStops.length === 0) {
-          // First completed stop - distance is 0
           updateData.travel_dist = 0;
           console.log('📏 [Travel Dist] First completed stop - travel_dist = 0 km');
         } else {
-          // Calculate distance from last completed stop
           const lastStop = completedStops[completedStops.length - 1];
           let lastLat, lastLon, currentLat, currentLon;
           
-          // Get coordinates of last completed stop
           if (lastStop.patient_id) {
             const lastPatient = patients.find((p) => p && p.id === lastStop.patient_id);
             lastLat = lastPatient?.latitude;
@@ -5312,7 +5304,6 @@ function Dashboard() {
             lastLon = lastStore?.longitude;
           }
           
-          // Get coordinates of current stop
           if (targetDelivery.patient_id) {
             const currentPatient = patients.find((p) => p && p.id === targetDelivery.patient_id);
             currentLat = currentPatient?.latitude;
@@ -5325,37 +5316,29 @@ function Dashboard() {
           
           if (lastLat && lastLon && currentLat && currentLon) {
             const distance = calculateDistance(lastLat, lastLon, currentLat, currentLon);
-            updateData.travel_dist = Math.round(distance * 100) / 100; // Round to 2 decimals
-            console.log(`📏 [Travel Dist] Distance from last stop: ${updateData.travel_dist} km (${lastStop.patient_name || lastStop.delivery_notes} -> ${targetDelivery.patient_name || targetDelivery.delivery_notes})`);
+            updateData.travel_dist = Math.round(distance * 100) / 100;
+            console.log(`📏 [Travel Dist] ${updateData.travel_dist} km`);
           } else {
             updateData.travel_dist = 0;
-            console.log('📏 [Travel Dist] Missing coordinates - travel_dist = 0 km');
           }
         }
       }
 
-      // CRITICAL: Cancelled pickups are treated as completed (with timestamp)
+      // CRITICAL: Time rounding for first/last stop
       if (['completed', 'failed', 'delivered'].includes(newStatus) || newStatus === 'cancelled' && isPickup) {
-        // CRITICAL: Check if this is first or last STOP (pickups + patient deliveries) for rounding
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
         const allDriverStops = deliveriesWithStopOrder.filter((d) =>
-          d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
+          d && d.driver_id === driverId && d.delivery_date === deliveryDate
         );
         
-        // First stop = first stop being completed (all others still incomplete)
         const completedStopsCount = allDriverStops.filter((d) => finishedStatuses.includes(d.status)).length;
         const isFirstStop = completedStopsCount === 0;
-
-        // Last stop = this is the last incomplete stop
         const incompleteStopsCount = allDriverStops.filter((d) => !finishedStatuses.includes(d.status)).length;
-        const isLastStop = incompleteStopsCount === 1; // This one will be the last after completion
+        const isLastStop = incompleteStopsCount === 1;
 
-        console.log(`⏱️ [TIME ROUNDING] Stop - First: ${isFirstStop}, Last: ${isLastStop}, Completed: ${completedStopsCount}, Incomplete: ${incompleteStopsCount}`);
-
-        // CRITICAL: Round to nearest 5 minutes if first or last STOP (pickup or delivery)
         if (isFirstStop || isLastStop) {
           currentTimeISO = roundCompletionTime(currentTimeISO);
-          console.log(`⏱️ [TIME ROUNDING] Applied to ${isFirstStop ? 'FIRST' : 'LAST'} stop - rounded to: ${currentTimeISO}`);
+          console.log(`⏱️ [TIME ROUNDING] Applied to ${isFirstStop ? 'FIRST' : 'LAST'} stop`);
         }
 
         updateData.actual_delivery_time = currentTimeISO;
@@ -5363,33 +5346,34 @@ function Dashboard() {
         updateData.actual_delivery_time = null;
       }
 
-      // CRITICAL: Update isNextDelivery flags BEFORE updating status (so UI shows correct next stop immediately)
+      // STEP 1: Update isNextDelivery flags LOCALLY (instant)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
-        // Reset all isNextDelivery flags for this driver/date
         const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter((d) =>
-        d && d.driver_id === driverId && d.delivery_date === deliveryDate
+          d && d.driver_id === driverId && d.delivery_date === deliveryDate
         );
 
-        const resetPromises = allDriverDeliveriesForDate.
-        filter((d) => d.isNextDelivery && d.id !== deliveryId).
-        map((d) => updateDeliveryLocal(d.id, { isNextDelivery: false }));
+        // Reset flags for other deliveries
+        const resetPromises = allDriverDeliveriesForDate
+          .filter((d) => d.isNextDelivery && d.id !== deliveryId)
+          .map((d) => updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true }));
 
         if (resetPromises.length > 0) {
           await Promise.all(resetPromises);
         }
 
-        // Find the next incomplete delivery (excluding the one being completed) and mark as next (SKIP PENDING)
-        const incompleteDeliveries = allDriverDeliveriesForDate.
-        filter((d) => d.id !== deliveryId && !['completed', 'failed', 'cancelled'].includes(d.status) && d.status !== 'pending').
-        sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+        // Find next incomplete and mark as next
+        const incompleteDeliveries = allDriverDeliveriesForDate
+          .filter((d) => d.id !== deliveryId && !['completed', 'failed', 'cancelled'].includes(d.status) && d.status !== 'pending')
+          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
         if (incompleteDeliveries.length > 0) {
           const nextStop = incompleteDeliveries[0];
-          await updateDeliveryLocal(nextStop.id, { isNextDelivery: true });
+          await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
         }
       }
 
-      await updateDeliveryLocal(deliveryId, updateData);
+      // STEP 2: Update delivery status LOCALLY (instant)
+      await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
       // STEP 1.5: Update patient's last_delivery_date if completed or failed
       if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
         try {
