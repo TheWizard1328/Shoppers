@@ -21,10 +21,6 @@ import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { driverLocationPoller } from '../utils/driverLocationPoller';
 import { processDeliveryNotes } from '../utils/notesProcessor';
 import { executeDataOperation } from '../utils/dataOperationManager';
-import { 
-  batchCreateDeliveriesLocal,
-  updateDeliveryLocal
-} from '../utils/offlineMutations';
 
 // Utility function for delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -1171,9 +1167,15 @@ export default function ImportActiveRoutes({
 
           const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-          // Use raw batch create (no pause checks - already inside executeDataOperation)
+          // Direct batch create - bypass mutation system (already inside executeDataOperation)
           try {
-            await batchCreateDeliveriesLocal(cleanedDeliveries);
+            // Write to IndexedDB first
+            for (const delivery of cleanedDeliveries) {
+              await offlineDB.add(offlineDB.STORES.DELIVERIES, delivery);
+            }
+            
+            // Sync to backend
+            await base44.entities.Delivery.bulkCreate(cleanedDeliveries);
 
             cleanedDeliveries.forEach((cleanData) => {
               overallResults.created++;
@@ -1213,8 +1215,9 @@ export default function ImportActiveRoutes({
 
               const cleanPayload = cleanDeliveryData(updatePayload);
 
-              // Use raw update (no pause checks - already inside executeDataOperation)
-              await updateDeliveryLocal(id, cleanPayload);
+              // Direct update - bypass mutation system (already inside executeDataOperation)
+              await offlineDB.update(offlineDB.STORES.DELIVERIES, id, cleanPayload);
+              await base44.entities.Delivery.update(id, cleanPayload);
 
               overallResults.updated++;
               if (cleanPayload.status === 'completed') overallResults.completed++;
@@ -1250,7 +1253,8 @@ export default function ImportActiveRoutes({
             const { data: cleanData } = failedCreations[i];
 
             try {
-              await batchCreateDeliveriesLocal([cleanData]);
+              await offlineDB.add(offlineDB.STORES.DELIVERIES, cleanData);
+              await base44.entities.Delivery.create(cleanData);
               
               overallResults.created++;
               if (cleanData.status === 'completed') overallResults.completed++;
@@ -1277,7 +1281,9 @@ export default function ImportActiveRoutes({
             try {
               if (!id) throw new Error('Missing delivery ID');
 
-              await updateDeliveryLocal(id, cleanDeliveryData(updatePayload));
+              const cleanPayload = cleanDeliveryData(updatePayload);
+              await offlineDB.update(offlineDB.STORES.DELIVERIES, id, cleanPayload);
+              await base44.entities.Delivery.update(id, cleanPayload);
               
               overallResults.updated++;
               if (updatePayload.status === 'completed') overallResults.completed++;
@@ -1414,9 +1420,10 @@ export default function ImportActiveRoutes({
                   allUpdates.push({ id: firstIncomplete.id, data: { isNextDelivery: true } });
                 }
                 
-                // Process stop order updates (raw calls - no pause checks)
+                // Process stop order updates (direct DB calls - no pause checks)
                 for (const update of allUpdates) {
-                  await updateDeliveryLocal(update.id, update.data);
+                  await offlineDB.update(offlineDB.STORES.DELIVERIES, update.id, update.data);
+                  await base44.entities.Delivery.update(update.id, update.data);
                 }
                 
                 console.log(`✅ [ImportActiveRoutes] Processed ${allUpdates.length} stop updates for ${driverId} on ${date}`);
