@@ -519,8 +519,16 @@ class SmartRefreshManager {
   
   /**
    * Check if enough time has passed for a specific refresh type
+   * CRITICAL: Block refresh until offline DB is loaded
    */
   shouldRefresh(type) {
+    // CRITICAL: Don't start smart refresh until offline DB has loaded
+    const { isOfflineDBLoadComplete } = require('./dataManager');
+    if (!isOfflineDBLoadComplete()) {
+      console.log(`⏸️ [SmartRefresh] Skipping ${type} refresh - waiting for offline DB load`);
+      return false;
+    }
+    
     const now = Date.now();
     const lastRefresh = this.lastRefreshTimes[type] || 0;
     const interval = this.intervals[type] || 15000;
