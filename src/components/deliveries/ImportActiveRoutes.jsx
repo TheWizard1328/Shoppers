@@ -1035,21 +1035,18 @@ export default function ImportActiveRoutes({
         return;
       }
 
-      setProgressMessage(`Refreshing delivery cache for ${driverIdsArray.length} driver(s) (${minDate} to ${maxDate})...`);
+      setProgressMessage(`Loading deliveries from offline cache for ${driverIdsArray.length} driver(s) (${minDate} to ${maxDate})...`);
       setProgressPercent(25);
 
-      // Fetch deliveries ONLY for the drivers found in the import files
-      const freshDeliveries = driverIdsArray.length > 0 
-        ? await base44.entities.Delivery.filter(
-            { 
-              delivery_date: { $gte: minDate, $lte: maxDate },
-              driver_id: { $in: driverIdsArray }
-            },
-            '-delivery_date',
-            5000
-          )
-        : [];
+      // CRITICAL: Fetch deliveries from OFFLINE DATABASE (no API calls!)
+      const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      const freshDeliveries = allOfflineDeliveries.filter(d => {
+        if (!d.delivery_date || d.delivery_date < minDate || d.delivery_date > maxDate) return false;
+        if (driverIdsArray.length > 0 && !driverIdsArray.includes(d.driver_id)) return false;
+        return true;
+      });
       
+      console.log(`📦 [Preview] Loaded ${freshDeliveries.length} deliveries from offline cache`);
       setProgressPercent(35);
 
       let totalToCreate = [];
