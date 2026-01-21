@@ -1167,14 +1167,8 @@ export default function ImportActiveRoutes({
 
           const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-          // Direct batch create - bypass mutation system (already inside executeDataOperation)
+          // Direct batch create - backend only (IndexedDB will sync automatically)
           try {
-            // Write to IndexedDB first
-            for (const delivery of cleanedDeliveries) {
-              await offlineDB.add(offlineDB.STORES.DELIVERIES, delivery);
-            }
-            
-            // Sync to backend
             await base44.entities.Delivery.bulkCreate(cleanedDeliveries);
 
             cleanedDeliveries.forEach((cleanData) => {
@@ -1215,8 +1209,7 @@ export default function ImportActiveRoutes({
 
               const cleanPayload = cleanDeliveryData(updatePayload);
 
-              // Direct update - bypass mutation system (already inside executeDataOperation)
-              await offlineDB.put(offlineDB.STORES.DELIVERIES, { ...cleanPayload, id });
+              // Direct update - backend only (IndexedDB will sync automatically)
               await base44.entities.Delivery.update(id, cleanPayload);
 
               overallResults.updated++;
@@ -1253,7 +1246,6 @@ export default function ImportActiveRoutes({
             const { data: cleanData } = failedCreations[i];
 
             try {
-              await offlineDB.add(offlineDB.STORES.DELIVERIES, cleanData);
               await base44.entities.Delivery.create(cleanData);
               
               overallResults.created++;
@@ -1420,9 +1412,8 @@ export default function ImportActiveRoutes({
                   allUpdates.push({ id: firstIncomplete.id, data: { isNextDelivery: true } });
                 }
                 
-                // Process stop order updates (direct DB calls - no pause checks)
+                // Process stop order updates (direct backend calls - IndexedDB syncs automatically)
                 for (const update of allUpdates) {
-                  await offlineDB.put(offlineDB.STORES.DELIVERIES, { ...update.data, id: update.id });
                   await base44.entities.Delivery.update(update.id, update.data);
                 }
                 
