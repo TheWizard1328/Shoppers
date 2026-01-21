@@ -22,14 +22,9 @@ import { driverLocationPoller } from '../utils/driverLocationPoller';
 import { processDeliveryNotes } from '../utils/notesProcessor';
 import { executeDataOperation } from '../utils/dataOperationManager';
 import { 
-  createDelivery, 
-  updateDelivery, 
-  batchCreateDeliveries 
-} from '../utils/dataOperationManager';
-import { 
-  batchCreateDeliveries as batchCreateDeliveriesLocal,
-  updateDelivery as updateDeliveryLocal
-} from '../utils/entityMutations';
+  batchCreateDeliveries as batchCreateDeliveriesRaw,
+  updateDelivery as updateDeliveryRaw
+} from '../utils/offlineMutations';
 
 // Utility function for delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -1176,9 +1171,9 @@ export default function ImportActiveRoutes({
 
           const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-          // Use direct batch create (already inside executeDataOperation, no need to pause again)
+          // Use raw batch create (no pause checks - already inside executeDataOperation)
           try {
-            await batchCreateDeliveriesLocal(cleanedDeliveries);
+            await batchCreateDeliveriesRaw(cleanedDeliveries);
 
             cleanedDeliveries.forEach((cleanData) => {
               overallResults.created++;
@@ -1218,8 +1213,8 @@ export default function ImportActiveRoutes({
 
               const cleanPayload = cleanDeliveryData(updatePayload);
 
-              // Use direct update (already inside executeDataOperation, no need to pause again)
-              await updateDeliveryLocal(id, cleanPayload);
+              // Use raw update (no pause checks - already inside executeDataOperation)
+              await updateDeliveryRaw(id, cleanPayload);
 
               overallResults.updated++;
               if (cleanPayload.status === 'completed') overallResults.completed++;
@@ -1255,7 +1250,7 @@ export default function ImportActiveRoutes({
             const { data: cleanData } = failedCreations[i];
 
             try {
-              await createDelivery(cleanData);
+              await batchCreateDeliveriesRaw([cleanData]);
               
               overallResults.created++;
               if (cleanData.status === 'completed') overallResults.completed++;
@@ -1282,7 +1277,7 @@ export default function ImportActiveRoutes({
             try {
               if (!id) throw new Error('Missing delivery ID');
 
-              await updateDelivery(id, cleanDeliveryData(updatePayload));
+              await updateDeliveryRaw(id, cleanDeliveryData(updatePayload));
               
               overallResults.updated++;
               if (updatePayload.status === 'completed') overallResults.completed++;
@@ -1419,9 +1414,9 @@ export default function ImportActiveRoutes({
                   allUpdates.push({ id: firstIncomplete.id, data: { isNextDelivery: true } });
                 }
                 
-                // Process stop order updates (direct calls, already inside executeDataOperation)
+                // Process stop order updates (raw calls - no pause checks)
                 for (const update of allUpdates) {
-                  await updateDeliveryLocal(update.id, update.data);
+                  await updateDeliveryRaw(update.id, update.data);
                 }
                 
                 console.log(`✅ [ImportActiveRoutes] Processed ${allUpdates.length} stop updates for ${driverId} on ${date}`);
