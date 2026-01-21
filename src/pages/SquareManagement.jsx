@@ -145,8 +145,8 @@ export default function SquareManagement() {
     // App owners can filter by driver
     if (isAppOwner) {
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
-        // CRITICAL: Get driver's square_location_ids from AppUser, not from locationConfigs
-        const driver = drivers.find(d => d.user_id === selectedDriverFilter);
+        // CRITICAL: Find AppUser by ID (not user_id)
+        const driver = drivers.find(d => d.id === selectedDriverFilter);
         const driverLocationIds = driver?.square_location_ids || [];
         
         // Map SquareLocationConfig IDs to square_location_id values
@@ -161,9 +161,9 @@ export default function SquareManagement() {
       return catalogItems;
     }
     
-    // CRITICAL: Drivers see items for all their assigned square_location_ids
-    const driver = drivers.find(d => d.user_id === currentUser.id);
-    const driverLocationIds = driver?.square_location_ids || [];
+    // CRITICAL: Find driver's AppUser by platform user ID, then use their square_location_ids
+    const currentAppUser = drivers.find(d => d.user_id === currentUser.id);
+    const driverLocationIds = currentAppUser?.square_location_ids || [];
     
     // Map SquareLocationConfig IDs to square_location_id values
     const squareLocationIds = locationConfigs
@@ -201,7 +201,7 @@ export default function SquareManagement() {
               <SelectContent>
                 <SelectItem value="all">All Drivers</SelectItem>
                 {drivers.map(driver => (
-                  <SelectItem key={driver.id} value={driver.user_id}>
+                  <SelectItem key={driver.id} value={driver.id}>
                     {driver.user_name}
                   </SelectItem>
                 ))}
