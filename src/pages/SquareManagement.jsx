@@ -234,17 +234,33 @@ export default function SquareManagement() {
       );
     }
     
-    // Sort: single-driver items first, then multi-driver items
+    // Sort: by driver, then store, then updated time
     return items.sort((a, b) => {
-      const aDrivers = getDriversForLocation(a.location_id);
-      const bDrivers = getDriversForLocation(b.location_id);
-      const aCount = aDrivers.length;
-      const bCount = bDrivers.length;
+      const aDrivers = getDriversForLocation(a.location_id).sort((d1, d2) => (d1.sort_order ?? Infinity) - (d2.sort_order ?? Infinity));
+      const bDrivers = getDriversForLocation(b.location_id).sort((d1, d2) => (d1.sort_order ?? Infinity) - (d2.sort_order ?? Infinity));
       
-      // Single driver items (1) come before multi-driver items (>1)
-      if (aCount === 1 && bCount > 1) return -1;
-      if (aCount > 1 && bCount === 1) return 1;
-      return 0;
+      // Compare first driver
+      const aFirstDriver = aDrivers[0]?.user_name || '';
+      const bFirstDriver = bDrivers[0]?.user_name || '';
+      if (aFirstDriver !== bFirstDriver) {
+        return aFirstDriver.localeCompare(bFirstDriver);
+      }
+      
+      // Compare store
+      const aConfig = locationConfigs.find(c => c.square_location_id === a.location_id);
+      const bConfig = locationConfigs.find(c => c.square_location_id === b.location_id);
+      const aStore = stores.find(s => s.square_location_config_id === aConfig?.id);
+      const bStore = stores.find(s => s.square_location_config_id === bConfig?.id);
+      const aStoreName = aStore?.name || aConfig?.name || '';
+      const bStoreName = bStore?.name || bConfig?.name || '';
+      if (aStoreName !== bStoreName) {
+        return aStoreName.localeCompare(bStoreName);
+      }
+      
+      // Compare updated time (newest first)
+      const aTime = new Date(a.updated_at || 0).getTime();
+      const bTime = new Date(b.updated_at || 0).getTime();
+      return bTime - aTime;
     });
   }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers]);
 
