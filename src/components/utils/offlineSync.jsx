@@ -13,6 +13,7 @@ import { offlineDB } from './offlineDatabase';
 import { Patient } from '@/entities/Patient';
 import { Delivery } from '@/entities/Delivery';
 import { AppUser } from '@/entities/AppUser';
+import { SquareTransaction } from '@/entities/SquareTransaction';
 import { format, subDays } from 'date-fns';
 
 // Configuration
@@ -109,9 +110,10 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   notifySyncStatus({ status: 'loading_priority', date: selectedDateStr });
   
   try {
-    // Step 1: AppUsers (fast, small dataset)
+    // Step 1: AppUsers (fast, small dataset) - save to offline DB
     const appUsers = await AppUser.list();
     console.log(`   ✅ Loaded ${appUsers.length} AppUsers`);
+    await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
@@ -167,6 +169,11 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     // Update sync timestamps
     await Promise.all([
+      offlineDB.updateSyncStatus('AppUser', { 
+        recordCount: appUsers.length, 
+        status: 'synced',
+        lastSync: new Date().toISOString()
+      }),
       offlineDB.updateSyncStatus('Delivery', { 
         recordCount: deliveries.length, 
         status: 'synced',
@@ -263,7 +270,33 @@ export const performBackgroundSync = async (selectedDateStr) => {
       await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     }
     
-    // ===== STEP 3: Sync remaining patients (250 at a time) =====
+    // ===== STEP 3: Sync AppUsers in background =====
+    if (!syncPaused) {
+      console.log('   👤 Syncing AppUsers...');
+      try {
+        const allAppUsers = await AppUser.list();
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+        console.log(`   ✅ Cached ${allAppUsers.length} AppUsers`);
+      } catch (appUserError) {
+        console.warn(`   ⚠️ AppUser sync failed:`, appUserError.message);
+      }
+    }
+
+    // ===== STEP 4: Sync Square Transactions in background =====
+    if (!syncPaused) {
+      console.log('   💳 Syncing Square Transactions...');
+      try {
+        const allSquareTx = await SquareTransaction.list('-updated_date', 1000);
+        if (allSquareTx && allSquareTx.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, allSquareTx);
+          console.log(`   ✅ Cached ${allSquareTx.length} Square Transactions`);
+        }
+      } catch (squareTxError) {
+        console.warn(`   ⚠️ Square Transaction sync failed:`, squareTxError.message);
+      }
+    }
+
+    // ===== STEP 5: Sync remaining patients (250 at a time) =====
     if (!syncPaused) {
       console.log('   👥 Syncing patients...');
       await syncAllPatients();
@@ -271,12 +304,26 @@ export const performBackgroundSync = async (selectedDateStr) => {
     
     // Update final sync status
     const stats = await offlineDB.getStats();
-    await offlineDB.updateSyncStatus('Delivery', {
-      recordCount: stats?.deliveries?.count || 0,
-      status: 'synced',
-      lastSync: new Date().toISOString(),
-      lastFullSync: new Date().toISOString()
-    });
+    await Promise.all([
+      offlineDB.updateSyncStatus('AppUser', {
+        recordCount: stats?.appUsers?.count || 0,
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
+      }),
+      offlineDB.updateSyncStatus('SquareTransaction', {
+        recordCount: stats?.squareTransactions?.count || 0,
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
+      }),
+      offlineDB.updateSyncStatus('Delivery', {
+        recordCount: stats?.deliveries?.count || 0,
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
+      })
+    ]);
     
     console.log('✅ [OfflineSync] Background sync complete');
     notifySyncStatus({ status: 'complete' });
