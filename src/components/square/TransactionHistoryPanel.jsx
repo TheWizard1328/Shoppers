@@ -8,8 +8,15 @@ import { X, Calendar, AlertCircle, DollarSign } from 'lucide-react';
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from './badgeHelpers';
 
 export default function TransactionHistoryPanel({ location, transactions = [], drivers = [], catalogItems = [], onClose }) {
-  const [dateRangeStart, setDateRangeStart] = useState('');
-  const [dateRangeEnd, setDateRangeEnd] = useState('');
+  // Default to current month
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const defaultStart = monthStart.toISOString().split('T')[0];
+  const defaultEnd = monthEnd.toISOString().split('T')[0];
+
+  const [dateRangeStart, setDateRangeStart] = useState(defaultStart);
+  const [dateRangeEnd, setDateRangeEnd] = useState(defaultEnd);
   const [selectedDriver, setSelectedDriver] = useState('all');
 
   // Get catalog items for this location by matching Square catalog object IDs
