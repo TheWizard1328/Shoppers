@@ -375,7 +375,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                         {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                       </span>
                       <div className="text-slate-600 text-[10px]">
-                        ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km
+                        ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km / OS: ${formatRate(entry.oversized_item_rate)}
                       </div>
                       <Button
                         type="button"
