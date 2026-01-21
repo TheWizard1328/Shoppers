@@ -51,6 +51,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       // Include deductions in updates
       updates.deductions = formData.deductions;
 
+      // CRITICAL: Include edited pay_rate_history in updates (allows manual deletion)
+      updates.pay_rate_history = formData.pay_rate_history;
+
       // Check if pay rates changed (compare as numbers)
       const newPayRate = parseFloat(formData.pay_rate_per_delivery) || 0;
       const newKmRate = parseFloat(formData.extra_km_rate) || 0;
@@ -65,7 +68,6 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged) {
         // Archive the OLD rates to history before updating with new values
         const today = format(new Date(), 'yyyy-MM-dd');
-        const existingHistory = driver.pay_rate_history || [];
         
         // Create history entry with the CURRENT (old) values before they get overwritten
         const historyEntry = {
@@ -81,7 +83,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         updates.extra_km_rate = newKmRate;
         updates.extra_km_limit = newKmLimit;
         updates.oversized_item_rate = newOversizedRate;
-        updates.pay_rate_history = [...existingHistory, historyEntry];
+        updates.pay_rate_history = [...formData.pay_rate_history, historyEntry];
       } else {
         // Always include pay rates in updates to ensure they're saved
         updates.pay_rate_per_delivery = newPayRate;
