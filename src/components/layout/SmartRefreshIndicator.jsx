@@ -48,24 +48,34 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   // Track which entities were updated and reset index
   // CRITICAL: Use a ref to track the timeout so we can clear it properly
   const clearTimeoutRef = React.useRef(null);
+  const cycleIntervalRef = React.useRef(null);
   
   useEffect(() => {
-    // Clear any pending timeout when dependencies change
+    // Clear any pending timeouts/intervals when dependencies change
     if (clearTimeoutRef.current) {
       clearTimeout(clearTimeoutRef.current);
       clearTimeoutRef.current = null;
+    }
+    if (cycleIntervalRef.current) {
+      clearInterval(cycleIntervalRef.current);
+      cycleIntervalRef.current = null;
     }
     
     if (smartRefreshActivity?.updatedEntities && smartRefreshActivity.updatedEntities.length > 0) {
       setRecentUpdates(smartRefreshActivity.updatedEntities);
       setCurrentDisplayIndex(0);
+      
+      // CRITICAL: Start cycling through entity badges ONLY while refresh is active
+      if (smartRefreshActivity.active && smartRefreshActivity.updatedEntities.length > 1) {
+        cycleIntervalRef.current = setInterval(() => {
+          setCurrentDisplayIndex(prev => (prev + 1) % smartRefreshActivity.updatedEntities.length);
+        }, 1000);
+      }
     } else if (!smartRefreshActivity?.active) {
-      // Clear after 2 seconds when refresh cycle completes
-      clearTimeoutRef.current = setTimeout(() => {
-        setRecentUpdates([]);
-        setCurrentDisplayIndex(0);
-        clearTimeoutRef.current = null;
-      }, 2000);
+      // CRITICAL: Immediately clear entity badges when refresh completes
+      // This prevents flickering and ensures spinner icon returns
+      setRecentUpdates([]);
+      setCurrentDisplayIndex(0);
     }
     
     return () => {
@@ -73,19 +83,12 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         clearTimeout(clearTimeoutRef.current);
         clearTimeoutRef.current = null;
       }
+      if (cycleIntervalRef.current) {
+        clearInterval(cycleIntervalRef.current);
+        cycleIntervalRef.current = null;
+      }
     };
   }, [smartRefreshActivity?.active, smartRefreshActivity?.updatedEntities]);
-
-  // Cycle through entities - show each for 1 second
-  useEffect(() => {
-    if (recentUpdates.length <= 1) return;
-    
-    const interval = setInterval(() => {
-      setCurrentDisplayIndex(prev => (prev + 1) % recentUpdates.length);
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, [recentUpdates.length]);
 
   // Subscribe to online/offline status
   useEffect(() => {
