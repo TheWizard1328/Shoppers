@@ -79,6 +79,7 @@ export default function SquareManagement() {
         setLocationConfigs(configs || []);
         setStores(storesData || []);
         setRecentTransactions(recentTxs);
+        setAllTransactions(allTransactions || []);
         
         // Filter to only active drivers
         const driversList = appUsersData.filter(u => 
