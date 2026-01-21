@@ -847,6 +847,10 @@ export default function Layout({ children, currentPageName }) {
 
         setInitialGlobalFiltersSet(true);
 
+        // CRITICAL: Mark offline DB load as complete to allow smart refresh to start
+        const { markOfflineDBLoadComplete } = await import('./components/utils/dataManager');
+        markOfflineDBLoadComplete();
+
         setIsLoadingLayout(false);
 
       } catch (error) {
