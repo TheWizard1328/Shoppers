@@ -1752,7 +1752,7 @@ class SmartRefreshManager {
         }
       }
 
-      // Refresh AppUsers (includes driver status)
+      // Refresh AppUsers (includes driver status) - loaded from offline DB first
       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
         try {
           const appUserResult = await this.refreshAppUsers(currentData.appUsers);
@@ -1762,6 +1762,19 @@ class SmartRefreshManager {
           this.markRefreshed('appUsers');
         } catch (e) {
           console.warn('⚠️ [SmartRefresh] AppUser refresh failed:', e.message);
+        }
+      }
+
+      // Refresh Square Transactions (low priority, background)
+      if (this.shouldRefresh('squareTransactions')) {
+        try {
+          const squareTxResult = await this.refreshSquareTransactions(currentData.squareTransactions || []);
+          if (squareTxResult?.hasChanges) {
+            updates.squareTransactions = squareTxResult.squareTransactions;
+          }
+          this.markRefreshed('squareTransactions');
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Square Transaction refresh failed:', e.message);
         }
       }
 
@@ -1906,6 +1919,77 @@ class SmartRefreshManager {
     this.deletedPatientIds.clear();
   }
   
+  /**
+   * Smart refresh for Square Transactions
+   * CRITICAL: Fetches updated Square transaction data and caches to offline DB
+   */
+  async refreshSquareTransactions(currentTransactions = []) {
+    try {
+      if (!this.shouldRefresh('squareTransactions')) {
+        return null;
+      }
+      
+      this.markRefreshed('squareTransactions');
+      await this.waitForRateLimit();
+      
+      const lastTimestamp = getLatestUpdateTimestamp(currentTransactions);
+      
+      let queryFilter = {};
+      if (lastTimestamp) {
+        queryFilter.updated_date = {
+          $gte: lastTimestamp.toISOString()
+        };
+      }
+      
+      const updatedTransactions = await queueEntityRequest(
+        () => base44.entities.SquareTransaction.filter(queryFilter, '-updated_date', 500),
+        'SquareTransaction filter'
+      );
+      
+      // Record success
+      this.recordSuccess();
+      
+      if (!updatedTransactions || updatedTransactions.length === 0) {
+        return null;
+      }
+      
+      const diff = diffEntityArrays(currentTransactions, updatedTransactions);
+      
+      if (diff.toUpdate.length === 0 && diff.toAdd.length === 0) {
+        return null;
+      }
+      
+      const mergedTransactions = mergeEntityChanges(currentTransactions, diff);
+      
+      // CRITICAL: Sync to offline database after changes
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, mergedTransactions);
+      } catch (offlineError) {
+        console.warn('⚠️ [SmartRefresh] Failed to sync Square Transactions to offline DB:', offlineError);
+      }
+      
+      return {
+        hasChanges: true,
+        squareTransactions: mergedTransactions
+      };
+      
+    } catch (error) {
+      // CRITICAL: Record error for exponential backoff
+      this.recordError();
+      
+      if (error.response?.status === 429 || error.message?.includes('429')) {
+        console.warn('⏰ [SmartRefresh] Rate limit on Square Transactions - skipping cycle');
+        this.notifyRateLimit(true);
+      } else if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
+        console.warn('🔌 [SmartRefresh] WebSocket error on Square Transactions - skipping cycle');
+      } else {
+        console.warn('⚠️ [SmartRefresh] Error refreshing Square Transactions (non-fatal):', error.message || error);
+      }
+      return null;
+    }
+  }
+
   /**
    * Smart refresh for Payroll records
    * CRITICAL: Used by DriverPayroll page to sync payroll confirmation status
