@@ -145,18 +145,15 @@ export default function SquareManagement() {
 
   // Check if item has a recent payment (last 7 days)
   const hasRecentPayment = (itemName, itemAmount, locationId) => {
-    // Find the store associated with this Square Location ID
-    const store = stores.find(s => {
-      const config = locationConfigs.find(c => c.id === s.square_location_config_id);
-      return config && config.square_location_id === locationId;
+    const match = recentTransactions.some(t => {
+      const nameMatch = t.item_name === itemName;
+      const amountMatch = Math.abs(t.amount - itemAmount) < 0.01;
+      const typeMatch = t.type === 'collection';
+      
+      return nameMatch && amountMatch && typeMatch;
     });
     
-    return recentTransactions.some(t => 
-      t.item_name === itemName && 
-      Math.abs(t.amount - itemAmount) < 0.01 && // Allow for small floating point differences
-      t.type === 'collection' &&
-      (!store || t.store_id === store.id) // Match store if we found one
-    );
+    return match;
   };
 
   const handleDelete = async (item) => {
