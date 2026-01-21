@@ -446,6 +446,28 @@ export default function SquareManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* Transaction History Panel */}
+      {selectedLocation && (
+        <TransactionHistoryPanel
+          location={selectedLocation}
+          transactions={allTransactions}
+          drivers={drivers}
+          onClose={() => setSelectedLocation(null)}
+        />
+      )}
+
+      {/* COD Item Detail Modal */}
+      {selectedCODItem && (
+        <CODItemDetailModal
+          item={selectedCODItem}
+          locationConfigs={locationConfigs}
+          stores={stores}
+          transactions={allTransactions}
+          drivers={drivers}
+          onClose={() => setSelectedCODItem(null)}
+        />
+      )}
     </div>
   );
 }
