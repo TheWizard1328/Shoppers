@@ -14,7 +14,9 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
   const [transactionType, setTransactionType] = useState('all');
 
   const filteredTransactions = useMemo(() => {
-    let filtered = transactions.filter(t => t.square_location_id === location.square_location_id || t.location_id === location.square_location_id);
+    // Note: Transactions don't have a location field directly - they relate through catalog items
+    // For now, show all transactions (filtering by location would require catalog item mapping)
+    let filtered = transactions;
 
     // Date range filter
     if (dateRangeStart) {
