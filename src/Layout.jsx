@@ -1886,7 +1886,7 @@ export default function Layout({ children, currentPageName }) {
         }
 
         // Calculate initial COD total
-        const codTotal = calculateUserCodTotal(currentUser, catalogItemsData, squareConfigs, allStores);
+        const codTotal = calculateUserCodTotal(currentUser, catalogItemsData, squareConfigs, allStores, transactionsData);
         setTotalCodsDue(codTotal);
       }, 1000);
 
