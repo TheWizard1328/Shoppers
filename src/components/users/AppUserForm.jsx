@@ -272,8 +272,22 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                         <span className="font-medium text-slate-700">
                           {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                         </span>
-                        <div className="text-slate-600 text-[10px]">
-                          ${(entry.pay_rate_per_delivery || 0).toFixed(2)} / ${(entry.extra_km_rate || 0).toFixed(2)}/km
+                        <div className="text-slate-600 text-[10px] flex items-center gap-1.5">
+                          <span>${(entry.pay_rate_per_delivery || 0).toFixed(2)}</span>
+                          <span>/</span>
+                          <span>${(entry.extra_km_rate || 0).toFixed(2)}/km</span>
+                          {entry.extra_km_limit != null && (
+                            <>
+                              <span>/</span>
+                              <span>Limit: {entry.extra_km_limit}km</span>
+                            </>
+                          )}
+                          {entry.oversized_item_rate != null && (
+                            <>
+                              <span>/</span>
+                              <span>OS: ${entry.oversized_item_rate.toFixed(2)}</span>
+                            </>
+                          )}
                         </div>
                         <Button
                           type="button"
