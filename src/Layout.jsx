@@ -1697,6 +1697,16 @@ export default function Layout({ children, currentPageName }) {
       // This ensures "Show All" checkbox and map markers have complete data
       const priorityFilter = { ...cityStoreFilter };
 
+      // Load Square catalog items and location configs for COD tracking
+      const [squareConfigs, catalogData] = await Promise.all([
+        base44.entities.SquareLocationConfig.filter({ status: 'active' }),
+        base44.functions.invoke('squareSyncCatalogItems', {})
+      ]);
+
+      const catalogItemsData = catalogData?.data?.items || catalogData?.items || [];
+      setSquareLocationConfigs(squareConfigs || []);
+      setCatalogItems(catalogItemsData);
+
       // Load deliveries with instant UI callback
       await loadDeliveries(
         selectedDateStr,
