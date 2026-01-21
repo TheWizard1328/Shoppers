@@ -145,8 +145,6 @@ export default function StopDetailsPanel({
     currentUser.app_roles?.includes('dispatcher')
   );
 
-  const isCompleted = ['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status);
-
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
       {/* Header */}
