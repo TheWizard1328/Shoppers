@@ -1841,6 +1841,10 @@ export default function Layout({ children, currentPageName }) {
         if (locationUpdates?.hasChanges) {
           setAppUsers(locationUpdates.appUsers);
         }
+
+        // Calculate initial COD total
+        const codTotal = calculateUserCodTotal(fetchedUser, catalogItemsData, squareConfigs, allStores);
+        setTotalCodsDue(codTotal);
       }, 1000);
 
       } catch (error) {
