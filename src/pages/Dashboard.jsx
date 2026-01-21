@@ -5546,13 +5546,8 @@ function Dashboard() {
         }).catch(error => console.warn('⚠️ All drivers fetch failed:', error));
       }
     } catch (error) {
-      console.error('');
-      console.error('❌❌❌ ERROR ❌❌❌');
-      console.error('Error updating delivery status:', error);
-      console.error('Stack trace:', error.stack);
-      console.error('');
+      console.error('❌ [STATUS] Error:', error.message);
 
-      // CRITICAL: Handle session expiration errors
       if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
         alert('Your session has expired. The page will now reload.');
         window.location.reload();
@@ -5561,14 +5556,9 @@ function Dashboard() {
 
       alert('Failed to update delivery status. Please try again.');
     } finally {
-      setIsEntityUpdating(false);
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      
-      // CRITICAL: Re-enable theme transitions after status update completes
-      setTimeout(() => {
-        document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
-      }, 500);
+      // CRITICAL: Re-enable theme transitions immediately
+      document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
+      console.log('✅ [STATUS] Status update complete - UI is interactive');
     }
   };
 
