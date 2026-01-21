@@ -73,6 +73,10 @@ export default function StopDetailsPanel({
         await base44.entities.Delivery.update(delivery.id, {
           signature_image_url: uploadResponse.data.file_url
         });
+        
+        // Update local delivery object so UI reflects the change immediately
+        delivery.signature_image_url = uploadResponse.data.file_url;
+        
         setShowSignatureCapture(false);
       }
     } catch (error) {
