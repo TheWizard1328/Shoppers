@@ -5374,142 +5374,87 @@ function Dashboard() {
 
       // STEP 2: Update delivery status LOCALLY (instant)
       await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
-      // STEP 1.5: Update patient's last_delivery_date if completed or failed
+      // STEP 3: Update LOCAL UI state immediately from offline DB
+      console.log('🖥️ [STATUS] Step 3: Updating UI from offline DB...');
+      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+      const driverOfflineDeliveries = offlineDeliveries.filter(d => d.driver_id === driverId);
+      
+      if (updateDeliveriesLocally) {
+        const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
+        updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
+      }
+      console.log('✅ [STATUS] UI updated instantly from offline DB');
+
+      // STEP 4: Update patient's last_delivery_date (background, non-blocking)
       if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
-        try {
-          await base44.entities.Patient.update(targetDelivery.patient_id, {
-            last_delivery_date: targetDelivery.delivery_date
-          });
-        } catch (error) {
-          console.error('❌ Failed to update patient last_delivery_date:', error);
-        }
+        base44.entities.Patient.update(targetDelivery.patient_id, {
+          last_delivery_date: deliveryDate
+        }).catch(error => console.warn('⚠️ Patient last_delivery_date update failed:', error));
       }
 
-      // Check if route is complete - finished statuses OR returns (identified by markers)
+      // STEP 5: Check route completion and show dialogs (non-blocking)
       const finishedStatuses = ['completed', 'failed', 'cancelled'];
-
-      // Helper to detect return deliveries by markers
       const isReturnByMarkers = (d) => {
         if (!d || !d.patient_id) return false;
         const patient = patients.find((p) => p && p.id === d.patient_id);
         const notes = d.delivery_notes || '';
         const patientName = d.patient_name || '';
         const patientFullName = patient?.full_name || '';
-        return notes.toLowerCase().includes('(rtn)') ||
-        patientName.toLowerCase().includes('(rtn)') ||
-        patientFullName.toLowerCase().includes('(rtn)') ||
-        /\breturn\b/i.test(notes) ||
-        /\breturn\b/i.test(patientName) ||
-        /\breturn\b/i.test(patientFullName);
+        return notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)') || 
+               patientFullName.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) || 
+               /\breturn\b/i.test(patientName) || /\breturn\b/i.test(patientFullName);
       };
 
       const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
-      d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
+        d && d.driver_id === driverId && d.delivery_date === deliveryDate
       );
-      // CRITICAL: Only count patient deliveries for route completion, NOT pickups
       const patientDeliveriesOnly = allDriverDeliveries.filter(d => d && d.patient_id);
       const routeComplete = patientDeliveriesOnly.length > 0 &&
         patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturnByMarkers(d));
 
-      console.log(`🔍 [Route Complete Check] Patient deliveries: ${patientDeliveriesOnly.length}, All finished: ${routeComplete}, New status: ${newStatus}`);
-
-      // CRITICAL: Show end of day stats dialog when last stop is completed/failed/cancelled
       if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id) {
-        console.log('🎉 [STATUS UPDATE] Route complete - showing end of day stats');
+        console.log('🎉 [STATUS] Route complete - showing end of day stats');
         const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
         setEndOfDayDriver(completedDriver);
         setShowEndOfDayStats(true);
       }
 
       if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id) {
-        const summaryKey = `${driverId}_${targetDelivery.delivery_date}`;
+        const summaryKey = `${driverId}_${deliveryDate}`;
         if (!hasShownSummaryRef.current.has(summaryKey)) {
-          console.log('🎉 [STATUS UPDATE] Route complete - updating status, showing summary, and resetting FAB to Phase 1');
-          
-          // CRITICAL: Reset FAB to Phase 1 and activate briefly BEFORE showing summary
           setMapViewPhase(1);
           setIsMapViewLocked(true);
           lastProgrammaticMapMoveRef.current = Date.now();
           window._lastProgrammaticMapMove = Date.now();
           setMapViewTrigger((prev) => prev + 1);
           
-          // Save phase to settings
           if (currentUser?.id) {
             saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
           }
           
-          // Auto-unlock after 500ms
-          setTimeout(() => {
-            setIsMapViewLocked(false);
-          }, 500);
+          setTimeout(() => setIsMapViewLocked(false), 500);
           
-          // CRITICAL: IMMEDIATELY disable location tracking and set off_duty (await to ensure completion)
-          try {
-            console.log('🔄 [Route Complete] Stopping location tracker...');
-            if (locationTracker.isTracking) {
-              locationTracker.stopTracking();
-              console.log('✅ [Route Complete] Location tracker stopped');
-            }
-            
-            // CRITICAL: Update AppUser IMMEDIATELY (await the promise to ensure it completes)
-            const appUsersList = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+          // Disable location tracking (background)
+          if (locationTracker.isTracking) {
+            locationTracker.stopTracking();
+          }
+          
+          base44.entities.AppUser.filter({ user_id: currentUser.id }).then(appUsersList => {
             const appUser = appUsersList?.[0];
             if (appUser) {
-              console.log(`🔄 [Route Complete] Updating AppUser ${appUser.id} to off_duty with tracking disabled...`);
-              await base44.entities.AppUser.update(appUser.id, {
+              base44.entities.AppUser.update(appUser.id, {
                 driver_status: 'off_duty',
                 location_tracking_enabled: false
               });
-              console.log('✅ [Route Complete] AppUser updated: off_duty + tracking disabled');
-            } else {
-              console.error('❌ [Route Complete] AppUser not found for current user');
             }
-          } catch (error) {
-            console.error('❌ [Route Complete] Failed to update driver status:', error);
-          }
+          }).catch(error => console.warn('⚠️ AppUser update failed:', error));
           
-          // Show summary dialog
           const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
           setSummaryDriver(completedDriver);
           setShowRouteSummary(true);
           hasShownSummaryRef.current.add(summaryKey);
         }
       }
-
-      // CRITICAL: Update ETAs for mobile drivers only when completing/failing stops
-      const shouldUpdateETAs = isMobile && userHasRole(currentUser, 'driver') && ['completed', 'failed', 'cancelled'].includes(newStatus);
-
-      if (shouldUpdateETAs) {
-        console.log('⏱️ [STATUS UPDATE - ETA] Mobile driver completing stop - updating ETAs');
-        try {
-          // Get current local time in HH:mm format
-          const now = new Date();
-          const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-          const response = await base44.functions.invoke('calculateRealTimeETA', {
-            driverId: targetDelivery.driver_id,
-            deliveryDate: deliveryDate,
-            currentLocalTime: localTimeString // Backend calculates and saves ETAs directly
-          });
-          console.log('✅ [STATUS UPDATE] ETAs updated by backend');
-
-          // CRITICAL: Force map to re-render route lines after ETA update
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { driverId: targetDelivery.driver_id, deliveryDate: deliveryDate, triggeredBy: 'statusUpdateETA' }
-          }));
-        } catch (etaError) {
-          console.warn('⚠️ [STATUS UPDATE] ETA update failed:', etaError);
-        }
-      }
-
-      // CRITICAL: Recalculate stop orders after status change
-      await recalculateStopOrders(targetDelivery.driver_id, deliveryDate);
-
-      // Route optimization removed - now only runs on 5-minute timer when driver moves 100m+
-
-      // CRITICAL: Force full data refresh to sync UI
-      invalidateDeliveriesForDate(deliveryDate);
-      await refreshData();
 
       // CRITICAL: Force map to re-render route lines after data refresh
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
