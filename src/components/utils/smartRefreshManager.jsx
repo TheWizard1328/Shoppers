@@ -24,8 +24,9 @@ class SmartRefreshManager {
     
     // Real-time refresh intervals (milliseconds)
     // CRITICAL: Balanced intervals for cross-device sync while preventing rate limits
+    // CRITICAL: Will NOT run until offlineDBLoadComplete = true
     this.intervals = {
-      driverLocation: 15000,     // 15s - driver GPS locations
+      driverLocation: 15000,     // 15s - driver GPS locations (aggressive for real-time tracking)
       activeDeliveries: 15000,   // 15s - today's active delivery statuses (CRITICAL for cross-device sync)
       todayDeliveries: 15000,    // 15s - today's delivery changes only
       appUsers: 20000,           // 20s - driver status, assignments (includes driver_status)
