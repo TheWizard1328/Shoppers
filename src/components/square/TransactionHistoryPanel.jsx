@@ -85,12 +85,9 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
 
 
-  const totalAmount = useMemo(() => {
-    return filteredTransactions.reduce((sum, t) => {
-      if (t.type === 'refund') return sum - (t.amount || 0);
-      return sum + (t.amount || 0);
-    }, 0);
-  }, [filteredTransactions]);
+  const collectionAmount = useMemo(() => {
+    return collectionTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+  }, [collectionTransactions]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-end">
