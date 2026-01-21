@@ -75,9 +75,9 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   const handleSave = async () => {
     const canvas = canvasRef.current;
     return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
+      canvas.toBlob(async (blob) => {
         setShowClear(true);
-        onSave(blob);
+        await onSave(blob);
         resolve();
       }, 'image/png');
     });
