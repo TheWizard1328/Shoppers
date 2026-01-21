@@ -453,6 +453,7 @@ export default function SquareManagement() {
           location={selectedLocation}
           transactions={allTransactions}
           drivers={drivers}
+          catalogItems={catalogItems}
           onClose={() => setSelectedLocation(null)}
         />
       )}
