@@ -1257,9 +1257,9 @@ export default function Layout({ children, currentPageName }) {
         return;
       }
 
-      const codTotal = calculateUserCodTotal(currentUser, catalogItems, squareLocationConfigs, stores);
+      const codTotal = calculateUserCodTotal(currentUser, catalogItems, squareLocationConfigs, stores, squareTransactions);
       setTotalCodsDue(codTotal);
-    }, [currentUser, catalogItems, squareLocationConfigs, stores]);
+    }, [currentUser, catalogItems, squareLocationConfigs, stores, squareTransactions]);
 
     // Subscribe to real-time SquareTransaction updates to refresh catalog
     useEffect(() => {
