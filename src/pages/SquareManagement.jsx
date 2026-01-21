@@ -55,6 +55,8 @@ export default function SquareManagement() {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         
+        console.log('Fetching transactions from:', sevenDaysAgo.toISOString());
+        
         const [configs, storesData, appUsersData, transactions] = await Promise.all([
           base44.entities.SquareLocationConfig.filter({ status: 'active' }),
           base44.entities.Store.list(),
@@ -63,6 +65,10 @@ export default function SquareManagement() {
             created_date: { $gte: sevenDaysAgo.toISOString() }
           })
         ]);
+        
+        console.log('Found SquareTransactions:', transactions?.length || 0, transactions);
+        console.log('All transactions (no filter):', await base44.entities.SquareTransaction.list());
+        
         setLocationConfigs(configs || []);
         setStores(storesData || []);
         setRecentTransactions(transactions || []);
