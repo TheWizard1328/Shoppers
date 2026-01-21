@@ -5456,114 +5456,94 @@ function Dashboard() {
         }
       }
 
-      // CRITICAL: Force map to re-render route lines after data refresh
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { driverId: targetDelivery.driver_id, deliveryDate: deliveryDate, triggeredBy: 'statusUpdate' }
-      }));
-      
-      // CRITICAL: If "Show All" is checked, refresh ALL drivers' deliveries for the date
-      if (showAllDriverMarkers) {
-        console.log('📥 [Status Update] Show All enabled - fetching all drivers deliveries');
-        const allDriversDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: deliveryDate
-        });
-        
-        // Dispatch event with full deliveries to update ALL markers immediately
-        window.dispatchEvent(new CustomEvent('deliveriesImported', {
-          detail: { 
-            source: 'statusUpdate',
-            deliveries: allDriversDeliveries
+      // STEP 6: Scroll to next card (instant)
+      if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
+        setTimeout(() => {
+          const nextCardElement = document.querySelector('[data-is-next-delivery="true"]');
+          if (nextCardElement) {
+            nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
           }
-        }));
+        }, 100);
       }
 
-      if (!skipAutoCenter) {
-        hasAutoSelectedRef.current = false;
-      }
-
-      // CRITICAL: Dispatch event to trigger ETA updates for completed/failed/cancelled
-      window.dispatchEvent(new CustomEvent('deliveryStatusChanged', {
-        detail: { 
-          deliveryId, 
-          newStatus, 
-          driverId: targetDelivery.driver_id, 
-          deliveryDate 
-        }
-      }));
-
-      // CRITICAL: Only re-lock and re-trigger FAB if original phase was Phase 2
+      // STEP 7: Re-lock FAB if needed (instant)
       if (currentPhase === 2) {
-        console.log(`🔒 [STATUS] Re-locking FAB to Phase 2 after status update`);
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
 
-        // Phase 2 stays locked permanently - clear any timers
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
           mapLockTimeoutRef.current = null;
         }
         mapLockExpiresAtRef.current = null;
-      } else {
-        // Phase 1 & 3 - don't reactivate, leave as-is
-        console.log(`🔓 [STATUS] Phase ${currentPhase} - leaving unlocked after status update`);
       }
 
-      // Send notification for completed/failed deliveries
-      if (['completed', 'failed'].includes(newStatus)) {
-        try {
-          const deliveryStore = stores.find((s) => s?.id === targetDelivery?.store_id);
-          const patientName = targetDelivery?.patient_name || 'Unknown';
+      // STEP 8: Force map update event (instant)
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId, deliveryDate, triggeredBy: 'statusUpdate' }
+      }));
+      
+      // ========== BACKGROUND TASKS (NON-BLOCKING) ==========
+      console.log('🔄 [STATUS] Starting background sync tasks...');
+      
+      // Background: Update patient last_delivery_date
+      if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
+        base44.entities.Patient.update(targetDelivery.patient_id, {
+          last_delivery_date: deliveryDate
+        }).catch(error => console.warn('⚠️ Patient update failed:', error));
+      }
 
-          if (newStatus === 'completed') {
-            await notifyDriverCompleted({
-              driver: currentUser,
-              patientName,
-              delivery: targetDelivery,
-              store: deliveryStore,
-              appUsers: appUsers
-            });
-          } else if (newStatus === 'failed') {
-            await notifyDriverFailed({
-              driver: currentUser,
-              patientName,
-              delivery: targetDelivery,
-              store: deliveryStore,
-              appUsers: appUsers,
-              failureReason: extraData?.delivery_notes || null
-            });
-          }
-        } catch (notifyError) {
-          console.warn('⚠️ [STATUS] Failed to send notification:', notifyError);
+      // Background: Send notifications
+      if (['completed', 'failed'].includes(newStatus)) {
+        const deliveryStore = stores.find((s) => s?.id === targetDelivery?.store_id);
+        const patientName = targetDelivery?.patient_name || 'Unknown';
+
+        if (newStatus === 'completed') {
+          notifyDriverCompleted({
+            driver: currentUser,
+            patientName,
+            delivery: targetDelivery,
+            store: deliveryStore,
+            appUsers: appUsers
+          }).catch(error => console.warn('⚠️ Notification failed:', error));
+        } else if (newStatus === 'failed') {
+          notifyDriverFailed({
+            driver: currentUser,
+            patientName,
+            delivery: targetDelivery,
+            store: deliveryStore,
+            appUsers: appUsers,
+            failureReason: extraData?.delivery_notes || null
+          }).catch(error => console.warn('⚠️ Notification failed:', error));
         }
       }
 
-      // CRITICAL: Scroll to next delivery card after status update (completion)
-      if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
-        setTimeout(() => {
-          // Find the card with isNextDelivery=true from updated deliveries
-          const nextCardElement = document.querySelector('[data-is-next-delivery="true"]');
-          if (nextCardElement) {
-            nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log('📍 [STATUS] Scrolled to next delivery card after completion');
-          } else {
-            // Fallback: find by querying deliveries that were just updated
-            const finishedStatuses = ['completed', 'failed', 'cancelled'];
-            const incompleteDeliveries = deliveriesWithStopOrder.filter((d) =>
-            d && d.id !== deliveryId && !finishedStatuses.includes(d.status) && d.status !== 'pending'
-            ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      // Background: Recalculate stop orders on backend
+      recalculateStopOrders(driverId, deliveryDate).catch(error => 
+        console.warn('⚠️ Stop order recalc failed:', error)
+      );
 
-            if (incompleteDeliveries.length > 0) {
-              const nextDelivery = incompleteDeliveries[0];
-              const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
-              if (cardElement) {
-                cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                console.log('📍 [STATUS] Scrolled to next delivery card (fallback) after completion');
-              }
-            }
-          }
-        }, 500); // Wait for UI to update with new isNextDelivery flags
+      // Background: Update ETAs (mobile drivers only)
+      if (isMobile && userHasRole(currentUser, 'driver') && ['completed', 'failed', 'cancelled'].includes(newStatus)) {
+        const now = new Date();
+        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        
+        base44.functions.invoke('calculateRealTimeETA', {
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocalTime: localTimeString
+        }).catch(error => console.warn('⚠️ ETA update failed:', error));
+      }
+
+      // Background: Fetch all drivers if Show All is enabled
+      if (showAllDriverMarkers) {
+        base44.entities.Delivery.filter({ delivery_date: deliveryDate }).then(allDriversDeliveries => {
+          window.dispatchEvent(new CustomEvent('deliveriesImported', {
+            detail: { source: 'statusUpdate', deliveries: allDriversDeliveries }
+          }));
+        }).catch(error => console.warn('⚠️ All drivers fetch failed:', error));
       }
     } catch (error) {
       console.error('');
