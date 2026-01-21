@@ -5184,7 +5184,9 @@ function Dashboard() {
   };
 
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
-    // CRITICAL: Capture current FAB state BEFORE setting entity updating
+    console.log('🚀 [STATUS] Starting status update - INSTANT UI mode');
+    
+    // CRITICAL: Capture current FAB state
     const wasPhase2Locked = mapViewPhase === 2 && isMapViewLocked;
     const currentPhase = mapViewPhase;
 
@@ -5202,22 +5204,10 @@ function Dashboard() {
     // CRITICAL: Pause theme transitions during status updates to prevent UI glitches
     document.documentElement.style.setProperty('--theme-transition-duration', '0s');
 
-    setIsEntityUpdating(true);
-
-    // Wait 100ms to ensure smart refresh has paused before proceeding
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
     try {
       const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
       if (!targetDelivery) {
         throw new Error('Delivery not found');
-      }
-
-      // CRITICAL: Force refresh latest deliveries for this driver/date BEFORE updating
-      try {
-        await forceRefreshDriverDeliveries(targetDelivery.driver_id, targetDelivery.delivery_date);
-      } catch (refreshError) {
-        console.warn('⚠️ [STATUS UPDATE] Pre-refresh failed, continuing anyway:', refreshError.message);
       }
 
       const currentDate = format(new Date(), 'yyyy-MM-dd');
