@@ -1432,16 +1432,12 @@ export default function ImportActiveRoutes({
         setProgressPercent(100);
         setProgressMessage('Import complete!');
         
-        driverLocationPoller.resume();
-        console.log('✅ [ImportActiveRoutes] Import operation complete');
-
-        // CRITICAL: Reuse cached deliveries from reorder step (already fetched, no extra API call)
+        // CRITICAL: Dispatch events IMMEDIATELY without reordering delay
         const { minDate, maxDate } = cachedDateRange;
 
         if (minDate && maxDate) {
-         console.log(`📥 [ImportActiveRoutes] Retrieving cached deliveries for ${minDate} to ${maxDate}`);
+         console.log(`📥 [ImportActiveRoutes] Dispatching deliveries for ${minDate} to ${maxDate}`);
          // Note: allFreshDeliveries was already fetched during the nextDelivery flags step above
-         // Reuse it instead of fetching again
          const allDriversDeliveries = allFreshDeliveries || [];
         
         // CRITICAL: Dispatch event with full deliveries array to update UI immediately
@@ -1477,6 +1473,9 @@ export default function ImportActiveRoutes({
             forceRefresh: true
           }
         }));
+        
+        driverLocationPoller.resume();
+        console.log('✅ [ImportActiveRoutes] Import operation complete');
         
         return true; // Signal success to data operation manager
       }, { restartDelay: 2000 }); // 2 second delay before restarting smart refresh
