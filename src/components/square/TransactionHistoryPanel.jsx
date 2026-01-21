@@ -113,8 +113,8 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
         </div>
 
         {/* Filters */}
-        <div className="border-b p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="border-b p-6">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">Start Date</label>
               <Input
@@ -131,21 +131,20 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
                 onChange={(e) => setDateRangeEnd(e.target.value)}
               />
             </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">Driver</label>
-            <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Drivers</SelectItem>
-                {drivers.map(d => (
-                  <SelectItem key={d.id} value={d.id}>{d.user_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">Driver</label>
+              <Select value={selectedDriver} onValueChange={setSelectedDriver}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Drivers</SelectItem>
+                  {drivers.map(d => (
+                    <SelectItem key={d.id} value={d.id}>{d.user_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
