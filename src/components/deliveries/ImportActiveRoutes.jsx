@@ -1216,7 +1216,7 @@ export default function ImportActiveRoutes({
               const cleanPayload = cleanDeliveryData(updatePayload);
 
               // Direct update - bypass mutation system (already inside executeDataOperation)
-              await offlineDB.update(offlineDB.STORES.DELIVERIES, id, cleanPayload);
+              await offlineDB.put(offlineDB.STORES.DELIVERIES, { ...cleanPayload, id });
               await base44.entities.Delivery.update(id, cleanPayload);
 
               overallResults.updated++;
@@ -1282,7 +1282,7 @@ export default function ImportActiveRoutes({
               if (!id) throw new Error('Missing delivery ID');
 
               const cleanPayload = cleanDeliveryData(updatePayload);
-              await offlineDB.update(offlineDB.STORES.DELIVERIES, id, cleanPayload);
+              await offlineDB.put(offlineDB.STORES.DELIVERIES, { ...cleanPayload, id });
               await base44.entities.Delivery.update(id, cleanPayload);
               
               overallResults.updated++;
@@ -1422,7 +1422,7 @@ export default function ImportActiveRoutes({
                 
                 // Process stop order updates (direct DB calls - no pause checks)
                 for (const update of allUpdates) {
-                  await offlineDB.update(offlineDB.STORES.DELIVERIES, update.id, update.data);
+                  await offlineDB.put(offlineDB.STORES.DELIVERIES, { ...update.data, id: update.id });
                   await base44.entities.Delivery.update(update.id, update.data);
                 }
                 
