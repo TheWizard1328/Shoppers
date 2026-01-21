@@ -364,7 +364,7 @@ export default function SquareManagement() {
                     const userIsAppOwner = currentUser && isAppOwner(currentUser);
                     
                     return (
-                    <tr key={item.catalog_object_id} className={`border-b cursor-pointer ${userIsAppOwner && isMultiDriver ? 'border-l-4 border-l-amber-500' : ''}`} style={{ borderColor: 'var(--border-slate-200)', background: userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.15)' : 'var(--bg-slate-50)'} onMouseLeave={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent'} onClick={() => setSelectedCODItem(item)}>
+                    <tr key={item.catalog_object_id} className={`border-b cursor-pointer ${userIsAppOwner && isMultiDriver ? 'border-l-4 border-l-amber-500' : ''}`} style={{ borderColor: 'var(--border-slate-200)', background: userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.15)' : 'var(--bg-slate-50)'} onMouseLeave={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent'} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
                       <td className="p-3">
                          <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{item.name || 'N/A'}</div>
                         {userIsAppOwner && itemDrivers.length > 0 && (
