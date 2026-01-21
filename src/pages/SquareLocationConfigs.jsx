@@ -34,16 +34,16 @@ export default function SquareLocationConfigs() {
     setIsLoading(true);
     try {
       const [configsData, storesData, appUsersData] = await Promise.all([
-        base44.entities.SquareLocationConfig.list(),
-        base44.entities.Store.list(),
-        base44.entities.AppUser.list()
-      ]);
+      base44.entities.SquareLocationConfig.list(),
+      base44.entities.Store.list(),
+      base44.entities.AppUser.list()]
+      );
       setConfigs(configsData || []);
       setStores(storesData || []);
-      
+
       // Filter to only drivers
-      const driversList = appUsersData.filter(u => 
-        u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active'
+      const driversList = appUsersData.filter((u) =>
+      u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active'
       );
       setDrivers(driversList || []);
     } catch (error) {
@@ -113,7 +113,7 @@ export default function SquareLocationConfigs() {
 
   const handleDelete = async (config) => {
     // Check if any stores are using this config
-    const storesUsingConfig = stores.filter(s => s.square_location_config_id === config.id);
+    const storesUsingConfig = stores.filter((s) => s.square_location_config_id === config.id);
     if (storesUsingConfig.length > 0) {
       toast.error(`Cannot delete: ${storesUsingConfig.length} store(s) are using this location config`);
       return;
@@ -134,15 +134,15 @@ export default function SquareLocationConfigs() {
   };
 
   const getAssignedStores = (configId) => {
-    return stores.filter(s => s.square_location_config_id === configId);
+    return stores.filter((s) => s.square_location_config_id === configId);
   };
 
   if (isLoading) {
     return (
       <div className="p-6 flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -158,8 +158,8 @@ export default function SquareLocationConfigs() {
         </Button>
       </div>
 
-      {configs.length === 0 ? (
-        <Card>
+      {configs.length === 0 ?
+      <Card>
           <CardContent className="p-8 text-center">
             <CreditCard className="w-12 h-12 text-slate-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-slate-900 mb-2">No Square Locations Configured</h3>
@@ -169,13 +169,13 @@ export default function SquareLocationConfigs() {
               Add Location
             </Button>
           </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
+        </Card> :
+
+      <div className="space-y-4">
           {configs.map((config) => {
-            const assignedStores = getAssignedStores(config.id);
-            return (
-              <Card key={config.id} className={config.status === "inactive" ? "opacity-60" : ""}>
+          const assignedStores = getAssignedStores(config.id);
+          return (
+            <Card key={config.id} className={config.status === "inactive" ? "opacity-60" : ""}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -203,39 +203,39 @@ export default function SquareLocationConfigs() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  {config.notes && (
-                    <p className="text-sm text-slate-600 mb-3">{config.notes}</p>
-                  )}
+                  {config.notes &&
+                <p className="text-sm text-slate-600 mb-3">{config.notes}</p>
+                }
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-slate-500">Driver:</span>
-                    {config.driver_id ? (
-                      <Badge variant="outline" className="text-xs">
-                        {drivers.find(d => d.user_id === config.driver_id)?.user_name || 'Unknown'}
-                      </Badge>
-                    ) : (
-                      <span className="text-slate-400 italic">No driver assigned</span>
-                    )}
+                    {config.driver_id ?
+                  <Badge variant="outline" className="text-xs">
+                        {drivers.find((d) => d.user_id === config.driver_id)?.user_name || 'Unknown'}
+                      </Badge> :
+
+                  <span className="text-slate-400 italic">No driver assigned</span>
+                  }
                     </div>
                     <div className="flex items-center gap-2 text-sm mt-2">
                     <span className="text-slate-500">Stores:</span>
-                    {assignedStores.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {assignedStores.map(store => (
-                          <Badge key={store.id} variant="outline" className="text-xs">
+                    {assignedStores.length > 0 ?
+                  <div className="flex flex-wrap gap-1">
+                        {assignedStores.map((store) =>
+                    <Badge key={store.id} variant="outline" className="text-xs">
                             {store.name}
                           </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-slate-400 italic">No stores assigned</span>
                     )}
+                      </div> :
+
+                  <span className="text-slate-400 italic">No stores assigned</span>
+                  }
                     </div>
                 </CardContent>
-              </Card>
-            );
-          })}
+              </Card>);
+
+        })}
         </div>
-      )}
+      }
 
       {/* Add/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
@@ -251,31 +251,31 @@ export default function SquareLocationConfigs() {
                   id="name"
                   placeholder="e.g., Main Terminal"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+
               </div>
               <div className="space-y-2">
-                <Label htmlFor="square_location_id">Square Location ID *</Label>
+                <Label htmlFor="square_location_id" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Location ID *</Label>
                 <Input
                   id="square_location_id"
                   placeholder="e.g., L8Y3..."
                   value={formData.square_location_id}
-                  onChange={(e) => setFormData({ ...formData, square_location_id: e.target.value })}
-                />
+                  onChange={(e) => setFormData({ ...formData, square_location_id: e.target.value })} />
+
               </div>
               <div className="space-y-2">
-                <Label htmlFor="driver_id">Assigned Driver</Label>
+                <Label htmlFor="driver_id" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Driver</Label>
                 <Select value={formData.driver_id || ""} onValueChange={(value) => setFormData({ ...formData, driver_id: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Driver" />
                   </SelectTrigger>
                   <SelectContent className="z-[60003]">
                     <SelectItem value={null}>None</SelectItem>
-                    {drivers.map(driver => (
-                      <SelectItem key={driver.id} value={driver.user_id}>
+                    {drivers.map((driver) =>
+                    <SelectItem key={driver.id} value={driver.user_id}>
                         {driver.user_name}
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -299,8 +299,8 @@ export default function SquareLocationConfigs() {
                 placeholder="Optional notes about this location..."
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-              />
+                rows={3} />
+
             </div>
           </div>
           <DialogFooter>
@@ -311,6 +311,6 @@ export default function SquareLocationConfigs() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
+    </div>);
+
 }
