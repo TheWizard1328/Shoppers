@@ -86,6 +86,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     // Set city_id to first city for backward compatibility
     const dataToSave = {
       ...formData,
