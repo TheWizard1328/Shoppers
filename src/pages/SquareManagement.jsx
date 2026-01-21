@@ -244,13 +244,13 @@ export default function SquareManagement() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <CreditCard className="w-8 h-8 text-emerald-600" />
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Square COD Management</h1>
-            <p className="text-sm text-slate-500">Track and manage COD payments via Square</p>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Square COD Management</h1>
+            <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Track and manage COD payments via Square</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
