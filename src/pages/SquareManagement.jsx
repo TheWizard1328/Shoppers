@@ -298,27 +298,25 @@ export default function SquareManagement() {
                 </thead>
                 <tbody>
                   {filteredCatalogItems.map((item) => {
-                    const itemDrivers = getDriversForLocation(item.location_id);
+                    const itemDrivers = getDriversForLocation(item.location_id)
+                      .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
                     const isMultiDriver = itemDrivers.length > 1;
-                    const isNotCurrentUser = !itemDrivers.some(d => d.user_id === currentUser?.id);
                     
                     return (
-                    <tr key={item.catalog_object_id} className={`border-b hover:bg-slate-50 ${isMultiDriver ? 'bg-amber-50/30' : ''}`}>
+                    <tr key={item.catalog_object_id} className={`border-b hover:bg-slate-50 ${isMultiDriver ? 'bg-amber-100 border-l-4 border-l-amber-500' : ''}`}>
                       <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <div className="font-medium">{item.name || 'N/A'}</div>
-                          {itemDrivers.length > 0 && (
-                            <div className="flex gap-1">
-                              {itemDrivers.map(driver => (
-                                <Badge key={driver.id} className={`${getDriverColor(driver.id)} text-xs border`}>
-                                  {driver.user_name}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        <div className="font-medium">{item.name || 'N/A'}</div>
+                        {itemDrivers.length > 0 && (
+                          <div className="flex gap-1 mt-1.5">
+                            {itemDrivers.map(driver => (
+                              <Badge key={driver.id} className={`${getDriverColor(driver.id)} text-xs border`}>
+                                {driver.user_name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                         {item.description && (
-                          <div className="text-xs text-slate-400 truncate max-w-[200px]">
+                          <div className="text-xs text-slate-400 truncate max-w-[200px] mt-1">
                             {item.description}
                           </div>
                         )}
