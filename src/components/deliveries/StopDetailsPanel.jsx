@@ -31,7 +31,7 @@ import {
 import { format } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
-import SignatureCapture from "./SignatureCapture";
+import SignatureCapture from "../common/SignatureCapture";
 import PhotoCapture from "../common/PhotoCapture";
 import { base44 } from "@/api/base44Client";
 
