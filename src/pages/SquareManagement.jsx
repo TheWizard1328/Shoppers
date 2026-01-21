@@ -25,6 +25,9 @@ export default function SquareManagement() {
   const [drivers, setDrivers] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
   const [recentTransactions, setRecentTransactions] = useState([]);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [selectedCODItem, setSelectedCODItem] = useState(null);
+  const [allTransactions, setAllTransactions] = useState([]);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
