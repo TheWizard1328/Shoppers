@@ -69,6 +69,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
     const canvas = canvasRef.current;
     context.clearRect(0, 0, canvas.width, canvas.height);
     setHasSignature(false);
+    setShowClear(false);
   };
 
   const handleSave = async () => {
