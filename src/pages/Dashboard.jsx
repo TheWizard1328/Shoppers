@@ -5018,6 +5018,66 @@ function Dashboard() {
     }
   };
 
+  const triggerPostDeleteOperations = async (driverId, deliveryDate) => {
+    console.log('⚙️ [DELETE] Starting background post-delete operations...');
+    try {
+      setIsEntityUpdating(true);
+      pauseOfflineMutations();
+      pauseOfflineSync();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Recalculate stop orders for remaining deliveries
+      console.log('🔄 [DELETE] Recalculating stop orders...');
+      await recalculateStopOrders(driverId, deliveryDate);
+      console.log('  ✅ Stop orders recalculated');
+
+      // Re-optimize route and update ETAs
+      console.log('📡 [DELETE] Re-optimizing route and updating ETAs...');
+      try {
+        const now = new Date();
+        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        await base44.functions.invoke('optimizeRouteRealTime', {
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocalTime: localTimeString,
+          deviceTime: now.toISOString(),
+          generatePolyline: true
+        });
+        console.log('  ✅ Route optimized');
+
+        await base44.functions.invoke('calculateRealTimeETA', {
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocalTime: localTimeString
+        });
+        console.log('  ✅ ETAs updated');
+
+      } catch (optimizeError) {
+        console.warn('  ⚠️ Route optimization/ETA update failed:', optimizeError.message);
+      }
+
+      // Refresh data and update map
+      console.log('🔄 [DELETE] Refreshing data and updating map...');
+      invalidateDeliveriesForDate(deliveryDate);
+      await refreshData();
+
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery' }
+      }));
+      console.log('  ✅ Data refreshed and map updated');
+      console.log('✅ [DELETE] Background operations complete');
+
+    } catch (error) {
+      console.error('❌ [DELETE] Background operations failed:', error);
+    } finally {
+      console.log('▶️ [DELETE] Resuming smart refresh, offline sync, and mutations');
+      resumeOfflineMutations();
+      resumeOfflineSync();
+      setIsEntityUpdating(false);
+    }
+  };
+
   const handleDeleteDelivery = async (deliveryId) => {
     try {
       const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
@@ -5047,59 +5107,21 @@ function Dashboard() {
       // CRITICAL: Use deleteDeliveryLocal which handles UI update, offline DB, and backend sync
       console.log('🗑️ [DELETE] Using deleteDeliveryLocal for complete deletion...');
       const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
-      await deleteDeliveryLocal(deliveryId);
-      console.log('  ✅ Delivery deleted from all locations');
+      
+      // Initiate deletion (returns promise)
+      const deletionPromise = deleteDeliveryLocal(deliveryId);
+      console.log('  ✅ Delivery deletion initiated (UI will update immediately via mutations)');
 
-      // Clear selection if this card was selected
+      // Clear selection immediately - this closes the dialog
       if (selectedCardId === deliveryId) {
         setSelectedCardId(null);
       }
 
-      // Step 4: Recalculate stop orders for remaining deliveries
-      console.log('🔄 [DELETE] Recalculating stop orders...');
-      await recalculateStopOrders(driverId, deliveryDate);
-      console.log('  ✅ Stop orders recalculated');
+      // Trigger background operations without awaiting (fire and forget)
+      triggerPostDeleteOperations(driverId, deliveryDate);
 
-      // Step 5: Re-optimize route and update ETAs
-      console.log('📡 [DELETE] Re-optimizing route and updating ETAs...');
-      try {
-        const now = new Date();
-        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-        // Re-optimize the route
-        await base44.functions.invoke('optimizeRouteRealTime', {
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocalTime: localTimeString,
-          deviceTime: now.toISOString(),
-          generatePolyline: true
-        });
-        console.log('  ✅ Route optimized');
-
-        // Update ETAs
-        await base44.functions.invoke('calculateRealTimeETA', {
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocalTime: localTimeString
-        });
-        console.log('  ✅ ETAs updated');
-
-      } catch (optimizeError) {
-        console.warn('  ⚠️ Route optimization/ETA update failed:', optimizeError.message);
-      }
-
-      // Step 6: Refresh data and update map
-      console.log('🔄 [DELETE] Refreshing data and updating map...');
-      invalidateDeliveriesForDate(deliveryDate);
-      await refreshData();
-
-      // Force map to re-render route lines
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery' }
-      }));
-      console.log('  ✅ Data refreshed and map updated');
-
-      console.log('✅ [DELETE] Complete');
+      // Ensure the deletion completes in the background
+      await deletionPromise;
 
     } catch (error) {
       console.error('❌ [DELETE Handler] Error:', error);
