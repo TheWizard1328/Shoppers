@@ -318,12 +318,13 @@ export default function SquareManagement() {
                     const itemDrivers = getDriversForLocation(item.location_id)
                       .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
                     const isMultiDriver = itemDrivers.length > 1;
+                    const isAppOwner = currentUser?.role === 'App Owner';
                     
                     return (
-                    <tr key={item.catalog_object_id} className={`border-b hover:bg-slate-50 ${isMultiDriver ? 'bg-amber-100 border-l-4 border-l-amber-500' : ''}`}>
+                    <tr key={item.catalog_object_id} className={`border-b hover:bg-slate-50 ${isAppOwner && isMultiDriver ? 'bg-amber-100 border-l-4 border-l-amber-500' : ''}`}>
                       <td className="p-3">
                         <div className="font-medium">{item.name || 'N/A'}</div>
-                        {itemDrivers.length > 0 && (
+                        {isAppOwner && itemDrivers.length > 0 && (
                           <div className="flex gap-1 mt-1.5">
                             {itemDrivers.map(driver => (
                               <Badge key={driver.id} className={`${getDriverColor(driver.id)} text-xs border`}>
