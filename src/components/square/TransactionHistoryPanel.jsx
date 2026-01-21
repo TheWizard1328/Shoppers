@@ -139,62 +139,150 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
           </div>
         </div>
 
-        {/* Summary */}
-        <div className="bg-emerald-50 border-b p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-600">Total Amount</p>
-              <p className="text-2xl font-bold text-emerald-600">${totalAmount.toFixed(2)}</p>
+        {/* Transactions Section (Collections) */}
+        <div className="border-b">
+          <div className="bg-emerald-50 border-b p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Transactions (Collections)</h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Total Collected</p>
+                <p className="text-2xl font-bold text-emerald-600">${collectionAmount.toFixed(2)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-slate-600">Collections</p>
+                <p className="text-2xl font-bold text-slate-900">{collectionTransactions.length}</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-slate-600">Transactions</p>
-              <p className="text-2xl font-bold text-slate-900">{filteredTransactions.length}</p>
-            </div>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {collectionTransactions.length === 0 ? (
+              <div className="text-center py-12 text-slate-500">
+                <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No collections recorded</p>
+              </div>
+            ) : (
+              collectionTransactions.map(t => (
+                <Card key={t.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="grid grid-cols-2 gap-4 mb-3">
+                      <div>
+                        <p className="text-sm text-slate-500">Item</p>
+                        <p className="font-semibold text-slate-900">{t.item_name || 'N/A'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-slate-500">Amount</p>
+                        <p className="font-bold text-emerald-600">${(t.amount || 0).toFixed(2)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 mb-3">
+                      {getStatusBadge(t.status)}
+                      {t.payment_method && getPaymentMethodBadge(t.payment_method)}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-xs text-slate-500">
+                      <div>
+                        <p className="font-medium text-slate-600 mb-1">Date</p>
+                        {new Date(t.created_date).toLocaleString()}
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-600 mb-1">Driver</p>
+                        {t.driver_id ? drivers.find(d => d.id === t.driver_id)?.user_name || 'Unknown' : 'N/A'}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </div>
 
-        {/* Transaction List */}
-        <div className="p-6 space-y-4">
-          {filteredTransactions.length === 0 ? (
-            <div className="text-center py-12 text-slate-500">
-              <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No transactions found</p>
-            </div>
-          ) : (
-            filteredTransactions.map(t => (
-              <Card key={t.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="grid grid-cols-2 gap-4 mb-3">
-                    <div>
-                      <p className="text-sm text-slate-500">Item</p>
-                      <p className="font-semibold text-slate-900">{t.item_name || 'N/A'}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-slate-500">Amount</p>
-                      <p className="font-bold text-emerald-600">${(t.amount || 0).toFixed(2)}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    {getStatusBadge(t.status)}
-                    {getTypeBadge(t.type)}
-                    {t.payment_method && getPaymentMethodBadge(t.payment_method)}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 text-xs text-slate-500">
-                    <div>
-                      <p className="font-medium text-slate-600 mb-1">Date</p>
-                      {new Date(t.created_date).toLocaleString()}
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-600 mb-1">Driver</p>
-                      {t.driver_id ? drivers.find(d => d.id === t.driver_id)?.user_name || 'Unknown' : 'N/A'}
-                    </div>
-                  </div>
+        {/* Activity Section (All Transactions) */}
+        <div>
+          <div className="bg-slate-50 border-b p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Activity & Reconciliation</h3>
+            
+            {/* Reconciliation Summary */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <Card className="bg-white">
+                <CardContent className="p-3">
+                  <p className="text-xs text-slate-500">Payments</p>
+                  <p className="text-xl font-bold text-blue-600">${auditStats.payments.toFixed(2)}</p>
                 </CardContent>
               </Card>
-            ))
-          )}
+              <Card className="bg-white">
+                <CardContent className="p-3">
+                  <p className="text-xs text-slate-500">Collections</p>
+                  <p className="text-xl font-bold text-emerald-600">${auditStats.collections.toFixed(2)}</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-white">
+                <CardContent className="p-3">
+                  <p className="text-xs text-slate-500">Refunds</p>
+                  <p className="text-xl font-bold text-red-600">${auditStats.refunds.toFixed(2)}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Issues Indicator */}
+            {reconciliationIssues.length > 0 && (
+              <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-4">
+                <div className="flex gap-2 items-start">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-900 text-sm">Reconciliation Alert</p>
+                    {reconciliationIssues.map((issue, i) => (
+                      <p key={i} className="text-xs text-amber-800">{issue}</p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="p-6 space-y-4">
+            {allActivityTransactions.length === 0 ? (
+              <div className="text-center py-12 text-slate-500">
+                <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No activity found</p>
+              </div>
+            ) : (
+              allActivityTransactions.map(t => (
+                <Card key={t.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="grid grid-cols-2 gap-4 mb-3">
+                      <div>
+                        <p className="text-sm text-slate-500">Item</p>
+                        <p className="font-semibold text-slate-900">{t.item_name || 'N/A'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-slate-500">Amount</p>
+                        <p className="font-bold">${(t.amount || 0).toFixed(2)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 flex-wrap mb-3">
+                      {getStatusBadge(t.status)}
+                      {getTypeBadge(t.type)}
+                      {t.payment_method && getPaymentMethodBadge(t.payment_method)}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-xs text-slate-500">
+                      <div>
+                        <p className="font-medium text-slate-600 mb-1">Date</p>
+                        {new Date(t.created_date).toLocaleString()}
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-600 mb-1">Driver</p>
+                        {t.driver_id ? drivers.find(d => d.id === t.driver_id)?.user_name || 'Unknown' : 'N/A'}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>
