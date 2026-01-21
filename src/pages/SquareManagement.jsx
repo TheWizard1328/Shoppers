@@ -144,11 +144,18 @@ export default function SquareManagement() {
   };
 
   // Check if item has a recent payment (last 7 days)
-  const hasRecentPayment = (itemName, itemAmount) => {
+  const hasRecentPayment = (itemName, itemAmount, locationId) => {
+    // Find the store associated with this Square Location ID
+    const store = stores.find(s => {
+      const config = locationConfigs.find(c => c.id === s.square_location_config_id);
+      return config && config.square_location_id === locationId;
+    });
+    
     return recentTransactions.some(t => 
       t.item_name === itemName && 
       Math.abs(t.amount - itemAmount) < 0.01 && // Allow for small floating point differences
-      t.type === 'collection'
+      t.type === 'collection' &&
+      (!store || t.store_id === store.id) // Match store if we found one
     );
   };
 
@@ -362,7 +369,7 @@ export default function SquareManagement() {
                           <span className="font-semibold text-emerald-600">
                             ${(item.price_dollars || 0).toFixed(2)}
                           </span>
-                          {hasRecentPayment(item.name, item.price_dollars) && (
+                          {hasRecentPayment(item.name, item.price_dollars, item.location_id) && (
                             <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
                               Payment Recorded
                             </Badge>
