@@ -3,11 +3,12 @@ import ReactDOM from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { X, RotateCcw, Check } from 'lucide-react';
 
-export default function SignatureCapture({ onSave, onCancel, customerName = '' }) {
+export default function SignatureCapture({ onSave, onCancel, customerName = '', isSaved = false }) {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
   const [context, setContext] = useState(null);
+  const [showClear, setShowClear] = useState(isSaved);
 
   useEffect(() => {
     const canvas = canvasRef.current;
