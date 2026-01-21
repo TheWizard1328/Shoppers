@@ -850,9 +850,22 @@ export default function Layout({ children, currentPageName }) {
         setIsLoadingLayout(false);
 
       } catch (error) {
-        setHasAccess(false);
-        setIsLoadingLayout(false);
-        setDataLoaded(true);
+        // CRITICAL: Only treat auth errors (401/403) as access issues
+        // Rate limit errors (429) should not block access
+        const isAuthError = error.response?.status === 401 || error.response?.status === 403 || 
+                            error.message?.includes('Unauthorized') || error.message?.includes('Forbidden');
+
+        if (isAuthError) {
+          setHasAccess(false);
+          setIsLoadingLayout(false);
+          setDataLoaded(true);
+        } else {
+          // Rate limit or other error - keep access, set data loaded
+          console.warn('⚠️ [Layout Init] Non-auth error during init:', error.message);
+          setHasAccess(true);
+          setIsLoadingLayout(false);
+          setDataLoaded(true);
+        }
       }
     };
 
