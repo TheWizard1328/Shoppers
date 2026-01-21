@@ -110,6 +110,30 @@ export default function SquareManagement() {
     return <Badge className={config[method] || 'bg-slate-100'}>{method}</Badge>;
   };
 
+  // Get consistent color for each driver
+  const getDriverColor = (driverId) => {
+    const colors = [
+      'bg-blue-100 text-blue-800 border-blue-300',
+      'bg-purple-100 text-purple-800 border-purple-300',
+      'bg-pink-100 text-pink-800 border-pink-300',
+      'bg-orange-100 text-orange-800 border-orange-300',
+      'bg-teal-100 text-teal-800 border-teal-300',
+      'bg-indigo-100 text-indigo-800 border-indigo-300'
+    ];
+    const index = drivers.findIndex(d => d.id === driverId);
+    return colors[index % colors.length];
+  };
+
+  // Get drivers assigned to a location
+  const getDriversForLocation = (locationId) => {
+    const config = locationConfigs.find(c => c.square_location_id === locationId);
+    if (!config) return [];
+    
+    return drivers.filter(d => 
+      d.square_location_ids && d.square_location_ids.includes(config.id)
+    );
+  };
+
   const handleDelete = async (item) => {
     if (!window.confirm(`Delete COD item "${item.name}"?\n\nThis will permanently remove it from Square.`)) {
       return;
@@ -273,10 +297,26 @@ export default function SquareManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCatalogItems.map((item) => (
-                    <tr key={item.catalog_object_id} className="border-b hover:bg-slate-50">
+                  {filteredCatalogItems.map((item) => {
+                    const itemDrivers = getDriversForLocation(item.location_id);
+                    const isMultiDriver = itemDrivers.length > 1;
+                    const isNotCurrentUser = !itemDrivers.some(d => d.user_id === currentUser?.id);
+                    
+                    return (
+                    <tr key={item.catalog_object_id} className={`border-b hover:bg-slate-50 ${isMultiDriver ? 'bg-amber-50/30' : ''}`}>
                       <td className="p-3">
-                        <div className="font-medium">{item.name || 'N/A'}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium">{item.name || 'N/A'}</div>
+                          {itemDrivers.length > 0 && (
+                            <div className="flex gap-1">
+                              {itemDrivers.map(driver => (
+                                <Badge key={driver.id} className={`${getDriverColor(driver.id)} text-xs border`}>
+                                  {driver.user_name}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         {item.description && (
                           <div className="text-xs text-slate-400 truncate max-w-[200px]">
                             {item.description}
@@ -335,7 +375,8 @@ export default function SquareManagement() {
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
