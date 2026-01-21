@@ -12,11 +12,12 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
   const [dateRangeEnd, setDateRangeEnd] = useState('');
   const [selectedDriver, setSelectedDriver] = useState('all');
 
-  // Get catalog items for this location
+  // Get catalog items for this location by matching Square catalog object IDs
   const locationCatalogIds = useMemo(() => {
+    // catalogItems have location_id matching the Square location ID
     return catalogItems
       .filter(item => item.location_id === location.square_location_id)
-      .map(item => item.square_catalog_object_id);
+      .map(item => item.catalog_object_id);
   }, [catalogItems, location.square_location_id]);
 
   // Filter transactions by location (via catalog items)
