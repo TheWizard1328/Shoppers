@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Calendar, AlertCircle } from 'lucide-react';
+import { X, Calendar, AlertCircle, DollarSign } from 'lucide-react';
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from './badgeHelpers';
 
 export default function TransactionHistoryPanel({ location, transactions = [], drivers = [], catalogItems = [], onClose }) {
