@@ -1303,12 +1303,10 @@ export default function ImportActiveRoutes({
       }));
       
       setImportResult(overallResults);
-      setProgressPercent(95);
-      
-        setProgressPercent(95);
-        
-        // CRITICAL: Consolidate stop reordering and flag updates into ONE fetch + update pass
-        setProgressMessage('Reordering stops and setting flags...');
+       setProgressPercent(95);
+
+         // CRITICAL: Consolidate stop reordering and flag updates into ONE fetch + update pass
+         setProgressMessage('Reordering stops and setting flags...');
         
         let allFreshDeliveries = null; // Declare at higher scope for reuse
         
