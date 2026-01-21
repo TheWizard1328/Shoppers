@@ -99,7 +99,12 @@ export default function ETANotification({
           left: '1rem',
           right: '1rem',
           maxWidth: '28rem',
-          margin: '0 auto'
+          margin: '0 auto',
+          '@media (min-width: 1024px)': {
+            left: 'auto',
+            right: '1rem',
+            margin: '0'
+          }
         }}
       >
         <div 
