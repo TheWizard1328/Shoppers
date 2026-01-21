@@ -123,35 +123,19 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">Driver</label>
-              <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Drivers</SelectItem>
-                  {drivers.map(d => (
-                    <SelectItem key={d.id} value={d.id}>{d.user_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">Type</label>
-              <Select value={transactionType} onValueChange={setTransactionType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="prepayment">Prepayment</SelectItem>
-                  <SelectItem value="collection">Collection</SelectItem>
-                  <SelectItem value="refund">Refund</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">Driver</label>
+            <Select value={selectedDriver} onValueChange={setSelectedDriver}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Drivers</SelectItem>
+                {drivers.map(d => (
+                  <SelectItem key={d.id} value={d.id}>{d.user_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
