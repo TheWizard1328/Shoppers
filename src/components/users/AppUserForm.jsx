@@ -24,7 +24,8 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
     store_ids: [],
     sort_order: 0,
     home_latitude: null,
-    home_longitude: null
+    home_longitude: null,
+    pay_rate_history: []
   });
 
   useEffect(() => {
