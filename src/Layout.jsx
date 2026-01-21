@@ -1518,7 +1518,10 @@ export default function Layout({ children, currentPageName }) {
           }));
         }
 
-        const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate, filters);
+        // CRITICAL: Get showAllDriverMarkers state to determine refresh scope
+        const showAllDriverMarkers = localStorage.getItem('rxdeliver_show_all_driver_markers') === 'true';
+        
+        const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate, filters, showAllDriverMarkers);
         if (activeDeliveryUpdates?.hasChanges) {
           // CRITICAL: Force new array reference to ensure React detects the change
           setDeliveries([...activeDeliveryUpdates.deliveries]);
