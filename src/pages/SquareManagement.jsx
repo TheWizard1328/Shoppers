@@ -166,6 +166,8 @@ export default function SquareManagement() {
     
     const isAppOwner = currentUser.role === 'App Owner';
     
+    let items = [];
+    
     // App owners can filter by driver
     if (isAppOwner) {
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
@@ -178,25 +180,39 @@ export default function SquareManagement() {
           .filter(c => driverLocationIds.includes(c.id))
           .map(c => c.square_location_id);
         
-        return catalogItems.filter(item => 
+        items = catalogItems.filter(item => 
           squareLocationIds.includes(item.location_id)
         );
+      } else {
+        items = catalogItems;
       }
-      return catalogItems;
+    } else {
+      // CRITICAL: Find driver's AppUser by platform user ID, then use their square_location_ids
+      const currentAppUser = drivers.find(d => d.user_id === currentUser.id);
+      const driverLocationIds = currentAppUser?.square_location_ids || [];
+      
+      // Map SquareLocationConfig IDs to square_location_id values
+      const squareLocationIds = locationConfigs
+        .filter(c => driverLocationIds.includes(c.id))
+        .map(c => c.square_location_id);
+      
+      items = catalogItems.filter(item => 
+        squareLocationIds.includes(item.location_id)
+      );
     }
     
-    // CRITICAL: Find driver's AppUser by platform user ID, then use their square_location_ids
-    const currentAppUser = drivers.find(d => d.user_id === currentUser.id);
-    const driverLocationIds = currentAppUser?.square_location_ids || [];
-    
-    // Map SquareLocationConfig IDs to square_location_id values
-    const squareLocationIds = locationConfigs
-      .filter(c => driverLocationIds.includes(c.id))
-      .map(c => c.square_location_id);
-    
-    return catalogItems.filter(item => 
-      squareLocationIds.includes(item.location_id)
-    );
+    // Sort: single-driver items first, then multi-driver items
+    return items.sort((a, b) => {
+      const aDrivers = getDriversForLocation(a.location_id);
+      const bDrivers = getDriversForLocation(b.location_id);
+      const aCount = aDrivers.length;
+      const bCount = bDrivers.length;
+      
+      // Single driver items (1) come before multi-driver items (>1)
+      if (aCount === 1 && bCount > 1) return -1;
+      if (aCount > 1 && bCount === 1) return 1;
+      return 0;
+    });
   }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers]);
 
   // Summary stats
@@ -290,7 +306,8 @@ export default function SquareManagement() {
                   <tr className="border-b text-left text-sm text-slate-500">
                     <th className="p-3">Item Name</th>
                     <th className="p-3">Amount</th>
-                    <th className="p-3">Location / Store</th>
+                    <th className="p-3">Store</th>
+                    {currentUser?.role === 'App Owner' && <th className="p-3">Square Location ID</th>}
                     <th className="p-3">Catalog ID</th>
                     <th className="p-3">Last Updated</th>
                     <th className="p-3">Actions</th>
@@ -333,22 +350,19 @@ export default function SquareManagement() {
                           const store = stores.find(s => s.square_location_config_id === config?.id);
                           
                           return (
-                            <div className="space-y-1">
-                              <div className="text-sm font-medium text-slate-700">
-                                {config?.name || 'Unknown Location'}
-                              </div>
-                              {store && (
-                                <div className="text-xs text-slate-500">
-                                  {store.name}
-                                </div>
-                              )}
-                              <div className="text-xs text-slate-400 font-mono truncate max-w-[180px]">
-                                {locationId}
-                              </div>
+                            <div className="text-sm font-medium text-slate-700">
+                              {store ? store.name : (config?.name || 'Unknown')}
                             </div>
                           );
                         })()}
                       </td>
+                      {currentUser?.role === 'App Owner' && (
+                        <td className="p-3">
+                          <div className="text-xs text-slate-400 font-mono truncate max-w-[180px]">
+                            {item.location_id}
+                          </div>
+                        </td>
+                      )}
                       <td className="p-3">
                         <div className="text-xs text-slate-500 font-mono truncate max-w-[150px]">
                           {item.catalog_object_id}
