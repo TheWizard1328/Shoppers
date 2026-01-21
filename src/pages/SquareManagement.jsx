@@ -280,19 +280,19 @@ export default function SquareManagement() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Active COD Items</div>
-            <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.total}</div>
+            <div className="text-sm text-slate-500">Active COD Items</div>
+            <div className="text-2xl font-bold">{stats.total}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Total Amount</div>
+            <div className="text-sm text-slate-500">Total Amount</div>
             <div className="text-2xl font-bold text-emerald-600">${stats.totalAmount.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Square Locations</div>
+            <div className="text-sm text-slate-500">Square Locations</div>
             <div className="text-2xl font-bold text-blue-600">{stats.locations}</div>
           </CardContent>
         </Card>
@@ -321,7 +321,7 @@ export default function SquareManagement() {
       )}
 
       {error && (
-        <div className="p-4 rounded-lg mb-6" style={{ background: 'var(--bg-red-100)', color: 'var(--text-red-700)' }}>
+        <div className="p-4 rounded-lg mb-6" style={{ background: 'var(--bg-red-50)', color: 'var(--text-red-700)', borderColor: 'var(--border-red-200)' }} className="border">
           Error: {error}
         </div>
       )}
@@ -346,7 +346,7 @@ export default function SquareManagement() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b text-left text-sm" style={{ borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-500)' }}>
+                  <tr className="border-b text-left text-sm" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-200)' }}>
                     <th className="p-3">Item Name</th>
                     <th className="p-3">Amount</th>
                     <th className="p-3">Store</th>
@@ -364,9 +364,9 @@ export default function SquareManagement() {
                     const userIsAppOwner = currentUser && isAppOwner(currentUser);
                     
                     return (
-                    <tr key={item.catalog_object_id} className={`border-b hover:bg-slate-50 cursor-pointer ${userIsAppOwner && isMultiDriver ? 'bg-amber-100 border-l-4 border-l-amber-500' : ''}`} onClick={() => setSelectedCODItem(item)}>
+                    <tr key={item.catalog_object_id} className={`border-b cursor-pointer ${userIsAppOwner && isMultiDriver ? 'border-l-4 border-l-amber-500' : ''}`} style={{ borderColor: 'var(--border-slate-200)', background: userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.15)' : 'var(--bg-slate-50)'} onMouseLeave={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent'} onClick={() => setSelectedCODItem(item)}>
                       <td className="p-3">
-                        <div className="font-medium">{item.name || 'N/A'}</div>
+                         <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{item.name || 'N/A'}</div>
                         {userIsAppOwner && itemDrivers.length > 0 && (
                           <div className="flex gap-1 mt-1.5">
                             {itemDrivers.map(driver => (
