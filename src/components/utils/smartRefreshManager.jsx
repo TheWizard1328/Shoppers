@@ -1658,8 +1658,9 @@ class SmartRefreshManager {
   /**
    * LIGHTWEIGHT smart refresh - polls for delivery and AppUser changes
    * CRITICAL: ALWAYS unlocks refresh state in finally block to prevent stuck spinner
+   * @param {boolean} showAllDrivers - If true, fetch all drivers' deliveries
    */
-  async performSmartRefresh(currentData, filters, isEntityUpdating = false) {
+  async performSmartRefresh(currentData, filters, isEntityUpdating = false, showAllDrivers = false) {
     // CRITICAL: When disabled, skip background polling
     if (!this._enabled) {
       this.isRefreshing = false; // Always ensure unlocked
