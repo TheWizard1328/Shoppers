@@ -95,9 +95,12 @@ class SmartRefreshManager {
     // CRITICAL: Track deliveries that have pending local updates
     // This prevents smart refresh from overwriting them with stale DB data
     this.pendingLocalUpdates = new Map(); // deliveryId -> { expiresAt, driverId, deliveryDate }
-    
+
     // CRITICAL: Track patients that have pending local updates
     this.pendingPatientUpdates = new Map(); // patientId -> { expiresAt }
+
+    // Setup user interaction tracking for adaptive refresh
+    this._setupInteractionTracking();
     
     // CRITICAL: Track IDs that were deleted via broadcast
     // These should be removed from UI even if smart refresh brings them back from stale offline DB
@@ -541,6 +544,22 @@ class SmartRefreshManager {
     this.scheduleAutoRecovery();
   }
   
+  /**
+   * Setup global interaction tracking (click, input, scroll, touch)
+   */
+  _setupInteractionTracking() {
+    if (typeof window === 'undefined') return;
+    
+    const updateActivity = () => {
+      this.recordUserInteraction();
+    };
+    
+    // Track various user interactions
+    ['click', 'keydown', 'scroll', 'touchstart', 'mousemove'].forEach(event => {
+      window.addEventListener(event, updateActivity, { passive: true, once: false });
+    });
+  }
+
   /**
    * Track user activity for adaptive refresh rates
    */
