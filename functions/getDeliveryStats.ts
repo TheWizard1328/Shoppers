@@ -3,7 +3,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 // In-memory cache for expensive stats (survives across requests in the same Deno isolate)
 const statsCache = {
   monthly: { data: null, cacheDate: '', key: '' },
-  entityCounts: { data: null, cacheDate: '' }
+  entityCounts: { data: null, cacheDate: '' },
+  squareCodTotal: { data: null, cacheDate: '' }
 };
 
 // Daily refresh at 4 AM Mountain Time (Edmonton) = 6 AM Eastern (Ontario)
@@ -122,6 +123,7 @@ Deno.serve(async (req) => {
     // Check caches and fetch only what's needed
     let rawMonthDeliveries = null;
     let entityCounts = null;
+    let squareCodTotal = null;
     
     // Monthly deliveries - use cache if valid (same day + same filters)
     // CRITICAL: Also validate that cached data is an array (not corrupted)
@@ -140,6 +142,12 @@ Deno.serve(async (req) => {
     if (statsCache.entityCounts.data && statsCache.entityCounts.cacheDate === cacheDate) {
       console.log('📊 [getDeliveryStats] Using CACHED entity counts');
       entityCounts = statsCache.entityCounts.data;
+    }
+    
+    // Square COD total - use cache if valid (same day)
+    if (statsCache.squareCodTotal.data !== null && statsCache.squareCodTotal.cacheDate === cacheDate) {
+      console.log('📊 [getDeliveryStats] Using CACHED Square COD total');
+      squareCodTotal = statsCache.squareCodTotal.data;
     }
     
     // Build parallel fetch list for only uncached data
@@ -185,6 +193,17 @@ Deno.serve(async (req) => {
       fetchKeys.push('patientsOnly');
     }
     
+    // Fetch Square COD total if not cached (for navigation panel display)
+    // Only fetch if we don't already have it cached
+    if (squareCodTotal === null) {
+      fetchPromises.push(
+        base44.functions.invoke('squareSyncCatalogItems', {})
+          .then(res => res?.data?.items || res?.items || [])
+          .catch(() => [])
+      );
+      fetchKeys.push('squareCatalogItems');
+    }
+    
     // Fetch only what we need
     if (fetchPromises.length > 0) {
       console.log('📊 [getDeliveryStats] Fetching:', fetchKeys.join(', '));
@@ -223,6 +242,12 @@ Deno.serve(async (req) => {
               patients: Array.isArray(dispatcherPatients) ? dispatcherPatients.length : 0
             };
             // Don't cache dispatcher-specific counts (they vary by user)
+          } else if (key === 'squareCatalogItems') {
+            const catalogItems = results[resultIdx++];
+            squareCodTotal = Array.isArray(catalogItems) 
+              ? catalogItems.reduce((sum, item) => sum + (item.amount || 0), 0)
+              : 0;
+            statsCache.squareCodTotal = { data: squareCodTotal, cacheDate };
           }
         }
       } catch (processingError) {
@@ -838,7 +863,8 @@ Deno.serve(async (req) => {
     const response = {
       today: todayStats,
       month: monthStats,
-      performanceStats
+      performanceStats,
+      squareCodTotal: squareCodTotal !== null ? squareCodTotal : 0
     };
     
     // Only include entityCounts for roles that should see them
