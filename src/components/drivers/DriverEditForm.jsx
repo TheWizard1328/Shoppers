@@ -358,23 +358,39 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           </div>
 
           {/* Pay Rate History */}
-          {driver.pay_rate_history && driver.pay_rate_history.length > 0 && (
+          {formData.pay_rate_history && formData.pay_rate_history.length > 0 && (
             <div className="pt-2 border-t">
               <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2 block flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
                 Rate History
               </Label>
               <div className="space-y-1 max-h-32 overflow-y-auto">
-                {driver.pay_rate_history
+                {formData.pay_rate_history
                   .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))
                   .map((entry, idx) => (
-                    <div key={idx} className="text-xs p-2 bg-slate-50 rounded flex justify-between">
+                    <div key={idx} className="text-xs p-2 bg-slate-50 rounded flex justify-between items-center">
                       <span className="font-medium text-slate-700">
                         {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                       </span>
                       <div className="text-slate-600 text-[10px]">
-                            ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km
-                          </div>
+                        ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setFormData(prev => ({
+                            ...prev,
+                            pay_rate_history: prev.pay_rate_history.filter((_, i) => i !== idx)
+                          }));
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                     </div>
                   ))}
               </div>
