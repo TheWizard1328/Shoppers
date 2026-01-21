@@ -280,19 +280,19 @@ export default function SquareManagement() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-slate-500">Active COD Items</div>
-            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Active COD Items</div>
+            <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.total}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-slate-500">Total Amount</div>
+            <div className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Total Amount</div>
             <div className="text-2xl font-bold text-emerald-600">${stats.totalAmount.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-slate-500">Square Locations</div>
+            <div className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Square Locations</div>
             <div className="text-2xl font-bold text-blue-600">{stats.locations}</div>
           </CardContent>
         </Card>
