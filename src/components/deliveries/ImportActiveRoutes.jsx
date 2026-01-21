@@ -1158,7 +1158,7 @@ export default function ImportActiveRoutes({
         batchUpdateAMPM(deliveriesToCreateFiltered);
         batchUpdateAMPM(deliveriesToUpdateFiltered);
 
-        // BATCH CREATE
+        // BATCH CREATE - ULTRA CONSERVATIVE for rate limit prevention
         if (deliveriesToCreateFiltered.length > 0) {
           setImportProgress((prev) => ({
             ...prev,
@@ -1170,8 +1170,8 @@ export default function ImportActiveRoutes({
 
           const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-          // CRITICAL: Much smaller batch size to prevent rate limits (5 instead of 10)
-          const BATCH_SIZE = 5;
+          // CRITICAL: VERY small batch size (3 instead of 5)
+          const BATCH_SIZE = 3;
           const batches = [];
           for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
             batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
@@ -1183,7 +1183,7 @@ export default function ImportActiveRoutes({
             try {
               const createdDeliveries = await retryWithBackoff(async () => {
                 return await base44.entities.Delivery.bulkCreate(batch);
-              }, 5, 4000, 2); // Increased delay to 4 seconds
+              }, 5, 6000, 2); // Increased to 6 seconds base delay
 
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
 
@@ -1202,18 +1202,19 @@ export default function ImportActiveRoutes({
                 current: totalCreated
               }));
 
-              // CRITICAL: Even longer delay between batches (4 seconds)
+              // CRITICAL: Very long delay between batches (6 seconds)
               if (batchIndex < batches.length - 1) {
-                await delay(4000);
+                await delay(6000);
               }
             } catch (error) {
               console.warn(`⚠️ Batch ${batchIndex + 1} bulkCreate failed:`, error.message);
 
+              // Fallback to individual creates with LONG delays
               for (const cleanData of batch) {
                 try {
                   const createdDelivery = await retryWithBackoff(async () => {
                     return await base44.entities.Delivery.create(cleanData);
-                  }, 3, 2000, 2);
+                  }, 3, 3000, 2);
                   
                   await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
 
@@ -1228,7 +1229,7 @@ export default function ImportActiveRoutes({
                     created: totalCreated,
                     current: totalCreated
                   }));
-                  await delay(1000); // Increased from 500ms to 1s
+                  await delay(2000); // 2s between individual fallback creates
                 } catch (individualError) {
                   failedCreations.push({ data: cleanData, error: individualError.message });
                 }
@@ -1237,7 +1238,7 @@ export default function ImportActiveRoutes({
           }
         }
 
-        // BATCH UPDATE - with smaller batches and longer delays
+        // BATCH UPDATE - ULTRA CONSERVATIVE
         if (deliveriesToUpdateFiltered.length > 0) {
           setImportProgress((prev) => ({
             ...prev,
@@ -1247,24 +1248,21 @@ export default function ImportActiveRoutes({
           }));
           setProgressMessage(`Updating ${deliveriesToUpdateFiltered.length} existing deliveries...`);
 
-          // CRITICAL: Process updates in batches to prevent rate limits
-          const UPDATE_BATCH_SIZE = 5;
+          // CRITICAL: Very small batches (3 instead of 5)
+          const UPDATE_BATCH_SIZE = 3;
           for (let i = 0; i < deliveriesToUpdateFiltered.length; i += UPDATE_BATCH_SIZE) {
             const batch = deliveriesToUpdateFiltered.slice(i, i + UPDATE_BATCH_SIZE);
             
-            // Process batch sequentially with delays
             for (const deliveryData of batch) {
               try {
                 const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
-                if (!id) {
-                  throw new Error('Missing delivery ID');
-                }
+                if (!id) throw new Error('Missing delivery ID');
 
                 const cleanPayload = cleanDeliveryData(updatePayload);
 
                 const updatedDelivery = await retryWithBackoff(async () => {
                   return await base44.entities.Delivery.update(id, cleanPayload);
-                }, 5, 3000, 2); // Increased delay to 3s
+                }, 5, 4000, 2); // Increased to 4s base delay
                 
                 await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
 
@@ -1279,18 +1277,18 @@ export default function ImportActiveRoutes({
                   current: i + batch.indexOf(deliveryData) + 1
                 }));
                 
-                await delay(800); // Increased from 500ms to 800ms
+                await delay(1500); // Increased to 1.5s between updates
               } catch (error) {
                 console.warn(`⚠️ Backend update failed for delivery ID ${deliveryData.id}:`, error.message);
                 failedUpdates.push({ data: deliveryData, error: error.message });
                 setImportProgress((prev) => ({ ...prev, current: i + batch.indexOf(deliveryData) + 1 }));
-                await delay(800);
+                await delay(1500);
               }
             }
             
-            // Delay between batches
+            // Very long delay between update batches
             if (i + UPDATE_BATCH_SIZE < deliveriesToUpdateFiltered.length) {
-              await delay(3000); // 3 second delay between update batches
+              await delay(5000); // 5 second delay between update batches
             }
           }
         }
@@ -1483,20 +1481,20 @@ export default function ImportActiveRoutes({
                   allUpdates.push({ id: firstIncomplete.id, data: { isNextDelivery: true } });
                 }
                 
-                // CRITICAL: Process updates in small batches with delays
-                const UPDATE_BATCH_SIZE = 10;
-                for (let i = 0; i < allUpdates.length; i += UPDATE_BATCH_SIZE) {
-                  const batch = allUpdates.slice(i, i + UPDATE_BATCH_SIZE);
+                // CRITICAL: Process updates SEQUENTIALLY (not parallel) with delays
+                for (let i = 0; i < allUpdates.length; i++) {
+                  const update = allUpdates[i];
                   
-                  await Promise.all(
-                    batch.map(update => 
-                      base44.entities.Delivery.update(update.id, update.data)
-                    )
-                  );
+                  await retryWithBackoff(async () => {
+                    return await base44.entities.Delivery.update(update.id, update.data);
+                  }, 3, 3000, 2);
                   
-                  // Delay between batches
-                  if (i + UPDATE_BATCH_SIZE < allUpdates.length) {
-                    await delay(2000); // 2 second delay between update batches
+                  // Delay between each update to prevent flooding
+                  await delay(1000);
+                  
+                  // Extra delay every 10 updates
+                  if ((i + 1) % 10 === 0 && i + 1 < allUpdates.length) {
+                    await delay(3000);
                   }
                 }
                 
