@@ -1700,6 +1700,24 @@ class SmartRefreshManager {
     const updates = {};
     
     try {
+      // CRITICAL: If Show All Drivers is enabled, force refresh of all drivers' deliveries
+      if (showAllDrivers && currentData.deliveries && this.shouldRefresh('activeDeliveries')) {
+        try {
+          const allDeliveriesResult = await this.refreshActiveDeliveryStatuses(
+            currentData.deliveries,
+            new Date(), // Will use current date internally
+            filters,
+            true // showAllDrivers = true
+          );
+          if (allDeliveriesResult?.hasChanges) {
+            updates.deliveries = allDeliveriesResult.deliveries;
+          }
+          this.markRefreshed('activeDeliveries');
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Show All Drivers refresh failed:', e.message);
+        }
+      }
+
       // Refresh AppUsers (includes driver status)
       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
         try {
@@ -1712,7 +1730,7 @@ class SmartRefreshManager {
           console.warn('⚠️ [SmartRefresh] AppUser refresh failed:', e.message);
         }
       }
-      
+
       // CRITICAL: Periodically check if offline sync needs restart (every 2 minutes)
       if (!this._lastOfflineSyncCheck || (Date.now() - this._lastOfflineSyncCheck > 120000)) {
         this._lastOfflineSyncCheck = Date.now();
@@ -1720,7 +1738,7 @@ class SmartRefreshManager {
           console.warn('⚠️ [SmartRefresh] Offline sync check failed:', e.message);
         });
       }
-      
+
       const hasAnyUpdates = Object.keys(updates).length > 0;
       return hasAnyUpdates ? updates : null;
       
