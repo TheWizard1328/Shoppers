@@ -98,6 +98,7 @@ import { subscribeMutations } from './components/utils/entityMutations';
 import { realtimeSync, subscribeToRealtime } from './components/utils/realtimeSync';
 import ConflictManager from './components/dashboard/ConflictManager';
 import PWAInstallPrompt from './components/common/PWAInstallPrompt';
+import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
