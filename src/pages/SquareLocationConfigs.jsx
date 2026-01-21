@@ -244,52 +244,53 @@ export default function SquareLocationConfigs() {
             <DialogTitle>{editingConfig ? "Edit Square Location" : "Add Square Location"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                placeholder="e.g., Main Terminal, Driver 1 Card"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="square_location_id">Square Location ID *</Label>
-              <Input
-                id="square_location_id"
-                placeholder="e.g., L8Y3..."
-                value={formData.square_location_id}
-                onChange={(e) => setFormData({ ...formData, square_location_id: e.target.value })}
-              />
-              <p className="text-xs text-slate-500">Find this in your Square Dashboard under Locations</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="driver_id">Assigned Driver</Label>
-              <Select value={formData.driver_id || ""} onValueChange={(value) => setFormData({ ...formData, driver_id: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select driver (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={null}>None</SelectItem>
-                  {drivers.map(driver => (
-                    <SelectItem key={driver.id} value={driver.user_id}>
-                      {driver.user_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="name">Name *</Label>
+                <Input
+                  id="name"
+                  placeholder="e.g., Main Terminal"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="square_location_id">Square Location ID *</Label>
+                <Input
+                  id="square_location_id"
+                  placeholder="e.g., L8Y3..."
+                  value={formData.square_location_id}
+                  onChange={(e) => setFormData({ ...formData, square_location_id: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="driver_id">Assigned Driver</Label>
+                <Select value={formData.driver_id || ""} onValueChange={(value) => setFormData({ ...formData, driver_id: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Driver" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[60003]">
+                    <SelectItem value={null}>None</SelectItem>
+                    {drivers.map(driver => (
+                      <SelectItem key={driver.id} value={driver.user_id}>
+                        {driver.user_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[60003]">
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>
