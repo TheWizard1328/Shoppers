@@ -68,7 +68,6 @@ import { Switch } from "@/components/ui/switch";
 import { getEffectiveUser, clearUserCache } from "./components/utils/auth";
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
-      import { toast } from 'sonner';
       import { userHasRole, getPrimaryRole, formatRoles, isAppOwner, canAccessImports } from './components/utils/userRoles';
 import { getDriverDisplayName } from './components/utils/driverUtils';
 import { formatPhoneNumber } from './components/utils/phoneFormatter';
