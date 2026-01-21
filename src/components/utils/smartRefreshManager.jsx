@@ -40,16 +40,24 @@ class SmartRefreshManager {
     // Real-time refresh intervals (milliseconds)
     // CRITICAL: Balanced intervals for cross-device sync while preventing rate limits
     // CRITICAL: Will NOT run until offlineDBLoadComplete = true
+    // CRITICAL: driverLocation uses adaptive refresh based on activity
     this.intervals = {
-      driverLocation: 15000,     // 15s - driver GPS locations (aggressive for real-time tracking)
+      driverLocation: 15000,     // 15s - driver GPS locations (adaptive based on activity)
       activeDeliveries: 15000,   // 15s - today's active delivery statuses (CRITICAL for cross-device sync)
       todayDeliveries: 15000,    // 15s - today's delivery changes only
-      appUsers: 20000,           // 20s - driver status, assignments (includes driver_status)
+      appUsers: 45000,           // 45s - driver status, assignments (load from offline DB first)
+      squareTransactions: 60000, // 60s - Square transaction updates (low priority)
       todayPatients: 60000,      // 60s - patients on today's routes
       patients: 120000,          // 2min - all other patients
       stores: 300000,            // 5min - store data (rarely changes)
       payroll: 30000             // 30s - payroll records (when on DriverPayroll page)
     };
+    
+    // Adaptive driver location refresh
+    this._lastUserInteraction = Date.now();
+    this._minDriverLocationInterval = 15000;  // 15s when active
+    this._maxDriverLocationInterval = 60000;  // 60s when inactive
+    this._adaptiveCoefficient = 1.0;          // Multiplier for current interval
     
     // Track last refresh time for each entity type
     // Initialize to 0 so the first refresh happens immediately
@@ -58,6 +66,7 @@ class SmartRefreshManager {
       activeDeliveries: 0,
       todayDeliveries: 0,
       appUsers: 0,
+      squareTransactions: 0,
       todayPatients: 0,
       patients: 0,
       stores: 0,
@@ -533,6 +542,34 @@ class SmartRefreshManager {
   }
   
   /**
+   * Track user activity for adaptive refresh rates
+   */
+  recordUserInteraction() {
+    this._lastUserInteraction = Date.now();
+    this._adaptiveCoefficient = 1.0; // Reset to fast refresh on activity
+  }
+
+  /**
+   * Get adaptive driver location refresh interval based on user activity
+   */
+  getAdaptiveDriverLocationInterval() {
+    const timeSinceActivity = Date.now() - this._lastUserInteraction;
+    const inactiveThreshold = 120000; // 2 minutes of inactivity
+    
+    // After 2 minutes of no activity, progressively increase interval (up to 60s)
+    if (timeSinceActivity > inactiveThreshold) {
+      this._adaptiveCoefficient = Math.min(
+        4.0, // Max 4x multiplier (15s * 4 = 60s)
+        1.0 + (timeSinceActivity - inactiveThreshold) / 60000
+      );
+    } else {
+      this._adaptiveCoefficient = 1.0;
+    }
+    
+    return Math.floor(this._minDriverLocationInterval * this._adaptiveCoefficient);
+  }
+
+  /**
    * Check if enough time has passed for a specific refresh type
    * CRITICAL: Block refresh until offline DB is loaded
    */
@@ -545,7 +582,13 @@ class SmartRefreshManager {
 
      const now = Date.now();
      const lastRefresh = this.lastRefreshTimes[type] || 0;
-     const interval = this.intervals[type] || 15000;
+     
+     // Use adaptive interval for driver locations
+     let interval = this.intervals[type] || 15000;
+     if (type === 'driverLocation') {
+       interval = this.getAdaptiveDriverLocationInterval();
+     }
+     
      return (now - lastRefresh) >= interval;
    }
   
