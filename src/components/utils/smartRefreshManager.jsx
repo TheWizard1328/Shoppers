@@ -1423,8 +1423,9 @@ class SmartRefreshManager {
    * Fast delivery status refresh - polls for status changes on active deliveries
    * CRITICAL: ALWAYS fetches from API for active day to ensure cross-device sync
    * CRITICAL: Never throws - always returns null on error to prevent stuck refresh
+   * @param {boolean} showAllDrivers - If true, fetch ALL drivers' deliveries regardless of filter
    */
-  async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate, filters = {}) {
+  async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate, filters = {}, showAllDrivers = false) {
     try {
       // Check if disabled or paused - silently skip automatic polling
       if (!this._enabled || this._paused) {
