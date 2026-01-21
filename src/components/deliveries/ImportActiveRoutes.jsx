@@ -1317,6 +1317,8 @@ export default function ImportActiveRoutes({
         // CRITICAL: Consolidate stop reordering and flag updates into ONE fetch + update pass
         setProgressMessage('Reordering stops and setting flags...');
         
+        let allFreshDeliveries = null; // Declare at higher scope for reuse
+        
         try {
           const { minDate, maxDate } = cachedDateRange;
           
@@ -1329,7 +1331,7 @@ export default function ImportActiveRoutes({
             
             // CRITICAL: Fetch ALL deliveries ONCE for both reorder and flags
             console.log(`📥 [Reorder+Flags] Fetching all deliveries for ${minDate} to ${maxDate} (${allDriversInRange.size} drivers)`);
-            const allFreshDeliveries = await retryWithBackoff(async () => {
+            allFreshDeliveries = await retryWithBackoff(async () => {
               return await base44.entities.Delivery.filter({
                 delivery_date: { $gte: minDate, $lte: maxDate }
               }, '-delivery_date', 5000);
