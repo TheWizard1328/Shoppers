@@ -277,7 +277,7 @@ export default function SquareManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-slate-500">Active COD Items</div>
@@ -297,6 +297,28 @@ export default function SquareManagement() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Location Summary Cards */}
+      {currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">By Location</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            {locationConfigs.map(config => {
+              const locationItems = filteredCatalogItems.filter(item => item.location_id === config.square_location_id);
+              const codTotal = locationItems.reduce((sum, item) => sum + (item.price_dollars || 0), 0);
+              return (
+                <LocationSummaryCard
+                  key={config.id}
+                  location={config}
+                  codTotal={codTotal}
+                  itemCount={locationItems.length}
+                  onClick={() => setSelectedLocation(config)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="p-4 bg-red-100 text-red-700 rounded-lg mb-6">
