@@ -364,7 +364,7 @@ export default function SquareManagement() {
                     const userIsAppOwner = currentUser && isAppOwner(currentUser);
                     
                     return (
-                    <tr key={item.catalog_object_id} className={`border-b hover:bg-slate-50 ${userIsAppOwner && isMultiDriver ? 'bg-amber-100 border-l-4 border-l-amber-500' : ''}`}>
+                    <tr key={item.catalog_object_id} className={`border-b hover:bg-slate-50 cursor-pointer ${userIsAppOwner && isMultiDriver ? 'bg-amber-100 border-l-4 border-l-amber-500' : ''}`} onClick={() => setSelectedCODItem(item)}>
                       <td className="p-3">
                         <div className="font-medium">{item.name || 'N/A'}</div>
                         {userIsAppOwner && itemDrivers.length > 0 && (
