@@ -83,29 +83,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
     // For backward compatibility
     let filtered = transactions;
 
-    // Date range filter
-    if (dateRangeStart) {
-      const startDate = new Date(dateRangeStart);
-      filtered = filtered.filter(t => new Date(t.created_date) >= startDate);
-    }
-    if (dateRangeEnd) {
-      const endDate = new Date(dateRangeEnd);
-      endDate.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(t => new Date(t.created_date) <= endDate);
-    }
 
-    // Driver filter
-    if (selectedDriver !== 'all') {
-      filtered = filtered.filter(t => t.driver_id === selectedDriver);
-    }
-
-    // Type filter
-    if (transactionType !== 'all') {
-      filtered = filtered.filter(t => t.type === transactionType);
-    }
-
-    return filtered.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-  }, [transactions, location.square_location_id, dateRangeStart, dateRangeEnd, selectedDriver, transactionType]);
 
   const totalAmount = useMemo(() => {
     return filteredTransactions.reduce((sum, t) => {
