@@ -1,0 +1,145 @@
+import React, { useMemo } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { X } from 'lucide-react';
+import { getStatusBadge, getPaymentMethodBadge } from './badgeHelpers';
+
+export default function CODItemDetailModal({ item, locationConfigs, stores, transactions = [], drivers = [], onClose }) {
+  const itemTransactions = useMemo(() => {
+    return transactions.filter(t => 
+      t.square_catalog_object_id === item.id || t.item_name === item.name
+    ).sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+  }, [transactions, item.id, item.name]);
+
+  const locationConfig = locationConfigs.find(c => c.square_location_id === item.location_id);
+  const store = stores.find(s => s.square_location_config_id === locationConfig?.id);
+
+  const totalCollected = useMemo(() => {
+    return itemTransactions
+      .filter(t => t.type === 'collection' && t.status === 'completed')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+  }, [itemTransactions]);
+
+  const remainingAmount = (item.price_dollars || 0) - totalCollected;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-slate-900">COD Item Details</h2>
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+
+        <CardContent className="p-6 space-y-6">
+          {/* Item Info */}
+          <div className="bg-slate-50 rounded-lg p-4">
+            <h3 className="font-semibold text-slate-900 mb-3">{item.name}</h3>
+            {item.description && (
+              <p className="text-sm text-slate-600 mb-3">{item.description}</p>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-slate-500 font-medium">Amount Due</p>
+                <p className="text-2xl font-bold text-emerald-600">${(item.price_dollars || 0).toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 font-medium">Catalog ID</p>
+                <p className="text-sm font-mono text-slate-700 truncate">{item.id}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Location & Store */}
+          <div className="bg-blue-50 rounded-lg p-4">
+            <p className="text-xs text-slate-500 font-medium mb-2">Location & Store</p>
+            <div className="space-y-1">
+              <p className="font-semibold text-slate-900">{store?.name || locationConfig?.name || 'Unknown'}</p>
+              <p className="text-xs text-slate-600">{locationConfig?.name}</p>
+              <p className="text-xs font-mono text-slate-500">{item.location_id}</p>
+            </div>
+          </div>
+
+          {/* Payment Summary */}
+          <div className="border-l-4 border-l-emerald-500 bg-emerald-50 rounded-lg p-4">
+            <p className="text-xs text-slate-500 font-medium mb-3">Payment Summary</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-slate-600">Total Collected</p>
+                <p className="text-lg font-bold text-green-600">${totalCollected.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-600">Remaining</p>
+                <p className={`text-lg font-bold ${remainingAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  ${remainingAmount.toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Transaction History */}
+          <div>
+            <h3 className="font-semibold text-slate-900 mb-3">
+              Transaction History ({itemTransactions.length})
+            </h3>
+            {itemTransactions.length === 0 ? (
+              <p className="text-center text-slate-500 py-6">No transactions yet</p>
+            ) : (
+              <div className="space-y-3">
+                {itemTransactions.map(t => (
+                  <Card key={t.id} className="bg-slate-50 border-0">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">${(t.amount || 0).toFixed(2)}</p>
+                          <p className="text-xs text-slate-500">
+                            {new Date(t.created_date).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                          {getStatusBadge(t.status)}
+                          {t.payment_method && getPaymentMethodBadge(t.payment_method)}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-xs mt-3">
+                        <div>
+                          <p className="text-slate-500">Driver</p>
+                          <p className="font-medium text-slate-700">
+                            {t.driver_id ? drivers.find(d => d.id === t.driver_id)?.user_name || 'Unknown' : 'N/A'}
+                          </p>
+                        </div>
+                        {t.square_payment_id && (
+                          <div>
+                            <p className="text-slate-500">Payment ID</p>
+                            <p className="font-mono text-slate-600 truncate">{t.square_payment_id}</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Item Metadata */}
+          <div className="bg-slate-50 rounded-lg p-4">
+            <p className="text-xs text-slate-500 font-medium mb-3">Additional Info</p>
+            <div className="space-y-2 text-xs text-slate-600">
+              <div className="flex justify-between">
+                <span>Created</span>
+                <span>{item.created_date ? new Date(item.created_date).toLocaleString() : 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Updated</span>
+                <span>{item.updated_at ? new Date(item.updated_at).toLocaleString() : 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
