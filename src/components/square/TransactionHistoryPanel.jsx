@@ -4,18 +4,83 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Calendar } from 'lucide-react';
+import { X, Calendar, AlertCircle } from 'lucide-react';
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from './badgeHelpers';
 
-export default function TransactionHistoryPanel({ location, transactions = [], drivers = [], onClose }) {
+export default function TransactionHistoryPanel({ location, transactions = [], drivers = [], catalogItems = [], onClose }) {
   const [dateRangeStart, setDateRangeStart] = useState('');
   const [dateRangeEnd, setDateRangeEnd] = useState('');
   const [selectedDriver, setSelectedDriver] = useState('all');
-  const [transactionType, setTransactionType] = useState('all');
+
+  // Get catalog items for this location
+  const locationCatalogIds = useMemo(() => {
+    return catalogItems
+      .filter(item => item.location_id === location.square_location_id)
+      .map(item => item.square_catalog_object_id);
+  }, [catalogItems, location.square_location_id]);
+
+  // Filter transactions by location (via catalog items)
+  const baseFilteredTransactions = useMemo(() => {
+    let filtered = transactions.filter(t => locationCatalogIds.includes(t.square_catalog_object_id));
+
+    // Date range filter
+    if (dateRangeStart) {
+      const startDate = new Date(dateRangeStart);
+      filtered = filtered.filter(t => new Date(t.created_date) >= startDate);
+    }
+    if (dateRangeEnd) {
+      const endDate = new Date(dateRangeEnd);
+      endDate.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(t => new Date(t.created_date) <= endDate);
+    }
+
+    // Driver filter
+    if (selectedDriver !== 'all') {
+      filtered = filtered.filter(t => t.driver_id === selectedDriver);
+    }
+
+    return filtered.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+  }, [transactions, locationCatalogIds, dateRangeStart, dateRangeEnd, selectedDriver]);
+
+  // Transactions section - only collections
+  const collectionTransactions = useMemo(() => {
+    return baseFilteredTransactions.filter(t => t.type === 'collection');
+  }, [baseFilteredTransactions]);
+
+  // Activity section - all types
+  const allActivityTransactions = useMemo(() => {
+    return baseFilteredTransactions;
+  }, [baseFilteredTransactions]);
+
+  // Audit reconciliation
+  const auditStats = useMemo(() => {
+    const allTx = allActivityTransactions;
+    const payments = allTx.filter(t => t.type === 'prepayment').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const collections = allTx.filter(t => t.type === 'collection').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const refunds = allTx.filter(t => t.type === 'refund').reduce((sum, t) => sum + (t.amount || 0), 0);
+    
+    return {
+      payments,
+      collections,
+      refunds,
+      isBalanced: Math.abs(payments - collections - refunds) < 0.01
+    };
+  }, [allActivityTransactions]);
+
+  // Reconciliation issues
+  const reconciliationIssues = useMemo(() => {
+    const issues = [];
+    if (auditStats.payments > 0 && auditStats.collections === 0 && auditStats.refunds === 0) {
+      issues.push('Payments collected but no sales recorded');
+    }
+    if (auditStats.collections > 0 && auditStats.refunds > 0 && auditStats.payments === 0) {
+      issues.push('Sales and refunds but no payment spends recorded');
+    }
+    return issues;
+  }, [auditStats]);
 
   const filteredTransactions = useMemo(() => {
-    // Note: Transactions don't have a location field directly - they relate through catalog items
-    // For now, show all transactions (filtering by location would require catalog item mapping)
+    // For backward compatibility
     let filtered = transactions;
 
     // Date range filter
