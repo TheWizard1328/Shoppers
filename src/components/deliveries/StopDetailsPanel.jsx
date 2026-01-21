@@ -440,25 +440,44 @@ export default function StopDetailsPanel({
              </div>
 
             {/* Proof Photos */}
-            {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? (
-              <div>
-                <p className="text-xs font-medium mb-2 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
-                  <Image className="w-3 h-3" /> Proof Photos ({delivery.proof_photo_urls.length})
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {delivery.proof_photo_urls.map((url, index) => (
-                    <div key={index} className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
-                      <img 
-                        src={url} 
-                        alt={`Proof photo ${index + 1}`} 
-                        className="w-full h-24 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={() => window.open(url, '_blank')}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+             <div className="flex items-start justify-between">
+               <div className="flex-1">
+                 {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? (
+                   <div>
+                     <p className="text-xs font-medium mb-2 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                       <Image className="w-3 h-3" /> Proof Photos ({delivery.proof_photo_urls.length})
+                     </p>
+                     <div className="grid grid-cols-2 gap-2">
+                       {delivery.proof_photo_urls.map((url, index) => (
+                         <div key={index} className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+                           <img 
+                             src={url} 
+                             alt={`Proof photo ${index + 1}`} 
+                             className="w-full h-24 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                             onClick={() => window.open(url, '_blank')}
+                           />
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 ) : null}
+               </div>
+               {!isCompleted && (
+                 <Button
+                   onClick={() => setShowPhotoCapture(true)}
+                   disabled={isUpdating}
+                   className={`text-xs whitespace-nowrap ml-3 ${
+                     hasPhotos 
+                       ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                       : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                   }`}
+                   size="sm"
+                 >
+                   <Camera className="w-3 h-3 mr-1" />
+                   {hasPhotos ? 'Add Photo' : 'Capture'}
+                 </Button>
+               )}
+             </div>
 
             {/* Empty state if no images or signatures */}
             {!delivery.signature_image_url && !delivery.signature_needed && (!delivery.proof_photo_urls || delivery.proof_photo_urls.length === 0) && (
