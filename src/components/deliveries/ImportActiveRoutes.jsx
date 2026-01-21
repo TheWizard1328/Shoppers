@@ -1173,7 +1173,7 @@ export default function ImportActiveRoutes({
 
           // Use raw batch create (no pause checks - already inside executeDataOperation)
           try {
-            await batchCreateDeliveriesRaw(cleanedDeliveries);
+            await batchCreateDeliveriesLocal(cleanedDeliveries);
 
             cleanedDeliveries.forEach((cleanData) => {
               overallResults.created++;
@@ -1214,7 +1214,7 @@ export default function ImportActiveRoutes({
               const cleanPayload = cleanDeliveryData(updatePayload);
 
               // Use raw update (no pause checks - already inside executeDataOperation)
-              await updateDeliveryRaw(id, cleanPayload);
+              await updateDeliveryLocal(id, cleanPayload);
 
               overallResults.updated++;
               if (cleanPayload.status === 'completed') overallResults.completed++;
@@ -1250,7 +1250,7 @@ export default function ImportActiveRoutes({
             const { data: cleanData } = failedCreations[i];
 
             try {
-              await batchCreateDeliveriesRaw([cleanData]);
+              await batchCreateDeliveriesLocal([cleanData]);
               
               overallResults.created++;
               if (cleanData.status === 'completed') overallResults.completed++;
@@ -1277,7 +1277,7 @@ export default function ImportActiveRoutes({
             try {
               if (!id) throw new Error('Missing delivery ID');
 
-              await updateDeliveryRaw(id, cleanDeliveryData(updatePayload));
+              await updateDeliveryLocal(id, cleanDeliveryData(updatePayload));
               
               overallResults.updated++;
               if (updatePayload.status === 'completed') overallResults.completed++;
@@ -1416,7 +1416,7 @@ export default function ImportActiveRoutes({
                 
                 // Process stop order updates (raw calls - no pause checks)
                 for (const update of allUpdates) {
-                  await updateDeliveryRaw(update.id, update.data);
+                  await updateDeliveryLocal(update.id, update.data);
                 }
                 
                 console.log(`✅ [ImportActiveRoutes] Processed ${allUpdates.length} stop updates for ${driverId} on ${date}`);
