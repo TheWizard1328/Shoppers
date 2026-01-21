@@ -20,6 +20,7 @@ import { offlineDB } from '../utils/offlineDatabase';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { driverLocationPoller } from '../utils/driverLocationPoller';
 import { processDeliveryNotes } from '../utils/notesProcessor';
+import { executeDataOperation } from '../utils/dataOperationManager';
 
 // Utility function for delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -1140,11 +1141,12 @@ export default function ImportActiveRoutes({
     const failedUpdates = [];
 
     try {
-      smartRefreshManager.pause();
-      driverLocationPoller.pause();
-      console.log('⏸️ [ImportActiveRoutes] Paused smart refresh and location poller');
-      
-      const { offlineDB } = await import('../utils/offlineDatabase');
+      // CRITICAL: Use centralized data operation manager to handle pause/restart
+      await executeDataOperation(async () => {
+        driverLocationPoller.pause();
+        console.log('⏸️ [ImportActiveRoutes] Starting import with data operation manager');
+        
+        const { offlineDB } = await import('../utils/offlineDatabase');
 
       setProgressMessage('Loading latest patient and store data from cache...');
       const freshPatients = await getData('Patient', '-created_date', null, false);
@@ -1153,135 +1155,145 @@ export default function ImportActiveRoutes({
       const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
       const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
 
-      batchUpdateAMPM(deliveriesToCreateFiltered);
-      batchUpdateAMPM(deliveriesToUpdateFiltered);
+        batchUpdateAMPM(deliveriesToCreateFiltered);
+        batchUpdateAMPM(deliveriesToUpdateFiltered);
 
-      // BATCH CREATE
-      if (deliveriesToCreateFiltered.length > 0) {
-        setImportProgress((prev) => ({
-          ...prev,
-          phase: 'creating',
-          total: deliveriesToCreateFiltered.length,
-          current: 0
-        }));
-        setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries...`);
+        // BATCH CREATE
+        if (deliveriesToCreateFiltered.length > 0) {
+          setImportProgress((prev) => ({
+            ...prev,
+            phase: 'creating',
+            total: deliveriesToCreateFiltered.length,
+            current: 0
+          }));
+          setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries...`);
 
-        const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
+          const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-        // CRITICAL: Smaller batch size and longer delays to prevent rate limits
-        const BATCH_SIZE = 10;
-        const batches = [];
-        for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
-          batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
-        }
+          // CRITICAL: Much smaller batch size to prevent rate limits (5 instead of 10)
+          const BATCH_SIZE = 5;
+          const batches = [];
+          for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
+            batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
+          }
 
-        let totalCreated = 0;
-        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-          const batch = batches[batchIndex];
-          try {
-            const createdDeliveries = await retryWithBackoff(async () => {
-              return await base44.entities.Delivery.bulkCreate(batch);
-            }, 5, 3000, 2);
+          let totalCreated = 0;
+          for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+            const batch = batches[batchIndex];
+            try {
+              const createdDeliveries = await retryWithBackoff(async () => {
+                return await base44.entities.Delivery.bulkCreate(batch);
+              }, 5, 4000, 2); // Increased delay to 4 seconds
 
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
 
-            batch.forEach((cleanData) => {
-              overallResults.created++;
-              if (cleanData.status === 'completed') overallResults.completed++;
-              if (cleanData.status === 'in_transit' || cleanData.status === 'en_route') overallResults.enRoute++;
-              if (cleanData.status === 'pending') overallResults.pending++;
-              if (cleanData.status === 'failed') overallResults.failed++;
-            });
-
-            totalCreated += batch.length;
-            setImportProgress((prev) => ({
-              ...prev,
-              created: totalCreated,
-              current: totalCreated
-            }));
-
-            // CRITICAL: Longer delay between batches to prevent rate limits
-            if (batchIndex < batches.length - 1) {
-              await delay(2500);
-            }
-          } catch (error) {
-            console.warn(`⚠️ Batch ${batchIndex + 1} bulkCreate failed:`, error.message);
-
-            for (const cleanData of batch) {
-              try {
-                const createdDelivery = await retryWithBackoff(async () => {
-                  return await base44.entities.Delivery.create(cleanData);
-                }, 3, 1000, 2);
-                
-                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
-
+              batch.forEach((cleanData) => {
                 overallResults.created++;
                 if (cleanData.status === 'completed') overallResults.completed++;
                 if (cleanData.status === 'in_transit' || cleanData.status === 'en_route') overallResults.enRoute++;
                 if (cleanData.status === 'pending') overallResults.pending++;
                 if (cleanData.status === 'failed') overallResults.failed++;
-                totalCreated++;
-                setImportProgress((prev) => ({
-                  ...prev,
-                  created: totalCreated,
-                  current: totalCreated
-                }));
-                await delay(500);
-              } catch (individualError) {
-                failedCreations.push({ data: cleanData, error: individualError.message });
+              });
+
+              totalCreated += batch.length;
+              setImportProgress((prev) => ({
+                ...prev,
+                created: totalCreated,
+                current: totalCreated
+              }));
+
+              // CRITICAL: Even longer delay between batches (4 seconds)
+              if (batchIndex < batches.length - 1) {
+                await delay(4000);
+              }
+            } catch (error) {
+              console.warn(`⚠️ Batch ${batchIndex + 1} bulkCreate failed:`, error.message);
+
+              for (const cleanData of batch) {
+                try {
+                  const createdDelivery = await retryWithBackoff(async () => {
+                    return await base44.entities.Delivery.create(cleanData);
+                  }, 3, 2000, 2);
+                  
+                  await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
+
+                  overallResults.created++;
+                  if (cleanData.status === 'completed') overallResults.completed++;
+                  if (cleanData.status === 'in_transit' || cleanData.status === 'en_route') overallResults.enRoute++;
+                  if (cleanData.status === 'pending') overallResults.pending++;
+                  if (cleanData.status === 'failed') overallResults.failed++;
+                  totalCreated++;
+                  setImportProgress((prev) => ({
+                    ...prev,
+                    created: totalCreated,
+                    current: totalCreated
+                  }));
+                  await delay(1000); // Increased from 500ms to 1s
+                } catch (individualError) {
+                  failedCreations.push({ data: cleanData, error: individualError.message });
+                }
               }
             }
           }
         }
-      }
 
-      // BATCH UPDATE
-      if (deliveriesToUpdateFiltered.length > 0) {
-        setImportProgress((prev) => ({
-          ...prev,
-          phase: 'updating',
-          total: deliveriesToUpdateFiltered.length,
-          current: 0
-        }));
-        setProgressMessage(`Updating ${deliveriesToUpdateFiltered.length} existing deliveries...`);
+        // BATCH UPDATE - with smaller batches and longer delays
+        if (deliveriesToUpdateFiltered.length > 0) {
+          setImportProgress((prev) => ({
+            ...prev,
+            phase: 'updating',
+            total: deliveriesToUpdateFiltered.length,
+            current: 0
+          }));
+          setProgressMessage(`Updating ${deliveriesToUpdateFiltered.length} existing deliveries...`);
 
-        for (let i = 0; i < deliveriesToUpdateFiltered.length; i++) {
-          const deliveryData = deliveriesToUpdateFiltered[i];
-
-          try {
-            const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
-            if (!id) {
-              throw new Error('Missing delivery ID');
-            }
-
-            const cleanPayload = cleanDeliveryData(updatePayload);
-
-            const updatedDelivery = await retryWithBackoff(async () => {
-              return await base44.entities.Delivery.update(id, cleanPayload);
-            }, 5, 2000, 2);
+          // CRITICAL: Process updates in batches to prevent rate limits
+          const UPDATE_BATCH_SIZE = 5;
+          for (let i = 0; i < deliveriesToUpdateFiltered.length; i += UPDATE_BATCH_SIZE) {
+            const batch = deliveriesToUpdateFiltered.slice(i, i + UPDATE_BATCH_SIZE);
             
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+            // Process batch sequentially with delays
+            for (const deliveryData of batch) {
+              try {
+                const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
+                if (!id) {
+                  throw new Error('Missing delivery ID');
+                }
 
-            overallResults.updated++;
-            if (cleanPayload.status === 'completed') overallResults.completed++;
-            if (cleanPayload.status === 'in_transit' || cleanPayload.status === 'en_route') overallResults.enRoute++;
-            if (cleanPayload.status === 'pending') overallResults.pending++;
-            if (cleanPayload.status === 'failed') overallResults.failed++;
-            setImportProgress((prev) => ({
-              ...prev,
-              updated: prev.updated + 1,
-              current: i + 1
-            }));
-            // CRITICAL: Longer delay between updates to prevent rate limits
-            await delay(500);
-          } catch (error) {
-            console.warn(`⚠️ Backend update failed for delivery ID ${deliveryData.id}:`, error.message);
-            failedUpdates.push({ data: deliveryData, error: error.message });
-            setImportProgress((prev) => ({ ...prev, current: i + 1 }));
-            await delay(500);
+                const cleanPayload = cleanDeliveryData(updatePayload);
+
+                const updatedDelivery = await retryWithBackoff(async () => {
+                  return await base44.entities.Delivery.update(id, cleanPayload);
+                }, 5, 3000, 2); // Increased delay to 3s
+                
+                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+
+                overallResults.updated++;
+                if (cleanPayload.status === 'completed') overallResults.completed++;
+                if (cleanPayload.status === 'in_transit' || cleanPayload.status === 'en_route') overallResults.enRoute++;
+                if (cleanPayload.status === 'pending') overallResults.pending++;
+                if (cleanPayload.status === 'failed') overallResults.failed++;
+                setImportProgress((prev) => ({
+                  ...prev,
+                  updated: prev.updated + 1,
+                  current: i + batch.indexOf(deliveryData) + 1
+                }));
+                
+                await delay(800); // Increased from 500ms to 800ms
+              } catch (error) {
+                console.warn(`⚠️ Backend update failed for delivery ID ${deliveryData.id}:`, error.message);
+                failedUpdates.push({ data: deliveryData, error: error.message });
+                setImportProgress((prev) => ({ ...prev, current: i + batch.indexOf(deliveryData) + 1 }));
+                await delay(800);
+              }
+            }
+            
+            // Delay between batches
+            if (i + UPDATE_BATCH_SIZE < deliveriesToUpdateFiltered.length) {
+              await delay(3000); // 3 second delay between update batches
+            }
           }
         }
-      }
 
       // Retry failed operations
       const totalFailed = failedCreations.length + failedUpdates.length;
@@ -1368,205 +1380,155 @@ export default function ImportActiveRoutes({
       setImportResult(overallResults);
       setProgressPercent(95);
       
-      // CRITICAL: Reorder stops FIRST using IMPORTED stop_order values
-      // Completed stops (stop_order > 0) come first, sorted by stop_order
-      // Then active stops (in_transit/en_route), then pending stops
-      setProgressMessage('Sorting stops by imported stop order...');
-      
-      try {
-        const { minDate, maxDate } = cachedDateRange;
+        setProgressPercent(95);
         
-        if (minDate && maxDate) {
-          // Get all drivers that were imported
-          const allDriversInRange = new Set();
-          [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate].forEach(d => {
-            if (d.driver_id) allDriversInRange.add(d.driver_id);
-          });
+        // CRITICAL: Consolidate stop reordering and flag updates into ONE fetch + update pass
+        setProgressMessage('Reordering stops and setting flags...');
+        
+        try {
+          const { minDate, maxDate } = cachedDateRange;
           
-          // CRITICAL: Fetch ALL deliveries once for the date range to avoid N+1 queries
-          console.log(`📥 [Reorder] Fetching all deliveries for ${minDate} to ${maxDate} (${allDriversInRange.size} drivers)`);
-          const allDeliveriesForRange = await retryWithBackoff(async () => {
-            return await base44.entities.Delivery.filter({
-              delivery_date: { $gte: minDate, $lte: maxDate }
-            }, '-delivery_date', 5000);
-          }, 3, 2000, 2);
-          
-          // Map by driver_id for quick lookup
-          const deliveriesByDriver = {};
-          (allDeliveriesForRange || []).forEach(d => {
-            if (!d.driver_id) return;
-            if (!deliveriesByDriver[d.driver_id]) {
-              deliveriesByDriver[d.driver_id] = [];
-            }
-            deliveriesByDriver[d.driver_id].push(d);
-          });
-          
-          for (const driverId of allDriversInRange) {
-            const driverDeliveries = deliveriesByDriver[driverId] || [];
-            
-            // Group by date
-            const deliveriesByDate = {};
-            driverDeliveries.forEach(d => {
-              if (!d || !d.delivery_date) return;
-              if (!deliveriesByDate[d.delivery_date]) {
-                deliveriesByDate[d.delivery_date] = [];
-              }
-              deliveriesByDate[d.delivery_date].push(d);
+          if (minDate && maxDate) {
+            // Get all drivers that were imported
+            const allDriversInRange = new Set();
+            [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate].forEach(d => {
+              if (d.driver_id) allDriversInRange.add(d.driver_id);
             });
             
-            for (const [date, dateDeliveries] of Object.entries(deliveriesByDate)) {
-              const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+            // CRITICAL: Fetch ALL deliveries ONCE for both reorder and flags
+            console.log(`📥 [Reorder+Flags] Fetching all deliveries for ${minDate} to ${maxDate} (${allDriversInRange.size} drivers)`);
+            const allFreshDeliveries = await retryWithBackoff(async () => {
+              return await base44.entities.Delivery.filter({
+                delivery_date: { $gte: minDate, $lte: maxDate }
+              }, '-delivery_date', 5000);
+            }, 3, 3000, 2);
+            
+            // Add longer delay after large fetch
+            await delay(2000);
+            
+            // Map by driver_id for quick lookup
+            const deliveriesByDriver = {};
+            (allFreshDeliveries || []).forEach(d => {
+              if (!d.driver_id) return;
+              if (!deliveriesByDriver[d.driver_id]) {
+                deliveriesByDriver[d.driver_id] = [];
+              }
+              deliveriesByDriver[d.driver_id].push(d);
+            });
+            
+            // Process each driver sequentially with delays
+            for (const driverId of allDriversInRange) {
+              const driverDeliveries = deliveriesByDriver[driverId] || [];
               
-              // CRITICAL: Sort ALL deliveries by their imported stop_order
-              // Completed stops have stop_order > 0 from import
-              // Active/pending stops may have stop_order = 0 (to be assigned)
-              const sortedDeliveries = [...dateDeliveries].sort((a, b) => {
-                const aFinished = finishedStatuses.includes(a.status);
-                const bFinished = finishedStatuses.includes(b.status);
-                
-                // Finished stops come first
-                if (aFinished && !bFinished) return -1;
-                if (!aFinished && bFinished) return 1;
-                
-                // Among finished stops, sort by stop_order (completion order)
-                if (aFinished && bFinished) {
-                  return (a.stop_order || 999) - (b.stop_order || 999);
+              // Group by date
+              const deliveriesByDate = {};
+              driverDeliveries.forEach(d => {
+                if (!d || !d.delivery_date) return;
+                if (!deliveriesByDate[d.delivery_date]) {
+                  deliveriesByDate[d.delivery_date] = [];
                 }
-                
-                // Among active/pending stops, sort by stop_order if > 0, else by ETA
-                const aOrder = a.stop_order || 0;
-                const bOrder = b.stop_order || 0;
-                
-                if (aOrder > 0 && bOrder > 0) {
-                  return aOrder - bOrder;
-                }
-                if (aOrder > 0) return -1;
-                if (bOrder > 0) return 1;
-                
-                // Both have stop_order = 0, sort by ETA
-                const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
-                const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
-                return etaA.localeCompare(etaB);
+                deliveriesByDate[d.delivery_date].push(d);
               });
               
-              // Assign sequential stop_order starting from 1
-              const updatePromises = [];
-              for (let i = 0; i < sortedDeliveries.length; i++) {
-                const delivery = sortedDeliveries[i];
-                const newStopOrder = i + 1;
+              for (const [date, dateDeliveries] of Object.entries(deliveriesByDate)) {
+                const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
                 
-                // Only update if stop_order changed
-                if (delivery.stop_order !== newStopOrder) {
-                  updatePromises.push(
-                    base44.entities.Delivery.update(delivery.id, { stop_order: newStopOrder })
-                  );
+                // Sort and reorder stops
+                const sortedDeliveries = [...dateDeliveries].sort((a, b) => {
+                  const aFinished = finishedStatuses.includes(a.status);
+                  const bFinished = finishedStatuses.includes(b.status);
+                  
+                  if (aFinished && !bFinished) return -1;
+                  if (!aFinished && bFinished) return 1;
+                  
+                  if (aFinished && bFinished) {
+                    return (a.stop_order || 999) - (b.stop_order || 999);
+                  }
+                  
+                  const aOrder = a.stop_order || 0;
+                  const bOrder = b.stop_order || 0;
+                  
+                  if (aOrder > 0 && bOrder > 0) return aOrder - bOrder;
+                  if (aOrder > 0) return -1;
+                  if (bOrder > 0) return 1;
+                  
+                  const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
+                  const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
+                  return etaA.localeCompare(etaB);
+                });
+                
+                // Batch updates to avoid Promise.all flooding
+                const allUpdates = [];
+                
+                // 1. Reset ALL isNextDelivery flags
+                sortedDeliveries.forEach(d => {
+                  if (d.isNextDelivery === true) {
+                    allUpdates.push({ id: d.id, data: { isNextDelivery: false } });
+                  }
+                });
+                
+                // 2. Update stop_order for changed deliveries
+                for (let i = 0; i < sortedDeliveries.length; i++) {
+                  const delivery = sortedDeliveries[i];
+                  const newStopOrder = i + 1;
+                  
+                  if (delivery.stop_order !== newStopOrder) {
+                    allUpdates.push({ id: delivery.id, data: { stop_order: newStopOrder } });
+                  }
                 }
+                
+                // 3. Set isNextDelivery for first incomplete
+                const firstIncomplete = sortedDeliveries.find(d => !finishedStatuses.includes(d.status));
+                if (firstIncomplete) {
+                  allUpdates.push({ id: firstIncomplete.id, data: { isNextDelivery: true } });
+                }
+                
+                // CRITICAL: Process updates in small batches with delays
+                const UPDATE_BATCH_SIZE = 10;
+                for (let i = 0; i < allUpdates.length; i += UPDATE_BATCH_SIZE) {
+                  const batch = allUpdates.slice(i, i + UPDATE_BATCH_SIZE);
+                  
+                  await Promise.all(
+                    batch.map(update => 
+                      base44.entities.Delivery.update(update.id, update.data)
+                    )
+                  );
+                  
+                  // Delay between batches
+                  if (i + UPDATE_BATCH_SIZE < allUpdates.length) {
+                    await delay(2000); // 2 second delay between update batches
+                  }
+                }
+                
+                console.log(`✅ [ImportActiveRoutes] Processed ${allUpdates.length} stop updates for ${driverId} on ${date}`);
+                
+                // Delay between dates
+                await delay(1000);
               }
               
-              if (updatePromises.length > 0) {
-                await Promise.all(updatePromises);
-                console.log(`✅ [ImportActiveRoutes] Reordered ${updatePromises.length} stops for ${driverId} on ${date}`);
-              }
+              // Delay between drivers
+              await delay(1500);
             }
-            
-            await delay(500); // Delay between drivers to avoid rate limits
           }
+        } catch (reorderError) {
+          console.error('❌ [ImportActiveRoutes] Failed to reorder stops:', reorderError);
+          // Non-fatal - continue with import completion
         }
-      } catch (reorderError) {
-        console.error('❌ [ImportActiveRoutes] Failed to reorder stops:', reorderError);
-        // Non-fatal - continue with import completion
-      }
       
-      // CRITICAL: Update isNextDelivery flags AFTER stop reordering
-      setProgressMessage('Setting next delivery flags...');
-      
-      try {
-        const { minDate, maxDate } = cachedDateRange;
+        setProgressPercent(100);
+        setProgressMessage('Import complete!');
         
+        driverLocationPoller.resume();
+        console.log('✅ [ImportActiveRoutes] Import operation complete');
+
+        // CRITICAL: Reuse cached deliveries from reorder step (already fetched, no extra API call)
+        const { minDate, maxDate } = cachedDateRange;
+
         if (minDate && maxDate) {
-          // Get all drivers that were imported
-          const allDriversInRange = new Set();
-          [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate].forEach(d => {
-            if (d.driver_id) allDriversInRange.add(d.driver_id);
-          });
-          
-          // CRITICAL: Fetch ALL deliveries once for the date range to avoid N+1 queries
-          console.log(`📥 [NextDelivery] Fetching all deliveries for ${minDate} to ${maxDate} (${allDriversInRange.size} drivers)`);
-          const allFreshDeliveries = await retryWithBackoff(async () => {
-            return await base44.entities.Delivery.filter({
-              delivery_date: { $gte: minDate, $lte: maxDate }
-            }, '-delivery_date', 5000);
-          }, 3, 2000, 2);
-          
-          // Map by driver_id for quick lookup
-          const deliveriesByDriverForFlags = {};
-          (allFreshDeliveries || []).forEach(d => {
-            if (!d.driver_id) return;
-            if (!deliveriesByDriverForFlags[d.driver_id]) {
-              deliveriesByDriverForFlags[d.driver_id] = [];
-            }
-            deliveriesByDriverForFlags[d.driver_id].push(d);
-          });
-          
-          for (const driverId of allDriversInRange) {
-            const allDriverDeliveries = deliveriesByDriverForFlags[driverId] || [];
-            
-            const deliveriesByDate = {};
-            allDriverDeliveries.forEach(d => {
-              if (!d || !d.delivery_date) return;
-              if (!deliveriesByDate[d.delivery_date]) {
-                deliveriesByDate[d.delivery_date] = [];
-              }
-              deliveriesByDate[d.delivery_date].push(d);
-            });
-            
-            for (const [date, dateDeliveries] of Object.entries(deliveriesByDate)) {
-              const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-              
-              // Reset ALL isNextDelivery flags first
-              const resetPromises = dateDeliveries
-                .filter(d => d.isNextDelivery === true)
-                .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
-              
-              if (resetPromises.length > 0) {
-                await Promise.all(resetPromises);
-                await delay(300); // Small delay to let updates settle
-              }
-              
-              // Sort by stop_order to find first incomplete stop
-              const sortedDeliveries = [...dateDeliveries].sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-              
-              // Find FIRST stop that is NOT finished (active: in_transit, en_route, or pending)
-              const firstIncomplete = sortedDeliveries.find(d => !finishedStatuses.includes(d.status));
-              
-              if (firstIncomplete) {
-                await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
-                console.log(`✅ [ImportActiveRoutes] Set isNextDelivery=true for ${date}: Stop #${firstIncomplete.stop_order} (${firstIncomplete.status})`);
-              } else {
-                console.log(`ℹ️ [ImportActiveRoutes] No incomplete stops for ${driverId} on ${date}`);
-              }
-            }
-          }
-        }
-      } catch (flagError) {
-        console.error('❌ [ImportActiveRoutes] Failed to update isNextDelivery flags:', flagError);
-      }
-      
-      setProgressPercent(100);
-      setProgressMessage('Import complete!');
-      
-      smartRefreshManager.restart();
-      driverLocationPoller.resume();
-      console.log('▶️ [ImportActiveRoutes] Resumed smart refresh and location poller');
-
-      // CRITICAL: Reuse cached deliveries from reorder step (already fetched, no extra API call)
-      const { minDate, maxDate } = cachedDateRange;
-
-      if (minDate && maxDate) {
-       console.log(`📥 [ImportActiveRoutes] Retrieving cached deliveries for ${minDate} to ${maxDate}`);
-       // Note: allFreshDeliveries was already fetched during the nextDelivery flags step above
-       // Reuse it instead of fetching again
-       const allDriversDeliveries = allFreshDeliveries || [];
+         console.log(`📥 [ImportActiveRoutes] Retrieving cached deliveries for ${minDate} to ${maxDate}`);
+         // Note: allFreshDeliveries was already fetched during the nextDelivery flags step above
+         // Reuse it instead of fetching again
+         const allDriversDeliveries = allFreshDeliveries || [];
         
         // CRITICAL: Dispatch event with full deliveries array to update UI immediately
         window.dispatchEvent(new CustomEvent('deliveriesImported', {
@@ -1594,13 +1556,16 @@ export default function ImportActiveRoutes({
         detail: { appUsers: null }
       }));
       
-      // Trigger full data refresh for Dashboard
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { 
-          triggeredBy: 'activeRoutesImport',
-          forceRefresh: true
-        }
-      }));
+        // Trigger full data refresh for Dashboard
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { 
+            triggeredBy: 'activeRoutesImport',
+            forceRefresh: true
+          }
+        }));
+        
+        return true; // Signal success to data operation manager
+      }, { restartDelay: 2000 }); // 2 second delay before restarting smart refresh
 
     } catch (error) {
       console.error("❌ Overall import error:", error);
@@ -1623,9 +1588,9 @@ export default function ImportActiveRoutes({
         lineNumber: null,
         phase: 'import'
       });
-    } finally {
-      smartRefreshManager.restart();
+      
       driverLocationPoller.resume();
+    } finally {
       setIsProcessing(false);
       setTimeout(() => setShowProgress(false), 1000);
     }
