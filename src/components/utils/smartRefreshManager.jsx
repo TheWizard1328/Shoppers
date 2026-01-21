@@ -608,9 +608,12 @@ class SmartRefreshManager {
           if (lastTimestamp) {
               dateFilter.updated_date = { $gte: lastTimestamp.toISOString() };
           }
-      
-      await this.waitForRateLimit();
-      const updatedDeliveries = await base44.entities.Delivery.filter(dateFilter);
+
+          await this.waitForRateLimit();
+          const updatedDeliveries = await queueEntityRequest(
+          () => base44.entities.Delivery.filter(dateFilter),
+          `Delivery filter [${dateStr}]`
+          );
 
       if (lastTimestamp) {
           if (!updatedDeliveries || updatedDeliveries.length === 0) {
@@ -1220,9 +1223,12 @@ class SmartRefreshManager {
           $gte: lastTimestamp.toISOString()
         }
       };
-      
+
       await this.waitForRateLimit();
-      const updatedPatients = await base44.entities.Patient.filter(queryFilter);
+      const updatedPatients = await queueEntityRequest(
+        () => base44.entities.Patient.filter(queryFilter),
+        'Patient filter'
+      );
       
       if (!updatedPatients || updatedPatients.length === 0) {
         return null;
