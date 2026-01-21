@@ -514,6 +514,23 @@ export default function StopDetailsPanel({
           )}
         </div>
       )}
-    </div>
-  );
-}
+
+      {showSignatureCapture && (
+        <SignatureCapture
+          onSave={handleSignatureSave}
+          onCancel={() => setShowSignatureCapture(false)}
+          customerName={patient?.full_name || delivery.patient_name}
+          isSaved={hasSignature}
+        />
+      )}
+
+      {showPhotoCapture && (
+        <PhotoCapture
+          onSave={handlePhotosSave}
+          onCancel={() => setShowPhotoCapture(false)}
+          maxPhotos={3}
+        />
+      )}
+      </div>
+      );
+      }
