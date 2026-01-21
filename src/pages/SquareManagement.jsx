@@ -280,19 +280,19 @@ export default function SquareManagement() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Active COD Items</div>
-            <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.total}</div>
+            <div className="text-sm text-slate-500">Active COD Items</div>
+            <div className="text-2xl font-bold">{stats.total}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Total Amount</div>
+            <div className="text-sm text-slate-500">Total Amount</div>
             <div className="text-2xl font-bold text-emerald-600">${stats.totalAmount.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Square Locations</div>
+            <div className="text-sm text-slate-500">Square Locations</div>
             <div className="text-2xl font-bold text-blue-600">{stats.locations}</div>
           </CardContent>
         </Card>
@@ -321,7 +321,7 @@ export default function SquareManagement() {
       )}
 
       {error && (
-        <div className="p-4 rounded-lg mb-6" style={{ background: 'var(--bg-red-100)', color: 'var(--text-red-700)' }}>
+        <div className="p-4 rounded-lg mb-6" style={{ background: 'var(--bg-red-50)', color: 'var(--text-red-700)', borderColor: 'var(--border-red-200)' }} className="border">
           Error: {error}
         </div>
       )}
@@ -346,7 +346,7 @@ export default function SquareManagement() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b text-left text-sm text-slate-500">
+                  <tr className="border-b text-left text-sm" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-200)' }}>
                     <th className="p-3">Item Name</th>
                     <th className="p-3">Amount</th>
                     <th className="p-3">Store</th>
