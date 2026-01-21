@@ -1,0 +1,89 @@
+/**
+ * Global Request Queue - Stagger all entity fetches to prevent rate limiting
+ * All entity.filter() and entity.list() calls should go through this queue
+ */
+
+const MIN_REQUEST_INTERVAL = 500; // Minimum 500ms between requests to stay well under rate limits
+
+class RequestQueue {
+  constructor() {
+    this.lastRequestTime = 0;
+    this.queue = [];
+    this.processing = false;
+  }
+
+  /**
+   * Queue a request and wait for appropriate spacing
+   */
+  async enqueue(requestFn, requestName = 'unknown') {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ requestFn, requestName, resolve, reject });
+      this.processQueue();
+    });
+  }
+
+  /**
+   * Process queued requests with spacing
+   */
+  async processQueue() {
+    if (this.processing || this.queue.length === 0) {
+      return;
+    }
+
+    this.processing = true;
+
+    while (this.queue.length > 0) {
+      const { requestFn, requestName, resolve, reject } = this.queue.shift();
+      
+      // Calculate wait time to maintain spacing
+      const now = Date.now();
+      const timeSinceLastRequest = now - this.lastRequestTime;
+      const waitTime = Math.max(0, MIN_REQUEST_INTERVAL - timeSinceLastRequest);
+
+      if (waitTime > 0) {
+        console.log(`⏳ [RequestQueue] Spacing request "${requestName}" - waiting ${waitTime}ms`);
+        await new Promise(r => setTimeout(r, waitTime));
+      }
+
+      this.lastRequestTime = Date.now();
+
+      try {
+        console.log(`📤 [RequestQueue] Executing request: "${requestName}"`);
+        const result = await requestFn();
+        resolve(result);
+      } catch (error) {
+        console.warn(`❌ [RequestQueue] Request failed: "${requestName}" -`, error.message);
+        reject(error);
+      }
+    }
+
+    this.processing = false;
+  }
+
+  /**
+   * Get queue length (for debugging)
+   */
+  getQueueLength() {
+    return this.queue.length;
+  }
+
+  /**
+   * Clear queue (e.g., on rate limit error)
+   */
+  clear() {
+    const cleared = this.queue.length;
+    this.queue = [];
+    console.log(`🗑️ [RequestQueue] Cleared ${cleared} queued requests`);
+    return cleared;
+  }
+}
+
+export const requestQueue = new RequestQueue();
+
+/**
+ * Wrap an entity filter or list call with request queuing
+ * Usage: await queueEntityRequest(() => base44.entities.Delivery.filter(...), 'Delivery filter')
+ */
+export async function queueEntityRequest(requestFn, requestName = 'entity request') {
+  return requestQueue.enqueue(requestFn, requestName);
+}

@@ -5,6 +5,7 @@ import { diffEntityArrays, mergeEntityChanges, getLatestUpdateTimestamp, mergeDr
 import { format } from "date-fns";
 import { invalidate } from "./dataManager";
 import { touchUserCache } from "./auth";
+import { queueEntityRequest } from "./requestQueue";
 
 class SmartRefreshManager {
   constructor() {
@@ -825,7 +826,10 @@ class SmartRefreshManager {
               };
           }
 
-          const updatedAppUsers = await base44.entities.AppUser.filter(queryFilter);
+          const updatedAppUsers = await queueEntityRequest(
+            () => base44.entities.AppUser.filter(queryFilter),
+            'AppUser filter'
+          );
 
           if (!updatedAppUsers || updatedAppUsers.length === 0) {
               return null;
@@ -946,9 +950,12 @@ class SmartRefreshManager {
       
       // CRITICAL: Fetch ALL AppUsers with driver role (regardless of status)
       // We need off_duty drivers too so current user can see their own marker on desktop
-      const allAppUsers = await base44.entities.AppUser.filter({
-        app_roles: { $in: ['driver'] }
-      });
+      const allAppUsers = await queueEntityRequest(
+        () => base44.entities.AppUser.filter({
+          app_roles: { $in: ['driver'] }
+        }),
+        'AppUser list [drivers]'
+      );
       
       // Record success
       this.recordSuccess();
@@ -1053,7 +1060,10 @@ class SmartRefreshManager {
         
         // CRITICAL: Fetch ALL patients from API to ensure complete sync
         await this.waitForRateLimit();
-        const allPatients = await base44.entities.Patient.filter({ status: 'active' }, '-created_date', 5000);
+        const allPatients = await queueEntityRequest(
+          () => base44.entities.Patient.filter({ status: 'active' }, '-created_date', 5000),
+          'Patient list [all active]'
+        );
         
         if (allPatients && allPatients.length > 0) {
           // Save ALL patients to offline DB
@@ -1282,7 +1292,10 @@ class SmartRefreshManager {
         };
       }
       
-      const updatedStores = await base44.entities.Store.filter(queryFilter);
+      const updatedStores = await queueEntityRequest(
+        () => base44.entities.Store.filter(queryFilter),
+        'Store filter'
+      );
       
       // Record success
       this.recordSuccess();
@@ -1339,7 +1352,10 @@ class SmartRefreshManager {
         };
       }
       
-      const updatedAppUsers = await base44.entities.AppUser.filter(queryFilter);
+      const updatedAppUsers = await queueEntityRequest(
+        () => base44.entities.AppUser.filter(queryFilter),
+        'AppUser filter'
+      );
       
       if (!updatedAppUsers || updatedAppUsers.length === 0) {
         return null;
@@ -1422,7 +1438,10 @@ class SmartRefreshManager {
       
       let fetchedDeliveries;
       try {
-        fetchedDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
+        fetchedDeliveries = await queueEntityRequest(
+          () => base44.entities.Delivery.filter(cityOnlyFilter),
+          `Delivery filter [active, ${dateStr}]`
+        );
         this.recordSuccess();
         
         // Update offline DB with fresh API data
@@ -1829,7 +1848,10 @@ class SmartRefreshManager {
         pay_period_end: periodEnd
       };
       
-      const updatedRecords = await base44.entities.Payroll.filter(queryFilter);
+      const updatedRecords = await queueEntityRequest(
+        () => base44.entities.Payroll.filter(queryFilter),
+        'Payroll filter'
+      );
       
       // Record success
       this.recordSuccess();
