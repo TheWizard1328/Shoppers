@@ -19,6 +19,7 @@ export default function SquareManagement() {
   const [currentUser, setCurrentUser] = useState(null);
   const [drivers, setDrivers] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
+  const [recentTransactions, setRecentTransactions] = useState([]);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
@@ -50,13 +51,20 @@ export default function SquareManagement() {
         const user = await base44.auth.me();
         setCurrentUser(user);
         
-        const [configs, storesData, appUsersData] = await Promise.all([
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        
+        const [configs, storesData, appUsersData, transactions] = await Promise.all([
           base44.entities.SquareLocationConfig.filter({ status: 'active' }),
           base44.entities.Store.list(),
-          base44.entities.AppUser.list()
+          base44.entities.AppUser.list(),
+          base44.entities.SquareTransaction.filter({
+            created_date: { $gte: sevenDaysAgo.toISOString() }
+          })
         ]);
         setLocationConfigs(configs || []);
         setStores(storesData || []);
+        setRecentTransactions(transactions || []);
         
         // Filter to only active drivers
         const driversList = appUsersData.filter(u => 
@@ -131,6 +139,15 @@ export default function SquareManagement() {
     
     return drivers.filter(d => 
       d.square_location_ids && d.square_location_ids.includes(config.id)
+    );
+  };
+
+  // Check if item has a recent payment (last 7 days)
+  const hasRecentPayment = (itemName, itemAmount) => {
+    return recentTransactions.some(t => 
+      t.item_name === itemName && 
+      Math.abs(t.amount - itemAmount) < 0.01 && // Allow for small floating point differences
+      t.type === 'collection'
     );
   };
 
@@ -340,9 +357,16 @@ export default function SquareManagement() {
                         )}
                       </td>
                       <td className="p-3">
-                        <span className="font-semibold text-emerald-600">
-                          ${(item.price_dollars || 0).toFixed(2)}
-                        </span>
+                        <div>
+                          <span className="font-semibold text-emerald-600">
+                            ${(item.price_dollars || 0).toFixed(2)}
+                          </span>
+                          {hasRecentPayment(item.name, item.price_dollars) && (
+                            <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
+                              Payment Recorded
+                            </Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3">
                         {(() => {
