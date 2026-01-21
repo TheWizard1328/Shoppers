@@ -86,64 +86,96 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[50000] bg-black flex items-center justify-center pt-safe pl-safe pr-safe pb-safe" style={{ aspectRatio: 'auto', orientation: 'landscape' }}>
       <div className="bg-white w-full h-full flex flex-col relative" style={{ maxHeight: '100vh', maxWidth: '100vw' }}>
-        {/* Header - visible and accessible */}
-        <div className="border-b px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 flex-shrink-0 gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <h3 className="text-base font-semibold text-slate-900 truncate">Customer Signature</h3>
-            {customerName && <span className="text-sm text-slate-600 truncate hidden sm:inline">— {customerName}</span>}
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={clearSignature} 
-              disabled={!hasSignature}
-              className="flex-1 sm:flex-none"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Clear
-            </Button>
-            <Button 
-              size="sm" 
-              onClick={handleSave} 
-              disabled={!hasSignature} 
-              className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700"
-            >
-              <Check className="w-4 h-4 mr-2" />
-              Save
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={onCancel}
-              className="flex-shrink-0"
-            >
-              <X className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
+         {/* Header - visible and accessible */}
+         <div className="border-b px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 flex-shrink-0 gap-3">
+           <div className="flex items-center gap-3 min-w-0">
+             <h3 className="text-base font-semibold text-slate-900 truncate">Customer Signature</h3>
+             {customerName && <span className="text-sm text-slate-600 truncate hidden sm:inline">— {customerName}</span>}
+           </div>
+           <Button 
+             variant="ghost" 
+             size="icon" 
+             onClick={onCancel}
+             className="flex-shrink-0 sm:hidden"
+           >
+             <X className="w-5 h-5" />
+           </Button>
+         </div>
 
-        {/* Signature Canvas - Full screen */}
-        <div className="flex-1 p-3 bg-slate-50 overflow-hidden">
-          <div className="w-full h-full border-2 border-slate-300 rounded-lg bg-white relative">
-            <canvas
-              ref={canvasRef}
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
-              onTouchStart={startDrawing}
-              onTouchMove={draw}
-              onTouchEnd={stopDrawing}
-              className="w-full h-full touch-none cursor-crosshair"
-              style={{ touchAction: 'none' }}
-            />
-            <div className="absolute top-4 left-4 text-lg text-slate-400 pointer-events-none font-light">
-              Sign here with your finger
-            </div>
-          </div>
-        </div>
-      </div>
+         {/* Signature Canvas - Full screen */}
+         <div className="flex-1 p-3 bg-slate-50 overflow-hidden">
+           <div className="w-full h-full border-2 border-slate-300 rounded-lg bg-white relative">
+             <canvas
+               ref={canvasRef}
+               onMouseDown={startDrawing}
+               onMouseMove={draw}
+               onMouseUp={stopDrawing}
+               onMouseLeave={stopDrawing}
+               onTouchStart={startDrawing}
+               onTouchMove={draw}
+               onTouchEnd={stopDrawing}
+               className="w-full h-full touch-none cursor-crosshair"
+               style={{ touchAction: 'none' }}
+             />
+             <div className="absolute top-4 left-4 text-lg text-slate-400 pointer-events-none font-light">
+               Sign here with your finger
+             </div>
+           </div>
+         </div>
+
+         {/* Bottom Action Buttons */}
+         <div className="flex-shrink-0 border-t px-4 py-3 bg-white flex items-center gap-2 w-full flex-wrap-reverse sm:flex-wrap justify-between sm:justify-end">
+           {showClear ? (
+             <>
+               <Button 
+                 variant="outline" 
+                 size="sm" 
+                 onClick={clearSignature}
+                 className="flex-1 sm:flex-none"
+               >
+                 <RotateCcw className="w-4 h-4 mr-2" />
+                 Clear
+               </Button>
+               <Button 
+                 size="sm" 
+                 onClick={handleSave}
+                 className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700"
+               >
+                 <Check className="w-4 h-4 mr-2" />
+                 Update
+               </Button>
+             </>
+           ) : (
+             <>
+               <Button 
+                 variant="outline" 
+                 size="sm" 
+                 onClick={onCancel}
+                 className="flex-1 sm:flex-none"
+               >
+                 Cancel
+               </Button>
+               <Button 
+                 size="sm" 
+                 onClick={handleSave} 
+                 disabled={!hasSignature}
+                 className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700"
+               >
+                 <Check className="w-4 h-4 mr-2" />
+                 Save
+               </Button>
+             </>
+           )}
+           <Button 
+             variant="ghost" 
+             size="icon" 
+             onClick={onCancel}
+             className="hidden sm:inline-flex flex-shrink-0"
+           >
+             <X className="w-5 h-5" />
+           </Button>
+         </div>
+       </div>
     </div>,
     document.body
   );
