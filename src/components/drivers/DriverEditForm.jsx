@@ -29,7 +29,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
     oversized_item_rate: formatRate(driver.oversized_item_rate),
     gst_hst_enabled: driver.gst_hst_enabled || false,
     pay_cycle_type: driver.pay_cycle_type || 'monthly',
-    deductions: driver.deductions || []
+    deductions: driver.deductions || [],
+    pay_rate_history: driver.pay_rate_history || []
   });
   const [isSaving, setIsSaving] = useState(false);
   const [newDeductionName, setNewDeductionName] = useState('');
