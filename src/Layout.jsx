@@ -1775,20 +1775,16 @@ export default function Layout({ children, currentPageName }) {
       const priorityFilter = { ...cityStoreFilter };
 
       // Load Square catalog items and location configs for COD tracking
-      const [squareConfigs, catalogData] = await Promise.all([
+      const [squareConfigs, catalogData, transactionsData] = await Promise.all([
         base44.entities.SquareLocationConfig.filter({ status: 'active' }),
-        base44.functions.invoke('squareSyncCatalogItems', {})
+        base44.functions.invoke('squareSyncCatalogItems', {}),
+        base44.entities.SquareTransaction.filter({ type: 'collection' })
       ]);
 
       const catalogItemsData = catalogData?.data?.items || catalogData?.items || [];
       setSquareLocationConfigs(squareConfigs || []);
       setCatalogItems(catalogItemsData);
-
-      // Load transactions in background after catalog is loaded
-      setTimeout(async () => {
-        const transactionsData = await base44.entities.SquareTransaction.filter({ type: 'collection' });
-        setSquareTransactions(transactionsData || []);
-      }, 500);
+      setSquareTransactions(transactionsData || []);
 
       // Load deliveries with instant UI callback
       await loadDeliveries(
