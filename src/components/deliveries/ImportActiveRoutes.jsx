@@ -1274,7 +1274,6 @@ export default function ImportActiveRoutes({
               if (!id) throw new Error('Missing delivery ID');
 
               const cleanPayload = cleanDeliveryData(updatePayload);
-              await offlineDB.put(offlineDB.STORES.DELIVERIES, { ...cleanPayload, id });
               await base44.entities.Delivery.update(id, cleanPayload);
               
               overallResults.updated++;
