@@ -3,7 +3,7 @@
  * All entity.filter() and entity.list() calls should go through this queue
  */
 
-const MIN_REQUEST_INTERVAL = 500; // Minimum 500ms between requests to stay well under rate limits
+const MIN_REQUEST_INTERVAL = 50; // Minimum 50ms between requests - balanced for offline-first strategy
 
 class RequestQueue {
   constructor() {
