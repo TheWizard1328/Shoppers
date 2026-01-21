@@ -145,24 +145,35 @@ export default function SquareManagement() {
     // App owners can filter by driver
     if (isAppOwner) {
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
-        // Filter by driver's location configs
-        const driverConfigs = locationConfigs.filter(c => c.driver_id === selectedDriverFilter);
-        const driverLocationIds = driverConfigs.map(c => c.square_location_id);
+        // CRITICAL: Get driver's square_location_ids from AppUser, not from locationConfigs
+        const driver = drivers.find(d => d.user_id === selectedDriverFilter);
+        const driverLocationIds = driver?.square_location_ids || [];
+        
+        // Map SquareLocationConfig IDs to square_location_id values
+        const squareLocationIds = locationConfigs
+          .filter(c => driverLocationIds.includes(c.id))
+          .map(c => c.square_location_id);
+        
         return catalogItems.filter(item => 
-          driverLocationIds.includes(item.location_id)
+          squareLocationIds.includes(item.location_id)
         );
       }
       return catalogItems;
     }
     
-    // Drivers see only items for their assigned location configs
-    const driverConfigs = locationConfigs.filter(c => c.driver_id === currentUser.id);
-    const driverLocationIds = driverConfigs.map(c => c.square_location_id);
+    // CRITICAL: Drivers see items for all their assigned square_location_ids
+    const driver = drivers.find(d => d.user_id === currentUser.id);
+    const driverLocationIds = driver?.square_location_ids || [];
+    
+    // Map SquareLocationConfig IDs to square_location_id values
+    const squareLocationIds = locationConfigs
+      .filter(c => driverLocationIds.includes(c.id))
+      .map(c => c.square_location_id);
     
     return catalogItems.filter(item => 
-      driverLocationIds.includes(item.location_id)
+      squareLocationIds.includes(item.location_id)
     );
-  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs]);
+  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers]);
 
   // Summary stats
   const stats = {
