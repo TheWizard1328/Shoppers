@@ -52,26 +52,26 @@ export default function SquareManagement() {
         const user = await base44.auth.me();
         setCurrentUser(user);
         
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        
-        console.log('Fetching transactions from:', sevenDaysAgo.toISOString());
-        
-        const [configs, storesData, appUsersData, transactions] = await Promise.all([
+        const [configs, storesData, appUsersData, allTransactions] = await Promise.all([
           base44.entities.SquareLocationConfig.filter({ status: 'active' }),
           base44.entities.Store.list(),
           base44.entities.AppUser.list(),
-          base44.entities.SquareTransaction.filter({
-            created_date: { $gte: sevenDaysAgo.toISOString() }
-          })
+          base44.entities.SquareTransaction.list()
         ]);
         
-        console.log('Found SquareTransactions:', transactions?.length || 0, transactions);
-        console.log('All transactions (no filter):', await base44.entities.SquareTransaction.list());
+        // Filter to last 7 days in JavaScript
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const recentTxs = (allTransactions || []).filter(t => {
+          const txDate = new Date(t.created_date);
+          return txDate >= sevenDaysAgo;
+        });
+        
+        console.log('Recent transactions (last 7 days):', recentTxs);
         
         setLocationConfigs(configs || []);
         setStores(storesData || []);
-        setRecentTransactions(transactions || []);
+        setRecentTransactions(recentTxs);
         
         // Filter to only active drivers
         const driversList = appUsersData.filter(u => 
