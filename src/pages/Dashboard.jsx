@@ -5258,9 +5258,6 @@ function Dashboard() {
         return;
       }
 
-      const driverId = targetDelivery.driver_id;
-      const deliveryDate = targetDelivery.delivery_date;
-      const isPickup = !targetDelivery.patient_id;
       const currentTime = new Date();
       let currentTimeISO = currentTime.toISOString();
 
