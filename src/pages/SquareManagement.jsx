@@ -244,19 +244,20 @@ export default function SquareManagement() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6 mb-6">
         <div className="flex items-center gap-3">
-          <CreditCard className="w-8 h-8 text-emerald-600" />
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Square COD Management</h1>
-            <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Track and manage COD payments via Square</p>
+          <CreditCard className="w-6 md:w-8 h-6 md:h-8 text-emerald-600 flex-shrink-0" />
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Square COD</h1>
+            <p className="text-xs md:text-sm" style={{ color: 'var(--text-slate-500)' }}>Track and manage COD payments</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           {currentUser && isAppOwner(currentUser) && drivers.length > 0 && (
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-full sm:w-[150px] md:w-[200px] text-sm">
                 <SelectValue placeholder="All Drivers" />
               </SelectTrigger>
               <SelectContent>
@@ -269,31 +270,32 @@ export default function SquareManagement() {
               </SelectContent>
             </Select>
           )}
-          <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2">
-            <CloudDownload className={`w-4 h-4 ${isSyncing ? 'animate-pulse' : ''}`} />
-            {isSyncing ? 'Syncing...' : 'Sync from Square'}
+          <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 text-sm">
+            <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
+            <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
+            <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
           </Button>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
         <Card>
-          <CardContent className="p-4">
-            <div className="text-sm text-slate-500">Active COD Items</div>
-            <div className="text-2xl font-bold">{stats.total}</div>
+          <CardContent className="p-3 md:p-4">
+            <div className="text-xs md:text-sm text-slate-500">Active COD Items</div>
+            <div className="text-xl md:text-2xl font-bold">{stats.total}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-sm text-slate-500">Total Amount</div>
-            <div className="text-2xl font-bold text-emerald-600">${stats.totalAmount.toFixed(2)}</div>
+          <CardContent className="p-3 md:p-4">
+            <div className="text-xs md:text-sm text-slate-500">Total Amount</div>
+            <div className="text-xl md:text-2xl font-bold text-emerald-600">${stats.totalAmount.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-sm text-slate-500">Square Locations</div>
-            <div className="text-2xl font-bold text-blue-600">{stats.locations}</div>
+          <CardContent className="p-3 md:p-4">
+            <div className="text-xs md:text-sm text-slate-500">Square Locations</div>
+            <div className="text-xl md:text-2xl font-bold text-blue-600">{stats.locations}</div>
           </CardContent>
         </Card>
       </div>
@@ -301,8 +303,8 @@ export default function SquareManagement() {
       {/* Location Summary Cards */}
       {currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-slate-900)' }}>By Location</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <h2 className="text-base md:text-lg font-semibold mb-4" style={{ color: 'var(--text-slate-900)' }}>By Location</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 mb-6 md:mb-8">
             {locationConfigs.map(config => {
               const locationItems = filteredCatalogItems.filter(item => item.location_id === config.square_location_id);
               const codTotal = locationItems.reduce((sum, item) => sum + (item.price_dollars || 0), 0);
@@ -321,7 +323,7 @@ export default function SquareManagement() {
       )}
 
       {error && (
-        <div className="p-4 rounded-lg mb-6" style={{ background: 'var(--bg-red-50)', color: 'var(--text-red-700)', borderColor: 'var(--border-red-200)' }} className="border">
+        <div className="p-3 md:p-4 rounded-lg mb-6 text-sm md:text-base" style={{ background: 'var(--bg-red-50)', color: 'var(--text-red-700)', borderColor: 'var(--border-red-200)', border: '1px solid' }}>
           Error: {error}
         </div>
       )}
@@ -329,7 +331,7 @@ export default function SquareManagement() {
       {/* Active Square Items */}
       <Card>
         <CardHeader>
-          <CardTitle>Active Square COD Items</CardTitle>
+          <CardTitle className="text-base md:text-lg">Active COD Items</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -338,12 +340,12 @@ export default function SquareManagement() {
             </div>
           ) : filteredCatalogItems.length === 0 ? (
             <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
-               <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
-               <p>No active COD items in Square</p>
-               <p className="text-sm">COD items will appear here when deliveries are created with COD amounts</p>
+               <DollarSign className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
+               <p className="text-sm md:text-base">No active COD items in Square</p>
+               <p className="text-xs md:text-sm mt-1">COD items will appear here when deliveries are created with COD amounts</p>
              </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b text-left text-sm" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-200)' }}>
@@ -364,11 +366,11 @@ export default function SquareManagement() {
                     const userIsAppOwner = currentUser && isAppOwner(currentUser);
                     
                     return (
-                    <tr key={item.catalog_object_id} className={`border-b cursor-pointer ${userIsAppOwner && isMultiDriver ? 'border-l-4 border-l-amber-500' : ''}`} style={{ borderColor: 'var(--border-slate-200)', background: userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.15)' : 'var(--bg-slate-50)'} onMouseLeave={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent'} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
+                    <tr key={item.catalog_object_id} className={`border-b cursor-pointer transition-colors ${userIsAppOwner && isMultiDriver ? 'border-l-4 border-l-amber-500' : ''}`} style={{ borderColor: 'var(--border-slate-200)', background: userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.15)' : 'var(--bg-slate-50)'} onMouseLeave={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent'} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
                       <td className="p-3">
-                         <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{item.name || 'N/A'}</div>
+                         <div className="font-medium text-sm" style={{ color: 'var(--text-slate-900)' }}>{item.name || 'N/A'}</div>
                         {userIsAppOwner && itemDrivers.length > 0 && (
-                          <div className="flex gap-1 mt-1.5">
+                          <div className="flex gap-1 mt-1.5 flex-wrap">
                             {itemDrivers.map(driver => (
                               <Badge key={driver.id} className={`${getDriverColor(driver.id)} text-xs border`}>
                                 {driver.user_name}
@@ -384,12 +386,12 @@ export default function SquareManagement() {
                       </td>
                       <td className="p-3">
                         <div>
-                          <span className="font-semibold text-emerald-600">
+                          <span className="font-semibold text-emerald-600 text-sm">
                             ${(item.price_dollars || 0).toFixed(2)}
                           </span>
                           {hasRecentPayment(item.name, item.price_dollars, item.location_id) && (
                             <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
-                              *Paid*
+                              Paid
                             </Badge>
                           )}
                         </div>
@@ -419,7 +421,7 @@ export default function SquareManagement() {
                           {item.catalog_object_id}
                         </div>
                       </td>
-                      <td className="p-3 text-sm" style={{ color: 'var(--text-slate-500)' }}>
+                      <td className="p-3 text-xs" style={{ color: 'var(--text-slate-500)' }}>
                         {item.updated_at ? new Date(item.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
                       </td>
                       <td className="p-3">
@@ -442,6 +444,88 @@ export default function SquareManagement() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+          
+          {/* Mobile Card View */}
+          {!isLoading && filteredCatalogItems.length > 0 && (
+            <div className="md:hidden space-y-3">
+              {filteredCatalogItems.map((item) => {
+                const itemDrivers = getDriversForLocation(item.location_id)
+                  .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+                const userIsAppOwner = currentUser && isAppOwner(currentUser);
+                
+                return (
+                  <div 
+                    key={item.catalog_object_id}
+                    onClick={() => setSelectedCODItem(item)}
+                    className="p-4 rounded-lg border cursor-pointer transition-colors active:bg-slate-100"
+                    style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}
+                  >
+                    <div className="flex justify-between items-start gap-3 mb-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>
+                          {item.name || 'N/A'}
+                        </p>
+                        {item.description && (
+                          <p className="text-xs truncate mt-1" style={{ color: 'var(--text-slate-500)' }}>
+                            {item.description}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(item);
+                        }}
+                        disabled={deletingId === item.catalog_object_id}
+                        className="text-red-600 hover:text-red-700 flex-shrink-0"
+                      >
+                        {deletingId === item.catalog_object_id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                    
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-lg font-bold text-emerald-600">
+                        ${(item.price_dollars || 0).toFixed(2)}
+                      </span>
+                      {hasRecentPayment(item.name, item.price_dollars, item.location_id) && (
+                        <Badge className="bg-green-100 text-green-800 text-xs">Paid</Badge>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2 text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      <div>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Store:</span> {(() => {
+                          const locationId = item.location_id;
+                          const config = locationConfigs.find(c => c.square_location_id === locationId);
+                          const store = stores.find(s => s.square_location_config_id === config?.id);
+                          return store ? store.name : (config?.name || 'Unknown');
+                        })()}
+                      </div>
+                      <div>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Updated:</span> {item.updated_at ? new Date(item.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
+                      </div>
+                    </div>
+                    
+                    {userIsAppOwner && itemDrivers.length > 0 && (
+                      <div className="flex gap-1 mt-3 flex-wrap">
+                        {itemDrivers.map(driver => (
+                          <Badge key={driver.id} className={`${getDriverColor(driver.id)} text-xs border`}>
+                            {driver.user_name}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
