@@ -79,12 +79,6 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
     return issues;
   }, [auditStats]);
 
-  const filteredTransactions = useMemo(() => {
-    // For backward compatibility
-    let filtered = transactions;
-
-
-
   const collectionAmount = useMemo(() => {
     return collectionTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
   }, [collectionTransactions]);
