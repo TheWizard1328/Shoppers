@@ -2,6 +2,7 @@
 
 import { base44 } from "@/api/base44Client";
 import { format } from "date-fns";
+import { queueEntityRequest } from "./requestQueue";
 
 /**
  * Configuration for route polyline management
@@ -111,12 +112,15 @@ const fetchGoogleDirections = async (startLat, startLon, endLat, endLon, googleA
  * @returns {Promise<Object|null>} Existing polyline or null
  */
 const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = null, startLon = null, endLat = null, endLon = null) => {
-  try {
-    const polylines = await base44.entities.DriverRoutePolyline.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate,
-      route_type: routeType
-    });
+   try {
+     const polylines = await queueEntityRequest(
+       () => base44.entities.DriverRoutePolyline.filter({
+         driver_id: driverId,
+         delivery_date: deliveryDate,
+         route_type: routeType
+       }),
+       'DriverRoutePolyline filter [getStoredPolyline]'
+     );
 
     if (!polylines || polylines.length === 0) {
       return null;
@@ -195,12 +199,15 @@ const savePolyline = async ({
 
     // Check for existing polyline to update
     const existing = await getStoredPolyline(driverId, deliveryDate, routeType, startLat, startLon, endLat, endLon);
-    
+
     // Get any polyline for this driver to check daily count
-    const allPolylinesForDriver = await base44.entities.DriverRoutePolyline.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    });
+    const allPolylinesForDriver = await queueEntityRequest(
+      () => base44.entities.DriverRoutePolyline.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      }),
+      'DriverRoutePolyline filter'
+    );
     
     // Check if we need to reset the daily counter
     let dailyCount = 0;
@@ -504,11 +511,14 @@ export const getStoredRouteCoordinates = async (driverId, deliveryDate, routeTyp
     });
 
     // CRITICAL FIX: Don't filter by route_type as backend optimizer doesn't set it
-    // Instead, filter by driver_id and delivery_date only
-    const polylines = await base44.entities.DriverRoutePolyline.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    });
+     // Instead, filter by driver_id and delivery_date only
+     const polylines = await queueEntityRequest(
+       () => base44.entities.DriverRoutePolyline.filter({
+         driver_id: driverId,
+         delivery_date: deliveryDate
+       }),
+       `DriverRoutePolyline filter [${driverId}, ${deliveryDate}]`
+     );
 
     if (!polylines || polylines.length === 0) {
       console.log('📍 [RoutePolyline] No stored polyline found');
