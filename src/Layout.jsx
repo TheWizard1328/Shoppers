@@ -1142,15 +1142,51 @@ export default function Layout({ children, currentPageName }) {
               if (prev.some(d => d?.id === update.id)) return prev;
               return [...prev, update.data];
             });
+            // Refresh catalog items if delivery has COD
+            if (update.data?.cod_total_amount_required) {
+              setTimeout(() => {
+                base44.functions.invoke('squareSyncCatalogItems', {})
+                  .then(response => {
+                    const items = response?.data?.items || response?.items || [];
+                    setCatalogItems(items);
+                  });
+              }, 500);
+            }
           } else if (update.action === 'update') {
             setDeliveries(prev => prev.map(d => 
               d?.id === update.id ? { ...d, ...update.data } : d
             ));
+            // Refresh catalog items if COD amount changed
+            if (update.data?.cod_total_amount_required) {
+              setTimeout(() => {
+                base44.functions.invoke('squareSyncCatalogItems', {})
+                  .then(response => {
+                    const items = response?.data?.items || response?.items || [];
+                    setCatalogItems(items);
+                  });
+              }, 500);
+            }
           } else if (update.action === 'delete') {
             setDeliveries(prev => prev.filter(d => d?.id !== update.id));
+            // Refresh catalog items after deletion
+            setTimeout(() => {
+              base44.functions.invoke('squareSyncCatalogItems', {})
+                .then(response => {
+                  const items = response?.data?.items || response?.items || [];
+                  setCatalogItems(items);
+                });
+            }, 500);
           } else if (update.action === 'batch_delete' && update.ids) {
             const idsToDelete = new Set(update.ids);
             setDeliveries(prev => prev.filter(d => !idsToDelete.has(d?.id)));
+            // Refresh catalog items after batch deletion
+            setTimeout(() => {
+              base44.functions.invoke('squareSyncCatalogItems', {})
+                .then(response => {
+                  const items = response?.data?.items || response?.items || [];
+                  setCatalogItems(items);
+                });
+            }, 500);
           }
         }
 
