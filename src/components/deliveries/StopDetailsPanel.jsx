@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,11 +25,15 @@ import {
   Home,
   ArrowLeft,
   Image,
-  FileSignature
+  FileSignature,
+  Camera
 } from "lucide-react";
 import { format } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
+import SignatureCapture from "./SignatureCapture";
+import PhotoCapture from "../common/PhotoCapture";
+import { base44 } from "@/api/base44Client";
 
 const statusConfig = {
   pending: { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', label: 'Pending', icon: Clock },
