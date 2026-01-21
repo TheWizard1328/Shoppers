@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RefreshCw, DollarSign, CheckCircle, XCircle, Clock, CreditCard, Trash2, Loader2, CloudDownload } from "lucide-react";
 import { toast } from "sonner";
+import { isAppOwner } from "@/components/utils/userRoles";
 
 export default function SquareManagement() {
   const [catalogItems, setCatalogItems] = useState([]);
@@ -181,12 +182,12 @@ export default function SquareManagement() {
   const filteredCatalogItems = React.useMemo(() => {
     if (!currentUser) return [];
     
-    const isAppOwner = currentUser.role === 'App Owner';
+    const userIsAppOwner = isAppOwner(currentUser);
     
     let items = [];
     
     // App owners can filter by driver
-    if (isAppOwner) {
+    if (userIsAppOwner) {
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
         // CRITICAL: Find AppUser by ID (not user_id)
         const driver = drivers.find(d => d.id === selectedDriverFilter);
@@ -250,7 +251,7 @@ export default function SquareManagement() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {currentUser?.role === 'App Owner' && drivers.length > 0 && (
+          {currentUser && isAppOwner(currentUser) && drivers.length > 0 && (
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="All Drivers" />
@@ -324,7 +325,7 @@ export default function SquareManagement() {
                     <th className="p-3">Item Name</th>
                     <th className="p-3">Amount</th>
                     <th className="p-3">Store</th>
-                    {currentUser?.role === 'App Owner' && <th className="p-3">Square Location ID</th>}
+                    {currentUser && isAppOwner(currentUser) && <th className="p-3">Square Location ID</th>}
                     <th className="p-3">Catalog ID</th>
                     <th className="p-3">Last Updated</th>
                     <th className="p-3">Actions</th>
@@ -335,13 +336,13 @@ export default function SquareManagement() {
                     const itemDrivers = getDriversForLocation(item.location_id)
                       .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
                     const isMultiDriver = itemDrivers.length > 1;
-                    const isAppOwner = currentUser?.role === 'App Owner';
+                    const userIsAppOwner = currentUser && isAppOwner(currentUser);
                     
                     return (
-                    <tr key={item.catalog_object_id} className={`border-b hover:bg-slate-50 ${isAppOwner && isMultiDriver ? 'bg-amber-100 border-l-4 border-l-amber-500' : ''}`}>
+                    <tr key={item.catalog_object_id} className={`border-b hover:bg-slate-50 ${userIsAppOwner && isMultiDriver ? 'bg-amber-100 border-l-4 border-l-amber-500' : ''}`}>
                       <td className="p-3">
                         <div className="font-medium">{item.name || 'N/A'}</div>
-                        {isAppOwner && itemDrivers.length > 0 && (
+                        {userIsAppOwner && itemDrivers.length > 0 && (
                           <div className="flex gap-1 mt-1.5">
                             {itemDrivers.map(driver => (
                               <Badge key={driver.id} className={`${getDriverColor(driver.id)} text-xs border`}>
@@ -381,7 +382,7 @@ export default function SquareManagement() {
                           );
                         })()}
                       </td>
-                      {currentUser?.role === 'App Owner' && (
+                      {currentUser && isAppOwner(currentUser) && (
                         <td className="p-3">
                           <div className="text-xs text-slate-400 font-mono truncate max-w-[180px]">
                             {item.location_id}
