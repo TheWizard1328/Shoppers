@@ -11,6 +11,8 @@ const DB_VERSION = 1;
 const STORES = {
   PATIENTS: 'patients',
   DELIVERIES: 'deliveries',
+  APP_USERS: 'app_users',
+  SQUARE_TRANSACTIONS: 'square_transactions',
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations'
 };
@@ -51,6 +53,20 @@ const openDatabase = () => {
         deliveryStore.createIndex('store_id', 'store_id', { unique: false });
         deliveryStore.createIndex('updated_date', 'updated_date', { unique: false });
         deliveryStore.createIndex('date_driver', ['delivery_date', 'driver_id'], { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.APP_USERS)) {
+        const appUserStore = db.createObjectStore(STORES.APP_USERS, { keyPath: 'id' });
+        appUserStore.createIndex('user_id', 'user_id', { unique: true });
+        appUserStore.createIndex('app_roles', 'app_roles', { multiEntry: true });
+        appUserStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.SQUARE_TRANSACTIONS)) {
+        const squareTxStore = db.createObjectStore(STORES.SQUARE_TRANSACTIONS, { keyPath: 'id' });
+        squareTxStore.createIndex('delivery_id', 'delivery_id', { unique: false });
+        squareTxStore.createIndex('updated_date', 'updated_date', { unique: false });
+        squareTxStore.createIndex('status', 'status', { unique: false });
       }
 
       if (!db.objectStoreNames.contains(STORES.SYNC_STATUS)) {
@@ -290,11 +306,15 @@ const needsInitialSync = async (entityName) => {
  */
 const getStats = async () => {
   try {
-    const [patients, deliveries, patientSync, deliverySync] = await Promise.all([
+    const [patients, deliveries, appUsers, squareTx, patientSync, deliverySync, appUserSync, squareTxSync] = await Promise.all([
       getAll(STORES.PATIENTS),
       getAll(STORES.DELIVERIES),
+      getAll(STORES.APP_USERS),
+      getAll(STORES.SQUARE_TRANSACTIONS),
       getSyncStatus('Patient'),
-      getSyncStatus('Delivery')
+      getSyncStatus('Delivery'),
+      getSyncStatus('AppUser'),
+      getSyncStatus('SquareTransaction')
     ]);
 
     return {
@@ -305,6 +325,14 @@ const getStats = async () => {
       deliveries: {
         count: deliveries.length,
         lastSync: deliverySync?.lastSyncDate || 'Never'
+      },
+      appUsers: {
+        count: appUsers.length,
+        lastSync: appUserSync?.lastSyncDate || 'Never'
+      },
+      squareTransactions: {
+        count: squareTx.length,
+        lastSync: squareTxSync?.lastSyncDate || 'Never'
       }
     };
   } catch (error) {
