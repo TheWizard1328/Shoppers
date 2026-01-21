@@ -1249,10 +1249,39 @@ export default function Layout({ children, currentPageName }) {
         };
       }, [currentUser]);
 
-    // Fetch unread message count - only when messaging panel is closed
-    // OPTIMIZED: Delayed significantly to prevent rate limits on startup
+    // Recalculate COD total whenever catalog items or user changes
     useEffect(() => {
-      if (!currentUser?.id || showMessaging) return;
+      if (!currentUser || catalogItems.length === 0) {
+        setTotalCodsDue(0);
+        return;
+      }
+
+      const codTotal = calculateUserCodTotal(currentUser, catalogItems, squareLocationConfigs, stores);
+      setTotalCodsDue(codTotal);
+    }, [currentUser, catalogItems, squareLocationConfigs, stores]);
+
+    // Subscribe to real-time SquareTransaction updates to refresh catalog
+    useEffect(() => {
+      const unsubscribe = subscribeToRealtime((update) => {
+        if (update.entity === 'SquareTransaction') {
+          console.log('🔔 [Layout] SquareTransaction update detected, syncing catalog...');
+          // Refresh catalog items when transactions change
+          base44.functions.invoke('squareSyncCatalogItems', {})
+            .then(response => {
+              const items = response?.data?.items || response?.items || [];
+              setCatalogItems(items);
+              toast.success('COD data updated');
+            });
+        }
+      });
+
+      return unsubscribe;
+    }, []);
+
+    // Fetch unread message count - only when messaging panel is closed
+      // OPTIMIZED: Delayed significantly to prevent rate limits on startup
+      useEffect(() => {
+        if (!currentUser?.id || showMessaging) return;
 
       const fetchUnreadCount = async () => {
         try {
