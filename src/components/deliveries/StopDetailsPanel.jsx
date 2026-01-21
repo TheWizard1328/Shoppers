@@ -386,25 +386,58 @@ export default function StopDetailsPanel({
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Signature */}
-            {delivery.signature_image_url ? (
-              <div>
-                <p className="text-xs font-medium mb-2 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
-                  <FileSignature className="w-3 h-3" /> Signature
-                </p>
-                <div className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
-                  <img 
-                    src={delivery.signature_image_url} 
-                    alt="Customer Signature" 
-                    className="w-full h-auto max-h-32 object-contain bg-white"
-                  />
-                </div>
-              </div>
-            ) : delivery.signature_needed ? (
-              <div className="text-center py-4 border rounded-lg" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-                <FileSignature className="w-8 h-8 mx-auto mb-2 opacity-30" style={{ color: 'var(--text-slate-400)' }} />
-                <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Signature required but not captured yet</p>
-              </div>
-            ) : null}
+             <div className="flex items-center justify-between">
+               <div className="flex-1">
+                 {delivery.signature_image_url ? (
+                   <div>
+                     <p className="text-xs font-medium mb-2 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                       <FileSignature className="w-3 h-3" /> Signature
+                     </p>
+                     <div className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+                       <img 
+                         src={delivery.signature_image_url} 
+                         alt="Customer Signature" 
+                         className="w-full h-auto max-h-32 object-contain bg-white"
+                       />
+                     </div>
+                   </div>
+                 ) : delivery.signature_needed ? (
+                   <div className="text-center py-4 border rounded-lg" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+                     <FileSignature className="w-8 h-8 mx-auto mb-2 opacity-30" style={{ color: 'var(--text-slate-400)' }} />
+                     <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Signature required but not captured yet</p>
+                   </div>
+                 ) : null}
+               </div>
+               {!isCompleted && (
+                 <div className="ml-3 flex flex-col gap-2">
+                   <Button
+                     onClick={() => setShowSignatureCapture(true)}
+                     disabled={isUpdating}
+                     className={`text-xs whitespace-nowrap ${
+                       hasSignature 
+                         ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                         : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                     }`}
+                     size="sm"
+                   >
+                     <FileSignature className="w-3 h-3 mr-1" />
+                     {hasSignature ? 'Re-Capture' : 'Capture'}
+                   </Button>
+                   {hasSignature && (
+                     <Button
+                       onClick={clearSignature}
+                       disabled={isUpdating}
+                       variant="outline"
+                       className="text-xs whitespace-nowrap"
+                       size="sm"
+                     >
+                       <RotateCcw className="w-3 h-3 mr-1" />
+                       Clear
+                     </Button>
+                   )}
+                 </div>
+               )}
+             </div>
 
             {/* Proof Photos */}
             {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? (
