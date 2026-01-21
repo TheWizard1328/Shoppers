@@ -1266,13 +1266,16 @@ export default function Layout({ children, currentPageName }) {
       const unsubscribe = subscribeToRealtime((update) => {
         if (update.entity === 'SquareTransaction') {
           console.log('🔔 [Layout] SquareTransaction update detected, syncing catalog...');
-          // Refresh catalog items when transactions change
-          base44.functions.invoke('squareSyncCatalogItems', {})
-            .then(response => {
-              const items = response?.data?.items || response?.items || [];
-              setCatalogItems(items);
-              toast.success('COD data updated');
-            });
+          // Refresh catalog items and transactions when transactions change
+          Promise.all([
+            base44.functions.invoke('squareSyncCatalogItems', {}),
+            base44.entities.SquareTransaction.filter({ type: 'collection' })
+          ]).then(([catalogData, transactions]) => {
+            const items = catalogData?.data?.items || catalogData?.items || [];
+            setCatalogItems(items);
+            setSquareTransactions(transactions || []);
+            toast.success('COD data updated');
+          });
         }
       });
 
