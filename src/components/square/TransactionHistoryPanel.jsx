@@ -22,7 +22,15 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
   // Filter transactions by location (via catalog items)
   const baseFilteredTransactions = useMemo(() => {
-    let filtered = transactions.filter(t => locationCatalogIds.includes(t.square_catalog_object_id));
+    console.log('[TransactionHistoryPanel] locationCatalogIds:', locationCatalogIds);
+    console.log('[TransactionHistoryPanel] transactions:', transactions);
+    let filtered = transactions.filter(t => {
+      const matches = locationCatalogIds.includes(t.square_catalog_object_id);
+      if (!matches) {
+        console.log('[TransactionHistoryPanel] Transaction filtered out:', t.item_name, t.square_catalog_object_id);
+      }
+      return matches;
+    });
 
     // Date range filter
     if (dateRangeStart) {
