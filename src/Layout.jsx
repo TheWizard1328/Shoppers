@@ -1546,7 +1546,7 @@ export default function Layout({ children, currentPageName }) {
           updatedEntities.push('stores');
         }
 
-        const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, isEntityUpdating);
+        const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, isEntityUpdating, showAllDriverMarkers);
         if (updates) {
           updateAppDataState(updates);
           if (updates.deliveries) updatedEntities.push('deliveries');
