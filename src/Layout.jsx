@@ -822,13 +822,21 @@ export default function Layout({ children, currentPageName }) {
 
         const today = new Date();
 
+        // Load initial COD data
+        const squareConfigs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
+        const catalogResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
+        const initialCatalogItems = catalogResponse?.data?.items || catalogResponse?.items || [];
+
+        setSquareLocationConfigs(squareConfigs || []);
+        setCatalogItems(initialCatalogItems);
+
         const savedDate = globalFilters.getSelectedDate();
         let effectiveDateForDriverAssignment;
         if (!savedDate) {
-          globalFilters.setSelectedDate(today);
-          effectiveDateForDriverAssignment = today;
+        globalFilters.setSelectedDate(today);
+        effectiveDateForDriverAssignment = today;
         } else {
-          effectiveDateForDriverAssignment = new Date(savedDate + 'T00:00:00');
+        effectiveDateForDriverAssignment = new Date(savedDate + 'T00:00:00');
         }
 
         const currentDriverFilter = globalFilters.getSelectedDriverId();
