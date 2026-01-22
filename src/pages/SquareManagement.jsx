@@ -291,6 +291,8 @@ export default function SquareManagement() {
           .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
 
         setRecentTransactions(recentPayments);
+        
+        console.log(`✓ Initial load complete: UI showing ${catalogItemsData.length} catalog items`);
         setIsLoading(false);
 
         // Load sync status after data is loaded
