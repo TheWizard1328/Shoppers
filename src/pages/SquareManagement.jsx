@@ -655,11 +655,20 @@ export default function SquareManagement() {
                             if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
                               return (
                                 <div className="flex flex-wrap gap-1 mt-1">
-                                  {codDetails.payments.map((payment, idx) => (
-                                    <Badge key={idx} className="bg-green-100 text-green-800 text-xs">
-                                      {payment.type}: ${payment.amount.toFixed(2)}
-                                    </Badge>
-                                  ))}
+                                  {codDetails.payments.map((payment, idx) => {
+                                    const colorClass = {
+                                      'Cash': 'bg-green-100 text-green-800',
+                                      'Debit': 'bg-blue-100 text-blue-800',
+                                      'Credit': 'bg-purple-100 text-purple-800',
+                                      'Check': 'bg-amber-100 text-amber-800'
+                                    }[payment.type] || 'bg-gray-100 text-gray-800';
+                                    
+                                    return (
+                                      <Badge key={idx} className={`${colorClass} text-xs`}>
+                                        {payment.type}: ${payment.amount.toFixed(2)}
+                                      </Badge>
+                                    );
+                                  })}
                                 </div>
                               );
                             } else {
