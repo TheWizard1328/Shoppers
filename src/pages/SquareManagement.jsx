@@ -503,7 +503,7 @@ export default function SquareManagement() {
       );
     }
     
-    // Sort: by driver (sort_order), then store, then updated time
+    // Sort: by driver (sort_order), then item name, then store
     return items.sort((a, b) => {
       const aDrivers = getDriversForLocation(a.location_id).sort((d1, d2) => (d1.sort_order ?? Infinity) - (d2.sort_order ?? Infinity));
       const bDrivers = getDriversForLocation(b.location_id).sort((d1, d2) => (d1.sort_order ?? Infinity) - (d2.sort_order ?? Infinity));
@@ -515,6 +515,11 @@ export default function SquareManagement() {
         return aFirstDriverOrder - bFirstDriverOrder;
       }
       
+      // Compare item name
+      if (a.name !== b.name) {
+        return a.name.localeCompare(b.name);
+      }
+      
       // Compare store
       const aConfig = locationConfigs.find(c => c.square_location_id === a.location_id);
       const bConfig = locationConfigs.find(c => c.square_location_id === b.location_id);
@@ -522,14 +527,7 @@ export default function SquareManagement() {
       const bStore = stores.find(s => s.square_location_config_id === bConfig?.id);
       const aStoreName = aStore?.name || aConfig?.name || '';
       const bStoreName = bStore?.name || bConfig?.name || '';
-      if (aStoreName !== bStoreName) {
-        return aStoreName.localeCompare(bStoreName);
-      }
-      
-      // Compare updated time (newest first)
-      const aTime = new Date(a.updated_at || 0).getTime();
-      const bTime = new Date(b.updated_at || 0).getTime();
-      return bTime - aTime;
+      return aStoreName.localeCompare(bStoreName);
     });
   }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers]);
 
