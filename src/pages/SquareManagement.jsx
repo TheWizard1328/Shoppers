@@ -80,11 +80,16 @@ export default function SquareManagement() {
       // Remove deleted items from synced list
       syncedItems = syncedItems.filter(item => !itemsToDelete.includes(item));
       
-      // Step 3: Check deliveries for missing catalog items
-      const completedDeliveries = deliveries.filter(d => 
-        ['completed', 'returned'].includes(d.status) && 
-        d.cod_total_amount_required > 0
-      );
+      // Step 3: Check deliveries for missing catalog items (last 7 days only)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const completedDeliveries = deliveries.filter(d => {
+        const deliveryDate = new Date(d.delivery_date);
+        return ['completed', 'returned'].includes(d.status) && 
+          d.cod_total_amount_required > 0 &&
+          deliveryDate >= sevenDaysAgo;
+      });
       
       for (const delivery of completedDeliveries) {
         // Build expected item name
