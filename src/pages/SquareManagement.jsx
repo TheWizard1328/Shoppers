@@ -829,7 +829,7 @@ export default function SquareManagement() {
                 
                 return (
                   <div 
-                    key={item.catalog_object_id}
+                    key={`${item.catalog_object_id}-${item.location_id}-${index}`}
                     onClick={() => setSelectedCODItem(item)}
                     className="p-4 rounded-lg cursor-pointer transition-colors"
                     style={{ background: 'var(--bg-muted-30)', border: '1px solid var(--border-slate-200)' }}
