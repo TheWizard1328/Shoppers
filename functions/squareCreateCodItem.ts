@@ -27,21 +27,26 @@ Deno.serve(async (req) => {
     let locationId = null;
     
     if (storeId) {
-      // Look up the store to get its square_location_config_id
-      const stores = await base44.asServiceRole.entities.Store.filter({ id: storeId });
-      const store = stores?.[0];
-      
-      if (store?.square_location_config_id) {
-        // Look up the SquareLocationConfig to get the actual Square location ID
-        const configs = await base44.asServiceRole.entities.SquareLocationConfig.filter({ 
-          id: store.square_location_config_id 
-        });
-        const config = configs?.[0];
+      try {
+        // Look up the store to get its square_location_config_id
+        const stores = await base44.asServiceRole.entities.Store.filter({ id: storeId });
+        const store = stores?.[0];
         
-        if (config?.square_location_id && config?.status === 'active') {
-          locationId = config.square_location_id;
-          console.log(`📍 [Square] Using store-specific location: ${locationId} for store ${storeAbbreviation}`);
+        if (store?.square_location_config_id) {
+          // Look up the SquareLocationConfig to get the actual Square location ID
+          const configs = await base44.asServiceRole.entities.SquareLocationConfig.filter({ 
+            id: store.square_location_config_id 
+          });
+          const config = configs?.[0];
+          
+          if (config?.square_location_id && config?.status === 'active') {
+            locationId = config.square_location_id;
+            console.log(`📍 [Square] Using store-specific location: ${locationId} for store ${storeAbbreviation}`);
+          }
         }
+      } catch (storeError) {
+        console.warn(`⚠️ [Square] Failed to lookup store ${storeId}:`, storeError.message);
+        // Continue to fallback
       }
     }
 
@@ -65,8 +70,8 @@ Deno.serve(async (req) => {
     // Convert dollars to cents for Square
     const amountCents = Math.round(codAmount * 100);
 
-    // First, search for existing catalog item with this name AND amount
-    const searchResponse = await fetch(`${SQUARE_BASE_URL}/catalog/search`, {
+    // Use a single upsert operation for creating/updating the catalog item
+    const upsertResponse = await fetch(`${SQUARE_BASE_URL}/catalog/object`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -74,223 +79,100 @@ Deno.serve(async (req) => {
         'Square-Version': '2024-01-18'
       },
       body: JSON.stringify({
-        object_types: ['ITEM'],
-        query: {
-          text_query: {
-            keywords: [itemName]
+        idempotency_key: `upsert-${deliveryId}-${Date.now()}`, // Unique key for idempotency
+        object: {
+          type: 'ITEM',
+          id: `#${deliveryId}`, // Client-generated ID for upserting the item
+          present_at_all_locations: false,
+          present_at_location_ids: [locationId],
+          item_data: {
+            name: itemName,
+            variations: [{
+              type: 'ITEM_VARIATION',
+              id: `#${deliveryId}-variation`, // Client-generated ID for the item variation
+              present_at_all_locations: false,
+              present_at_location_ids: [locationId],
+              item_variation_data: {
+                name: 'Regular',
+                pricing_type: 'FIXED_PRICING',
+                price_money: {
+                  amount: amountCents,
+                  currency: 'CAD'
+                },
+                location_overrides: [{
+                  location_id: locationId,
+                  pricing_type: 'FIXED_PRICING',
+                  price_money: {
+                    amount: amountCents,
+                    currency: 'CAD'
+                  }
+                }]
+              }
+            }]
           }
         }
       })
     });
 
-    const searchData = await searchResponse.json();
-    let catalogObjectId = null;
-    let catalogVersion = null;
+    const upsertData = await upsertResponse.json();
 
-    if (searchData.objects && searchData.objects.length > 0) {
-      // Find exact match by name AND amount to prevent duplicates
-      const existingItem = searchData.objects.find(obj => {
-        if (obj.item_data?.name !== itemName) return false;
-        // Check if amount matches
-        const variation = obj.item_data?.variations?.[0];
-        const existingAmount = variation?.item_variation_data?.price_money?.amount;
-        return existingAmount === amountCents;
-      });
-
-      if (existingItem) {
-        console.log(`✅ [Square] Found existing item with matching name and amount: ${itemName} ($${codAmount})`);
-        catalogObjectId = existingItem.id;
-        catalogVersion = existingItem.version;
-        
-        // Return early - item already exists with correct amount
-        const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.filter({
-          delivery_id: deliveryId,
-          status: 'pending'
-        });
-        
-        if (existingTransactions.length === 0) {
-          await base44.asServiceRole.entities.SquareTransaction.create({
-            square_catalog_object_id: catalogObjectId,
-            square_catalog_version: catalogVersion,
-            item_name: itemName,
-            amount: codAmount,
-            amount_cents: amountCents,
-            type: 'collection',
-            status: 'pending',
-            delivery_id: deliveryId
-          });
-        }
-        
-        return Response.json({
-          success: true,
-          catalogObjectId,
-          catalogVersion,
-          itemName,
-          alreadyExisted: true
-        });
-      }
-      
-      // Name matches but amount differs - update it
-      const itemWithDifferentAmount = searchData.objects.find(obj => 
-        obj.item_data?.name === itemName
-      );
-      
-      if (itemWithDifferentAmount) {
-        console.log(`🔄 [Square] Found item with same name but different amount - updating: ${itemName}`);
-        catalogObjectId = itemWithDifferentAmount.id;
-        catalogVersion = itemWithDifferentAmount.version;
-
-        // Update existing item with new price
-        const variationId = existingItem.item_data?.variations?.[0]?.id;
-        
-        if (variationId) {
-          const variationVersion = existingItem.item_data?.variations?.[0]?.version;
-          const updateResponse = await fetch(`${SQUARE_BASE_URL}/catalog/object`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-              'Square-Version': '2024-01-18'
-            },
-            body: JSON.stringify({
-              idempotency_key: `update-${deliveryId}-${Date.now()}`,
-              object: {
-                type: 'ITEM',
-                id: catalogObjectId,
-                version: catalogVersion,
-                present_at_all_locations: false,
-                present_at_location_ids: [locationId],
-                item_data: {
-                  name: itemName,
-                  variations: [{
-                    type: 'ITEM_VARIATION',
-                    id: variationId,
-                    version: variationVersion,
-                    present_at_all_locations: false,
-                    present_at_location_ids: [locationId],
-                    item_variation_data: {
-                      name: 'Regular',
-                      pricing_type: 'FIXED_PRICING',
-                      price_money: {
-                        amount: amountCents,
-                        currency: 'CAD'
-                      },
-                      location_overrides: [{
-                        location_id: locationId,
-                        pricing_type: 'FIXED_PRICING',
-                        price_money: {
-                          amount: amountCents,
-                          currency: 'CAD'
-                        }
-                      }]
-                    }
-                  }]
-                }
-              }
-            })
-          });
-
-          const updateData = await updateResponse.json();
-          if (updateData.catalog_object) {
-            catalogVersion = updateData.catalog_object.version;
-          }
-        }
-      }
+    if (upsertData.errors) {
+      console.error('Square API Error:', upsertData.errors);
+      return Response.json({ error: 'Failed to create/update Square catalog item', details: upsertData.errors }, { status: upsertResponse.status });
     }
 
-    // Create new catalog item if none exists
-    if (!catalogObjectId) {
-      const createResponse = await fetch(`${SQUARE_BASE_URL}/catalog/object`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Square-Version': '2024-01-18'
-        },
-        body: JSON.stringify({
-          idempotency_key: `create-${deliveryId}-${Date.now()}`,
-          object: {
-            type: 'ITEM',
-            id: `#${deliveryId}`,
-            present_at_all_locations: false,
-            present_at_location_ids: [locationId],
-            item_data: {
-              name: itemName,
-              variations: [{
-                type: 'ITEM_VARIATION',
-                id: `#${deliveryId}-variation`,
-                present_at_all_locations: false,
-                present_at_location_ids: [locationId],
-                item_variation_data: {
-                  name: 'Regular',
-                  pricing_type: 'FIXED_PRICING',
-                  price_money: {
-                    amount: amountCents,
-                    currency: 'CAD'
-                  },
-                  location_overrides: [{
-                    location_id: locationId,
-                    pricing_type: 'FIXED_PRICING',
-                    price_money: {
-                      amount: amountCents,
-                      currency: 'CAD'
-                    }
-                  }]
-                }
-              }]
-            }
-          }
-        })
-      });
-
-      const createData = await createResponse.json();
-
-      if (createData.errors) {
-        console.error('Square API Error:', createData.errors);
-        return Response.json({ error: 'Failed to create Square catalog item', details: createData.errors }, { status: 500 });
-      }
-
-      catalogObjectId = createData.catalog_object?.id;
-      catalogVersion = createData.catalog_object?.version;
-    }
+    const catalogObjectId = upsertData.catalog_object?.id;
+    const catalogVersion = upsertData.catalog_object?.version;
 
     // Create or update SquareTransaction record
-    const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.filter({
-      delivery_id: deliveryId,
-      status: 'pending'
-    });
-
-    let transaction;
-    if (existingTransactions.length > 0) {
-      // Update existing
-      transaction = await base44.asServiceRole.entities.SquareTransaction.update(existingTransactions[0].id, {
-        square_catalog_object_id: catalogObjectId,
-        square_catalog_version: catalogVersion,
-        item_name: itemName,
-        amount: codAmount,
-        amount_cents: amountCents
+    try {
+      const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.filter({
+        delivery_id: deliveryId,
+        status: 'pending'
       });
-    } else {
-      // Create new
-      transaction = await base44.asServiceRole.entities.SquareTransaction.create({
-        square_catalog_object_id: catalogObjectId,
-        square_catalog_version: catalogVersion,
-        item_name: itemName,
-        amount: codAmount,
-        amount_cents: amountCents,
-        type: 'collection',
-        status: 'pending',
-        delivery_id: deliveryId
+
+      let transaction;
+      if (existingTransactions.length > 0) {
+        // Update existing
+        transaction = await base44.asServiceRole.entities.SquareTransaction.update(existingTransactions[0].id, {
+          square_catalog_object_id: catalogObjectId,
+          square_catalog_version: catalogVersion,
+          item_name: itemName,
+          amount: codAmount,
+          amount_cents: amountCents
+        });
+      } else {
+        // Create new
+        transaction = await base44.asServiceRole.entities.SquareTransaction.create({
+          square_catalog_object_id: catalogObjectId,
+          square_catalog_version: catalogVersion,
+          item_name: itemName,
+          amount: codAmount,
+          amount_cents: amountCents,
+          type: 'collection',
+          status: 'pending',
+          delivery_id: deliveryId
+        });
+      }
+
+      return Response.json({
+        success: true,
+        catalogObjectId,
+        catalogVersion,
+        itemName,
+        transactionId: transaction?.id || existingTransactions[0]?.id
+      });
+    } catch (txError) {
+      // Even if transaction record fails, return success if Square item was created
+      console.warn('⚠️ [Square] Failed to create/update transaction record:', txError.message);
+      return Response.json({
+        success: true,
+        catalogObjectId,
+        catalogVersion,
+        itemName,
+        warning: 'Square item created but transaction record failed'
       });
     }
-
-    return Response.json({
-      success: true,
-      catalogObjectId,
-      catalogVersion,
-      itemName,
-      transactionId: transaction?.id || existingTransactions[0]?.id
-    });
 
   } catch (error) {
     console.error('Error creating Square COD item:', error);
