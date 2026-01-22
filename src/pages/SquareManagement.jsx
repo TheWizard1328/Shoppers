@@ -168,9 +168,14 @@ export default function SquareManagement() {
         const locationConfig = store ? locationConfigs.find(c => c.id === store.square_location_config_id) : null;
         const squareLocationId = locationConfig?.square_location_id;
 
-        // Find any catalog item with matching name/location in synced items to get its catalog_object_id
+        // Convert amount to cents for comparison (Square stores in cents)
+        const expectedAmountCents = Math.round(delivery.cod_total_amount_required * 100);
+
+        // Find any catalog item with matching name, location, AND amount in synced items
         const existingCatalogItem = syncedItems.find(item => 
-          item.name === expectedName && item.location_id === squareLocationId
+          item.name === expectedName && 
+          item.location_id === squareLocationId &&
+          item.price_cents === expectedAmountCents
         );
 
         const hasSquarePayment = existingCatalogItem && soldCatalogIds.has(existingCatalogItem.catalog_object_id);
