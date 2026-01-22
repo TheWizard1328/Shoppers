@@ -337,12 +337,12 @@ export default function PolylineViewer({ users = [] }) {
 
               {/* Right: Map */}
               <div className="flex-1 border rounded-lg overflow-hidden">
-                {selectedPolyline ? (
+                {selectedPolyline && decodedCoordinates.length > 0 ? (
                   <MapContainer
-                    center={[43.6532, -79.3832]}
+                    center={decodedCoordinates[0]}
                     zoom={13}
                     style={{ height: '100%', width: '100%' }}
-                    key={selectedPolyline.id}
+                    key={`polyline-${selectedPolyline.id}`}
                   >
                     <TileLayer
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
