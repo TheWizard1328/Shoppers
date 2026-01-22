@@ -587,26 +587,26 @@ export default function SquareManagement() {
           )}
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
-        <Card>
+          <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
           <CardContent className="p-3 md:p-4">
-            <div className="text-xs md:text-sm" style={{ color: 'var(--text-slate-500)' }}>Active COD Items</div>
-            <div className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.total}</div>
+            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Active COD Items</div>
+            <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-50">{stats.total}</div>
           </CardContent>
-        </Card>
-        <Card>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
           <CardContent className="p-3 md:p-4">
-            <div className="text-xs md:text-sm" style={{ color: 'var(--text-slate-500)' }}>Total Amount</div>
-            <div className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-emerald-600)' }}>${stats.totalAmount.toFixed(2)}</div>
+            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Total Amount</div>
+            <div className="text-xl md:text-2xl font-bold text-emerald-600 dark:text-emerald-400">${stats.totalAmount.toFixed(2)}</div>
           </CardContent>
-        </Card>
-        <Card>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
           <CardContent className="p-3 md:p-4">
-            <div className="text-xs md:text-sm" style={{ color: 'var(--text-slate-500)' }}>Square Locations</div>
-            <div className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-blue-600)' }}>{stats.locations}</div>
+            <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Square Locations</div>
+            <div className="text-xl md:text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.locations}</div>
           </CardContent>
-        </Card>
-      </div>
+          </Card>
+          </div>
 
       {/* Location Summary Cards */}
       {currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 && (
