@@ -678,7 +678,7 @@ export default function SquareManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCatalogItems.map((item) => {
+                  {filteredCatalogItems.map((item, index) => {
                     const itemDrivers = getDriversForLocation(item.location_id)
                       .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
                     const userIsAppOwner = currentUser && isAppOwner(currentUser);
