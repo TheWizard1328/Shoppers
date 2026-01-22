@@ -113,67 +113,10 @@ export default function SquareManagement() {
       }
 
       syncedItems = Array.from(uniqueItems.values());
-      
-      // Step 2: Fetch actual Square payment data to see which catalog items have been sold
-      const paymentsResponse = await base44.functions.invoke('squareFetchPayments', {
-        locationIds: syncedLocationIds,
-        daysBack: 7
-      });
 
-      const paymentsData = paymentsResponse?.data || paymentsResponse;
-      const soldCatalogItemsDetailed = paymentsData?.soldCatalogItems || [];
       setSoldCatalogItems(soldCatalogItemsDetailed);
 
-      let deletedCount = 0;
       let createdCount = 0;
-
-      // Step 3: Delete catalog items that have been sold
-      // Group sold items by catalog_object_id to handle multiple items in one transaction
-      const soldByLocation = new Map();
-      for (const soldItem of soldCatalogItemsDetailed) {
-        const key = `${soldItem.catalog_object_id}|${soldItem.location_id}`;
-        if (!soldByLocation.has(key)) {
-          soldByLocation.set(key, soldItem);
-        }
-      }
-
-      // Delete items that have been collected (with exponential backoff for rate limits)
-      for (const [key, soldItem] of soldByLocation.entries()) {
-        let retries = 0;
-        const maxRetries = 3;
-        let deleted = false;
-
-        while (retries < maxRetries && !deleted) {
-          try {
-            await base44.functions.invoke('squareDeleteCodItem', {
-              catalogObjectId: soldItem.catalog_object_id,
-              transactionId: null,
-              reason: 'payment_collected'
-            });
-            deletedCount++;
-            deleted = true;
-            // Delay between successful deletions
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } catch (deleteErr) {
-            retries++;
-            if (retries < maxRetries) {
-              // Exponential backoff: 2s, 4s, 8s
-              const backoffMs = Math.pow(2, retries) * 1000;
-              console.warn(`Failed to delete ${soldItem.item_name}, retrying in ${backoffMs}ms (attempt ${retries}/${maxRetries})`);
-              await new Promise(resolve => setTimeout(resolve, backoffMs));
-            } else {
-              console.warn(`Failed to delete collected item ${soldItem.item_name} after ${maxRetries} retries:`, deleteErr);
-            }
-          }
-        }
-      }
-
-      // Remove deleted items from synced list
-      const collectedCatalogIds = new Set(soldByLocation.keys());
-      syncedItems = syncedItems.filter(item => {
-        const key = `${item.catalog_object_id}|${item.location_id}`;
-        return !collectedCatalogIds.has(key);
-      });
 
       // Step 4: Check deliveries for missing catalog items (last 7 days only)
       const sevenDaysAgo = new Date();
