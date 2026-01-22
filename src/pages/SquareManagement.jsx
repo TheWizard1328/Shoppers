@@ -628,26 +628,25 @@ export default function SquareManagement() {
                   <div
                     key={config.id}
                     onClick={() => setSelectedLocation(config)}
-                    className="cursor-pointer transition-all"
-                    className="rounded-xl p-4 border-2"
+                    className="cursor-pointer transition-all rounded-xl p-4 border-2 bg-white dark:bg-slate-800"
                     style={{
-                      borderColor: storeColor ? storeColor.border : undefined,
-                      background: storeColor ? storeColor.bg : undefined
+                      borderColor: storeColor ? storeColor.border : 'rgb(226, 232, 240)',
+                      opacity: storeColor ? 1 : 0.6
                     }}
                     onMouseEnter={(e) => {
-                      if (storeColor) e.currentTarget.style.background = storeColor.hover;
+                      e.currentTarget.style.opacity = '0.8';
                     }}
                     onMouseLeave={(e) => {
-                      if (storeColor) e.currentTarget.style.background = storeColor.bg;
+                      e.currentTarget.style.opacity = storeColor ? '1' : '0.6';
                     }}
                   >
-                    <div className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>
+                    <div className="text-sm font-semibold mb-2 text-slate-900 dark:text-slate-50">
                       {store ? store.name : config.name}
                     </div>
-                    <div className="text-xl font-bold mb-1" style={{ color: 'var(--text-emerald-600)' }}>
+                    <div className="text-xl font-bold mb-1 text-emerald-600 dark:text-emerald-400">
                       ${codTotal.toFixed(2)}
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-slate-600 dark:text-slate-400">
                       {locationItems.length} {locationItems.length === 1 ? 'item' : 'items'}
                     </div>
                   </div>
