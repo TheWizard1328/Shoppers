@@ -74,30 +74,37 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
 
   const handleSave = async () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !hasSignature) {
+      console.warn('⚠️ [SignatureCapture] Canvas not ready or no signature');
+      return;
+    }
 
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          console.error('❌ [SignatureCapture] Failed to create blob from canvas');
-          resolve();
-          return;
-        }
-        
-        setShowClear(true);
-        
-        // Call onSave and handle it properly
-        Promise.resolve(onSave(blob))
-          .then(() => {
-            console.log('✅ [SignatureCapture] Signature saved successfully');
-            resolve();
-          })
-          .catch((error) => {
-            console.error('❌ [SignatureCapture] Error saving signature:', error);
-            resolve();
-          });
-      }, 'image/png', 0.95);
-    });
+    try {
+      // Convert canvas to blob with quality setting
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error('Failed to create blob from canvas'));
+            } else {
+              resolve(blob);
+            }
+          },
+          'image/png',
+          0.95
+        );
+      });
+
+      // Save the signature
+      console.log('📤 [SignatureCapture] Saving signature blob:', blob.size, 'bytes');
+      await onSave(blob);
+      
+      setShowClear(true);
+      console.log('✅ [SignatureCapture] Signature saved successfully');
+    } catch (error) {
+      console.error('❌ [SignatureCapture] Error saving signature:', error);
+      throw error;
+    }
   };
 
   return ReactDOM.createPortal(
