@@ -876,7 +876,7 @@ export default function SquareManagement() {
                     </div>
 
                     <div className="mb-3">
-                      <div className="text-lg font-bold mb-2" style={{ color: 'var(--text-emerald-600)' }}>
+                      <div className="text-lg font-bold mb-2 text-emerald-600 dark:text-emerald-400">
                         ${(item.price_dollars || 0).toFixed(2)}
                       </div>
                       {(() => {
