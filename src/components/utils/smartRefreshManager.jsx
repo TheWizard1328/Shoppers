@@ -261,25 +261,31 @@ class SmartRefreshManager {
   /**
    * Restart smart refresh - reset all timers to force immediate refresh
    * CRITICAL: Call this after mutations to sync UI with latest data
+   * @param {string} specificEntityType - If provided, only restart this entity's refresh timer
    */
-  restart() {
-    console.log('🔄 [SmartRefresh] Restarting - resetting all refresh timers');
-    this._paused = false;
-    this.lastRefreshTimes = {
-      driverLocation: 0,
-      activeDeliveries: 0,
-      todayDeliveries: 0,
-      appUsers: 0,
-      squareTransactions: 0,
-      todayPatients: 0,
-      patients: 0,
-      stores: 0,
-      payroll: 0
-    };
-    
-    // CRITICAL: Clear the API fetch flag to reset fetch behavior
-    if (this._pendingApiFetch) {
-      this._pendingApiFetch.clear();
+  restart(specificEntityType = null) {
+    if (specificEntityType) {
+      console.log(`🔄 [SmartRefresh] Restarting ${specificEntityType} refresh timer only`);
+      this.lastRefreshTimes[specificEntityType] = 0;
+    } else {
+      console.log('🔄 [SmartRefresh] Restarting - resetting all refresh timers');
+      this._paused = false;
+      this.lastRefreshTimes = {
+        driverLocation: 0,
+        activeDeliveries: 0,
+        todayDeliveries: 0,
+        appUsers: 0,
+        squareTransactions: 0,
+        todayPatients: 0,
+        patients: 0,
+        stores: 0,
+        payroll: 0
+      };
+      
+      // CRITICAL: Clear the API fetch flag to reset fetch behavior
+      if (this._pendingApiFetch) {
+        this._pendingApiFetch.clear();
+      }
     }
   }
   
