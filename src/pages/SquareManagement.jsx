@@ -852,7 +852,7 @@ export default function SquareManagement() {
                           {item.name || 'N/A'}
                         </p>
                         {item.description && (
-                          <p className="text-xs truncate mt-1 text-muted-foreground">
+                          <p className="text-xs truncate mt-1 text-slate-600 dark:text-slate-400">
                             {item.description}
                           </p>
                         )}
@@ -865,10 +865,7 @@ export default function SquareManagement() {
                           setItemToDelete(item);
                         }}
                         disabled={deletingId === item.catalog_object_id}
-                        className="flex-shrink-0"
-                        style={{ color: 'var(--text-red-600)' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-red-700)'; e.currentTarget.style.background = 'var(--bg-red-50)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-red-600)'; e.currentTarget.style.background = 'transparent'; }}
+                        className="flex-shrink-0 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                       >
                         {deletingId === item.catalog_object_id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
