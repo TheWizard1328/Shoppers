@@ -660,11 +660,23 @@ const loadBackgroundDeliveries = async (selectedDateStr, filters, onComplete, in
 };
 
 /**
- * Invalidate delivery range cache
+ * Invalidate delivery range cache - optionally for specific date only
  */
-export const invalidateDeliveryRangeCache = () => {
-  deliveryRangeCache.clear();
-  deliveryRangeCacheTimestamps.clear();
+export const invalidateDeliveryRangeCache = (specificDate = null) => {
+  if (specificDate) {
+    // Only invalidate cache for this specific date, not everything
+    for (const key of deliveryRangeCache.keys()) {
+      if (key.includes(specificDate)) {
+        deliveryRangeCache.delete(key);
+        deliveryRangeCacheTimestamps.delete(key);
+      }
+    }
+    console.log(`🎯 [dataManager] Invalidated delivery cache for ${specificDate} only`);
+  } else {
+    // Full cache clear (fallback)
+    deliveryRangeCache.clear();
+    deliveryRangeCacheTimestamps.clear();
+  }
 };
 
 /**
