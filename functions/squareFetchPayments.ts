@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
       if (catalogResponse.ok) {
         const catalogData = await catalogResponse.json();
         if (catalogData.objects) {
-          // Process catalog items
+          // Process catalog items - CRITICAL: Don't duplicate for each location
           for (const obj of catalogData.objects) {
             if (obj.type === 'ITEM' && obj.item_data) {
               // Get variations and their prices
@@ -150,20 +150,19 @@ Deno.serve(async (req) => {
                     const priceMoney = variation.item_variation_data.price_money;
                     const priceDollars = priceMoney ? priceMoney.amount / 100 : 0;
 
-                    // Check which locations have this item
-                    for (const locationId of locationIds) {
-                      const item = {
-                        catalog_object_id: variation.id,
-                        name: obj.item_data.name || variation.item_variation_data.name || 'Unnamed',
-                        description: variation.item_variation_data.name,
-                        price_dollars: priceDollars,
-                        price_cents: priceMoney ? priceMoney.amount : 0,
-                        location_id: locationId,
-                        updated_at: obj.updated_at
-                      };
-                      catalogItems.push(item);
-                      catalogItemCount++;
-                    }
+                    // Return only ONE item per catalog variation (location_id comes from Square's internal data)
+                    // If you need location-specific items, that should come from SquareLocationConfigs
+                    const item = {
+                      catalog_object_id: variation.id,
+                      name: obj.item_data.name || variation.item_variation_data.name || 'Unnamed',
+                      description: variation.item_variation_data.name,
+                      price_dollars: priceDollars,
+                      price_cents: priceMoney ? priceMoney.amount : 0,
+                      location_id: locationIds[0], // Use first location as default, can be filtered later
+                      updated_at: obj.updated_at
+                    };
+                    catalogItems.push(item);
+                    catalogItemCount++;
                   }
                 }
               }
