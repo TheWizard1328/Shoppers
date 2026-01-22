@@ -2941,7 +2941,7 @@ export default function Layout({ children, currentPageName }) {
                         </div>
                       )}
 
-                      {!sidebarOpen && (
+                      {!sidebarOpen && ((userHasRole(currentUser, 'admin') && cities && cities.length > 0) || userHasRole(currentUser, 'driver')) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -2949,48 +2949,49 @@ export default function Layout({ children, currentPageName }) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56 z-[10000]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                            {/* Settings header and Admin Import toggle */}
-                            {isAppOwner(currentUser) && (
+                            {/* Settings header and Admin Import toggle - only for admins/app owners */}
+                            {(userHasRole(currentUser, 'admin') || isAppOwner(currentUser)) && (
                               <>
                                 <div className="px-2 py-2">
                                   <div className="flex items-center justify-between">
                                     <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)' }}>Settings</DropdownMenuLabel>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                      <span className="text-sm font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
-                                      <Switch
-                                        checked={adminImportEnabled}
-                                        onCheckedChange={async (checked) => {
-                                          if (currentUser?._isImpersonating) return;
-                                          
-                                          setAdminImportEnabled(checked);
-                                          
-                                          // Save to AppSettings so all admins can see it
-                                          try {
-                                            const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                                            if (settings && settings.length > 0) {
-                                              await base44.entities.AppSettings.update(settings[0].id, {
-                                                setting_value: {
-                                                  ...settings[0].setting_value,
-                                                  adminImportEnabled: checked
-                                                }
-                                              });
+                                    {isAppOwner(currentUser) && (
+                                      <label className="flex items-center gap-2 cursor-pointer">
+                                        <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
+                                        <Switch
+                                          checked={adminImportEnabled}
+                                          onCheckedChange={async (checked) => {
+                                            if (currentUser?._isImpersonating) return;
+                                            
+                                            setAdminImportEnabled(checked);
+                                            
+                                            try {
+                                              const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                              if (settings && settings.length > 0) {
+                                                await base44.entities.AppSettings.update(settings[0].id, {
+                                                  setting_value: {
+                                                    ...settings[0].setting_value,
+                                                    adminImportEnabled: checked
+                                                  }
+                                                });
+                                              }
+                                            } catch (error) {
+                                              console.error('Failed to save admin import setting:', error);
                                             }
-                                          } catch (error) {
-                                            console.error('Failed to save admin import setting:', error);
-                                          }
-                                        }}
-                                      />
-                                    </label>
+                                          }}
+                                        />
+                                      </label>
+                                    )}
                                   </div>
                                 </div>
                                 <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                               </>
                             )}
 
-                            {/* Theme Toggle - Mobile Only */}
+                            {/* Theme Toggle - Mobile Only (for all users including drivers) */}
                             {isMobile && (
                               <>
-                                <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                <DropdownMenuLabel className="px-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
                                   Display
                                 </DropdownMenuLabel>
                                 <div className="px-2 py-2">
@@ -3011,68 +3012,68 @@ export default function Layout({ children, currentPageName }) {
                                     </SelectContent>
                                   </Select>
                                 </div>
-                                <DropdownMenuSeparator />
+                                <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                               </>
                             )}
 
-                            {/* Import Buttons - App Owner or Admins with temp access - Hidden on Mobile */}
-                            {!isMobile && realUser && canAccessImports(realUser, adminImportEnabled) && (
-                              <>
-                                <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                  Data Importers
-                                </DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
-                                  <FileText className="w-4 h-4 mr-2" />
-                                  Patient Info
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer">
-                                  <FileText className="w-4 h-4 mr-2" />
-                                  Past Routes
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
-                                  <FileText className="w-4 h-4 mr-2" />
-                                  Active Stops
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
+                            {/* Import Buttons - App Owner - Show on all devices */}
+                            {realUser && isAppOwner(realUser) && (
+                            <>
+                              <DropdownMenuLabel className="px-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+                                Data Importers
+                              </DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
+                                <FileText className="w-4 h-4 mr-2" />
+                                Patient Info
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer">
+                                <FileText className="w-4 h-4 mr-2" />
+                                Past Routes
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
+                                <FileText className="w-4 h-4 mr-2" />
+                                Active Stops
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                            </>
                             )}
 
-                            {/* Active Stops Import - Drivers or App Owners (Desktop only) */}
-                            {!isMobile && realUser && (userHasRole(realUser, 'driver') || isAppOwner(realUser)) && !canAccessImports(realUser, adminImportEnabled) && (
-                              <>
-                                <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                  Import
-                                </DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
-                                  <FileText className="w-4 h-4 mr-2" />
-                                  Active Stops
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
+                            {/* Active Stops Import - Drivers or App Owners without full access - Show on all devices */}
+                            {!isAppOwner(realUser) && (userHasRole(currentUser, 'driver') || (isAppOwner(currentUser) && !canAccessImports(currentUser, adminImportEnabled))) && (
+                            <>
+                              <DropdownMenuLabel className="px-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+                                Import
+                              </DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
+                                <FileText className="w-4 h-4 mr-2" />
+                                Active Stops
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                            </>
                             )}
 
                             {/* City Filter - Admin Only */}
                             {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
                               <div className="px-2 py-2">
-                                <label className="text-sm font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)' }}>
+                                <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)' }}>
                                   City Filter
                                 </label>
                                 <Select
                                   value={globalFilters.getSelectedCityId()}
                                   onValueChange={(cityId) => {
-                                   globalFilters.setSelectedCityId(cityId);
+                                    globalFilters.setSelectedCityId(cityId);
                                   }}
                                 >
                                   <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                                    <SelectValue placeholder="Select city..." />
+                                    <SelectValue placeholder="City" />
                                   </SelectTrigger>
                                   <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                                          {cities.map((city) => (
-                                            <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
-                                              {city.name}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
+                                    {cities.map((city) => (
+                                      <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                                        {city.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
                                 </Select>
                               </div>
                             )}
