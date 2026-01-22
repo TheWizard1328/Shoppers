@@ -289,14 +289,17 @@ export default function SquareManagement() {
         setRecentTransactions(recentPayments);
 
         setIsLoading(false);
-      } catch (err) {
+
+        // Load sync status after data is loaded
+        await loadSyncStatus();
+        } catch (err) {
         console.error('Failed to load COD data:', err);
         setIsLoading(false);
-      }
-    };
+        }
+        };
 
-    loadData();
-  }, []);
+        loadData();
+        }, []);
 
 
 
