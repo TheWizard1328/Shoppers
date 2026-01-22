@@ -799,11 +799,11 @@ export default function SquareManagement() {
                           </td>
                           )}
                           <td className="p-3">
-                          <div className="text-xs font-mono truncate max-w-[150px]" style={{ color: 'var(--text-muted-foreground)' }}>
+                          <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">
                           {item.catalog_object_id}
                           </div>
                           </td>
-                          <td className="p-3 text-xs" style={{ color: 'var(--text-muted-foreground)' }}>
+                          <td className="p-3 text-xs text-slate-600 dark:text-slate-400">
                         {item.updated_at ? new Date(item.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
                       </td>
                       <td className="p-3">
