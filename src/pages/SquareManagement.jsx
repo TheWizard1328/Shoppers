@@ -67,11 +67,13 @@ export default function SquareManagement() {
 
       // Collect all duplicates to delete (keep first, delete rest)
       const duplicatesToDelete = [];
+      const deletedCatalogIds = new Set();
       for (const [key, items] of duplicateGroups.entries()) {
         if (items.length > 1) {
           console.log(`🗑️ Found ${items.length} duplicates for "${key}" - marking ${items.length - 1} for deletion`);
           for (let i = 1; i < items.length; i++) {
             duplicatesToDelete.push(items[i]);
+            deletedCatalogIds.add(items[i].catalog_object_id);
           }
         }
       }
@@ -94,7 +96,6 @@ export default function SquareManagement() {
         await Promise.all(deletePromises);
 
         // Remove deleted duplicates from synced list
-        const deletedCatalogIds = new Set(duplicatesToDelete.map(d => d.catalog_object_id));
         syncedItems = syncedItems.filter(item => !deletedCatalogIds.has(item.catalog_object_id));
         console.log(`✅ Deleted ${duplicatesDeletedCount} duplicate items from catalog`);
       }
