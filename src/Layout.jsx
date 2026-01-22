@@ -2984,6 +2984,34 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                             <DropdownMenuSeparator />
 
+                            {/* Theme Toggle - Mobile Only */}
+                            {isMobile && (
+                              <>
+                                <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                  Display
+                                </DropdownMenuLabel>
+                                <div className="px-2 py-2">
+                                  <label className="text-sm font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)' }}>
+                                    Theme
+                                  </label>
+                                  <Select
+                                    value={themePreference}
+                                    onValueChange={handleThemeChange}
+                                  >
+                                    <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-[10003]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                                      <SelectItem value="auto" style={{ color: 'var(--text-slate-900)' }}>Auto (System)</SelectItem>
+                                      <SelectItem value="light" style={{ color: 'var(--text-slate-900)' }}>Light</SelectItem>
+                                      <SelectItem value="dark" style={{ color: 'var(--text-slate-900)' }}>Dark</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+
                             {/* Import Buttons - App Owner or Admins with temp access - Hidden on Mobile */}
                             {!isMobile && realUser && canAccessImports(realUser, adminImportEnabled) && (
                               <>
