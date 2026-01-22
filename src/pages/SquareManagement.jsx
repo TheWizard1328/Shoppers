@@ -56,6 +56,7 @@ export default function SquareManagement() {
       const syncedLocationIds = data.locationIds || [];
       
       // Step 1.5: Delete duplicate catalog items BEFORE processing payments
+      let duplicatesDeletedCount = 0;
       const duplicateGroups = new Map();
       syncedItems.forEach(item => {
         const key = `${item.name}|${item.location_id}`;
