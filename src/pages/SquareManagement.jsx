@@ -468,6 +468,8 @@ export default function SquareManagement() {
   // Filter items based on user role and selected driver filter
   const filteredCatalogItems = React.useMemo(() => {
     if (!currentUser) return [];
+    
+    console.log(`🔍 [SquareManagement] Filtering: catalogItems.length=${catalogItems.length}, soldCatalogItems.length=${soldCatalogItems.length}`);
 
     const userIsAppOwner = isAppOwner(currentUser);
 
