@@ -466,15 +466,15 @@ export default function SquareManagement() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto bg-background text-foreground">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6 mb-6">
-        <div className="flex items-center gap-3">
-          <CreditCard className="w-6 md:w-8 h-6 md:h-8 text-emerald-600 flex-shrink-0" />
-          <div className="min-w-0">
-            <h1 className="text-xl md:text-2xl font-bold">Square COD</h1>
-            <p className="text-xs md:text-sm text-muted-foreground">Track and manage COD payments</p>
-          </div>
+    {/* Header */}
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6 mb-6">
+      <div className="flex items-center gap-3">
+        <CreditCard className="w-6 md:w-8 h-6 md:h-8 flex-shrink-0" style={{ color: 'var(--text-emerald-600)' }} />
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Square COD</h1>
+          <p className="text-xs md:text-sm text-muted-foreground">Track and manage COD payments</p>
         </div>
+      </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           {currentUser && isAppOwner(currentUser) && drivers.length > 0 && (
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
@@ -503,20 +503,20 @@ export default function SquareManagement() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
         <Card>
           <CardContent className="p-3 md:p-4">
-            <div className="text-xs md:text-sm text-slate-500">Active COD Items</div>
-            <div className="text-xl md:text-2xl font-bold">{stats.total}</div>
+            <div className="text-xs md:text-sm" style={{ color: 'var(--text-slate-500)' }}>Active COD Items</div>
+            <div className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.total}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 md:p-4">
-            <div className="text-xs md:text-sm text-slate-500">Total Amount</div>
-            <div className="text-xl md:text-2xl font-bold text-emerald-600">${stats.totalAmount.toFixed(2)}</div>
+            <div className="text-xs md:text-sm" style={{ color: 'var(--text-slate-500)' }}>Total Amount</div>
+            <div className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-emerald-600)' }}>${stats.totalAmount.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3 md:p-4">
-            <div className="text-xs md:text-sm text-slate-500">Square Locations</div>
-            <div className="text-xl md:text-2xl font-bold text-blue-600">{stats.locations}</div>
+            <div className="text-xs md:text-sm" style={{ color: 'var(--text-slate-500)' }}>Square Locations</div>
+            <div className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-blue-600)' }}>{stats.locations}</div>
           </CardContent>
         </Card>
       </div>
@@ -554,10 +554,10 @@ export default function SquareManagement() {
                       if (storeColor) e.currentTarget.style.background = storeColor.bg;
                     }}
                   >
-                    <div className="text-sm font-semibold mb-2">
+                    <div className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>
                       {store ? store.name : config.name}
                     </div>
-                    <div className="text-xl font-bold text-emerald-600 mb-1">
+                    <div className="text-xl font-bold mb-1" style={{ color: 'var(--text-emerald-600)' }}>
                       ${codTotal.toFixed(2)}
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -571,7 +571,7 @@ export default function SquareManagement() {
       )}
 
       {error && (
-        <div className="p-3 md:p-4 rounded-lg mb-6 text-sm md:text-base bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
+        <div className="p-3 md:p-4 rounded-lg mb-6 text-sm md:text-base" style={{ background: 'var(--bg-red-50)', color: 'var(--text-red-700)', border: '1px solid var(--border-red-200)' }}>
           Error: {error}
         </div>
       )}
@@ -584,7 +584,7 @@ export default function SquareManagement() {
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full" />
+              <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
             </div>
           ) : filteredCatalogItems.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -596,7 +596,7 @@ export default function SquareManagement() {
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b text-left text-sm text-muted-foreground">
+                  <tr className="border-b text-left text-sm" style={{ color: 'var(--text-muted-foreground)', borderColor: 'var(--border-slate-200)' }}>
                     <th className="p-3">Item Name</th>
                     <th className="p-3">Amount</th>
                     <th className="p-3">Store</th>
@@ -626,9 +626,9 @@ export default function SquareManagement() {
                     });
 
                     return (
-                    <tr key={item.catalog_object_id} className="border-b cursor-pointer transition-colors hover:bg-muted/50" style={{ background: userIsAppOwner && hasMultipleStores && storeColor ? storeColor.bg : 'transparent', borderLeft: userIsAppOwner && hasMultipleStores && storeColor ? `4px solid ${storeColor.border}` : 'none' }} onMouseEnter={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.hover; }} onMouseLeave={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.bg; else e.currentTarget.style.background = 'transparent'; }} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
+                    <tr key={item.catalog_object_id} className="cursor-pointer transition-colors" style={{ background: userIsAppOwner && hasMultipleStores && storeColor ? storeColor.bg : 'transparent', borderBottom: '1px solid var(--border-slate-200)', borderLeft: userIsAppOwner && hasMultipleStores && storeColor ? `4px solid ${storeColor.border}` : 'none' }} onMouseEnter={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.hover; else e.currentTarget.style.background = 'var(--bg-muted-hover)'; }} onMouseLeave={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.bg; else e.currentTarget.style.background = 'transparent'; }} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
                       <td className="p-3">
-                         <div className="font-medium text-sm">{item.name || 'N/A'}</div>
+                         <div className="font-medium text-sm" style={{ color: 'var(--text-slate-900)' }}>{item.name || 'N/A'}</div>
                         {userIsAppOwner && itemDrivers.length > 0 && (
                           <div className="flex gap-1 mt-1.5 flex-wrap">
                             {itemDrivers.map(driver => (
@@ -646,7 +646,7 @@ export default function SquareManagement() {
                       </td>
                       <td className="p-3">
                         <div>
-                          <span className="font-semibold text-emerald-600 text-sm">
+                          <span className="font-semibold text-sm" style={{ color: 'var(--text-emerald-600)' }}>
                             ${(item.price_dollars || 0).toFixed(2)}
                           </span>
                           {(() => {
@@ -688,25 +688,25 @@ export default function SquareManagement() {
                           const store = stores.find(s => s.square_location_config_id === config?.id);
                           
                           return (
-                            <div className="text-sm font-medium">
+                            <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                               {store ? store.name : (config?.name || 'Unknown')}
                             </div>
                           );
-                        })()}
-                      </td>
-                      {currentUser && isAppOwner(currentUser) && (
-                        <td className="p-3">
-                          <div className="text-xs font-mono truncate max-w-[180px] text-muted-foreground">
+                          })()}
+                          </td>
+                          {currentUser && isAppOwner(currentUser) && (
+                          <td className="p-3">
+                          <div className="text-xs font-mono truncate max-w-[180px]" style={{ color: 'var(--text-muted-foreground)' }}>
                             {item.location_id}
                           </div>
-                        </td>
-                      )}
-                      <td className="p-3">
-                        <div className="text-xs font-mono truncate max-w-[150px] text-muted-foreground">
+                          </td>
+                          )}
+                          <td className="p-3">
+                          <div className="text-xs font-mono truncate max-w-[150px]" style={{ color: 'var(--text-muted-foreground)' }}>
                           {item.catalog_object_id}
-                        </div>
-                      </td>
-                      <td className="p-3 text-xs text-muted-foreground">
+                          </div>
+                          </td>
+                          <td className="p-3 text-xs" style={{ color: 'var(--text-muted-foreground)' }}>
                         {item.updated_at ? new Date(item.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
                       </td>
                       <td className="p-3">
@@ -718,7 +718,9 @@ export default function SquareManagement() {
                             setItemToDelete(item);
                           }}
                           disabled={deletingId === item.catalog_object_id}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          style={{ color: 'var(--text-red-600)' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-red-700)'; e.currentTarget.style.background = 'var(--bg-red-50)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-red-600)'; e.currentTarget.style.background = 'transparent'; }}
                         >
                           {deletingId === item.catalog_object_id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -747,11 +749,14 @@ export default function SquareManagement() {
                   <div 
                     key={item.catalog_object_id}
                     onClick={() => setSelectedCODItem(item)}
-                    className="p-4 rounded-lg border cursor-pointer transition-colors bg-muted/30 hover:bg-muted/50"
+                    className="p-4 rounded-lg cursor-pointer transition-colors"
+                    style={{ background: 'var(--bg-muted-30)', border: '1px solid var(--border-slate-200)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-muted-50)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-muted-30)'}
                   >
                     <div className="flex justify-between items-start gap-3 mb-2">
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-sm">
+                        <p className="font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>
                           {item.name || 'N/A'}
                         </p>
                         {item.description && (
@@ -777,9 +782,9 @@ export default function SquareManagement() {
                         )}
                       </Button>
                     </div>
-                    
+
                     <div className="mb-3">
-                      <div className="text-lg font-bold text-emerald-600 mb-2">
+                      <div className="text-lg font-bold mb-2" style={{ color: 'var(--text-emerald-600)' }}>
                         ${(item.price_dollars || 0).toFixed(2)}
                       </div>
                       {(() => {
@@ -813,10 +818,10 @@ export default function SquareManagement() {
                         }
                       })()}
                     </div>
-                    
-                    <div className="space-y-2 text-xs text-muted-foreground">
+
+                    <div className="space-y-2 text-xs" style={{ color: 'var(--text-muted-foreground)' }}>
                       <div>
-                        <span className="font-semibold">Store:</span> {(() => {
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Store:</span> {(() => {
                           const locationId = item.location_id;
                           const config = locationConfigs.find(c => c.square_location_id === locationId);
                           const store = stores.find(s => s.square_location_config_id === config?.id);
@@ -824,9 +829,9 @@ export default function SquareManagement() {
                         })()}
                       </div>
                       <div>
-                        <span className="font-semibold">Updated:</span> {item.updated_at ? new Date(item.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Updated:</span> {item.updated_at ? new Date(item.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
                       </div>
-                    </div>
+                      </div>
                     
                     {userIsAppOwner && itemDrivers.length > 0 && (
                       <div className="flex gap-1 mt-3 flex-wrap">
