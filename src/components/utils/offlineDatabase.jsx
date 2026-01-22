@@ -13,6 +13,8 @@ const STORES = {
   DELIVERIES: 'deliveries',
   APP_USERS: 'app_users',
   SQUARE_TRANSACTIONS: 'square_transactions',
+  SQUARE_CATALOG_ITEMS: 'square_catalog_items',
+  SQUARE_PAYMENT_TRANSACTIONS: 'square_payment_transactions',
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations'
 };
