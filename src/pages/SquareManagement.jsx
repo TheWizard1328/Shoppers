@@ -163,28 +163,31 @@ export default function SquareManagement() {
         const store = stores.find(s => s.id === delivery.store_id);
         const storeAbbr = store?.abbreviation || '??';
         const expectedName = `${month}/${day}(${storeAbbr})-${delivery.patient_name}`;
-        
+
         // Check if payment already received in Square (match by catalog_object_id which is authoritative)
         const locationConfig = store ? locationConfigs.find(c => c.id === store.square_location_config_id) : null;
         const squareLocationId = locationConfig?.square_location_id;
-        
+
         // Find any catalog item with matching name/location in synced items to get its catalog_object_id
         const existingCatalogItem = syncedItems.find(item => 
           item.name === expectedName && item.location_id === squareLocationId
         );
-        
+
         const hasSquarePayment = existingCatalogItem && soldCatalogIds.has(existingCatalogItem.catalog_object_id);
-        
+
         // Check if already collected via Debit or Credit (these should not be in Square catalog)
         const hasDebitCreditPayment = delivery.cod_payments?.some(p => 
           p.type === 'Debit' || p.type === 'Credit'
         );
-        
+
         // Check if catalog item exists
         const existsInCatalog = !!existingCatalogItem;
-        
-        // Only create if: no Square payment AND no Debit/Credit payment AND doesn't exist in catalog
-        if (!hasSquarePayment && !hasDebitCreditPayment && !existsInCatalog && store?.square_location_config_id) {
+
+        // Check if this item was just deleted as duplicate or collected
+        const wasJustDeleted = deletedCatalogIds.has(expectedName) || collectedCatalogIds.has(expectedName);
+
+        // Only create if: no Square payment AND no Debit/Credit payment AND doesn't exist in catalog AND wasn't just deleted
+        if (!hasSquarePayment && !hasDebitCreditPayment && !existsInCatalog && !wasJustDeleted && store?.square_location_config_id) {
           const locationConfig = locationConfigs.find(c => c.id === store.square_location_config_id);
           
           if (locationConfig) {
