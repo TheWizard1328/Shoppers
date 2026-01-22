@@ -124,19 +124,34 @@ export default function SquareManagement() {
         }
       }
 
-      // Delete items that have been collected
+      // Delete items that have been collected (with exponential backoff for rate limits)
       for (const [key, soldItem] of soldByLocation.entries()) {
-        try {
-          await base44.functions.invoke('squareDeleteCodItem', {
-            catalogObjectId: soldItem.catalog_object_id,
-            transactionId: null,
-            reason: 'payment_collected'
-          });
-          deletedCount++;
-          // Delay between deletions to avoid rate limits
-          await new Promise(resolve => setTimeout(resolve, 200));
-        } catch (deleteErr) {
-          console.warn(`Failed to delete collected item ${soldItem.item_name}:`, deleteErr);
+        let retries = 0;
+        const maxRetries = 3;
+        let deleted = false;
+
+        while (retries < maxRetries && !deleted) {
+          try {
+            await base44.functions.invoke('squareDeleteCodItem', {
+              catalogObjectId: soldItem.catalog_object_id,
+              transactionId: null,
+              reason: 'payment_collected'
+            });
+            deletedCount++;
+            deleted = true;
+            // Delay between successful deletions
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (deleteErr) {
+            retries++;
+            if (retries < maxRetries) {
+              // Exponential backoff: 2s, 4s, 8s
+              const backoffMs = Math.pow(2, retries) * 1000;
+              console.warn(`Failed to delete ${soldItem.item_name}, retrying in ${backoffMs}ms (attempt ${retries}/${maxRetries})`);
+              await new Promise(resolve => setTimeout(resolve, backoffMs));
+            } else {
+              console.warn(`Failed to delete collected item ${soldItem.item_name} after ${maxRetries} retries:`, deleteErr);
+            }
+          }
         }
       }
 
