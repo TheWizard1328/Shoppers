@@ -241,18 +241,29 @@ export default function SquareManagement() {
       // Final sync to get updated catalog
       const finalResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
       const finalData = finalResponse?.data || finalResponse;
-      
+
       if (finalData.success) {
         setCatalogItems(finalData.items || []);
         setLocationIds(finalData.locationIds || []);
-        
+
+        // Update recent transactions with actual payment data instead of catalog items
+        // Filter sold items to last 7 days and sort by payment date descending
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const recentPayments = soldCatalogItemsDetailed
+          .filter(item => new Date(item.payment_date) >= sevenDaysAgo)
+          .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+
+        setRecentTransactions(recentPayments);
+        setAllTransactions(soldCatalogItemsDetailed);
+
         const messages = [
           `Synced ${finalData.itemCount} items`,
           duplicatesDeletedCount > 0 ? `removed ${duplicatesDeletedCount} duplicates` : null,
           deletedCount > 0 ? `deleted ${deletedCount} collected` : null,
           createdCount > 0 ? `created ${createdCount} missing` : null
         ].filter(Boolean).join(', ');
-        
+
         toast.success(messages);
       }
     } catch (err) {
