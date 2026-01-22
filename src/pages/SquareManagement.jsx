@@ -166,14 +166,7 @@ export default function SquareManagement() {
           continue;
         }
 
-        // Check if payment was collected in Square
-        const hasSoldInSquare = syncedItems.some(item =>
-          item.name === expectedName &&
-          item.location_id === squareLocationId &&
-          soldCatalogIds.has(item.catalog_object_id)
-        );
 
-        if (hasSoldInSquare) continue;
 
         // Create new item
         try {
