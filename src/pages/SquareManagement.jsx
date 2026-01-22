@@ -657,7 +657,7 @@ export default function SquareManagement() {
       )}
 
       {error && (
-        <div className="p-3 md:p-4 rounded-lg mb-6 text-sm md:text-base" style={{ background: 'var(--bg-red-50)', color: 'var(--text-red-700)', border: '1px solid var(--border-red-200)' }}>
+        <div className="p-3 md:p-4 rounded-lg mb-6 text-sm md:text-base bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800">
           Error: {error}
         </div>
       )}
