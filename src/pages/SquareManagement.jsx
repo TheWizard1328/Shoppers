@@ -673,7 +673,7 @@ export default function SquareManagement() {
               <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
             </div>
           ) : filteredCatalogItems.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
+            <div className="text-center py-12 text-slate-500 dark:text-slate-400">
                <DollarSign className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
                <p className="text-sm md:text-base">No active COD items in Square</p>
                <p className="text-xs md:text-sm mt-1">COD items will appear here when deliveries are created with COD amounts</p>
