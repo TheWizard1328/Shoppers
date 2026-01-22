@@ -55,6 +55,50 @@ export default function SquareManagement() {
       let syncedItems = data.items || [];
       const syncedLocationIds = data.locationIds || [];
       
+      // Step 1.5: Delete duplicate catalog items BEFORE processing payments
+      const duplicateGroups = new Map();
+      syncedItems.forEach(item => {
+        const key = `${item.name}|${item.location_id}`;
+        if (!duplicateGroups.has(key)) {
+          duplicateGroups.set(key, []);
+        }
+        duplicateGroups.get(key).push(item);
+      });
+      
+      let duplicatesDeletedCount = 0;
+      for (const [key, items] of duplicateGroups.entries()) {
+        if (items.length > 1) {
+          // Keep the first item, delete the rest
+          console.log(`🗑️ Found ${items.length} duplicates for "${key}" - deleting ${items.length - 1}`);
+          for (let i = 1; i < items.length; i++) {
+            try {
+              await base44.functions.invoke('squareDeleteCodItem', {
+                catalogObjectId: items[i].catalog_object_id,
+                transactionId: items[i].transaction_id,
+                reason: 'duplicate_removal'
+              });
+              duplicatesDeletedCount++;
+            } catch (deleteErr) {
+              console.warn(`Failed to delete duplicate ${items[i].name}:`, deleteErr);
+            }
+          }
+        }
+      }
+      
+      // Remove deleted duplicates from synced list
+      if (duplicatesDeletedCount > 0) {
+        const keptCatalogIds = new Set();
+        syncedItems = syncedItems.filter(item => {
+          const key = `${item.name}|${item.location_id}`;
+          if (keptCatalogIds.has(key)) {
+            return false; // Already kept one with this key
+          }
+          keptCatalogIds.add(key);
+          return true;
+        });
+        console.log(`✅ Removed ${duplicatesDeletedCount} duplicate items from catalog`);
+      }
+      
       // Step 2: Fetch actual Square payment data to see which catalog items have been sold
       const paymentsResponse = await base44.functions.invoke('squareFetchPayments', {
         locationIds: syncedLocationIds,
@@ -119,16 +163,26 @@ export default function SquareManagement() {
         const storeAbbr = store?.abbreviation || '??';
         const expectedName = `${month}/${day}(${storeAbbr})-${delivery.patient_name}`;
         
-        // Check if catalog item exists
-        const existsInCatalog = syncedItems.some(item => item.name === expectedName);
+        // Check if payment already received in Square
+        const locationConfig = store ? locationConfigs.find(c => c.id === store.square_location_config_id) : null;
+        const squareLocationId = locationConfig?.square_location_id;
+        
+        const hasSquarePayment = squareLocationId && soldCatalogItemsDetailed.some(sold => 
+          sold.item_name === expectedName && sold.location_id === squareLocationId
+        );
         
         // Check if already collected via Debit or Credit (these should not be in Square catalog)
         const hasDebitCreditPayment = delivery.cod_payments?.some(p => 
           p.type === 'Debit' || p.type === 'Credit'
         );
         
-        // Only create if doesn't exist AND not Debit/Credit
-        if (!existsInCatalog && !hasDebitCreditPayment && store?.square_location_config_id) {
+        // Check if catalog item exists
+        const existsInCatalog = syncedItems.some(item => 
+          item.name === expectedName && item.location_id === squareLocationId
+        );
+        
+        // Only create if: no Square payment AND no Debit/Credit payment AND doesn't exist in catalog
+        if (!hasSquarePayment && !hasDebitCreditPayment && !existsInCatalog && store?.square_location_config_id) {
           const locationConfig = locationConfigs.find(c => c.id === store.square_location_config_id);
           
           if (locationConfig) {
@@ -162,6 +216,7 @@ export default function SquareManagement() {
         
         const messages = [
           `Synced ${finalData.itemCount} items`,
+          duplicatesDeletedCount > 0 ? `removed ${duplicatesDeletedCount} duplicates` : null,
           deletedCount > 0 ? `deleted ${deletedCount} collected` : null,
           createdCount > 0 ? `created ${createdCount} missing` : null
         ].filter(Boolean).join(', ');
