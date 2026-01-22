@@ -298,16 +298,22 @@ export default function SquareManagement() {
           }
         };
 
-        const [configs, storesData, appUsersData, deliveriesData, codDataResponse, paymentsDataResponse] = await Promise.all([
+        const [configs, storesData, appUsersData, deliveriesData, codDataResponse] = await Promise.all([
           base44.entities.SquareLocationConfig.filter({ status: 'active' }),
           base44.entities.Store.list(),
           base44.entities.AppUser.list(),
           base44.entities.Delivery.filter(dateFilter),
-          base44.functions.invoke('squareGetCODData', {}),
-          base44.functions.invoke('squareFetchPayments', { locationIds: [], daysBack: 7 })
+          base44.functions.invoke('squareGetCODData', {})
         ]);
 
         const codData = codDataResponse?.data || codDataResponse || {};
+        const locationIdsFromCod = codData.locationIds || [];
+        
+        // Now fetch payments with actual location IDs
+        const paymentsDataResponse = await base44.functions.invoke('squareFetchPayments', { 
+          locationIds: locationIdsFromCod, 
+          daysBack: 7 
+        });
         const paymentsData = paymentsDataResponse?.data || paymentsDataResponse || {};
         
         // Use actual payment data for transactions instead of catalog items
@@ -325,7 +331,7 @@ export default function SquareManagement() {
         setLocationConfigs(configs || []);
         setStores(storesData || []);
         setCatalogItems(codData.catalogItems || []);
-        setLocationIds(codData.locationIds || []);
+        setLocationIds(locationIdsFromCod);
         setRecentTransactions(recentPayments);
         setAllTransactions(soldCatalogItemsData);
         setDeliveries(deliveriesData || []);
