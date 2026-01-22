@@ -19,25 +19,33 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
   const [dateRangeEnd, setDateRangeEnd] = useState(defaultEnd);
   const [selectedDriver, setSelectedDriver] = useState('all');
 
-  // Get catalog items for this location by matching Square catalog object IDs
+  // Get uncollected catalog items for this location
+  const uncollectedCatalogItems = useMemo(() => {
+    const locationItems = catalogItems.filter(item => item.location_id === location.square_location_id);
+    
+    // Filter out items that have a completed collection transaction
+    return locationItems.filter(item => {
+      const hasCollection = transactions.some(t => 
+        t.square_catalog_object_id === item.catalog_object_id &&
+        t.type === 'collection' &&
+        t.status === 'completed'
+      );
+      return !hasCollection;
+    });
+  }, [catalogItems, location.square_location_id, transactions]);
+
+  // Get catalog object IDs for this location
   const locationCatalogIds = useMemo(() => {
-    // catalogItems have location_id matching the Square location ID
     return catalogItems
       .filter(item => item.location_id === location.square_location_id)
       .map(item => item.catalog_object_id);
   }, [catalogItems, location.square_location_id]);
 
-  // Filter transactions by location (via catalog items)
+  // Filter transactions by location
   const baseFilteredTransactions = useMemo(() => {
-    console.log('[TransactionHistoryPanel] locationCatalogIds:', locationCatalogIds);
-    console.log('[TransactionHistoryPanel] transactions:', transactions);
-    let filtered = transactions.filter(t => {
-      const matches = locationCatalogIds.includes(t.square_catalog_object_id);
-      if (!matches) {
-        console.log('[TransactionHistoryPanel] Transaction filtered out:', t.item_name, t.square_catalog_object_id);
-      }
-      return matches;
-    });
+    let filtered = transactions.filter(t => 
+      locationCatalogIds.includes(t.square_catalog_object_id)
+    );
 
     // Date range filter
     if (dateRangeStart) {
@@ -58,46 +66,14 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
     return filtered.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
   }, [transactions, locationCatalogIds, dateRangeStart, dateRangeEnd, selectedDriver]);
 
-  // Transactions section - only collections
-  const collectionTransactions = useMemo(() => {
-    return baseFilteredTransactions.filter(t => t.type === 'collection');
-  }, [baseFilteredTransactions]);
-
-  // Activity section - all types
-  const allActivityTransactions = useMemo(() => {
+  // Activity transactions - card spends, refunds, and driver collections/refunds
+  const activityTransactions = useMemo(() => {
     return baseFilteredTransactions;
   }, [baseFilteredTransactions]);
 
-  // Audit reconciliation
-  const auditStats = useMemo(() => {
-    const allTx = allActivityTransactions;
-    const payments = allTx.filter(t => t.type === 'prepayment').reduce((sum, t) => sum + (t.amount || 0), 0);
-    const collections = allTx.filter(t => t.type === 'collection').reduce((sum, t) => sum + (t.amount || 0), 0);
-    const refunds = allTx.filter(t => t.type === 'refund').reduce((sum, t) => sum + (t.amount || 0), 0);
-    
-    return {
-      payments,
-      collections,
-      refunds,
-      isBalanced: Math.abs(payments - collections - refunds) < 0.01
-    };
-  }, [allActivityTransactions]);
-
-  // Reconciliation issues
-  const reconciliationIssues = useMemo(() => {
-    const issues = [];
-    if (auditStats.payments > 0 && auditStats.collections === 0 && auditStats.refunds === 0) {
-      issues.push('Payments collected but no sales recorded');
-    }
-    if (auditStats.collections > 0 && auditStats.refunds > 0 && auditStats.payments === 0) {
-      issues.push('Sales and refunds but no payment spends recorded');
-    }
-    return issues;
-  }, [auditStats]);
-
-  const collectionAmount = useMemo(() => {
-    return collectionTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-  }, [collectionTransactions]);
+  const uncollectedTotal = useMemo(() => {
+    return uncollectedCatalogItems.reduce((sum, item) => sum + (item.price_dollars || 0), 0);
+  }, [uncollectedCatalogItems]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-end">
@@ -148,57 +124,50 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
           </div>
         </div>
 
-        {/* Transactions Section (Collections) */}
+        {/* Uncollected Items Section */}
         <div className="border-b">
-          <div className="bg-emerald-50 border-b p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Transactions (Collections)</h3>
+          <div className="bg-amber-50 border-b p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Uncollected Items</h3>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-600">Total Collected</p>
-                <p className="text-2xl font-bold text-emerald-600">${collectionAmount.toFixed(2)}</p>
+                <p className="text-sm text-slate-600">Pending Collection</p>
+                <p className="text-2xl font-bold text-amber-600">${uncollectedTotal.toFixed(2)}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-slate-600">Collections</p>
-                <p className="text-2xl font-bold text-slate-900">{collectionTransactions.length}</p>
+                <p className="text-sm text-slate-600">Items</p>
+                <p className="text-2xl font-bold text-slate-900">{uncollectedCatalogItems.length}</p>
               </div>
             </div>
           </div>
 
           <div className="p-6 space-y-4">
-            {collectionTransactions.length === 0 ? (
+            {uncollectedCatalogItems.length === 0 ? (
               <div className="text-center py-12 text-slate-500">
                 <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No collections recorded</p>
+                <p>All items collected</p>
               </div>
             ) : (
-              collectionTransactions.map(t => (
-                <Card key={t.id} className="hover:shadow-md transition-shadow">
+              uncollectedCatalogItems.map(item => (
+                <Card key={item.catalog_object_id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="grid grid-cols-2 gap-4 mb-3">
                       <div>
                         <p className="text-sm text-slate-500">Item</p>
-                        <p className="font-semibold text-slate-900">{t.item_name || 'N/A'}</p>
+                        <p className="font-semibold text-slate-900">{item.name || 'N/A'}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-slate-500">Amount</p>
-                        <p className="font-bold text-emerald-600">${(t.amount || 0).toFixed(2)}</p>
+                        <p className="font-bold text-amber-600">${(item.price_dollars || 0).toFixed(2)}</p>
                       </div>
                     </div>
 
                     <div className="flex gap-2 mb-3">
-                      {getStatusBadge(t.status)}
-                      {t.payment_method && getPaymentMethodBadge(t.payment_method)}
+                      <Badge className="bg-amber-100 text-amber-800">Pending Collection</Badge>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 text-xs text-slate-500">
-                      <div>
-                        <p className="font-medium text-slate-600 mb-1">Date</p>
-                        {new Date(t.created_date).toLocaleString()}
-                      </div>
-                      <div>
-                        <p className="font-medium text-slate-600 mb-1">Driver</p>
-                        {t.driver_id ? drivers.find(d => d.id === t.driver_id)?.user_name || 'Unknown' : 'N/A'}
-                      </div>
+                    <div className="text-xs text-slate-500">
+                      <p className="font-medium text-slate-600 mb-1">Last Updated</p>
+                      {item.updated_at ? new Date(item.updated_at).toLocaleString() : 'N/A'}
                     </div>
                   </CardContent>
                 </Card>
@@ -207,57 +176,21 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
           </div>
         </div>
 
-        {/* Activity Section (All Transactions) */}
+        {/* Activity Section (Card Spends/Refunds, Driver Collections/Refunds) */}
         <div>
           <div className="bg-slate-50 border-b p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Activity & Reconciliation</h3>
-            
-            {/* Reconciliation Summary */}
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <Card className="bg-white">
-                <CardContent className="p-3">
-                  <p className="text-xs text-slate-500">Payments</p>
-                  <p className="text-xl font-bold text-blue-600">${auditStats.payments.toFixed(2)}</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-white">
-                <CardContent className="p-3">
-                  <p className="text-xs text-slate-500">Collections</p>
-                  <p className="text-xl font-bold text-emerald-600">${auditStats.collections.toFixed(2)}</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-white">
-                <CardContent className="p-3">
-                  <p className="text-xs text-slate-500">Refunds</p>
-                  <p className="text-xl font-bold text-red-600">${auditStats.refunds.toFixed(2)}</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Issues Indicator */}
-            {reconciliationIssues.length > 0 && (
-              <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-4">
-                <div className="flex gap-2 items-start">
-                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-amber-900 text-sm">Reconciliation Alert</p>
-                    {reconciliationIssues.map((issue, i) => (
-                      <p key={i} className="text-xs text-amber-800">{issue}</p>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Card Activity</h3>
+            <p className="text-sm text-slate-600 mb-4">Card spends, refunds, and driver collections</p>
           </div>
 
           <div className="p-6 space-y-4">
-            {allActivityTransactions.length === 0 ? (
+            {activityTransactions.length === 0 ? (
               <div className="text-center py-12 text-slate-500">
                 <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>No activity found</p>
               </div>
             ) : (
-              allActivityTransactions.map(t => (
+              activityTransactions.map(t => (
                 <Card key={t.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="grid grid-cols-2 gap-4 mb-3">
