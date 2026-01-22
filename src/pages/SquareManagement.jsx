@@ -161,13 +161,13 @@ export default function SquareManagement() {
         const user = await base44.auth.me();
         setCurrentUser(user);
         
-        // Calculate date range for deliveries (last 60 days)
+        // Calculate date range for deliveries (last 7 days)
         const today = new Date();
-        const sixtyDaysAgo = new Date(today);
-        sixtyDaysAgo.setDate(today.getDate() - 60);
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 7);
         const dateFilter = {
           delivery_date: { 
-            $gte: format(sixtyDaysAgo, 'yyyy-MM-dd'),
+            $gte: format(sevenDaysAgo, 'yyyy-MM-dd'),
             $lte: format(today, 'yyyy-MM-dd')
           }
         };
