@@ -2941,48 +2941,51 @@ export default function Layout({ children, currentPageName }) {
                         </div>
                       )}
 
-                      {!sidebarOpen && (isAppOwner(currentUser) || (adminImportEnabled && currentUser?.user_name === 'Kyle J')) && cities && cities.length > 0 && (
+                      {!sidebarOpen && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                               <MoreVertical className="w-4 h-4 mr-2 text-slate-500" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-56 z-[10000]">
-                            <div className="px-2 py-2">
-                              <div className="flex items-center justify-between">
-                                <DropdownMenuLabel className="p-0">Settings</DropdownMenuLabel>
-                                {isAppOwner(currentUser) && (
-                                  <label className="flex items-center gap-2 cursor-pointer">
-                                    <span className="text-sm font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
-                                    <Switch
-                                      checked={adminImportEnabled}
-                                      onCheckedChange={async (checked) => {
-                                        if (currentUser?._isImpersonating) return;
-                                        
-                                        setAdminImportEnabled(checked);
-                                        
-                                        // Save to AppSettings so all admins can see it
-                                        try {
-                                          const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                                          if (settings && settings.length > 0) {
-                                            await base44.entities.AppSettings.update(settings[0].id, {
-                                              setting_value: {
-                                                ...settings[0].setting_value,
-                                                adminImportEnabled: checked
-                                              }
-                                            });
+                          <DropdownMenuContent align="end" className="w-56 z-[10000]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                            {/* Settings header and Admin Import toggle */}
+                            {isAppOwner(currentUser) && (
+                              <>
+                                <div className="px-2 py-2">
+                                  <div className="flex items-center justify-between">
+                                    <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)' }}>Settings</DropdownMenuLabel>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <span className="text-sm font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
+                                      <Switch
+                                        checked={adminImportEnabled}
+                                        onCheckedChange={async (checked) => {
+                                          if (currentUser?._isImpersonating) return;
+                                          
+                                          setAdminImportEnabled(checked);
+                                          
+                                          // Save to AppSettings so all admins can see it
+                                          try {
+                                            const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                            if (settings && settings.length > 0) {
+                                              await base44.entities.AppSettings.update(settings[0].id, {
+                                                setting_value: {
+                                                  ...settings[0].setting_value,
+                                                  adminImportEnabled: checked
+                                                }
+                                              });
+                                            }
+                                          } catch (error) {
+                                            console.error('Failed to save admin import setting:', error);
                                           }
-                                        } catch (error) {
-                                          console.error('Failed to save admin import setting:', error);
-                                        }
-                                      }}
-                                    />
-                                  </label>
-                                )}
-                              </div>
-                            </div>
-                            <DropdownMenuSeparator />
+                                        }}
+                                      />
+                                    </label>
+                                  </div>
+                                </div>
+                                <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                              </>
+                            )}
 
                             {/* Theme Toggle - Mobile Only */}
                             {isMobile && (
