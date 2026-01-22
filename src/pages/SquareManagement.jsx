@@ -554,11 +554,23 @@ export default function SquareManagement() {
                   {filteredCatalogItems.map((item) => {
                     const itemDrivers = getDriversForLocation(item.location_id)
                       .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-                    const isMultiDriver = itemDrivers.length > 1;
                     const userIsAppOwner = currentUser && isAppOwner(currentUser);
-                    
+
+                    // Get store for this item
+                    const itemConfig = locationConfigs.find(c => c.square_location_id === item.location_id);
+                    const itemStore = stores.find(s => s.square_location_config_id === itemConfig?.id);
+                    const itemStoreId = itemStore?.id;
+
+                    // Check if there are other items with different stores
+                    const hasMultipleStores = filteredCatalogItems.some(otherItem => {
+                      if (otherItem.catalog_object_id === item.catalog_object_id) return false;
+                      const otherConfig = locationConfigs.find(c => c.square_location_id === otherItem.location_id);
+                      const otherStore = stores.find(s => s.square_location_config_id === otherConfig?.id);
+                      return otherStore?.id !== itemStoreId;
+                    });
+
                     return (
-                    <tr key={item.catalog_object_id} className={`border-b cursor-pointer transition-colors ${userIsAppOwner && isMultiDriver ? 'border-l-4 border-l-amber-500' : ''}`} style={{ borderColor: 'var(--border-slate-200)', background: userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.15)' : 'var(--bg-slate-50)'} onMouseLeave={(e) => e.currentTarget.style.background = userIsAppOwner && isMultiDriver ? 'rgba(251, 146, 60, 0.1)' : 'transparent'} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
+                    <tr key={item.catalog_object_id} className={`border-b cursor-pointer transition-colors ${userIsAppOwner && hasMultipleStores ? 'border-l-4 border-l-blue-500' : ''}`} style={{ borderColor: 'var(--border-slate-200)', background: userIsAppOwner && hasMultipleStores ? 'rgba(59, 130, 246, 0.1)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.background = userIsAppOwner && hasMultipleStores ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-slate-50)'} onMouseLeave={(e) => e.currentTarget.style.background = userIsAppOwner && hasMultipleStores ? 'rgba(59, 130, 246, 0.1)' : 'transparent'} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
                       <td className="p-3">
                          <div className="font-medium text-sm" style={{ color: 'var(--text-slate-900)' }}>{item.name || 'N/A'}</div>
                         {userIsAppOwner && itemDrivers.length > 0 && (
