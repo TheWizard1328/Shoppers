@@ -785,7 +785,7 @@ export default function SquareManagement() {
                           const store = stores.find(s => s.square_location_config_id === config?.id);
                           
                           return (
-                            <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                            <div className="text-sm font-medium text-slate-900 dark:text-slate-50">
                               {store ? store.name : (config?.name || 'Unknown')}
                             </div>
                           );
@@ -793,7 +793,7 @@ export default function SquareManagement() {
                           </td>
                           {currentUser && isAppOwner(currentUser) && (
                           <td className="p-3">
-                          <div className="text-xs font-mono truncate max-w-[180px]" style={{ color: 'var(--text-muted-foreground)' }}>
+                          <div className="text-xs font-mono truncate max-w-[180px] text-slate-600 dark:text-slate-400">
                             {item.location_id}
                           </div>
                           </td>
