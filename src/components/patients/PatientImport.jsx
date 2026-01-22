@@ -742,6 +742,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
     } catch (error) {
       console.error("PatientImport: Preview generation error:", error);
+      console.error("PatientImport: Full error stack:", error.stack);
       alert(`Preview failed: ${error.message}`);
     } finally {
       setIsProcessing(false);
