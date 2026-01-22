@@ -514,23 +514,23 @@ export default function SquareManagement() {
   // Filter items based on user role and selected driver filter
   const filteredCatalogItems = React.useMemo(() => {
     if (!currentUser) return [];
-    
+
     const userIsAppOwner = isAppOwner(currentUser);
-    
+
     let items = [];
-    
+
     // App owners can filter by driver
     if (userIsAppOwner) {
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
         // CRITICAL: Find AppUser by ID (not user_id)
         const driver = drivers.find(d => d.id === selectedDriverFilter);
         const driverLocationIds = driver?.square_location_ids || [];
-        
+
         // Map SquareLocationConfig IDs to square_location_id values
         const squareLocationIds = locationConfigs
           .filter(c => driverLocationIds.includes(c.id))
           .map(c => c.square_location_id);
-        
+
         items = catalogItems.filter(item => 
           squareLocationIds.includes(item.location_id)
         );
@@ -541,17 +541,20 @@ export default function SquareManagement() {
       // CRITICAL: Find driver's AppUser by platform user ID, then use their square_location_ids
       const currentAppUser = drivers.find(d => d.user_id === currentUser.id);
       const driverLocationIds = currentAppUser?.square_location_ids || [];
-      
+
       // Map SquareLocationConfig IDs to square_location_id values
       const squareLocationIds = locationConfigs
         .filter(c => driverLocationIds.includes(c.id))
         .map(c => c.square_location_id);
-      
+
       items = catalogItems.filter(item => 
         squareLocationIds.includes(item.location_id)
       );
     }
-    
+
+    // Filter out sold items (only keep non-collected items)
+    items = items.filter(item => !hasBeenSoldInSquare(item));
+
     // Sort: by driver (sort_order), then item name, then store
     return items.sort((a, b) => {
       const aDrivers = getDriversForLocation(a.location_id).sort((d1, d2) => (d1.sort_order ?? Infinity) - (d2.sort_order ?? Infinity));
