@@ -141,10 +141,10 @@ export default function SquareManagement() {
       }
 
       // Remove deleted items from synced list
-      const deletedCatalogIds = new Set(soldByLocation.keys());
+      const collectedCatalogIds = new Set(soldByLocation.keys());
       syncedItems = syncedItems.filter(item => {
         const key = `${item.catalog_object_id}|${item.location_id}`;
-        return !deletedCatalogIds.has(key);
+        return !collectedCatalogIds.has(key);
       });
 
       // Step 4: Check deliveries for missing catalog items (last 7 days only)
