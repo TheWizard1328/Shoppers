@@ -74,12 +74,29 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
 
   const handleSave = async () => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     return new Promise((resolve) => {
-      canvas.toBlob(async (blob) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          console.error('❌ [SignatureCapture] Failed to create blob from canvas');
+          resolve();
+          return;
+        }
+        
         setShowClear(true);
-        await onSave(blob);
-        resolve();
-      }, 'image/png');
+        
+        // Call onSave and handle it properly
+        Promise.resolve(onSave(blob))
+          .then(() => {
+            console.log('✅ [SignatureCapture] Signature saved successfully');
+            resolve();
+          })
+          .catch((error) => {
+            console.error('❌ [SignatureCapture] Error saving signature:', error);
+            resolve();
+          });
+      }, 'image/png', 0.95);
     });
   };
 
