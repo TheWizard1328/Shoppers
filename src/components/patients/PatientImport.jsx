@@ -651,6 +651,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       // These are patients that exist but weren't included in the import file
       const importedPatientPids = new Set(); // PIDs from CSV (cleaned, case-sensitive)
       const importedPatientKeys = new Set(); // For fallback matching (store+name+address) - only for rows WITHOUT PID
+      const importingStoreIds = new Set(); // Track which stores are being imported
       
       // Collect all patient identifiers from ALL CSV data (processed rows)
       // We need to collect from the raw processed data, not just toCreate/toUpdate
@@ -666,6 +667,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
           try {
             const values = parseCSVLine(dataLines[i]);
             const patientData = processCsvRowToPatient(values, fieldMapping, stores);
+            
+            // Track which stores are being imported
+            if (patientData.store_id) {
+              importingStoreIds.add(patientData.store_id);
+            }
             
             if (patientData.patient_id) {
               const cleanPid = String(patientData.patient_id).trim().replace(/[^A-Za-z0-9]/g, '');
@@ -684,11 +690,17 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       }
       
       console.log(`PatientImport: Collected ${importedPatientPids.size} PIDs and ${importedPatientKeys.size} fallback keys from CSV`);
+      console.log(`PatientImport: Importing from ${importingStoreIds.size} store(s)`, Array.from(importingStoreIds));
       
       // Find patients in database not in import
       const missingFromImport = existingPatients.filter(p => {
         // Skip if patient is already inactive
         if (p.status === 'inactive') return false;
+        
+        // CRITICAL: Only check patients from stores being imported
+        if (!importingStoreIds.has(p.store_id)) {
+          return false; // Skip patients from other stores
+        }
         
         // PRIMARY: Check by PID if database patient has one
         if (p.patient_id) {
