@@ -162,13 +162,16 @@ export default function SquareManagement() {
         const storeAbbr = store?.abbreviation || '??';
         const expectedName = `${month}/${day}(${storeAbbr})-${delivery.patient_name}`;
         
-        // Check if payment already received in Square
+        // Check if payment already received in Square (match by catalog_object_id which is authoritative)
         const locationConfig = store ? locationConfigs.find(c => c.id === store.square_location_config_id) : null;
         const squareLocationId = locationConfig?.square_location_id;
         
-        const hasSquarePayment = squareLocationId && soldCatalogItemsDetailed.some(sold => 
-          sold.item_name === expectedName && sold.location_id === squareLocationId
+        // Find any catalog item with matching name/location in synced items to get its catalog_object_id
+        const existingCatalogItem = syncedItems.find(item => 
+          item.name === expectedName && item.location_id === squareLocationId
         );
+        
+        const hasSquarePayment = existingCatalogItem && soldCatalogIds.has(existingCatalogItem.catalog_object_id);
         
         // Check if already collected via Debit or Credit (these should not be in Square catalog)
         const hasDebitCreditPayment = delivery.cod_payments?.some(p => 
@@ -176,9 +179,7 @@ export default function SquareManagement() {
         );
         
         // Check if catalog item exists
-        const existsInCatalog = syncedItems.some(item => 
-          item.name === expectedName && item.location_id === squareLocationId
-        );
+        const existsInCatalog = !!existingCatalogItem;
         
         // Only create if: no Square payment AND no Debit/Credit payment AND doesn't exist in catalog
         if (!hasSquarePayment && !hasDebitCreditPayment && !existsInCatalog && store?.square_location_config_id) {
