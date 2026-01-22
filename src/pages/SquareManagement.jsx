@@ -164,16 +164,18 @@ export default function SquareManagement() {
       }
 
       // Step 7: Update UI and save to offline database
-      console.log('🎨 Step 7: Updating UI and saving to offline database...');
-      const finalCatalogItems = finalData.items || [];
-      setCatalogItems(finalCatalogItems);
-      setLocationIds(finalData.locationIds || []);
+       console.log('🎨 Step 7: Updating UI and saving to offline database...');
+       const finalCatalogItems = finalData.items || [];
+       setCatalogItems(finalCatalogItems);
+       setLocationIds(finalData.locationIds || []);
 
-      // Save to offline database after sync
-      await Promise.all([
-        saveCatalogItemsOffline(finalCatalogItems),
-        savePaymentTransactionsOffline(recentPayments)
-      ]);
+       // Save to offline database after sync
+       const [catalogSaveResult, paymentSaveResult] = await Promise.all([
+         saveCatalogItemsOffline(finalCatalogItems),
+         savePaymentTransactionsOffline(recentPayments)
+       ]);
+
+       console.log(`✓ Saved to offline: catalog=${catalogSaveResult.count}, payments=${paymentSaveResult.count}`);
 
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
