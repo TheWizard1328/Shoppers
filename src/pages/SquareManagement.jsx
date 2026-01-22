@@ -66,23 +66,32 @@ export default function SquareManagement() {
         duplicateGroups.get(key).push(item);
       });
       
+      // Collect all duplicates to delete (keep first of each group, delete the rest)
+      const duplicatesToDelete = [];
       for (const [key, items] of duplicateGroups.entries()) {
         if (items.length > 1) {
-          // Keep the first item, delete the rest
           console.log(`🗑️ Found ${items.length} duplicates for "${key}" - deleting ${items.length - 1}`);
           for (let i = 1; i < items.length; i++) {
-            try {
-              await base44.functions.invoke('squareDeleteCodItem', {
-                catalogObjectId: items[i].catalog_object_id,
-                transactionId: items[i].transaction_id,
-                reason: 'duplicate_removal'
-              });
-              duplicatesDeletedCount++;
-            } catch (deleteErr) {
-              console.warn(`Failed to delete duplicate ${items[i].name}:`, deleteErr);
-            }
+            duplicatesToDelete.push(items[i]);
           }
         }
+      }
+      
+      // Bulk delete all duplicates in parallel
+      if (duplicatesToDelete.length > 0) {
+        const deletePromises = duplicatesToDelete.map(item =>
+          base44.functions.invoke('squareDeleteCodItem', {
+            catalogObjectId: item.catalog_object_id,
+            transactionId: item.transaction_id,
+            reason: 'duplicate_removal'
+          }).catch(deleteErr => {
+            console.warn(`Failed to delete duplicate ${item.name}:`, deleteErr);
+            return null;
+          })
+        );
+        
+        const results = await Promise.all(deletePromises);
+        duplicatesDeletedCount = results.filter(r => r !== null).length;
       }
       
       // Remove deleted duplicates from synced list
