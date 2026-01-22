@@ -2605,7 +2605,9 @@ export default function DeliveryMap({
         {isViewingCurrentDate && (isAllDriversMode || showOtherDriverDeliveries) && (() => {
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           const polylines = [];
-          const processedDrivers = new Set([currentUser?.id]); // Track processed drivers to avoid duplicates
+          
+          // CRITICAL: Always exclude current driver - their polylines are rendered in the driver-specific section above
+          const processedDrivers = new Set([currentUser?.id]);
           
           // If we have driver location markers, use them
           if (driverLocationMarkers.length > 0) {
