@@ -113,7 +113,6 @@ export default function SquareManagement() {
       }
 
       syncedItems = Array.from(uniqueItems.values());
-
       setSoldCatalogItems(soldCatalogItemsDetailed);
 
       let createdCount = 0;
