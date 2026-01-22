@@ -245,27 +245,7 @@ export default function SquareManagement() {
         const syncedLocationIds = configs_list.map(c => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
 
-        // Try to load from offline first for faster initial display
-        const [offlineCatalog, offlineTransactions] = await Promise.all([
-          getCatalogItemsOffline(),
-          getPaymentTransactionsOffline()
-        ]);
-
-        if (offlineCatalog.length > 0 || offlineTransactions.length > 0) {
-          console.log('📱 [SquareManagement] Using offline data for initial load');
-          setCatalogItems(offlineCatalog);
-          setSoldCatalogItems(offlineTransactions);
-          setAllTransactions(offlineTransactions);
-
-          const sevenDaysAgoTx = new Date();
-          sevenDaysAgoTx.setDate(sevenDaysAgoTx.getDate() - 7);
-          const recentPayments = offlineTransactions
-            .filter(item => new Date(item.payment_date) >= sevenDaysAgoTx)
-            .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
-          setRecentTransactions(recentPayments);
-        }
-
-        // Fetch fresh payments + catalog in one call (updates offline store)
+        // Fetch fresh payments + catalog in one call
         const paymentsResponse = await base44.functions.invoke('squareFetchPayments', { 
           locationIds: syncedLocationIds, 
           daysBack: 7 
