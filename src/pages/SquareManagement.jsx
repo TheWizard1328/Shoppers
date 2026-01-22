@@ -551,10 +551,10 @@ export default function SquareManagement() {
         </div>
       </div>
       
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+      <div className="flex flex-row items-center gap-2 md:gap-3">
         {currentUser && isAppOwner(currentUser) && drivers.length > 0 && (
           <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
-            <SelectTrigger className="w-full sm:w-[150px] md:w-[200px] text-sm">
+            <SelectTrigger className="w-[150px] md:w-[200px] text-sm">
               <SelectValue placeholder="All Drivers" />
             </SelectTrigger>
             <SelectContent>
