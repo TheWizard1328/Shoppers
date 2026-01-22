@@ -481,10 +481,10 @@ export default function SquareManagement() {
 
     let items = [];
 
-    // App owners can filter by driver
+    // Admins see ALL items, regardless of location assignment
     if (userIsAppOwner) {
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
-        // CRITICAL: Find AppUser by ID (not user_id)
+        // Filter by selected driver's locations
         const driver = drivers.find(d => d.id === selectedDriverFilter);
         const driverLocationIds = driver?.square_location_ids || [];
 
@@ -497,10 +497,11 @@ export default function SquareManagement() {
           squareLocationIds.includes(item.location_id)
         );
       } else {
+        // "All Drivers" - show everything
         items = catalogItems;
       }
     } else {
-      // CRITICAL: Find driver's AppUser by platform user ID, then use their square_location_ids
+      // Non-admins see only their assigned locations
       const currentAppUser = drivers.find(d => d.user_id === currentUser.id);
       const driverLocationIds = currentAppUser?.square_location_ids || [];
 
