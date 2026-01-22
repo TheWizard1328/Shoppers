@@ -20,11 +20,16 @@ export default function MissingPatientsPopup({
   const [expandedStores, setExpandedStores] = useState(new Set());
   const [showAll, setShowAll] = useState(false);
 
-  // Group missing patients by store
+  // Group missing patients by store, filtering to only those in importingStoreIds
   const patientsByStore = useMemo(() => {
     const grouped = new Map();
     
     missingPatients.forEach(patient => {
+      // Only include patients from stores being actively imported
+      if (importingStoreIds.length > 0 && !importingStoreIds.includes(patient.store_id)) {
+        return; // Skip patients not in importing stores
+      }
+      
       const storeId = patient.store_id || 'unassigned';
       if (!grouped.has(storeId)) {
         grouped.set(storeId, []);
@@ -40,7 +45,7 @@ export default function MissingPatientsPopup({
     });
     
     return sortedEntries;
-  }, [missingPatients, stores]);
+  }, [missingPatients, stores, importingStoreIds]);
 
   // Filter patients by search term
   const filteredPatientsByStore = useMemo(() => {
