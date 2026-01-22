@@ -815,9 +815,7 @@ export default function SquareManagement() {
                             setItemToDelete(item);
                           }}
                           disabled={deletingId === item.catalog_object_id}
-                          style={{ color: 'var(--text-red-600)' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-red-700)'; e.currentTarget.style.background = 'var(--bg-red-50)'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-red-600)'; e.currentTarget.style.background = 'transparent'; }}
+                          className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                         >
                           {deletingId === item.catalog_object_id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
