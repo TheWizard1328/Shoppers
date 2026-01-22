@@ -208,8 +208,7 @@ export default function SquareManagement() {
 
         const messages = [
           `Synced ${finalData.itemCount} items`,
-          duplicatesDeletedCount > 0 ? `removed ${duplicatesDeletedCount} duplicates` : null,
-          deletedCount > 0 ? `deleted ${deletedCount} collected` : null,
+          deletedCount > 0 ? `cleaned up ${deletedCount} collected/duplicates` : null,
           createdCount > 0 ? `created ${createdCount} missing` : null
         ].filter(Boolean).join(', ');
 
