@@ -229,14 +229,14 @@ export default function SquareManagement() {
   // Get consistent color for each store
   const getStoreColor = (storeId) => {
     const colors = [
-      { bg: 'rgba(59, 130, 246, 0.1)', border: 'rgb(59, 130, 246)', hover: 'rgba(59, 130, 246, 0.15)' }, // blue
-      { bg: 'rgba(168, 85, 247, 0.1)', border: 'rgb(168, 85, 247)', hover: 'rgba(168, 85, 247, 0.15)' }, // purple
-      { bg: 'rgba(236, 72, 153, 0.1)', border: 'rgb(236, 72, 153)', hover: 'rgba(236, 72, 153, 0.15)' }, // pink
-      { bg: 'rgba(251, 146, 60, 0.1)', border: 'rgb(251, 146, 60)', hover: 'rgba(251, 146, 60, 0.15)' }, // orange
-      { bg: 'rgba(20, 184, 166, 0.1)', border: 'rgb(20, 184, 166)', hover: 'rgba(20, 184, 166, 0.15)' }, // teal
-      { bg: 'rgba(99, 102, 241, 0.1)', border: 'rgb(99, 102, 241)', hover: 'rgba(99, 102, 241, 0.15)' }, // indigo
-      { bg: 'rgba(34, 197, 94, 0.1)', border: 'rgb(34, 197, 94)', hover: 'rgba(34, 197, 94, 0.15)' }, // green
-      { bg: 'rgba(239, 68, 68, 0.1)', border: 'rgb(239, 68, 68)', hover: 'rgba(239, 68, 68, 0.15)' } // red
+      { bg: 'rgba(100, 116, 139, 0.08)', border: 'rgb(100, 116, 139)', hover: 'rgba(100, 116, 139, 0.12)' }, // slate
+      { bg: 'rgba(71, 85, 105, 0.08)', border: 'rgb(71, 85, 105)', hover: 'rgba(71, 85, 105, 0.12)' }, // slate-dark
+      { bg: 'rgba(148, 163, 184, 0.08)', border: 'rgb(148, 163, 184)', hover: 'rgba(148, 163, 184, 0.12)' }, // slate-light
+      { bg: 'rgba(75, 85, 99, 0.08)', border: 'rgb(75, 85, 99)', hover: 'rgba(75, 85, 99, 0.12)' }, // gray
+      { bg: 'rgba(107, 114, 128, 0.08)', border: 'rgb(107, 114, 128)', hover: 'rgba(107, 114, 128, 0.12)' }, // gray-mid
+      { bg: 'rgba(55, 65, 81, 0.08)', border: 'rgb(55, 65, 81)', hover: 'rgba(55, 65, 81, 0.12)' }, // gray-dark
+      { bg: 'rgba(156, 163, 175, 0.08)', border: 'rgb(156, 163, 175)', hover: 'rgba(156, 163, 175, 0.12)' }, // gray-light
+      { bg: 'rgba(82, 82, 91, 0.08)', border: 'rgb(82, 82, 91)', hover: 'rgba(82, 82, 91, 0.12)' } // zinc
     ];
     const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
     const index = sortedStores.findIndex(s => s.id === storeId);
