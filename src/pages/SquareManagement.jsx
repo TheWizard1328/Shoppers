@@ -298,33 +298,38 @@ export default function SquareManagement() {
           }
         };
 
-        const [configs, storesData, appUsersData, deliveriesData, codDataResponse] = await Promise.all([
+        const [configs, storesData, appUsersData, deliveriesData, codDataResponse, paymentsDataResponse] = await Promise.all([
           base44.entities.SquareLocationConfig.filter({ status: 'active' }),
           base44.entities.Store.list(),
           base44.entities.AppUser.list(),
           base44.entities.Delivery.filter(dateFilter),
-          base44.functions.invoke('squareGetCODData', {})
+          base44.functions.invoke('squareGetCODData', {}),
+          base44.functions.invoke('squareFetchPayments', { locationIds: [], daysBack: 7 })
         ]);
 
         const codData = codDataResponse?.data || codDataResponse || {};
-
-        // Filter to last 7 days in JavaScript
+        const paymentsData = paymentsDataResponse?.data || paymentsDataResponse || {};
+        
+        // Use actual payment data for transactions instead of catalog items
+        const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
+        
+        // Filter to last 7 days
         const sevenDaysAgoTx = new Date();
         sevenDaysAgoTx.setDate(sevenDaysAgoTx.getDate() - 7);
-        const recentTxs = (codData.transactions || []).filter(t => {
-          const txDate = new Date(t.created_date);
-          return txDate >= sevenDaysAgoTx;
-        });
+        const recentPayments = soldCatalogItemsData
+          .filter(item => new Date(item.payment_date) >= sevenDaysAgoTx)
+          .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
 
-        console.log('Recent transactions (last 7 days):', recentTxs);
+        console.log('Recent payment transactions (last 7 days):', recentPayments);
 
         setLocationConfigs(configs || []);
         setStores(storesData || []);
         setCatalogItems(codData.catalogItems || []);
         setLocationIds(codData.locationIds || []);
-        setRecentTransactions(recentTxs);
-        setAllTransactions(codData.transactions || []);
+        setRecentTransactions(recentPayments);
+        setAllTransactions(soldCatalogItemsData);
         setDeliveries(deliveriesData || []);
+        setSoldCatalogItems(soldCatalogItemsData);
 
         // Filter to only active drivers
         const driversList = appUsersData.filter(u => 
