@@ -121,28 +121,36 @@ Deno.serve(async (req) => {
       }
     } while (cursor);
 
-    // Get our existing transactions to match up
+    // Get our existing transactions to match up and identify sold items
     const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-created_date', 500);
     const transactionMap = new Map();
+    const soldCatalogIds = new Set();
+    
     existingTransactions.forEach(tx => {
       if (tx.square_catalog_object_id) {
         transactionMap.set(tx.square_catalog_object_id, tx);
+        // Mark items with completed or refunded status as sold
+        if (tx.status === 'completed' || tx.status === 'refunded') {
+          soldCatalogIds.add(tx.square_catalog_object_id);
+        }
       }
     });
 
     // Merge catalog items with our transaction data
-    const mergedItems = catalogItems.map(item => {
-      const existingTx = transactionMap.get(item.catalog_object_id);
-      return {
-        ...item,
-        transaction_id: existingTx?.id || null,
-        delivery_id: existingTx?.delivery_id || null,
-        patient_id: existingTx?.patient_id || null,
-        store_id: existingTx?.store_id || null,
-        status: existingTx?.status || 'active',
-        created_date: existingTx?.created_date || item.updated_at
-      };
-    });
+    const mergedItems = catalogItems
+      .filter(item => !soldCatalogIds.has(item.catalog_object_id))
+      .map(item => {
+        const existingTx = transactionMap.get(item.catalog_object_id);
+        return {
+          ...item,
+          transaction_id: existingTx?.id || null,
+          delivery_id: existingTx?.delivery_id || null,
+          patient_id: existingTx?.patient_id || null,
+          store_id: existingTx?.store_id || null,
+          status: existingTx?.status || 'active',
+          created_date: existingTx?.created_date || item.updated_at
+        };
+      });
 
     return Response.json({
       success: true,
