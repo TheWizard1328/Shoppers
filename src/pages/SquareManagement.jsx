@@ -55,51 +55,64 @@ export default function SquareManagement() {
       let syncedItems = data.items || [];
       const syncedLocationIds = data.locationIds || [];
       
-      // Step 1.5: Delete duplicate catalog items BEFORE processing payments
-      const duplicateGroups = new Map();
-      syncedItems.forEach(item => {
-        const key = `${item.name}|${item.location_id}`;
-        if (!duplicateGroups.has(key)) {
-          duplicateGroups.set(key, []);
-        }
-        duplicateGroups.get(key).push(item);
+      // Step 1.5: Fetch payment data first to identify collected items
+      const paymentsResponse = await base44.functions.invoke('squareFetchPayments', {
+        locationIds: syncedLocationIds,
+        daysBack: 7
       });
 
-      // Collect all duplicates to delete (keep first, delete rest)
-      const duplicatesToDelete = [];
-      const deletedCatalogIds = new Set();
-      for (const [key, items] of duplicateGroups.entries()) {
-        if (items.length > 1) {
-          console.log(`🗑️ Found ${items.length} duplicates for "${key}" - marking ${items.length - 1} for deletion`);
-          for (let i = 1; i < items.length; i++) {
-            duplicatesToDelete.push(items[i]);
-            deletedCatalogIds.add(items[i].catalog_object_id);
-          }
-        }
+      const paymentsData = paymentsResponse?.data || paymentsResponse;
+      const soldCatalogItemsDetailed = paymentsData?.soldCatalogItems || [];
+
+      // Build a set of collected item keys for quick lookup
+      const collectedItemKeys = new Set();
+      for (const soldItem of soldCatalogItemsDetailed) {
+        const key = `${soldItem.item_name}|${soldItem.location_id}|${soldItem.amount.toFixed(2)}`;
+        collectedItemKeys.add(key);
       }
 
-      // Delete duplicates sequentially to avoid rate limits
-      let duplicatesDeletedCount = 0;
-      if (duplicatesToDelete.length > 0) {
-        for (const item of duplicatesToDelete) {
+      // Step 1.6: Remove collected items and duplicates from synced list
+      const uniqueItems = new Map();
+      const deletionCandidates = [];
+
+      for (const item of syncedItems) {
+        const itemKey = `${item.name}|${item.location_id}|${(item.price_dollars || 0).toFixed(2)}`;
+
+        // Skip if item has been collected
+        if (collectedItemKeys.has(itemKey)) {
+          deletionCandidates.push(item);
+          continue;
+        }
+
+        // Skip duplicates (keep first occurrence only)
+        const dupKey = `${item.name}|${item.location_id}`;
+        if (uniqueItems.has(dupKey)) {
+          deletionCandidates.push(item);
+          continue;
+        }
+
+        uniqueItems.set(dupKey, item);
+      }
+
+      // Delete collected and duplicate items from Square
+      let deletedCount = 0;
+      if (deletionCandidates.length > 0) {
+        for (const item of deletionCandidates) {
           try {
             await base44.functions.invoke('squareDeleteCodItem', {
               catalogObjectId: item.catalog_object_id,
               transactionId: item.transaction_id,
-              reason: 'duplicate_removal'
+              reason: 'cleanup'
             });
-            duplicatesDeletedCount++;
-            // Small delay between requests to avoid rate limiting
+            deletedCount++;
             await new Promise(resolve => setTimeout(resolve, 200));
           } catch (err) {
-            console.warn(`Failed to delete duplicate ${item.name}:`, err);
+            console.warn(`Failed to delete ${item.name}:`, err);
           }
         }
-
-        // Remove deleted duplicates from synced list
-        syncedItems = syncedItems.filter(item => !deletedCatalogIds.has(item.catalog_object_id));
-        console.log(`✅ Deleted ${duplicatesDeletedCount} duplicate items from catalog`);
       }
+
+      syncedItems = Array.from(uniqueItems.values());
       
       // Step 2: Fetch actual Square payment data to see which catalog items have been sold
       const paymentsResponse = await base44.functions.invoke('squareFetchPayments', {
