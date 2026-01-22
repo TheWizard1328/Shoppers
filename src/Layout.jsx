@@ -3510,8 +3510,8 @@ export default function Layout({ children, currentPageName }) {
                             </>
                           )}
 
-                          {/* Import Buttons - App Owner Only - Hidden on Mobile */}
-                          {!isMobile && realUser && isAppOwner(realUser) && (
+                          {/* Import Buttons - App Owner - Show on all devices */}
+                          {realUser && isAppOwner(realUser) && (
                           <>
                             <DropdownMenuLabel className="px-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
                               Data Importers
@@ -3532,8 +3532,8 @@ export default function Layout({ children, currentPageName }) {
                           </>
                           )}
 
-                          {/* Active Stops Import - Drivers (all devices) or App Owners without full access */}
-                          {(userHasRole(currentUser, 'driver') || (isAppOwner(currentUser) && !canAccessImports(currentUser, adminImportEnabled))) && (
+                          {/* Active Stops Import - Drivers or App Owners without full access - Show on all devices */}
+                          {!isAppOwner(realUser) && (userHasRole(currentUser, 'driver') || (isAppOwner(currentUser) && !canAccessImports(currentUser, adminImportEnabled))) && (
                           <>
                             <DropdownMenuLabel className="px-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
                               Import
