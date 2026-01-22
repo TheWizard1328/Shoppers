@@ -36,26 +36,25 @@ Deno.serve(async (req) => {
       let cursor = null;
       
       do {
-        const searchBody = {
-          location_ids: [locationId],
+        // Build query string for GET request
+        const queryParams = new URLSearchParams({
+          location_id: locationId,
           begin_time: startDate.toISOString(),
           end_time: endDate.toISOString(),
           sort_order: 'DESC',
-          limit: 100
-        };
+          limit: '100'
+        });
 
         if (cursor) {
-          searchBody.cursor = cursor;
+          queryParams.append('cursor', cursor);
         }
 
-        const paymentsResponse = await fetch(`${SQUARE_BASE_URL}/payments`, {
-          method: 'POST',
+        const paymentsResponse = await fetch(`${SQUARE_BASE_URL}/payments?${queryParams.toString()}`, {
+          method: 'GET',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
             'Square-Version': '2024-01-18'
-          },
-          body: JSON.stringify(searchBody)
+          }
         });
 
         if (!paymentsResponse.ok) {
