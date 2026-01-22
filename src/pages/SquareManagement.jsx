@@ -13,6 +13,7 @@ import TransactionHistoryPanel from "@/components/square/TransactionHistoryPanel
 import CODItemDetailModal from "@/components/square/CODItemDetailModal";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
+import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 
 export default function SquareManagement() {
   const [catalogItems, setCatalogItems] = useState([]);
@@ -37,6 +38,11 @@ export default function SquareManagement() {
   const syncFromSquare = async () => {
     setIsSyncing(true);
     setError(null);
+    
+    // CRITICAL: Pause smart refresh during Square sync
+    smartRefreshManager.pause();
+    console.log('⏸️ [SquareManagement] Paused smart refresh for Square sync');
+    
     try {
       // Step 1: Sync catalog from Square
       const response = await base44.functions.invoke('squareSyncCatalogItems', {});
@@ -118,9 +124,6 @@ export default function SquareManagement() {
           p.type === 'Debit' || p.type === 'Credit'
         );
         
-        // Check if this item has been sold (appears in Square payment transactions)
-        // We can't check by catalog_object_id since we don't have it yet, so we check after creation
-        
         // Only create if doesn't exist AND not Debit/Credit
         if (!existsInCatalog && !hasDebitCreditPayment && store?.square_location_config_id) {
           const locationConfig = locationConfigs.find(c => c.id === store.square_location_config_id);
@@ -169,6 +172,11 @@ export default function SquareManagement() {
     } finally {
       setIsSyncing(false);
       setIsLoading(false);
+      
+      // CRITICAL: Resume smart refresh and restart timers
+      smartRefreshManager.resume();
+      smartRefreshManager.restart();
+      console.log('▶️ [SquareManagement] Resumed and restarted smart refresh after Square sync');
     }
   };
 
