@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { RefreshCw, DollarSign, CheckCircle, XCircle, Clock, CreditCard, Trash2, Loader2, CloudDownload } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
@@ -30,6 +31,7 @@ export default function SquareManagement() {
   const [selectedCODItem, setSelectedCODItem] = useState(null);
   const [allTransactions, setAllTransactions] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
+  const [itemToDelete, setItemToDelete] = useState(null);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
@@ -359,22 +361,20 @@ export default function SquareManagement() {
     return match;
   };
 
-  const handleDelete = async (item) => {
-    if (!window.confirm(`Delete COD item "${item.name}"?\n\nThis will permanently remove it from Square.`)) {
-      return;
-    }
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
 
-    setDeletingId(item.catalog_object_id);
+    setDeletingId(itemToDelete.catalog_object_id);
     try {
       // Call the delete function with catalog object ID
       await base44.functions.invoke('squareDeleteCodItem', {
-        catalogObjectId: item.catalog_object_id,
-        transactionId: item.transaction_id,
+        catalogObjectId: itemToDelete.catalog_object_id,
+        transactionId: itemToDelete.transaction_id,
         reason: 'manual_delete'
       });
 
       // Remove from local state
-      setCatalogItems(prev => prev.filter(i => i.catalog_object_id !== item.catalog_object_id));
+      setCatalogItems(prev => prev.filter(i => i.catalog_object_id !== itemToDelete.catalog_object_id));
 
       toast.success('COD item deleted from Square');
     } catch (err) {
@@ -382,6 +382,7 @@ export default function SquareManagement() {
       toast.error('Failed to delete: ' + err.message);
     } finally {
       setDeletingId(null);
+      setItemToDelete(null);
     }
   };
 
@@ -715,7 +716,7 @@ export default function SquareManagement() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(item);
+                            setItemToDelete(item);
                           }}
                           disabled={deletingId === item.catalog_object_id}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -766,7 +767,7 @@ export default function SquareManagement() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(item);
+                          setItemToDelete(item);
                         }}
                         disabled={deletingId === item.catalog_object_id}
                         className="text-red-600 hover:text-red-700 flex-shrink-0"
@@ -868,6 +869,24 @@ export default function SquareManagement() {
           onClose={() => setSelectedCODItem(null)}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete COD Item</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{itemToDelete?.name}"? This will permanently remove it from Square.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
