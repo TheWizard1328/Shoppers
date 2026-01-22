@@ -730,8 +730,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       // Show missing patients popup first if there are any
       if (missingFromImport.length > 0) {
         setShowMissingPatients(true);
-      } else {
-        setShowPreview(true);
+      }
+      
+      // Store importing store IDs for the popup
+      if (!window.__importingStoreIds) {
+        window.__importingStoreIds = Array.from(importingStoreIds);
       }
       
       console.log(`PatientImport: Preview generation complete. To Create: ${toCreate.length}, To Update: ${toUpdate.length}, Errors: ${errors.length}, Missing: ${missingFromImport.length}`);
