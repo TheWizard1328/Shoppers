@@ -11,6 +11,7 @@ import LocationSummaryCard from "@/components/square/LocationSummaryCard";
 import TransactionHistoryPanel from "@/components/square/TransactionHistoryPanel";
 import CODItemDetailModal from "@/components/square/CODItemDetailModal";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
+import { format } from "date-fns";
 
 export default function SquareManagement() {
   const [catalogItems, setCatalogItems] = useState([]);
@@ -28,6 +29,7 @@ export default function SquareManagement() {
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedCODItem, setSelectedCODItem] = useState(null);
   const [allTransactions, setAllTransactions] = useState([]);
+  const [deliveries, setDeliveries] = useState([]);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
@@ -59,11 +61,23 @@ export default function SquareManagement() {
         const user = await base44.auth.me();
         setCurrentUser(user);
         
-        const [configs, storesData, appUsersData, allTransactions] = await Promise.all([
+        // Calculate date range for deliveries (last 60 days)
+        const today = new Date();
+        const sixtyDaysAgo = new Date(today);
+        sixtyDaysAgo.setDate(today.getDate() - 60);
+        const dateFilter = {
+          delivery_date: { 
+            $gte: format(sixtyDaysAgo, 'yyyy-MM-dd'),
+            $lte: format(today, 'yyyy-MM-dd')
+          }
+        };
+        
+        const [configs, storesData, appUsersData, allTransactions, deliveriesData] = await Promise.all([
           base44.entities.SquareLocationConfig.filter({ status: 'active' }),
           base44.entities.Store.list(),
           base44.entities.AppUser.list(),
-          base44.entities.SquareTransaction.list()
+          base44.entities.SquareTransaction.list(),
+          base44.entities.Delivery.filter(dateFilter)
         ]);
         
         // Filter to last 7 days in JavaScript
@@ -80,6 +94,7 @@ export default function SquareManagement() {
         setStores(storesData || []);
         setRecentTransactions(recentTxs);
         setAllTransactions(allTransactions || []);
+        setDeliveries(deliveriesData || []);
         
         // Filter to only active drivers
         const driversList = appUsersData.filter(u => 
