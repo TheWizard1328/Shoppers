@@ -140,9 +140,10 @@ export default function SquareManagement() {
         }
       }
       
-      // Remove deleted items from synced list
+      // Remove deleted items from synced list and track them
+      const collectedCatalogIds = new Set(itemsToDelete.map(item => item.catalog_object_id));
       syncedItems = syncedItems.filter(item => !itemsToDelete.includes(item));
-      
+
       // Step 4: Check deliveries for missing catalog items (last 7 days only)
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
