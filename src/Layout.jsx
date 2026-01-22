@@ -2948,7 +2948,7 @@ export default function Layout({ children, currentPageName }) {
                               <MoreVertical className="w-4 h-4 mr-2 text-slate-500" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-56 z-[10000]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                          <DropdownMenuContent align="end" className="w-56 z-[10000]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                             {/* Settings header and Admin Import toggle - only for admins/app owners */}
                             {(userHasRole(currentUser, 'admin') || isAppOwner(currentUser)) && (
                               <>
