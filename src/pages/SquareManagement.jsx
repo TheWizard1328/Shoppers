@@ -111,8 +111,13 @@ export default function SquareManagement() {
           Math.abs(tx.amount - delivery.cod_total_amount_required) < 0.01
         );
         
-        // Only create if doesn't exist AND hasn't been collected
-        if (!existsInCatalog && !hasCollectionTx && store?.square_location_config_id) {
+        // Check if collected via Debit or Credit (these should not be in Square catalog)
+        const hasDebitCreditPayment = delivery.cod_payments?.some(p => 
+          p.type === 'Debit' || p.type === 'Credit'
+        );
+        
+        // Only create if doesn't exist AND hasn't been collected AND not Debit/Credit
+        if (!existsInCatalog && !hasCollectionTx && !hasDebitCreditPayment && store?.square_location_config_id) {
           const locationConfig = locationConfigs.find(c => c.id === store.square_location_config_id);
           
           if (locationConfig) {
