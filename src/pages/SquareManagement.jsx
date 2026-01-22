@@ -224,33 +224,33 @@ export default function SquareManagement() {
         );
         setDrivers(driversList || []);
 
-        // Sync fresh catalog from Square
-        const syncResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
-        const syncData = syncResponse?.data || syncResponse;
-        
-        if (syncData?.success) {
-          const syncedLocationIds = syncData.locationIds || [];
-          setCatalogItems(syncData.items || []);
-          setLocationIds(syncedLocationIds);
+        // Get location IDs first
+        const configs_list = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
+        const syncedLocationIds = configs_list.map(c => c.square_location_id).filter(Boolean);
+        setLocationIds(syncedLocationIds);
 
-          // Fetch payment data
-          const paymentsDataResponse = await base44.functions.invoke('squareFetchPayments', { 
-            locationIds: syncedLocationIds, 
-            daysBack: 7 
-          });
-          const paymentsData = paymentsDataResponse?.data || paymentsDataResponse || {};
-          const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
+        // Fetch payments + catalog in one call (faster initial load)
+        const paymentsResponse = await base44.functions.invoke('squareFetchPayments', { 
+          locationIds: syncedLocationIds, 
+          daysBack: 7 
+        });
+        const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
-          const sevenDaysAgoTx = new Date();
-          sevenDaysAgoTx.setDate(sevenDaysAgoTx.getDate() - 7);
-          const recentPayments = soldCatalogItemsData
-            .filter(item => new Date(item.payment_date) >= sevenDaysAgoTx)
-            .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+        // Use combined catalog + payment data for faster loading
+        const catalogItemsData = paymentsData?.catalogItems || [];
+        const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
 
-          setRecentTransactions(recentPayments);
-          setAllTransactions(soldCatalogItemsData);
-          setSoldCatalogItems(soldCatalogItemsData);
-        }
+        setCatalogItems(catalogItemsData);
+        setSoldCatalogItems(soldCatalogItemsData);
+        setAllTransactions(soldCatalogItemsData);
+
+        const sevenDaysAgoTx = new Date();
+        sevenDaysAgoTx.setDate(sevenDaysAgoTx.getDate() - 7);
+        const recentPayments = soldCatalogItemsData
+          .filter(item => new Date(item.payment_date) >= sevenDaysAgoTx)
+          .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+
+        setRecentTransactions(recentPayments);
 
         setIsLoading(false);
       } catch (err) {
