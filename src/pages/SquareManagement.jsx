@@ -65,7 +65,6 @@ export default function SquareManagement() {
         duplicateGroups.get(key).push(item);
       });
       
-      let duplicatesDeletedCount = 0;
       for (const [key, items] of duplicateGroups.entries()) {
         if (items.length > 1) {
           // Keep the first item, delete the rest
