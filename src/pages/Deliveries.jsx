@@ -3838,18 +3838,24 @@ export default function DeliveriesPage() {
               style={{ background: 'var(--bg-white)' }}
               onClick={(e) => e.stopPropagation()}
             >
-            <StopDetailsPanel
-              delivery={filteredAndSortedDeliveries.find(d => d.id === selectedDeliveryId)}
-              patient={(effectivePatients || []).find((p) => p && p.id === filteredAndSortedDeliveries.find(d => d.id === selectedDeliveryId)?.patient_id)}
-              store={(stores || []).find((s) => s && s.id === filteredAndSortedDeliveries.find(d => d.id === selectedDeliveryId)?.store_id)}
-              driver={(effectiveDrivers || []).find((d) => d.id === filteredAndSortedDeliveries.find(del => del.id === selectedDeliveryId)?.driver_id || d.appUserId === filteredAndSortedDeliveries.find(del => del.id === selectedDeliveryId)?.driver_id)}
-              currentUser={currentUser}
-              onClose={() => setSelectedDeliveryId(null)}
-              onStatusUpdate={handleStatusUpdate}
-              onEditDelivery={handleEditDelivery}
-              onDeleteDelivery={handleDeleteDelivery}
-              onRestart={handleRestartDelivery}
-            />
+            {(() => {
+              const delivery = filteredAndSortedDeliveries.find(d => d?.id === selectedDeliveryId);
+              if (!delivery) return null;
+              return (
+                <StopDetailsPanel
+                  delivery={delivery}
+                  patient={(effectivePatients || []).find((p) => p && p.id === delivery?.patient_id)}
+                  store={(stores || []).find((s) => s && s.id === delivery?.store_id)}
+                  driver={(effectiveDrivers || []).find((d) => d.id === delivery?.driver_id || d.appUserId === delivery?.driver_id)}
+                  currentUser={currentUser}
+                  onClose={() => setSelectedDeliveryId(null)}
+                  onStatusUpdate={handleStatusUpdate}
+                  onEditDelivery={handleEditDelivery}
+                  onDeleteDelivery={handleDeleteDelivery}
+                  onRestart={handleRestartDelivery}
+                />
+              );
+            })()}
           </motion.div>
         </motion.div>
         )}
