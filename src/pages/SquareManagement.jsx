@@ -713,7 +713,10 @@ export default function SquareManagement() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(item)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(item);
+                          }}
                           disabled={deletingId === item.catalog_object_id}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
