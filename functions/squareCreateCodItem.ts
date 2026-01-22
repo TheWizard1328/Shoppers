@@ -29,35 +29,63 @@ Deno.serve(async (req) => {
     if (storeId) {
       try {
         // Look up the store to get its square_location_config_id
-        const stores = await base44.asServiceRole.entities.Store.filter({ id: storeId });
-        const store = stores?.[0];
+        const store = await base44.asServiceRole.entities.Store.get(storeId);
         
-        if (store?.square_location_config_id) {
-          // Look up the SquareLocationConfig to get the actual Square location ID
-          const configs = await base44.asServiceRole.entities.SquareLocationConfig.filter({ 
-            id: store.square_location_config_id 
-          });
-          const config = configs?.[0];
-          
-          if (config?.square_location_id && config?.status === 'active') {
-            locationId = config.square_location_id;
-            console.log(`📍 [Square] Using store-specific location: ${locationId} for store ${storeAbbreviation}`);
-          }
+        if (!store) {
+          console.warn(`⚠️ [Square] Store not found: ${storeId}`);
+          return Response.json({ 
+            error: `Store not found with ID: ${storeId}`,
+            storeId 
+          }, { status: 400 });
         }
+        
+        if (!store.square_location_config_id) {
+          console.warn(`⚠️ [Square] Store "${store.name}" (${storeAbbreviation}) has no Square location configured`);
+          return Response.json({ 
+            error: `Store "${store.name}" is not configured for Square COD payments. Please assign a Square Location Config to this store.`,
+            storeName: store.name,
+            storeId 
+          }, { status: 400 });
+        }
+        
+        // Look up the SquareLocationConfig to get the actual Square location ID
+        const config = await base44.asServiceRole.entities.SquareLocationConfig.get(store.square_location_config_id);
+        
+        if (!config) {
+          console.warn(`⚠️ [Square] Square location config not found: ${store.square_location_config_id}`);
+          return Response.json({ 
+            error: `Square location config not found for store "${store.name}"`,
+            storeName: store.name 
+          }, { status: 400 });
+        }
+        
+        if (config.status !== 'active') {
+          console.warn(`⚠️ [Square] Square location config is inactive: ${config.name}`);
+          return Response.json({ 
+            error: `Square location "${config.name}" is inactive for store "${store.name}"`,
+            storeName: store.name,
+            configName: config.name 
+          }, { status: 400 });
+        }
+        
+        locationId = config.square_location_id;
+        console.log(`📍 [Square] Using location: ${locationId} (${config.name}) for store ${storeAbbreviation}`);
+        
       } catch (storeError) {
-        console.warn(`⚠️ [Square] Failed to lookup store ${storeId}:`, storeError.message);
-        // Continue to fallback
+        console.error(`❌ [Square] Failed to lookup store configuration:`, storeError.message);
+        return Response.json({ 
+          error: `Failed to lookup store configuration: ${storeError.message}`,
+          storeId 
+        }, { status: 500 });
       }
-    }
-
-    // Fallback to default location if no store-specific config found
-    if (!locationId) {
+    } else {
+      // No storeId provided, use default location
       locationId = Deno.env.get('SQUARE_LOCATION_ID');
       console.log(`📍 [Square] Using default location: ${locationId}`);
     }
 
     if (!locationId) {
-      return Response.json({ error: 'No Square location configured for this store' }, { status: 500 });
+      return Response.json({ error: 'No Square location configured' }, { status: 500 });
     }
 
     // Format: [MM]/[DD](Store Abbreviation)-Patient Name
