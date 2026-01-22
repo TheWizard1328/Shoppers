@@ -60,21 +60,24 @@ export default function SquareManagement() {
         locationIds: syncedLocationIds,
         daysBack: 7
       });
-      
+
       const paymentsData = paymentsResponse?.data || paymentsResponse;
-      const soldItems = paymentsData?.soldItems || [];
-      setSoldCatalogItems(soldItems);
-      
-      // Create a Set of catalog IDs that have been sold
-      const soldCatalogIds = new Set(soldItems.map(item => item.catalog_object_id));
+      const soldCatalogItemsDetailed = paymentsData?.soldCatalogItems || [];
+      setSoldCatalogItems(soldCatalogItemsDetailed);
+
+      // Create a Set of sold items for matching (catalog_id + location_id)
+      const soldItemKeys = new Set(
+        soldCatalogItemsDetailed.map(item => `${item.catalog_object_id}|${item.location_id}`)
+      );
       
       let deletedCount = 0;
       let createdCount = 0;
       
-      // Step 3: Delete catalog items that have been sold (appear in Square transactions)
+      // Step 3: Delete catalog items that have been sold (match by catalog_id AND location_id)
       const itemsToDelete = [];
       for (const item of syncedItems) {
-        if (soldCatalogIds.has(item.catalog_object_id)) {
+        const itemKey = `${item.catalog_object_id}|${item.location_id}`;
+        if (soldItemKeys.has(itemKey)) {
           itemsToDelete.push(item);
         }
       }
