@@ -31,10 +31,11 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'No Square locations configured' }, { status: 400 });
     }
 
-    // Fetch catalog items from Square
-    // We'll search for items that match our COD naming pattern
+    // Fetch catalog items from Square (limit to 500 items max to prevent timeout)
     const catalogItems = [];
     let cursor = null;
+    let fetchedCount = 0;
+    const MAX_ITEMS = 500;
 
     do {
       const searchBody = {
@@ -66,34 +67,27 @@ Deno.serve(async (req) => {
       const searchData = await searchResponse.json();
       
       if (searchData.objects) {
-        // Filter to only items that are present at our locations
         for (const item of searchData.objects) {
           if (item.type === 'ITEM' && item.item_data) {
-            // Check if this item is at one of our locations
             const itemVariations = item.item_data.variations || [];
             for (const variation of itemVariations) {
-              const locationOverrides = variation.item_variation_data?.location_overrides || [];
               const presentAtLocations = variation.present_at_location_ids || item.present_at_location_ids || [];
               
-              // Check if item is present at any of our locations
               const isAtOurLocation = locationIds.some(locId => 
                 presentAtLocations.includes(locId) || 
                 item.present_at_all_locations === true
               );
 
               if (isAtOurLocation) {
-                // Extract price from variation
                 let priceCents = 0;
                 if (variation.item_variation_data?.price_money) {
                   priceCents = variation.item_variation_data.price_money.amount || 0;
                 }
 
-                // Determine the location_id - use first matching location from our configs
                 let locationId = null;
                 if (item.present_at_all_locations) {
-                  locationId = locationIds[0]; // Default to first configured location
+                  locationId = locationIds[0];
                 } else {
-                  // Find first location that matches
                   locationId = presentAtLocations.find(locId => locationIds.includes(locId)) || locationIds[0];
                 }
 
@@ -110,7 +104,8 @@ Deno.serve(async (req) => {
                   updated_at: item.updated_at,
                   version: item.version
                 });
-                break; // Only add once per item
+                fetchedCount++;
+                break;
               }
             }
           }
@@ -118,6 +113,12 @@ Deno.serve(async (req) => {
       }
 
       cursor = searchData.cursor;
+      
+      // Stop if we've hit the limit to prevent timeouts
+      if (fetchedCount >= MAX_ITEMS) {
+        console.warn(`Reached max items limit (${MAX_ITEMS}), stopping fetch`);
+        break;
+      }
     } while (cursor);
 
     // Get our existing transactions to match up
