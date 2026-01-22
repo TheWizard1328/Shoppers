@@ -45,6 +45,11 @@ export default function SquareManagement() {
     console.log('⏸️ [SquareManagement] Paused smart refresh for Square sync');
     
     try {
+      // Step 0: Clear offline Square COD data to start fresh
+      console.log('🗑️ Step 0: Clearing offline Square COD data...');
+      await clearSquareCODOfflineData();
+      console.log('✓ Offline Square COD data cleared');
+
       // Step 1: Get fresh catalog from Square
       console.log('📥 Step 1: Fetching fresh catalog from Square...');
       const catalogResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
