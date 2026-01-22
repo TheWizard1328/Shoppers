@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     startDate.setDate(startDate.getDate() - daysBack);
 
     const allPayments = [];
-    const catalogItemsSold = new Map(); // Map of catalog_object_id -> total times sold
+    const soldCatalogItems = []; // Array of sold items with location details
 
     // Fetch payments for each location
     for (const locationId of locationIds) {
@@ -91,8 +91,16 @@ Deno.serve(async (req) => {
                 if (order?.line_items) {
                   for (const lineItem of order.line_items) {
                     if (lineItem.catalog_object_id) {
-                      const count = catalogItemsSold.get(lineItem.catalog_object_id) || 0;
-                      catalogItemsSold.set(lineItem.catalog_object_id, count + 1);
+                      // Store each sold item with its location and payment details
+                      soldCatalogItems.push({
+                        catalog_object_id: lineItem.catalog_object_id,
+                        location_id: payment.location_id,
+                        payment_id: payment.id,
+                        order_id: payment.order_id,
+                        item_name: lineItem.name,
+                        amount: lineItem.base_price_money?.amount ? lineItem.base_price_money.amount / 100 : 0,
+                        payment_date: payment.created_at
+                      });
                     }
                   }
                 }
@@ -105,8 +113,14 @@ Deno.serve(async (req) => {
       } while (cursor);
     }
 
-    // Convert Map to array of objects
-    const soldItems = Array.from(catalogItemsSold.entries()).map(([catalogId, count]) => ({
+    // Count occurrences for backward compatibility
+    const soldItemCounts = new Map();
+    soldCatalogItems.forEach(item => {
+      const count = soldItemCounts.get(item.catalog_object_id) || 0;
+      soldItemCounts.set(item.catalog_object_id, count + 1);
+    });
+    
+    const soldItems = Array.from(soldItemCounts.entries()).map(([catalogId, count]) => ({
       catalog_object_id: catalogId,
       times_sold: count
     }));
@@ -115,6 +129,7 @@ Deno.serve(async (req) => {
       success: true,
       paymentsCount: allPayments.length,
       soldItems,
+      soldCatalogItems, // Detailed list of sold items with location info
       dateRange: {
         start: startDate.toISOString(),
         end: endDate.toISOString()
