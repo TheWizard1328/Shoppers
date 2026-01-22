@@ -79,6 +79,19 @@ const openDatabase = () => {
         mutationStore.createIndex('recordId', 'recordId', { unique: false });
         mutationStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
+
+      if (!db.objectStoreNames.contains(STORES.SQUARE_CATALOG_ITEMS)) {
+        const catalogStore = db.createObjectStore(STORES.SQUARE_CATALOG_ITEMS, { keyPath: 'catalog_object_id' });
+        catalogStore.createIndex('location_id', 'location_id', { unique: false });
+        catalogStore.createIndex('updated_at', 'updated_at', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.SQUARE_PAYMENT_TRANSACTIONS)) {
+        const txStore = db.createObjectStore(STORES.SQUARE_PAYMENT_TRANSACTIONS, { keyPath: 'id' });
+        txStore.createIndex('location_id', 'location_id', { unique: false });
+        txStore.createIndex('payment_date', 'payment_date', { unique: false });
+        txStore.createIndex('catalog_object_id', 'catalog_object_id', { unique: false });
+      }
     };
   });
 };
