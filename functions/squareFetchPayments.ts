@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
             if (payment.status !== 'COMPLETED') continue;
 
             allPayments.push(payment);
+            console.log(`📋 [SquareFetchPayments] Processing payment ${payment.id} at location ${payment.location_id}`);
 
             // Fetch order details to get line items
             if (payment.order_id) {
@@ -89,10 +90,10 @@ Deno.serve(async (req) => {
 
                 // Extract catalog items from line items
                 if (order?.line_items) {
+                  console.log(`📦 [SquareFetchPayments] Order ${payment.order_id} has ${order.line_items.length} line items`);
                   for (const lineItem of order.line_items) {
                     if (lineItem.catalog_object_id) {
-                      // Store each sold item with its location and payment details
-                      soldCatalogItems.push({
+                      const soldItem = {
                         catalog_object_id: lineItem.catalog_object_id,
                         location_id: payment.location_id,
                         payment_id: payment.id,
@@ -100,11 +101,21 @@ Deno.serve(async (req) => {
                         item_name: lineItem.name,
                         amount: lineItem.base_price_money?.amount ? lineItem.base_price_money.amount / 100 : 0,
                         payment_date: payment.created_at
-                      });
+                      };
+                      soldCatalogItems.push(soldItem);
+                      console.log(`  ✅ [SquareFetchPayments] Found catalog item: ${soldItem.item_name} (${soldItem.catalog_object_id}) - $${soldItem.amount} at location ${soldItem.location_id}`);
+                    } else {
+                      console.log(`  ⚠️ [SquareFetchPayments] Line item has no catalog_object_id: ${lineItem.name}`);
                     }
                   }
+                } else {
+                  console.log(`  ⚠️ [SquareFetchPayments] Order ${payment.order_id} has no line items`);
                 }
+              } else {
+                console.log(`  ❌ [SquareFetchPayments] Failed to fetch order ${payment.order_id}`);
               }
+            } else {
+              console.log(`  ⚠️ [SquareFetchPayments] Payment ${payment.id} has no order_id`);
             }
           }
         }
@@ -124,6 +135,9 @@ Deno.serve(async (req) => {
       catalog_object_id: catalogId,
       times_sold: count
     }));
+
+    console.log(`🎯 [SquareFetchPayments] Summary: Found ${allPayments.length} payments, ${soldCatalogItems.length} sold catalog items`);
+    console.log(`🎯 [SquareFetchPayments] Unique catalog IDs sold:`, Array.from(soldItemCounts.keys()));
 
     return Response.json({
       success: true,
