@@ -121,6 +121,87 @@ export default function SquareManagement() {
     );
   };
 
+  // Parse Square catalog item name (format: "MM/DD(STORE)-PatientName")
+  const parseSquareItemName = (itemName) => {
+    if (!itemName) return null;
+    
+    try {
+      // Extract date (MM/DD)
+      const dateMatch = itemName.match(/^(\d{2})\/(\d{2})/);
+      if (!dateMatch) return null;
+      
+      const month = dateMatch[1];
+      const day = dateMatch[2];
+      const currentYear = new Date().getFullYear();
+      const deliveryDate = `${currentYear}-${month}-${day}`;
+      
+      // Extract store abbreviation (inside parentheses)
+      const storeMatch = itemName.match(/\(([^)]+)\)/);
+      const storeAbbr = storeMatch ? storeMatch[1] : null;
+      
+      // Extract patient name (after dash)
+      const nameMatch = itemName.match(/\)-(.+)$/);
+      const patientName = nameMatch ? nameMatch[1].trim() : null;
+      
+      return { deliveryDate, storeAbbr, patientName };
+    } catch (error) {
+      console.warn('Failed to parse Square item name:', itemName, error);
+      return null;
+    }
+  };
+
+  // Find matching delivery for a Square catalog item
+  const findMatchingDelivery = (itemName, itemLocationId) => {
+    const parsed = parseSquareItemName(itemName);
+    if (!parsed) return null;
+    
+    const { deliveryDate, storeAbbr, patientName } = parsed;
+    if (!deliveryDate || !patientName) return null;
+    
+    // Find store by abbreviation
+    const store = stores.find(s => s.abbreviation === storeAbbr);
+    if (!store) return null;
+    
+    // Find matching delivery
+    const matchingDelivery = deliveries.find(d => {
+      const dateMatch = d.delivery_date === deliveryDate;
+      const storeMatch = d.store_id === store.id;
+      const nameMatch = d.patient_name?.toLowerCase().trim() === patientName.toLowerCase().trim();
+      const isCompleted = ['completed', 'returned'].includes(d.status);
+      
+      return dateMatch && storeMatch && nameMatch && isCompleted;
+    });
+    
+    return matchingDelivery;
+  };
+
+  // Get COD payment details for a Square item
+  const getCODPaymentDetails = (itemName, itemLocationId) => {
+    const delivery = findMatchingDelivery(itemName, itemLocationId);
+    
+    if (!delivery) {
+      return { status: 'pending', payments: [] };
+    }
+    
+    // Check if delivery has cod_payments array (new format)
+    if (delivery.cod_payments && delivery.cod_payments.length > 0) {
+      return { status: 'collected', payments: delivery.cod_payments };
+    }
+    
+    // Fallback to legacy format (cod_payment_type and cod_amount)
+    if (delivery.cod_payment_type && delivery.cod_payment_type !== 'No Payment') {
+      return { 
+        status: 'collected', 
+        payments: [{ 
+          type: delivery.cod_payment_type, 
+          amount: parseFloat(delivery.cod_amount || 0) 
+        }]
+      };
+    }
+    
+    return { status: 'pending', payments: [] };
+  };
+
   // Check if item has a completed collection (payment actually collected)
   const hasRecentPayment = (itemName, itemAmount, locationId) => {
     const match = recentTransactions.some(t => {
@@ -385,11 +466,27 @@ export default function SquareManagement() {
                           <span className="font-semibold text-emerald-600 text-sm">
                             ${(item.price_dollars || 0).toFixed(2)}
                           </span>
-                          {hasRecentPayment(item.name, item.price_dollars, item.location_id) && (
-                            <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
-                              Paid
-                            </Badge>
-                          )}
+                          {(() => {
+                            const codDetails = getCODPaymentDetails(item.name, item.location_id);
+                            
+                            if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
+                              return (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {codDetails.payments.map((payment, idx) => (
+                                    <Badge key={idx} className="bg-green-100 text-green-800 text-xs">
+                                      {payment.type}: ${payment.amount.toFixed(2)}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <Badge className="bg-amber-100 text-amber-800 text-xs mt-1 block w-fit">
+                                  Pending Collection
+                                </Badge>
+                              );
+                            }
+                          })()}
                         </div>
                       </td>
                       <td className="p-3">
@@ -487,13 +584,31 @@ export default function SquareManagement() {
                       </Button>
                     </div>
                     
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-lg font-bold text-emerald-600">
+                    <div className="mb-3">
+                      <div className="text-lg font-bold text-emerald-600 mb-2">
                         ${(item.price_dollars || 0).toFixed(2)}
-                      </span>
-                      {hasRecentPayment(item.name, item.price_dollars, item.location_id) && (
-                        <Badge className="bg-green-100 text-green-800 text-xs">Paid</Badge>
-                      )}
+                      </div>
+                      {(() => {
+                        const codDetails = getCODPaymentDetails(item.name, item.location_id);
+                        
+                        if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
+                          return (
+                            <div className="flex flex-wrap gap-1">
+                              {codDetails.payments.map((payment, idx) => (
+                                <Badge key={idx} className="bg-green-100 text-green-800 text-xs">
+                                  {payment.type}: ${payment.amount.toFixed(2)}
+                                </Badge>
+                              ))}
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <Badge className="bg-amber-100 text-amber-800 text-xs">
+                              Pending Collection
+                            </Badge>
+                          );
+                        }
+                      })()}
                     </div>
                     
                     <div className="space-y-2 text-xs" style={{ color: 'var(--text-slate-500)' }}>
