@@ -226,6 +226,23 @@ export default function SquareManagement() {
     return colors[index % colors.length];
   };
 
+  // Get consistent color for each store
+  const getStoreColor = (storeId) => {
+    const colors = [
+      { bg: 'rgba(59, 130, 246, 0.1)', border: 'rgb(59, 130, 246)', hover: 'rgba(59, 130, 246, 0.15)' }, // blue
+      { bg: 'rgba(168, 85, 247, 0.1)', border: 'rgb(168, 85, 247)', hover: 'rgba(168, 85, 247, 0.15)' }, // purple
+      { bg: 'rgba(236, 72, 153, 0.1)', border: 'rgb(236, 72, 153)', hover: 'rgba(236, 72, 153, 0.15)' }, // pink
+      { bg: 'rgba(251, 146, 60, 0.1)', border: 'rgb(251, 146, 60)', hover: 'rgba(251, 146, 60, 0.15)' }, // orange
+      { bg: 'rgba(20, 184, 166, 0.1)', border: 'rgb(20, 184, 166)', hover: 'rgba(20, 184, 166, 0.15)' }, // teal
+      { bg: 'rgba(99, 102, 241, 0.1)', border: 'rgb(99, 102, 241)', hover: 'rgba(99, 102, 241, 0.15)' }, // indigo
+      { bg: 'rgba(34, 197, 94, 0.1)', border: 'rgb(34, 197, 94)', hover: 'rgba(34, 197, 94, 0.15)' }, // green
+      { bg: 'rgba(239, 68, 68, 0.1)', border: 'rgb(239, 68, 68)', hover: 'rgba(239, 68, 68, 0.15)' } // red
+    ];
+    const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+    const index = sortedStores.findIndex(s => s.id === storeId);
+    return colors[index % colors.length];
+  };
+
   // Get drivers assigned to a location
   const getDriversForLocation = (locationId) => {
     const config = locationConfigs.find(c => c.square_location_id === locationId);
@@ -497,19 +514,47 @@ export default function SquareManagement() {
         <div>
           <h2 className="text-base md:text-lg font-semibold mb-4" style={{ color: 'var(--text-slate-900)' }}>By Location</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 mb-6 md:mb-8">
-            {locationConfigs.map(config => {
-              const locationItems = filteredCatalogItems.filter(item => item.location_id === config.square_location_id);
-              const codTotal = locationItems.reduce((sum, item) => sum + (item.price_dollars || 0), 0);
-              return (
-                <LocationSummaryCard
-                  key={config.id}
-                  location={config}
-                  codTotal={codTotal}
-                  itemCount={locationItems.length}
-                  onClick={() => setSelectedLocation(config)}
-                />
-              );
-            })}
+            {locationConfigs
+              .sort((a, b) => {
+                const storeA = stores.find(s => s.square_location_config_id === a.id);
+                const storeB = stores.find(s => s.square_location_config_id === b.id);
+                return (storeA?.sort_order ?? Infinity) - (storeB?.sort_order ?? Infinity);
+              })
+              .map(config => {
+                const locationItems = filteredCatalogItems.filter(item => item.location_id === config.square_location_id);
+                const codTotal = locationItems.reduce((sum, item) => sum + (item.price_dollars || 0), 0);
+                const store = stores.find(s => s.square_location_config_id === config.id);
+                const storeColor = store ? getStoreColor(store.id) : null;
+                return (
+                  <div
+                    key={config.id}
+                    onClick={() => setSelectedLocation(config)}
+                    className="cursor-pointer transition-all"
+                    style={{
+                      border: storeColor ? `2px solid ${storeColor.border}` : '1px solid var(--border-slate-200)',
+                      background: storeColor ? storeColor.bg : 'var(--bg-white)',
+                      borderRadius: '0.75rem',
+                      padding: '1rem'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (storeColor) e.currentTarget.style.background = storeColor.hover;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (storeColor) e.currentTarget.style.background = storeColor.bg;
+                    }}
+                  >
+                    <div className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>
+                      {store ? store.name : config.name}
+                    </div>
+                    <div className="text-xl font-bold text-emerald-600 mb-1">
+                      ${codTotal.toFixed(2)}
+                    </div>
+                    <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      {locationItems.length} {locationItems.length === 1 ? 'item' : 'items'}
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
@@ -559,18 +604,18 @@ export default function SquareManagement() {
                     // Get store for this item
                     const itemConfig = locationConfigs.find(c => c.square_location_id === item.location_id);
                     const itemStore = stores.find(s => s.square_location_config_id === itemConfig?.id);
-                    const itemStoreId = itemStore?.id;
+                    const storeColor = itemStore ? getStoreColor(itemStore.id) : null;
 
                     // Check if there are other items with different stores
                     const hasMultipleStores = filteredCatalogItems.some(otherItem => {
                       if (otherItem.catalog_object_id === item.catalog_object_id) return false;
                       const otherConfig = locationConfigs.find(c => c.square_location_id === otherItem.location_id);
                       const otherStore = stores.find(s => s.square_location_config_id === otherConfig?.id);
-                      return otherStore?.id !== itemStoreId;
+                      return otherStore?.id !== itemStore?.id;
                     });
 
                     return (
-                    <tr key={item.catalog_object_id} className={`border-b cursor-pointer transition-colors ${userIsAppOwner && hasMultipleStores ? 'border-l-4 border-l-blue-500' : ''}`} style={{ borderColor: 'var(--border-slate-200)', background: userIsAppOwner && hasMultipleStores ? 'rgba(59, 130, 246, 0.1)' : 'transparent' }} onMouseEnter={(e) => e.currentTarget.style.background = userIsAppOwner && hasMultipleStores ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-slate-50)'} onMouseLeave={(e) => e.currentTarget.style.background = userIsAppOwner && hasMultipleStores ? 'rgba(59, 130, 246, 0.1)' : 'transparent'} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
+                    <tr key={item.catalog_object_id} className="border-b cursor-pointer transition-colors" style={{ borderColor: 'var(--border-slate-200)', background: userIsAppOwner && hasMultipleStores && storeColor ? storeColor.bg : 'transparent', borderLeft: userIsAppOwner && hasMultipleStores && storeColor ? `4px solid ${storeColor.border}` : 'none' }} onMouseEnter={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.hover; else e.currentTarget.style.background = 'var(--bg-slate-50)'; }} onMouseLeave={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.bg; else e.currentTarget.style.background = 'transparent'; }} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
                       <td className="p-3">
                          <div className="font-medium text-sm" style={{ color: 'var(--text-slate-900)' }}>{item.name || 'N/A'}</div>
                         {userIsAppOwner && itemDrivers.length > 0 && (
