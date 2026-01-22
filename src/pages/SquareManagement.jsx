@@ -32,12 +32,13 @@ export default function SquareManagement() {
   const [allTransactions, setAllTransactions] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [soldCatalogItems, setSoldCatalogItems] = useState([]);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
     setError(null);
     try {
-      // Step 1: Sync from Square
+      // Step 1: Sync catalog from Square
       const response = await base44.functions.invoke('squareSyncCatalogItems', {});
       const data = response?.data || response;
       
@@ -46,21 +47,28 @@ export default function SquareManagement() {
       }
       
       let syncedItems = data.items || [];
+      const syncedLocationIds = data.locationIds || [];
+      
+      // Step 2: Fetch actual Square payment data to see which catalog items have been sold
+      const paymentsResponse = await base44.functions.invoke('squareFetchPayments', {
+        locationIds: syncedLocationIds,
+        daysBack: 7
+      });
+      
+      const paymentsData = paymentsResponse?.data || paymentsResponse;
+      const soldItems = paymentsData?.soldItems || [];
+      setSoldCatalogItems(soldItems);
+      
+      // Create a Set of catalog IDs that have been sold
+      const soldCatalogIds = new Set(soldItems.map(item => item.catalog_object_id));
+      
       let deletedCount = 0;
       let createdCount = 0;
       
-      // Step 2: Delete catalog items that have matching collection transactions
+      // Step 3: Delete catalog items that have been sold (appear in Square transactions)
       const itemsToDelete = [];
       for (const item of syncedItems) {
-        // Check if there's a completed collection transaction for this item
-        const hasCollectionTx = allTransactions.some(tx => 
-          tx.item_name === item.name &&
-          tx.type === 'collection' &&
-          tx.status === 'completed' &&
-          Math.abs(tx.amount - item.price_dollars) < 0.01
-        );
-        
-        if (hasCollectionTx) {
+        if (soldCatalogIds.has(item.catalog_object_id)) {
           itemsToDelete.push(item);
         }
       }
@@ -82,7 +90,7 @@ export default function SquareManagement() {
       // Remove deleted items from synced list
       syncedItems = syncedItems.filter(item => !itemsToDelete.includes(item));
       
-      // Step 3: Check deliveries for missing catalog items (last 7 days only)
+      // Step 4: Check deliveries for missing catalog items (last 7 days only)
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
@@ -105,30 +113,26 @@ export default function SquareManagement() {
         // Check if catalog item exists
         const existsInCatalog = syncedItems.some(item => item.name === expectedName);
         
-        // Check if already collected (has collection transaction with matching amount)
-        const hasCollectionTx = allTransactions.some(tx => 
-          tx.item_name === expectedName &&
-          tx.type === 'collection' &&
-          tx.status === 'completed' &&
-          Math.abs(tx.amount - delivery.cod_total_amount_required) < 0.01
-        );
-        
-        // Check if collected via Debit or Credit (these should not be in Square catalog)
+        // Check if already collected via Debit or Credit (these should not be in Square catalog)
         const hasDebitCreditPayment = delivery.cod_payments?.some(p => 
           p.type === 'Debit' || p.type === 'Credit'
         );
         
-        // Only create if doesn't exist AND hasn't been collected AND not Debit/Credit
-        if (!existsInCatalog && !hasCollectionTx && !hasDebitCreditPayment && store?.square_location_config_id) {
+        // Check if this item has been sold (appears in Square payment transactions)
+        // We can't check by catalog_object_id since we don't have it yet, so we check after creation
+        
+        // Only create if doesn't exist AND not Debit/Credit
+        if (!existsInCatalog && !hasDebitCreditPayment && store?.square_location_config_id) {
           const locationConfig = locationConfigs.find(c => c.id === store.square_location_config_id);
           
           if (locationConfig) {
             try {
               const createResponse = await base44.functions.invoke('squareCreateCodItem', {
-                itemName: expectedName,
-                amount: delivery.cod_total_amount_required,
-                locationId: locationConfig.square_location_id,
                 deliveryId: delivery.id,
+                patientName: delivery.patient_name,
+                storeAbbreviation: storeAbbr,
+                codAmount: delivery.cod_total_amount_required,
+                deliveryDate: delivery.delivery_date,
                 storeId: delivery.store_id
               });
               
@@ -347,18 +351,9 @@ export default function SquareManagement() {
     return { status: 'pending', payments: [] };
   };
 
-  // Check if item has a completed collection (payment actually collected)
-  const hasRecentPayment = (itemName, itemAmount, locationId) => {
-    const match = recentTransactions.some(t => {
-      const nameMatch = t.item_name === itemName;
-      const amountMatch = Math.abs(t.amount - itemAmount) < 0.01;
-      // CRITICAL: Only show as paid if it's a completed COLLECTION, not prepayment or pending
-      const isCompletedCollection = t.type === 'collection' && t.status === 'completed';
-      
-      return nameMatch && amountMatch && isCompletedCollection;
-    });
-    
-    return match;
+  // Check if item has been sold in Square transactions
+  const hasBeenSoldInSquare = (catalogObjectId) => {
+    return soldCatalogItems.some(item => item.catalog_object_id === catalogObjectId);
   };
 
   const confirmDelete = async () => {
@@ -650,6 +645,17 @@ export default function SquareManagement() {
                             ${(item.price_dollars || 0).toFixed(2)}
                           </span>
                           {(() => {
+                            // Check if this item has been sold in Square transactions
+                            const soldInSquare = hasBeenSoldInSquare(item.catalog_object_id);
+                            
+                            if (soldInSquare) {
+                              return (
+                                <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
+                                  ✓ Collected
+                                </Badge>
+                              );
+                            }
+                            
                             const codDetails = getCODPaymentDetails(item.name, item.location_id);
                             
                             if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
@@ -791,6 +797,17 @@ export default function SquareManagement() {
                         ${(item.price_dollars || 0).toFixed(2)}
                       </div>
                       {(() => {
+                        // Check if this item has been sold in Square transactions
+                        const soldInSquare = hasBeenSoldInSquare(item.catalog_object_id);
+                        
+                        if (soldInSquare) {
+                          return (
+                            <Badge className="bg-green-100 text-green-800 text-xs">
+                              ✓ Collected
+                            </Badge>
+                          );
+                        }
+                        
                         const codDetails = getCODPaymentDetails(item.name, item.location_id);
                         
                         if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
