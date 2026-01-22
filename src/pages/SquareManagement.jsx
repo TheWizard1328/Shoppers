@@ -611,7 +611,7 @@ export default function SquareManagement() {
       {/* Location Summary Cards */}
       {currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 && (
         <div>
-          <h2 className="text-base md:text-lg font-semibold mb-4" style={{ color: 'var(--text-slate-900)' }}>By Location</h2>
+          <h2 className="text-base md:text-lg font-semibold mb-4 text-slate-900 dark:text-slate-50">By Location</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 mb-6 md:mb-8">
             {locationConfigs
               .sort((a, b) => {
