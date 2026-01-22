@@ -525,6 +525,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     setPreviewChanges({ toCreate: [], toUpdate: [], errors: [] }); // Clear previous preview
 
     try {
+      console.log(`PatientImport: Processing ${files.length} file(s)`, stores.length, "stores loaded");
       console.log("PatientImport: Fetching existing patients for preview comparison...");
       const existingPatients = await Patient.list();
       console.log(`PatientImport: Found ${existingPatients.length} existing patients.`);
