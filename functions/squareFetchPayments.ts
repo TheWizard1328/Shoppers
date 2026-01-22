@@ -123,11 +123,65 @@ Deno.serve(async (req) => {
     console.log(`🎯 [SquareFetchPayments] Summary: Found ${allPayments.length} payments, ${soldCatalogItems.length} sold catalog items`);
     console.log(`🎯 [SquareFetchPayments] Unique catalog IDs sold:`, Array.from(soldItemCounts.keys()));
 
+    // Fetch current catalog items from Square
+    let catalogItems = [];
+    let catalogItemCount = 0;
+    
+    try {
+      const catalogUrl = `${SQUARE_BASE_URL}/catalog/list?types=ITEM,ITEM_VARIATION`;
+      const catalogResponse = await fetch(catalogUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Square-Version': '2024-01-18'
+        }
+      });
+
+      if (catalogResponse.ok) {
+        const catalogData = await catalogResponse.json();
+        if (catalogData.objects) {
+          // Process catalog items
+          for (const obj of catalogData.objects) {
+            if (obj.type === 'ITEM' && obj.item_data) {
+              // Get variations and their prices
+              if (obj.item_data.variations) {
+                for (const variation of obj.item_data.variations) {
+                  if (variation.item_variation_data) {
+                    const priceMoney = variation.item_variation_data.price_money;
+                    const priceDollars = priceMoney ? priceMoney.amount / 100 : 0;
+
+                    // Check which locations have this item
+                    for (const locationId of locationIds) {
+                      const item = {
+                        catalog_object_id: variation.id,
+                        name: obj.item_data.name || variation.item_variation_data.name || 'Unnamed',
+                        description: variation.item_variation_data.name,
+                        price_dollars: priceDollars,
+                        price_cents: priceMoney ? priceMoney.amount : 0,
+                        location_id: locationId,
+                        updated_at: obj.updated_at
+                      };
+                      catalogItems.push(item);
+                      catalogItemCount++;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch catalog items:', err);
+    }
+
     return Response.json({
       success: true,
       paymentsCount: allPayments.length,
       soldItems,
       soldCatalogItems, // Detailed list of sold items with location info
+      catalogItems, // Current catalog items
+      catalogItemCount,
       dateRange: {
         start: startDate.toISOString(),
         end: endDate.toISOString()
