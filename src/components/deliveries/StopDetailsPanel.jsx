@@ -73,6 +73,69 @@ export default function StopDetailsPanel({
     );
   }
 
+  const handleSignatureSave = async (blob) => {
+    try {
+      setIsUpdating(true);
+      const file = new File([blob], 'signature.png', { type: 'image/png' });
+      const uploadResponse = await base44.integrations.Core.UploadFile({ file });
+      
+      if (uploadResponse?.data?.file_url) {
+        await base44.entities.Delivery.update(delivery.id, {
+          signature_image_url: uploadResponse.data.file_url
+        });
+        setShowSignatureCapture(false);
+      }
+    } catch (error) {
+      console.error('Failed to save signature:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handlePhotosSave = async (photoBlobs) => {
+    try {
+      setIsUpdating(true);
+      const uploadedUrls = [];
+      
+      for (const blob of photoBlobs) {
+        const file = new File([blob], `proof-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const uploadResponse = await base44.integrations.Core.UploadFile({ file });
+        if (uploadResponse?.data?.file_url) {
+          uploadedUrls.push(uploadResponse.data.file_url);
+        }
+      }
+      
+      if (uploadedUrls.length > 0) {
+        const existingUrls = delivery.proof_photo_urls || [];
+        await base44.entities.Delivery.update(delivery.id, {
+          proof_photo_urls: [...existingUrls, ...uploadedUrls]
+        });
+        setShowPhotoCapture(false);
+      }
+    } catch (error) {
+      console.error('Failed to save photos:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const clearSignature = async () => {
+    try {
+      setIsUpdating(true);
+      await base44.entities.Delivery.update(delivery.id, {
+        signature_image_url: null
+      });
+    } catch (error) {
+      console.error('Failed to clear signature:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const hasSignature = !!delivery.signature_image_url;
+  const hasPhotos = delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0;
+  const isCompleted = ['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status);
+
   const isPickup = !delivery.patient_id;
   const status = statusConfig[delivery.status] || statusConfig.pending;
   const StatusIcon = status.icon;
