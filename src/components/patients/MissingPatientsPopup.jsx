@@ -12,6 +12,7 @@ import { X, AlertTriangle, Search, ChevronDown, ChevronUp } from "lucide-react";
 export default function MissingPatientsPopup({ 
   missingPatients = [], 
   stores = [],
+  importingStoreIds = [], // Store IDs being actively imported
   onClose,
   onContinue 
 }) {
