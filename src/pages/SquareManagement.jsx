@@ -111,39 +111,41 @@ export default function SquareManagement() {
       const soldCatalogItemsDetailed = paymentsData?.soldCatalogItems || [];
       setSoldCatalogItems(soldCatalogItemsDetailed);
 
-      // Create a Set of sold catalog object IDs (authoritative key)
-      const soldCatalogIds = new Set(
-        soldCatalogItemsDetailed.map(item => item.catalog_object_id)
-      );
-      
       let deletedCount = 0;
       let createdCount = 0;
-      
-      // Step 3: Delete catalog items that have been sold (match by catalog_object_id)
-      const itemsToDelete = [];
-      for (const item of syncedItems) {
-        if (soldCatalogIds.has(item.catalog_object_id)) {
-          itemsToDelete.push(item);
+
+      // Step 3: Delete catalog items that have been sold
+      // Group sold items by catalog_object_id to handle multiple items in one transaction
+      const soldByLocation = new Map();
+      for (const soldItem of soldCatalogItemsDetailed) {
+        const key = `${soldItem.catalog_object_id}|${soldItem.location_id}`;
+        if (!soldByLocation.has(key)) {
+          soldByLocation.set(key, soldItem);
         }
       }
-      
+
       // Delete items that have been collected
-      for (const item of itemsToDelete) {
+      for (const [key, soldItem] of soldByLocation.entries()) {
         try {
           await base44.functions.invoke('squareDeleteCodItem', {
-            catalogObjectId: item.catalog_object_id,
-            transactionId: item.transaction_id,
+            catalogObjectId: soldItem.catalog_object_id,
+            transactionId: null,
             reason: 'payment_collected'
           });
           deletedCount++;
+          // Delay between deletions to avoid rate limits
+          await new Promise(resolve => setTimeout(resolve, 200));
         } catch (deleteErr) {
-          console.warn(`Failed to delete collected item ${item.name}:`, deleteErr);
+          console.warn(`Failed to delete collected item ${soldItem.item_name}:`, deleteErr);
         }
       }
-      
-      // Remove deleted items from synced list and track them
-      const collectedCatalogIds = new Set(itemsToDelete.map(item => item.catalog_object_id));
-      syncedItems = syncedItems.filter(item => !itemsToDelete.includes(item));
+
+      // Remove deleted items from synced list
+      const deletedCatalogIds = new Set(soldByLocation.keys());
+      syncedItems = syncedItems.filter(item => {
+        const key = `${item.catalog_object_id}|${item.location_id}`;
+        return !deletedCatalogIds.has(key);
+      });
 
       // Step 4: Check deliveries for missing catalog items (last 7 days only)
       const sevenDaysAgo = new Date();
