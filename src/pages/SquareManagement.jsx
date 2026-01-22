@@ -44,179 +44,139 @@ export default function SquareManagement() {
     console.log('⏸️ [SquareManagement] Paused smart refresh for Square sync');
     
     try {
-      // Step 1: Get fresh Square catalog + UI update
-      const response = await base44.functions.invoke('squareSyncCatalogItems', {});
-      const data = response?.data || response;
+      // Step 1: Get fresh catalog from Square
+      console.log('📥 Step 1: Fetching fresh catalog from Square...');
+      const catalogResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
+      const catalogData = catalogResponse?.data || catalogResponse;
 
-      if (!data.success) {
-        throw new Error(data.error || 'Sync failed');
+      if (!catalogData.success) {
+        throw new Error(catalogData.error || 'Catalog sync failed');
       }
 
-      let syncedItems = data.items || [];
-      const syncedLocationIds = data.locationIds || [];
+      let catalogItems = catalogData.items || [];
+      const locationIds = catalogData.locationIds || [];
+      console.log(`✓ Got ${catalogItems.length} items from Square`);
 
-      // Update UI with fresh catalog
-      setCatalogItems(syncedItems);
-      setLocationIds(syncedLocationIds);
-
-      // Step 2: Fetch payment data
+      // Step 2: Update recent payment transactions
+      console.log('💳 Step 2: Fetching recent payment transactions...');
       const paymentsResponse = await base44.functions.invoke('squareFetchPayments', {
-        locationIds: syncedLocationIds,
+        locationIds,
         daysBack: 7
       });
 
       const paymentsData = paymentsResponse?.data || paymentsResponse;
-      const soldCatalogItemsDetailed = paymentsData?.soldCatalogItems || [];
-      setSoldCatalogItems(soldCatalogItemsDetailed);
+      const recentPayments = paymentsData?.soldCatalogItems || [];
+      setSoldCatalogItems(recentPayments);
+      console.log(`✓ Got ${recentPayments.length} recent payment transactions`);
 
-      // Build sets to identify items to delete
-      const collectedCatalogIds = new Set();
-      const collectedItemKeys = new Set();
-      for (const soldItem of soldCatalogItemsDetailed) {
-        const key = `${soldItem.item_name}|${soldItem.location_id}|${soldItem.amount.toFixed(2)}`;
-        collectedItemKeys.add(key);
-        if (soldItem.square_catalog_object_id) {
-          collectedCatalogIds.add(soldItem.square_catalog_object_id);
-        }
-      }
-
-      // Identify items to delete: collected items + duplicates
+      // Step 3: Delete duplicate catalog items
+      console.log('🗑️ Step 3: Identifying and deleting duplicates...');
       const uniqueItems = new Map();
-      const deletionCandidates = [];
+      const duplicates = [];
 
-      for (const item of syncedItems) {
-        const itemKey = `${item.name}|${item.location_id}|${(item.price_dollars || 0).toFixed(2)}`;
-
-        // Mark collected items for deletion
-        if (collectedCatalogIds.has(item.catalog_object_id) || collectedItemKeys.has(itemKey)) {
-          deletionCandidates.push({ item, reason: 'collected' });
-          continue;
-        }
-
-        // Mark duplicates for deletion
+      for (const item of catalogItems) {
         const dupKey = `${item.name}|${item.location_id}`;
         if (uniqueItems.has(dupKey)) {
-          deletionCandidates.push({ item, reason: 'duplicate' });
-          continue;
+          duplicates.push(item);
+        } else {
+          uniqueItems.set(dupKey, item);
         }
-
-        uniqueItems.set(dupKey, item);
       }
 
-      // Step 2b: Delete collected and duplicate items from Square + database
       let deletedCount = 0;
-      if (deletionCandidates.length > 0) {
-        for (const { item, reason } of deletionCandidates) {
-          try {
-            const relatedTransaction = soldCatalogItemsDetailed.find(t => 
-              t.square_catalog_object_id === item.catalog_object_id
-            );
-            
-            await base44.functions.invoke('squareDeleteCodItem', {
-              catalogObjectId: item.catalog_object_id,
-              transactionId: relatedTransaction?.square_transaction_id || null,
-              reason
-            });
-            deletedCount++;
-            console.log(`✓ Deleted ${reason} item: ${item.name}`);
-            await new Promise(resolve => setTimeout(resolve, 200));
-          } catch (err) {
-            console.warn(`Failed to delete ${reason} item ${item.name} (${item.catalog_object_id}):`, err);
-          }
-        }
-      }
-
-      syncedItems = Array.from(uniqueItems.values());
-
-      let createdCount = 0;
-
-      // Step 3: Check deliveries for missing catalog items (last 7 days only)
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      const completedDeliveries = deliveries.filter(d => {
-        const deliveryDate = new Date(d.delivery_date);
-        return ['completed', 'returned'].includes(d.status) && 
-          d.cod_total_amount_required > 0 &&
-          deliveryDate >= sevenDaysAgo;
-      });
-
-      for (const delivery of completedDeliveries) {
-        const deliveryDate = new Date(delivery.delivery_date);
-        const month = String(deliveryDate.getMonth() + 1).padStart(2, '0');
-        const day = String(deliveryDate.getDate()).padStart(2, '0');
-        const store = stores.find(s => s.id === delivery.store_id);
-        const storeAbbr = store?.abbreviation || '??';
-        const expectedName = `${month}/${day}(${storeAbbr})-${delivery.patient_name}`;
-
-        if (!store?.square_location_config_id) continue;
-
-        const locationConfig = locationConfigs.find(c => c.id === store.square_location_config_id);
-        if (!locationConfig) continue;
-
-        const squareLocationId = locationConfig.square_location_id;
-        const expectedAmountCents = Math.round(delivery.cod_total_amount_required * 100);
-
-        const hasDebitCreditPayment = delivery.cod_payments?.some(p => 
-          p.type === 'Debit' || p.type === 'Credit'
-        );
-
-        if (hasDebitCreditPayment) continue;
-
-        const matchingItems = syncedItems.filter(item => 
-          item.name === expectedName && 
-          item.location_id === squareLocationId &&
-          item.price_cents === expectedAmountCents
-        );
-
-        if (matchingItems.length > 0) {
-          console.log(`✓ Item already exists: "${expectedName}" (${matchingItems.length} found)`);
-          continue;
-        }
-
+      for (const item of duplicates) {
         try {
-          const createResponse = await base44.functions.invoke('squareCreateCodItem', {
-            deliveryId: delivery.id,
-            patientName: delivery.patient_name,
-            storeAbbreviation: storeAbbr,
-            codAmount: delivery.cod_total_amount_required,
-            deliveryDate: delivery.delivery_date,
-            storeId: delivery.store_id
+          await base44.functions.invoke('squareDeleteCodItem', {
+            catalogObjectId: item.catalog_object_id,
+            transactionId: null,
+            reason: 'duplicate'
           });
+          deletedCount++;
+          console.log(`✓ Deleted duplicate: ${item.name}`);
+          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (err) {
+          console.warn(`Failed to delete duplicate ${item.name}:`, err);
+        }
+      }
+      console.log(`✓ Deleted ${deletedCount} duplicate items`);
 
-          if (createResponse?.data?.success || createResponse?.success) {
-            createdCount++;
-          }
-        } catch (createErr) {
-          console.warn(`Failed to create catalog item for ${expectedName}:`, createErr);
+      // Step 4 & 5: Compare and delete collected items
+      console.log('🔍 Step 4-5: Comparing catalog to payments and deleting collected items...');
+      const collectedCatalogIds = new Set();
+      const collectedItemKeys = new Set();
+
+      for (const payment of recentPayments) {
+        const key = `${payment.item_name}|${payment.location_id}|${payment.amount.toFixed(2)}`;
+        collectedItemKeys.add(key);
+        if (payment.square_catalog_object_id) {
+          collectedCatalogIds.add(payment.square_catalog_object_id);
         }
       }
 
-      // Step 3b: Final sync to get updated catalog + UI update
+      const collectedItemsToDelete = [];
+      for (const item of catalogItems) {
+        if (duplicates.find(d => d.catalog_object_id === item.catalog_object_id)) {
+          continue; // Already deleted
+        }
+
+        const itemKey = `${item.name}|${item.location_id}|${(item.price_dollars || 0).toFixed(2)}`;
+        if (collectedCatalogIds.has(item.catalog_object_id) || collectedItemKeys.has(itemKey)) {
+          collectedItemsToDelete.push(item);
+        }
+      }
+
+      let collectedDeletedCount = 0;
+      for (const item of collectedItemsToDelete) {
+        try {
+          const relatedPayment = recentPayments.find(p => 
+            p.square_catalog_object_id === item.catalog_object_id
+          );
+          
+          await base44.functions.invoke('squareDeleteCodItem', {
+            catalogObjectId: item.catalog_object_id,
+            transactionId: relatedPayment?.square_transaction_id || null,
+            reason: 'collected'
+          });
+          collectedDeletedCount++;
+          console.log(`✓ Deleted collected: ${item.name}`);
+          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (err) {
+          console.warn(`Failed to delete collected ${item.name}:`, err);
+        }
+      }
+      console.log(`✓ Deleted ${collectedDeletedCount} collected items`);
+
+      // Step 6: Refresh catalog data from Square
+      console.log('🔄 Step 6: Refreshing catalog from Square...');
       const finalResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
       const finalData = finalResponse?.data || finalResponse;
 
-      if (finalData.success) {
-        setCatalogItems(finalData.items || []);
-        setLocationIds(finalData.locationIds || []);
-
-        const sevenDaysAgoFinal = new Date();
-        sevenDaysAgoFinal.setDate(sevenDaysAgoFinal.getDate() - 7);
-        const recentPayments = soldCatalogItemsDetailed
-          .filter(item => new Date(item.payment_date) >= sevenDaysAgoFinal)
-          .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
-
-        setRecentTransactions(recentPayments);
-        setAllTransactions(soldCatalogItemsDetailed);
-
-        const messages = [
-          `Synced ${finalData.itemCount} items`,
-          deletedCount > 0 ? `cleaned up ${deletedCount} duplicates` : null,
-          createdCount > 0 ? `created ${createdCount} missing` : null
-        ].filter(Boolean).join(', ');
-
-        toast.success(messages);
+      if (!finalData.success) {
+        throw new Error('Final catalog sync failed');
       }
+
+      // Step 7: Update UI
+      console.log('🎨 Step 7: Updating UI...');
+      setCatalogItems(finalData.items || []);
+      setLocationIds(finalData.locationIds || []);
+
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const filteredPayments = recentPayments
+        .filter(item => new Date(item.payment_date) >= sevenDaysAgo)
+        .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+
+      setRecentTransactions(filteredPayments);
+      setAllTransactions(recentPayments);
+
+      const summary = [
+        `Synced ${finalData.itemCount || 0} active items`,
+        deletedCount > 0 ? `removed ${deletedCount} duplicates` : null,
+        collectedDeletedCount > 0 ? `removed ${collectedDeletedCount} collected` : null
+      ].filter(Boolean).join(' • ');
+
+      toast.success(summary);
+      console.log('✅ Sync complete');
     } catch (err) {
       console.error('Sync error:', err);
       setError(err.message);
