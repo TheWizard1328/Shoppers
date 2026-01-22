@@ -259,15 +259,20 @@ export default function SquareManagement() {
         const syncedLocationIds = configs_list.map(c => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
 
-        // ALWAYS fetch fresh from Square API (no cache fallback)
+        // ALWAYS fetch fresh from Square API for catalog items (proper deduplication)
         console.log('🔄 [SquareManagement] Initial load: fetching fresh data from Square...');
-        const paymentsResponse = await base44.functions.invoke('squareFetchPayments', { 
-          locationIds: syncedLocationIds, 
-          daysBack: 7 
-        });
+        const [catalogResponse, paymentsResponse] = await Promise.all([
+          base44.functions.invoke('squareSyncCatalogItems', {}),
+          base44.functions.invoke('squareFetchPayments', { 
+            locationIds: syncedLocationIds, 
+            daysBack: 7 
+          })
+        ]);
+
+        const catalogData = catalogResponse?.data || catalogResponse || {};
         const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
-        const catalogItemsData = paymentsData?.catalogItems || [];
+        const catalogItemsData = catalogData?.items || [];
         const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
 
         console.log(`✓ Initial load: Got ${catalogItemsData.length} catalog items and ${soldCatalogItemsData.length} transactions`);
