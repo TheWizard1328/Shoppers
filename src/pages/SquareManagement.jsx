@@ -542,37 +542,38 @@ export default function SquareManagement() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto bg-background text-foreground">
     {/* Header */}
-    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6 mb-6">
+    <div className="flex flex-col gap-4 mb-6">
       <div className="flex items-center gap-3">
-        <CreditCard className="w-6 md:w-8 h-6 md:h-8 flex-shrink-0" style={{ color: 'var(--text-emerald-600)' }} />
+        <CreditCard className="w-6 md:w-8 h-6 md:h-8 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
         <div className="min-w-0">
-          <h1 className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Square COD</h1>
-          <p className="text-xs md:text-sm text-muted-foreground">Track and manage COD payments</p>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-50">Square COD</h1>
+          <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Track and manage COD payments</p>
         </div>
       </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-          {currentUser && isAppOwner(currentUser) && drivers.length > 0 && (
-            <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
-              <SelectTrigger className="w-full sm:w-[150px] md:w-[200px] text-sm">
-                <SelectValue placeholder="All Drivers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Drivers</SelectItem>
-                {drivers.map(driver => (
-                  <SelectItem key={driver.id} value={driver.id}>
-                    {driver.user_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 text-sm">
-            <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
-            <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
-            <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
-          </Button>
-        </div>
-          </div>
+      
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+        {currentUser && isAppOwner(currentUser) && drivers.length > 0 && (
+          <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
+            <SelectTrigger className="w-full sm:w-[150px] md:w-[200px] text-sm">
+              <SelectValue placeholder="All Drivers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Drivers</SelectItem>
+              {drivers.map(driver => (
+                <SelectItem key={driver.id} value={driver.id}>
+                  {driver.user_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 text-sm">
+          <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
+          <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
+          <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
+        </Button>
+      </div>
+    </div>
 
           {/* Sync Status Indicator */}
           {syncStatus && (
