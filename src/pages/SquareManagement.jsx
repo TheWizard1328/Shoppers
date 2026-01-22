@@ -70,14 +70,6 @@ export default function SquareManagement() {
       setSoldCatalogItems(recentPayments);
       console.log(`✓ Got ${recentPayments.length} recent payment transactions`);
 
-      // Step 2.5: Sync offline database with fresh data BEFORE cleanup
-      console.log('💾 Step 2.5: Syncing offline database with fresh catalog and transaction data...');
-      await Promise.all([
-        saveCatalogItemsOffline(catalogItems),
-        savePaymentTransactionsOffline(recentPayments)
-      ]);
-      console.log('✓ Offline database synced with current data');
-
       // Step 3: Delete duplicate catalog items
       console.log('🗑️ Step 3: Identifying and deleting duplicates...');
       const uniqueItems = new Map();
