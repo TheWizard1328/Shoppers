@@ -1155,6 +1155,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       <MissingPatientsPopup
         missingPatients={missingPatients}
         stores={stores}
+        importingStoreIds={window.__importingStoreIds || []}
         onClose={() => setShowMissingPatients(false)}
         onContinue={() => {
           setShowMissingPatients(false);
