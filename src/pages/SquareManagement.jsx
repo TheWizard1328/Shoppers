@@ -78,22 +78,23 @@ export default function SquareManagement() {
         }
       }
 
-      // Bulk delete all duplicates in parallel
+      // Delete duplicates sequentially to avoid rate limits
       let duplicatesDeletedCount = 0;
       if (duplicatesToDelete.length > 0) {
-        const deletePromises = duplicatesToDelete.map(item =>
-          base44.functions.invoke('squareDeleteCodItem', {
-            catalogObjectId: item.catalog_object_id,
-            transactionId: item.transaction_id,
-            reason: 'duplicate_removal'
-          }).then(() => {
+        for (const item of duplicatesToDelete) {
+          try {
+            await base44.functions.invoke('squareDeleteCodItem', {
+              catalogObjectId: item.catalog_object_id,
+              transactionId: item.transaction_id,
+              reason: 'duplicate_removal'
+            });
             duplicatesDeletedCount++;
-          }).catch(err => {
+            // Small delay between requests to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 200));
+          } catch (err) {
             console.warn(`Failed to delete duplicate ${item.name}:`, err);
-          })
-        );
-
-        await Promise.all(deletePromises);
+          }
+        }
 
         // Remove deleted duplicates from synced list
         syncedItems = syncedItems.filter(item => !deletedCatalogIds.has(item.catalog_object_id));
