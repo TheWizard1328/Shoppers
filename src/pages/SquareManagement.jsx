@@ -36,6 +36,7 @@ export default function SquareManagement() {
   const [deliveries, setDeliveries] = useState([]);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [soldCatalogItems, setSoldCatalogItems] = useState([]);
+  const [syncStatus, setSyncStatus] = useState(null);
 
   const syncFromSquare = async () => {
     setIsSyncing(true);
