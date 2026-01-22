@@ -11,10 +11,11 @@ import { isAppOwner } from "@/components/utils/userRoles";
 import LocationSummaryCard from "@/components/square/LocationSummaryCard";
 import TransactionHistoryPanel from "@/components/square/TransactionHistoryPanel";
 import CODItemDetailModal from "@/components/square/CODItemDetailModal";
+import SyncStatusIndicator from "@/components/square/SyncStatusIndicator";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
-import { saveCatalogItemsOffline, savePaymentTransactionsOffline, getCatalogItemsOffline, getPaymentTransactionsOffline, clearSquareCODOfflineData } from "@/components/utils/squareCODOfflineManager";
+import { saveCatalogItemsOffline, savePaymentTransactionsOffline, getCatalogItemsOffline, getPaymentTransactionsOffline, clearSquareCODOfflineData, getSquareCODSyncStatus } from "@/components/utils/squareCODOfflineManager";
 
 export default function SquareManagement() {
   const [catalogItems, setCatalogItems] = useState([]);
