@@ -253,7 +253,8 @@ export default function SquareManagement() {
         const catalogItemsData = paymentsData?.catalogItems || [];
         const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
 
-        // Save to offline database for next visit
+        // Clear old offline data and save fresh data
+        await clearSquareCODOfflineData();
         await Promise.all([
           saveCatalogItemsOffline(catalogItemsData),
           savePaymentTransactionsOffline(soldCatalogItemsData)
