@@ -257,25 +257,26 @@ export default function SquareManagement() {
         const syncedLocationIds = configs_list.map(c => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
 
-        // Fetch fresh payments + catalog in one call
+        // ALWAYS fetch fresh from Square API (no cache fallback)
+        console.log('🔄 [SquareManagement] Initial load: fetching fresh data from Square...');
         const paymentsResponse = await base44.functions.invoke('squareFetchPayments', { 
           locationIds: syncedLocationIds, 
           daysBack: 7 
         });
         const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
-        // Use combined catalog + payment data
         const catalogItemsData = paymentsData?.catalogItems || [];
         const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
 
-        // Clear old offline data and save fresh data
-        await clearSquareCODOfflineData();
+        console.log(`✓ Initial load: Got ${catalogItemsData.length} catalog items and ${soldCatalogItemsData.length} transactions`);
+
+        // Save fresh data to offline database
         await Promise.all([
           saveCatalogItemsOffline(catalogItemsData),
           savePaymentTransactionsOffline(soldCatalogItemsData)
         ]);
 
-        // Update UI with fresh data
+        // Update UI with fresh data ONLY
         setCatalogItems(catalogItemsData);
         setSoldCatalogItems(soldCatalogItemsData);
         setAllTransactions(soldCatalogItemsData);
@@ -287,7 +288,6 @@ export default function SquareManagement() {
           .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
 
         setRecentTransactions(recentPayments);
-
         setIsLoading(false);
 
         // Load sync status after data is loaded
