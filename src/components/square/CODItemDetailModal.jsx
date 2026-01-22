@@ -24,7 +24,7 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
   const remainingAmount = (item.price_dollars || 0) - totalCollected;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-slate-900">COD Item Details</h2>
