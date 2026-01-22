@@ -712,9 +712,9 @@ export default function SquareManagement() {
                     });
 
                     return (
-                    <tr key={`${item.catalog_object_id}-${item.location_id}-${index}`} className="cursor-pointer transition-colors" style={{ background: userIsAppOwner && hasMultipleStores && storeColor ? storeColor.bg : 'transparent', borderBottom: '1px solid var(--border-slate-200)', borderLeft: userIsAppOwner && hasMultipleStores && storeColor ? `4px solid ${storeColor.border}` : 'none' }} onMouseEnter={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.hover; else e.currentTarget.style.background = 'var(--bg-muted-hover)'; }} onMouseLeave={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.bg; else e.currentTarget.style.background = 'transparent'; }} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
+                    <tr key={`${item.catalog_object_id}-${item.location_id}-${index}`} className="cursor-pointer transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50" onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
                       <td className="p-3">
-                         <div className="font-medium text-sm" style={{ color: 'var(--text-slate-900)' }}>{item.name || 'N/A'}</div>
+                         <div className="font-medium text-sm text-slate-900 dark:text-slate-50">{item.name || 'N/A'}</div>
                         {userIsAppOwner && itemDrivers.length > 0 && (
                           <div className="flex gap-1 mt-1.5 flex-wrap">
                             {itemDrivers.map(driver => (
