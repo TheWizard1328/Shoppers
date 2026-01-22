@@ -48,29 +48,37 @@ export default function SquareManagement() {
       let createdCount = 0;
       
       // Step 2: Delete catalog items that have matching collection transactions
+      const itemsToDelete = [];
       for (const item of syncedItems) {
-        const codDetails = getCODPaymentDetails(item.name, item.location_id);
+        // Check if there's a completed collection transaction for this item
+        const hasCollectionTx = allTransactions.some(tx => 
+          tx.item_name === item.name &&
+          tx.type === 'collection' &&
+          tx.status === 'completed' &&
+          Math.abs(tx.amount - item.price_dollars) < 0.01
+        );
         
-        // If payment has been collected, delete from Square
-        if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
-          try {
-            await base44.functions.invoke('squareDeleteCodItem', {
-              catalogObjectId: item.catalog_object_id,
-              transactionId: item.transaction_id,
-              reason: 'payment_collected'
-            });
-            deletedCount++;
-          } catch (deleteErr) {
-            console.warn(`Failed to delete collected item ${item.name}:`, deleteErr);
-          }
+        if (hasCollectionTx) {
+          itemsToDelete.push(item);
         }
       }
       
-      // Remove deleted items from local state
-      syncedItems = syncedItems.filter(item => {
-        const codDetails = getCODPaymentDetails(item.name, item.location_id);
-        return !(codDetails.status === 'collected' && codDetails.payments.length > 0);
-      });
+      // Delete items that have been collected
+      for (const item of itemsToDelete) {
+        try {
+          await base44.functions.invoke('squareDeleteCodItem', {
+            catalogObjectId: item.catalog_object_id,
+            transactionId: item.transaction_id,
+            reason: 'payment_collected'
+          });
+          deletedCount++;
+        } catch (deleteErr) {
+          console.warn(`Failed to delete collected item ${item.name}:`, deleteErr);
+        }
+      }
+      
+      // Remove deleted items from synced list
+      syncedItems = syncedItems.filter(item => !itemsToDelete.includes(item));
       
       // Step 3: Check deliveries for missing catalog items
       const completedDeliveries = deliveries.filter(d => 
@@ -79,11 +87,6 @@ export default function SquareManagement() {
       );
       
       for (const delivery of completedDeliveries) {
-        // Check if payment already collected
-        if (delivery.cod_payments && delivery.cod_payments.length > 0) {
-          continue; // Already collected, skip
-        }
-        
         // Build expected item name
         const deliveryDate = new Date(delivery.delivery_date);
         const month = String(deliveryDate.getMonth() + 1).padStart(2, '0');
@@ -95,8 +98,15 @@ export default function SquareManagement() {
         // Check if catalog item exists
         const existsInCatalog = syncedItems.some(item => item.name === expectedName);
         
-        if (!existsInCatalog && store?.square_location_config_id) {
-          // Find location config
+        // Check if already collected (has collection transaction)
+        const hasCollectionTx = allTransactions.some(tx => 
+          tx.item_name === expectedName &&
+          tx.type === 'collection' &&
+          tx.status === 'completed'
+        );
+        
+        // Only create if doesn't exist AND hasn't been collected
+        if (!existsInCatalog && !hasCollectionTx && store?.square_location_config_id) {
           const locationConfig = locationConfigs.find(c => c.id === store.square_location_config_id);
           
           if (locationConfig) {
