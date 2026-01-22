@@ -54,13 +54,17 @@ export const savePaymentTransactionsOffline = async (transactions) => {
     const result = await offlineDB.bulkSave(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, transactions);
     
     if (result.success) {
+      // Count actual transactions in database to ensure accuracy
+      const allTransactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
+      const actualCount = allTransactions.length;
+      
       await offlineDB.updateSyncStatus('SquarePaymentTransactions', {
         status: 'synced',
-        recordCount: transactions.length,
+        recordCount: actualCount,
         lastSync: new Date().toISOString()
       });
       
-      console.log(`✅ [SquareCODOffline] Saved ${result.count} payment transactions offline`);
+      console.log(`✅ [SquareCODOffline] Saved ${result.count} payment transactions offline (${actualCount} total in DB)`);
     }
     
     return result;
