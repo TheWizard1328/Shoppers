@@ -44,18 +44,22 @@ export default function SquareManagement() {
     console.log('⏸️ [SquareManagement] Paused smart refresh for Square sync');
     
     try {
-      // Step 1: Sync catalog from Square
+      // Step 1: Get fresh Square catalog + UI update
       const response = await base44.functions.invoke('squareSyncCatalogItems', {});
       const data = response?.data || response;
-      
+
       if (!data.success) {
         throw new Error(data.error || 'Sync failed');
       }
-      
+
       let syncedItems = data.items || [];
       const syncedLocationIds = data.locationIds || [];
-      
-      // Step 1.5: Fetch payment data first to identify collected items
+
+      // Update UI with fresh catalog
+      setCatalogItems(syncedItems);
+      setLocationIds(syncedLocationIds);
+
+      // Step 2: Fetch payment data and identify duplicates
       const paymentsResponse = await base44.functions.invoke('squareFetchPayments', {
         locationIds: syncedLocationIds,
         daysBack: 7
@@ -63,15 +67,16 @@ export default function SquareManagement() {
 
       const paymentsData = paymentsResponse?.data || paymentsResponse;
       const soldCatalogItemsDetailed = paymentsData?.soldCatalogItems || [];
+      setSoldCatalogItems(soldCatalogItemsDetailed);
 
-      // Build a set of collected item keys for quick lookup
+      // Build a set of collected item keys
       const collectedItemKeys = new Set();
       for (const soldItem of soldCatalogItemsDetailed) {
         const key = `${soldItem.item_name}|${soldItem.location_id}|${soldItem.amount.toFixed(2)}`;
         collectedItemKeys.add(key);
       }
 
-      // Step 1.6: Remove collected items and duplicates from synced list
+      // Identify duplicates and collected items
       const uniqueItems = new Map();
       const deletionCandidates = [];
 
@@ -94,7 +99,7 @@ export default function SquareManagement() {
         uniqueItems.set(dupKey, item);
       }
 
-      // Delete collected and duplicate items from Square
+      // Step 2b: Delete collected and duplicate items from Square
       let deletedCount = 0;
       if (deletionCandidates.length > 0) {
         for (const item of deletionCandidates) {
@@ -113,23 +118,21 @@ export default function SquareManagement() {
       }
 
       syncedItems = Array.from(uniqueItems.values());
-      setSoldCatalogItems(soldCatalogItemsDetailed);
 
       let createdCount = 0;
 
-      // Step 4: Check deliveries for missing catalog items (last 7 days only)
+      // Step 3: Check deliveries for missing catalog items (last 7 days only)
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
+
       const completedDeliveries = deliveries.filter(d => {
         const deliveryDate = new Date(d.delivery_date);
         return ['completed', 'returned'].includes(d.status) && 
           d.cod_total_amount_required > 0 &&
           deliveryDate >= sevenDaysAgo;
       });
-      
+
       for (const delivery of completedDeliveries) {
-        // Build expected item name
         const deliveryDate = new Date(delivery.delivery_date);
         const month = String(deliveryDate.getMonth() + 1).padStart(2, '0');
         const day = String(deliveryDate.getDate()).padStart(2, '0');
@@ -145,29 +148,23 @@ export default function SquareManagement() {
         const squareLocationId = locationConfig.square_location_id;
         const expectedAmountCents = Math.round(delivery.cod_total_amount_required * 100);
 
-        // Check if already collected via Debit or Credit
         const hasDebitCreditPayment = delivery.cod_payments?.some(p => 
           p.type === 'Debit' || p.type === 'Credit'
         );
 
         if (hasDebitCreditPayment) continue;
 
-        // Check if ANY matching item exists in catalog (by name, location, amount)
         const matchingItems = syncedItems.filter(item => 
           item.name === expectedName && 
           item.location_id === squareLocationId &&
           item.price_cents === expectedAmountCents
         );
 
-        // If item already exists, skip creation
         if (matchingItems.length > 0) {
           console.log(`✓ Item already exists: "${expectedName}" (${matchingItems.length} found)`);
           continue;
         }
 
-
-
-        // Create new item
         try {
           const createResponse = await base44.functions.invoke('squareCreateCodItem', {
             deliveryId: delivery.id,
@@ -185,8 +182,8 @@ export default function SquareManagement() {
           console.warn(`Failed to create catalog item for ${expectedName}:`, createErr);
         }
       }
-      
-      // Final sync to get updated catalog
+
+      // Step 3b: Final sync to get updated catalog + UI update
       const finalResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
       const finalData = finalResponse?.data || finalResponse;
 
@@ -194,12 +191,10 @@ export default function SquareManagement() {
         setCatalogItems(finalData.items || []);
         setLocationIds(finalData.locationIds || []);
 
-        // Update recent transactions with actual payment data instead of catalog items
-        // Filter sold items to last 7 days and sort by payment date descending
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const sevenDaysAgoFinal = new Date();
+        sevenDaysAgoFinal.setDate(sevenDaysAgoFinal.getDate() - 7);
         const recentPayments = soldCatalogItemsDetailed
-          .filter(item => new Date(item.payment_date) >= sevenDaysAgo)
+          .filter(item => new Date(item.payment_date) >= sevenDaysAgoFinal)
           .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
 
         setRecentTransactions(recentPayments);
@@ -207,7 +202,7 @@ export default function SquareManagement() {
 
         const messages = [
           `Synced ${finalData.itemCount} items`,
-          deletedCount > 0 ? `cleaned up ${deletedCount} collected/duplicates` : null,
+          deletedCount > 0 ? `cleaned up ${deletedCount} duplicates` : null,
           createdCount > 0 ? `created ${createdCount} missing` : null
         ].filter(Boolean).join(', ');
 
