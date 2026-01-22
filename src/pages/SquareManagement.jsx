@@ -922,9 +922,9 @@ export default function SquareManagement() {
                       })()}
                     </div>
 
-                    <div className="space-y-2 text-xs" style={{ color: 'var(--text-muted-foreground)' }}>
+                    <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
                       <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Store:</span> {(() => {
+                        <span className="font-semibold text-slate-900 dark:text-slate-50">Store:</span> {(() => {
                           const locationId = item.location_id;
                           const config = locationConfigs.find(c => c.square_location_id === locationId);
                           const store = stores.find(s => s.square_location_config_id === config?.id);
