@@ -388,16 +388,16 @@ export default function SquareManagement() {
       );
     }
     
-    // Sort: by driver, then store, then updated time
+    // Sort: by driver (sort_order), then store, then updated time
     return items.sort((a, b) => {
       const aDrivers = getDriversForLocation(a.location_id).sort((d1, d2) => (d1.sort_order ?? Infinity) - (d2.sort_order ?? Infinity));
       const bDrivers = getDriversForLocation(b.location_id).sort((d1, d2) => (d1.sort_order ?? Infinity) - (d2.sort_order ?? Infinity));
       
-      // Compare first driver
-      const aFirstDriver = aDrivers[0]?.user_name || '';
-      const bFirstDriver = bDrivers[0]?.user_name || '';
-      if (aFirstDriver !== bFirstDriver) {
-        return aFirstDriver.localeCompare(bFirstDriver);
+      // Compare first driver by sort_order
+      const aFirstDriverOrder = aDrivers[0]?.sort_order ?? Infinity;
+      const bFirstDriverOrder = bDrivers[0]?.sort_order ?? Infinity;
+      if (aFirstDriverOrder !== bFirstDriverOrder) {
+        return aFirstDriverOrder - bFirstDriverOrder;
       }
       
       // Compare store
