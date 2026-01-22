@@ -465,14 +465,14 @@ export default function SquareManagement() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+    <div className="p-4 md:p-6 max-w-7xl mx-auto bg-background text-foreground">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6 mb-6">
         <div className="flex items-center gap-3">
           <CreditCard className="w-6 md:w-8 h-6 md:h-8 text-emerald-600 flex-shrink-0" />
           <div className="min-w-0">
-            <h1 className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Square COD</h1>
-            <p className="text-xs md:text-sm" style={{ color: 'var(--text-slate-500)' }}>Track and manage COD payments</p>
+            <h1 className="text-xl md:text-2xl font-bold">Square COD</h1>
+            <p className="text-xs md:text-sm text-muted-foreground">Track and manage COD payments</p>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
@@ -524,7 +524,7 @@ export default function SquareManagement() {
       {/* Location Summary Cards */}
       {currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 && (
         <div>
-          <h2 className="text-base md:text-lg font-semibold mb-4" style={{ color: 'var(--text-slate-900)' }}>By Location</h2>
+          <h2 className="text-base md:text-lg font-semibold mb-4">By Location</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 mb-6 md:mb-8">
             {locationConfigs
               .sort((a, b) => {
@@ -542,11 +542,10 @@ export default function SquareManagement() {
                     key={config.id}
                     onClick={() => setSelectedLocation(config)}
                     className="cursor-pointer transition-all"
+                    className="rounded-xl p-4 border-2"
                     style={{
-                      border: storeColor ? `2px solid ${storeColor.border}` : '1px solid var(--border-slate-200)',
-                      background: storeColor ? storeColor.bg : 'var(--bg-white)',
-                      borderRadius: '0.75rem',
-                      padding: '1rem'
+                      borderColor: storeColor ? storeColor.border : undefined,
+                      background: storeColor ? storeColor.bg : undefined
                     }}
                     onMouseEnter={(e) => {
                       if (storeColor) e.currentTarget.style.background = storeColor.hover;
@@ -555,13 +554,13 @@ export default function SquareManagement() {
                       if (storeColor) e.currentTarget.style.background = storeColor.bg;
                     }}
                   >
-                    <div className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>
+                    <div className="text-sm font-semibold mb-2">
                       {store ? store.name : config.name}
                     </div>
                     <div className="text-xl font-bold text-emerald-600 mb-1">
                       ${codTotal.toFixed(2)}
                     </div>
-                    <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                    <div className="text-xs text-muted-foreground">
                       {locationItems.length} {locationItems.length === 1 ? 'item' : 'items'}
                     </div>
                   </div>
@@ -572,7 +571,7 @@ export default function SquareManagement() {
       )}
 
       {error && (
-        <div className="p-3 md:p-4 rounded-lg mb-6 text-sm md:text-base" style={{ background: 'var(--bg-red-50)', color: 'var(--text-red-700)', borderColor: 'var(--border-red-200)', border: '1px solid' }}>
+        <div className="p-3 md:p-4 rounded-lg mb-6 text-sm md:text-base bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
           Error: {error}
         </div>
       )}
@@ -588,7 +587,7 @@ export default function SquareManagement() {
               <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full" />
             </div>
           ) : filteredCatalogItems.length === 0 ? (
-            <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
+            <div className="text-center py-12 text-muted-foreground">
                <DollarSign className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
                <p className="text-sm md:text-base">No active COD items in Square</p>
                <p className="text-xs md:text-sm mt-1">COD items will appear here when deliveries are created with COD amounts</p>
@@ -597,7 +596,7 @@ export default function SquareManagement() {
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b text-left text-sm" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-200)' }}>
+                  <tr className="border-b text-left text-sm text-muted-foreground">
                     <th className="p-3">Item Name</th>
                     <th className="p-3">Amount</th>
                     <th className="p-3">Store</th>
@@ -627,9 +626,9 @@ export default function SquareManagement() {
                     });
 
                     return (
-                    <tr key={item.catalog_object_id} className="border-b cursor-pointer transition-colors" style={{ borderColor: 'var(--border-slate-200)', background: userIsAppOwner && hasMultipleStores && storeColor ? storeColor.bg : 'transparent', borderLeft: userIsAppOwner && hasMultipleStores && storeColor ? `4px solid ${storeColor.border}` : 'none' }} onMouseEnter={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.hover; else e.currentTarget.style.background = 'var(--bg-slate-50)'; }} onMouseLeave={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.bg; else e.currentTarget.style.background = 'transparent'; }} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
+                    <tr key={item.catalog_object_id} className="border-b cursor-pointer transition-colors hover:bg-muted/50" style={{ background: userIsAppOwner && hasMultipleStores && storeColor ? storeColor.bg : 'transparent', borderLeft: userIsAppOwner && hasMultipleStores && storeColor ? `4px solid ${storeColor.border}` : 'none' }} onMouseEnter={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.hover; }} onMouseLeave={(e) => { if (userIsAppOwner && hasMultipleStores && storeColor) e.currentTarget.style.background = storeColor.bg; else e.currentTarget.style.background = 'transparent'; }} onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
                       <td className="p-3">
-                         <div className="font-medium text-sm" style={{ color: 'var(--text-slate-900)' }}>{item.name || 'N/A'}</div>
+                         <div className="font-medium text-sm">{item.name || 'N/A'}</div>
                         {userIsAppOwner && itemDrivers.length > 0 && (
                           <div className="flex gap-1 mt-1.5 flex-wrap">
                             {itemDrivers.map(driver => (
@@ -640,7 +639,7 @@ export default function SquareManagement() {
                           </div>
                         )}
                         {item.description && (
-                          <div className="text-xs truncate max-w-[200px] mt-1" style={{ color: 'var(--text-slate-500)' }}>
+                          <div className="text-xs truncate max-w-[200px] mt-1 text-muted-foreground">
                             {item.description}
                           </div>
                         )}
@@ -689,7 +688,7 @@ export default function SquareManagement() {
                           const store = stores.find(s => s.square_location_config_id === config?.id);
                           
                           return (
-                            <div className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
+                            <div className="text-sm font-medium">
                               {store ? store.name : (config?.name || 'Unknown')}
                             </div>
                           );
@@ -697,17 +696,17 @@ export default function SquareManagement() {
                       </td>
                       {currentUser && isAppOwner(currentUser) && (
                         <td className="p-3">
-                          <div className="text-xs font-mono truncate max-w-[180px]" style={{ color: 'var(--text-slate-500)' }}>
+                          <div className="text-xs font-mono truncate max-w-[180px] text-muted-foreground">
                             {item.location_id}
                           </div>
                         </td>
                       )}
                       <td className="p-3">
-                        <div className="text-xs font-mono truncate max-w-[150px]" style={{ color: 'var(--text-slate-500)' }}>
+                        <div className="text-xs font-mono truncate max-w-[150px] text-muted-foreground">
                           {item.catalog_object_id}
                         </div>
                       </td>
-                      <td className="p-3 text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      <td className="p-3 text-xs text-muted-foreground">
                         {item.updated_at ? new Date(item.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
                       </td>
                       <td className="p-3">
@@ -748,16 +747,15 @@ export default function SquareManagement() {
                   <div 
                     key={item.catalog_object_id}
                     onClick={() => setSelectedCODItem(item)}
-                    className="p-4 rounded-lg border cursor-pointer transition-colors active:bg-slate-100"
-                    style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}
+                    className="p-4 rounded-lg border cursor-pointer transition-colors bg-muted/30 hover:bg-muted/50"
                   >
                     <div className="flex justify-between items-start gap-3 mb-2">
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>
+                        <p className="font-semibold text-sm">
                           {item.name || 'N/A'}
                         </p>
                         {item.description && (
-                          <p className="text-xs truncate mt-1" style={{ color: 'var(--text-slate-500)' }}>
+                          <p className="text-xs truncate mt-1 text-muted-foreground">
                             {item.description}
                           </p>
                         )}
@@ -816,9 +814,9 @@ export default function SquareManagement() {
                       })()}
                     </div>
                     
-                    <div className="space-y-2 text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                    <div className="space-y-2 text-xs text-muted-foreground">
                       <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Store:</span> {(() => {
+                        <span className="font-semibold">Store:</span> {(() => {
                           const locationId = item.location_id;
                           const config = locationConfigs.find(c => c.square_location_id === locationId);
                           const store = stores.find(s => s.square_location_config_id === config?.id);
@@ -826,7 +824,7 @@ export default function SquareManagement() {
                         })()}
                       </div>
                       <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Updated:</span> {item.updated_at ? new Date(item.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
+                        <span className="font-semibold">Updated:</span> {item.updated_at ? new Date(item.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
                       </div>
                     </div>
                     
