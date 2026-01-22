@@ -663,9 +663,9 @@ export default function SquareManagement() {
       )}
 
       {/* Active Square Items */}
-      <Card>
+      <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
         <CardHeader>
-          <CardTitle className="text-base md:text-lg">Active COD Items</CardTitle>
+          <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">Active COD Items</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
