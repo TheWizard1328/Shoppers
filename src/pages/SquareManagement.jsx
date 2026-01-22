@@ -270,7 +270,8 @@ export default function SquareManagement() {
 
         console.log(`✓ Initial load: Got ${catalogItemsData.length} catalog items and ${soldCatalogItemsData.length} transactions`);
 
-        // Save fresh data to offline database
+        // DO NOT clear sync status during initial load - just update with fresh data
+        // This preserves the sync status metadata while replacing the actual data
         await Promise.all([
           saveCatalogItemsOffline(catalogItemsData),
           savePaymentTransactionsOffline(soldCatalogItemsData)
