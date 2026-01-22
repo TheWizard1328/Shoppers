@@ -156,10 +156,17 @@ export default function SquareManagement() {
         throw new Error('Final catalog sync failed');
       }
 
-      // Step 7: Update UI
-      console.log('🎨 Step 7: Updating UI...');
-      setCatalogItems(finalData.items || []);
+      // Step 7: Update UI and save to offline database
+      console.log('🎨 Step 7: Updating UI and saving to offline database...');
+      const finalCatalogItems = finalData.items || [];
+      setCatalogItems(finalCatalogItems);
       setLocationIds(finalData.locationIds || []);
+
+      // Save to offline database after sync
+      await Promise.all([
+        saveCatalogItemsOffline(finalCatalogItems),
+        savePaymentTransactionsOffline(recentPayments)
+      ]);
 
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
