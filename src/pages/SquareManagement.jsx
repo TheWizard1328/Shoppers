@@ -243,7 +243,7 @@ export default function SquareManagement() {
       try {
         const user = await base44.auth.me();
         setCurrentUser(user);
-        
+
         // Calculate date range for deliveries (last 7 days)
         const today = new Date();
         const sevenDaysAgo = new Date(today);
@@ -254,44 +254,47 @@ export default function SquareManagement() {
             $lte: format(today, 'yyyy-MM-dd')
           }
         };
-        
-        const [configs, storesData, appUsersData, allTransactions, deliveriesData] = await Promise.all([
+
+        const [configs, storesData, appUsersData, deliveriesData, codDataResponse] = await Promise.all([
           base44.entities.SquareLocationConfig.filter({ status: 'active' }),
           base44.entities.Store.list(),
           base44.entities.AppUser.list(),
-          base44.entities.SquareTransaction.list(),
-          base44.entities.Delivery.filter(dateFilter)
+          base44.entities.Delivery.filter(dateFilter),
+          base44.functions.invoke('squareGetCODData', {})
         ]);
-        
+
+        const codData = codDataResponse?.data || codDataResponse || {};
+
         // Filter to last 7 days in JavaScript
         const sevenDaysAgoTx = new Date();
         sevenDaysAgoTx.setDate(sevenDaysAgoTx.getDate() - 7);
-        const recentTxs = (allTransactions || []).filter(t => {
+        const recentTxs = (codData.transactions || []).filter(t => {
           const txDate = new Date(t.created_date);
           return txDate >= sevenDaysAgoTx;
         });
-        
+
         console.log('Recent transactions (last 7 days):', recentTxs);
-        
+
         setLocationConfigs(configs || []);
         setStores(storesData || []);
+        setCatalogItems(codData.catalogItems || []);
+        setLocationIds(codData.locationIds || []);
         setRecentTransactions(recentTxs);
-        setAllTransactions(allTransactions || []);
+        setAllTransactions(codData.transactions || []);
         setDeliveries(deliveriesData || []);
-        
+
         // Filter to only active drivers
         const driversList = appUsersData.filter(u => 
           u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active'
         );
         setDrivers(driversList || []);
-        
-        // Mark initial load complete (only manually sync from here)
+
         setIsLoading(false);
       } catch (err) {
-        console.error('Failed to load configs/stores:', err);
+        console.error('Failed to load COD data:', err);
       }
     };
-    
+
     loadData();
   }, []);
 
