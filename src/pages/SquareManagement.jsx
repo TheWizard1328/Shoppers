@@ -774,7 +774,7 @@ export default function SquareManagement() {
                           </span>
                           {(() => {
                             // Check if this item has been sold in Square transactions
-                            const soldInSquare = hasBeenSoldInSquare(item.catalog_object_id);
+                            const soldInSquare = hasBeenSoldInSquare(item);
                             
                             if (soldInSquare) {
                               return (
