@@ -229,7 +229,6 @@ export default function SquareManagement() {
         const user = await base44.auth.me();
         setCurrentUser(user);
 
-        // Calculate date range for deliveries (last 7 days)
         const today = new Date();
         const sevenDaysAgo = new Date(today);
         sevenDaysAgo.setDate(today.getDate() - 7);
@@ -240,54 +239,54 @@ export default function SquareManagement() {
           }
         };
 
-        const [configs, storesData, appUsersData, deliveriesData, codDataResponse] = await Promise.all([
+        const [configs, storesData, appUsersData, deliveriesData] = await Promise.all([
           base44.entities.SquareLocationConfig.filter({ status: 'active' }),
           base44.entities.Store.list(),
           base44.entities.AppUser.list(),
-          base44.entities.Delivery.filter(dateFilter),
-          base44.functions.invoke('squareGetCODData', {})
+          base44.entities.Delivery.filter(dateFilter)
         ]);
-
-        const codData = codDataResponse?.data || codDataResponse || {};
-        const locationIdsFromCod = codData.locationIds || [];
-        
-        // Now fetch payments with actual location IDs
-        const paymentsDataResponse = await base44.functions.invoke('squareFetchPayments', { 
-          locationIds: locationIdsFromCod, 
-          daysBack: 7 
-        });
-        const paymentsData = paymentsDataResponse?.data || paymentsDataResponse || {};
-        
-        // Use actual payment data for transactions instead of catalog items
-        const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
-        
-        // Filter to last 7 days
-        const sevenDaysAgoTx = new Date();
-        sevenDaysAgoTx.setDate(sevenDaysAgoTx.getDate() - 7);
-        const recentPayments = soldCatalogItemsData
-          .filter(item => new Date(item.payment_date) >= sevenDaysAgoTx)
-          .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
-
-        console.log('Recent payment transactions (last 7 days):', recentPayments);
 
         setLocationConfigs(configs || []);
         setStores(storesData || []);
-        setCatalogItems(codData.catalogItems || []);
-        setLocationIds(locationIdsFromCod);
-        setRecentTransactions(recentPayments);
-        setAllTransactions(soldCatalogItemsData);
         setDeliveries(deliveriesData || []);
-        setSoldCatalogItems(soldCatalogItemsData);
 
-        // Filter to only active drivers
         const driversList = appUsersData.filter(u => 
           u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active'
         );
         setDrivers(driversList || []);
 
+        // Sync fresh catalog from Square
+        const syncResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
+        const syncData = syncResponse?.data || syncResponse;
+        
+        if (syncData?.success) {
+          const syncedLocationIds = syncData.locationIds || [];
+          setCatalogItems(syncData.items || []);
+          setLocationIds(syncedLocationIds);
+
+          // Fetch payment data
+          const paymentsDataResponse = await base44.functions.invoke('squareFetchPayments', { 
+            locationIds: syncedLocationIds, 
+            daysBack: 7 
+          });
+          const paymentsData = paymentsDataResponse?.data || paymentsDataResponse || {};
+          const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
+
+          const sevenDaysAgoTx = new Date();
+          sevenDaysAgoTx.setDate(sevenDaysAgoTx.getDate() - 7);
+          const recentPayments = soldCatalogItemsData
+            .filter(item => new Date(item.payment_date) >= sevenDaysAgoTx)
+            .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+
+          setRecentTransactions(recentPayments);
+          setAllTransactions(soldCatalogItemsData);
+          setSoldCatalogItems(soldCatalogItemsData);
+        }
+
         setIsLoading(false);
       } catch (err) {
         console.error('Failed to load COD data:', err);
+        setIsLoading(false);
       }
     };
 
