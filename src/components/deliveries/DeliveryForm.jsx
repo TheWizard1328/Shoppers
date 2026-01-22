@@ -4350,9 +4350,9 @@ export default function DeliveryForm({
                           </div>
                         </div>
 
-                        {/* Row 2: Completion Time only (no time windows for finished stops) */}
+                        {/* Row 2: Completion Time */}
                         <div className="flex gap-3">
-                          <div className="w-1/2 md:w-1/3 space-y-1">
+                          <div className="flex-1 space-y-1">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completion Time *</Label>
                             <Input
                               type="time"
@@ -4361,6 +4361,30 @@ export default function DeliveryForm({
                               disabled={isSaving}
                               className="h-9 text-sm" />
                           </div>
+                          {isPickupMode && (
+                            <>
+                              <div className="flex-1 space-y-1">
+                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Start Time</Label>
+                                <Input
+                                  type="time"
+                                  value={formData.delivery_time_start}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, delivery_time_start: e.target.value }))}
+                                  disabled={isSaving}
+                                  placeholder="Start"
+                                  className="h-9 text-sm" />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>End Time</Label>
+                                <Input
+                                  type="time"
+                                  value={formData.delivery_time_end}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, delivery_time_end: e.target.value }))}
+                                  disabled={isSaving}
+                                  placeholder="End"
+                                  className="h-9 text-sm" />
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div> :
 
