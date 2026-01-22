@@ -844,14 +844,11 @@ export default function SquareManagement() {
                   <div 
                     key={`${item.catalog_object_id}-${item.location_id}-${index}`}
                     onClick={() => setSelectedCODItem(item)}
-                    className="p-4 rounded-lg cursor-pointer transition-colors"
-                    style={{ background: 'var(--bg-muted-30)', border: '1px solid var(--border-slate-200)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-muted-50)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-muted-30)'}
+                    className="p-4 rounded-lg cursor-pointer transition-colors bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
                   >
                     <div className="flex justify-between items-start gap-3 mb-2">
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>
+                        <p className="font-semibold text-sm text-slate-900 dark:text-slate-50">
                           {item.name || 'N/A'}
                         </p>
                         {item.description && (
