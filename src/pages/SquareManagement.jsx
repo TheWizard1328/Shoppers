@@ -181,11 +181,11 @@ export default function SquareManagement() {
         ]);
         
         // Filter to last 7 days in JavaScript
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const sevenDaysAgoTx = new Date();
+        sevenDaysAgoTx.setDate(sevenDaysAgoTx.getDate() - 7);
         const recentTxs = (allTransactions || []).filter(t => {
           const txDate = new Date(t.created_date);
-          return txDate >= sevenDaysAgo;
+          return txDate >= sevenDaysAgoTx;
         });
         
         console.log('Recent transactions (last 7 days):', recentTxs);
