@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { X, RotateCcw, Check } from 'lucide-react';
+import { X, RotateCcw, Check, Loader2 } from 'lucide-react';
 
 export default function SignatureCapture({ onSave, onCancel, customerName = '', isSaved = false }) {
   const canvasRef = useRef(null);
@@ -9,6 +9,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   const [hasSignature, setHasSignature] = useState(false);
   const [context, setContext] = useState(null);
   const [showClear, setShowClear] = useState(isSaved);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -73,11 +74,18 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   };
 
   const handleSave = async () => {
+    if (isSaving) {
+      console.log('⏸️ [SignatureCapture] Already saving - ignoring duplicate tap');
+      return;
+    }
+
     const canvas = canvasRef.current;
     if (!canvas || !hasSignature) {
       console.warn('⚠️ [SignatureCapture] Canvas not ready or no signature');
       return;
     }
+
+    setIsSaving(true);
 
     try {
       // Convert canvas to blob with quality setting
@@ -103,7 +111,10 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
       console.log('✅ [SignatureCapture] Signature saved successfully');
     } catch (error) {
       console.error('❌ [SignatureCapture] Error saving signature:', error);
+      setIsSaving(false);
       throw error;
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -182,11 +193,20 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
                <Button 
                  size="sm" 
                  onClick={handleSave} 
-                 disabled={!hasSignature}
+                 disabled={!hasSignature || isSaving}
                  className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700"
                >
-                 <Check className="w-4 h-4 mr-2" />
-                 Save
+                 {isSaving ? (
+                   <>
+                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                     Saving...
+                   </>
+                 ) : (
+                   <>
+                     <Check className="w-4 h-4 mr-2" />
+                     Save
+                   </>
+                 )}
                </Button>
              </>
            )}
