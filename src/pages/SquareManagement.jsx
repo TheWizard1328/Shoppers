@@ -822,7 +822,7 @@ export default function SquareManagement() {
           {/* Mobile Card View */}
           {!isLoading && filteredCatalogItems.length > 0 && (
             <div className="md:hidden space-y-3">
-              {filteredCatalogItems.map((item) => {
+              {filteredCatalogItems.map((item, index) => {
                 const itemDrivers = getDriversForLocation(item.location_id)
                   .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
                 const userIsAppOwner = currentUser && isAppOwner(currentUser);
