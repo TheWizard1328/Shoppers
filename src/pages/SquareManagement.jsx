@@ -35,15 +35,105 @@ export default function SquareManagement() {
     setIsSyncing(true);
     setError(null);
     try {
+      // Step 1: Sync from Square
       const response = await base44.functions.invoke('squareSyncCatalogItems', {});
       const data = response?.data || response;
       
-      if (data.success) {
-        setCatalogItems(data.items || []);
-        setLocationIds(data.locationIds || []);
-        toast.success(`Synced ${data.itemCount} items from Square`);
-      } else {
+      if (!data.success) {
         throw new Error(data.error || 'Sync failed');
+      }
+      
+      let syncedItems = data.items || [];
+      let deletedCount = 0;
+      let createdCount = 0;
+      
+      // Step 2: Delete catalog items that have matching collection transactions
+      for (const item of syncedItems) {
+        const codDetails = getCODPaymentDetails(item.name, item.location_id);
+        
+        // If payment has been collected, delete from Square
+        if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
+          try {
+            await base44.functions.invoke('squareDeleteCodItem', {
+              catalogObjectId: item.catalog_object_id,
+              transactionId: item.transaction_id,
+              reason: 'payment_collected'
+            });
+            deletedCount++;
+          } catch (deleteErr) {
+            console.warn(`Failed to delete collected item ${item.name}:`, deleteErr);
+          }
+        }
+      }
+      
+      // Remove deleted items from local state
+      syncedItems = syncedItems.filter(item => {
+        const codDetails = getCODPaymentDetails(item.name, item.location_id);
+        return !(codDetails.status === 'collected' && codDetails.payments.length > 0);
+      });
+      
+      // Step 3: Check deliveries for missing catalog items
+      const completedDeliveries = deliveries.filter(d => 
+        ['completed', 'returned'].includes(d.status) && 
+        d.cod_total_amount_required > 0
+      );
+      
+      for (const delivery of completedDeliveries) {
+        // Check if payment already collected
+        if (delivery.cod_payments && delivery.cod_payments.length > 0) {
+          continue; // Already collected, skip
+        }
+        
+        // Build expected item name
+        const deliveryDate = new Date(delivery.delivery_date);
+        const month = String(deliveryDate.getMonth() + 1).padStart(2, '0');
+        const day = String(deliveryDate.getDate()).padStart(2, '0');
+        const store = stores.find(s => s.id === delivery.store_id);
+        const storeAbbr = store?.abbreviation || '??';
+        const expectedName = `${month}/${day}(${storeAbbr})-${delivery.patient_name}`;
+        
+        // Check if catalog item exists
+        const existsInCatalog = syncedItems.some(item => item.name === expectedName);
+        
+        if (!existsInCatalog && store?.square_location_config_id) {
+          // Find location config
+          const locationConfig = locationConfigs.find(c => c.id === store.square_location_config_id);
+          
+          if (locationConfig) {
+            try {
+              const createResponse = await base44.functions.invoke('squareCreateCodItem', {
+                itemName: expectedName,
+                amount: delivery.cod_total_amount_required,
+                locationId: locationConfig.square_location_id,
+                deliveryId: delivery.id,
+                storeId: delivery.store_id
+              });
+              
+              if (createResponse?.data?.success || createResponse?.success) {
+                createdCount++;
+              }
+            } catch (createErr) {
+              console.warn(`Failed to create catalog item for ${expectedName}:`, createErr);
+            }
+          }
+        }
+      }
+      
+      // Final sync to get updated catalog
+      const finalResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
+      const finalData = finalResponse?.data || finalResponse;
+      
+      if (finalData.success) {
+        setCatalogItems(finalData.items || []);
+        setLocationIds(finalData.locationIds || []);
+        
+        const messages = [
+          `Synced ${finalData.itemCount} items`,
+          deletedCount > 0 ? `deleted ${deletedCount} collected` : null,
+          createdCount > 0 ? `created ${createdCount} missing` : null
+        ].filter(Boolean).join(', ');
+        
+        toast.success(messages);
       }
     } catch (err) {
       console.error('Sync error:', err);
