@@ -200,14 +200,27 @@ export default function SquareManagement() {
       setIsSyncing(false);
       setIsLoading(false);
       
+      // Update sync status
+      const updatedSyncStatus = await getSquareCODSyncStatus();
+      setSyncStatus(updatedSyncStatus);
+
       // CRITICAL: Resume smart refresh and restart timers
       smartRefreshManager.resume();
       smartRefreshManager.restart();
       console.log('▶️ [SquareManagement] Resumed and restarted smart refresh after Square sync');
-    }
-  };
+      }
+      };
 
-  useEffect(() => {
+      const loadSyncStatus = async () => {
+      try {
+      const status = await getSquareCODSyncStatus();
+      setSyncStatus(status);
+      } catch (err) {
+      console.error('Failed to load sync status:', err);
+      }
+      };
+
+      useEffect(() => {
     const loadData = async () => {
       try {
         const user = await base44.auth.me();
