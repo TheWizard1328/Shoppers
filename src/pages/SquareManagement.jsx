@@ -109,19 +109,18 @@ export default function SquareManagement() {
       const soldCatalogItemsDetailed = paymentsData?.soldCatalogItems || [];
       setSoldCatalogItems(soldCatalogItemsDetailed);
 
-      // Create a Set of sold items for matching (catalog_id + location_id)
-      const soldItemKeys = new Set(
-        soldCatalogItemsDetailed.map(item => `${item.catalog_object_id}|${item.location_id}`)
+      // Create a Set of sold catalog object IDs (authoritative key)
+      const soldCatalogIds = new Set(
+        soldCatalogItemsDetailed.map(item => item.catalog_object_id)
       );
       
       let deletedCount = 0;
       let createdCount = 0;
       
-      // Step 3: Delete catalog items that have been sold (match by catalog_id AND location_id)
+      // Step 3: Delete catalog items that have been sold (match by catalog_object_id)
       const itemsToDelete = [];
       for (const item of syncedItems) {
-        const itemKey = `${item.catalog_object_id}|${item.location_id}`;
-        if (soldItemKeys.has(itemKey)) {
+        if (soldCatalogIds.has(item.catalog_object_id)) {
           itemsToDelete.push(item);
         }
       }
