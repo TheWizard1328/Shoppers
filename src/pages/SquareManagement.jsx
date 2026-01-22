@@ -524,7 +524,7 @@ export default function SquareManagement() {
       {/* Location Summary Cards */}
       {currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 && (
         <div>
-          <h2 className="text-base md:text-lg font-semibold mb-4">By Location</h2>
+          <h2 className="text-base md:text-lg font-semibold mb-4" style={{ color: 'var(--text-slate-900)' }}>By Location</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 mb-6 md:mb-8">
             {locationConfigs
               .sort((a, b) => {
@@ -773,7 +773,10 @@ export default function SquareManagement() {
                           setItemToDelete(item);
                         }}
                         disabled={deletingId === item.catalog_object_id}
-                        className="text-red-600 hover:text-red-700 flex-shrink-0"
+                        className="flex-shrink-0"
+                        style={{ color: 'var(--text-red-600)' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-red-700)'; e.currentTarget.style.background = 'var(--bg-red-50)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-red-600)'; e.currentTarget.style.background = 'transparent'; }}
                       >
                         {deletingId === item.catalog_object_id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
