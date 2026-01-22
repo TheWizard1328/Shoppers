@@ -476,9 +476,14 @@ export default function SquareManagement() {
     return { status: 'pending', payments: [] };
   };
 
-  // Check if item has been sold in Square transactions
-  const hasBeenSoldInSquare = (catalogObjectId) => {
-    return soldCatalogItems.some(item => item.catalog_object_id === catalogObjectId);
+  // Check if catalog item has been sold in Square transactions
+  const hasBeenSoldInSquare = (catalogItem) => {
+    return soldCatalogItems.some(payment => {
+      // Match on location_id, item_name, and amount
+      return payment.location_id === catalogItem.location_id &&
+             payment.item_name === catalogItem.name &&
+             Math.abs(payment.amount - (catalogItem.price_dollars || 0)) < 0.01; // Float comparison tolerance
+    });
   };
 
   const confirmDelete = async () => {
