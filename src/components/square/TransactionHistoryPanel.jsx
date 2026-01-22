@@ -34,6 +34,15 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
     });
   }, [catalogItems, location.square_location_id, transactions]);
 
+  // Find stores that use this location config
+  const locationStoreIds = useMemo(() => {
+    // Need to get stores from parent component - for now, filter by catalog items
+    return catalogItems
+      .filter(item => item.location_id === location.square_location_id)
+      .map(item => item.store_id)
+      .filter((id, index, self) => id && self.indexOf(id) === index); // unique store IDs
+  }, [catalogItems, location.square_location_id]);
+
   // Get catalog object IDs for this location
   const locationCatalogIds = useMemo(() => {
     return catalogItems
@@ -41,10 +50,11 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
       .map(item => item.catalog_object_id);
   }, [catalogItems, location.square_location_id]);
 
-  // Filter transactions by location
+  // Filter transactions by location (by catalog object ID OR store ID)
   const baseFilteredTransactions = useMemo(() => {
     let filtered = transactions.filter(t => 
-      locationCatalogIds.includes(t.square_catalog_object_id)
+      locationCatalogIds.includes(t.square_catalog_object_id) ||
+      (t.store_id && locationStoreIds.includes(t.store_id))
     );
 
     // Date range filter
