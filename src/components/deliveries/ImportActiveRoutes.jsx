@@ -1224,8 +1224,12 @@ export default function ImportActiveRoutes({
                 current: i + 1
               }));
             } catch (error) {
-              console.warn(`⚠️ Update failed for delivery ID ${deliveryData.id}:`, error.message);
-              failedUpdates.push({ data: deliveryData, error: error.message });
+              // CRITICAL: Silently skip 404 errors (delivery not found) - common during imports
+              const is404 = error.response?.status === 404 || error.message?.includes('not found');
+              if (!is404) {
+                console.warn(`⚠️ Update failed for delivery ID ${deliveryData.id}:`, error.message);
+                failedUpdates.push({ data: deliveryData, error: error.message });
+              }
               setImportProgress((prev) => ({ ...prev, current: i + 1 }));
             }
           }
