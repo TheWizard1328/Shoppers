@@ -14,6 +14,7 @@ import CODItemDetailModal from "@/components/square/CODItemDetailModal";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
+import { saveCatalogItemsOffline, savePaymentTransactionsOffline, getCatalogItemsOffline, getPaymentTransactionsOffline } from "@/components/utils/squareCODOfflineManager";
 
 export default function SquareManagement() {
   const [catalogItems, setCatalogItems] = useState([]);
