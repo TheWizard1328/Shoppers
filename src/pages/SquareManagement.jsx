@@ -572,10 +572,21 @@ export default function SquareManagement() {
             <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
           </Button>
         </div>
-      </div>
+          </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
+          {/* Sync Status Indicator */}
+          {syncStatus && (
+            <div className="mb-6 md:mb-8">
+              <SyncStatusIndicator 
+                syncStatus={syncStatus}
+                isSyncing={isSyncing}
+                error={error}
+              />
+            </div>
+          )}
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
         <Card>
           <CardContent className="p-3 md:p-4">
             <div className="text-xs md:text-sm" style={{ color: 'var(--text-slate-500)' }}>Active COD Items</div>
