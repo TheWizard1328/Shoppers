@@ -260,7 +260,9 @@ export default function SquareManagement() {
         setLocationIds(syncedLocationIds);
 
         // ALWAYS fetch fresh from Square API for catalog items (proper deduplication)
-        console.log('🔄 [SquareManagement] Initial load: fetching fresh data from Square...');
+        console.log('🔄 [SquareManagement] Initial load: clearing stale offline data and fetching fresh...');
+        await clearSquareCODOfflineData();
+
         const [catalogResponse, paymentsResponse] = await Promise.all([
           base44.functions.invoke('squareSyncCatalogItems', {}),
           base44.functions.invoke('squareFetchPayments', { 
@@ -277,8 +279,7 @@ export default function SquareManagement() {
 
         console.log(`✓ Initial load: Got ${catalogItemsData.length} catalog items and ${soldCatalogItemsData.length} transactions`);
 
-        // DO NOT clear sync status during initial load - just update with fresh data
-        // This preserves the sync status metadata while replacing the actual data
+        // Save fresh data to offline database after clearing
         await Promise.all([
           saveCatalogItemsOffline(catalogItemsData),
           savePaymentTransactionsOffline(soldCatalogItemsData)
