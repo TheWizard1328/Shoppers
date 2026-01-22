@@ -164,55 +164,59 @@ export default function SquareManagement() {
         const storeAbbr = store?.abbreviation || '??';
         const expectedName = `${month}/${day}(${storeAbbr})-${delivery.patient_name}`;
 
-        // Check if payment already received in Square (match by catalog_object_id which is authoritative)
-        const locationConfig = store ? locationConfigs.find(c => c.id === store.square_location_config_id) : null;
-        const squareLocationId = locationConfig?.square_location_id;
+        if (!store?.square_location_config_id) continue;
 
-        // Convert amount to cents for comparison (Square stores in cents)
+        const locationConfig = locationConfigs.find(c => c.id === store.square_location_config_id);
+        if (!locationConfig) continue;
+
+        const squareLocationId = locationConfig.square_location_id;
         const expectedAmountCents = Math.round(delivery.cod_total_amount_required * 100);
 
-        // Find any catalog item with matching name, location, AND amount in synced items
-        const existingCatalogItem = syncedItems.find(item => 
+        // Check if already collected via Debit or Credit
+        const hasDebitCreditPayment = delivery.cod_payments?.some(p => 
+          p.type === 'Debit' || p.type === 'Credit'
+        );
+
+        if (hasDebitCreditPayment) continue;
+
+        // Check if ANY matching item exists in catalog (by name, location, amount)
+        const matchingItems = syncedItems.filter(item => 
           item.name === expectedName && 
           item.location_id === squareLocationId &&
           item.price_cents === expectedAmountCents
         );
 
-        const hasSquarePayment = existingCatalogItem && soldCatalogIds.has(existingCatalogItem.catalog_object_id);
+        // If item already exists, skip creation
+        if (matchingItems.length > 0) {
+          console.log(`✓ Item already exists: "${expectedName}" (${matchingItems.length} found)`);
+          continue;
+        }
 
-        // Check if already collected via Debit or Credit (these should not be in Square catalog)
-        const hasDebitCreditPayment = delivery.cod_payments?.some(p => 
-          p.type === 'Debit' || p.type === 'Credit'
+        // Check if payment was collected in Square
+        const hasSoldInSquare = syncedItems.some(item =>
+          item.name === expectedName &&
+          item.location_id === squareLocationId &&
+          soldCatalogIds.has(item.catalog_object_id)
         );
 
-        // Check if catalog item exists
-        const existsInCatalog = !!existingCatalogItem;
+        if (hasSoldInSquare) continue;
 
-        // Check if this item was just deleted as duplicate or collected
-        const wasJustDeleted = deletedCatalogIds.has(expectedName) || collectedCatalogIds.has(expectedName);
+        // Create new item
+        try {
+          const createResponse = await base44.functions.invoke('squareCreateCodItem', {
+            deliveryId: delivery.id,
+            patientName: delivery.patient_name,
+            storeAbbreviation: storeAbbr,
+            codAmount: delivery.cod_total_amount_required,
+            deliveryDate: delivery.delivery_date,
+            storeId: delivery.store_id
+          });
 
-        // Only create if: no Square payment AND no Debit/Credit payment AND doesn't exist in catalog AND wasn't just deleted
-        if (!hasSquarePayment && !hasDebitCreditPayment && !existsInCatalog && !wasJustDeleted && store?.square_location_config_id) {
-          const locationConfig = locationConfigs.find(c => c.id === store.square_location_config_id);
-          
-          if (locationConfig) {
-            try {
-              const createResponse = await base44.functions.invoke('squareCreateCodItem', {
-                deliveryId: delivery.id,
-                patientName: delivery.patient_name,
-                storeAbbreviation: storeAbbr,
-                codAmount: delivery.cod_total_amount_required,
-                deliveryDate: delivery.delivery_date,
-                storeId: delivery.store_id
-              });
-              
-              if (createResponse?.data?.success || createResponse?.success) {
-                createdCount++;
-              }
-            } catch (createErr) {
-              console.warn(`Failed to create catalog item for ${expectedName}:`, createErr);
-            }
+          if (createResponse?.data?.success || createResponse?.success) {
+            createdCount++;
           }
+        } catch (createErr) {
+          console.warn(`Failed to create catalog item for ${expectedName}:`, createErr);
         }
       }
       
