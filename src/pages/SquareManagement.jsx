@@ -103,11 +103,12 @@ export default function SquareManagement() {
         // Check if catalog item exists
         const existsInCatalog = syncedItems.some(item => item.name === expectedName);
         
-        // Check if already collected (has collection transaction)
+        // Check if already collected (has collection transaction with matching amount)
         const hasCollectionTx = allTransactions.some(tx => 
           tx.item_name === expectedName &&
           tx.type === 'collection' &&
-          tx.status === 'completed'
+          tx.status === 'completed' &&
+          Math.abs(tx.amount - delivery.cod_total_amount_required) < 0.01
         );
         
         // Only create if doesn't exist AND hasn't been collected
