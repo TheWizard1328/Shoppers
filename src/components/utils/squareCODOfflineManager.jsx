@@ -22,13 +22,17 @@ export const saveCatalogItemsOffline = async (items) => {
     const result = await offlineDB.bulkSave(SQUARE_COD_STORES.CATALOG_ITEMS, items);
     
     if (result.success) {
+      // Count actual items in database to ensure accuracy
+      const allItems = await offlineDB.getAll(SQUARE_COD_STORES.CATALOG_ITEMS);
+      const actualCount = allItems.length;
+      
       await offlineDB.updateSyncStatus('SquareCatalogItems', {
         status: 'synced',
-        recordCount: items.length,
+        recordCount: actualCount,
         lastSync: new Date().toISOString()
       });
       
-      console.log(`✅ [SquareCODOffline] Saved ${result.count} catalog items offline`);
+      console.log(`✅ [SquareCODOffline] Saved ${result.count} catalog items offline (${actualCount} total in DB)`);
     }
     
     return result;
