@@ -682,7 +682,7 @@ export default function SquareManagement() {
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b text-left text-sm" style={{ color: 'var(--text-muted-foreground)', borderColor: 'var(--border-slate-200)' }}>
+                  <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
                     <th className="p-3">Item Name</th>
                     <th className="p-3">Amount</th>
                     <th className="p-3">Store</th>
