@@ -284,13 +284,15 @@ export default function SquareManagement() {
           u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active'
         );
         setDrivers(driversList || []);
+        
+        // Mark initial load complete (only manually sync from here)
+        setIsLoading(false);
       } catch (err) {
         console.error('Failed to load configs/stores:', err);
       }
     };
     
     loadData();
-    syncFromSquare();
   }, []);
 
 
