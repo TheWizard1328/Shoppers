@@ -69,11 +69,15 @@ export default function SquareManagement() {
       const soldCatalogItemsDetailed = paymentsData?.soldCatalogItems || [];
       setSoldCatalogItems(soldCatalogItemsDetailed);
 
-      // Build a set of collected item keys
+      // Build a set of collected item keys and catalog object IDs
       const collectedItemKeys = new Set();
+      const collectedCatalogIds = new Set();
       for (const soldItem of soldCatalogItemsDetailed) {
         const key = `${soldItem.item_name}|${soldItem.location_id}|${soldItem.amount.toFixed(2)}`;
         collectedItemKeys.add(key);
+        if (soldItem.square_catalog_object_id) {
+          collectedCatalogIds.add(soldItem.square_catalog_object_id);
+        }
       }
 
       // Identify duplicates and collected items
@@ -83,8 +87,8 @@ export default function SquareManagement() {
       for (const item of syncedItems) {
         const itemKey = `${item.name}|${item.location_id}|${(item.price_dollars || 0).toFixed(2)}`;
 
-        // Skip if item has been collected
-        if (collectedItemKeys.has(itemKey)) {
+        // Skip if item has been collected (verified via payment data)
+        if (collectedCatalogIds.has(item.catalog_object_id) || collectedItemKeys.has(itemKey)) {
           deletionCandidates.push(item);
           continue;
         }
@@ -104,15 +108,20 @@ export default function SquareManagement() {
       if (deletionCandidates.length > 0) {
         for (const item of deletionCandidates) {
           try {
+            // Find related transaction if available
+            const relatedTransaction = soldCatalogItemsDetailed.find(t => 
+              t.square_catalog_object_id === item.catalog_object_id
+            );
+            
             await base44.functions.invoke('squareDeleteCodItem', {
               catalogObjectId: item.catalog_object_id,
-              transactionId: item.transaction_id,
+              transactionId: relatedTransaction?.square_transaction_id || null,
               reason: 'cleanup'
             });
             deletedCount++;
             await new Promise(resolve => setTimeout(resolve, 200));
           } catch (err) {
-            console.warn(`Failed to delete ${item.name}:`, err);
+            console.warn(`Failed to delete ${item.name} (${item.catalog_object_id}):`, err);
           }
         }
       }
