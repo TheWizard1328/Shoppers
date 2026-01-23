@@ -2995,23 +2995,25 @@ export default function Layout({ children, currentPageName }) {
                               </>
                             )}
 
-                            {/* Import Buttons - App Owner - Show on all devices */}
-                            {realUser && isAppOwner(realUser) && (
+                            {/* Import Buttons - Show delivery import for drivers and admins, patient import for admins if enabled */}
+                            {(realUser && isAppOwner(realUser)) || userHasRole(currentUser, 'driver') || (userHasRole(currentUser, 'admin') && adminImportEnabled) ? (
                             <>
                               <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
                                 Data Importers
                               </DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
-                                <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-                                Patient Info
-                              </DropdownMenuItem>
+                              {(realUser && isAppOwner(realUser)) || (userHasRole(currentUser, 'admin') && adminImportEnabled) && (
+                                <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
+                                  <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                                  Patient Info
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                                 <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-                                Deliveries
+                                Past Routes
                               </DropdownMenuItem>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                             </>
-                            )}
+                            ) : null}
 
 
 
@@ -3505,23 +3507,25 @@ export default function Layout({ children, currentPageName }) {
                             </>
                           )}
 
-                          {/* Import Buttons - App Owner - Show on all devices */}
-                          {realUser && isAppOwner(realUser) && (
+                          {/* Import Buttons - Show delivery import for drivers and admins, patient import for admins if enabled */}
+                          {(realUser && isAppOwner(realUser)) || userHasRole(currentUser, 'driver') || (userHasRole(currentUser, 'admin') && adminImportEnabled) ? (
                           <>
                             <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
                               Data Importers
                             </DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
-                              <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-                              Patient Info
-                            </DropdownMenuItem>
+                            {(realUser && isAppOwner(realUser)) || (userHasRole(currentUser, 'admin') && adminImportEnabled) && (
+                              <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
+                                <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                                Patient Info
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                               <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                               Past Routes
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                           </>
-                          )}
+                          ) : null}
 
                           {/* City Filter - Admin Only */}
                           {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
