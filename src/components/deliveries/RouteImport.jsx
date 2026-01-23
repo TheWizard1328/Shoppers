@@ -1713,21 +1713,21 @@ export default function RouteImport({
         }
       `}</style>
       <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
-        <DialogContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-[10001] translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background shadow-lg duration-200 sm:rounded-lg w-full max-w-7xl max-h-[90vh] flex flex-col overflow-hidden p-0">
-        <DialogHeader className="px-6 py-2 text-center flex flex-col space-y-1.5 sm:text-left border-b border-slate-200 flex-shrink-0">
-          <DialogTitle className="text-2xl flex items-center gap-2">
+        <DialogContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-[10001] translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg w-full max-w-7xl max-h-[90vh] flex flex-col overflow-hidden p-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <DialogHeader className="px-6 py-2 text-center flex flex-col space-y-1.5 sm:text-left border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
+          <DialogTitle className="text-2xl flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
             <Upload className="w-6 h-6" />
             Import Route Data
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
             Upload CSV files to import delivery routes for a selected driver.
           </DialogDescription>
         </DialogHeader>
 
         {showProgress &&
-          <div className="space-y-3 p-6 bg-slate-50 rounded-lg border-b border-slate-200 flex-shrink-0">
+          <div className="space-y-3 p-6 rounded-lg border-b flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
                 {isParsing ? progressMessage :
                 importProgress.phase === 'creating' ? `Creating deliveries: ${importProgress.current} / ${importProgress.total}` :
                 importProgress.phase === 'updating' ? `Updating deliveries: ${importProgress.current} / ${importProgress.total}` :
@@ -1737,7 +1737,7 @@ export default function RouteImport({
                 progressMessage
                 }
               </span>
-              <span className="text-sm font-bold text-slate-900">
+              <span className="text-sm font-bold" style={{ color: 'var(--text-slate-900)' }}>
                 {isParsing ? `${progressPercent}%` :
                 importProgress.total > 0 ? `${Math.round(importProgress.current / importProgress.total * 100)}%` :
                 importProgress.phase === 'complete' ? '100%' :
@@ -1753,7 +1753,7 @@ export default function RouteImport({
               className="h-2" />
 
             {!isParsing && (importProgress.created > 0 || importProgress.updated > 0 || importProgress.errors > 0) &&
-            <div className="flex justify-between text-xs text-slate-600">
+            <div className="flex justify-between text-xs" style={{ color: 'var(--text-slate-600)' }}>
                 <span>Created: {importProgress.created}</span>
                 <span>Updated: {importProgress.updated}</span>
                 <span>Errors: {importProgress.errors}</span>
@@ -1768,7 +1768,7 @@ export default function RouteImport({
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="route-upload">Select Route Files (CSV/TSV/TXT)</Label>
+                    <Label htmlFor="route-upload" style={{ color: 'var(--text-slate-900)' }}>Select Route Files (CSV/TSV/TXT)</Label>
                     <Input
                       id="route-upload"
                       type="file"
@@ -1777,13 +1777,13 @@ export default function RouteImport({
                       onChange={handleFileChange}
                       disabled={isParsing || isProcessing || showProgress} />
 
-                    <p className="text-xs text-slate-500">Select multiple route files to import.</p>
+                    <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Select multiple route files to import.</p>
                   </div>
 
                   {files.length > 0 && (
                     <div className="space-y-2">
-                      <Label>Auto-Assigned Drivers</Label>
-                      <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3 bg-slate-50">
+                      <Label style={{ color: 'var(--text-slate-900)' }}>Auto-Assigned Drivers</Label>
+                      <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                         {files.map((file, index) => {
                           const fileInfo = fileDriverMap[file.name];
                           const hasMatch = !!fileInfo?.driver;
@@ -1791,8 +1791,8 @@ export default function RouteImport({
                           return (
                             <div key={index} className={`flex items-center justify-between p-2 rounded ${hasMatch ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
                               <div className="flex flex-col flex-1 min-w-0">
-                                <span className="text-sm font-medium truncate">{file.name}</span>
-                                <span className="text-xs text-slate-600">Extracted: "{fileInfo?.extractedName || 'N/A'}"</span>
+                                <span className="text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{file.name}</span>
+                                <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Extracted: "{fileInfo?.extractedName || 'N/A'}"</span>
                               </div>
                               <div className="ml-3 flex-shrink-0 flex items-center gap-2">
                                 {hasMatch ? (
@@ -1805,7 +1805,7 @@ export default function RouteImport({
                                   </Badge>
                                 )}
                                 {!isParsing && !isProcessing && !showProgress && (
-                                  <button onClick={() => removeFile(index)} className="text-slate-400 hover:text-red-600">
+                                  <button onClick={() => removeFile(index)} style={{ color: 'var(--text-slate-400)' }} className="hover:text-red-600">
                                     <X className="w-4 h-4" />
                                   </button>
                                 )}
@@ -1814,15 +1814,15 @@ export default function RouteImport({
                           );
                         })}
                       </div>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                         Drivers are automatically matched by removing " Route.csv" from filenames.
                       </p>
                     </div>
                   )}
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                  <h4 className="font-semibold mb-2">CSV Format (Past Routes)</h4>
+                <div className="border rounded-lg p-4 text-sm" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-800)' }}>
+                  <h4 className="font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>CSV Format (Past Routes)</h4>
                   <ul className="list-disc list-inside space-y-1">
                     <li>Date metadata: <code className="font-mono">#YYYY-MM-DD#,TotalDeliveries,...</code></li>
                     <li>Col 1: Store Abbr, Col 2: AM/PM (1=AM, 2=PM)</li>
@@ -1873,12 +1873,12 @@ export default function RouteImport({
             <div className="flex-shrink-0 p-6 pb-4">
               <div className="flex items-center justify-between gap-4 mb-4">
                 <div className="flex flex-col">
-                  <span className="text-sm text-slate-500">
-                    Importing for: <span className="font-semibold text-slate-700">
+                  <span className="text-sm" style={{ color: 'var(--text-slate-500)' }}>
+                    Importing for: <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>
                       {[...new Set(files.map(f => fileDriverMap[f.name]?.driver).filter(Boolean).map(d => getDriverDisplayName(d)))].join(', ')}
                     </span>
                   </span>
-                  <h3 className="text-lg font-semibold text-slate-800">Preview: {filteredPreviewDeliveries.length} Total Deliveries ({previewData.skippedItems.length} Skipped)</h3>
+                  <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Preview: {filteredPreviewDeliveries.length} Total Deliveries ({previewData.skippedItems.length} Skipped)</h3>
                 </div>
                 <div className="flex items-center gap-3">
                   <Select value={previewFilterDate} onValueChange={setPreviewFilterDate}>
@@ -1944,12 +1944,12 @@ export default function RouteImport({
           </div>
 
             {filteredPreviewDeliveries.length === 0 ?
-            <div className="text-center text-slate-500 py-8 flex-1 flex items-center justify-center px-6">
+            <div className="text-center py-8 flex-1 flex items-center justify-center px-6" style={{ color: 'var(--text-slate-500)' }}>
                 No deliveries detected for import or matching filters.
               </div> :
 
-            <div className="flex-1 border rounded-lg flex flex-col overflow-hidden bg-white min-h-0">
-                <div className="flex-shrink-0 bg-slate-100 border-b">
+            <div className="flex-1 border rounded-lg flex flex-col overflow-hidden min-h-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <div className="flex-shrink-0 border-b" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
                   <table className="w-full text-sm table-fixed">
                     <thead>
                       <tr>
@@ -1983,26 +1983,26 @@ export default function RouteImport({
                       formatAddressWithUnit(delivery.delivery_address || store?.address || '', delivery.unit_number || '');
 
                       return (
-                        <tr key={`${delivery.action}-${idx}`} className={`border-b ${delivery.action === 'create' ? 'bg-green-50 hover:bg-green-100' : 'bg-blue-50 hover:bg-blue-100'}`}>
+                        <tr key={`${delivery.action}-${idx}`} className="border-b" style={{ borderColor: 'var(--border-slate-200)', background: delivery.action === 'create' ? 'var(--bg-slate-50)' : 'var(--bg-slate-50)' }}>
                             <td className="p-1 w-20 text-center">
                               <div className="flex flex-col gap-1 items-center">
                                 <Badge className={delivery.action === 'create' ? "bg-green-200 text-green-800 w-full justify-center" : "bg-blue-200 text-blue-800 w-full justify-center"}>
                                   {delivery.action === 'create' ? 'New' : 'Update'}
                                 </Badge>
-                                <span className="text-xs text-slate-600 font-medium">
+                                <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>
                                   {delivery.driver_name}
                                 </span>
                               </div>
                             </td>
                             <td className="p-1 w-24">
                               <div className="flex flex-col">
-                                <span className="font-medium">{delivery.delivery_date}</span>
-                                {newTimeFormatted !== 'none' && <span className="text-xs text-slate-500">{newTimeFormatted}</span>}
+                                <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{delivery.delivery_date}</span>
+                                {newTimeFormatted !== 'none' && <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{newTimeFormatted}</span>}
                               </div>
                             </td>
                             <td className="p-1 w-12 text-xs font-mono">{delivery.ampm_deliveries || '-'}</td>
                             <td className="p-1 font-mono text-xs w-14">{delivery.stop_order}</td>
-                            <td className="p-1 font-mono text-xs w-22">
+                            <td className="p-1 font-mono text-xs w-22" style={{ color: 'var(--text-slate-900)' }}>
                               <div className="flex flex-col">
                                 <span>{delivery.tracking_number || '-'}</span>
                                 {delivery.puid && <span className="text-purple-600 text-[10px]">{delivery.puid}</span>}
@@ -2010,21 +2010,21 @@ export default function RouteImport({
                             </td>
                             <td className="p-1 font-mono text-xs w-22">
                               <div className="flex flex-col">
-                                {delivery.stop_id && <span className="font-semibold">{delivery.stop_id}</span>}
-                                {patient?.patient_id && <span className="text-slate-600">{patient.patient_id}</span>}
-                                {!delivery.stop_id && !patient?.patient_id && <span>N/A</span>}
+                                {delivery.stop_id && <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{delivery.stop_id}</span>}
+                                {patient?.patient_id && <span style={{ color: 'var(--text-slate-600)' }}>{patient.patient_id}</span>}
+                                {!delivery.stop_id && !patient?.patient_id && <span style={{ color: 'var(--text-slate-600)' }}>N/A</span>}
                               </div>
                             </td>
                             <td className="p-1 w-48">
                               <div className="flex flex-col gap-1">
                                 {delivery.patient_id ?
                               <>
-                                    <span className="font-medium">{delivery.patient_name}</span>
-                                    <span className="text-xs text-slate-600">{displayAddress}</span>
+                                    <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{delivery.patient_name}</span>
+                                    <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{displayAddress}</span>
                                   </> :
                               <>
                                     <span className="text-blue-600 font-semibold">{delivery.patient_name || store?.name || 'Store Pickup'}</span>
-                                    <span className="text-xs text-slate-600">{displayAddress}</span>
+                                    <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{displayAddress}</span>
                                   </>
                               }
                               </div>
@@ -2033,13 +2033,13 @@ export default function RouteImport({
                             <td className="p-1 font-mono text-xs w-20">
                               {delivery.cod_total_amount_required > 0 ?
                             <div className="flex flex-col">
-                                  <span className="text-slate-500 text-[10px]">{delivery.cod_payments?.[0]?.type || delivery.cod_payment_type || 'Cash'}</span>
-                                  <span className="font-semibold">${delivery.cod_total_amount_required.toFixed(2)}</span>
+                                  <span className="text-[10px]" style={{ color: 'var(--text-slate-500)' }}>{delivery.cod_payments?.[0]?.type || delivery.cod_payment_type || 'Cash'}</span>
+                                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>${delivery.cod_total_amount_required.toFixed(2)}</span>
                                 </div> :
-                            '-'}
+                            <span style={{ color: 'var(--text-slate-600)' }}>-</span>}
                             </td>
                             <td className="p-1 text-xs w-42">
-                              <span className="text-slate-600">{delivery.delivery_notes || '-'}</span>
+                              <span style={{ color: 'var(--text-slate-600)' }}>{delivery.delivery_notes || '-'}</span>
                             </td>
                             <td className="p-1 text-xs w-14">
                               {delivery.first_delivery ? <CheckCircle className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-500" />}
@@ -2061,7 +2061,7 @@ export default function RouteImport({
                                   </>
                               }
                                 {!delivery._matchReason && (!delivery._changes || delivery._changes.length === 0) &&
-                              <span className="text-slate-400">-</span>
+                              <span style={{ color: 'var(--text-slate-400)' }}>-</span>
                               }
                               </div>
                             </td>
@@ -2075,7 +2075,7 @@ export default function RouteImport({
           </div>
           }
 
-        <div className="bg-white px-6 py-2 flex flex-col gap-3 border-t border-slate-200 flex-shrink-0">
+        <div className="px-6 py-2 flex flex-col gap-3 border-t flex-shrink-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <div className="flex gap-3">
             {!showPreview ?
               <>
@@ -2158,25 +2158,25 @@ export default function RouteImport({
           </div>
 
           {importResult &&
-            <div className="space-y-4 p-6 bg-green-50 border border-green-200 rounded-lg">
+            <div className="space-y-4 p-6 border rounded-lg" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-6 h-6 text-green-600" />
                 <h3 className="font-bold text-green-800">Import Complete!</h3>
               </div>
               <div className="grid grid-cols-3 gap-4 text-sm">
               <div className="flex items-center justify-center gap-1">
-                <span className="text-slate-700">Created:</span>
-                <span className="font-semibold">{importResult.created}</span>
+                <span style={{ color: 'var(--text-slate-700)' }}>Created:</span>
+                <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{importResult.created}</span>
               </div>
 
               <div className="flex items-center justify-center gap-1">
-                <span className="text-slate-700">Updated:</span>
-                <span className="font-semibold">{importResult.updated}</span>
+                <span style={{ color: 'var(--text-slate-700)' }}>Updated:</span>
+                <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{importResult.updated}</span>
               </div>
 
               <div className="flex items-center justify-center gap-1">
-                <span className="text-slate-700">Skipped:</span>
-                <span className="font-semibold">{importResult.skipped}</span>
+                <span style={{ color: 'var(--text-slate-700)' }}>Skipped:</span>
+                <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{importResult.skipped}</span>
               </div>
             </div>
             {importResult.errors && importResult.errors.length > 0 &&
