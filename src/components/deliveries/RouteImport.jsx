@@ -2130,7 +2130,7 @@ export default function RouteImport({
           }
 
         <div className="px-3 md:px-6 py-2 flex flex-col gap-2 md:gap-3 border-t flex-shrink-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-          <div className={`flex ${isMobile ? 'flex-col' : ''} gap-2 md:gap-3`}>
+          <div className="flex gap-2 md:gap-3">
             {!showPreview ?
               <>
                 <Button onClick={handlePreview} disabled={isParsing || isProcessing || files.length === 0 || showProgress}>
