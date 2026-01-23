@@ -5483,8 +5483,14 @@ function Dashboard() {
 
       // STEP 2: Update delivery status LOCALLY (instant)
       await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
-      // STEP 3: Update LOCAL UI state immediately from offline DB
-      console.log('🖥️ [STATUS] Step 3: Updating UI from offline DB...');
+      
+      // STEP 3: Resume smart refresh IMMEDIATELY after local update
+      console.log('▶️ [STATUS] Resuming smart refresh after local update');
+      smartRefreshManager.resume();
+      setIsEntityUpdating(false);
+      
+      // STEP 4: Update LOCAL UI state from offline DB
+      console.log('🖥️ [STATUS] Step 4: Updating UI from offline DB...');
       const { offlineDB } = await import('../components/utils/offlineDatabase');
       const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
       
@@ -5496,14 +5502,14 @@ function Dashboard() {
         console.warn('⚠️ [STATUS] No offline data - skipping UI update (will sync via smart refresh)');
       }
 
-      // STEP 4: Update patient's last_delivery_date (background, non-blocking)
+      // STEP 5: Update patient's last_delivery_date (background, non-blocking)
       if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
         base44.entities.Patient.update(targetDelivery.patient_id, {
           last_delivery_date: deliveryDate
         }).catch(error => console.warn('⚠️ Patient last_delivery_date update failed:', error));
       }
 
-      // STEP 5: Check route completion and show dialogs (non-blocking)
+      // STEP 6: Check route completion and show dialogs (non-blocking)
       const finishedStatuses = ['completed', 'failed', 'cancelled'];
       const isReturnByMarkers = (d) => {
         if (!d || !d.patient_id) return false;
@@ -5567,7 +5573,7 @@ function Dashboard() {
         }
       }
 
-      // STEP 6: Scroll to next card (instant)
+      // STEP 7: Scroll to next card (instant)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         setTimeout(() => {
           const nextCardElement = document.querySelector('[data-is-next-delivery="true"]');
@@ -5577,7 +5583,7 @@ function Dashboard() {
         }, 100);
       }
 
-      // STEP 7: Re-lock FAB if needed (instant)
+      // STEP 8: Re-lock FAB if needed (instant)
       if (currentPhase === 2) {
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
@@ -5591,7 +5597,7 @@ function Dashboard() {
         mapLockExpiresAtRef.current = null;
       }
 
-      // STEP 8: Force map update event (instant)
+      // STEP 9: Force map update event (instant)
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { driverId, deliveryDate, triggeredBy: 'statusUpdate' }
       }));
@@ -5670,10 +5676,12 @@ function Dashboard() {
       // CRITICAL: Re-enable theme transitions immediately
       document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
       
-      // CRITICAL: ALWAYS resume smart refresh manager
-      console.log('▶️ [STATUS] Resuming smart refresh manager');
-      smartRefreshManager.resume();
-      setIsEntityUpdating(false);
+      // CRITICAL: Ensure smart refresh is resumed (safety check - already resumed above)
+      if (smartRefreshManager.isPaused()) {
+        console.log('⚠️ [STATUS Finally] Smart refresh still paused - force resuming');
+        smartRefreshManager.resume();
+        setIsEntityUpdating(false);
+      }
       
       console.log('✅ [STATUS] Status update complete - UI is interactive');
     }
