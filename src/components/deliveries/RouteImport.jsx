@@ -155,7 +155,7 @@ export default function RouteImport({
   allDeliveries
 }) {
   const [files, setFiles] = useState([]);
-  const [selectedDriverId, setSelectedDriverId] = useState('');
+  const [fileDriverMap, setFileDriverMap] = useState({}); // Map of filename -> driver info
   const [isProcessing, setIsProcessing] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -574,6 +574,33 @@ export default function RouteImport({
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
     setFiles(selectedFiles.length > 0 ? selectedFiles : []);
+    
+    // Auto-assign drivers based on filenames
+    if (selectedFiles.length > 0) {
+      const newFileDriverMap = {};
+      const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
+      
+      selectedFiles.forEach((file) => {
+        // Extract driver name by removing " Route.csv" (or similar extensions)
+        const driverName = file.name
+          .replace(/ Route\.(csv|tsv|txt)$/i, '')
+          .replace(/\.(csv|tsv|txt)$/i, '')
+          .trim();
+        
+        // Find matching driver (case-insensitive)
+        const matchedDriver = usersToSearch.find((u) => {
+          const userName = (u.user_name || u.full_name || '').trim();
+          return userName.toLowerCase() === driverName.toLowerCase();
+        });
+        
+        newFileDriverMap[file.name] = {
+          extractedName: driverName,
+          driver: matchedDriver || null
+        };
+      });
+      
+      setFileDriverMap(newFileDriverMap);
+    }
   };
 
   const removeFile = (indexToRemove) => {
@@ -1053,8 +1080,11 @@ export default function RouteImport({
       alert('Please select at least one CSV file');
       return;
     }
-    if (!selectedDriverId) {
-      alert('Please select a driver');
+    
+    // Validate all files have matched drivers
+    const unmatchedFiles = files.filter(f => !fileDriverMap[f.name]?.driver);
+    if (unmatchedFiles.length > 0) {
+      alert(`Could not match driver for files:\n${unmatchedFiles.map(f => `- ${f.name} (extracted: "${fileDriverMap[f.name]?.extractedName}")`).join('\n')}\n\nPlease ensure filenames match driver names (e.g., "John Smith Route.csv")`);
       return;
     }
 
@@ -1068,10 +1098,6 @@ export default function RouteImport({
 
 
     try {
-      // CRITICAL: Use allDriverUsers (fetched from ALL cities) to find the selected driver
-      const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
-      const selectedUser = usersToSearch.find((u) => u.id === selectedDriverId);
-      if (!selectedUser) throw new Error('Selected driver not found');
 
       // STEP 1: Extract date range from import files FIRST
       setProgressMessage('Analyzing import files for date range...');
@@ -1109,16 +1135,17 @@ export default function RouteImport({
         return;
       }
 
-      // STEP 2: Fetch fresh deliveries for the SPECIFIC driver and date range
-      setProgressMessage(`Refreshing delivery cache for ${selectedUser.user_name || selectedUser.full_name} (${minDate} to ${maxDate})...`);
+      // STEP 2: Fetch fresh deliveries for ALL drivers in the import and date range
+      setProgressMessage(`Refreshing delivery cache for all drivers (${minDate} to ${maxDate})...`);
       setProgressPercent(25);
 
-      // CRITICAL: Use $gte and $lte filters to get deliveries within the date range
-      // This ensures we fetch fresh data directly from the database for the relevant period
+      // Get all unique driver IDs from the file mapping
+      const allDriverIds = [...new Set(files.map(f => fileDriverMap[f.name]?.driver?.id).filter(Boolean))];
       
+      // CRITICAL: Fetch deliveries for all drivers at once
       const freshDeliveries = await base44.entities.Delivery.filter(
         { 
-          driver_id: selectedUser.id,
+          driver_id: { $in: allDriverIds },
           delivery_date: { $gte: minDate, $lte: maxDate }
         },
         '-delivery_date',
@@ -1127,16 +1154,7 @@ export default function RouteImport({
       
       setProgressPercent(35);
 
-      if (freshDeliveries.length > 0) {
-        freshDeliveries.slice(0, 5).forEach((d) => {
-          console.log(`  - Date: "${d.delivery_date}", SID: "${d.stop_id || 'none'}", PID: "${d.patient_id || 'none'}", Store: "${d.store_id}"`);
-        });
-        freshDeliveries.slice(0, 3).forEach((d) => {
-          console.log(`  - ID: ${d.id}, Date: "${d.delivery_date}", SID: "${d.stop_id || 'none'}", PID: "${d.patient_id || 'none'}", TR: "${d.tracking_number || 'none'}"`);
-        });
-      } else {
-        console.warn(`[RouteImport] ⚠️ NO existing deliveries found for driver "${selectedUser.user_name || selectedUser.full_name}" in date range ${minDate} to ${maxDate}. These will all be new records.`);
-      }
+      console.log(`[RouteImport] Loaded ${freshDeliveries.length} existing deliveries for ${allDriverIds.length} drivers in date range ${minDate} to ${maxDate}`);
 
       let totalToCreate = [];
       let totalToUpdate = [];
@@ -1145,11 +1163,21 @@ export default function RouteImport({
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        setProgressMessage(`Processing file ${i + 1} of ${files.length}: ${file.name}...`);
+        const fileDriver = fileDriverMap[file.name]?.driver;
+        
+        if (!fileDriver) {
+          console.warn(`[RouteImport] Skipping file ${file.name} - no driver matched`);
+          continue;
+        }
+        
+        setProgressMessage(`Processing file ${i + 1} of ${files.length}: ${file.name} (${fileDriver.user_name || fileDriver.full_name})...`);
 
         const text = await file.text();
+        // Filter deliveries for this specific driver
+        const driverDeliveries = freshDeliveries.filter(d => d.driver_id === fileDriver.id);
+        
         // CRITICAL: Pass freshStoresAll directly to processCSVData to avoid stale closure
-        const result = await processCSVData(text, file.name, selectedUser, freshDeliveries, freshPatients, freshStoresAll);
+        const result = await processCSVData(text, file.name, fileDriver, driverDeliveries, freshPatients, freshStoresAll);
 
         totalToCreate = [...totalToCreate, ...result.deliveriesToCreate];
         totalToUpdate = [...totalToUpdate, ...result.deliveriesToUpdate];
@@ -1182,8 +1210,7 @@ export default function RouteImport({
       setImportError({
         message: error.message,
         record: {
-          driver: availableDrivers.find((d) => d.id === selectedDriverId)?.user_name || 'Unknown',
-          files: files.map((f) => f.name).join(', ')
+          files: files.map((f) => `${f.name} (${fileDriverMap[f.name]?.extractedName || 'unknown'})`).join(', ')
         },
         lineNumber: null,
         phase: 'preview'
@@ -1488,8 +1515,7 @@ export default function RouteImport({
       setImportError({
         message: error.message,
         record: {
-          driver: availableDrivers.find((d) => d.id === selectedDriverId)?.user_name || 'Unknown',
-          files: files.map((f) => f.name).join(', '),
+          files: files.map((f) => `${f.name} (${fileDriverMap[f.name]?.extractedName || 'unknown'})`).join(', '),
           created: overallResults.created,
           updated: overallResults.updated
         },
@@ -1521,7 +1547,7 @@ export default function RouteImport({
   const handleErrorStartOver = () => {
     setImportError(null);
     setFiles([]);
-    setSelectedDriverId('');
+    setFileDriverMap({});
     setIsProcessing(false);
     setImportResult(null);
     setShowPreview(false);
@@ -1754,31 +1780,40 @@ export default function RouteImport({
                     <p className="text-xs text-slate-500">Select multiple route files to import.</p>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="driver-select">Select Driver *</Label>
-                    <Select value={selectedDriverId} onValueChange={setSelectedDriverId} disabled={isParsing || isProcessing || showProgress}>
-                      <SelectTrigger id="driver-select" className="w-full">
-                        <SelectValue placeholder="Choose a driver..." />
-                      </SelectTrigger>
-                      <SelectContent className="z-[10002]">
-                        {availableDrivers.length > 0 ?
-                        availableDrivers.map((driver) =>
-                        <SelectItem key={driver.id} value={driver.id}>
-                              {getDriverDisplayName(driver)}
-                            </SelectItem>
-                        ) :
-                        <SelectItem value="none" disabled>
-                            No drivers available
-                          </SelectItem>
-                        }
-                      </SelectContent>
-                    </Select>
-                    {availableDrivers.length === 0 &&
-                    <p className="text-xs text-red-600">
-                        No drivers found. Please ensure users have the 'driver' or 'admin' role assigned.
+                  {files.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Auto-Assigned Drivers</Label>
+                      <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3 bg-slate-50">
+                        {files.map((file, index) => {
+                          const fileInfo = fileDriverMap[file.name];
+                          const hasMatch = !!fileInfo?.driver;
+                          
+                          return (
+                            <div key={index} className={`flex items-center justify-between p-2 rounded ${hasMatch ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                              <div className="flex flex-col flex-1 min-w-0">
+                                <span className="text-sm font-medium truncate">{file.name}</span>
+                                <span className="text-xs text-slate-600">Extracted: "{fileInfo?.extractedName || 'N/A'}"</span>
+                              </div>
+                              <div className="ml-3 flex-shrink-0">
+                                {hasMatch ? (
+                                  <Badge className="bg-green-100 text-green-800 whitespace-nowrap">
+                                    ✓ {getDriverDisplayName(fileInfo.driver)}
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-red-100 text-red-800 whitespace-nowrap">
+                                    ✗ No match
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Drivers are automatically matched by removing " Route.csv" from filenames.
                       </p>
-                    }
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
@@ -1849,7 +1884,11 @@ export default function RouteImport({
             <div className="flex-shrink-0 p-6 pb-4">
               <div className="flex items-center justify-between gap-4 mb-4">
                 <div className="flex flex-col">
-                  <span className="text-sm text-slate-500">Importing for: <span className="font-semibold text-slate-700">{availableDrivers.find((d) => d.id === selectedDriverId)?.user_name || availableDrivers.find((d) => d.id === selectedDriverId)?.full_name || 'Unknown Driver'}</span></span>
+                  <span className="text-sm text-slate-500">
+                    Importing for: <span className="font-semibold text-slate-700">
+                      {[...new Set(files.map(f => fileDriverMap[f.name]?.driver).filter(Boolean).map(d => getDriverDisplayName(d)))].join(', ')}
+                    </span>
+                  </span>
                   <h3 className="text-lg font-semibold text-slate-800">Preview: {filteredPreviewDeliveries.length} Total Deliveries ({previewData.skippedItems.length} Skipped)</h3>
                 </div>
                 <div className="flex items-center gap-3">
@@ -2046,7 +2085,7 @@ export default function RouteImport({
           <div className="flex gap-3">
             {!showPreview ?
               <>
-                <Button onClick={handlePreview} disabled={isParsing || isProcessing || files.length === 0 || !selectedDriverId || showProgress}>
+                <Button onClick={handlePreview} disabled={isParsing || isProcessing || files.length === 0 || showProgress}>
                   {isParsing ?
                   <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -2064,7 +2103,7 @@ export default function RouteImport({
                   <Button
                   onClick={() => {
                     setFiles([]);
-                    setSelectedDriverId('');
+                    setFileDriverMap({});
                     setIsProcessing(false);
                     setImportResult(null);
                     setShowPreview(false);
