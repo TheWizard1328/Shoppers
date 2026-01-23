@@ -5276,41 +5276,24 @@ function Dashboard() {
   };
 
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
-    console.log('🚀 [STATUS] Starting status update - INSTANT UI mode');
+    console.log('🚀 [STATUS] Starting INSTANT status update');
     
-    // CRITICAL: Pause smart refresh manager FIRST
-    console.log('⏸️ [STATUS] Pausing smart refresh manager');
-    smartRefreshManager.pause();
-    setIsEntityUpdating(true);
-    
-    // CRITICAL: Capture current FAB state
-    const wasPhase2Locked = mapViewPhase === 2 && isMapViewLocked;
-    const currentPhase = mapViewPhase;
-
-    // CRITICAL: Unlock FAB if in Phase 2 (will be re-locked after status update)
-    if (wasPhase2Locked) {
-      console.log('🔓 [STATUS] Phase 2 detected - unlocking FAB temporarily');
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
-      mapLockExpiresAtRef.current = null;
-      setIsMapViewLocked(false);
+    const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
+    if (!targetDelivery) {
+      console.error('❌ [STATUS] Delivery not found');
+      return;
     }
 
-    // CRITICAL: Pause theme transitions during status updates to prevent UI glitches
+    const currentDate = format(new Date(), 'yyyy-MM-dd');
+    const deliveryDate = targetDelivery.delivery_date;
+    const driverId = targetDelivery.driver_id;
+    const isPickup = !targetDelivery.patient_id;
+    const isRetry = targetDelivery.status === 'failed' && (newStatus === 'in_transit' || newStatus === 'en_route');
+
+    // Pause theme transitions
     document.documentElement.style.setProperty('--theme-transition-duration', '0s');
-
+    
     try {
-      const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
-      if (!targetDelivery) {
-        throw new Error('Delivery not found');
-      }
-
-      const currentDate = format(new Date(), 'yyyy-MM-dd');
-      const deliveryDate = targetDelivery.delivery_date;
-      const isPickup = !targetDelivery.patient_id;
-      const isRetry = targetDelivery.status === 'failed' && (newStatus === 'in_transit' || newStatus === 'en_route');
 
       if (isRetry) {
         // ALWAYS duplicate a failed delivery when retrying - regardless of date
@@ -5370,12 +5353,10 @@ function Dashboard() {
         return;
       }
 
-      const currentTime = new Date();
-      let currentTimeISO = currentTime.toISOString();
-
+      // Build update data
       const updateData = { status: newStatus, ...extraData };
+      const currentTimeISO = new Date().toISOString();
 
-      // CRITICAL: Set delivery_time_start to current time + 5 minutes when transitioning to in_transit
       if (newStatus === 'in_transit' || newStatus === 'en_route') {
         const now = new Date();
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -5383,7 +5364,6 @@ function Dashboard() {
         updateData.delivery_time_start = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
       }
 
-      // CRITICAL: Calculate travel distance from LOCAL data (no API call)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         updateData.isNextDelivery = false;
         
@@ -5494,29 +5474,61 @@ function Dashboard() {
         }
       }
 
-      // Update LOCAL state INSTANTLY - don't wait for anything
-      const updatedDelivery = { ...targetDelivery, ...updateData };
-      if (updateDeliveriesLocally) {
-        const otherDeliveries = deliveries.filter(d => d?.id !== deliveryId);
-        updateDeliveriesLocally([...otherDeliveries, updatedDelivery], true);
-        console.log('✅ [STATUS] UI updated INSTANTLY from local state');
-      }
+      // Use centralized mutation handler for consistent state management
+      const { executeMutation } = await import('../components/utils/centralizedMutationHandler');
       
-      // Background: sync to offline DB and backend (don't await)
-      updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true }).catch(err => {
-        console.error('❌ [STATUS] Background sync failed:', err);
+      await executeMutation({
+        entityName: 'Delivery',
+        operation: 'update',
+        data: updateData,
+        deliveryId: deliveryId,
+        onLocalUpdate: () => {
+          // Update UI state INSTANTLY
+          const updatedDelivery = { ...targetDelivery, ...updateData };
+          
+          // Update isNextDelivery flags in local state
+          let updatedDeliveries = deliveries.map(d => {
+            if (!d) return d;
+            if (d.id === deliveryId) return updatedDelivery;
+            
+            // Reset other isNextDelivery flags if completing
+            if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
+              if (d.driver_id === driverId && d.delivery_date === deliveryDate && d.isNextDelivery && d.id !== deliveryId) {
+                return { ...d, isNextDelivery: false };
+              }
+            }
+            
+            return d;
+          });
+          
+          // Set new isNextDelivery if completing
+          if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
+            const incomplete = updatedDeliveries
+              .filter((d) => d && d.id !== deliveryId && d.driver_id === driverId && d.delivery_date === deliveryDate && 
+                      !['completed', 'failed', 'cancelled', 'pending'].includes(d.status))
+              .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+            
+            if (incomplete.length > 0) {
+              updatedDeliveries = updatedDeliveries.map(d => 
+                d?.id === incomplete[0].id ? { ...d, isNextDelivery: true } : d
+              );
+            }
+          }
+          
+          if (updateDeliveriesLocally) {
+            updateDeliveriesLocally(updatedDeliveries, true);
+          }
+        }
       });
-      
-      setIsEntityUpdating(false);
 
-      // STEP 6: Update patient's last_delivery_date (background, non-blocking)
+      // Background tasks (non-blocking)
       if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
         base44.entities.Patient.update(targetDelivery.patient_id, {
           last_delivery_date: deliveryDate
-        }).catch(error => console.warn('⚠️ Patient last_delivery_date update failed:', error));
+        }).catch(error => console.warn('⚠️ Patient update failed:', error));
       }
 
-      // STEP 7: Check route completion and show dialogs (non-blocking)
+      // Check route completion
       const finishedStatuses = ['completed', 'failed', 'cancelled'];
       const isReturnByMarkers = (d) => {
         if (!d || !d.patient_id) return false;
@@ -5580,7 +5592,7 @@ function Dashboard() {
         }
       }
 
-      // STEP 8: Scroll to next card (instant)
+      // Scroll to next card
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         setTimeout(() => {
           const nextCardElement = document.querySelector('[data-is-next-delivery="true"]');
@@ -5590,36 +5602,7 @@ function Dashboard() {
         }, 100);
       }
 
-      // STEP 9: Re-lock FAB if needed (instant)
-      if (currentPhase === 2) {
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
-        mapLockExpiresAtRef.current = null;
-      }
-
-      // STEP 10: Force map update event (instant)
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { driverId, deliveryDate, triggeredBy: 'statusUpdate' }
-      }));
-      
-      // ========== BACKGROUND TASKS (NON-BLOCKING) ==========
-      console.log('🔄 [STATUS] Starting background sync tasks...');
-      
-      // Background: Update patient last_delivery_date
-      if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
-        base44.entities.Patient.update(targetDelivery.patient_id, {
-          last_delivery_date: deliveryDate
-        }).catch(error => console.warn('⚠️ Patient update failed:', error));
-      }
-
-      // Background: Send notifications
+      // Notifications (background)
       if (['completed', 'failed'].includes(newStatus)) {
         const deliveryStore = stores.find((s) => s?.id === targetDelivery?.store_id);
         const patientName = targetDelivery?.patient_name || 'Unknown';
@@ -5644,49 +5627,21 @@ function Dashboard() {
         }
       }
 
-      // Background: Recalculate stop orders on backend
-      recalculateStopOrders(driverId, deliveryDate).catch(error => 
-        console.warn('⚠️ Stop order recalc failed:', error)
-      );
-
-      // Background: Update ETAs (mobile drivers only)
+      recalculateStopOrders(driverId, deliveryDate).catch(() => {});
+      
       if (isMobile && userHasRole(currentUser, 'driver') && ['completed', 'failed', 'cancelled'].includes(newStatus)) {
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
         base44.functions.invoke('calculateRealTimeETA', {
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocalTime: localTimeString
-        }).catch(error => console.warn('⚠️ ETA update failed:', error));
-      }
-
-      // Background: Fetch all drivers if Show All is enabled
-      if (showAllDriverMarkers) {
-        base44.entities.Delivery.filter({ delivery_date: deliveryDate }).then(allDriversDeliveries => {
-          window.dispatchEvent(new CustomEvent('deliveriesImported', {
-            detail: { source: 'statusUpdate', deliveries: allDriversDeliveries }
-          }));
-        }).catch(error => console.warn('⚠️ All drivers fetch failed:', error));
+          driverId, deliveryDate, currentLocalTime: localTimeString
+        }).catch(() => {});
       }
     } catch (error) {
-      console.error('❌ [STATUS] Error:', error.message);
-
-      if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
-        alert('Your session has expired. The page will now reload.');
-        window.location.reload();
-        return;
-      }
-
-      alert('Failed to update delivery status. Please try again.');
+      console.error('❌ [STATUS] Error:', error);
+      alert('Failed to update status. Please try again.');
     } finally {
-      // CRITICAL: Re-enable theme transitions immediately
       document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
-      
-      // CRITICAL: ALWAYS ensure entity updating is off
-      setIsEntityUpdating(false);
-      
-      console.log('✅ [STATUS] Status update complete - UI is interactive');
+      console.log('✅ [STATUS] Complete');
     }
   };
 
