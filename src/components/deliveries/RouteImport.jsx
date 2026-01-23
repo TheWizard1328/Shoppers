@@ -1921,24 +1921,24 @@ export default function RouteImport({
               }
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="flex flex-col items-center bg-green-50 border border-green-200 rounded-lg p-3">
-                <div className="text-xs text-green-700 mb-1">New Deliveries</div>
-                <div className="text-2xl font-bold text-green-800">{previewStats.creates}</div>
+            <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-green-50)', borderColor: 'var(--border-green-200)' }}>
+                <div className="text-xs mb-1" style={{ color: 'var(--text-green-700)' }}>New Deliveries</div>
+                <div className="text-2xl font-bold" style={{ color: 'var(--text-green-800)' }}>{previewStats.creates}</div>
             </div>
 
-            <div className="flex flex-col items-center bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="text-xs text-blue-700 mb-1">Updates</div>
-                <div className="text-2xl font-bold text-blue-800">{previewStats.updates}</div>
+            <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-blue-50)', borderColor: 'var(--border-blue-200)' }}>
+                <div className="text-xs mb-1" style={{ color: 'var(--text-blue-700)' }}>Updates</div>
+                <div className="text-2xl font-bold" style={{ color: 'var(--text-blue-800)' }}>{previewStats.updates}</div>
             </div>
 
-            <div className="flex flex-col items-center bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                <div className="text-xs text-emerald-700 mb-1">Completed</div>
-                <div className="text-2xl font-bold text-emerald-800">{previewStats.completed}</div>
+            <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
+                <div className="text-xs mb-1" style={{ color: 'var(--text-emerald-700)' }}>Completed</div>
+                <div className="text-2xl font-bold" style={{ color: 'var(--text-emerald-800)' }}>{previewStats.completed}</div>
             </div>
 
-            <div className="flex flex-col items-center bg-red-50 border border-red-200 rounded-lg p-3">
-                <div className="text-xs text-red-700 mb-1">Failed/Returned</div>
-                <div className="text-2xl font-bold text-red-800">
+            <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-red-50)', borderColor: 'var(--border-red-200)' }}>
+                <div className="text-xs mb-1" style={{ color: 'var(--text-red-700)' }}>Failed/Returned</div>
+                <div className="text-2xl font-bold" style={{ color: 'var(--text-red-800)' }}>
                 {previewStats.failed}/{previewStats.returned}
                 </div>
             </div>
@@ -2149,7 +2149,7 @@ export default function RouteImport({
                   </Button>
                 </> :
               <>
-                  <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing || showProgress} className="flex-1">
+                  <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing || showProgress} className="flex-1" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Back
                   </Button>
