@@ -4228,8 +4228,16 @@ function Dashboard() {
         // Wait for offline mutations to complete (they run asynchronously)
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        // Refresh data will pull from offline DB first
-        await refreshData();
+        // CRITICAL: Load from offline DB instead of API to prevent data wipe
+        console.log('📦 [AddToRoute] Loading from offline DB...');
+        const { offlineDB } = await import('../components/utils/offlineDatabase');
+        const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, batchDeliveryDate);
+        
+        if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
+          const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== batchDeliveryDate);
+          updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
+          console.log('✅ [AddToRoute] UI updated from offline DB');
+        }
 
         // CRITICAL: After batch save, check if we should optimize the route
         // Optimization runs once all transitioning stops are in_transit/en_route
@@ -5106,9 +5114,18 @@ function Dashboard() {
       }
 
       // Refresh data and update map
-      console.log('🔄 [DELETE] Refreshing data and updating map...');
+      console.log('🔄 [DELETE] Refreshing data from offline DB...');
       invalidateDeliveriesForDate(deliveryDate);
-      await refreshData();
+      
+      // CRITICAL: Load from offline DB instead of full API refresh
+      const { offlineDB } = await import('../components/utils/offlineDatabase');
+      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+      
+      if (updateDeliveriesLocally && offlineDeliveries) {
+        const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
+        updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
+        console.log('  ✅ UI updated from offline DB');
+      }
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery' }
@@ -5223,7 +5240,16 @@ function Dashboard() {
       await recalculateStopOrders(driverId, deliveryDate);
 
       invalidate('Delivery');
-      await refreshData();
+      
+      // CRITICAL: Load from offline DB instead of full API refresh
+      const { offlineDB } = await import('../components/utils/offlineDatabase');
+      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+      
+      if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
+        const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
+        updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
+        console.log('✅ [RESTART] UI updated from offline DB');
+      }
 
     } catch (error) {
       console.error('Error restarting delivery:', error);
@@ -5302,7 +5328,22 @@ function Dashboard() {
         invalidateDeliveriesForDate(targetDelivery.delivery_date);
         invalidateDeliveriesForDate(currentDate);
         invalidate('Delivery');
-        await refreshData();
+
+        // CRITICAL: Load from offline DB instead of full API refresh
+        const { offlineDB } = await import('../components/utils/offlineDatabase');
+        const [originalDateDeliveries, todayDeliveries] = await Promise.all([
+          offlineDB.getByDate(offlineDB.STORES.DELIVERIES, targetDelivery.delivery_date),
+          offlineDB.getByDate(offlineDB.STORES.DELIVERIES, currentDate)
+        ]);
+
+        if (updateDeliveriesLocally) {
+          const otherDeliveries = deliveries.filter(d => 
+            d && d.delivery_date !== targetDelivery.delivery_date && d.delivery_date !== currentDate
+          );
+          const merged = [...otherDeliveries, ...originalDateDeliveries, ...todayDeliveries];
+          updateDeliveriesLocally(merged, true);
+          console.log('✅ [RETRY] UI updated from offline DB');
+        }
         return;
       }
 
@@ -5421,14 +5462,16 @@ function Dashboard() {
       await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
       // STEP 3: Update LOCAL UI state immediately from offline DB
       console.log('🖥️ [STATUS] Step 3: Updating UI from offline DB...');
+      const { offlineDB } = await import('../components/utils/offlineDatabase');
       const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
-      const driverOfflineDeliveries = offlineDeliveries.filter(d => d.driver_id === driverId);
       
-      if (updateDeliveriesLocally) {
+      if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
         const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
         updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
+        console.log('✅ [STATUS] UI updated instantly from offline DB');
+      } else {
+        console.warn('⚠️ [STATUS] No offline data - skipping UI update (will sync via smart refresh)');
       }
-      console.log('✅ [STATUS] UI updated instantly from offline DB');
 
       // STEP 4: Update patient's last_delivery_date (background, non-blocking)
       if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
@@ -5711,7 +5754,22 @@ function Dashboard() {
       invalidateDeliveriesForDate(originalDelivery.delivery_date);
       invalidateDeliveriesForDate(currentDate);
       invalidate('Delivery');
-      await refreshData();
+      
+      // CRITICAL: Load from offline DB instead of full API refresh
+      const { offlineDB } = await import('../components/utils/offlineDatabase');
+      const [originalDateDeliveries, todayDeliveries] = await Promise.all([
+        offlineDB.getByDate(offlineDB.STORES.DELIVERIES, originalDelivery.delivery_date),
+        offlineDB.getByDate(offlineDB.STORES.DELIVERIES, currentDate)
+      ]);
+      
+      if (updateDeliveriesLocally) {
+        const otherDeliveries = deliveries.filter(d => 
+          d && d.delivery_date !== originalDelivery.delivery_date && d.delivery_date !== currentDate
+        );
+        const merged = [...otherDeliveries, ...originalDateDeliveries, ...todayDeliveries];
+        updateDeliveriesLocally(merged, true);
+        console.log('✅ [RETURN] UI updated from offline DB');
+      }
 
     } catch (error) {
       console.error('❌ [CREATE RETURN] Error:', error);
