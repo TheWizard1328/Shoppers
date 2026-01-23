@@ -4388,7 +4388,16 @@ function Dashboard() {
 
         // OPTIMIZED: Only invalidate cache for the specific date instead of all deliveries
         invalidateDeliveriesForDate(deliveryDate);
-        await refreshData();
+
+        // CRITICAL: Load from offline DB instead of full API refresh
+        const { offlineDB } = await import('../components/utils/offlineDatabase');
+        const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+
+        if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
+          const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
+          updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
+          console.log('✅ [EDIT] UI updated from offline DB');
+        }
 
         setShowDeliveryForm(false);
         setEditingDelivery(null);
@@ -4820,7 +4829,16 @@ function Dashboard() {
       }
 
       invalidate('Delivery');
-      await refreshData();
+      
+      // CRITICAL: Load from offline DB instead of full API refresh
+      const { offlineDB } = await import('../components/utils/offlineDatabase');
+      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+      
+      if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
+        const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
+        updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
+        console.log('✅ [CREATE] UI updated from offline DB');
+      }
 
       hasAutoSelectedRef.current = false; // Reset to allow auto-selection after saving
 
@@ -5666,12 +5684,26 @@ function Dashboard() {
 
   const handleCODUpdate = async (deliveryId, codPayments, skipAutoCenter = false) => {
     try {
+      const delivery = deliveriesWithStopOrder.find(d => d?.id === deliveryId);
+      const deliveryDate = delivery?.delivery_date;
+      
       await updateDeliveryLocal(deliveryId, {
         cod_payments: codPayments
       });
 
       invalidate('Delivery');
-      await refreshData();
+      
+      // CRITICAL: Load from offline DB instead of full API refresh
+      if (deliveryDate) {
+        const { offlineDB } = await import('../components/utils/offlineDatabase');
+        const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+        
+        if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
+          const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
+          updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
+          console.log('✅ [COD] UI updated from offline DB');
+        }
+      }
     } catch (error) {
       console.error('Error updating COD payments:', error);
       alert('Failed to update COD payments. Please try again.');
