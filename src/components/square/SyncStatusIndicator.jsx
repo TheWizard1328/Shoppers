@@ -60,40 +60,35 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error }) {
               {status.icon}
             </div>
             <div className="flex-1 min-w-0">
-              <div className={`font-semibold text-sm ${status.color}`}>
-                {status.text}
-              </div>
-              <div className="text-xs text-muted-foreground mt-1 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`font-semibold text-sm ${status.color}`}>
+                  {status.text}
+                </span>
                 {lastSyncTime && (
-                  <div>
-                    Last sync: {formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true })}
-                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true })} • {format(new Date(lastSyncTime), 'HH:mm:ss')}
+                  </span>
                 )}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
                 {error && (
-                  <div className="text-red-600 font-medium">
+                  <span className="text-red-600 font-medium">
                     Error: {error}
-                  </div>
+                  </span>
                 )}
                 {catalogStatus?.recordCount !== undefined && (
-                  <div>
-                    Catalog items: {catalogStatus.recordCount}
-                  </div>
+                  <span>
+                    Catalog: {catalogStatus.recordCount}
+                  </span>
                 )}
                 {transactionStatus?.recordCount !== undefined && (
-                  <div>
+                  <span>
                     Transactions: {transactionStatus.recordCount}
-                  </div>
+                  </span>
                 )}
               </div>
             </div>
           </div>
-          {lastSyncTime && (
-            <div className="text-right flex-shrink-0">
-              <div className="text-xs text-muted-foreground">
-                {format(new Date(lastSyncTime), 'HH:mm:ss')}
-              </div>
-            </div>
-          )}
         </div>
       </CardContent>
     </Card>
