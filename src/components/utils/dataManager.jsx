@@ -120,11 +120,13 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   
   const cacheKey = `${entityName}_${sortKey || 'default'}_${JSON.stringify(query) || 'noquery'}_${limit || 'all'}`;
   
-  // OFFLINE-FIRST: Try IndexedDB for Patient and Delivery entities ALWAYS (unless forced)
+  // OFFLINE-FIRST: Try IndexedDB for Patient, Delivery, and Store entities ALWAYS (unless forced)
   // CRITICAL: This prevents rate limits by using local data first
-  if (!forceRefresh && (entityName === 'Patient' || entityName === 'Delivery')) {
+  if (!forceRefresh && (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'Store')) {
     try {
-      const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
+      const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
+                        entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
+                        offlineDB.STORES.STORES;
       let offlineData = await offlineDB.getAll(storeName);
       
       if (offlineData && offlineData.length > 0) {
@@ -201,8 +203,10 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       connectionMonitor.recordResponseTime(responseTime);
 
       // BACKGROUND: Save to IndexedDB for offline access
-      if (entityName === 'Patient' || entityName === 'Delivery') {
-        const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
+      if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'Store') {
+        const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
+                          entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
+                          offlineDB.STORES.STORES;
         offlineDB.bulkSave(storeName, data).catch(err => {
         });
       }
