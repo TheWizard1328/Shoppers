@@ -1267,40 +1267,21 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 )}
                                 </div>
                             </div>
-            }
+                            }
 
-                        {/* Errors */}
-                        {previewChanges.errors.length > 0 &&
-            <div>
-                                <h3 className="text-base sm:text-lg font-semibold text-red-600 mb-2">Errors ({previewChanges.errors.length})</h3>
-                                <div className="space-y-1 max-h-[20vh] sm:max-h-[150px] overflow-y-auto bg-red-50 p-2 sm:p-3 rounded border border-red-200">
-                                    {previewChanges.errors.map((error, idx) =>
-                <div key={idx} className="text-xs text-red-800 break-words">{error}</div>
-                )}
-                                </div>
+                            <CardHeader className="bg-slate-200 px-3 py-2 sm:px-4 flex flex-col space-y-1.5 flex-shrink-0 border-b">
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                    <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
+                                    Import Patients
+                                </CardTitle>
+                                {onClose &&
+                            <Button variant="ghost" size="icon" onClick={onClose} disabled={isProcessing} className="h-8 w-8">
+                                        <X className="w-4 h-4" />
+                                    </Button>
+                            }
                             </div>
-            }
-                    </CardContent>
-                    <div className="border-t p-3 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 flex-shrink-0">
-                        <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing} className="w-full sm:w-auto">
-                            Cancel
-                        </Button>
-                        <Button
-              onClick={confirmAndImport}
-              className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
-              disabled={isProcessing || previewChanges.toCreate.length === 0 && previewChanges.toUpdate.length === 0 && previewChanges.errors.length === 0}>
-
-                            {isProcessing ? 'Importing...' : `Import (${previewChanges.toCreate.length}+${previewChanges.toUpdate.length})`}
-                        </Button>
-                    </div>
-                </Card>
-            </div>);
-
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4 z-[9999] overflow-hidden">
-            <Card className={`rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl flex flex-col relative transition-all duration-300 ${files.length > 0 ? 'h-[85vh] sm:h-[70vh]' : 'h-[60vh] sm:h-[42vh]'}`}>
+                            </CardHeader>
                 {/* Floating Progress Overlay */}
                 {isProcessing &&
         <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
@@ -1428,19 +1409,6 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                         </div>
                         }
 
-                <CardHeader className="bg-slate-200 px-3 py-2 sm:px-4 flex flex-col space-y-1.5 flex-shrink-0 border-b">
-                    <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                            <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
-                            Import Patients
-                        </CardTitle>
-                        {onClose &&
-            <Button variant="ghost" size="icon" onClick={onClose} disabled={isProcessing} className="h-8 w-8">
-                                <X className="w-4 h-4" />
-                            </Button>
-            }
-                    </div>
-                </CardHeader>
                 
                 <CardContent className="px-2 sm:px-3 py-2 sm:py-3 flex-1 overflow-y-auto space-y-3">
                     {/* Single column on mobile, two columns on desktop */}
