@@ -695,6 +695,7 @@ export default function RouteImport({
       const ampmRawValue = values[1]?.replace(/"/g, '').trim();
       const trackingNumber = values[2]?.replace(/"/g, '').trim();
       const stopOrder = parseInt(values[3]?.trim()) || 0;
+      const column5Value = parseFloat(values[4]?.trim()); // Column 5 - check if < 0 for pending status
       const completionTimeStr = values[5]?.replace(/"/g, '').trim();
       const travelDistStr = values[8]?.replace(/"/g, '').trim();
       const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(parseFloat(travelDistStr).toFixed(2)) : null;
@@ -752,6 +753,9 @@ export default function RouteImport({
         console.warn(`⚠️ Row ${lineNumber}: Could not find dispatcher for store "${store.name}".`);
       }
 
+      // CRITICAL: Check Column 5 value - if < 0, status is pending, otherwise completed
+      const isPendingFromColumn5 = !isNaN(column5Value) && column5Value < 0;
+      
       const newDeliveryData = {
         delivery_date: currentDate,
         store_id: store.id,
@@ -761,7 +765,7 @@ export default function RouteImport({
         tracking_number: trackingNumber,
         stop_order: stopOrder,
         stop_id: stopId || null,
-        status: 'completed',
+        status: isPendingFromColumn5 ? 'pending' : 'completed',
         extra_time: 0,
         ampm_deliveries: ampmValue,
         cod_total_amount_required: 0,
