@@ -21,7 +21,6 @@ import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { driverLocationPoller } from '../utils/driverLocationPoller';
 import { processDeliveryNotes } from '../utils/notesProcessor';
 import { executeDataOperation } from '../utils/dataOperationManager';
-import { useMediaQuery } from '@react-hook/media-query';
 
 // Utility function for delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -189,10 +188,19 @@ export default function RouteImport({
 
   const [allStores, setAllStores] = useState([]);
   const [allDriverUsers, setAllDriverUsers] = useState([]);
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   // Use a ref to store fresh stores data that won't cause stale closure issues
   const freshStoresRef = useRef([]);
+
+  // Track mobile viewport changes
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const findStoreByAbbreviation = useCallback((abbr, storesOverride = null) => {
     if (!abbr) return null;
