@@ -1775,7 +1775,9 @@ export default function RouteImport({
                       accept=".csv,.tsv,.txt"
                       multiple
                       onChange={handleFileChange}
-                      disabled={isParsing || isProcessing || showProgress} />
+                      disabled={isParsing || isProcessing || showProgress}
+                      className="border-2"
+                      style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }} />
 
                     <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Select multiple route files to import.</p>
                   </div>
@@ -1789,7 +1791,10 @@ export default function RouteImport({
                           const hasMatch = !!fileInfo?.driver;
                           
                           return (
-                            <div key={index} className={`flex items-center justify-between p-2 rounded ${hasMatch ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                            <div key={index} className="flex items-center justify-between p-2 rounded border" style={{
+                              background: hasMatch ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                              borderColor: hasMatch ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'
+                            }}>
                               <div className="flex flex-col flex-1 min-w-0">
                                 <span className="text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{file.name}</span>
                                 <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Extracted: "{fileInfo?.extractedName || 'N/A'}"</span>
@@ -2088,7 +2093,7 @@ export default function RouteImport({
                   'Preview Import'
                   }
                 </Button>
-                <Button variant="outline" onClick={onCancel} disabled={isParsing || isProcessing || showProgress}>
+                <Button variant="outline" onClick={onCancel} disabled={isParsing || isProcessing || showProgress} style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
                   Cancel
                 </Button>
               </> :
