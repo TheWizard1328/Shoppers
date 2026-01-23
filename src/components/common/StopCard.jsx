@@ -156,6 +156,7 @@ export default function StopCard({
   const { setIsEntityUpdating, forceRefreshDriverDeliveries, refreshData, updateDeliveriesLocally } = useAppData();
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
+  const { operationInProgress, setOperationInProgress } = useAppData();
 
   // Detect if this is a stripped delivery (from other store)
   // For dispatchers: strip deliveries that aren't from their assigned stores
@@ -1241,6 +1242,10 @@ export default function StopCard({
               const status = pendingFailureStatus;
               setPendingFailureStatus(null);
 
+              // CRITICAL: Block all operations until this completes
+              if (operationInProgress) return;
+              setOperationInProgress(true);
+              
               fabControlEvents.deactivateFAB();
               smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
               await new Promise((resolve) => setTimeout(resolve, 50));
@@ -1358,6 +1363,7 @@ export default function StopCard({
                 });
 
               } finally {
+                setOperationInProgress(false);
                 fabControlEvents.reactivateFAB(true);
               }
             }}
@@ -1651,6 +1657,11 @@ export default function StopCard({
 
                       onClick={async (e) => {
                         e.stopPropagation();
+                        
+                        // CRITICAL: Block all operations until this completes
+                        if (operationInProgress) return;
+                        setOperationInProgress(true);
+                        
                         console.log('🟢 [Assign All] Step 1: Running smart refresh...');
 
                         // Step 1: Run smart refresh
@@ -1824,6 +1835,7 @@ export default function StopCard({
                             stores: 0
                           };
                           setIsEntityUpdating(false);
+                          setOperationInProgress(false);
                           console.log('  ✅ Smart refresh resumed');
 
                           // CRITICAL: Collapse the card after assign/accept all completes
@@ -2212,13 +2224,14 @@ export default function StopCard({
                             });
                           }
                         } finally {
+                          setOperationInProgress(false);
                           // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
                           fabControlEvents.reactivateFAB(true);
                         }
                       }}
                       size="sm"
                       className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
-                      disabled={false}>
+                      disabled={operationInProgress}>
                           <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
                           <span className="text-white">Restart</span>
                         </Button> :
@@ -2226,6 +2239,11 @@ export default function StopCard({
                     <Button
                       onClick={async (e) => {
                         e.stopPropagation();
+                        
+                        // CRITICAL: Block all operations until this completes
+                        if (operationInProgress) return;
+                        setOperationInProgress(true);
+                        
                         fabControlEvents.deactivateFAB();
                         setIsRetrying(true);
                         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
@@ -2282,6 +2300,7 @@ export default function StopCard({
                           }
                         } finally {
                           setIsRetrying(false);
+                          setOperationInProgress(false);
                           console.log('✅ [RETRY] Retry cycle complete');
 
                           // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
@@ -2290,7 +2309,7 @@ export default function StopCard({
                       }}
                       size="sm"
                       className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
-                      disabled={isRetrying || !canRetry || hasFutureRetry || hasCompletedDelivery}>
+                      disabled={isRetrying || operationInProgress || !canRetry || hasFutureRetry || hasCompletedDelivery}>
                           {isRetrying ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                           <span className="text-white">Retry</span>
                         </Button> :
@@ -2299,6 +2318,10 @@ export default function StopCard({
                     <Button
                       onClick={async (e) => {
                         e.stopPropagation();
+                        
+                        // CRITICAL: Block all operations until this completes
+                        if (operationInProgress) return;
+                        setOperationInProgress(true);
 
                         fabControlEvents.deactivateFAB();
                         setIsCompleting(true);
@@ -2551,10 +2574,11 @@ export default function StopCard({
                           fabControlEvents.reactivateFAB(true);
                         } finally {
                           setIsCompleting(false);
+                          setOperationInProgress(false);
                         }
                       }}
                       size="sm"
-                      disabled={isCompleting}
+                      disabled={isCompleting || operationInProgress}
                       className="rounded-md bg-emerald-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-emerald-700 h-10 md:h-8 border-r border-emerald-500 !text-white">
                               {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                               <span className="text-white">Complete</span>
@@ -2562,6 +2586,10 @@ export default function StopCard({
                     onStartDelivery &&
                     <Button onClick={async (e) => {
                       e.stopPropagation();
+                      
+                      // CRITICAL: Block all operations until this completes
+                      if (operationInProgress) return;
+                      setOperationInProgress(true);
                       setIsStarting(true);
 
                       // ═══════════ PHASE 1: IMMEDIATE UI UPDATE ═══════════
@@ -2703,15 +2731,17 @@ export default function StopCard({
                           console.error('❌ [START] Background error:', error);
                         } finally {
                           setIsStarting(false);
+                          setOperationInProgress(false);
                         }
                       })();
 
                       // CRITICAL: Re-enable button immediately after UI update (don't wait for background)
                       setTimeout(() => {
                         setIsStarting(false);
+                        setOperationInProgress(false);
                       }, 300);
 
-                    }} size="sm" disabled={isStarting} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
+                    }} size="sm" disabled={isStarting || operationInProgress} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
                               {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                               <span className="text-white">Start</span>
                             </Button>)
