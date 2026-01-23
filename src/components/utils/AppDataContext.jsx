@@ -27,30 +27,63 @@ export const AppDataProvider = ({ children, value }) => {
   // CRITICAL: Direct data refresh for a specific driver and date (bypasses isEntityUpdating flag)
   const forceRefreshDriverDeliveries = async (driverId, deliveryDate) => {
     console.log(`🔄 [Force Refresh] Fetching latest deliveries for driver ${driverId} on ${deliveryDate}...`);
-    
+
     try {
       const freshDeliveriesForDriver = await base44.entities.Delivery.filter({
         driver_id: driverId,
         delivery_date: deliveryDate
       });
-      
+
       console.log(`✅ [Force Refresh] Got ${freshDeliveriesForDriver.length} deliveries from database`);
-      
+
       // CRITICAL: Clear ALL pending updates for this driver/route FIRST
       smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
-      
-      // Construct the new overall deliveries array
-      const otherDeliveries = (value.deliveries || []).filter(d => 
+
+      // CRITICAL: INTELLIGENT MERGE - preserve UI state, only update changed records
+      const currentDeliveries = value.deliveries || [];
+
+      // Build a map of fresh deliveries by ID for fast lookup
+      const freshMap = new Map(freshDeliveriesForDriver.map(d => [d.id, d]));
+
+      // Keep deliveries from other dates/drivers unchanged
+      const otherDeliveries = currentDeliveries.filter(d => 
         d && (d.delivery_date !== deliveryDate || d.driver_id !== driverId)
       );
-      const mergedDeliveries = [...otherDeliveries, ...freshDeliveriesForDriver].filter(Boolean);
-      
+
+      // Get current deliveries for this driver/date
+      const currentRouteDeliveries = currentDeliveries.filter(d =>
+        d && d.delivery_date === deliveryDate && d.driver_id === driverId
+      );
+
+      // Merge: use fresh data but preserve temp IDs and pending local changes
+      const mergedRouteDeliveries = [];
+
+      // Update existing deliveries
+      currentRouteDeliveries.forEach(current => {
+        const fresh = freshMap.get(current.id);
+        if (fresh) {
+          mergedRouteDeliveries.push(fresh);
+          freshMap.delete(current.id); // Mark as processed
+        } else if (current.id?.startsWith('temp_')) {
+          // Keep temp records (not yet synced)
+          mergedRouteDeliveries.push(current);
+        }
+        // Deleted on server - don't include
+      });
+
+      // Add new deliveries from server
+      freshMap.forEach(fresh => {
+        mergedRouteDeliveries.push(fresh);
+      });
+
+      const finalDeliveries = [...otherDeliveries, ...mergedRouteDeliveries].filter(Boolean);
+
       if (value.updateDeliveriesLocally) {
-        // Full replacement to ensure deletions are reflected
-        value.updateDeliveriesLocally(mergedDeliveries, true);
-        console.log(`✅ [Force Refresh] Updated context with ${mergedDeliveries.length} total deliveries`);
+        // CRITICAL: Use FALSE for isFullReplacement to preserve UI state
+        value.updateDeliveriesLocally(finalDeliveries, false);
+        console.log(`✅ [Force Refresh] Intelligently merged ${mergedRouteDeliveries.length} route deliveries (total: ${finalDeliveries.length})`);
       }
-      
+
       return freshDeliveriesForDriver;
     } catch (error) {
       console.error('❌ [Force Refresh] Failed to fetch deliveries:', error);
