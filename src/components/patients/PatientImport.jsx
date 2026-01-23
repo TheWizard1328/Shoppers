@@ -1170,35 +1170,35 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
   if (showPreview) {
     return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] overflow-hidden">
-                <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-4xl h-[77vh] flex flex-col">
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4 z-[9999] overflow-hidden">
+                <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-4xl h-[90vh] sm:h-[77vh] flex flex-col">
                     <CardHeader className="flex flex-col space-y-1.5 p-3 border-b flex-shrink-0">
                         <div className="flex items-center justify-between">
-                            <CardTitle>Import Preview</CardTitle>
-                            <Button variant="ghost" size="icon" onClick={() => setShowPreview(false)} className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground h-9 w-8">
+                            <CardTitle className="text-base sm:text-lg">Import Preview</CardTitle>
+                            <Button variant="ghost" size="icon" onClick={() => setShowPreview(false)} className="h-9 w-9">
                                 <X className="w-4 h-4" />
                             </Button>
                         </div>
                     </CardHeader>
-                    <CardContent className="flex-1 overflow-y-auto p-4 space-y-2">
+                    <CardContent className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3">
                         {/* Summary */}
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-3 gap-2">
                             <Card>
-                                <CardContent className="p-4 px-4 py-4 text-center">
-                                    <div className="text-3xl font-bold text-green-600">{previewChanges.toCreate.length}</div>
-                                    <div className="text-sm text-slate-600">New Patients</div>
+                                <CardContent className="p-3 text-center">
+                                    <div className="text-2xl sm:text-3xl font-bold text-green-600">{previewChanges.toCreate.length}</div>
+                                    <div className="text-xs sm:text-sm text-slate-600">New</div>
                                 </CardContent>
                             </Card>
                             <Card>
-                                <CardContent className="p-4 text-center">
-                                    <div className="text-3xl font-bold text-blue-600">{previewChanges.toUpdate.length}</div>
-                                    <div className="text-sm text-slate-600">Updates</div>
+                                <CardContent className="p-3 text-center">
+                                    <div className="text-2xl sm:text-3xl font-bold text-blue-600">{previewChanges.toUpdate.length}</div>
+                                    <div className="text-xs sm:text-sm text-slate-600">Updates</div>
                                 </CardContent>
                             </Card>
                             <Card>
-                                <CardContent className="p-4 text-center">
-                                    <div className="text-3xl font-bold text-red-600">{previewChanges.errors.length}</div>
-                                    <div className="text-sm text-slate-600">Errors</div>
+                                <CardContent className="p-3 text-center">
+                                    <div className="text-2xl sm:text-3xl font-bold text-red-600">{previewChanges.errors.length}</div>
+                                    <div className="text-xs sm:text-sm text-slate-600">Errors</div>
                                 </CardContent>
                             </Card>
                         </div>
@@ -1206,17 +1206,21 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                         {/* New Patients */}
                         {previewChanges.toCreate.length > 0 &&
             <div>
-                                <h3 className="text-lg font-semibold text-green-600 mb-3">New Patients ({previewChanges.toCreate.length})</h3>
-                                <div className="space-y-1 max-h-[205px] overflow-y-auto border rounded p-2">
+                                <h3 className="text-base sm:text-lg font-semibold text-green-600 mb-2">New Patients ({previewChanges.toCreate.length})</h3>
+                                <div className="space-y-1.5 max-h-[30vh] sm:max-h-[205px] overflow-y-auto border rounded p-2">
                                     {previewChanges.toCreate.map((item, idx) =>
-                <div key={idx} className="bg-green-50 border border-green-200 rounded px-2 py-0.5 text-sm flex items-center gap-2 flex-wrap">
-                                            <span className="font-mono text-xs bg-green-100 px-2 py-0.5 rounded border border-green-300">
-                                                {item.data.patient_id || 'NO PID'}
-                                            </span>
-                                            <span className="font-medium">{item.data.full_name}</span>
-                                            <span className="text-slate-600 flex-1 min-w-0 truncate" title={item.data.address}>{item.data.address}</span>
-                                            {item.willGeocode && <span className="text-xs text-yellow-600">📍 Geocode</span>}
-                                            <span className="text-xs text-slate-500">{item.fileName} R{item.rowNumber}</span>
+                <div key={idx} className="bg-green-50 border border-green-200 rounded p-2 text-xs sm:text-sm">
+                                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                <span className="font-mono text-xs bg-green-100 px-2 py-0.5 rounded border border-green-300">
+                                                    {item.data.patient_id || 'NO PID'}
+                                                </span>
+                                                <span className="font-medium">{item.data.full_name}</span>
+                                            </div>
+                                            <div className="text-slate-600 text-xs truncate mb-1" title={item.data.address}>{item.data.address}</div>
+                                            <div className="flex items-center gap-2 flex-wrap text-xs text-slate-500">
+                                                {item.willGeocode && <span className="text-yellow-600">📍 Geocode</span>}
+                                                <span>{item.fileName} R{item.rowNumber}</span>
+                                            </div>
                                         </div>
                 )}
                                 </div>
@@ -1225,40 +1229,39 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
                         {/* Updates */}
                         {previewChanges.toUpdate.length > 0 &&
-            <div className="">
-                                <h3 className="text-lg font-semibold text-blue-600 mb-2">Updates ({previewChanges.toUpdate.length})</h3>
-                                <div className="space-y-1 max-h-[445px] overflow-y-auto border rounded p-2">
+            <div>
+                                <h3 className="text-base sm:text-lg font-semibold text-blue-600 mb-2">Updates ({previewChanges.toUpdate.length})</h3>
+                                <div className="space-y-2 max-h-[40vh] sm:max-h-[445px] overflow-y-auto border rounded p-2">
                                     {previewChanges.toUpdate.map((item, idx) =>
-                <div key={idx} className="bg-blue-50 border border-blue-200 rounded p-1">
-                                            <div className="flex items-center gap-2 flex-wrap text-sm">
+                <div key={idx} className="bg-blue-50 border border-blue-200 rounded p-2">
+                                            <div className="flex items-center gap-2 flex-wrap text-xs sm:text-sm mb-2">
                                                 <span className="font-mono text-xs bg-blue-100 px-2 py-0.5 rounded border border-blue-300">
                                                     {item.data.patient_id || item.existing.patient_id || 'NO PID'}
                                                 </span>
                                                 <span className="font-medium">{item.data.full_name}</span>
-                                                <span className="text-slate-600 flex-1 min-w-0 truncate" title={item.data.address}>{item.data.address}</span>
-                                                {item.willGeocode && <span className="text-xs text-yellow-600">📍 Geocode</span>}
-                                                <span className="text-xs text-slate-500">{item.fileName} R{item.rowNumber}</span>
                                             </div>
-                                            <div className="mt-2 space-y-1">
+                                            <div className="text-slate-600 text-xs truncate mb-2" title={item.data.address}>{item.data.address}</div>
+                                            <div className="space-y-1.5">
                                                 {item.changes.map((change, cidx) => {
-                      // Format field names for display
-                      const fieldDisplayName = change.field.
-                      replace(/_/g, ' ').
-                      replace(/\b\w/g, (l) => l.toUpperCase());
-
+                      const fieldDisplayName = change.field.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
                       return (
-                        <div key={cidx} className="flex items-center gap-2 text-xs">
-                                                            <span className="font-medium text-slate-700 w-40 shrink-0">{fieldDisplayName}:</span>
-                                                            <span className="bg-red-100 text-red-800 px-2 py-1 rounded line-through flex-grow min-w-0 truncate" title={String(change.oldValue)}>
-                                                                {String(change.oldValue)}
-                                                            </span>
-                                                            <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-                                                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded flex-grow min-w-0 truncate" title={String(change.newValue)}>
-                                                                {String(change.newValue)}
-                                                            </span>
+                        <div key={cidx} className="text-xs">
+                                                            <div className="font-medium text-slate-700 mb-0.5">{fieldDisplayName}:</div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded line-through flex-1 min-w-0 truncate" title={String(change.oldValue)}>
+                                                                    {String(change.oldValue)}
+                                                                </span>
+                                                                <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
+                                                                <span className="bg-green-100 text-green-800 px-2 py-1 rounded flex-1 min-w-0 truncate" title={String(change.newValue)}>
+                                                                    {String(change.newValue)}
+                                                                </span>
+                                                            </div>
                                                         </div>);
-
                     })}
+                                            </div>
+                                            <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                                                {item.willGeocode && <span className="text-yellow-600">📍 Geocode</span>}
+                                                <span>{item.fileName} R{item.rowNumber}</span>
                                             </div>
                                         </div>
                 )}
@@ -1269,25 +1272,25 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                         {/* Errors */}
                         {previewChanges.errors.length > 0 &&
             <div>
-                                <h3 className="text-lg font-semibold text-red-600 mb-3">Errors ({previewChanges.errors.length})</h3>
-                                <div className="space-y-1 max-h-[150px] overflow-y-auto bg-red-50 p-3 rounded border border-red-200">
+                                <h3 className="text-base sm:text-lg font-semibold text-red-600 mb-2">Errors ({previewChanges.errors.length})</h3>
+                                <div className="space-y-1 max-h-[20vh] sm:max-h-[150px] overflow-y-auto bg-red-50 p-2 sm:p-3 rounded border border-red-200">
                                     {previewChanges.errors.map((error, idx) =>
-                <div key={idx} className="text-xs text-red-800">{error}</div>
+                <div key={idx} className="text-xs text-red-800 break-words">{error}</div>
                 )}
                                 </div>
                             </div>
             }
                     </CardContent>
-                    <div className="border-t p-2 flex justify-end gap-3 flex-shrink-0">
-                        <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing}>
+                    <div className="border-t p-3 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 flex-shrink-0">
+                        <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing} className="w-full sm:w-auto">
                             Cancel
                         </Button>
                         <Button
               onClick={confirmAndImport}
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
               disabled={isProcessing || previewChanges.toCreate.length === 0 && previewChanges.toUpdate.length === 0 && previewChanges.errors.length === 0}>
 
-                            {isProcessing ? 'Importing...' : `Confirm & Import (${previewChanges.toCreate.length} new, ${previewChanges.toUpdate.length} updates)`}
+                            {isProcessing ? 'Importing...' : `Import (${previewChanges.toCreate.length}+${previewChanges.toUpdate.length})`}
                         </Button>
                     </div>
                 </Card>
@@ -1296,16 +1299,16 @@ export default function PatientImport({ onImportComplete, onImportStart, current
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] overflow-hidden">
-            <Card className={`rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl flex flex-col relative transition-all duration-300 ${files.length > 0 ? 'h-[70vh]' : 'h-[42vh]'}`}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4 z-[9999] overflow-hidden">
+            <Card className={`rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl flex flex-col relative transition-all duration-300 ${files.length > 0 ? 'h-[85vh] sm:h-[70vh]' : 'h-[60vh] sm:h-[42vh]'}`}>
                 {/* Floating Progress Overlay */}
                 {isProcessing &&
-        <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-6">
+        <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
                         <div className="w-full max-w-2xl">
-                            <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-6 space-y-4 shadow-lg">
-                                <div className="flex justify-between items-center">
+                            <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-3 sm:p-6 space-y-3 sm:space-y-4 shadow-lg">
+                                <div className="flex justify-between items-start sm:items-center flex-col sm:flex-row gap-2">
                                     <div>
-                                        <h3 className="font-semibold text-lg text-blue-900">{getPhaseLabel()}</h3>
+                                        <h3 className="font-semibold text-base sm:text-lg text-blue-900">{getPhaseLabel()}</h3>
                                         {/* Only show file progress if phase specifically refers to file processing, otherwise hide */}
                                         {importProgress.phase === 'processing' && importProgress.totalFiles > 0 &&
                   <p className="text-sm text-blue-700">
@@ -1327,18 +1330,18 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-4 pt-2">
-                                    <div className="bg-white rounded-lg p-3 text-center">
-                                        <div className="text-2xl font-bold text-green-600">{importProgress.created}</div>
-                                        <div className="text-xs text-slate-600">Total Created</div>
+                                <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-2">
+                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
+                                        <div className="text-xl sm:text-2xl font-bold text-green-600">{importProgress.created}</div>
+                                        <div className="text-[10px] sm:text-xs text-slate-600">Created</div>
                                     </div>
-                                    <div className="bg-white rounded-lg p-3 text-center">
-                                        <div className="text-2xl font-bold text-blue-600">{importProgress.updated}</div>
-                                        <div className="text-xs text-slate-600">Total Updated</div>
+                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
+                                        <div className="text-xl sm:text-2xl font-bold text-blue-600">{importProgress.updated}</div>
+                                        <div className="text-[10px] sm:text-xs text-slate-600">Updated</div>
                                     </div>
-                                    <div className="bg-white rounded-lg p-3 text-center">
-                                        <div className="text-2xl font-bold text-red-600">{importProgress.errors}</div>
-                                        <div className="text-xs text-slate-600">Total Errors</div>
+                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
+                                        <div className="text-xl sm:text-2xl font-bold text-red-600">{importProgress.errors}</div>
+                                        <div className="text-[10px] sm:text-xs text-slate-600">Errors</div>
                                     </div>
                                 </div>
                             </div>
@@ -1346,139 +1349,79 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                     </div>
         }
 
-                <CardHeader className="bg-slate-200 px-4 py-2 flex flex-col space-y-1.5 flex-shrink-0 border-b">
-                    <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2">
-                            <Upload className="w-5 h-5" />
-                            Import Patients from CSV
-                        </CardTitle>
-                        {onClose &&
-            <Button variant="ghost" size="icon" onClick={onClose} disabled={isProcessing}>
-                                <X className="w-4 h-4" />
-                            </Button>
+                        {/* Errors */}
+                        {previewChanges.errors.length > 0 &&
+            <div>
+                                <h3 className="text-base sm:text-lg font-semibold text-red-600 mb-2">Errors ({previewChanges.errors.length})</h3>
+                                <div className="space-y-1 max-h-[20vh] sm:max-h-[150px] overflow-y-auto bg-red-50 p-2 sm:p-3 rounded border border-red-200">
+                                    {previewChanges.errors.map((error, idx) =>
+                <div key={idx} className="text-xs text-red-800 break-words">{error}</div>
+                )}
+                                </div>
+                            </div>
             }
+                    </CardContent>
+                    <div className="border-t p-3 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 flex-shrink-0">
+                        <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing} className="w-full sm:w-auto">
+                            Cancel
+                        </Button>
+                        <Button
+              onClick={confirmAndImport}
+              className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto text-xs sm:text-sm"
+              disabled={isProcessing || previewChanges.toCreate.length === 0 && previewChanges.toUpdate.length === 0 && previewChanges.errors.length === 0}>
+
+                            {isProcessing ? 'Importing...' : `Import (${previewChanges.toCreate.length}+${previewChanges.toUpdate.length})`}
+                        </Button>
                     </div>
-                </CardHeader>
-                
-                <CardContent className="px-3 py-3 flex-1 overflow-y-auto space-y-2">
-                    {/* Two-column layout: File Selector (40%) + Import Rules (60%) */}
-                    <div className="flex gap-3">
-                        {/* Left Column: File Selector - 40% */}
-                        <div className="flex-[1] min-w-[30%] space-y-2 p-2">
-                            <div className="space-y-2">
-                                <Label htmlFor="csv-upload">Select CSV File(s)</Label>
-                                <Input
-                  id="csv-upload"
-                  type="file"
-                  accept=".csv"
-                  multiple
-                  onChange={handleFileChange}
-                  disabled={isProcessing} />
+                </Card>
+            </div>);
 
-                                <p className="text-xs text-slate-500">
-                                    <strong>IMPORTANT:</strong> Line 1 is always skipped (header row). Data starts from line 2. You can select multiple files.
-                                </p>
-                            </div>
+  }
 
-                            {files.length > 0 &&
-              <div className="space-y-1">
-                                    <Label className="text-sm font-medium">Selected Files ({files.length})</Label>
-                                    <div className="space-y-1 max-h-32 overflow-y-auto border rounded-lg p-1">
-                                        {files.map((file, index) =>
-                  <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded text-sm">
-                                                <span className="truncate flex-1">{file.name}</span>
-                                                {!isProcessing &&
-                    <button
-                      onClick={() => removeFile(index)}
-                      className="ml-2 text-slate-400 hover:text-red-600"
-                      aria-label={`Remove file ${file.name}`}>
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4 z-[9999] overflow-hidden">
+            <Card className={`rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl flex flex-col relative transition-all duration-300 ${files.length > 0 ? 'h-[85vh] sm:h-[70vh]' : 'h-[75vh] sm:h-[42vh]'}`}>
+                {/* Floating Progress Overlay */}
+                {isProcessing &&
+        <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
 
-                                                        <X className="w-4 h-4" />
-                                                    </button>
-                    }
-                                            </div>
-                  )}
-                                    </div>
-                                </div>
-              }
-                        </div>
-
-                        {/* Right Column: Import Rules - 60% */}
-                        <div className="bg-blue-50 px-2 py-1 rounded-lg flex-[3] border border-blue-200">
-                        <h4 className="font-semibold mb-3 text-blue-900">Import Rules:</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-0 gap-y-2 text-xs text-blue-800">
-                            {/* Left Column */}
-                            <div className="space-y-1">
-                                <div>
-                                    <strong>• Line 1 is ALWAYS skipped</strong>
-                                    <p className="ml-3 text-blue-700">Header row - data starts from line 2</p>
-                                </div>
-                                <div>
-                                    <strong>• Fixed Column Mapping:</strong>
-                                    <ul className="ml-3 text-blue-700 list-disc list-inside">
-                                        <li>Col 1: Store Abbreviation</li>
-                                        <li>Col 2: Full Name</li>
-                                        <li>Col 3: Address</li>
-                                        <li>Col 4: Phone</li>
-                                        <li>Col 5: Notes</li>
-                                        <li>Col 13: Last Delivery Date</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <strong>• Multiple Files</strong>
-                                    <p className="ml-3 text-blue-700">Each CSV processed sequentially</p>
-                                </div>
-                            </div>
-
-                            {/* Right Column */}
-                            <div className="space-y-1">
-                                <div>
-                                    <strong>• More Columns:</strong>
-                                    <ul className="ml-3 text-blue-700 list-disc list-inside">
-                                        <li>Col 14: Distance From Store</li>
-                                        <li>Col 15: Time Window Start</li>
-                                        <li>Col 16: Time Window End</li>
-                                        <li>Col 17: Latitude</li>
-                                        <li>Col 18: Longitude</li>
-                                        <li>Col 19: Inactive ('X' = inactive)</li>
-                                        <li>Col 20: Patient ID (PID)</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <strong>• Auto-Processing:</strong>
-                                    <ul className="ml-3 text-blue-700 list-disc list-inside">
-                                        <li>Store matching by abbreviation</li>
-                                        <li>Unit/Buzz extraction from address & notes</li>
-                                        <li>Recurring patterns extraction</li>
-                                        <li>Preferences extraction</li>
-                                        <li>AI geocoding if coordinates missing</li>
-                                        <li>Match by PID or store+name+address</li>
-                                        <li>Auto-inactive: "(Old" in name, "(Deceased" in notes</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                        </div>
-                    </div>
-
-                    {/* Live Preview Table */}
+                    {/* Live Preview - Card layout for mobile, table for desktop */}
                     {previewData.length > 0 &&
           <div className="border rounded-lg overflow-hidden">
-                            <div className="bg-slate-100 px-4 py-2 font-semibold text-sm border-b">
-                                Live Preview - First 5 Rows
+                            <div className="bg-slate-100 px-2 sm:px-4 py-1.5 sm:py-2 font-semibold text-xs sm:text-sm border-b">
+                                Preview - First 5 Rows
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm table-fixed">
-                                    <colgroup>
-                                        <col style={{ width: '80px' }} />
-                                        <col style={{ width: '150px' }} />
-                                        <col style={{ width: '200px' }} />
-                                        <col style={{ width: '100px' }} />
-                                        <col style={{ width: '90px' }} />
-                                        <col style={{ width: '90px' }} />
-                                        <col style={{ width: '200px' }} />
-                                    </colgroup>
-                                    <thead className="bg-slate-100 border-b sticky top-0 z-10">
+                            
+                            {/* Mobile: Card View */}
+                            <div className="lg:hidden overflow-y-auto max-h-[35vh] p-2 space-y-2">
+                                {previewData.map((patient, idx) =>
+                  <div key={idx} className="bg-slate-50 border rounded-lg p-2 text-xs space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-mono bg-slate-200 px-2 py-0.5 rounded">{patient.patient_id || '-'}</span>
+                                            <span className="font-medium">{patient.full_name}</span>
+                                        </div>
+                                        <div className="text-slate-600 truncate">{patient.address}</div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            {patient.unit_number && <span>Unit: {patient.unit_number}</span>}
+                                            {patient.phone && <span>📞 {patient.phone}</span>}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {patient.store_name !== 'N/A' ?
+                      <Badge style={{ backgroundColor: patient.store_color, fontSize: '10px' }}>
+                                                    {patient.store_name}
+                                                </Badge> :
+                      <span className="text-slate-400">{patient.store_name}</span>
+                      }
+                                        </div>
+                                        {patient.notes && <div className="text-slate-600 truncate">Notes: {patient.notes}</div>}
+                                    </div>
+                  )}
+                            </div>
+
+                            {/* Desktop: Table View */}
+                            <div className="hidden lg:block overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-100 border-b sticky top-0">
                                         <tr>
                                             <th className="p-2 text-left font-medium text-xs">PID</th>
                                             <th className="p-2 text-left font-medium text-xs">Name</th>
@@ -1489,26 +1432,12 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                                             <th className="p-2 text-left font-medium text-xs">Notes</th>
                                         </tr>
                                     </thead>
-                                </table>
-                            </div>
-
-                            <div className="overflow-y-auto max-h-96">
-                                <table className="w-full text-sm table-fixed">
-                                    <colgroup>
-                                        <col style={{ width: '80px' }} />
-                                        <col style={{ width: '150px' }} />
-                                        <col style={{ width: '200px' }} />
-                                        <col style={{ width: '100px' }} />
-                                        <col style={{ width: '90px' }} />
-                                        <col style={{ width: '90px' }} />
-                                        <col style={{ width: '200px' }} />
-                                    </colgroup>
                                     <tbody>
                                         {previewData.map((patient, idx) =>
                   <tr key={idx} className="border-b hover:bg-slate-50">
                                                 <td className="p-2 font-mono text-xs">{patient.patient_id || '-'}</td>
                                                 <td className="p-2 text-xs">{patient.full_name || '-'}</td>
-                                                <td className="p-2 text-xs max-w-[200px] truncate" title={patient.address}>{patient.address || '-'}</td>
+                                                <td className="p-2 text-xs truncate" title={patient.address}>{patient.address || '-'}</td>
                                                 <td className="p-2 text-xs font-mono">{patient.unit_number || '-'}</td>
                                                 <td className="p-2 text-xs">{patient.phone || '-'}</td>
                                                 <td className="p-2 text-xs">
@@ -1516,11 +1445,10 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                       <Badge style={{ backgroundColor: patient.store_color, fontSize: '10px' }}>
                                                             {patient.store_name}
                                                         </Badge> :
-
                       <span className="text-slate-400">{patient.store_name}</span>
                       }
                                                 </td>
-                                                <td className="p-2 text-xs max-w-[250px] truncate text-slate-600" title={patient.notes}>
+                                                <td className="p-2 text-xs truncate text-slate-600" title={patient.notes}>
                                                     {patient.notes || '-'}
                                                 </td>
                                             </tr>
@@ -1533,53 +1461,40 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
                     <Button
             onClick={generatePreview}
-            disabled={isProcessing || files.length === 0} className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-3 w-full">
-            
-
-                        {isProcessing ? 'Generating Preview...' : `Preview Import (${files.length} file${files.length !== 1 ? 's' : ''})`}
+            disabled={isProcessing || files.length === 0}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-9 w-full text-sm sm:text-base">
+                        {isProcessing ? 'Generating...' : `Preview Import (${files.length} file${files.length !== 1 ? 's' : ''})`}
                     </Button>
 
                     {importResult &&
-          <div className="space-y-2 border-t pt-4">
-            <div className="flex justify-around text-center">
-            <div className="flex items-center gap-2 text-green-600">
-                <CheckCircle className="w-5 h-5" />
-                <span>Created: {importResult.created}</span>
+          <div className="space-y-2 border-t pt-3">
+            <div className="grid grid-cols-3 gap-2 text-center text-xs sm:text-sm">
+                <div className="flex flex-col items-center gap-1 text-green-600">
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span>{importResult.created}</span>
+                    <span className="text-[10px] sm:text-xs">Created</span>
+                </div>
+                <div className="flex flex-col items-center gap-1 text-blue-600">
+                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span>{importResult.updated}</span>
+                    <span className="text-[10px] sm:text-xs">Updated</span>
+                </div>
+                <div className="flex flex-col items-center gap-1 text-purple-600">
+                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span>{importResult.geocoded}</span>
+                    <span className="text-[10px] sm:text-xs">Geocoded</span>
+                </div>
             </div>
-
-            <div className="flex items-center gap-2 text-blue-600">
-                <AlertCircle className="w-5 h-5" />
-                <span>Updated: {importResult.updated}</span>
-            </div>
-
-            <div className="flex items-center gap-2 text-purple-600">
-                <AlertCircle className="w-5 h-5" />
-                <span>Geocoded: {importResult.geocoded}</span>
-            </div>
-            </div>
-                            {importResult.fileResults && importResult.fileResults.length > 0 &&
-            <div className="mt-4">
-                                    <h4 className="font-semibold text-sm text-slate-700 mb-2">Overall Results:</h4>
-                                    <div className="space-y-1 text-xs">
-                                        {importResult.fileResults.map((fr, idx) =>
-                <div key={idx} className="bg-slate-50 p-2 rounded">
-                                                <span className="font-medium">{fr.fileName}:</span> {fr.created || 0} created, {fr.updated || 0} updated, {fr.errors.length || 0} errors
-                                                {fr.geocoded > 0 && `, ${fr.geocoded} geocoded`}
-                                            </div>
-                )}
-                                    </div>
-                                </div>
-            }
 
                             {importResult.errors.length > 0 &&
             <div className="space-y-1">
-                                    <div className="flex items-center gap-2 text-red-600">
-                                        <XCircle className="w-5 h-5" />
+                                    <div className="flex items-center gap-2 text-red-600 text-xs sm:text-sm">
+                                        <XCircle className="w-4 h-4" />
                                         <span>Errors: {importResult.errors.length}</span>
                                     </div>
-                                    <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded text-xs">
+                                    <div className="max-h-24 sm:max-h-32 overflow-y-auto bg-red-50 p-2 rounded text-[10px] sm:text-xs">
                                         {importResult.errors.map((err, i) =>
-                <div key={i} className="text-red-800">{err}</div>
+                <div key={i} className="text-red-800 break-words">{err}</div>
                 )}
                                     </div>
                                 </div>
