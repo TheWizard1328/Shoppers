@@ -2823,26 +2823,7 @@ export default function Layout({ children, currentPageName }) {
                                   />
                                 )}
 
-                  {showActiveRoutesImport && (
-                    <ImportActiveRoutes
-                      onCancel={() => {
-                        setShowActiveRoutesImport(false);
-                        setIsFormOverlayOpen(false);
-                      }}
-                      onImportComplete={async () => {
-                        setShowActiveRoutesImport(false);
-                        setIsFormOverlayOpen(false);
-                        invalidate('Delivery');
-                        invalidate('Patient');
-                        await triggerFullDataLoadRef.current(true);
-                        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                      }}
-                      stores={stores}
-                      allUsers={users}
-                      currentUser={currentUser}
-                      allDeliveries={deliveries}
-                    />
-                  )}
+
 
       {isLoadingLayout ? (
         <div className="h-screen flex items-center justify-center bg-slate-50">
@@ -3038,19 +3019,7 @@ export default function Layout({ children, currentPageName }) {
                             </>
                             )}
 
-                            {/* Active Stops Import - Drivers or App Owners without full access - Show on all devices */}
-                            {!isAppOwner(realUser) && (userHasRole(currentUser, 'driver') || (isAppOwner(currentUser) && !canAccessImports(currentUser, adminImportEnabled))) && (
-                            <>
-                              <DropdownMenuLabel className="px-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
-                                Import
-                              </DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
-                                <FileText className="w-4 h-4 mr-2" />
-                                Active Stops
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                            </>
-                            )}
+
 
                             {/* City Filter - Admin Only */}
                             {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
