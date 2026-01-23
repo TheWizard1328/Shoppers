@@ -4228,16 +4228,8 @@ function Dashboard() {
         // Wait for offline mutations to complete (they run asynchronously)
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        // CRITICAL: Load from offline DB instead of API to prevent data wipe
-        console.log('📦 [AddToRoute] Loading from offline DB...');
-        const { offlineDB } = await import('../components/utils/offlineDatabase');
-        const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, batchDeliveryDate);
-        
-        if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
-          const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== batchDeliveryDate);
-          updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
-          console.log('✅ [AddToRoute] UI updated from offline DB');
-        }
+        // Refresh data will pull from offline DB first
+        await refreshData();
 
         // CRITICAL: After batch save, check if we should optimize the route
         // Optimization runs once all transitioning stops are in_transit/en_route
@@ -4388,16 +4380,7 @@ function Dashboard() {
 
         // OPTIMIZED: Only invalidate cache for the specific date instead of all deliveries
         invalidateDeliveriesForDate(deliveryDate);
-
-        // CRITICAL: Load from offline DB instead of full API refresh
-        const { offlineDB } = await import('../components/utils/offlineDatabase');
-        const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
-
-        if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
-          const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
-          updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
-          console.log('✅ [EDIT] UI updated from offline DB');
-        }
+        await refreshData();
 
         setShowDeliveryForm(false);
         setEditingDelivery(null);
@@ -4829,16 +4812,7 @@ function Dashboard() {
       }
 
       invalidate('Delivery');
-      
-      // CRITICAL: Load from offline DB instead of full API refresh
-      const { offlineDB } = await import('../components/utils/offlineDatabase');
-      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
-      
-      if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
-        const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
-        updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
-        console.log('✅ [CREATE] UI updated from offline DB');
-      }
+      await refreshData();
 
       hasAutoSelectedRef.current = false; // Reset to allow auto-selection after saving
 
@@ -5132,18 +5106,9 @@ function Dashboard() {
       }
 
       // Refresh data and update map
-      console.log('🔄 [DELETE] Refreshing data from offline DB...');
+      console.log('🔄 [DELETE] Refreshing data and updating map...');
       invalidateDeliveriesForDate(deliveryDate);
-      
-      // CRITICAL: Load from offline DB instead of full API refresh
-      const { offlineDB } = await import('../components/utils/offlineDatabase');
-      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
-      
-      if (updateDeliveriesLocally && offlineDeliveries) {
-        const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
-        updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
-        console.log('  ✅ UI updated from offline DB');
-      }
+      await refreshData();
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery' }
@@ -5258,16 +5223,7 @@ function Dashboard() {
       await recalculateStopOrders(driverId, deliveryDate);
 
       invalidate('Delivery');
-      
-      // CRITICAL: Load from offline DB instead of full API refresh
-      const { offlineDB } = await import('../components/utils/offlineDatabase');
-      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
-      
-      if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
-        const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
-        updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
-        console.log('✅ [RESTART] UI updated from offline DB');
-      }
+      await refreshData();
 
     } catch (error) {
       console.error('Error restarting delivery:', error);
@@ -5276,24 +5232,36 @@ function Dashboard() {
   };
 
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
-    console.log('🚀 [STATUS] Starting INSTANT status update');
+    console.log('🚀 [STATUS] Starting status update - INSTANT UI mode');
     
-    const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
-    if (!targetDelivery) {
-      console.error('❌ [STATUS] Delivery not found');
-      return;
+    // CRITICAL: Capture current FAB state
+    const wasPhase2Locked = mapViewPhase === 2 && isMapViewLocked;
+    const currentPhase = mapViewPhase;
+
+    // CRITICAL: Unlock FAB if in Phase 2 (will be re-locked after status update)
+    if (wasPhase2Locked) {
+      console.log('🔓 [STATUS] Phase 2 detected - unlocking FAB temporarily');
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
+      }
+      mapLockExpiresAtRef.current = null;
+      setIsMapViewLocked(false);
     }
 
-    const currentDate = format(new Date(), 'yyyy-MM-dd');
-    const deliveryDate = targetDelivery.delivery_date;
-    const driverId = targetDelivery.driver_id;
-    const isPickup = !targetDelivery.patient_id;
-    const isRetry = targetDelivery.status === 'failed' && (newStatus === 'in_transit' || newStatus === 'en_route');
-
-    // Pause theme transitions
+    // CRITICAL: Pause theme transitions during status updates to prevent UI glitches
     document.documentElement.style.setProperty('--theme-transition-duration', '0s');
-    
+
     try {
+      const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
+      if (!targetDelivery) {
+        throw new Error('Delivery not found');
+      }
+
+      const currentDate = format(new Date(), 'yyyy-MM-dd');
+      const deliveryDate = targetDelivery.delivery_date;
+      const isPickup = !targetDelivery.patient_id;
+      const isRetry = targetDelivery.status === 'failed' && (newStatus === 'in_transit' || newStatus === 'en_route');
 
       if (isRetry) {
         // ALWAYS duplicate a failed delivery when retrying - regardless of date
@@ -5334,29 +5302,16 @@ function Dashboard() {
         invalidateDeliveriesForDate(targetDelivery.delivery_date);
         invalidateDeliveriesForDate(currentDate);
         invalidate('Delivery');
-
-        // CRITICAL: Load from offline DB instead of full API refresh
-        const { offlineDB } = await import('../components/utils/offlineDatabase');
-        const [originalDateDeliveries, todayDeliveries] = await Promise.all([
-          offlineDB.getByDate(offlineDB.STORES.DELIVERIES, targetDelivery.delivery_date),
-          offlineDB.getByDate(offlineDB.STORES.DELIVERIES, currentDate)
-        ]);
-
-        if (updateDeliveriesLocally) {
-          const otherDeliveries = deliveries.filter(d => 
-            d && d.delivery_date !== targetDelivery.delivery_date && d.delivery_date !== currentDate
-          );
-          const merged = [...otherDeliveries, ...originalDateDeliveries, ...todayDeliveries];
-          updateDeliveriesLocally(merged, true);
-          console.log('✅ [RETRY] UI updated from offline DB');
-        }
+        await refreshData();
         return;
       }
 
-      // Build update data
-      const updateData = { status: newStatus, ...extraData };
-      const currentTimeISO = new Date().toISOString();
+      const currentTime = new Date();
+      let currentTimeISO = currentTime.toISOString();
 
+      const updateData = { status: newStatus, ...extraData };
+
+      // CRITICAL: Set delivery_time_start to current time + 5 minutes when transitioning to in_transit
       if (newStatus === 'in_transit' || newStatus === 'en_route') {
         const now = new Date();
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -5364,6 +5319,7 @@ function Dashboard() {
         updateData.delivery_time_start = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
       }
 
+      // CRITICAL: Calculate travel distance from LOCAL data (no API call)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         updateData.isNextDelivery = false;
         
@@ -5435,100 +5391,53 @@ function Dashboard() {
         updateData.actual_delivery_time = null;
       }
 
-      // Update isNextDelivery in LOCAL state only (don't sync to DB yet)
+      // STEP 1: Update isNextDelivery flags LOCALLY (instant)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter((d) =>
           d && d.driver_id === driverId && d.delivery_date === deliveryDate
         );
 
-        // Find next incomplete
+        // Reset flags for other deliveries
+        const resetPromises = allDriverDeliveriesForDate
+          .filter((d) => d.isNextDelivery && d.id !== deliveryId)
+          .map((d) => updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true }));
+
+        if (resetPromises.length > 0) {
+          await Promise.all(resetPromises);
+        }
+
+        // Find next incomplete and mark as next
         const incompleteDeliveries = allDriverDeliveriesForDate
           .filter((d) => d.id !== deliveryId && !['completed', 'failed', 'cancelled'].includes(d.status) && d.status !== 'pending')
           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-        // Update LOCAL state - reset all flags except the new next
-        const updatedDeliveries = deliveries.map(d => {
-          if (!d || d.driver_id !== driverId || d.delivery_date !== deliveryDate) return d;
-          
-          if (incompleteDeliveries.length > 0 && d.id === incompleteDeliveries[0].id) {
-            return { ...d, isNextDelivery: true };
-          }
-          
-          return { ...d, isNextDelivery: false };
-        });
-        
-        if (updateDeliveriesLocally) {
-          updateDeliveriesLocally(updatedDeliveries, true);
-        }
-        
-        // Background: sync isNextDelivery flags to backend
-        allDriverDeliveriesForDate
-          .filter((d) => d.isNextDelivery && d.id !== deliveryId)
-          .forEach((d) => {
-            updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true }).catch(() => {});
-          });
-        
         if (incompleteDeliveries.length > 0) {
           const nextStop = incompleteDeliveries[0];
-          updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true }).catch(() => {});
+          await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
         }
       }
 
-      // Use centralized mutation handler for consistent state management
-      const { executeMutation } = await import('../components/utils/centralizedMutationHandler');
+      // STEP 2: Update delivery status LOCALLY (instant)
+      await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
+      // STEP 3: Update LOCAL UI state immediately from offline DB
+      console.log('🖥️ [STATUS] Step 3: Updating UI from offline DB...');
+      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+      const driverOfflineDeliveries = offlineDeliveries.filter(d => d.driver_id === driverId);
       
-      await executeMutation({
-        entityName: 'Delivery',
-        operation: 'update',
-        data: updateData,
-        deliveryId: deliveryId,
-        onLocalUpdate: () => {
-          // Update UI state INSTANTLY
-          const updatedDelivery = { ...targetDelivery, ...updateData };
-          
-          // Update isNextDelivery flags in local state
-          let updatedDeliveries = deliveries.map(d => {
-            if (!d) return d;
-            if (d.id === deliveryId) return updatedDelivery;
-            
-            // Reset other isNextDelivery flags if completing
-            if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
-              if (d.driver_id === driverId && d.delivery_date === deliveryDate && d.isNextDelivery && d.id !== deliveryId) {
-                return { ...d, isNextDelivery: false };
-              }
-            }
-            
-            return d;
-          });
-          
-          // Set new isNextDelivery if completing
-          if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
-            const incomplete = updatedDeliveries
-              .filter((d) => d && d.id !== deliveryId && d.driver_id === driverId && d.delivery_date === deliveryDate && 
-                      !['completed', 'failed', 'cancelled', 'pending'].includes(d.status))
-              .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-            
-            if (incomplete.length > 0) {
-              updatedDeliveries = updatedDeliveries.map(d => 
-                d?.id === incomplete[0].id ? { ...d, isNextDelivery: true } : d
-              );
-            }
-          }
-          
-          if (updateDeliveriesLocally) {
-            updateDeliveriesLocally(updatedDeliveries, true);
-          }
-        }
-      });
+      if (updateDeliveriesLocally) {
+        const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
+        updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
+      }
+      console.log('✅ [STATUS] UI updated instantly from offline DB');
 
-      // Background tasks (non-blocking)
+      // STEP 4: Update patient's last_delivery_date (background, non-blocking)
       if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
         base44.entities.Patient.update(targetDelivery.patient_id, {
           last_delivery_date: deliveryDate
-        }).catch(error => console.warn('⚠️ Patient update failed:', error));
+        }).catch(error => console.warn('⚠️ Patient last_delivery_date update failed:', error));
       }
 
-      // Check route completion
+      // STEP 5: Check route completion and show dialogs (non-blocking)
       const finishedStatuses = ['completed', 'failed', 'cancelled'];
       const isReturnByMarkers = (d) => {
         if (!d || !d.patient_id) return false;
@@ -5592,7 +5501,7 @@ function Dashboard() {
         }
       }
 
-      // Scroll to next card
+      // STEP 6: Scroll to next card (instant)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         setTimeout(() => {
           const nextCardElement = document.querySelector('[data-is-next-delivery="true"]');
@@ -5602,7 +5511,36 @@ function Dashboard() {
         }, 100);
       }
 
-      // Notifications (background)
+      // STEP 7: Re-lock FAB if needed (instant)
+      if (currentPhase === 2) {
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+      }
+
+      // STEP 8: Force map update event (instant)
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId, deliveryDate, triggeredBy: 'statusUpdate' }
+      }));
+      
+      // ========== BACKGROUND TASKS (NON-BLOCKING) ==========
+      console.log('🔄 [STATUS] Starting background sync tasks...');
+      
+      // Background: Update patient last_delivery_date
+      if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
+        base44.entities.Patient.update(targetDelivery.patient_id, {
+          last_delivery_date: deliveryDate
+        }).catch(error => console.warn('⚠️ Patient update failed:', error));
+      }
+
+      // Background: Send notifications
       if (['completed', 'failed'].includes(newStatus)) {
         const deliveryStore = stores.find((s) => s?.id === targetDelivery?.store_id);
         const patientName = targetDelivery?.patient_name || 'Unknown';
@@ -5627,51 +5565,56 @@ function Dashboard() {
         }
       }
 
-      recalculateStopOrders(driverId, deliveryDate).catch(() => {});
-      
+      // Background: Recalculate stop orders on backend
+      recalculateStopOrders(driverId, deliveryDate).catch(error => 
+        console.warn('⚠️ Stop order recalc failed:', error)
+      );
+
+      // Background: Update ETAs (mobile drivers only)
       if (isMobile && userHasRole(currentUser, 'driver') && ['completed', 'failed', 'cancelled'].includes(newStatus)) {
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        
         base44.functions.invoke('calculateRealTimeETA', {
-          driverId, deliveryDate, currentLocalTime: localTimeString
-        }).catch(() => {});
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocalTime: localTimeString
+        }).catch(error => console.warn('⚠️ ETA update failed:', error));
       }
 
-      // CRITICAL: Force immediate data refresh from backend
-      if (forceRefreshDriverDeliveries) {
-        await forceRefreshDriverDeliveries(driverId, deliveryDate);
+      // Background: Fetch all drivers if Show All is enabled
+      if (showAllDriverMarkers) {
+        base44.entities.Delivery.filter({ delivery_date: deliveryDate }).then(allDriversDeliveries => {
+          window.dispatchEvent(new CustomEvent('deliveriesImported', {
+            detail: { source: 'statusUpdate', deliveries: allDriversDeliveries }
+          }));
+        }).catch(error => console.warn('⚠️ All drivers fetch failed:', error));
       }
     } catch (error) {
-      console.error('❌ [STATUS] Error:', error);
-      alert('Failed to update status. Please try again.');
+      console.error('❌ [STATUS] Error:', error.message);
+
+      if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
+        alert('Your session has expired. The page will now reload.');
+        window.location.reload();
+        return;
+      }
+
+      alert('Failed to update delivery status. Please try again.');
     } finally {
+      // CRITICAL: Re-enable theme transitions immediately
       document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
-      console.log('✅ [STATUS] Complete');
+      console.log('✅ [STATUS] Status update complete - UI is interactive');
     }
   };
 
   const handleNotesUpdate = async (deliveryId, notes) => {
     try {
-      const delivery = deliveriesWithStopOrder.find(d => d?.id === deliveryId);
-      const deliveryDate = delivery?.delivery_date;
-      
       await updateDeliveryLocal(deliveryId, {
         delivery_notes: notes
       });
 
       invalidate('Delivery');
-      
-      // CRITICAL: Load from offline DB instead of full API refresh
-      if (deliveryDate) {
-        const { offlineDB } = await import('../components/utils/offlineDatabase');
-        const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
-        
-        if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
-          const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
-          updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
-          console.log('✅ [NOTES] UI updated from offline DB');
-        }
-      }
+      await refreshData();
     } catch (error) {
       console.error('Error updating delivery notes:', error);
       alert('Failed to update notes. Please try again.');
@@ -5680,26 +5623,12 @@ function Dashboard() {
 
   const handleCODUpdate = async (deliveryId, codPayments, skipAutoCenter = false) => {
     try {
-      const delivery = deliveriesWithStopOrder.find(d => d?.id === deliveryId);
-      const deliveryDate = delivery?.delivery_date;
-      
       await updateDeliveryLocal(deliveryId, {
         cod_payments: codPayments
       });
 
       invalidate('Delivery');
-      
-      // CRITICAL: Load from offline DB instead of full API refresh
-      if (deliveryDate) {
-        const { offlineDB } = await import('../components/utils/offlineDatabase');
-        const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
-        
-        if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
-          const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
-          updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
-          console.log('✅ [COD] UI updated from offline DB');
-        }
-      }
+      await refreshData();
     } catch (error) {
       console.error('Error updating COD payments:', error);
       alert('Failed to update COD payments. Please try again.');
@@ -5782,22 +5711,7 @@ function Dashboard() {
       invalidateDeliveriesForDate(originalDelivery.delivery_date);
       invalidateDeliveriesForDate(currentDate);
       invalidate('Delivery');
-      
-      // CRITICAL: Load from offline DB instead of full API refresh
-      const { offlineDB } = await import('../components/utils/offlineDatabase');
-      const [originalDateDeliveries, todayDeliveries] = await Promise.all([
-        offlineDB.getByDate(offlineDB.STORES.DELIVERIES, originalDelivery.delivery_date),
-        offlineDB.getByDate(offlineDB.STORES.DELIVERIES, currentDate)
-      ]);
-      
-      if (updateDeliveriesLocally) {
-        const otherDeliveries = deliveries.filter(d => 
-          d && d.delivery_date !== originalDelivery.delivery_date && d.delivery_date !== currentDate
-        );
-        const merged = [...otherDeliveries, ...originalDateDeliveries, ...todayDeliveries];
-        updateDeliveriesLocally(merged, true);
-        console.log('✅ [RETURN] UI updated from offline DB');
-      }
+      await refreshData();
 
     } catch (error) {
       console.error('❌ [CREATE RETURN] Error:', error);
@@ -5806,72 +5720,304 @@ function Dashboard() {
   };
 
   const handleStartDelivery = async (deliveryId) => {
-    console.log('🚀 [START] Starting delivery:', deliveryId);
+    console.log('═══════════════════════════════════════════════════');
+    console.log('🚀 [START] ========== STARTING DELIVERY ==========');
+    console.log('═══════════════════════════════════════════════════');
 
-    const targetDelivery = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
-    if (!targetDelivery) {
-      console.error('❌ [START] Delivery not found');
-      return;
-    }
+    // STEP 0: Pause smart refresh to prevent race conditions
+    console.log('⏸️ [START] Step 0: Pausing smart refresh manager...');
+    setIsEntityUpdating(true);
+    pauseOfflineMutations();
+    pauseOfflineSync();
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
-    const driverId = targetDelivery.driver_id;
-    const deliveryDate = targetDelivery.delivery_date;
-    const isPickup = !targetDelivery.patient_id;
-    const newStatus = isPickup ? 'en_route' : 'in_transit';
+    // CRITICAL: Store the ID we clicked on BEFORE any database changes
+    const originalClickedId = deliveryId;
+    let newNextDeliveryId = deliveryId;
 
     try {
-      // Use centralized mutation handler
-      const { executeMutation } = await import('../components/utils/centralizedMutationHandler');
-      
-      await executeMutation({
-        entityName: 'Delivery',
-        operation: 'update',
-        data: {
-          status: newStatus,
-          isNextDelivery: true
-        },
-        deliveryId: deliveryId,
-        onLocalUpdate: () => {
-          // Update UI instantly
-          const updatedDelivery = { ...targetDelivery, status: newStatus, isNextDelivery: true };
-          
-          let updatedDeliveries = deliveries.map(d => {
-            if (!d) return d;
-            if (d.id === deliveryId) return updatedDelivery;
-            
-            // Clear other isNextDelivery flags
-            if (d.driver_id === driverId && d.delivery_date === deliveryDate && d.isNextDelivery) {
-              return { ...d, isNextDelivery: false };
-            }
-            
-            return d;
-          });
-          
-          if (updateDeliveriesLocally) {
-            updateDeliveriesLocally(updatedDeliveries, true);
-          }
-        }
-      });
-
-      // Background notifications
-      const deliveryStore = stores.find((s) => s?.id === targetDelivery?.store_id);
-      notifyDriverStarted({
-        driver: currentUser,
-        patientName: targetDelivery?.patient_name || 'Unknown',
-        delivery: targetDelivery,
-        store: deliveryStore,
-        appUsers: appUsers
-      }).catch(() => {});
-
-      // CRITICAL: Force immediate data refresh from backend
-      if (forceRefreshDriverDeliveries) {
-        await forceRefreshDriverDeliveries(driverId, deliveryDate);
+      const deliveryFromUI = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
+      if (!deliveryFromUI) {
+        console.error('❌ [START ERROR] Delivery not found in local state');
+        throw new Error('Delivery not found in local state');
       }
 
-      console.log('✅ [START] Complete');
+      const driverId = deliveryFromUI.driver_id;
+      const deliveryDate = deliveryFromUI.delivery_date;
+      const isPickup = !deliveryFromUI.patient_id;
+      const newStatus = isPickup ? 'en_route' : 'in_transit';
+
+      console.log(`📦 [START] Delivery: ${deliveryFromUI.patient_name || 'Pickup'} (${deliveryId})`);
+      console.log(`   Driver: ${driverId}, Date: ${deliveryDate}, New Status: ${newStatus}`);
+
+      // STEP 1: Clear ALL isNextDelivery flags for this driver/date
+      console.log('🔄 [START] Step 1: Clearing all isNextDelivery flags...');
+      const allDriverDeliveries = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+
+      const resetPromises = allDriverDeliveries.
+      filter((d) => d.isNextDelivery).
+      map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+
+      if (resetPromises.length > 0) {
+        await Promise.all(resetPromises);
+        console.log(`   ✅ Cleared ${resetPromises.length} isNextDelivery flags`);
+      }
+
+      // STEP 2: Set isNextDelivery=true on the selected delivery and update status
+      console.log('🎯 [START] Step 2: Setting isNextDelivery=true on selected delivery...');
+      
+      // CRITICAL: Calculate stop_order FIRST - this delivery becomes the next after completed stops
+      const finishedStatusesStep2 = ['completed', 'failed', 'cancelled', 'returned'];
+      const completedStopsStep2 = allDriverDeliveries.filter((d) => finishedStatusesStep2.includes(d.status));
+      const nextStopOrderStep2 = completedStopsStep2.length + 1;
+      
+      await base44.entities.Delivery.update(deliveryId, {
+        isNextDelivery: true,
+        status: newStatus,
+        stop_order: nextStopOrderStep2
+      });
+      console.log(`   ✅ isNextDelivery flag set, status updated, and stop_order set to ${nextStopOrderStep2}`);
+
+      // STEP 3: Re-fetch deliveries to ensure we have the latest data with updated isNextDelivery flag
+      console.log('📊 [START] Step 3: Re-fetching deliveries to verify isNextDelivery persisted...');
+      const refreshedDeliveriesAfterFlag = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+      
+      // Verify the flag is still set
+      const verifyNext = refreshedDeliveriesAfterFlag.find(d => d.id === deliveryId);
+      if (!verifyNext?.isNextDelivery) {
+        console.error('❌ [START] isNextDelivery flag was lost! Re-applying...');
+        await base44.entities.Delivery.update(deliveryId, { isNextDelivery: true });
+      } else {
+        console.log(`   ✅ Verified isNextDelivery=true on ${deliveryId}`);
+      }
+      
+      // Recalculate stop orders for all incomplete stops
+      const incompleteStops = refreshedDeliveriesAfterFlag.filter((d) => !finishedStatusesStep2.includes(d.status));
+      
+      // Sort incomplete stops: isNextDelivery first, then by ETA
+      const sortedIncomplete = incompleteStops.sort((a, b) => {
+        if (a.isNextDelivery && !b.isNextDelivery) return -1;
+        if (!a.isNextDelivery && b.isNextDelivery) return 1;
+        
+        const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
+        const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
+        return etaA.localeCompare(etaB);
+      });
+      
+      // Update stop orders for all incomplete stops
+      const startOrder = completedStopsStep2.length + 1;
+      for (let i = 0; i < sortedIncomplete.length; i++) {
+        const stop = sortedIncomplete[i];
+        await base44.entities.Delivery.update(stop.id, {
+          stop_order: startOrder + i
+        });
+      }
+      console.log(`   ✅ Updated stop_order for ${sortedIncomplete.length} incomplete stops`);
+
+      // STEP 4: Update UI immediately (DON'T call recalculateStopOrders - it will override our isNextDelivery)
+      console.log('🖥️ [START] Step 4: Updating UI immediately...');
+      invalidateDeliveriesForDate(deliveryDate);
+      const refreshedDeliveries = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+
+      // CRITICAL: Find which delivery is NOW marked as next (should be the one we just started)
+      const newNextDelivery = refreshedDeliveries.find((d) => d.isNextDelivery === true);
+      newNextDeliveryId = newNextDelivery?.id || deliveryId; // Use the refreshed next delivery ID
+
+      console.log(`   🎯 Original clicked ID: ${originalClickedId}`);
+      console.log(`   ✨ NEW next delivery ID: ${newNextDeliveryId}`);
+      console.log(`   ⚠️ SKIPPING recalculateStopOrders to preserve isNextDelivery flag`);
+
+      // Update context immediately
+      if (updateDeliveriesLocally) {
+        const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== deliveryDate);
+        const mergedDeliveries = [...otherDeliveries, ...refreshedDeliveries];
+        updateDeliveriesLocally(mergedDeliveries, true);
+      }
+
+      // CRITICAL: Dispatch event to force map markers to re-render immediately
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId, deliveryDate, triggeredBy: 'startDelivery' }
+      }));
+      console.log(`   ✅ UI updated - new next delivery is: ${newNextDeliveryId}`);
+
+      // STEP 5: Clear and recalculate blue polyline
+      console.log('🔵 [START] Step 5: Updating blue polyline...');
+      setCurrentToNextPolyline(null);
+
+      try {
+        const driver = users.find((u) => u && u.id === driverId);
+        if (driver && driver.driver_status === 'on_duty' && driver.location_tracking_enabled === true) {
+          const freshDeliveries = await base44.entities.Delivery.filter({
+            driver_id: driverId,
+            delivery_date: deliveryDate
+          });
+          const segment = determinePolylineSegment(freshDeliveries, driver, patients, stores);
+
+          if (segment) {
+            const polyline = await fetchPolylineForSegment(
+              segment.originLat,
+              segment.originLon,
+              segment.destLat,
+              segment.destLon
+            );
+            setCurrentToNextPolyline(polyline);
+            console.log('   ✅ Blue polyline updated');
+          }
+        }
+      } catch (polylineError) {
+        console.warn('   ⚠️ Blue polyline update failed:', polylineError.message);
+      }
+
+      // STEP 6: Update this delivery's ETA to current time + 5 minutes
+      console.log('⏱️ [START] Step 6: Setting delivery ETA...');
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const etaMinutes = currentMinutes + 5;
+      const etaString = `${String(Math.floor(etaMinutes / 60) % 24).padStart(2, '0')}:${String(etaMinutes % 60).padStart(2, '0')}`;
+
+      await base44.entities.Delivery.update(deliveryId, {
+        delivery_time_start: etaString,
+        delivery_time_eta: etaString
+      });
+      console.log(`   ✅ ETA set to ${etaString}`);
+
+      // STEP 7: Route optimization removed - now only runs on 5-minute timer when driver moves 100m+
+      console.log('⏭️ [START] Skipping route optimization (handled by timer)');
+
+      // STEP 9: Final UI refresh WITHOUT calling refreshData (which triggers smart refresh)
+      console.log('🔄 [START] Step 9: Final UI refresh...');
+      invalidateDeliveriesForDate(deliveryDate);
+      
+      // CRITICAL: Manually update UI state without triggering full refresh
+      const finalRefreshedDeliveries = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+      
+      // Update context immediately
+      if (updateDeliveriesLocally) {
+        const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== deliveryDate);
+        const mergedDeliveries = [...otherDeliveries, ...finalRefreshedDeliveries];
+        updateDeliveriesLocally(mergedDeliveries, true);
+      }
+      console.log('   ✅ UI manually updated with refreshed deliveries');
+
+      // CRITICAL: Force map to re-render route lines after data refresh
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryFinalRefresh' }
+      }));
+
+      // CRITICAL: Force smart refresh to update its cache with the delivery we just started
+      console.log('🔄 [START] Forcing smart refresh to update cache with new isNextDelivery...');
+      smartRefreshManager.registerPendingDeliveryUpdate(newNextDeliveryId, {
+        isNextDelivery: true,
+        status: newStatus
+      });
+      
+      console.log('═══════════════════════════════════════════════════');
+      console.log('✅ [START] ========== START DELIVERY COMPLETE ==========');
+      console.log('═══════════════════════════════════════════════════');
+
+      // STEP 10: Wait for UI to update, then scroll to next delivery card
+      console.log('📍 [START] Step 10: Waiting for UI refresh, then scrolling to next card...');
+
+      // Wait for refreshData() and UI to fully update before scrolling
+      setTimeout(async () => {
+        // Refresh deliveries one more time to get latest state after optimization
+        const finalDeliveries = await base44.entities.Delivery.filter({
+          driver_id: driverId,
+          delivery_date: deliveryDate
+        });
+
+        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+        const completedCount = finalDeliveries.filter((d) =>
+        d && finishedStatuses.includes(d.status)
+        ).length;
+
+        console.log(`   📊 After optimization: ${completedCount} completed deliveries`);
+        console.log(`   🎯 Scrolling to card at index ${completedCount} (first incomplete)`);
+
+        // Wait a bit more for cards to re-render with new order
+        setTimeout(() => {
+          const container = stopCardsContainerRef.current?.querySelector('.overflow-x-auto');
+          const allCards = container?.querySelectorAll('[id^="stop-card-"]');
+
+          if (allCards && allCards.length > completedCount) {
+            allCards[completedCount].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log(`   ✅ Scrolled to card at index ${completedCount}`);
+          } else {
+            console.warn(`   ⚠️ Card at index ${completedCount} not found (total: ${allCards?.length})`);
+          }
+        }, 300);
+      }, 1500); // Wait longer to ensure optimization completes
+
+      // Send notification: Driver started delivery
+      try {
+        const deliveryFromUI = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
+        const deliveryStore = stores.find((s) => s?.id === deliveryFromUI?.store_id);
+        await notifyDriverStarted({
+          driver: currentUser,
+          patientName: deliveryFromUI?.patient_name || 'Unknown',
+          delivery: deliveryFromUI,
+          store: deliveryStore,
+          appUsers: appUsers
+        });
+      } catch (notifyError) {
+        console.warn('⚠️ [START] Failed to send notification:', notifyError);
+      }
+
+      // REMOVED: Route complete check from handleStartDelivery
+      // This is now handled ONLY in handleStatusUpdate to ensure consistency
+
     } catch (error) {
-      console.error('❌ [START] Error:', error);
-      alert('Failed to start delivery. Please try again.');
+      console.log('');
+      console.log('═══════════════════════════════════════════════════');
+      console.error('❌❌❌ [START] === ERROR OCCURRED ===');
+      console.error('Error type:', error.constructor.name);
+      console.error('Error message:', error.message);
+      console.error('Error response:', error.response);
+      console.error('Error status:', error.response?.status);
+      console.error('Full error:', error);
+      console.error('Stack trace:', error.stack);
+      console.log('═══════════════════════════════════════════════════');
+      console.log('');
+
+      if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
+        alert('Your session has expired. The page will now reload.');
+        window.location.reload();
+        return;
+      }
+
+      alert(`Failed to start delivery: ${error.message}`);
+    } finally {
+      // CRITICAL: Resume smart refresh AFTER longer delay to ensure database writes complete
+      console.log('⏳ [START] Waiting 2 seconds before resuming smart refresh...');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      
+      console.log('▶️ [START] Resuming smart refresh, offline sync, and mutations');
+      setIsEntityUpdating(false);
+      resumeOfflineMutations();
+      resumeOfflineSync();
+      
+      // Force immediate smart refresh with fresh data
+      console.log('🔄 [START] Triggering immediate smart refresh with fresh data...');
+      smartRefreshManager.lastRefreshTimes = {
+        driverLocation: 0,
+        activeDeliveries: 0,
+        todayDeliveries: 0,
+        appUsers: 0,
+        patients: 0,
+        stores: 0
+      };
     }
   };
 

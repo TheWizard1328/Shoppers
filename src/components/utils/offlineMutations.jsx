@@ -445,23 +445,12 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     throw new Error('Mutations are paused during route optimization');
   }
 
-  // CRITICAL: ALWAYS register pending update to protect from smart refresh overwrite
+  // CRITICAL: Pause smart refresh during mutation (unless skipped)
   let smartRefreshManager = null;
-  try {
+  if (!skipSmartRefresh) {
     const module = await import('./smartRefreshManager');
     smartRefreshManager = module.smartRefreshManager;
-    
-    // CRITICAL: ALWAYS register - even when skipSmartRefresh is true
-    // This prevents smart refresh from overwriting local changes
-    const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-    const delivery = deliveries.find(d => d.id === deliveryId);
-    smartRefreshManager.registerPendingUpdate(
-      deliveryId, 
-      delivery?.driver_id, 
-      delivery?.delivery_date
-    );
-  } catch (error) {
-    console.warn('⚠️ [OfflineMutations] Failed to register pending update:', error);
+    smartRefreshManager.pause();
   }
 
   try {
@@ -495,8 +484,11 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
           data: backendDelivery 
         });
 
-        // CRITICAL: Don't restart smart refresh - let caller handle it
-        
+        // CRITICAL: Restart smart refresh after sync (unless skipped)
+        if (!skipSmartRefresh && smartRefreshManager) {
+          smartRefreshManager.restart();
+        }
+
         return backendDelivery;
       } catch (error) {
         // CRITICAL: Handle case where delivery was deleted from backend
@@ -509,12 +501,16 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
             id: deliveryId,
             data: null 
           });
-          // CRITICAL: Don't restart smart refresh - let caller handle it
-          
+          // CRITICAL: Restart smart refresh on error
+          if (!skipSmartRefresh && smartRefreshManager) {
+            smartRefreshManager.restart();
+          }
           return null;
         }
-        // CRITICAL: Don't restart smart refresh - let caller handle it
-        
+        // CRITICAL: Restart smart refresh on error
+        if (!skipSmartRefresh && smartRefreshManager) {
+          smartRefreshManager.restart();
+        }
         throw error;
       }
     }
@@ -545,10 +541,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       await base44.entities.Delivery.update(deliveryId, updates);
       console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
       
-      // CRITICAL: Clear pending update protection AFTER successful sync
-      if (smartRefreshManager) {
-        smartRefreshManager.clearPendingUpdateById(deliveryId);
-      }
+      // Broadcast removed
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -560,11 +553,18 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       });
     }
 
-    // CRITICAL: NEVER restart smart refresh from here - caller controls refresh flow
+    // CRITICAL: Restart smart refresh after mutation (unless skipped)
+    if (!skipSmartRefresh && smartRefreshManager) {
+      smartRefreshManager.restart();
+    }
     
     return updatedDelivery;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to update delivery:', error);
+    // CRITICAL: Restart smart refresh on error
+    if (!skipSmartRefresh && smartRefreshManager) {
+      smartRefreshManager.restart();
+    }
     throw error;
   }
 };

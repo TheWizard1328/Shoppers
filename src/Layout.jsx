@@ -1077,9 +1077,69 @@ export default function Layout({ children, currentPageName }) {
       };
       window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
-      // DISABLED: forceDataRefresh was causing aggressive data reloads
-      // Let smart refresh manager handle connection recovery gracefully
-      // const handleForceDataRefresh = async () => { ... };
+      // AUTO-RECOVERY: Listen for force refresh after connection recovery
+                  const handleForceDataRefresh = async () => {
+                    console.log('🔄 [Layout] Force data refresh after connection recovery - COMPREHENSIVE MODE');
+
+                    // CRITICAL: Invalidate ALL data caches to ensure fresh fetch
+                    invalidate('Delivery');
+                    invalidate('Patient');
+                    invalidate('AppUser');
+                    invalidate('Store');
+                    invalidate('User');
+                    invalidate('City');
+
+                    // CRITICAL: Clear the user cache to force fresh user data fetch
+                    clearUserCache();
+                    clearSettingsCache();
+
+                    // CRITICAL: Force immediate data reload with validation
+                    if (triggerFullDataLoadRef.current) {
+                      console.log('📥 [Recovery] Starting full data reload...');
+                      await triggerFullDataLoadRef.current(true);
+                      console.log('✅ [Recovery] Full data reload complete');
+                    }
+
+                    // Wait for data to settle
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    // CRITICAL: Validate we have complete data BEFORE updating UI
+                    const hasValidData = 
+                      users.length > 0 && 
+                      drivers.length > 0 && 
+                      stores.length > 0 && 
+                      cities.length > 0 &&
+                      appUsers.length > 0;
+
+                    if (!hasValidData) {
+                      console.warn('⚠️ [Recovery] Data incomplete after reload - retrying...');
+                      // Retry once
+                      await new Promise(resolve => setTimeout(resolve, 2000));
+                      await triggerFullDataLoadRef.current(true);
+                    }
+
+                    // Refresh stats after data is loaded
+                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
+                    // CRITICAL: Force refresh ALL UI elements
+                    console.log('🎨 [Recovery] Refreshing all UI elements...');
+
+                    // Force dispatch driverLocationsUpdated to update map markers
+                    setTimeout(async () => {
+                      // Refresh driver locations to ensure colors are correct
+                      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+                      if (locationUpdates?.hasChanges) {
+                        setAppUsers(locationUpdates.appUsers);
+                      }
+
+                      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                        detail: { appUsers: locationUpdates?.appUsers || appUsers }
+                      }));
+
+                      console.log('✅ [Recovery] UI refresh complete');
+                    }, 1500);
+                  };
+                  window.addEventListener('forceDataRefresh', handleForceDataRefresh);
 
       // ========================================
       // REAL-TIME SYNC - WebSocket for instant updates
@@ -1203,7 +1263,7 @@ export default function Layout({ children, currentPageName }) {
         window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
         window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
         window.removeEventListener('dataConflictsDetected', handleConflict);
-        // forceDataRefresh listener removed - now handled by smart refresh internally
+        window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
         };
       }, [currentUser]);
 
@@ -1463,7 +1523,6 @@ export default function Layout({ children, currentPageName }) {
         
         const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate, filters, showAllDriverMarkers);
         if (activeDeliveryUpdates?.hasChanges) {
-          console.log(`📍 [Layout] Smart refresh delivery update: ${activeDeliveryUpdates.deliveries.length} total deliveries`);
           // CRITICAL: Force new array reference to ensure React detects the change
           setDeliveries([...activeDeliveryUpdates.deliveries]);
           if (!updatedEntities.includes('deliveries')) updatedEntities.push('deliveries');
@@ -1711,18 +1770,10 @@ export default function Layout({ children, currentPageName }) {
 
       const allStores = await getData('Store', null, null, forceRefresh);
 
-      // Load AppUsers - CRITICAL for driver data
+      // Another delay before AppUsers
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      let allAppUsers = await getData('AppUser', null, null, forceRefresh);
-      
-      // CRITICAL: If AppUser fetch fails or returns empty, retry once
-      if (!allAppUsers || allAppUsers.length === 0) {
-        console.warn('⚠️ [Layout] AppUser load failed or empty - retrying...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        allAppUsers = await AppUser.list();
-        console.log(`✅ [Layout] AppUser retry: ${allAppUsers?.length || 0} records`);
-      }
+      const allAppUsers = await getData('AppUser', null, null, forceRefresh);
 
       if (citiesData && (!workingCities || workingCities.length === 0)) {
         citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
@@ -1757,7 +1808,6 @@ export default function Layout({ children, currentPageName }) {
       setSquareTransactions(transactionsData || []);
 
       // Load deliveries with instant UI callback
-      console.log(`📥 [Layout] Loading deliveries for ${selectedDateStr} with ${Object.keys(priorityFilter).length} filters`);
       await loadDeliveries(
         selectedDateStr,
         priorityFilter,
@@ -1765,7 +1815,6 @@ export default function Layout({ children, currentPageName }) {
         forceRefresh,
         // Instant UI callback
         (initialDeliveries) => {
-          console.log(`✅ [Layout] Initial deliveries loaded: ${initialDeliveries.length} records`);
           setDeliveries(initialDeliveries);
           setDataLoaded(true);
 
@@ -1843,8 +1892,6 @@ export default function Layout({ children, currentPageName }) {
         return true;
       });
       activeDrivers = sortUsers(activeDrivers);
-
-      console.log(`✅ [Layout Init] Data loaded - ${initialUsers.length} users, ${activeDrivers.length} drivers, ${allStores.length} stores, ${allAppUsers.length} appUsers`);
 
       setUsers(initialUsers);
       setDrivers(activeDrivers);

@@ -1170,8 +1170,8 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
   if (showPreview) {
     return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 md:p-4 z-[9999] overflow-hidden">
-                <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-4xl h-[95vh] md:h-[77vh] flex flex-col">
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] overflow-hidden">
+                <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-4xl h-[77vh] flex flex-col">
                     <CardHeader className="flex flex-col space-y-1.5 p-3 border-b flex-shrink-0">
                         <div className="flex items-center justify-between">
                             <CardTitle>Import Preview</CardTitle>
@@ -1296,8 +1296,8 @@ export default function PatientImport({ onImportComplete, onImportStart, current
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 md:p-4 z-[9999] overflow-hidden">
-            <Card className={`rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl flex flex-col relative transition-all duration-300 ${files.length > 0 ? 'h-[90vh] md:h-[70vh]' : 'h-[85vh] md:h-[42vh]'}`}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] overflow-hidden">
+            <Card className={`rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl flex flex-col relative transition-all duration-300 ${files.length > 0 ? 'h-[70vh]' : 'h-[42vh]'}`}>
                 {/* Floating Progress Overlay */}
                 {isProcessing &&
         <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-6">
@@ -1361,19 +1361,19 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 </CardHeader>
                 
                 <CardContent className="px-3 py-3 flex-1 overflow-y-auto space-y-2">
-                    {/* Two-column layout: File Selector + Import Rules - stacked on mobile */}
-                    <div className="flex flex-col md:flex-row gap-3">
-                        {/* Left Column: File Selector */}
-                        <div className="w-full md:flex-[1] md:min-w-[30%] space-y-2 p-2">
+                    {/* Two-column layout: File Selector (40%) + Import Rules (60%) */}
+                    <div className="flex gap-3">
+                        {/* Left Column: File Selector - 40% */}
+                        <div className="flex-[1] min-w-[30%] space-y-2 p-2">
                             <div className="space-y-2">
                                 <Label htmlFor="csv-upload">Select CSV File(s)</Label>
                                 <Input
-                    id="csv-upload"
-                    type="file"
-                    accept=".csv"
-                    multiple
-                    onChange={handleFileChange}
-                    disabled={isProcessing} />
+                  id="csv-upload"
+                  type="file"
+                  accept=".csv"
+                  multiple
+                  onChange={handleFileChange}
+                  disabled={isProcessing} />
 
                                 <p className="text-xs text-slate-500">
                                     <strong>IMPORTANT:</strong> Line 1 is always skipped (header row). Data starts from line 2. You can select multiple files.
@@ -1381,32 +1381,32 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                             </div>
 
                             {files.length > 0 &&
-                    <div className="space-y-1">
+              <div className="space-y-1">
                                     <Label className="text-sm font-medium">Selected Files ({files.length})</Label>
                                     <div className="space-y-1 max-h-32 overflow-y-auto border rounded-lg p-1">
                                         {files.map((file, index) =>
-                    <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded text-sm">
+                  <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded text-sm">
                                                 <span className="truncate flex-1">{file.name}</span>
                                                 {!isProcessing &&
-                     <button
-                       onClick={() => removeFile(index)}
-                       className="ml-2 text-slate-400 hover:text-red-600"
-                       aria-label={`Remove file ${file.name}`}>
+                    <button
+                      onClick={() => removeFile(index)}
+                      className="ml-2 text-slate-400 hover:text-red-600"
+                      aria-label={`Remove file ${file.name}`}>
 
                                                         <X className="w-4 h-4" />
                                                     </button>
-                     }
+                    }
                                             </div>
-                    )}
+                  )}
                                     </div>
                                 </div>
-                    }
+              }
                         </div>
 
-                        {/* Right Column: Import Rules - visible on larger screens, collapsible on mobile */}
-                        <div className="w-full md:flex-[3] bg-blue-50 px-2 py-2 rounded-lg border border-blue-200 max-h-64 md:max-h-none overflow-y-auto md:overflow-visible">
-                        <h4 className="font-semibold mb-2 md:mb-3 text-blue-900 text-sm md:text-base">Import Rules:</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 md:gap-x-0 gap-y-2 text-xs text-blue-800">
+                        {/* Right Column: Import Rules - 60% */}
+                        <div className="bg-blue-50 px-2 py-1 rounded-lg flex-[3] border border-blue-200">
+                        <h4 className="font-semibold mb-3 text-blue-900">Import Rules:</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-0 gap-y-2 text-xs text-blue-800">
                             {/* Left Column */}
                             <div className="space-y-1">
                                 <div>

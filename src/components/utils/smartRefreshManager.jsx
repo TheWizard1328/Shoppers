@@ -108,13 +108,12 @@ class SmartRefreshManager {
   
   /**
    * Register a pending local update for a delivery
-   * This prevents smart refresh from overwriting it for 60 seconds
-   * The longer window accounts for backend optimizer latency + cross-device sync
+   * This prevents smart refresh from overwriting it for 30 seconds
+   * The longer window accounts for backend optimizer latency
    */
   registerPendingUpdate(deliveryId, driverId = null, deliveryDate = null) {
-    const expiresAt = Date.now() + 60000; // Increased to 60 seconds
+    const expiresAt = Date.now() + 30000;
     this.pendingLocalUpdates.set(deliveryId, { expiresAt, driverId, deliveryDate });
-    console.log(`🛡️ [SmartRefresh] Protected delivery ${deliveryId} from overwrite for 60s`);
   }
   
   /**
@@ -690,31 +689,26 @@ class SmartRefreshManager {
           }
       } else {
           if (!updatedDeliveries || updatedDeliveries.length === 0) {
-            // No changes from API - return current data as-is
-            this.notifyRateLimit(false);
-            return null;
+              this.notifyRateLimit(false);
+              return null;
           }
-          }
+      }
 
-          const protectedDeliveryIds = [];
-          const filteredUpdatedDeliveries = updatedDeliveries.filter(d => {
-          if (this.hasPendingUpdate(d.id)) {
-            protectedDeliveryIds.push(d.id);
-            return false;
-          }
-          return true;
-          });
+      const protectedDeliveryIds = [];
+      const filteredUpdatedDeliveries = updatedDeliveries.filter(d => {
+        if (this.hasPendingUpdate(d.id)) {
+          protectedDeliveryIds.push(d.id);
+          return false;
+        }
+        return true;
+      });
 
-          const diff = diffEntityArrays(currentDateDeliveries, filteredUpdatedDeliveries);
+      const diff = diffEntityArrays(currentDateDeliveries, filteredUpdatedDeliveries);
 
-          if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
-          // No actual changes - keep current data
-          console.log(`✅ [SmartRefresh] No delivery changes for ${dateStr}`);
+      if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
           this.notifyRateLimit(false);
           return null;
-          }
-
-          console.log(`📊 [SmartRefresh] Delivery changes: +${diff.toAdd.length} -${diff.toRemove.length} ~${diff.toUpdate.length}`);
+      }
 
       const mergedDateDeliveries = mergeEntityChanges(currentDateDeliveries, diff);
       
