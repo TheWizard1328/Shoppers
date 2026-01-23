@@ -725,8 +725,21 @@ export default function Layout({ children, currentPageName }) {
           localStorage.removeItem('rxdeliver_last_load_failed');
           console.log('✅ [Init] Offline DB cleared - will fetch fresh from API');
         }
+        
+        // CRITICAL: Detect stuck offline mutations (>5 pending = corrupted)
+        const { offlineMutationQueue } = await import('./components/utils/offlineMutations');
+        const pendingCount = await offlineMutationQueue.getPendingCount();
+        
+        if (pendingCount > 5) {
+          console.error(`🚨 [Init] Detected ${pendingCount} stuck offline mutations - CLEARING OFFLINE DB`);
+          const { offlineDB } = await import('./components/utils/offlineDatabase');
+          await offlineDB.clearAllData();
+          await offlineMutationQueue.clearAllMutations();
+          localStorage.setItem('rxdeliver_offline_db_cleared', new Date().toISOString());
+          console.log('✅ [Init] Cleared corrupted offline DB - will fetch fresh from API');
+        }
       } catch (clearError) {
-        console.warn('⚠️ [Init] Failed to clear offline DB:', clearError);
+        console.warn('⚠️ [Init] Failed to check/clear offline DB:', clearError);
       }
 
       // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
@@ -3085,6 +3098,35 @@ export default function Layout({ children, currentPageName }) {
                                 </Select>
                               </div>
                             )}
+                            
+                            {/* Emergency Recovery - Clear Offline DB */}
+                            <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                            <DropdownMenuItem 
+                              onClick={async () => {
+                                if (!window.confirm('Clear offline database and reload fresh data? This will fix stuck data issues.')) {
+                                  return;
+                                }
+                                
+                                try {
+                                  const { offlineDB } = await import('./components/utils/offlineDatabase');
+                                  const { offlineMutationQueue } = await import('./components/utils/offlineMutations');
+                                  
+                                  await offlineDB.clearAllData();
+                                  await offlineMutationQueue.clearAllMutations();
+                                  localStorage.setItem('rxdeliver_offline_db_cleared', new Date().toISOString());
+                                  
+                                  alert('Offline database cleared. Reloading...');
+                                  window.location.reload();
+                                } catch (error) {
+                                  alert('Failed to clear offline DB: ' + error.message);
+                                }
+                              }}
+                              className="cursor-pointer text-red-600"
+                              style={{ fontSize: isMobile ? '16px' : '15px' }}
+                            >
+                              <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                              Clear Offline Data
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
