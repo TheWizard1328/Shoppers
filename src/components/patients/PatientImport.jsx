@@ -1384,6 +1384,125 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 {/* Floating Progress Overlay */}
                 {isProcessing &&
         <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
+                        <div className="w-full max-w-2xl">
+                            <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-3 sm:p-6 space-y-3 sm:space-y-4 shadow-lg">
+                                <div className="flex justify-between items-start sm:items-center flex-col sm:flex-row gap-2">
+                                    <div>
+                                        <h3 className="font-semibold text-base sm:text-lg text-blue-900">{getPhaseLabel()}</h3>
+                                        {importProgress.phase === 'processing' && importProgress.totalFiles > 0 &&
+                  <p className="text-sm text-blue-700">
+                                                File {importProgress.filesCompleted + (importProgress.phase !== 'complete' ? 1 : 0)} of {importProgress.totalFiles}: {importProgress.currentFile}
+                                            </p>
+                  }
+                                    </div>
+                                    <span className="text-sm font-medium text-blue-700">
+                                        {importProgress.total > 0 ? `${importProgress.current} of ${importProgress.total}` : 'Initializing...'}
+                                    </span>
+                                </div>
+
+                                <div className="w-full bg-blue-200 rounded-full h-4 overflow-hidden">
+                                    <div
+                  className="bg-blue-600 h-4 rounded-full transition-all duration-300 flex items-center justify-center text-xs text-white font-medium"
+                  style={{ width: `${importProgress.total > 0 ? importProgress.current / importProgress.total * 100 : 0}%` }}>
+                                        {importProgress.total > 0 && `${Math.round(importProgress.current / importProgress.total * 100)}%`}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-2">
+                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
+                                        <div className="text-xl sm:text-2xl font-bold text-green-600">{importProgress.created}</div>
+                                        <div className="text-[10px] sm:text-xs text-slate-600">Created</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
+                                        <div className="text-xl sm:text-2xl font-bold text-blue-600">{importProgress.updated}</div>
+                                        <div className="text-[10px] sm:text-xs text-slate-600">Updated</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
+                                        <div className="text-xl sm:text-2xl font-bold text-red-600">{importProgress.errors}</div>
+                                        <div className="text-[10px] sm:text-xs text-slate-600">Errors</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+        }
+
+                <CardHeader className="bg-slate-200 px-3 py-2 sm:px-4 flex flex-col space-y-1.5 flex-shrink-0 border-b">
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                            <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
+                            Import Patients
+                        </CardTitle>
+                        {onClose &&
+            <Button variant="ghost" size="icon" onClick={onClose} disabled={isProcessing} className="h-8 w-8">
+                                <X className="w-4 h-4" />
+                            </Button>
+            }
+                    </div>
+                </CardHeader>
+                
+                <CardContent className="px-2 sm:px-3 py-2 sm:py-3 flex-1 overflow-y-auto space-y-3">
+                    {/* Single column on mobile, two columns on desktop */}
+                    <div className="flex flex-col lg:flex-row gap-3">
+                        {/* File Selector */}
+                        <div className="flex-1 space-y-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="csv-upload" className="text-sm">Select CSV File(s)</Label>
+                                <Input
+                  id="csv-upload"
+                  type="file"
+                  accept=".csv"
+                  multiple
+                  onChange={handleFileChange}
+                  disabled={isProcessing}
+                  className="cursor-pointer" />
+
+                                <p className="text-[10px] sm:text-xs text-slate-500">
+                                    Line 1 skipped (header). Data from line 2. Multiple files OK.
+                                </p>
+                            </div>
+
+                            {files.length > 0 &&
+              <div className="space-y-1">
+                                    <Label className="text-xs sm:text-sm font-medium">Files ({files.length})</Label>
+                                    <div className="space-y-1 max-h-24 sm:max-h-32 overflow-y-auto border rounded-lg p-1">
+                                        {files.map((file, index) =>
+                  <div key={index} className="flex items-center justify-between bg-slate-50 px-2 py-1.5 sm:px-3 sm:py-2 rounded text-xs sm:text-sm">
+                                                <span className="truncate flex-1">{file.name}</span>
+                                                {!isProcessing &&
+                    <button
+                      onClick={() => removeFile(index)}
+                      className="ml-2 text-slate-400 hover:text-red-600 p-1"
+                      aria-label={`Remove ${file.name}`}>
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                    }
+                                            </div>
+                  )}
+                                    </div>
+                                </div>
+              }
+                        </div>
+
+                        {/* Import Rules - Collapsible on mobile */}
+                        <div className="bg-blue-50 px-2 py-2 rounded-lg flex-1 border border-blue-200">
+                            <h4 className="font-semibold mb-2 text-blue-900 text-xs sm:text-sm">Import Rules:</h4>
+                            <div className="space-y-2 text-[10px] sm:text-xs text-blue-800 max-h-[30vh] lg:max-h-none overflow-y-auto">
+                                <div>
+                                    <strong>• Fixed Columns:</strong>
+                                    <div className="ml-2 text-blue-700">
+                                        1=Store, 2=Name, 3=Address, 4=Phone, 5=Notes, 13=Last Delivery, 14=Distance, 15-16=Time Window, 17-18=Coords, 19=Inactive, 20=PID
+                                    </div>
+                                </div>
+                                <div>
+                                    <strong>• Auto-Processing:</strong>
+                                    <div className="ml-2 text-blue-700">
+                                        Store matching, unit extraction, recurring patterns, preferences, AI geocoding, PID matching
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Live Preview - Card layout for mobile, table for desktop */}
                     {previewData.length > 0 &&
