@@ -1,6 +1,7 @@
 import AdminUtilities from './pages/AdminUtilities';
 import AppUsers from './pages/AppUsers';
 import Cities from './pages/Cities';
+import Dashboard from './pages/Dashboard';
 import Deliveries from './pages/Deliveries';
 import DeliveryMetrics from './pages/DeliveryMetrics';
 import DiagnosticsPage from './pages/DiagnosticsPage';
@@ -12,7 +13,6 @@ import SquareLocationConfigs from './pages/SquareLocationConfigs';
 import SquareManagement from './pages/SquareManagement';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
-import Dashboard from './pages/Dashboard';
 import __Layout from './Layout.jsx';
 
 
@@ -20,6 +20,7 @@ export const PAGES = {
     "AdminUtilities": AdminUtilities,
     "AppUsers": AppUsers,
     "Cities": Cities,
+    "Dashboard": Dashboard,
     "Deliveries": Deliveries,
     "DeliveryMetrics": DeliveryMetrics,
     "DiagnosticsPage": DiagnosticsPage,
@@ -31,7 +32,6 @@ export const PAGES = {
     "SquareManagement": SquareManagement,
     "Stores": Stores,
     "Users": Users,
-    "Dashboard": Dashboard,
 }
 
 export const pagesConfig = {
