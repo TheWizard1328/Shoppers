@@ -53,14 +53,15 @@ class DriverLocationPoller {
   /**
    * Process incoming location data from parent component
    * Filters drivers based on sharing settings and user permissions
+   * CRITICAL: Loads appUsers from offline DB first to prevent rate limiting
    * @param {Object} currentUser - Current authenticated user
    * @param {Array} deliveries - Array of delivery objects
    * @param {Array} drivers - Array of driver objects
    * @param {Array} stores - Array of store objects
-   * @param {Array} appUsers - Array of AppUser objects with location data
+   * @param {Array} appUsers - Array of AppUser objects with location data (fallback if offline DB fails)
    * @param {Date} selectedDate - Currently selected date
    */
-  processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false) {
+  async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false) {
     // Skip processing if paused (e.g., during imports)
     if (this.isPaused) {
       return;
@@ -68,10 +69,26 @@ class DriverLocationPoller {
 
     // Update internal current user reference
     this.currentUser = currentUser;
+    
+    // CRITICAL: Load appUsers from offline DB first to prevent rate limiting
+    let usersData = appUsers;
+    try {
+      const { offlineDB } = await import('./offlineDatabase');
+      const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+      
+      if (offlineAppUsers && offlineAppUsers.length > 0) {
+        console.log(`📦 [DriverLocationPoller] Loaded ${offlineAppUsers.length} AppUsers from offline DB`);
+        usersData = offlineAppUsers;
+      } else {
+        console.log(`📡 [DriverLocationPoller] Using ${appUsers?.length || 0} AppUsers from props (offline DB empty)`);
+      }
+    } catch (offlineError) {
+      console.warn('⚠️ [DriverLocationPoller] Failed to load from offline DB, using props:', offlineError.message);
+    }
 
     // Log incoming data count (reduced verbosity)
-    if (appUsers?.length > 0) {
-      console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} appUsers (force: ${forceNotify})`);
+    if (usersData?.length > 0) {
+      console.log(`📍 [DriverLocationPoller] Processing ${usersData.length} appUsers (force: ${forceNotify})`);
     }
 
     // Determine if current device is mobile
@@ -85,7 +102,7 @@ class DriverLocationPoller {
     
     // CRITICAL: On desktop, ensure current user's AppUser is in the list for self-marker
     // On mobile, NEVER add self to the list (blue GPS dot shows instead)
-    let users = Array.isArray(appUsers) ? [...appUsers] : [];
+    let users = Array.isArray(usersData) ? [...usersData] : [];
     
     if (!isMobileDevice && currentUser && currentUser.current_latitude && currentUser.current_longitude) {
       // Check if current user is already in the list
