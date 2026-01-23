@@ -1351,49 +1351,49 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
                         {/* Errors */}
                         {previewChanges.errors.length > 0 &&
-            <div>
+                        <div>
                                 <h3 className="text-base sm:text-lg font-semibold text-red-600 mb-2">Errors ({previewChanges.errors.length})</h3>
                                 <div className="space-y-1 max-h-[20vh] sm:max-h-[150px] overflow-y-auto bg-red-50 p-2 sm:p-3 rounded border border-red-200">
                                     {previewChanges.errors.map((error, idx) =>
-                <div key={idx} className="text-xs text-red-800 break-words">{error}</div>
-                )}
+                        <div key={idx} className="text-xs text-red-800 break-words">{error}</div>
+                        )}
                                 </div>
                             </div>
-            }
-                    </CardContent>
-                    <div className="border-t p-3 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 flex-shrink-0">
+                        }
+                        </CardContent>
+                        <div className="border-t p-3 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 flex-shrink-0">
                         <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing} className="w-full sm:w-auto">
                             Cancel
                         </Button>
                         <Button
-              onClick={confirmAndImport}
-              className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto text-xs sm:text-sm"
-              disabled={isProcessing || previewChanges.toCreate.length === 0 && previewChanges.toUpdate.length === 0 && previewChanges.errors.length === 0}>
+                        onClick={confirmAndImport}
+                        className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
+                        disabled={isProcessing || previewChanges.toCreate.length === 0 && previewChanges.toUpdate.length === 0 && previewChanges.errors.length === 0}>
 
                             {isProcessing ? 'Importing...' : `Import (${previewChanges.toCreate.length}+${previewChanges.toUpdate.length})`}
                         </Button>
-                    </div>
-                </Card>
-            </div>);
+                        </div>
+                        </Card>
+                        </div>);
 
-  }
+                        }
 
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4 z-[9999] overflow-hidden">
-            <Card className={`rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl flex flex-col relative transition-all duration-300 ${files.length > 0 ? 'h-[85vh] sm:h-[70vh]' : 'h-[75vh] sm:h-[42vh]'}`}>
-                {/* Floating Progress Overlay */}
-                {isProcessing &&
-        <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
+                        return (
+                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4 z-[9999] overflow-hidden">
+                        <Card className={`rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl flex flex-col relative transition-all duration-300 ${files.length > 0 ? 'h-[85vh] sm:h-[70vh]' : 'h-[60vh] sm:h-[42vh]'}`}>
+                        {/* Floating Progress Overlay */}
+                        {isProcessing &&
+                        <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
                         <div className="w-full max-w-2xl">
                             <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-3 sm:p-6 space-y-3 sm:space-y-4 shadow-lg">
                                 <div className="flex justify-between items-start sm:items-center flex-col sm:flex-row gap-2">
                                     <div>
                                         <h3 className="font-semibold text-base sm:text-lg text-blue-900">{getPhaseLabel()}</h3>
                                         {importProgress.phase === 'processing' && importProgress.totalFiles > 0 &&
-                  <p className="text-sm text-blue-700">
+                        <p className="text-sm text-blue-700">
                                                 File {importProgress.filesCompleted + (importProgress.phase !== 'complete' ? 1 : 0)} of {importProgress.totalFiles}: {importProgress.currentFile}
                                             </p>
-                  }
+                        }
                                     </div>
                                     <span className="text-sm font-medium text-blue-700">
                                         {importProgress.total > 0 ? `${importProgress.current} of ${importProgress.total}` : 'Initializing...'}
@@ -1402,8 +1402,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
                                 <div className="w-full bg-blue-200 rounded-full h-4 overflow-hidden">
                                     <div
-                  className="bg-blue-600 h-4 rounded-full transition-all duration-300 flex items-center justify-center text-xs text-white font-medium"
-                  style={{ width: `${importProgress.total > 0 ? importProgress.current / importProgress.total * 100 : 0}%` }}>
+                        className="bg-blue-600 h-4 rounded-full transition-all duration-300 flex items-center justify-center text-xs text-white font-medium"
+                        style={{ width: `${importProgress.total > 0 ? importProgress.current / importProgress.total * 100 : 0}%` }}>
+
                                         {importProgress.total > 0 && `${Math.round(importProgress.current / importProgress.total * 100)}%`}
                                     </div>
                                 </div>
@@ -1424,8 +1425,8 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                                 </div>
                             </div>
                         </div>
-                    </div>
-        }
+                        </div>
+                        }
 
                 <CardHeader className="bg-slate-200 px-3 py-2 sm:px-4 flex flex-col space-y-1.5 flex-shrink-0 border-b">
                     <div className="flex items-center justify-between">
