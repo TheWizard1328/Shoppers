@@ -1545,17 +1545,17 @@ export default function RouteImport({
   };
 
   const getStatusBadge = (status) => {
-    const statusColors = {
-      'completed': 'bg-green-100 text-green-800',
-      'failed': 'bg-red-100 text-red-800',
-      'cancelled': 'bg-slate-100 text-slate-800',
-      'in_transit': 'bg-blue-100 text-blue-800',
-      'pending': 'bg-yellow-100 text-yellow-800',
-      'Ready For Pickup': 'bg-purple-100 text-purple-800',
-      'picked_up': 'bg-indigo-100 text-indigo-800'
+    const statusColorMap = {
+      'completed': { bg: 'var(--bg-green-100)', text: 'var(--text-green-800)' },
+      'failed': { bg: 'var(--bg-red-100)', text: 'var(--text-red-800)' },
+      'cancelled': { bg: 'var(--bg-slate-100)', text: 'var(--text-slate-800)' },
+      'in_transit': { bg: 'var(--bg-blue-100)', text: 'var(--text-blue-800)' },
+      'pending': { bg: 'var(--bg-yellow-100)', text: 'var(--text-yellow-800)' },
+      'Ready For Pickup': { bg: 'var(--bg-purple-100)', text: 'var(--text-purple-800)' },
+      'picked_up': { bg: 'var(--bg-indigo-100)', text: 'var(--text-indigo-800)' }
     };
-    const color = statusColors[status] || 'bg-slate-100 text-slate-800';
-    return <Badge className={color}>{status}</Badge>;
+    const color = statusColorMap[status] || { bg: 'var(--bg-slate-100)', text: 'var(--text-slate-800)' };
+    return <Badge style={{ background: color.bg, color: color.text }}>{status}</Badge>;
   };
 
   const handleErrorStartOver = () => {
@@ -1815,14 +1815,14 @@ export default function RouteImport({
                               </div>
                               <div className="ml-3 flex-shrink-0 flex items-center gap-2">
                                 {hasMatch ? (
-                                  <Badge className="whitespace-nowrap font-semibold" style={{ background: 'rgba(34, 197, 94, 0.2)', color: 'rgb(22, 163, 74)', borderColor: 'rgba(34, 197, 94, 0.4)' }}>
-                                    ✓ {getDriverDisplayName(fileInfo.driver)}
-                                  </Badge>
-                                ) : (
-                                  <Badge className="whitespace-nowrap font-semibold" style={{ background: 'rgba(239, 68, 68, 0.2)', color: 'rgb(220, 38, 38)', borderColor: 'rgba(239, 68, 68, 0.4)' }}>
-                                    ✗ No match
-                                  </Badge>
-                                )}
+                                   <Badge className="whitespace-nowrap font-semibold" style={{ background: 'rgba(34, 197, 94, 0.2)', color: 'var(--text-green-700)' }}>
+                                     ✓ {getDriverDisplayName(fileInfo.driver)}
+                                   </Badge>
+                                 ) : (
+                                   <Badge className="whitespace-nowrap font-semibold" style={{ background: 'rgba(239, 68, 68, 0.2)', color: 'var(--text-red-700)' }}>
+                                     ✗ No match
+                                   </Badge>
+                                 )}
                                 {!isParsing && !isProcessing && !showProgress && (
                                   <button onClick={() => removeFile(index)} style={{ color: 'var(--text-slate-400)' }} className="hover:text-red-600">
                                     <X className="w-4 h-4" />
@@ -2004,7 +2004,7 @@ export default function RouteImport({
                         return (
                           <div key={`${delivery.action}-${idx}`} className="p-3 rounded border text-xs" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <div className="flex justify-between items-start mb-2">
-                              <Badge className={delivery.action === 'create' ? "bg-green-200 text-green-800" : "bg-blue-200 text-blue-800"}>
+                              <Badge style={{ background: delivery.action === 'create' ? 'var(--bg-green-200)' : 'var(--bg-blue-200)', color: delivery.action === 'create' ? 'var(--text-green-800)' : 'var(--text-blue-800)' }}>
                                 {delivery.action === 'create' ? 'New' : 'Update'}
                               </Badge>
                               <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{delivery.delivery_date} {newTimeFormatted !== 'none' && newTimeFormatted}</span>
@@ -2039,7 +2039,7 @@ export default function RouteImport({
                           <tr key={`${delivery.action}-${idx}`} className="border-b" style={{ borderColor: 'var(--border-slate-200)', background: delivery.action === 'create' ? 'var(--bg-slate-50)' : 'var(--bg-slate-50)' }}>
                             <td className="p-1 w-20 text-center">
                               <div className="flex flex-col gap-1 items-center">
-                                <Badge className={delivery.action === 'create' ? "bg-green-200 text-green-800 w-full justify-center" : "bg-blue-200 text-blue-800 w-full justify-center"}>
+                                <Badge className="w-full justify-center" style={{ background: delivery.action === 'create' ? 'var(--bg-green-200)' : 'var(--bg-blue-200)', color: delivery.action === 'create' ? 'var(--text-green-800)' : 'var(--text-blue-800)' }}>
                                   {delivery.action === 'create' ? 'New' : 'Update'}
                                 </Badge>
                                 <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>
