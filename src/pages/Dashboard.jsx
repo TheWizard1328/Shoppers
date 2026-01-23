@@ -5455,54 +5455,58 @@ function Dashboard() {
         updateData.actual_delivery_time = null;
       }
 
-      // STEP 1: Update isNextDelivery flags LOCALLY (instant)
+      // Update isNextDelivery in LOCAL state only (don't sync to DB yet)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter((d) =>
           d && d.driver_id === driverId && d.delivery_date === deliveryDate
         );
 
-        // Reset flags for other deliveries
-        const resetPromises = allDriverDeliveriesForDate
-          .filter((d) => d.isNextDelivery && d.id !== deliveryId)
-          .map((d) => updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true }));
-
-        if (resetPromises.length > 0) {
-          await Promise.all(resetPromises);
-        }
-
-        // Find next incomplete and mark as next
+        // Find next incomplete
         const incompleteDeliveries = allDriverDeliveriesForDate
           .filter((d) => d.id !== deliveryId && !['completed', 'failed', 'cancelled'].includes(d.status) && d.status !== 'pending')
           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
+        // Update LOCAL state - reset all flags except the new next
+        const updatedDeliveries = deliveries.map(d => {
+          if (!d || d.driver_id !== driverId || d.delivery_date !== deliveryDate) return d;
+          
+          if (incompleteDeliveries.length > 0 && d.id === incompleteDeliveries[0].id) {
+            return { ...d, isNextDelivery: true };
+          }
+          
+          return { ...d, isNextDelivery: false };
+        });
+        
+        if (updateDeliveriesLocally) {
+          updateDeliveriesLocally(updatedDeliveries, true);
+        }
+        
+        // Background: sync isNextDelivery flags to backend
+        allDriverDeliveriesForDate
+          .filter((d) => d.isNextDelivery && d.id !== deliveryId)
+          .forEach((d) => {
+            updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true }).catch(() => {});
+          });
+        
         if (incompleteDeliveries.length > 0) {
           const nextStop = incompleteDeliveries[0];
-          await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+          updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true }).catch(() => {});
         }
       }
 
-      // STEP 2: Update delivery status LOCALLY (instant) - registers 60s protection automatically
-      await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
-      
-      // STEP 3: Wait for offline mutation to complete and sync to backend
-      console.log('⏳ [STATUS] Waiting 500ms for offline mutation to complete and sync...');
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // STEP 4: Update LOCAL UI state from offline DB
-      console.log('🖥️ [STATUS] Step 4: Updating UI from offline DB...');
-      const { offlineDB } = await import('../components/utils/offlineDatabase');
-      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
-      
-      if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
-        const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
-        updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
-        console.log('✅ [STATUS] UI updated instantly from offline DB');
-      } else {
-        console.warn('⚠️ [STATUS] No offline data - skipping UI update (will sync via smart refresh)');
+      // Update LOCAL state INSTANTLY - don't wait for anything
+      const updatedDelivery = { ...targetDelivery, ...updateData };
+      if (updateDeliveriesLocally) {
+        const otherDeliveries = deliveries.filter(d => d?.id !== deliveryId);
+        updateDeliveriesLocally([...otherDeliveries, updatedDelivery], true);
+        console.log('✅ [STATUS] UI updated INSTANTLY from local state');
       }
       
-      // STEP 5: UI is ready - smart refresh protection will prevent overwrites for 60s
-      console.log('✅ [STATUS] UI ready - protected from smart refresh for 60s');
+      // Background: sync to offline DB and backend (don't await)
+      updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true }).catch(err => {
+        console.error('❌ [STATUS] Background sync failed:', err);
+      });
+      
       setIsEntityUpdating(false);
 
       // STEP 6: Update patient's last_delivery_date (background, non-blocking)
