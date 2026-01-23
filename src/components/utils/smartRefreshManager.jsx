@@ -690,26 +690,31 @@ class SmartRefreshManager {
           }
       } else {
           if (!updatedDeliveries || updatedDeliveries.length === 0) {
-              this.notifyRateLimit(false);
-              return null;
+            // No changes from API - return current data as-is
+            this.notifyRateLimit(false);
+            return null;
           }
-      }
+          }
 
-      const protectedDeliveryIds = [];
-      const filteredUpdatedDeliveries = updatedDeliveries.filter(d => {
-        if (this.hasPendingUpdate(d.id)) {
-          protectedDeliveryIds.push(d.id);
-          return false;
-        }
-        return true;
-      });
+          const protectedDeliveryIds = [];
+          const filteredUpdatedDeliveries = updatedDeliveries.filter(d => {
+          if (this.hasPendingUpdate(d.id)) {
+            protectedDeliveryIds.push(d.id);
+            return false;
+          }
+          return true;
+          });
 
-      const diff = diffEntityArrays(currentDateDeliveries, filteredUpdatedDeliveries);
+          const diff = diffEntityArrays(currentDateDeliveries, filteredUpdatedDeliveries);
 
-      if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+          if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+          // No actual changes - keep current data
+          console.log(`✅ [SmartRefresh] No delivery changes for ${dateStr}`);
           this.notifyRateLimit(false);
           return null;
-      }
+          }
+
+          console.log(`📊 [SmartRefresh] Delivery changes: +${diff.toAdd.length} -${diff.toRemove.length} ~${diff.toUpdate.length}`);
 
       const mergedDateDeliveries = mergeEntityChanges(currentDateDeliveries, diff);
       
