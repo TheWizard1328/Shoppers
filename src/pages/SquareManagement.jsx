@@ -267,7 +267,7 @@ export default function SquareManagement() {
           base44.functions.invoke('squareSyncCatalogItems', {}),
           base44.functions.invoke('squareFetchPayments', { 
             locationIds: syncedLocationIds, 
-            daysBack: 7 
+            daysBack: 14 
           })
         ]);
 
