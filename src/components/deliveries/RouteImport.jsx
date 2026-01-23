@@ -801,11 +801,7 @@ export default function RouteImport({
         newDeliveryData.status = statusMap['Cancelled'];
       }
       
-      // CRITICAL: Use shared notes processor for consistency
-      const cleanedNotes = processDeliveryNotes(rawNotes, newDeliveryData, patient, isPickup, true);
-      newDeliveryData.delivery_notes = cleanedNotes;
-
-      // CRITICAL: Check if notes indicate this is a first delivery
+      // CRITICAL: Check if RAW notes indicate this is a first delivery BEFORE cleaning
       const notesLowerForFirstDelivery = rawNotes.toLowerCase();
       const isFirstDeliveryInNotes = notesLowerForFirstDelivery.includes('first delivery') || 
                                      notesLowerForFirstDelivery.includes('1st delivery') ||
@@ -816,6 +812,10 @@ export default function RouteImport({
       if (isFirstDeliveryInNotes) {
         newDeliveryData.first_delivery = true;
       }
+
+      // CRITICAL: Use shared notes processor for consistency (AFTER checking for first delivery flag)
+      const cleanedNotes = processDeliveryNotes(rawNotes, newDeliveryData, patient, isPickup, true);
+      newDeliveryData.delivery_notes = cleanedNotes;
 
       const matchResult = matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
       const existingDelivery = matchResult?.match || null;
