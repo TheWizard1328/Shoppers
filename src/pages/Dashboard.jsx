@@ -5484,10 +5484,9 @@ function Dashboard() {
       // STEP 2: Update delivery status LOCALLY (instant)
       await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
       
-      // STEP 3: Resume smart refresh IMMEDIATELY after local update
-      console.log('▶️ [STATUS] Resuming smart refresh after local update');
-      smartRefreshManager.resume();
-      setIsEntityUpdating(false);
+      // STEP 3: Wait for offline mutation to complete before loading offline DB
+      console.log('⏳ [STATUS] Waiting 300ms for offline mutation to complete...');
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // STEP 4: Update LOCAL UI state from offline DB
       console.log('🖥️ [STATUS] Step 4: Updating UI from offline DB...');
@@ -5501,15 +5500,20 @@ function Dashboard() {
       } else {
         console.warn('⚠️ [STATUS] No offline data - skipping UI update (will sync via smart refresh)');
       }
+      
+      // STEP 5: Resume smart refresh AFTER offline DB is updated
+      console.log('▶️ [STATUS] Resuming smart refresh after offline DB update');
+      smartRefreshManager.resume();
+      setIsEntityUpdating(false);
 
-      // STEP 5: Update patient's last_delivery_date (background, non-blocking)
+      // STEP 6: Update patient's last_delivery_date (background, non-blocking)
       if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
         base44.entities.Patient.update(targetDelivery.patient_id, {
           last_delivery_date: deliveryDate
         }).catch(error => console.warn('⚠️ Patient last_delivery_date update failed:', error));
       }
 
-      // STEP 6: Check route completion and show dialogs (non-blocking)
+      // STEP 7: Check route completion and show dialogs (non-blocking)
       const finishedStatuses = ['completed', 'failed', 'cancelled'];
       const isReturnByMarkers = (d) => {
         if (!d || !d.patient_id) return false;
@@ -5573,7 +5577,7 @@ function Dashboard() {
         }
       }
 
-      // STEP 7: Scroll to next card (instant)
+      // STEP 8: Scroll to next card (instant)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         setTimeout(() => {
           const nextCardElement = document.querySelector('[data-is-next-delivery="true"]');
@@ -5583,7 +5587,7 @@ function Dashboard() {
         }, 100);
       }
 
-      // STEP 8: Re-lock FAB if needed (instant)
+      // STEP 9: Re-lock FAB if needed (instant)
       if (currentPhase === 2) {
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
@@ -5597,7 +5601,7 @@ function Dashboard() {
         mapLockExpiresAtRef.current = null;
       }
 
-      // STEP 9: Force map update event (instant)
+      // STEP 10: Force map update event (instant)
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { driverId, deliveryDate, triggeredBy: 'statusUpdate' }
       }));

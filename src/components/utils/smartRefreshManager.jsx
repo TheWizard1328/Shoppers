@@ -108,12 +108,13 @@ class SmartRefreshManager {
   
   /**
    * Register a pending local update for a delivery
-   * This prevents smart refresh from overwriting it for 30 seconds
-   * The longer window accounts for backend optimizer latency
+   * This prevents smart refresh from overwriting it for 60 seconds
+   * The longer window accounts for backend optimizer latency + cross-device sync
    */
   registerPendingUpdate(deliveryId, driverId = null, deliveryDate = null) {
-    const expiresAt = Date.now() + 30000;
+    const expiresAt = Date.now() + 60000; // Increased to 60 seconds
     this.pendingLocalUpdates.set(deliveryId, { expiresAt, driverId, deliveryDate });
+    console.log(`🛡️ [SmartRefresh] Protected delivery ${deliveryId} from overwrite for 60s`);
   }
   
   /**
