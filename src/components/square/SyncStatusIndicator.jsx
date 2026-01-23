@@ -60,33 +60,43 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error }) {
               {status.icon}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`font-semibold text-sm ${status.color}`}>
+              <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                <span className={`font-semibold ${status.color}`}>
                   {status.text}
                 </span>
                 {lastSyncTime && (
-                  <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true })} • {format(new Date(lastSyncTime), 'HH:mm:ss')}
-                  </span>
+                  <>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="text-muted-foreground">
+                      {formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true })}
+                    </span>
+                    <span className="text-muted-foreground">(@ {format(new Date(lastSyncTime), 'HH:mm:ss')})</span>
+                  </>
+                )}
+                {(catalogStatus?.recordCount !== undefined || transactionStatus?.recordCount !== undefined) && (
+                  <>
+                    <span className="text-muted-foreground">•</span>
+                    {catalogStatus?.recordCount !== undefined && (
+                      <span className="text-muted-foreground">
+                        Catalog Items: {catalogStatus.recordCount}
+                      </span>
+                    )}
+                    {transactionStatus?.recordCount !== undefined && catalogStatus?.recordCount !== undefined && (
+                      <span className="text-muted-foreground">•</span>
+                    )}
+                    {transactionStatus?.recordCount !== undefined && (
+                      <span className="text-muted-foreground">
+                        Transactions: {transactionStatus.recordCount}
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
-              <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
-                {error && (
-                  <span className="text-red-600 font-medium">
-                    Error: {error}
-                  </span>
-                )}
-                {catalogStatus?.recordCount !== undefined && (
-                  <span>
-                    Catalog: {catalogStatus.recordCount}
-                  </span>
-                )}
-                {transactionStatus?.recordCount !== undefined && (
-                  <span>
-                    Transactions: {transactionStatus.recordCount}
-                  </span>
-                )}
-              </div>
+              {error && (
+                <div className="text-xs text-red-600 font-medium mt-1">
+                  Error: {error}
+                </div>
+              )}
             </div>
           </div>
         </div>
