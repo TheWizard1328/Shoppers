@@ -5636,6 +5636,11 @@ function Dashboard() {
           driverId, deliveryDate, currentLocalTime: localTimeString
         }).catch(() => {});
       }
+
+      // CRITICAL: Force immediate data refresh from backend
+      if (forceRefreshDriverDeliveries) {
+        await forceRefreshDriverDeliveries(driverId, deliveryDate);
+      }
     } catch (error) {
       console.error('❌ [STATUS] Error:', error);
       alert('Failed to update status. Please try again.');
@@ -5857,6 +5862,11 @@ function Dashboard() {
         store: deliveryStore,
         appUsers: appUsers
       }).catch(() => {});
+
+      // CRITICAL: Force immediate data refresh from backend
+      if (forceRefreshDriverDeliveries) {
+        await forceRefreshDriverDeliveries(driverId, deliveryDate);
+      }
 
       console.log('✅ [START] Complete');
     } catch (error) {
