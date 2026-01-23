@@ -763,9 +763,17 @@ export default function RouteImport({
         console.warn(`⚠️ Row ${lineNumber}: Could not find dispatcher for store "${store.name}".`);
       }
 
-      // CRITICAL: Check Column 5 value - if < 0, status is pending, otherwise completed
-      const isPendingFromColumn5 = !isNaN(column5Value) && column5Value < 0;
-      
+      // CRITICAL: Determine status based on Column 4 and 5 values
+      // If both Col 4 and 5 are 0: en_route or in_transit
+      // If Col 4 > 0: completed
+      // If Col 5 < 0: pending
+      let statusFromColumns = 'in_transit'; // default
+      if (!isNaN(column5Value) && column5Value < 0) {
+        statusFromColumns = 'pending';
+      } else if (!isNaN(stopOrder) && stopOrder > 0) {
+        statusFromColumns = 'completed';
+      }
+
       const newDeliveryData = {
         delivery_date: currentDate,
         store_id: store.id,
@@ -775,7 +783,7 @@ export default function RouteImport({
         tracking_number: trackingNumber,
         stop_order: stopOrder,
         stop_id: stopId || null,
-        status: isPendingFromColumn5 ? 'pending' : 'completed',
+        status: statusFromColumns,
         extra_time: 0,
         ampm_deliveries: ampmValue,
         cod_total_amount_required: 0,
