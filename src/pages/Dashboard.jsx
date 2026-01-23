@@ -5278,6 +5278,11 @@ function Dashboard() {
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
     console.log('🚀 [STATUS] Starting status update - INSTANT UI mode');
     
+    // CRITICAL: Pause smart refresh manager FIRST
+    console.log('⏸️ [STATUS] Pausing smart refresh manager');
+    smartRefreshManager.pause();
+    setIsEntityUpdating(true);
+    
     // CRITICAL: Capture current FAB state
     const wasPhase2Locked = mapViewPhase === 2 && isMapViewLocked;
     const currentPhase = mapViewPhase;
@@ -5664,18 +5669,38 @@ function Dashboard() {
     } finally {
       // CRITICAL: Re-enable theme transitions immediately
       document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
+      
+      // CRITICAL: ALWAYS resume smart refresh manager
+      console.log('▶️ [STATUS] Resuming smart refresh manager');
+      smartRefreshManager.resume();
+      setIsEntityUpdating(false);
+      
       console.log('✅ [STATUS] Status update complete - UI is interactive');
     }
   };
 
   const handleNotesUpdate = async (deliveryId, notes) => {
     try {
+      const delivery = deliveriesWithStopOrder.find(d => d?.id === deliveryId);
+      const deliveryDate = delivery?.delivery_date;
+      
       await updateDeliveryLocal(deliveryId, {
         delivery_notes: notes
       });
 
       invalidate('Delivery');
-      await refreshData();
+      
+      // CRITICAL: Load from offline DB instead of full API refresh
+      if (deliveryDate) {
+        const { offlineDB } = await import('../components/utils/offlineDatabase');
+        const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+        
+        if (updateDeliveriesLocally && offlineDeliveries && offlineDeliveries.length > 0) {
+          const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
+          updateDeliveriesLocally([...otherDeliveries, ...offlineDeliveries], true);
+          console.log('✅ [NOTES] UI updated from offline DB');
+        }
+      }
     } catch (error) {
       console.error('Error updating delivery notes:', error);
       alert('Failed to update notes. Please try again.');
@@ -5816,6 +5841,7 @@ function Dashboard() {
 
     // STEP 0: Pause smart refresh to prevent race conditions
     console.log('⏸️ [START] Step 0: Pausing smart refresh manager...');
+    smartRefreshManager.pause();
     setIsEntityUpdating(true);
     pauseOfflineMutations();
     pauseOfflineSync();
@@ -6094,20 +6120,14 @@ function Dashboard() {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       
       console.log('▶️ [START] Resuming smart refresh, offline sync, and mutations');
+      smartRefreshManager.resume();
       setIsEntityUpdating(false);
       resumeOfflineMutations();
       resumeOfflineSync();
       
       // Force immediate smart refresh with fresh data
       console.log('🔄 [START] Triggering immediate smart refresh with fresh data...');
-      smartRefreshManager.lastRefreshTimes = {
-        driverLocation: 0,
-        activeDeliveries: 0,
-        todayDeliveries: 0,
-        appUsers: 0,
-        patients: 0,
-        stores: 0
-      };
+      smartRefreshManager.restart();
     }
   };
 
