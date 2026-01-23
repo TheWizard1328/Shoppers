@@ -81,6 +81,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
 // Removed: getCitiesWithinRadius - no longer using geographic filtering
       import { getUserAgentInfo } from './components/utils/deviceUtils';
       import PatientImport from './components/patients/PatientImport';
+      import RouteImport from './components/deliveries/RouteImport';
       import ImportActiveRoutes from './components/deliveries/ImportActiveRoutes';
       import DriverStatusToggle from './components/layout/DriverStatusToggle';
       import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
@@ -596,6 +597,7 @@ export default function Layout({ children, currentPageName }) {
   const [isEntityUpdating, setIsEntityUpdating] = useState(false);
   const [smartRefreshActivity, setSmartRefreshActivity] = useState({ active: false, updatedEntities: [] });
   const [showPatientImport, setShowPatientImport] = useState(false);
+  const [showDeliveryImport, setShowDeliveryImport] = useState(false);
   const [showActiveRoutesImport, setShowActiveRoutesImport] = useState(false);
 
   const [deliveries, setDeliveries] = useState([]);
@@ -2790,6 +2792,37 @@ export default function Layout({ children, currentPageName }) {
                     />
                   )}
 
+                  {showDeliveryImport && (
+                                                        <RouteImport
+                                              onCancel={() => {
+                                                setShowDeliveryImport(false);
+                                                setIsFormOverlayOpen(false);
+                                                // Clean up global callback
+                                                if (typeof window !== 'undefined') {
+                                                  delete window.__routeImportStartCallback;
+                                                }
+                                              }}
+                                              onImportStart={() => {
+                                                setIsFormOverlayOpen(true);
+                                              }}
+                                              onImportComplete={async () => {
+                                                                                                                    setShowDeliveryImport(false);
+                                                                                                                    setIsFormOverlayOpen(false);
+                                                                                                                    if (typeof window !== 'undefined') {
+                                                                                                                      delete window.__routeImportStartCallback;
+                                                                                                                    }
+                                                                                                                    invalidate('Delivery');
+                                                                                                                    invalidate('Patient');
+                                                                                                                    await triggerFullDataLoadRef.current(true);
+                                                                                                                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                                                                                                                  }}
+                                    stores={stores}
+                                    allUsers={users}
+                                    currentUser={currentUser}
+                                    allDeliveries={deliveries}
+                                  />
+                                )}
+
                   {showActiveRoutesImport && (
                     <ImportActiveRoutes
                       onCancel={() => {
@@ -2993,9 +3026,13 @@ export default function Layout({ children, currentPageName }) {
                                 <FileText className="w-4 h-4 mr-2" />
                                 Patient Info
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer">
+                                <FileText className="w-4 h-4 mr-2" />
+                                Past Routes
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
                                 <FileText className="w-4 h-4 mr-2" />
-                                Import Stops
+                                Active Stops
                               </DropdownMenuItem>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                             </>
@@ -3515,9 +3552,13 @@ export default function Layout({ children, currentPageName }) {
                               <FileText className="w-4 h-4 mr-2" />
                               Patient Info
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer">
+                              <FileText className="w-4 h-4 mr-2" />
+                              Past Routes
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
                               <FileText className="w-4 h-4 mr-2" />
-                              Import Stops
+                              Active Stops
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                           </>
@@ -3531,7 +3572,7 @@ export default function Layout({ children, currentPageName }) {
                             </DropdownMenuLabel>
                             <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
                               <FileText className="w-4 h-4 mr-2" />
-                              Import Stops
+                              Active Stops
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                           </>

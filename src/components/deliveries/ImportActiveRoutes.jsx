@@ -399,8 +399,8 @@ export default function ImportActiveRoutes({
       }
     }
 
-    // FALLBACK MATCH 2: Tracking Number (TR#) - only when no SID
-    if (importedTrackingNumber) {
+    // FALLBACK MATCH 2: Tracking Number (TR#)
+    if (importedTrackingNumber && !importedDeliveryStopId) {
       const trackingNumberMatch = sameDateDeliveries.find((d) => {
         const existingTR = (d.tracking_number || '').trim();
         return existingTR === importedTrackingNumber;
@@ -410,21 +410,17 @@ export default function ImportActiveRoutes({
       }
     }
 
-    // FALLBACK MATCH 3: Pickup by Store (only match if imported has NO SID and existing has NO SID)
-    if (!importedDeliveryPatientId && importedDelivery.store_id) {
-      // Only match pickups that BOTH lack SIDs (prevents creating duplicates when SID is present)
-      const hasImportedSID = importedDeliveryStopId && importedDeliveryStopId !== '';
-      
-      if (!hasImportedSID) {
-        const pickupMatch = sameDateDeliveries.find((d) =>
-          d.store_id === importedDelivery.store_id && 
-          (!d.patient_id || d.patient_id === '') &&
-          (!d.stop_id || d.stop_id === '')
-        );
+    // FALLBACK MATCH 3: Pickup by Store with fuzzy matching
+    if (!importedDeliveryPatientId && importedDelivery.store_id && !importedDeliveryStopId && !importedTrackingNumber) {
+      const pickupMatch = sameDateDeliveries.find((d) =>
+        d.store_id === importedDelivery.store_id && 
+        (!d.patient_id || d.patient_id === '') &&
+        !d.stop_id &&
+        !d.tracking_number
+      );
 
-        if (pickupMatch) {
-          return { match: pickupMatch, reason: `Pickup Match (Store, no SIDs)` };
-        }
+      if (pickupMatch) {
+        return { match: pickupMatch, reason: `Pickup Match (Store)` };
       }
     }
 
@@ -909,7 +905,7 @@ export default function ImportActiveRoutes({
 
       const matchResult = matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
       const existingDelivery = matchResult?.match || null;
-      const matchReason = matchResult?.reason || 'No match found';
+      const matchReason = matchResult?.reason || 'Unknown';
 
       if (existingDelivery) {
         // EXISTING DELIVERY MATCHED BY SID: Replace all data from import (except ID and notes)
@@ -1855,10 +1851,10 @@ export default function ImportActiveRoutes({
           <DialogHeader className="px-6 py-2 text-center flex flex-col space-y-1.5 sm:text-left border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
             <DialogTitle className="text-2xl flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
               <Upload className="w-6 h-6" />
-              Import Stops
+              Import Active Routes
             </DialogTitle>
             <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
-              Upload CSV files to import past or active route data for drivers.
+              Upload CSV files to import active/completed route data for a selected driver.
             </DialogDescription>
           </DialogHeader>
 
