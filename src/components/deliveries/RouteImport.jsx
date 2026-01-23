@@ -2014,18 +2014,18 @@ export default function RouteImport({
 
                         return (
                           <div key={`${delivery.action}-${idx}`} className="p-3 rounded border text-xs" style={{ 
-                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.08)' : 'rgba(59, 130, 246, 0.08)',
-                            borderColor: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(59, 130, 246, 0.3)',
-                            borderWidth: '1.5px'
+                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                            borderColor: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(59, 130, 246, 0.4)',
+                            borderWidth: '2px'
                           }}>
-                            <div className="flex justify-between items-start mb-2">
-                              <Badge className="border-0 font-semibold text-xs px-2 py-1" style={{ 
+                            <div className="flex justify-between items-start mb-2 gap-2">
+                              <Badge className="border-0 font-semibold text-xs px-2 py-1 flex-shrink-0" style={{ 
                                 background: delivery.action === 'create' ? '#10b981' : '#3b82f6', 
                                 color: 'white'
                               }}>
                                 {delivery.action === 'create' ? '✓ NEW' : '◇ UPDATE'}
                               </Badge>
-                              <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{delivery.delivery_date} {newTimeFormatted !== 'none' && newTimeFormatted}</span>
+                              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{delivery.delivery_date} {newTimeFormatted !== 'none' && newTimeFormatted}</span>
                             </div>
                             <div className="space-y-1">
                               <div><span style={{ color: 'var(--text-slate-600)' }}>Patient:</span> <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{delivery.patient_name}</span></div>
