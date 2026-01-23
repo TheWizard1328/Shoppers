@@ -1985,7 +1985,7 @@ export default function RouteImport({
                       return (
                         <tr key={`${delivery.action}-${idx}`} className={`border-b ${delivery.action === 'create' ? 'bg-green-50 hover:bg-green-100' : 'bg-blue-50 hover:bg-blue-100'}`}>
                             <td className="p-1 w-20">
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-col gap-1 items-center">
                                 <Badge className={delivery.action === 'create' ? "bg-green-200 text-green-800" : "bg-blue-200 text-blue-800"}>
                                   {delivery.action === 'create' ? 'New' : 'Update'}
                                 </Badge>
