@@ -399,8 +399,8 @@ export default function ImportActiveRoutes({
       }
     }
 
-    // FALLBACK MATCH 2: Tracking Number (TR#)
-    if (importedTrackingNumber && !importedDeliveryStopId) {
+    // FALLBACK MATCH 2: Tracking Number (TR#) - only when no SID
+    if (importedTrackingNumber) {
       const trackingNumberMatch = sameDateDeliveries.find((d) => {
         const existingTR = (d.tracking_number || '').trim();
         return existingTR === importedTrackingNumber;
@@ -410,17 +410,21 @@ export default function ImportActiveRoutes({
       }
     }
 
-    // FALLBACK MATCH 3: Pickup by Store with fuzzy matching
-    if (!importedDeliveryPatientId && importedDelivery.store_id && !importedDeliveryStopId && !importedTrackingNumber) {
-      const pickupMatch = sameDateDeliveries.find((d) =>
-        d.store_id === importedDelivery.store_id && 
-        (!d.patient_id || d.patient_id === '') &&
-        !d.stop_id &&
-        !d.tracking_number
-      );
+    // FALLBACK MATCH 3: Pickup by Store (only match if imported has NO SID and existing has NO SID)
+    if (!importedDeliveryPatientId && importedDelivery.store_id) {
+      // Only match pickups that BOTH lack SIDs (prevents creating duplicates when SID is present)
+      const hasImportedSID = importedDeliveryStopId && importedDeliveryStopId !== '';
+      
+      if (!hasImportedSID) {
+        const pickupMatch = sameDateDeliveries.find((d) =>
+          d.store_id === importedDelivery.store_id && 
+          (!d.patient_id || d.patient_id === '') &&
+          (!d.stop_id || d.stop_id === '')
+        );
 
-      if (pickupMatch) {
-        return { match: pickupMatch, reason: `Pickup Match (Store)` };
+        if (pickupMatch) {
+          return { match: pickupMatch, reason: `Pickup Match (Store, no SIDs)` };
+        }
       }
     }
 
@@ -905,7 +909,7 @@ export default function ImportActiveRoutes({
 
       const matchResult = matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
       const existingDelivery = matchResult?.match || null;
-      const matchReason = matchResult?.reason || 'Unknown';
+      const matchReason = matchResult?.reason || 'No match found';
 
       if (existingDelivery) {
         // EXISTING DELIVERY MATCHED BY SID: Replace all data from import (except ID and notes)
