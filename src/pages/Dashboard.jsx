@@ -79,7 +79,6 @@ import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor'
 import SmartPrioritizationPanel from '../components/dashboard/SmartPrioritizationPanel';
 import DualStatsMarquee from '../components/dashboard/DualStatsMarquee';
 import EndOfDayStatsDialog from '../components/dashboard/EndOfDayStatsDialog';
-import OperationLoadingOverlay from '../components/dashboard/OperationLoadingOverlay';
 
 // FIXED: StatBadge - simple component without hooks to avoid violations
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
@@ -250,8 +249,7 @@ function Dashboard() {
     setIsFormOverlayOpen,
     setIsEntityUpdating,
     setOnSmartRefreshComplete,
-    dataReadyForSelectedDate,
-    operationInProgress
+    dataReadyForSelectedDate
   } = useAppData();
 
   const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
@@ -7295,9 +7293,6 @@ function Dashboard() {
           </DialogContent>
         </Dialog>
       }
-      
-      {/* Global Operation Overlay - blocks interactions during critical operations */}
-      <OperationLoadingOverlay isVisible={operationInProgress} />
     </div>);
 
 }
