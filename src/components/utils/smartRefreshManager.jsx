@@ -796,6 +796,7 @@ class SmartRefreshManager {
 
   /**
    * Smart refresh for TODAY + NEXT 7 DAYS deliveries only
+   * CRITICAL: Loads from offline DB first to prevent rate limiting
    */
   async refreshRelevantDeliveries(currentDeliveries, selectedDate, filters) {
     try {
@@ -804,28 +805,60 @@ class SmartRefreshManager {
       const futureDate = new Date(today);
       futureDate.setDate(futureDate.getDate() + 7);
       const futureDateStr = format(futureDate, 'yyyy-MM-dd');
-      
+
       const relevantCurrentDeliveries = currentDeliveries.filter(d => 
         d && d.delivery_date && d.delivery_date >= todayStr && d.delivery_date <= futureDateStr
       );
       const pastDeliveries = currentDeliveries.filter(d => 
         d && d.delivery_date && d.delivery_date < todayStr
       );
-      
+
+      // CRITICAL: Try offline DB first for 7-day range
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+
+        if (offlineDeliveries && offlineDeliveries.length > 0) {
+          // Filter to 7-day window
+          const relevantOfflineDeliveries = offlineDeliveries.filter(d => 
+            d && d.delivery_date && d.delivery_date >= todayStr && d.delivery_date <= futureDateStr
+          );
+
+          console.log(`💾 [SmartRefresh] Loaded ${relevantOfflineDeliveries.length} relevant deliveries from offline DB`);
+
+          const diff = diffEntityArrays(relevantCurrentDeliveries, relevantOfflineDeliveries);
+
+          if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+            return null;
+          }
+
+          const mergedRelevantDeliveries = mergeEntityChanges(relevantCurrentDeliveries, diff);
+          const finalDeliveries = [...pastDeliveries, ...mergedRelevantDeliveries];
+
+          return {
+            hasChanges: true,
+            deliveries: finalDeliveries
+          };
+        }
+      } catch (offlineError) {
+        console.warn('⚠️ [SmartRefresh] Failed to load from offline DB, falling back to API:', offlineError.message);
+      }
+
+      // Fallback to API if offline DB unavailable
       const lastTimestamp = getLatestUpdateTimestamp(relevantCurrentDeliveries);
-      
+
       const dateFilter = {
         ...filters,
         delivery_date: { $gte: todayStr, $lte: futureDateStr }
       };
-      
+
       if (lastTimestamp && relevantCurrentDeliveries.length > 0) {
         dateFilter.updated_date = { $gte: lastTimestamp.toISOString() };
       }
-      
+
       await this.waitForRateLimit();
       const updatedDeliveries = await base44.entities.Delivery.filter(dateFilter);
-      
+
       if (!updatedDeliveries || updatedDeliveries.length === 0) {
         this.notifyRateLimit(false);
         return null;
