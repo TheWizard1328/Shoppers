@@ -5481,12 +5481,12 @@ function Dashboard() {
         }
       }
 
-      // STEP 2: Update delivery status LOCALLY (instant)
+      // STEP 2: Update delivery status LOCALLY (instant) - registers 60s protection automatically
       await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
       
-      // STEP 3: Wait for offline mutation to complete before loading offline DB
-      console.log('⏳ [STATUS] Waiting 300ms for offline mutation to complete...');
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // STEP 3: Wait for offline mutation to complete and sync to backend
+      console.log('⏳ [STATUS] Waiting 500ms for offline mutation to complete and sync...');
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // STEP 4: Update LOCAL UI state from offline DB
       console.log('🖥️ [STATUS] Step 4: Updating UI from offline DB...');
@@ -5501,9 +5501,8 @@ function Dashboard() {
         console.warn('⚠️ [STATUS] No offline data - skipping UI update (will sync via smart refresh)');
       }
       
-      // STEP 5: Resume smart refresh AFTER offline DB is updated
-      console.log('▶️ [STATUS] Resuming smart refresh after offline DB update');
-      smartRefreshManager.resume();
+      // STEP 5: UI is ready - smart refresh protection will prevent overwrites for 60s
+      console.log('✅ [STATUS] UI ready - protected from smart refresh for 60s');
       setIsEntityUpdating(false);
 
       // STEP 6: Update patient's last_delivery_date (background, non-blocking)
@@ -5680,12 +5679,8 @@ function Dashboard() {
       // CRITICAL: Re-enable theme transitions immediately
       document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
       
-      // CRITICAL: Ensure smart refresh is resumed (safety check - already resumed above)
-      if (smartRefreshManager.isPaused()) {
-        console.log('⚠️ [STATUS Finally] Smart refresh still paused - force resuming');
-        smartRefreshManager.resume();
-        setIsEntityUpdating(false);
-      }
+      // CRITICAL: ALWAYS ensure entity updating is off
+      setIsEntityUpdating(false);
       
       console.log('✅ [STATUS] Status update complete - UI is interactive');
     }

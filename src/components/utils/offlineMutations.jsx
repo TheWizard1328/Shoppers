@@ -445,23 +445,21 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     throw new Error('Mutations are paused during route optimization');
   }
 
-  // CRITICAL: Register pending update to protect from smart refresh overwrite
+  // CRITICAL: ALWAYS register pending update to protect from smart refresh overwrite
   let smartRefreshManager = null;
   try {
     const module = await import('./smartRefreshManager');
     smartRefreshManager = module.smartRefreshManager;
     
-    // CRITICAL: ALWAYS register pending update - this is lightweight
-    if (!skipSmartRefresh) {
-      // Get delivery date for proper tracking
-      const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      const delivery = deliveries.find(d => d.id === deliveryId);
-      smartRefreshManager.registerPendingUpdate(
-        deliveryId, 
-        delivery?.driver_id, 
-        delivery?.delivery_date
-      );
-    }
+    // CRITICAL: ALWAYS register - even when skipSmartRefresh is true
+    // This prevents smart refresh from overwriting local changes
+    const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const delivery = deliveries.find(d => d.id === deliveryId);
+    smartRefreshManager.registerPendingUpdate(
+      deliveryId, 
+      delivery?.driver_id, 
+      delivery?.delivery_date
+    );
   } catch (error) {
     console.warn('⚠️ [OfflineMutations] Failed to register pending update:', error);
   }
