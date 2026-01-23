@@ -1,4 +1,3 @@
-
 // smartRefreshManager.js - Manages intelligent, differential data refreshes
 
 import { base44 } from "@/api/base44Client";
@@ -874,6 +873,7 @@ class SmartRefreshManager {
   /**
    * Smart refresh for AppUsers
    * CRITICAL: Load from offline DB first, only fetch from API if needed
+   * CRITICAL: NEVER wipe AppUsers during refresh - can cause UI to blank out
    */
   async refreshAppUsers(currentAppUsers, forceLocationRefresh = false) {
       try {
@@ -890,17 +890,26 @@ class SmartRefreshManager {
 
             if (offlineAppUsers && offlineAppUsers.length > 0) {
               console.log(`💾 [SmartRefresh] Loaded ${offlineAppUsers.length} AppUsers from offline DB`);
-              const diff = diffEntityArrays(currentAppUsers, offlineAppUsers);
 
-              if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-                const mergedAppUsers = mergeEntityChanges(currentAppUsers, diff);
-                return {
-                  hasChanges: true,
-                  appUsers: mergedAppUsers
-                };
+              // CRITICAL: If offline DB has less than current (possible sync issue), don't use it
+              if (offlineAppUsers.length < currentAppUsers.length * 0.5) {
+                console.warn(`⚠️ [SmartRefresh] Offline AppUsers (${offlineAppUsers.length}) < current (${currentAppUsers.length}) - falling back to API`);
+              } else {
+                // Offline DB looks good - check for changes
+                const diff = diffEntityArrays(currentAppUsers, offlineAppUsers);
+
+                if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+                  const mergedAppUsers = mergeEntityChanges(currentAppUsers, diff);
+                  console.log(`   ✏️ [SmartRefresh] AppUser changes: +${diff.toAdd.length} -${diff.toRemove.length} ~${diff.toUpdate.length}`);
+                  return {
+                    hasChanges: true,
+                    appUsers: mergedAppUsers
+                  };
+                }
+                // Offline data matches current - no changes needed
+                console.log(`   ✅ [SmartRefresh] AppUsers unchanged from offline DB`);
+                return null;
               }
-              // Offline data matches current - no changes needed
-              return null;
             }
           } catch (offlineError) {
             console.warn('⚠️ [SmartRefresh] Failed to load AppUsers from offline DB:', offlineError.message);
