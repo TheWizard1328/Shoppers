@@ -1777,7 +1777,7 @@ export default function RouteImport({
                       onChange={handleFileChange}
                       disabled={isParsing || isProcessing || showProgress}
                       className="border-2"
-                      style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }} />
+                      style={{ borderColor: '#ffffff', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }} />
 
                     <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Select multiple route files to import.</p>
                   </div>
@@ -1801,11 +1801,11 @@ export default function RouteImport({
                               </div>
                               <div className="ml-3 flex-shrink-0 flex items-center gap-2">
                                 {hasMatch ? (
-                                  <Badge className="bg-green-100 text-green-800 whitespace-nowrap">
+                                  <Badge className="whitespace-nowrap font-semibold" style={{ background: 'rgba(34, 197, 94, 0.2)', color: 'rgb(22, 163, 74)', borderColor: 'rgba(34, 197, 94, 0.4)' }}>
                                     ✓ {getDriverDisplayName(fileInfo.driver)}
                                   </Badge>
                                 ) : (
-                                  <Badge className="bg-red-100 text-red-800 whitespace-nowrap">
+                                  <Badge className="whitespace-nowrap font-semibold" style={{ background: 'rgba(239, 68, 68, 0.2)', color: 'rgb(220, 38, 38)', borderColor: 'rgba(239, 68, 68, 0.4)' }}>
                                     ✗ No match
                                   </Badge>
                                 )}
