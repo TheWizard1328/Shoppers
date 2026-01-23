@@ -418,11 +418,7 @@ export default function ImportActiveRoutes({
       const line = lines[i];
       lineNumber = i + 1;
 
-      // RULE 1: Ignore row 1 (header row)
-      if (lineNumber === 1) {
-        console.log(`⏭️ Row 1: Skipping header row`);
-        continue;
-      }
+
 
       if (lineNumber % 10 === 0) {
         const percent = Math.round(lineNumber / lines.length * 50);
@@ -434,7 +430,7 @@ export default function ImportActiveRoutes({
         continue;
       }
 
-      // RULE 2: Date metadata on row 2: #YYYY-MM-DD#,TotalDeliveries,...
+      // RULE 1: Date metadata on row 1: #YYYY-MM-DD#,TotalDeliveries,...
       const dateMetaMatch = line.match(/^#(\d{4}-\d{2}-\d{2})#,(\d+),/);
       if (dateMetaMatch) {
         currentDate = dateMetaMatch[1];
@@ -455,7 +451,7 @@ export default function ImportActiveRoutes({
         continue;
       }
 
-      // RULE 3: Updated column mapping - now expecting 17+ columns (added ignored column 13)
+      // RULE 2: Updated column mapping - now expecting 17+ columns (added ignored column 13)
       if (values.length < 17) {
         console.warn(`⚠️ Row ${lineNumber}: Insufficient fields (${values.length} out of 17+ expected), skipping line.`);
         skippedItems.push({
@@ -1736,8 +1732,8 @@ export default function ImportActiveRoutes({
                     <h4 className="font-semibold mb-2">CSV Format (Active Routes)</h4>
                     <ul className="list-disc list-inside space-y-1 text-xs">
                       <li><strong>Filename:</strong> "Driver Name Route.csv"</li>
-                      <li>Row 1: Ignored (header)</li>
-                      <li>Row 2+: Date: <code>#YYYY-MM-DD#,Count,...</code></li>
+                      <li>Row 1: Date: <code>#YYYY-MM-DD#,Count,...</code></li>
+                      <li>Row 2+: Delivery data rows</li>
                       <li>Col 1: Store Abbr, Col 2: AM/PM (1=AM, 2=PM)</li>
                       <li>Col 3: TR#, Col 4: Stop Order, Col 5: Pending Flag</li>
                       <li>Col 6-7: Start/End Time, Col 9: Travel Dist</li>
