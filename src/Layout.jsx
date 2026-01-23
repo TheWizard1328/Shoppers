@@ -715,6 +715,20 @@ export default function Layout({ children, currentPageName }) {
           return;
         }
 
+      // CRITICAL: Check for corrupted offline DB and clear if needed
+      try {
+        const lastLoadFailed = localStorage.getItem('rxdeliver_last_load_failed');
+        if (lastLoadFailed === 'true') {
+          console.warn('⚠️ [Init] Previous load failed - clearing offline DB');
+          const { offlineDB } = await import('./components/utils/offlineDatabase');
+          await offlineDB.clearAllData();
+          localStorage.removeItem('rxdeliver_last_load_failed');
+          console.log('✅ [Init] Offline DB cleared - will fetch fresh from API');
+        }
+      } catch (clearError) {
+        console.warn('⚠️ [Init] Failed to clear offline DB:', clearError);
+      }
+
       // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
       // Step 1: Load user settings from local cache (no API call)
       try {
@@ -1935,6 +1949,35 @@ export default function Layout({ children, currentPageName }) {
     triggerFullDataLoadRef.current(forceRefresh);
 
   }, [initialGlobalFiltersSet, currentUser]);
+
+  // CRITICAL: Auto-recovery - detect data load failure and force refresh
+  useEffect(() => {
+    if (!dataLoaded || !currentUser) return;
+
+    // Wait 10 seconds after dataLoaded, then check if we have minimum required data
+    const recoveryTimer = setTimeout(() => {
+      const hasMinimumData = 
+        appUsers.length > 0 && 
+        stores.length > 0 && 
+        drivers.length > 0;
+
+      if (!hasMinimumData) {
+        console.error('🚨 [Recovery] Data load failed - clearing offline DB and forcing fresh load');
+        localStorage.setItem('rxdeliver_last_load_failed', 'true');
+        
+        // Force reload to trigger offline DB clear
+        window.location.reload();
+      } else {
+        console.log('✅ [Recovery] Data validation passed:', {
+          appUsers: appUsers.length,
+          stores: stores.length, 
+          drivers: drivers.length
+        });
+      }
+    }, 10000);
+
+    return () => clearTimeout(recoveryTimer);
+  }, [dataLoaded, currentUser, appUsers.length, stores.length, drivers.length]);
 
   useEffect(() => {
     if (!dataLoaded) return;
