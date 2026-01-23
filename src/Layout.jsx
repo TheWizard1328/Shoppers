@@ -3007,7 +3007,7 @@ export default function Layout({ children, currentPageName }) {
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer">
                                 <FileText className="w-4 h-4 mr-2" />
-                                Past Routes
+                                Deliveries
                               </DropdownMenuItem>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                             </>
