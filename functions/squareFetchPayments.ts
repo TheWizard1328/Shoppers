@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
     }
 
     // Get location IDs from query params
-    const { locationIds, daysBack = 7 } = await req.json();
+    const { locationIds, daysBack = 14 } = await req.json();
 
     if (!locationIds || locationIds.length === 0) {
       return Response.json({ error: 'No location IDs provided' }, { status: 400 });
