@@ -764,14 +764,17 @@ export default function RouteImport({
       }
 
       // CRITICAL: Determine status based on Column 4 and 5 values
-      // If both Col 4 and 5 are 0: en_route or in_transit
+      // If both Col 4 and 5 are 0: pickups=en_route, deliveries=in_transit
       // If Col 4 > 0: completed
       // If Col 5 < 0: pending
-      let statusFromColumns = 'in_transit'; // default
+      let statusFromColumns;
       if (!isNaN(column5Value) && column5Value < 0) {
         statusFromColumns = 'pending';
       } else if (!isNaN(stopOrder) && stopOrder > 0) {
         statusFromColumns = 'completed';
+      } else {
+        // Both Col 4 and 5 are 0 - pickups en_route, deliveries in_transit
+        statusFromColumns = isPickup ? 'en_route' : 'in_transit';
       }
 
       const newDeliveryData = {
