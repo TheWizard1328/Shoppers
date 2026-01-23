@@ -229,11 +229,11 @@ export default function SquareManagement() {
         setCurrentUser(user);
 
         const today = new Date();
-        const sevenDaysAgo = new Date(today);
-        sevenDaysAgo.setDate(today.getDate() - 7);
+        const fourteenDaysAgo = new Date(today);
+        fourteenDaysAgo.setDate(today.getDate() - 14);
         const dateFilter = {
           delivery_date: { 
-            $gte: format(sevenDaysAgo, 'yyyy-MM-dd'),
+            $gte: format(fourteenDaysAgo, 'yyyy-MM-dd'),
             $lte: format(today, 'yyyy-MM-dd')
           }
         };
