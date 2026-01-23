@@ -133,11 +133,16 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     setIsManualRefreshing(true);
 
     try {
-      // Import and perform bidirectional sync
-      const { performBidirectionalSync } = await import('../utils/offlineSync');
-      await performBidirectionalSync();
+      // Step 1: Invalidate all caches
+      const { dataManager } = await import('../utils/dataManager');
+      console.log('   🗑️ Invalidating all caches...');
+      dataManager.invalidateCache('Patient');
+      dataManager.invalidateCache('Delivery');
+      dataManager.invalidateCache('Store');
+      dataManager.invalidateCache('AppUser');
+      dataManager.invalidateAllDeliveryRangeCache();
 
-      // Reset all refresh timers to force immediate refresh
+      // Step 2: Reset all refresh timers to force immediate refresh
       smartRefreshManager.lastRefreshTimes = {
         driverLocation: 0,
         activeDeliveries: 0,
@@ -147,17 +152,27 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         stores: 0
       };
 
-      // Trigger the callback if provided (Dashboard uses this)
+      // Step 3: Reload data for current screen without clearing UI
       if (onManualRefresh) {
         await onManualRefresh();
       } else if (refreshData) {
         await refreshData(true);
       }
 
+      // Step 4: Force a full sync in background
+      const { performBidirectionalSync } = await import('../utils/offlineSync');
+      performBidirectionalSync().catch(err => {
+        console.warn('⚠️ Background sync error:', err);
+      });
+
       // Trigger route re-optimization event for Dashboard
       window.dispatchEvent(new CustomEvent('triggerRouteReoptimization'));
+      
+      console.log('✅ [SmartRefreshIndicator] Manual refresh complete');
     } catch (error) {
       console.error('❌ [SmartRefreshIndicator] Manual refresh failed:', error);
+      setHasError(true);
+      setTimeout(() => setHasError(false), 3000);
     } finally {
       setTimeout(() => setIsManualRefreshing(false), 1000);
     }
