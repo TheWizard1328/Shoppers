@@ -911,13 +911,59 @@ function Dashboard() {
 
   // Filter drivers based on role and deliveries
   const driversList = useMemo(() => {
-    if (!drivers || !Array.isArray(drivers)) {
-      return [];
+    // CRITICAL: Fallback - extract drivers from AppUsers or deliveries if drivers array is empty
+    let driversSource = drivers;
+    
+    if (!driversSource || !Array.isArray(driversSource) || driversSource.length === 0) {
+      console.warn('⚠️ [Dashboard] Drivers array empty - extracting from appUsers and deliveries');
+      
+      // Build pseudo-drivers from appUsers
+      const driversFromAppUsers = (appUsers || [])
+        .filter(au => au && au.app_roles && au.app_roles.includes('driver') && au.status === 'active')
+        .map(au => ({
+          id: au.user_id,
+          user_id: au.user_id,
+          user_name: au.user_name,
+          full_name: au.user_name,
+          app_roles: au.app_roles,
+          status: au.status
+        }));
+      
+      // Also extract from deliveries to get driver names
+      const driverIdsFromDeliveries = new Set();
+      const driverNamesMap = new Map();
+      (deliveries || []).forEach(d => {
+        if (d && d.driver_id && d.driver_name) {
+          driverIdsFromDeliveries.add(d.driver_id);
+          driverNamesMap.set(d.driver_id, d.driver_name);
+        }
+      });
+      
+      // Merge appUsers-based drivers with delivery-based driver IDs
+      const mergedDriversMap = new Map();
+      driversFromAppUsers.forEach(d => mergedDriversMap.set(d.id, d));
+      
+      // Add missing drivers from deliveries
+      driverIdsFromDeliveries.forEach(id => {
+        if (!mergedDriversMap.has(id)) {
+          mergedDriversMap.set(id, {
+            id,
+            user_id: id,
+            user_name: driverNamesMap.get(id),
+            full_name: driverNamesMap.get(id),
+            app_roles: ['driver'],
+            status: 'active'
+          });
+        }
+      });
+      
+      driversSource = Array.from(mergedDriversMap.values());
+      console.log(`✅ [Dashboard] Reconstructed ${driversSource.length} drivers from appUsers and deliveries`);
     }
 
     // ADMIN: Get all drivers
     if (userHasRole(currentUser, 'admin')) {
-      return drivers;
+      return driversSource;
     }
 
     // DISPATCHER: Only show drivers with deliveries for dispatcher's stores ON THE SELECTED DATE
@@ -934,7 +980,7 @@ function Dashboard() {
       );
 
       // Only return drivers who have deliveries for dispatcher's stores
-      return drivers.
+      return driversSource.
         filter((d) => d && driversWithStoreDeliveries.has(d.id)).
         map((d) => ({
           ...d,
@@ -943,8 +989,8 @@ function Dashboard() {
     }
 
     // OTHER ROLES: Return all drivers
-    return drivers;
-  }, [drivers, currentUser, deliveries, selectedDate]);
+    return driversSource;
+  }, [drivers, appUsers, deliveries, currentUser, selectedDate]);
 
   const shouldShowLocationToggle = useMemo(() =>
   isMobile && isDriver && !userHasRole(currentUser, 'dispatcher'),
