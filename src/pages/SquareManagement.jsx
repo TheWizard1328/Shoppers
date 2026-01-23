@@ -177,10 +177,10 @@ export default function SquareManagement() {
 
        console.log(`✓ Saved to offline: catalog=${catalogSaveResult.count}, payments=${paymentSaveResult.count}`);
 
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const fourteenDaysAgo = new Date();
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
       const filteredPayments = recentPayments
-        .filter(item => new Date(item.payment_date) >= sevenDaysAgo)
+        .filter(item => new Date(item.payment_date) >= fourteenDaysAgo)
         .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
 
       setRecentTransactions(filteredPayments);
