@@ -1113,9 +1113,6 @@ export default function StopCard({
                   <Button
                     className="flex-1 bg-red-600 hover:bg-red-700"
                     onClick={async () => {
-                      setIsEntityUpdating(true);
-                      await new Promise((resolve) => setTimeout(resolve, 100));
-
                       try {
                         // CRITICAL: Delete Square COD item if delivery has COD and is in_transit
                         if (delivery.status === 'in_transit' && delivery.cod_total_amount_required > 0 && delivery.patient_id) {
@@ -1132,17 +1129,9 @@ export default function StopCard({
                         }
 
                         await onDeleteDelivery(delivery.id);
-                      } finally {
                         setShowDeleteConfirm(false);
-                        smartRefreshManager.lastRefreshTimes = {
-                          driverLocation: 0,
-                          activeDeliveries: 0,
-                          todayDeliveries: 0,
-                          appUsers: 0,
-                          patients: 0,
-                          stores: 0
-                        };
-                        setIsEntityUpdating(false);
+                      } catch (error) {
+                        console.error('Delete failed:', error);
                       }
                     }}>
                     <Trash2 className="w-4 h-4 mr-2" />
@@ -1253,9 +1242,8 @@ export default function StopCard({
               setPendingFailureStatus(null);
 
               fabControlEvents.deactivateFAB();
-              setIsEntityUpdating(true);
               smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-              await new Promise((resolve) => setTimeout(resolve, 100));
+              await new Promise((resolve) => setTimeout(resolve, 50));
 
               try {
                 // CRITICAL: Verify delivery still exists before updating
@@ -1370,8 +1358,6 @@ export default function StopCard({
                 });
 
               } finally {
-                setIsEntityUpdating(false);
-                await new Promise((resolve) => setTimeout(resolve, 100));
                 fabControlEvents.reactivateFAB(true);
               }
             }}
@@ -2226,9 +2212,6 @@ export default function StopCard({
                             });
                           }
                         } finally {
-                          setIsEntityUpdating(false);
-                          await new Promise((resolve) => setTimeout(resolve, 100));
-
                           // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
                           fabControlEvents.reactivateFAB(true);
                         }
@@ -2245,9 +2228,8 @@ export default function StopCard({
                         e.stopPropagation();
                         fabControlEvents.deactivateFAB();
                         setIsRetrying(true);
-                        setIsEntityUpdating(true);
                         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-                        await new Promise((resolve) => setTimeout(resolve, 100));
+                        await new Promise((resolve) => setTimeout(resolve, 50));
 
                         try {
                           // CRITICAL: Verify delivery still exists before retrying
@@ -2300,9 +2282,6 @@ export default function StopCard({
                           }
                         } finally {
                           setIsRetrying(false);
-                          console.log('▶️ [RETRY] Resuming smart refresh');
-                          setIsEntityUpdating(false);
-                          await new Promise((resolve) => setTimeout(resolve, 100));
                           console.log('✅ [RETRY] Retry cycle complete');
 
                           // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
@@ -2323,9 +2302,8 @@ export default function StopCard({
 
                         fabControlEvents.deactivateFAB();
                         setIsCompleting(true);
-                        setIsEntityUpdating(true);
                         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-                        await new Promise((resolve) => setTimeout(resolve, 100));
+                        await new Promise((resolve) => setTimeout(resolve, 50));
 
                         try {
                           // CRITICAL: Verify delivery still exists before completing
@@ -2573,8 +2551,6 @@ export default function StopCard({
                           fabControlEvents.reactivateFAB(true);
                         } finally {
                           setIsCompleting(false);
-                          setIsEntityUpdating(false);
-                          await new Promise((resolve) => setTimeout(resolve, 100));
                         }
                       }}
                       size="sm"
@@ -2726,7 +2702,6 @@ export default function StopCard({
                         } catch (error) {
                           console.error('❌ [START] Background error:', error);
                         } finally {
-                          setIsEntityUpdating(false);
                           setIsStarting(false);
                         }
                       })();
@@ -2736,7 +2711,7 @@ export default function StopCard({
                         setIsStarting(false);
                       }, 300);
 
-                    }} size="sm" disabled={isStarting} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white">
+                    }} size="sm" disabled={isStarting} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
                               {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                               <span className="text-white">Start</span>
                             </Button>)
