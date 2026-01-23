@@ -1775,8 +1775,7 @@ export default function RouteImport({
                       accept=".csv,.tsv,.txt"
                       multiple
                       onChange={handleFileChange}
-                      disabled={isParsing || isProcessing || showProgress}
-                      style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)' }} />
+                      disabled={isParsing || isProcessing || showProgress} />
 
                     <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Select multiple route files to import.</p>
                   </div>
@@ -1790,21 +1789,18 @@ export default function RouteImport({
                           const hasMatch = !!fileInfo?.driver;
                           
                           return (
-                            <div key={index} className="flex items-center justify-between p-2 rounded border" style={{ 
-                              background: hasMatch ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                              borderColor: hasMatch ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'
-                            }}>
+                            <div key={index} className={`flex items-center justify-between p-2 rounded ${hasMatch ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
                               <div className="flex flex-col flex-1 min-w-0">
                                 <span className="text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{file.name}</span>
                                 <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Extracted: "{fileInfo?.extractedName || 'N/A'}"</span>
                               </div>
                               <div className="ml-3 flex-shrink-0 flex items-center gap-2">
                                 {hasMatch ? (
-                                  <Badge className="whitespace-nowrap" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#059669', borderColor: 'rgba(16, 185, 129, 0.4)' }}>
+                                  <Badge className="bg-green-100 text-green-800 whitespace-nowrap">
                                     ✓ {getDriverDisplayName(fileInfo.driver)}
                                   </Badge>
                                 ) : (
-                                  <Badge className="whitespace-nowrap" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#dc2626', borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+                                  <Badge className="bg-red-100 text-red-800 whitespace-nowrap">
                                     ✗ No match
                                   </Badge>
                                 )}
