@@ -290,10 +290,10 @@ export default function SquareManagement() {
         setSoldCatalogItems(soldCatalogItemsData);
         setAllTransactions(soldCatalogItemsData);
 
-        const sevenDaysAgoTx = new Date();
-        sevenDaysAgoTx.setDate(sevenDaysAgoTx.getDate() - 7);
+        const fourteenDaysAgoTx = new Date();
+        fourteenDaysAgoTx.setDate(fourteenDaysAgoTx.getDate() - 14);
         const recentPayments = soldCatalogItemsData
-          .filter(item => new Date(item.payment_date) >= sevenDaysAgoTx)
+          .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
           .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
 
         setRecentTransactions(recentPayments);
