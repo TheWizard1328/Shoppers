@@ -1,3 +1,4 @@
+
 // smartRefreshManager.js - Manages intelligent, differential data refreshes
 
 import { base44 } from "@/api/base44Client";
@@ -38,25 +39,23 @@ class SmartRefreshManager {
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
     // Real-time refresh intervals (milliseconds)
-    // CRITICAL: Balanced intervals for cross-device sync while preventing rate limits
-    // CRITICAL: Will NOT run until offlineDBLoadComplete = true
-    // CRITICAL: driverLocation uses adaptive refresh based on activity
+    // CRITICAL: SIGNIFICANTLY INCREASED to prevent rate limiting
     this.intervals = {
-      driverLocation: 15000,     // 15s - driver GPS locations (adaptive based on activity)
-      activeDeliveries: 15000,   // 15s - today's active delivery statuses (CRITICAL for cross-device sync)
-      todayDeliveries: 15000,    // 15s - today's delivery changes only
-      appUsers: 45000,           // 45s - driver status, assignments (load from offline DB first)
-      squareTransactions: 60000, // 60s - Square transaction updates (low priority)
-      todayPatients: 60000,      // 60s - patients on today's routes
-      patients: 120000,          // 2min - all other patients
-      stores: 300000,            // 5min - store data (rarely changes)
-      payroll: 30000             // 30s - payroll records (when on DriverPayroll page)
+      driverLocation: 30000,     // 30s - driver GPS locations (reduced frequency)
+      activeDeliveries: 30000,   // 30s - today's active delivery statuses
+      todayDeliveries: 30000,    // 30s - today's delivery changes only
+      appUsers: 60000,           // 60s - driver status, assignments
+      squareTransactions: 120000, // 2min - Square transaction updates
+      todayPatients: 120000,      // 2min - patients on today's routes
+      patients: 300000,          // 5min - all other patients
+      stores: 600000,            // 10min - store data (rarely changes)
+      payroll: 60000             // 60s - payroll records
     };
     
     // Adaptive driver location refresh
     this._lastUserInteraction = Date.now();
-    this._minDriverLocationInterval = 15000;  // 15s when active
-    this._maxDriverLocationInterval = 60000;  // 60s when inactive
+    this._minDriverLocationInterval = 30000;  // 30s when active (increased from 15s)
+    this._maxDriverLocationInterval = 120000;  // 2min when inactive (increased from 60s)
     this._adaptiveCoefficient = 1.0;          // Multiplier for current interval
     
     // Track last refresh time for each entity type
@@ -73,11 +72,11 @@ class SmartRefreshManager {
       payroll: 0
     };
     
-    // Rate limit protection
+    // Rate limit protection - MUCH MORE AGGRESSIVE
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 2000; // 2s minimum between API calls to prevent rate limits
+    this.minTimeBetweenCalls = 5000; // 5s minimum between API calls (increased from 2s)
     this.consecutiveErrors = 0;
-    this.maxConsecutiveErrors = 2; // Fail fast and enter cooldown
+    this.maxConsecutiveErrors = 1; // Enter cooldown after FIRST error (was 2)
     this.errorCooldownUntil = 0;
     
     // Rate limit error callback
@@ -89,8 +88,8 @@ class SmartRefreshManager {
     this._autoRecoveryTimer = null;
     this._isInRecoveryMode = false;
     this._recoveryAttempts = 0;
-    this._maxRecoveryAttempts = 5;
-    this._recoveryBackoffMs = 10000; // Start with 10 seconds, increase exponentially
+    this._maxRecoveryAttempts = 3; // Reduced from 5
+    this._recoveryBackoffMs = 30000; // Start with 30 seconds (was 10s)
     
     // CRITICAL: Track deliveries that have pending local updates
     // This prevents smart refresh from overwriting them with stale DB data
@@ -365,9 +364,9 @@ class SmartRefreshManager {
     this.consecutiveErrors++;
     
     if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
-      // Trigger 30 second cooldown on rate limit errors
-      this.errorCooldownUntil = Date.now() + 30000;
-      console.warn(`🛑 [SmartRefresh] ${this.consecutiveErrors} consecutive errors - entering 30s cooldown`);
+      // Trigger 60 second cooldown on rate limit errors (increased from 30s)
+      this.errorCooldownUntil = Date.now() + 60000;
+      console.warn(`🛑 [SmartRefresh] ${this.consecutiveErrors} consecutive errors - entering 60s cooldown`);
       this.consecutiveErrors = 0;
       this.notifyRateLimit(true);
     }
@@ -386,7 +385,7 @@ class SmartRefreshManager {
     this._connectionErrorCount = 0;
     this._lastSuccessfulRefresh = Date.now();
     this._recoveryAttempts = 0;
-    this._recoveryBackoffMs = 10000;
+    this._recoveryBackoffMs = 30000;
     
     // Clear recovery mode if we were in it
     if (this._isInRecoveryMode) {
@@ -416,8 +415,8 @@ class SmartRefreshManager {
     
     console.warn(`⚠️ [SmartRefresh] Connection error #${this._connectionErrorCount}:`, error?.message || error);
     
-    // Enter recovery mode after 3 consecutive errors
-    if (this._connectionErrorCount >= 3 && !this._isInRecoveryMode) {
+    // Enter recovery mode after 2 consecutive errors (was 3)
+    if (this._connectionErrorCount >= 2 && !this._isInRecoveryMode) {
       console.log('🔄 [SmartRefresh] Entering auto-recovery mode');
       this._isInRecoveryMode = true;
       
@@ -446,19 +445,7 @@ class SmartRefreshManager {
     }
     
     if (this._recoveryAttempts >= this._maxRecoveryAttempts) {
-      console.log('⏹️ [SmartRefresh] Max recovery attempts reached - waiting for user action or network change');
-      
-      // Listen for online event to restart recovery
-      if (typeof window !== 'undefined') {
-        const handleOnline = () => {
-          console.log('🌐 [SmartRefresh] Network online detected - restarting recovery');
-          this._recoveryAttempts = 0;
-          this._recoveryBackoffMs = 10000;
-          this.scheduleAutoRecovery();
-          window.removeEventListener('online', handleOnline);
-        };
-        window.addEventListener('online', handleOnline);
-      }
+      console.log('⏹️ [SmartRefresh] Max recovery attempts reached - waiting for manual trigger');
       return;
     }
     
@@ -468,8 +455,8 @@ class SmartRefreshManager {
       await this.attemptRecovery();
     }, this._recoveryBackoffMs);
     
-    // Exponential backoff: 10s -> 20s -> 40s -> 60s (capped)
-    this._recoveryBackoffMs = Math.min(this._recoveryBackoffMs * 2, 60000);
+    // Exponential backoff: 30s -> 60s -> 120s (capped at 2min)
+    this._recoveryBackoffMs = Math.min(this._recoveryBackoffMs * 2, 120000);
   }
   
   /**
@@ -495,8 +482,8 @@ class SmartRefreshManager {
         console.log('✅ [SmartRefresh] Recovery successful - connection restored');
         this.recordSuccess();
         
-        // Force refresh all data to catch up
-        this.forceFullRefresh();
+        // DON'T force full refresh - let normal refresh cycles handle it
+        console.log('📌 [SmartRefresh] Connection restored - resuming normal refresh cycles');
         
         return true;
       }
@@ -514,11 +501,13 @@ class SmartRefreshManager {
   
   /**
    * Force a full refresh of all data - called after recovery
+   * CRITICAL: REMOVED - this was causing the data wipe issue
    */
   forceFullRefresh() {
-    console.log('🔄 [SmartRefresh] Forcing full refresh after recovery...');
+    console.log('📌 [SmartRefresh] Refresh timers reset - normal cycles will resume');
     
-    // Reset all refresh timers to force immediate refresh
+    // ONLY reset timers - DON'T dispatch forceDataRefresh event
+    // This prevents the massive data wipe and reload
     this.lastRefreshTimes = {
       driverLocation: 0,
       activeDeliveries: 0,
@@ -535,10 +524,7 @@ class SmartRefreshManager {
     this.errorCooldownUntil = 0;
     this.consecutiveErrors = 0;
     
-    // Notify UI to refresh
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('forceDataRefresh'));
-    }
+    // DON'T dispatch forceDataRefresh - it causes everything to reload
   }
   
   /**
@@ -547,7 +533,7 @@ class SmartRefreshManager {
   triggerManualRecovery() {
     console.log('👆 [SmartRefresh] Manual recovery triggered');
     this._recoveryAttempts = 0;
-    this._recoveryBackoffMs = 5000; // Shorter wait for manual trigger
+    this._recoveryBackoffMs = 10000; // Shorter wait for manual trigger
     this._connectionErrorCount = 0;
     this.scheduleAutoRecovery();
   }
@@ -583,11 +569,11 @@ class SmartRefreshManager {
     const timeSinceActivity = Date.now() - this._lastUserInteraction;
     const inactiveThreshold = 120000; // 2 minutes of inactivity
     
-    // After 2 minutes of no activity, progressively increase interval (up to 60s)
+    // After 2 minutes of no activity, progressively increase interval
     if (timeSinceActivity > inactiveThreshold) {
       this._adaptiveCoefficient = Math.min(
-        4.0, // Max 4x multiplier (15s * 4 = 60s)
-        1.0 + (timeSinceActivity - inactiveThreshold) / 60000
+        4.0, // Max 4x multiplier (30s * 4 = 2min)
+        1.0 + (timeSinceActivity - inactiveThreshold) / 120000
       );
     } else {
       this._adaptiveCoefficient = 1.0;
@@ -603,7 +589,6 @@ class SmartRefreshManager {
   shouldRefresh(type) {
      // CRITICAL: Don't start smart refresh until offline DB has loaded
      if (_isOfflineDBLoadComplete && !_isOfflineDBLoadComplete()) {
-       console.log(`⏸️ [SmartRefresh] Skipping ${type} refresh - waiting for offline DB load`);
        return false;
      }
 
@@ -611,7 +596,7 @@ class SmartRefreshManager {
      const lastRefresh = this.lastRefreshTimes[type] || 0;
      
      // Use adaptive interval for driver locations
-     let interval = this.intervals[type] || 15000;
+     let interval = this.intervals[type] || 30000;
      if (type === 'driverLocation') {
        interval = this.getAdaptiveDriverLocationInterval();
      }
@@ -1218,7 +1203,7 @@ class SmartRefreshManager {
 
       
       // BIDIRECTIONAL: Merge updates into full patient list (keep local if newer OR protected)
-      const mergedPatients = currentPatients.map(p => {
+      let mergedPatients = currentPatients.map(p => {
         // CRITICAL: Skip if patient has pending local update (just edited by user)
         if (this.hasPendingPatientUpdate(p.id)) {
           console.log(`🛡️ [SmartRefresh] Keeping local patient ${p.id} - has pending update`);
@@ -1805,13 +1790,13 @@ class SmartRefreshManager {
         }
       }
 
-      // CRITICAL: Periodically check if offline sync needs restart (every 2 minutes)
-      if (!this._lastOfflineSyncCheck || (Date.now() - this._lastOfflineSyncCheck > 120000)) {
-        this._lastOfflineSyncCheck = Date.now();
-        this.checkAndRestartOfflineSync().catch(e => {
-          console.warn('⚠️ [SmartRefresh] Offline sync check failed:', e.message);
-        });
-      }
+      // CRITICAL: DISABLE periodic offline sync check - it was causing unnecessary reloads
+      // if (!this._lastOfflineSyncCheck || (Date.now() - this._lastOfflineSyncCheck > 120000)) {
+      //   this._lastOfflineSyncCheck = Date.now();
+      //   this.checkAndRestartOfflineSync().catch(e => {
+      //     console.warn('⚠️ [SmartRefresh] Offline sync check failed:', e.message);
+      //   });
+      // }
 
       const hasAnyUpdates = Object.keys(updates).length > 0;
       return hasAnyUpdates ? updates : null;
@@ -2053,7 +2038,6 @@ class SmartRefreshManager {
       
       // Check for changes
       const currentIds = new Set(currentRecords.map(r => r.id));
-      const updatedIds = new Set(updatedRecords.map(r => r.id));
       
       // Check for new records or status changes
       let hasChanges = false;
@@ -2102,59 +2086,11 @@ class SmartRefreshManager {
   }
   
   /**
-   * CRITICAL: Check and restart offline sync if it failed to start
-   * Called periodically by the smart refresh cycle
+   * CRITICAL: DISABLED - was causing unnecessary data reloads
    */
   async checkAndRestartOfflineSync() {
-    try {
-      const { offlineDB } = await import('./offlineDatabase');
-      const { performBackgroundSync, isOfflineSyncPaused } = await import('./offlineSync');
-      
-      // Don't restart if paused
-      if (isOfflineSyncPaused()) {
-        return { skipped: true, reason: 'paused' };
-      }
-      
-      // Get current offline DB stats
-      const stats = await offlineDB.getStats();
-      const deliveryCount = stats?.deliveries?.count || 0;
-      const patientCount = stats?.patients?.count || 0;
-      
-      console.log(`🔍 [SmartRefresh] Offline DB check - Deliveries: ${deliveryCount}, Patients: ${patientCount}`);
-      
-      // CRITICAL: If we have very few deliveries or patients, offline sync likely failed
-      // A healthy offline DB should have at least 50 deliveries from the last 30 days
-      const needsSync = deliveryCount < 50 || patientCount < 10;
-      
-      if (needsSync) {
-        console.log(`⚠️ [SmartRefresh] Offline DB appears incomplete - triggering background sync`);
-        
-        // Get selected date from global filters
-        const { globalFilters } = await import('./globalFilters');
-        const selectedDateStr = globalFilters.getSelectedDate() || new Date().toISOString().split('T')[0];
-        
-        // Trigger background sync (non-blocking)
-        performBackgroundSync(selectedDateStr).then(result => {
-          if (result.success) {
-            console.log(`✅ [SmartRefresh] Background sync completed successfully`);
-          } else if (result.skipped) {
-            console.log(`⏸️ [SmartRefresh] Background sync was skipped`);
-          } else if (result.error) {
-            console.warn(`⚠️ [SmartRefresh] Background sync failed: ${result.error}`);
-          }
-        }).catch(err => {
-          console.warn(`⚠️ [SmartRefresh] Background sync error: ${err.message}`);
-        });
-        
-        return { triggered: true, deliveryCount, patientCount };
-      }
-      
-      return { skipped: true, reason: 'sufficient_data', deliveryCount, patientCount };
-      
-    } catch (error) {
-      console.warn(`⚠️ [SmartRefresh] Error checking offline sync:`, error.message);
-      return { error: error.message };
-    }
+    // DISABLED - this was triggering full data reloads
+    return { skipped: true, reason: 'disabled' };
   }
 }
 
