@@ -887,12 +887,21 @@ export default function DeliveryMap({
       }
 
       try {
-        const { base44 } = await import('@/api/base44Client');
-        const allDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: selectedDate
-        });
+        // CRITICAL: Load from offline DB first to prevent rate limiting
+        const { offlineDB } = await import('./../../components/utils/offlineDatabase');
+        let allDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
         
-        console.log(`📥 [DeliveryMap] Loaded ${allDeliveries.length} deliveries for all drivers`);
+        // Fallback to API if offline DB doesn't have data for this date
+        if (!allDeliveries || allDeliveries.length === 0) {
+          console.log(`📡 [DeliveryMap] Offline DB empty for ${selectedDate}, fetching from API`);
+          const { base44 } = await import('@/api/base44Client');
+          allDeliveries = await base44.entities.Delivery.filter({
+            delivery_date: selectedDate
+          });
+        } else {
+          console.log(`💾 [DeliveryMap] Loaded ${allDeliveries.length} deliveries from offline DB`);
+        }
+        
         // Filter to exclude the currently selected driver's deliveries
         const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== selectedDriverId);
         console.log(`📍 [DeliveryMap] Setting ${others.length} other driver deliveries (excluding ${selectedDriverId})`);

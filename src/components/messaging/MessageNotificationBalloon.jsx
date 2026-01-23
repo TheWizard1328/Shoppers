@@ -20,13 +20,25 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
     let pollingInterval = null;
 
     // Simple polling function - no SSE to avoid auth issues
-    // OPTIMIZED: Reduced polling frequency to prevent rate limits
+    // OPTIMIZED: Check localStorage first, skip API when recently checked
     const checkForNewMessages = async () => {
       try {
+        // CRITICAL: Use localStorage check first to avoid unnecessary API calls
+        const lastAPICheck = localStorage.getItem(`lastMessageAPICheck_${currentUser.id}`);
+        const timeSinceLastCheck = Date.now() - (parseInt(lastAPICheck) || 0);
+        
+        // Skip API call if we checked within last 120 seconds (prevent rate limits)
+        if (timeSinceLastCheck < 120000) {
+          return;
+        }
+
         const unreadMessages = await base44.entities.Message.filter({
           receiver_id: currentUser.id,
           read: false
         }, '-created_date', 1);
+
+        // Record successful API call
+        localStorage.setItem(`lastMessageAPICheck_${currentUser.id}`, Date.now().toString());
 
         if (unreadMessages.length > 0) {
           const latestMessage = unreadMessages[0];
