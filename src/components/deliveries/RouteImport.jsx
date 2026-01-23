@@ -2013,10 +2013,17 @@ export default function RouteImport({
                           formatAddressWithUnit(delivery.delivery_address || store?.address || '', delivery.unit_number || '');
 
                         return (
-                          <div key={`${delivery.action}-${idx}`} className="p-3 rounded border text-xs" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div key={`${delivery.action}-${idx}`} className="p-3 rounded border text-xs" style={{ 
+                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.08)' : 'rgba(59, 130, 246, 0.08)',
+                            borderColor: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(59, 130, 246, 0.3)',
+                            borderWidth: '1.5px'
+                          }}>
                             <div className="flex justify-between items-start mb-2">
-                              <Badge className="border-0" style={{ background: delivery.action === 'create' ? 'var(--bg-green-200)' : 'var(--bg-blue-200)', color: delivery.action === 'create' ? 'var(--text-green-800)' : 'var(--text-blue-800)' }}>
-                                {delivery.action === 'create' ? 'New' : 'Update'}
+                              <Badge className="border-0 font-semibold text-xs px-2 py-1" style={{ 
+                                background: delivery.action === 'create' ? '#10b981' : '#3b82f6', 
+                                color: 'white'
+                              }}>
+                                {delivery.action === 'create' ? '✓ NEW' : '◇ UPDATE'}
                               </Badge>
                               <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{delivery.delivery_date} {newTimeFormatted !== 'none' && newTimeFormatted}</span>
                             </div>
@@ -2047,11 +2054,18 @@ export default function RouteImport({
                         formatAddressWithUnit(delivery.delivery_address || store?.address || '', delivery.unit_number || '');
 
                         return (
-                          <tr key={`${delivery.action}-${idx}`} className="border-b" style={{ borderColor: 'var(--border-slate-200)', background: delivery.action === 'create' ? 'var(--bg-slate-50)' : 'var(--bg-slate-50)' }}>
+                          <tr key={`${delivery.action}-${idx}`} className="border-b" style={{ 
+                            borderColor: 'var(--border-slate-200)', 
+                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.06)' : 'rgba(59, 130, 246, 0.06)',
+                            borderLeft: delivery.action === 'create' ? '4px solid #10b981' : '4px solid #3b82f6'
+                          }}>
                             <td className="p-1 w-20 text-center">
                               <div className="flex flex-col gap-1 items-center">
-                                <Badge className="w-full justify-center border-0" style={{ background: delivery.action === 'create' ? 'var(--bg-green-200)' : 'var(--bg-blue-200)', color: delivery.action === 'create' ? 'var(--text-green-800)' : 'var(--text-blue-800)' }}>
-                                  {delivery.action === 'create' ? 'New' : 'Update'}
+                                <Badge className="w-full justify-center border-0 font-semibold text-xs py-1" style={{ 
+                                  background: delivery.action === 'create' ? '#10b981' : '#3b82f6',
+                                  color: 'white'
+                                }}>
+                                  {delivery.action === 'create' ? '✓ NEW' : '◇ UPDATE'}
                                 </Badge>
                                 <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>
                                   {delivery.driver_name}
