@@ -99,8 +99,13 @@ export default function PayrollSummaryCard({
   }, [periodStartStr, periodEndStr, externalPayrollRecords]);
 
   // Get finalization status for each driver
+  // CRITICAL: Only return records that match the current period's dates
   const getDriverPayrollRecord = (driverId) => {
-    return payrollRecords.find(r => r.driver_id === driverId);
+    return payrollRecords.find(r => 
+      r.driver_id === driverId &&
+      r.pay_period_start === periodStartStr &&
+      r.pay_period_end === periodEndStr
+    );
   };
 
   // Check if current driver has finalized (for driver view)
