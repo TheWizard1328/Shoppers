@@ -1237,20 +1237,22 @@ export default function StopCard({
               setPendingFailureStatus(null);
             }}
             onConfirm={async (reason) => {
-              setShowFailureReasonDialog(false);
               const status = pendingFailureStatus;
-              setPendingFailureStatus(null);
-
-              fabControlEvents.deactivateFAB();
-              smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-              await new Promise((resolve) => setTimeout(resolve, 50));
-
+              
               try {
+                setShowFailureReasonDialog(false);
+                setPendingFailureStatus(null);
+
+                fabControlEvents.deactivateFAB();
+                smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+                await new Promise((resolve) => setTimeout(resolve, 50));
+
                 // CRITICAL: Verify delivery still exists before updating
                 const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
                 if (!deliveryExists || deliveryExists.length === 0) {
                   console.warn('⚠️ [FAILURE] Delivery no longer exists - aborting');
-                  throw new Error('This delivery has been deleted. Please refresh the page.');
+                  toast.error('This delivery has been deleted. Please refresh the page.');
+                  return;
                 }
 
                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -1280,6 +1282,11 @@ export default function StopCard({
                 const offsetSign = offsetMinutes >= 0 ? '+' : '-';
                 const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
                 const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
+
+                if (!onStatusUpdate) {
+                  toast.error('Status update function not available');
+                  return;
+                }
 
                 await onStatusUpdate(delivery.id, status, { 
                   delivery_notes: updatedNotes,
@@ -1353,10 +1360,13 @@ export default function StopCard({
                   });
                 }
 
-                toast.error(`${isPickup ? 'Pickup' : 'Delivery'} marked as ${status}`, {
+                toast.success(`${isPickup ? 'Pickup' : 'Delivery'} marked as ${status}`, {
                   description: `Dispatch has been notified. Reason: ${reason}`
                 });
 
+              } catch (error) {
+                console.error('❌ [FAILURE] Error:', error);
+                toast.error(`Failed to mark as ${status}: ${error.message}`);
               } finally {
                 fabControlEvents.reactivateFAB(true);
               }
