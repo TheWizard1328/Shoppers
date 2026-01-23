@@ -1794,7 +1794,7 @@ export default function RouteImport({
                                 <span className="text-sm font-medium truncate">{file.name}</span>
                                 <span className="text-xs text-slate-600">Extracted: "{fileInfo?.extractedName || 'N/A'}"</span>
                               </div>
-                              <div className="ml-3 flex-shrink-0">
+                              <div className="ml-3 flex-shrink-0 flex items-center gap-2">
                                 {hasMatch ? (
                                   <Badge className="bg-green-100 text-green-800 whitespace-nowrap">
                                     ✓ {getDriverDisplayName(fileInfo.driver)}
@@ -1803,6 +1803,11 @@ export default function RouteImport({
                                   <Badge className="bg-red-100 text-red-800 whitespace-nowrap">
                                     ✗ No match
                                   </Badge>
+                                )}
+                                {!isParsing && !isProcessing && !showProgress && (
+                                  <button onClick={() => removeFile(index)} className="text-slate-400 hover:text-red-600">
+                                    <X className="w-4 h-4" />
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -1830,23 +1835,7 @@ export default function RouteImport({
                 </div>
               </div>
 
-              {files.length > 0 &&
-              <div className="space-y-2">
-                  <Label className="text-sm font-medium">Selected Files ({files.length})</Label>
-                  <div className="space-y-1 max-h-32 overflow-y-auto border rounded-lg p-2">
-                    {files.map((file, index) =>
-                  <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded text-sm">
-                        <span className="truncate flex-1">{file.name}</span>
-                        {!isParsing && !isProcessing && !showProgress &&
-                    <button onClick={() => removeFile(index)} className="ml-2 text-slate-400 hover:text-red-600">
-                            <X className="w-4 h-4" />
-                          </button>
-                    }
-                      </div>
-                  )}
-                  </div>
-                </div>
-              }
+
 
               {previewData.errors.length > 0 &&
               <div className="space-y-1 mt-4">
