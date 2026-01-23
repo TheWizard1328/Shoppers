@@ -240,14 +240,44 @@ export default function ImportActiveRoutes({
     }
 
     const importedDeliveryStopId = (importedDelivery.stop_id || '').trim();
+    const importedDeliveryPatientId = (importedDelivery.patient_id || '').trim();
     const importedDeliveryDate = importedDelivery.delivery_date;
+    const importedPatient = importedDeliveryPatientId ? patientsData.find((p) => p.id === importedDeliveryPatientId) : null;
+    const importedTrackingNumber = (importedDelivery.tracking_number || '').trim();
+    const importedAMPM = importedDelivery.ampm_deliveries;
 
     // CRITICAL: Match by date only, ignoring driver_id to allow driver reassignment
     const sameDateDeliveries = existingDeliveries.filter((d) => {
       return d.delivery_date === importedDeliveryDate;
     });
 
-    // ONLY MATCH BY STOP ID (SID)
+    // Check for multiple patient deliveries in same slot (require SID for patients only)
+    let hasMultipleInSlot = false;
+    if (importedAMPM && importedDeliveryPatientId) {
+      const sameSlotDeliveries = sameDateDeliveries.filter((d) => d.ampm_deliveries === importedAMPM);
+      const patientDeliveriesInSlot = sameSlotDeliveries.filter((d) => d.patient_id === importedDeliveryPatientId);
+      if (patientDeliveriesInSlot.length > 1) {
+        hasMultipleInSlot = true;
+      }
+    }
+
+    if (hasMultipleInSlot) {
+      if (importedDeliveryStopId) {
+        const sidMatch = sameDateDeliveries.find((d) => {
+          const existingSID = (d.stop_id || '').trim();
+          return existingSID === importedDeliveryStopId;
+        });
+        if (sidMatch) {
+          return { match: sidMatch, reason: `SID Match (${importedDeliveryStopId})` };
+        } else {
+          return { match: null, reason: 'Multiple in slot - SID required but not matched' };
+        }
+      } else {
+        return { match: null, reason: 'Multiple in slot - no SID provided' };
+      }
+    }
+
+    // PRIMARY MATCH: By Stop ID (SID)
     if (importedDeliveryStopId) {
       const sidMatch = sameDateDeliveries.find((d) => {
         const existingSID = (d.stop_id || '').trim();
@@ -255,10 +285,208 @@ export default function ImportActiveRoutes({
       });
       if (sidMatch) {
         return { match: sidMatch, reason: `SID Match (${importedDeliveryStopId})` };
+      } else {
+        // SID provided but no match - try highly probable match for patient deliveries
+        if (importedDeliveryPatientId) {
+          const importedStopOrder = importedDelivery.stop_order;
+          const importedTime = importedDelivery.actual_delivery_time ? new Date(importedDelivery.actual_delivery_time).getTime() : null;
+          const importedTR = importedTrackingNumber ? parseInt(importedTrackingNumber, 10) : null;
+
+          const highProbabilityMatches = sameDateDeliveries.filter((d) => {
+            if (d.patient_id !== importedDeliveryPatientId) return false;
+
+            let score = 0;
+            let reasons = [];
+
+            if (importedStopOrder && d.stop_order) {
+              const orderDiff = Math.abs(importedStopOrder - d.stop_order);
+              if (orderDiff <= 5) {
+                score += 10;
+                reasons.push(`Order±${orderDiff}`);
+              }
+            }
+
+            if (importedTime && d.actual_delivery_time) {
+              const existingTime = new Date(d.actual_delivery_time).getTime();
+              const timeDiff = Math.abs(importedTime - existingTime);
+              if (timeDiff <= 3600000) {
+                score += 10;
+                reasons.push(`Time±${Math.round(timeDiff / 60000)}min`);
+              }
+            }
+
+            if (importedTR !== null && d.tracking_number) {
+              const existingTR = parseInt(d.tracking_number, 10);
+              if (!isNaN(existingTR)) {
+                const importedBucket = Math.floor(importedTR / 20);
+                const existingBucket = Math.floor(existingTR / 20);
+                if (importedBucket === existingBucket) {
+                  score += 10;
+                  reasons.push(`TR-Range[${importedBucket * 20}-${importedBucket * 20 + 19}]`);
+                }
+              }
+            }
+
+            d._probScore = score;
+            d._probReasons = reasons;
+            return score >= 20;
+          });
+
+          if (highProbabilityMatches.length === 1) {
+            const match = highProbabilityMatches[0];
+            const reasonText = `Highly Probable: PID + ${match._probReasons.join(' + ')}`;
+            return { match, reason: reasonText };
+          } else if (highProbabilityMatches.length > 1) {
+            highProbabilityMatches.sort((a, b) => (b._probScore || 0) - (a._probScore || 0));
+            const bestMatch = highProbabilityMatches[0];
+            const reasonText = `Highly Probable (Best): PID + ${bestMatch._probReasons.join(' + ')}`;
+            return { match: bestMatch, reason: reasonText };
+          }
+        }
       }
     }
 
-    return { match: null, reason: 'No match found' };
+    // FALLBACK MATCH 1: Patient ID with fuzzy matching
+    if (importedDeliveryPatientId) {
+      const patientIdMatches = sameDateDeliveries.filter((d) => {
+        const existingPID = (d.patient_id || '').trim();
+        return existingPID === importedDeliveryPatientId;
+      });
+
+      if (patientIdMatches.length === 1) {
+        return { match: patientIdMatches[0], reason: `PID Match (${importedDeliveryPatientId})` };
+      } else if (patientIdMatches.length > 1) {
+        const importedTime = importedDelivery.actual_delivery_time ? new Date(importedDelivery.actual_delivery_time).getTime() : null;
+        const importedStopOrder = importedDelivery.stop_order || null;
+
+        let bestMatch = null;
+        let bestScore = 0;
+
+        for (const candidate of patientIdMatches) {
+          let score = 0;
+          let reasons = [];
+
+          if (importedTime && candidate.actual_delivery_time) {
+            const candidateTime = new Date(candidate.actual_delivery_time).getTime();
+            const timeDiff = Math.abs(importedTime - candidateTime);
+            if (timeDiff <= 3600000) {
+              score += 10;
+              reasons.push(`Time ±${Math.round(timeDiff / 60000)}min`);
+            }
+          }
+
+          if (importedStopOrder !== null && candidate.stop_order !== null) {
+            const orderDiff = Math.abs(importedStopOrder - candidate.stop_order);
+            if (orderDiff <= 3) {
+              score += 10;
+              reasons.push(`Order ±${orderDiff}`);
+            }
+          }
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = candidate;
+            bestMatch._fuzzyReasons = reasons;
+          }
+        }
+
+        if (bestMatch && bestScore >= 10) {
+          const reasonText = `PID Match + ${bestMatch._fuzzyReasons.join(', ')}`;
+          return { match: bestMatch, reason: reasonText };
+        } else {
+          return { match: null, reason: `Multiple PID matches - fuzzy criteria not met` };
+        }
+      }
+    }
+
+    // FALLBACK MATCH 2: Tracking Number (TR#)
+    if (importedTrackingNumber && !importedDeliveryStopId) {
+      const trackingNumberMatch = sameDateDeliveries.find((d) => {
+        const existingTR = (d.tracking_number || '').trim();
+        return existingTR === importedTrackingNumber;
+      });
+      if (trackingNumberMatch) {
+        return { match: trackingNumberMatch, reason: `TR# Match (${importedTrackingNumber})` };
+      }
+    }
+
+    // FALLBACK MATCH 3: Pickup by Store with fuzzy matching
+    if (!importedDeliveryPatientId && importedDelivery.store_id && !importedDeliveryStopId && !importedTrackingNumber) {
+      const pickupMatch = sameDateDeliveries.find((d) =>
+        d.store_id === importedDelivery.store_id && 
+        (!d.patient_id || d.patient_id === '') &&
+        !d.stop_id &&
+        !d.tracking_number
+      );
+
+      if (pickupMatch) {
+        return { match: pickupMatch, reason: `Pickup Match (Store)` };
+      }
+    }
+
+    // FALLBACK MATCH 4: Highly probable pickup match
+    if (!importedDeliveryPatientId && importedDelivery.store_id) {
+      const importedTime = importedDelivery.actual_delivery_time ? new Date(importedDelivery.actual_delivery_time).getTime() : null;
+      const importedAddress = (importedDelivery.delivery_address || '').toLowerCase().trim();
+      const importedStopOrder = importedDelivery.stop_order;
+      const importedTR = importedTrackingNumber ? importedTrackingNumber.trim() : null;
+
+      const highProbabilityPickups = sameDateDeliveries.filter((d) => {
+        if (d.patient_id) return false;
+        if (d.store_id !== importedDelivery.store_id) return false;
+
+        let score = 0;
+        let reasons = [];
+
+        const existingAddress = (d.delivery_address || '').toLowerCase().trim();
+        if (importedAddress && existingAddress && importedAddress === existingAddress) {
+          score += 15;
+          reasons.push('Address');
+        }
+
+        if (importedTime && d.actual_delivery_time) {
+          const existingTime = new Date(d.actual_delivery_time).getTime();
+          const timeDiff = Math.abs(importedTime - existingTime);
+          if (timeDiff <= 3600000) {
+            score += 15;
+            reasons.push(`Time±${Math.round(timeDiff / 60000)}min`);
+          }
+        }
+
+        if (importedStopOrder && d.stop_order) {
+          const orderDiff = Math.abs(importedStopOrder - d.stop_order);
+          if (orderDiff <= 5) {
+            score += 10;
+            reasons.push(`Order±${orderDiff}`);
+          }
+        }
+
+        if (importedTR && d.tracking_number) {
+          const existingTR = (d.tracking_number || '').trim();
+          if (importedTR === existingTR) {
+            score += 10;
+            reasons.push('TR#-Exact');
+          }
+        }
+
+        d._pickupProbScore = score;
+        d._pickupProbReasons = reasons;
+        return score >= 15;
+      });
+
+      if (highProbabilityPickups.length === 1) {
+        const match = highProbabilityPickups[0];
+        const reasonText = `Highly Probable Pickup: Store + ${match._pickupProbReasons.join(' + ')}`;
+        return { match, reason: reasonText };
+      } else if (highProbabilityPickups.length > 1) {
+        highProbabilityPickups.sort((a, b) => (b._pickupProbScore || 0) - (a._pickupProbScore || 0));
+        const bestMatch = highProbabilityPickups[0];
+        const reasonText = `Highly Probable Pickup (Best): Store + ${bestMatch._pickupProbReasons.join(' + ')}`;
+        return { match, reason: reasonText };
+      }
+    }
+
+    return { match: null, reason: 'No match found - all criteria failed' };
   }, []);
 
   const detectChanges = useCallback((existingDelivery, importedDelivery) => {
