@@ -1710,10 +1710,18 @@ export default function Layout({ children, currentPageName }) {
 
       const allStores = await getData('Store', null, null, forceRefresh);
 
-      // Another delay before AppUsers
+      // Load AppUsers - CRITICAL for driver data
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      const allAppUsers = await getData('AppUser', null, null, forceRefresh);
+      let allAppUsers = await getData('AppUser', null, null, forceRefresh);
+      
+      // CRITICAL: If AppUser fetch fails or returns empty, retry once
+      if (!allAppUsers || allAppUsers.length === 0) {
+        console.warn('⚠️ [Layout] AppUser load failed or empty - retrying...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        allAppUsers = await AppUser.list();
+        console.log(`✅ [Layout] AppUser retry: ${allAppUsers?.length || 0} records`);
+      }
 
       if (citiesData && (!workingCities || workingCities.length === 0)) {
         citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
@@ -1832,6 +1840,8 @@ export default function Layout({ children, currentPageName }) {
         return true;
       });
       activeDrivers = sortUsers(activeDrivers);
+
+      console.log(`✅ [Layout Init] Data loaded - ${initialUsers.length} users, ${activeDrivers.length} drivers, ${allStores.length} stores, ${allAppUsers.length} appUsers`);
 
       setUsers(initialUsers);
       setDrivers(activeDrivers);
