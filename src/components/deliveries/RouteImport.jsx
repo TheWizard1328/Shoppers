@@ -1984,12 +1984,12 @@ export default function RouteImport({
 
                       return (
                         <tr key={`${delivery.action}-${idx}`} className={`border-b ${delivery.action === 'create' ? 'bg-green-50 hover:bg-green-100' : 'bg-blue-50 hover:bg-blue-100'}`}>
-                            <td className="p-1 w-20">
+                            <td className="p-1 w-20 text-center">
                               <div className="flex flex-col gap-1 items-center">
-                                <Badge className={delivery.action === 'create' ? "bg-green-200 text-green-800" : "bg-blue-200 text-blue-800"}>
+                                <Badge className={delivery.action === 'create' ? "bg-green-200 text-green-800 w-full justify-center" : "bg-blue-200 text-blue-800 w-full justify-center"}>
                                   {delivery.action === 'create' ? 'New' : 'Update'}
                                 </Badge>
-                                <span className="text-xs text-slate-600 font-medium truncate">
+                                <span className="text-xs text-slate-600 font-medium">
                                   {delivery.driver_name}
                                 </span>
                               </div>
