@@ -446,6 +446,67 @@ export default function SquareManagement() {
     });
   };
 
+  // Auto-delete paid catalog items (runs whenever transactions update)
+  useEffect(() => {
+    if (catalogItems.length === 0 || soldCatalogItems.length === 0) {
+      return; // Nothing to clean up
+    }
+
+    const deletePaidItems = async () => {
+      const itemsToDelete = catalogItems.filter(item => hasBeenSoldInSquare(item));
+      
+      if (itemsToDelete.length === 0) {
+        return; // No paid items to delete
+      }
+
+      console.log(`🗑️ [SquareManagement] Auto-deleting ${itemsToDelete.length} paid catalog items...`);
+      
+      let deletedCount = 0;
+      for (const item of itemsToDelete) {
+        try {
+          const relatedPayment = soldCatalogItems.find(p => 
+            p.location_id === item.location_id &&
+            p.item_name === item.name &&
+            Math.abs(p.amount - (item.price_dollars || 0)) < 0.01
+          );
+          
+          await base44.functions.invoke('squareDeleteCodItem', {
+            catalogObjectId: item.catalog_object_id,
+            transactionId: relatedPayment?.square_transaction_id || null,
+            reason: 'auto_delete_paid'
+          });
+          
+          deletedCount++;
+          console.log(`✓ Auto-deleted paid item: ${item.name}`);
+          await new Promise(resolve => setTimeout(resolve, 150)); // Rate limiting
+        } catch (err) {
+          console.warn(`Failed to auto-delete paid item ${item.name}:`, err);
+        }
+      }
+
+      if (deletedCount > 0) {
+        // Refresh catalog after deletion
+        try {
+          const refreshResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
+          const refreshData = refreshResponse?.data || refreshResponse;
+          
+          if (refreshData.success) {
+            const updatedItems = refreshData.items || [];
+            setCatalogItems(updatedItems);
+            console.log(`✓ Auto-delete complete: removed ${deletedCount} paid items, ${updatedItems.length} remaining`);
+            toast.success(`Automatically removed ${deletedCount} paid COD ${deletedCount === 1 ? 'item' : 'items'}`);
+          }
+        } catch (err) {
+          console.warn('Failed to refresh catalog after auto-delete:', err);
+        }
+      }
+    };
+
+    // Debounce the delete operation to avoid rapid successive calls
+    const timeoutId = setTimeout(deletePaidItems, 500);
+    return () => clearTimeout(timeoutId);
+  }, [soldCatalogItems]);
+
   const confirmDelete = async () => {
     if (!itemToDelete) return;
 
