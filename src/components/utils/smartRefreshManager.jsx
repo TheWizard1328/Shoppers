@@ -725,8 +725,9 @@ class SmartRefreshManager {
 
       // CRITICAL: Sync to offline database after changes
       try {
-        const { offlineManager } = await import('./offlineManager');
-        await offlineManager.cacheDeliveries(finalDeliveries, selectedDate);
+        const { offlineDB } = await import('./offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries);
+        console.log(`✅ [SmartRefresh] Synced ${finalDeliveries.length} deliveries to offline DB`);
       } catch (offlineError) {
         console.warn('⚠️ [SmartRefresh] Failed to sync deliveries to offline DB:', offlineError);
       }
@@ -967,6 +968,7 @@ class SmartRefreshManager {
           try {
             const { offlineDB } = await import('./offlineDatabase');
             await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, mergedAppUsers);
+            console.log(`✅ [SmartRefresh] Synced ${mergedAppUsers.length} AppUsers to offline DB`);
           } catch (offlineError) {
             console.warn('⚠️ [SmartRefresh] Failed to sync AppUsers to offline DB:', offlineError);
           }
@@ -1253,8 +1255,9 @@ class SmartRefreshManager {
       
       // CRITICAL: Sync to offline database after changes
       try {
-        const { offlineManager } = await import('./offlineManager');
-        await offlineManager.cacheEntities('Patient', mergedPatients);
+        const { offlineDB } = await import('./offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, mergedPatients);
+        console.log(`✅ [SmartRefresh] Synced ${mergedPatients.length} patients to offline DB`);
       } catch (offlineError) {
         console.warn('⚠️ [SmartRefresh] Failed to sync patients to offline DB:', offlineError);
       }

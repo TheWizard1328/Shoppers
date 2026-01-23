@@ -920,7 +920,8 @@ function Dashboard() {
         user_name: au.user_name,
         full_name: au.user_name,
         app_roles: au.app_roles,
-        status: au.status
+        status: au.status,
+        sort_order: au.sort_order
       }));
     
     // Also extract from deliveries to catch any missing drivers
@@ -960,7 +961,21 @@ function Dashboard() {
       });
     }
     
-    const driversSource = Array.from(mergedDriversMap.values());
+    // CRITICAL: Sort drivers by sort_order, then by user_name
+    const driversSource = Array.from(mergedDriversMap.values()).sort((a, b) => {
+      const sortOrderA = a.sort_order ?? Infinity;
+      const sortOrderB = b.sort_order ?? Infinity;
+      
+      if (sortOrderA !== sortOrderB) {
+        return sortOrderA - sortOrderB;
+      }
+      
+      // If same sort_order, sort alphabetically by user_name
+      const nameA = (a.user_name || a.full_name || '').toLowerCase();
+      const nameB = (b.user_name || b.full_name || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+    
     console.log(`✅ [Dashboard] Built driver list: ${driversSource.length} drivers (${driversFromAppUsers.length} from appUsers, ${driverIdsFromDeliveries.size} from deliveries, ${drivers?.length || 0} from drivers prop)`);
 
     // ADMIN: Get all drivers

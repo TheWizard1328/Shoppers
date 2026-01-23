@@ -160,9 +160,35 @@ class OfflineManager {
     return Math.round(delay + jitter);
   }
 
-  // Cache data to IndexedDB
+  // Cache entities to offlineDB for offline-first data access
+  async cacheEntities(entityName, entities) {
+    try {
+      const { offlineDB } = await import('./offlineDatabase');
+      
+      // Map entity names to offline DB stores
+      const storeMap = {
+        'Patient': offlineDB.STORES.PATIENTS,
+        'Delivery': offlineDB.STORES.DELIVERIES,
+        'Store': offlineDB.STORES.STORES,
+        'AppUser': offlineDB.STORES.APP_USERS
+      };
+      
+      const storeName = storeMap[entityName];
+      if (storeName && entities && Array.isArray(entities)) {
+        await offlineDB.bulkSave(storeName, entities);
+        console.log(`✅ [OfflineManager] Cached ${entities.length} ${entityName} records to offline DB`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ [OfflineManager] Failed to cache ${entityName} to offline DB:`, error.message);
+    }
+  }
+
+  // Cache data to IndexedDB (legacy method - maintained for backwards compatibility)
   async cacheData(entityType, data) {
     try {
+      // CRITICAL: Also sync to offlineDB for offline-first access
+      await this.cacheEntities(entityType, data);
+      
       const db = await this.openDB();
       const tx = db.transaction('cache', 'readwrite');
       const store = tx.objectStore('cache');
