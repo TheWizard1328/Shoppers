@@ -893,8 +893,28 @@ export default function PayrollSummaryCard({
                                              data.driver.id === currentUser?.id;
           const canShowConfirmButton = isOwnCardInAllDriversMode && !driverHasConfirmed && canFinalize;
           
+          // Mobile view
+          const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+          
+          if (isMobile) {
+            return (
+              <PayrollMobileCard
+                key={data.driver.id}
+                data={data}
+                isAdmin={isAdmin}
+                driverHasConfirmed={driverHasConfirmed}
+                adminHasFinalized={adminHasFinalized}
+                showBadge={showBadge}
+                canShowConfirmButton={canShowConfirmButton}
+                onConfirmClick={() => handleDriverFinalize(data)}
+                isFinalizing={isFinalizing}
+                formatCurrency={formatCurrency}
+              />
+            );
+          }
+          
           return (
-          <div key={data.driver.id} className="p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
+          <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
               <div className="flex items-center justify-between mb-1">
                 <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
