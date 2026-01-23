@@ -241,14 +241,10 @@ export default function ImportActiveRoutes({
 
     const importedDeliveryStopId = (importedDelivery.stop_id || '').trim();
     const importedDeliveryDate = importedDelivery.delivery_date;
-    const importedDriverId = importedDelivery.driver_id;
 
+    // CRITICAL: Match by date only, ignoring driver_id to allow driver reassignment
     const sameDateDeliveries = existingDeliveries.filter((d) => {
-      if (d.delivery_date !== importedDeliveryDate) return false;
-      if (importedDriverId && d.driver_id) {
-        return d.driver_id === importedDriverId;
-      }
-      return true;
+      return d.delivery_date === importedDeliveryDate;
     });
 
     // ONLY MATCH BY STOP ID (SID)
