@@ -1011,17 +1011,7 @@ export default function ImportActiveRoutes({
       setCachedDateRange(dateRange);
       const { minDate, maxDate } = dateRange;
 
-      // Extract unique driver IDs from file names to limit delivery fetch
-      const uniqueDriverIds = new Set();
-      for (const file of files) {
-        const driverFromFile = findDriverByFilename(file.name);
-        if (driverFromFile?.id) {
-          uniqueDriverIds.add(driverFromFile.id);
-        }
-      }
-      const driverIdsArray = Array.from(uniqueDriverIds);
-      
-      setProgressMessage(`Date range: ${minDate} to ${maxDate}, Drivers: ${driverIdsArray.length}`);
+      setProgressMessage(`Date range: ${minDate} to ${maxDate}`);
       setProgressPercent(10);
 
       setProgressMessage('Loading store data from cache...');
@@ -1042,14 +1032,13 @@ export default function ImportActiveRoutes({
         return;
       }
 
-      setProgressMessage(`Loading deliveries from offline cache for ${driverIdsArray.length} driver(s) (${minDate} to ${maxDate})...`);
+      setProgressMessage(`Loading deliveries from offline cache (${minDate} to ${maxDate})...`);
       setProgressPercent(25);
 
-      // CRITICAL: Fetch deliveries from OFFLINE DATABASE (no API calls!)
+      // CRITICAL: Fetch ALL deliveries in date range (no driver filter) - allows matching existing deliveries regardless of current driver assignment
       const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
       const freshDeliveries = allOfflineDeliveries.filter(d => {
         if (!d.delivery_date || d.delivery_date < minDate || d.delivery_date > maxDate) return false;
-        if (driverIdsArray.length > 0 && !driverIdsArray.includes(d.driver_id)) return false;
         return true;
       });
       
