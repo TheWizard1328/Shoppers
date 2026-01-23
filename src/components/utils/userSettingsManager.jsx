@@ -125,6 +125,9 @@ async function loadFromLocalPersistentStore(userId, deviceType) {
  */
 async function loadGlobalSettings(userId) {
   try {
+    // Add small delay to prevent rate limiting from concurrent requests
+    await new Promise(r => setTimeout(r, 50));
+    
     // CRITICAL: Query for global settings without device_id filter
     // Returns settings from any device (latest)
     const allUserSettings = await UserSettings.filter({
@@ -197,6 +200,9 @@ export async function loadUserSettings(userId) {
     const globalSettings = await loadGlobalSettings(userId);
     
     // STEP 2: Load device-specific settings for this device type
+    // Add delay to space out API calls
+    await new Promise(r => setTimeout(r, 100));
+    
     const deviceSettings = await UserSettings.filter({
       user_id: userId,
       device_type: deviceType
