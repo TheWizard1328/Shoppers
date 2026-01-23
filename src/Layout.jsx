@@ -1463,6 +1463,7 @@ export default function Layout({ children, currentPageName }) {
         
         const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate, filters, showAllDriverMarkers);
         if (activeDeliveryUpdates?.hasChanges) {
+          console.log(`📍 [Layout] Smart refresh delivery update: ${activeDeliveryUpdates.deliveries.length} total deliveries`);
           // CRITICAL: Force new array reference to ensure React detects the change
           setDeliveries([...activeDeliveryUpdates.deliveries]);
           if (!updatedEntities.includes('deliveries')) updatedEntities.push('deliveries');
@@ -1756,6 +1757,7 @@ export default function Layout({ children, currentPageName }) {
       setSquareTransactions(transactionsData || []);
 
       // Load deliveries with instant UI callback
+      console.log(`📥 [Layout] Loading deliveries for ${selectedDateStr} with ${Object.keys(priorityFilter).length} filters`);
       await loadDeliveries(
         selectedDateStr,
         priorityFilter,
@@ -1763,6 +1765,7 @@ export default function Layout({ children, currentPageName }) {
         forceRefresh,
         // Instant UI callback
         (initialDeliveries) => {
+          console.log(`✅ [Layout] Initial deliveries loaded: ${initialDeliveries.length} records`);
           setDeliveries(initialDeliveries);
           setDataLoaded(true);
 
