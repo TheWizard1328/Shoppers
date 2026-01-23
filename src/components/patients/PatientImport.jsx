@@ -1269,18 +1269,16 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                             </div>
                             }
 
-                            <CardHeader className="bg-slate-200 px-3 py-2 sm:px-4 flex flex-col space-y-1.5 flex-shrink-0 border-b">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                                    <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
-                                    Import Patients
-                                </CardTitle>
-                                {onClose &&
-                            <Button variant="ghost" size="icon" onClick={onClose} disabled={isProcessing} className="h-8 w-8">
+                            <CardHeader className="px-3 py-2 sm:px-4 flex flex-col space-y-1.5 flex-shrink-0 border-b">
+                                <div className="flex items-center justify-between">
+                                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                        <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
+                                        Import Patients
+                                    </CardTitle>
+                                    <Button variant="ghost" size="icon" onClick={onClose} disabled={isProcessing} className="h-8 w-8">
                                         <X className="w-4 h-4" />
                                     </Button>
-                            }
-                            </div>
+                                </div>
                             </CardHeader>
                 {/* Floating Progress Overlay */}
                 {isProcessing &&
