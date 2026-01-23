@@ -56,6 +56,7 @@ Deno.serve(async (req) => {
       }
 
       const paymentsData = await paymentsResponse.json();
+      console.log(`📊 [SquareFetchPayments] Location ${locationId}: Got ${paymentsData.payments?.length || 0} payments`);
       
       if (paymentsData.payments) {
         // Limit to 30 payments to avoid CPU timeout
@@ -66,43 +67,56 @@ Deno.serve(async (req) => {
           if (payment.status !== 'COMPLETED') continue;
 
           allPayments.push(payment);
-          console.log(`📋 [SquareFetchPayments] Processing payment ${payment.id} at location ${payment.location_id}`);
+          console.log(`📋 [SquareFetchPayments] Processing payment ${payment.id} at location ${payment.location_id}, order: ${payment.order_id}`);
 
-          // Fetch order details to get line items
+          // Try to get order details if order_id exists
           if (payment.order_id) {
-            const orderResponse = await fetch(`${SQUARE_BASE_URL}/orders/${payment.order_id}`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-                'Square-Version': '2024-01-18'
-              }
-            });
-
-            if (orderResponse.ok) {
-              const orderData = await orderResponse.json();
-              const order = orderData.order;
-
-              // Extract catalog items from line items
-              if (order?.line_items) {
-                console.log(`📦 [SquareFetchPayments] Order ${payment.order_id} has ${order.line_items.length} line items`);
-                for (const lineItem of order.line_items) {
-                  if (lineItem.catalog_object_id) {
-                    const soldItem = {
-                      catalog_object_id: lineItem.catalog_object_id,
-                      location_id: payment.location_id,
-                      payment_id: payment.id,
-                      order_id: payment.order_id,
-                      item_name: lineItem.name,
-                      amount: lineItem.base_price_money?.amount ? lineItem.base_price_money.amount / 100 : 0,
-                      payment_date: payment.created_at
-                    };
-                    soldCatalogItems.push(soldItem);
-                    console.log(`  ✅ [SquareFetchPayments] Found catalog item: ${soldItem.item_name} (${soldItem.catalog_object_id}) - $${soldItem.amount} at location ${soldItem.location_id}`);
-                  }
+            try {
+              const orderResponse = await fetch(`${SQUARE_BASE_URL}/orders/${payment.order_id}`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                  'Square-Version': '2024-01-18'
                 }
+              });
+
+              if (orderResponse.ok) {
+                const orderData = await orderResponse.json();
+                const order = orderData.order;
+
+                // Extract catalog items from line items
+                if (order?.line_items && order.line_items.length > 0) {
+                  console.log(`📦 [SquareFetchPayments] Order ${payment.order_id} has ${order.line_items.length} line items`);
+                  for (const lineItem of order.line_items) {
+                    if (lineItem.catalog_object_id) {
+                      const soldItem = {
+                        catalog_object_id: lineItem.catalog_object_id,
+                        location_id: payment.location_id,
+                        payment_id: payment.id,
+                        square_transaction_id: payment.id,
+                        square_payment_id: payment.id,
+                        order_id: payment.order_id,
+                        item_name: lineItem.name,
+                        amount: lineItem.base_price_money?.amount ? lineItem.base_price_money.amount / 100 : 0,
+                        payment_date: payment.created_at,
+                        payment_method: payment.payment_source_type || 'UNKNOWN'
+                      };
+                      soldCatalogItems.push(soldItem);
+                      console.log(`  ✅ [SquareFetchPayments] Found catalog item: ${soldItem.item_name} (${soldItem.catalog_object_id}) - $${soldItem.amount}`);
+                    }
+                  }
+                } else {
+                  console.log(`⚠️ [SquareFetchPayments] Order ${payment.order_id} has no line items with catalog IDs`);
+                }
+              } else {
+                console.warn(`Failed to fetch order ${payment.order_id}:`, orderResponse.status);
               }
+            } catch (orderErr) {
+              console.warn(`Error fetching order ${payment.order_id}:`, orderErr.message);
             }
+          } else {
+            console.warn(`Payment ${payment.id} has no order_id - cannot retrieve line items`);
           }
         }
       }
