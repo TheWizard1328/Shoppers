@@ -120,9 +120,10 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   
   const cacheKey = `${entityName}_${sortKey || 'default'}_${JSON.stringify(query) || 'noquery'}_${limit || 'all'}`;
   
-  // OFFLINE-FIRST: Try IndexedDB for Patient, Delivery, and Store entities ALWAYS (unless forced)
+  // OFFLINE-FIRST: Try IndexedDB for Patient, Delivery, and Store entities ALWAYS
   // CRITICAL: This prevents rate limits by using local data first
-  if (!forceRefresh && (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'Store')) {
+  // NEVER skip offline DB - even on forceRefresh, try offline first then update in background
+  if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'Store') {
     try {
       const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
                         entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
@@ -133,6 +134,36 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
         console.log(`⚡ [dataManager] Using offline ${entityName}: ${offlineData.length} records`);
         cache.set(cacheKey, offlineData);
         cacheTimestamps.set(cacheKey, Date.now());
+        
+        // CRITICAL: If forceRefresh=true, update from API in background WITHOUT waiting
+        if (forceRefresh) {
+          console.log(`🔄 [dataManager] Background API refresh for ${entityName}...`);
+          (async () => {
+            try {
+              await waitForRateLimit();
+              const Entity = entities[entityName];
+              let freshData;
+              
+              if (query) {
+                freshData = sortKey && limit ? await Entity.filter(query, sortKey, limit) :
+                           sortKey ? await Entity.filter(query, sortKey) :
+                           await Entity.filter(query);
+              } else {
+                freshData = sortKey && limit ? await Entity.list(sortKey, limit) :
+                           sortKey ? await Entity.list(sortKey) :
+                           await Entity.list();
+              }
+              
+              if (freshData && freshData.length > 0) {
+                await offlineDB.bulkSave(storeName, freshData);
+                console.log(`✅ [dataManager] Background: Updated offline DB with ${freshData.length} ${entityName} records`);
+              }
+            } catch (bgError) {
+              console.warn(`⚠️ [dataManager] Background API refresh failed (non-critical):`, bgError.message);
+            }
+          })();
+        }
+        
         return offlineData;
       }
     } catch (offlineError) {
@@ -140,8 +171,8 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
     }
   }
   
-  // Check in-memory cache before network call
-  if (!forceRefresh && cache.has(cacheKey)) {
+  // Check in-memory cache before network call (skip on forceRefresh since we handled it above)
+  if (cache.has(cacheKey)) {
     const timestamp = cacheTimestamps.get(cacheKey);
     if (timestamp && Date.now() - timestamp < CACHE_DURATION) {
       console.log(`⚡ [dataManager] Using cached ${entityName}: ${cache.get(cacheKey)?.length || 0} records`);
@@ -362,9 +393,9 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
 export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh = false) => {
   const cacheKey = `Delivery_date_${dateStr}_${JSON.stringify(filters)}`;
   
-  // OFFLINE-FIRST: Try IndexedDB first ALWAYS (unless forced)
+  // OFFLINE-FIRST: Try IndexedDB ALWAYS
   // CRITICAL: This prevents rate limits by using local data
-  if (!forceRefresh) {
+  // Even on forceRefresh, return offline data immediately and update in background
     try {
       let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
       
@@ -381,12 +412,30 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
         console.log(`⚡ [dataManager] Using offline deliveries for ${dateStr}: ${offlineData.length} records`);
         deliveryRangeCache.set(cacheKey, offlineData);
         deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
+        
+        // CRITICAL: If forceRefresh, update from API in background WITHOUT waiting
+        if (forceRefresh) {
+          (async () => {
+            try {
+              await waitForRateLimit();
+              const dateFilters = { ...filters, delivery_date: dateStr };
+              const freshDeliveries = await Delivery.filter(dateFilters, '-updated_date');
+              
+              if (freshDeliveries && freshDeliveries.length > 0) {
+                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+                console.log(`✅ [dataManager] Background: Updated ${freshDeliveries.length} deliveries for ${dateStr}`);
+              }
+            } catch (bgError) {
+              console.warn(`⚠️ [dataManager] Background refresh failed (non-critical):`, bgError.message);
+            }
+          })();
+        }
+        
         return offlineData;
       }
     } catch (offlineError) {
       console.warn(`⚠️ [dataManager] Offline delivery fetch failed, falling back to network:`, offlineError);
     }
-  }
   
   // Check in-memory cache next (before network)
   if (!forceRefresh) {
