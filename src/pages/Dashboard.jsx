@@ -911,55 +911,57 @@ function Dashboard() {
 
   // Filter drivers based on role and deliveries
   const driversList = useMemo(() => {
-    // CRITICAL: Fallback - extract drivers from AppUsers or deliveries if drivers array is empty
-    let driversSource = drivers;
+    // CRITICAL: ALWAYS build from appUsers first (most reliable source)
+    const driversFromAppUsers = (appUsers || [])
+      .filter(au => au && au.app_roles && au.app_roles.includes('driver') && au.status === 'active')
+      .map(au => ({
+        id: au.user_id,
+        user_id: au.user_id,
+        user_name: au.user_name,
+        full_name: au.user_name,
+        app_roles: au.app_roles,
+        status: au.status
+      }));
     
-    if (!driversSource || !Array.isArray(driversSource) || driversSource.length === 0) {
-      console.warn('⚠️ [Dashboard] Drivers array empty - extracting from appUsers and deliveries');
-      
-      // Build pseudo-drivers from appUsers
-      const driversFromAppUsers = (appUsers || [])
-        .filter(au => au && au.app_roles && au.app_roles.includes('driver') && au.status === 'active')
-        .map(au => ({
-          id: au.user_id,
-          user_id: au.user_id,
-          user_name: au.user_name,
-          full_name: au.user_name,
-          app_roles: au.app_roles,
-          status: au.status
-        }));
-      
-      // Also extract from deliveries to get driver names
-      const driverIdsFromDeliveries = new Set();
-      const driverNamesMap = new Map();
-      (deliveries || []).forEach(d => {
-        if (d && d.driver_id && d.driver_name) {
-          driverIdsFromDeliveries.add(d.driver_id);
-          driverNamesMap.set(d.driver_id, d.driver_name);
+    // Also extract from deliveries to catch any missing drivers
+    const driverIdsFromDeliveries = new Set();
+    const driverNamesMap = new Map();
+    (deliveries || []).forEach(d => {
+      if (d && d.driver_id && d.driver_name) {
+        driverIdsFromDeliveries.add(d.driver_id);
+        driverNamesMap.set(d.driver_id, d.driver_name);
+      }
+    });
+    
+    // Merge both sources
+    const mergedDriversMap = new Map();
+    driversFromAppUsers.forEach(d => mergedDriversMap.set(d.id, d));
+    
+    // Add missing drivers from deliveries
+    driverIdsFromDeliveries.forEach(id => {
+      if (!mergedDriversMap.has(id)) {
+        mergedDriversMap.set(id, {
+          id,
+          user_id: id,
+          user_name: driverNamesMap.get(id),
+          full_name: driverNamesMap.get(id),
+          app_roles: ['driver'],
+          status: 'active'
+        });
+      }
+    });
+    
+    // Merge with drivers prop (for admins who have full user data)
+    if (drivers && Array.isArray(drivers) && drivers.length > 0) {
+      drivers.forEach(d => {
+        if (d && d.id) {
+          mergedDriversMap.set(d.id, d);
         }
       });
-      
-      // Merge appUsers-based drivers with delivery-based driver IDs
-      const mergedDriversMap = new Map();
-      driversFromAppUsers.forEach(d => mergedDriversMap.set(d.id, d));
-      
-      // Add missing drivers from deliveries
-      driverIdsFromDeliveries.forEach(id => {
-        if (!mergedDriversMap.has(id)) {
-          mergedDriversMap.set(id, {
-            id,
-            user_id: id,
-            user_name: driverNamesMap.get(id),
-            full_name: driverNamesMap.get(id),
-            app_roles: ['driver'],
-            status: 'active'
-          });
-        }
-      });
-      
-      driversSource = Array.from(mergedDriversMap.values());
-      console.log(`✅ [Dashboard] Reconstructed ${driversSource.length} drivers from appUsers and deliveries`);
     }
+    
+    const driversSource = Array.from(mergedDriversMap.values());
+    console.log(`✅ [Dashboard] Built driver list: ${driversSource.length} drivers (${driversFromAppUsers.length} from appUsers, ${driverIdsFromDeliveries.size} from deliveries, ${drivers?.length || 0} from drivers prop)`);
 
     // ADMIN: Get all drivers
     if (userHasRole(currentUser, 'admin')) {
