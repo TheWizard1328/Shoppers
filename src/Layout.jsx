@@ -2997,18 +2997,18 @@ export default function Layout({ children, currentPageName }) {
                               </>
                             )}
 
-                            {/* Import Buttons - Show delivery import for drivers and admins, patient import for admins if enabled */}
-                            {(realUser && isAppOwner(realUser)) || userHasRole(currentUser, 'driver') || (userHasRole(currentUser, 'admin') && adminImportEnabled) ? (
+                            {/* Import Buttons - Always visible for app owners on any device, available to others when admin toggle is enabled */}
+                            {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
                             <>
                               <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
                                 Data Importers
                               </DropdownMenuLabel>
-                              {(realUser && isAppOwner(realUser)) || (userHasRole(currentUser, 'admin') && adminImportEnabled) && (
+                              {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
                                 <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                                   <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                                   Patient Info
                                 </DropdownMenuItem>
-                              )}
+                              ) : null}
                               <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                                 <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                                 Past Routes
@@ -3538,18 +3538,18 @@ export default function Layout({ children, currentPageName }) {
                             </>
                           )}
 
-                          {/* Import Buttons - Show delivery import for drivers and admins, patient import for admins if enabled */}
-                          {(realUser && isAppOwner(realUser)) || userHasRole(currentUser, 'driver') || (userHasRole(currentUser, 'admin') && adminImportEnabled) ? (
+                          {/* Import Buttons - Always visible for app owners on any device, available to others when admin toggle is enabled */}
+                          {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
                           <>
                             <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
                               Data Importers
                             </DropdownMenuLabel>
-                            {(realUser && isAppOwner(realUser)) || (userHasRole(currentUser, 'admin') && adminImportEnabled) && (
+                            {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
                               <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                                 <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                                 Patient Info
                               </DropdownMenuItem>
-                            )}
+                            ) : null}
                             <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                               <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                               Past Routes
