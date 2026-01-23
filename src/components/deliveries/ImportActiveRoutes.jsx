@@ -666,7 +666,19 @@ export default function ImportActiveRoutes({
         }
       }
 
-      // CRITICAL: Use shared notes processor for consistency with Past Routes importer
+      // CRITICAL: Check if RAW notes indicate this is a first delivery BEFORE cleaning
+      const notesLowerForFirstDelivery = rawNotes.toLowerCase();
+      const isFirstDeliveryInNotes = notesLowerForFirstDelivery.includes('first delivery') || 
+                                     notesLowerForFirstDelivery.includes('1st delivery') ||
+                                     notesLowerForFirstDelivery.includes('first del');
+      
+      // CRITICAL: If notes say "First Delivery", always set the flag to true
+      // The notes are authoritative for historical data
+      if (isFirstDeliveryInNotes) {
+        newDeliveryData.first_delivery = true;
+      }
+
+      // CRITICAL: Use shared notes processor for consistency with Past Routes importer (AFTER checking for first delivery flag)
       const isCompletedStatus = deliveryStatus === 'completed' || deliveryStatus === 'failed' || deliveryStatus === 'cancelled';
       const cleanedNotes = processDeliveryNotes(rawNotes, newDeliveryData, patient, isPickup, isCompletedStatus);
       newDeliveryData.delivery_notes = cleanedNotes;
@@ -685,8 +697,8 @@ export default function ImportActiveRoutes({
           effectiveStopOrder = existingDelivery.stop_order || 0;
         }
         
-        // CRITICAL: Preserve existing first_delivery flag if already true
-        const effectiveFirstDelivery = existingDelivery.first_delivery === true ? true : newDeliveryData.first_delivery;
+        // CRITICAL: Preserve existing first_delivery flag if already true OR set from notes
+        const effectiveFirstDelivery = existingDelivery.first_delivery === true || newDeliveryData.first_delivery === true ? true : newDeliveryData.first_delivery;
         
         // CRITICAL: Preserve existing failed/cancelled status - don't change to completed unless import has actual completion time
         let effectiveStatus = deliveryStatus;
