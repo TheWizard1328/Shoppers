@@ -110,6 +110,18 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   notifySyncStatus({ status: 'loading_priority', date: selectedDateStr });
   
   try {
+    // Step 0: CRITICAL - Load ALL Stores first (required for map markers and badges)
+    const { Store } = await import('@/entities/Store');
+    const stores = await Store.list();
+    console.log(`   ✅ Loaded ${stores.length} Stores`);
+    await offlineDB.bulkSave(offlineDB.STORES.STORES, stores);
+    await offlineDB.updateSyncStatus('Store', {
+      recordCount: stores.length,
+      status: 'synced',
+      lastSync: new Date().toISOString(),
+      lastFullSync: new Date().toISOString()
+    });
+    
     // Step 1: AppUsers (fast, small dataset) - save to offline DB
     const appUsers = await AppUser.list();
     console.log(`   ✅ Loaded ${appUsers.length} AppUsers`);
@@ -190,7 +202,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     notifySyncStatus({ status: 'priority_loaded', deliveries: deliveries.length, patients: patients.length });
     
     syncInProgress = false;
-    return { appUsers, deliveries, patients };
+    return { appUsers, deliveries, patients, stores };
   } catch (error) {
     console.error('❌ [OfflineSync] Priority load failed:', error);
     notifySyncStatus({ status: 'error', error: error.message });
