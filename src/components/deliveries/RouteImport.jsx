@@ -811,19 +811,10 @@ export default function RouteImport({
                                      notesLowerForFirstDelivery.includes('1st delivery') ||
                                      notesLowerForFirstDelivery.includes('first del');
       
-      if (isFirstDeliveryInNotes && patient) {
-        // Check if patient's last_delivery_date is in the future of this import date
-        // If so, this is NOT their first delivery (they have a future delivery already recorded)
-        const importDeliveryDate = new Date(currentDate);
-        const patientLastDeliveryDate = patient.last_delivery_date ? new Date(patient.last_delivery_date) : null;
-        
-        if (patientLastDeliveryDate && patientLastDeliveryDate > importDeliveryDate) {
-          // Patient has a future delivery date - this is a past delivery, DON'T mark as first
-          newDeliveryData.first_delivery = false;
-        } else {
-          // No future delivery date - mark as first delivery
-          newDeliveryData.first_delivery = true;
-        }
+      // CRITICAL: If notes say "First Delivery", always set the flag to true
+      // The notes are authoritative for historical data
+      if (isFirstDeliveryInNotes) {
+        newDeliveryData.first_delivery = true;
       }
 
       const matchResult = matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
@@ -852,14 +843,15 @@ export default function RouteImport({
             updatedDeliveryData.travel_dist = existingDelivery.travel_dist;
           }
 
-          // CRITICAL: Preserve existing first_delivery flag if patient has future delivery date
-          if (patient && patient.last_delivery_date) {
+          // CRITICAL: Don't unset first_delivery for past deliveries with future last_delivery_date
+          // Only preserve if flag is ALREADY true - don't prevent setting it to true from notes
+          if (patient && patient.last_delivery_date && existingDelivery.first_delivery === true) {
             const importDeliveryDate = new Date(currentDate);
             const patientLastDeliveryDate = new Date(patient.last_delivery_date);
             
-            if (patientLastDeliveryDate > importDeliveryDate && existingDelivery.first_delivery === true) {
-              // This is a past delivery and patient has future delivery - preserve existing flag
-              updatedDeliveryData.first_delivery = existingDelivery.first_delivery;
+            if (patientLastDeliveryDate > importDeliveryDate && newDeliveryData.first_delivery === false) {
+              // Past delivery, patient has future delivery, and import would unset flag - preserve existing true
+              updatedDeliveryData.first_delivery = true;
             }
           }
 
