@@ -1851,10 +1851,10 @@ export default function ImportActiveRoutes({
           <DialogHeader className="px-6 py-2 text-center flex flex-col space-y-1.5 sm:text-left border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
             <DialogTitle className="text-2xl flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
               <Upload className="w-6 h-6" />
-              Import Active Routes
+              Import Stops
             </DialogTitle>
             <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
-              Upload CSV files to import active/completed route data for a selected driver.
+              Upload CSV files to import past or active route data for drivers.
             </DialogDescription>
           </DialogHeader>
 
