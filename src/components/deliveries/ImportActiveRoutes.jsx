@@ -952,11 +952,8 @@ export default function ImportActiveRoutes({
       const lines = text.split(/\r?\n/).filter((line) => line.trim());
       
       for (let i = 0; i < lines.length; i++) {
-        // Skip row 1 (header)
-        if (i === 0) continue;
-        
         const line = lines[i];
-        // Look for date metadata on row 2+
+        // Look for date metadata on row 1+
         const dateMetaMatch = line.match(/^#(\d{4}-\d{2}-\d{2})#,/);
         if (dateMetaMatch) {
           dates.add(dateMetaMatch[1]);
