@@ -21,6 +21,7 @@ import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { driverLocationPoller } from '../utils/driverLocationPoller';
 import { processDeliveryNotes } from '../utils/notesProcessor';
 import { executeDataOperation } from '../utils/dataOperationManager';
+import { useMediaQuery } from '@react-hook/media-query';
 
 // Utility function for delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -188,6 +189,7 @@ export default function RouteImport({
 
   const [allStores, setAllStores] = useState([]);
   const [allDriverUsers, setAllDriverUsers] = useState([]);
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Use a ref to store fresh stores data that won't cause stale closure issues
   const freshStoresRef = useRef([]);
@@ -1767,9 +1769,9 @@ export default function RouteImport({
           }
 
         {!showPreview ?
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6">
             <div className="space-y-1">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="route-upload" style={{ color: 'var(--text-slate-900)' }}>Select Route Files (CSV/TSV/TXT)</Label>
@@ -1879,20 +1881,20 @@ export default function RouteImport({
           </div> :
 
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-shrink-0 p-6 pb-4">
-              <div className="flex items-center justify-between gap-4 mb-4">
-                <div className="flex flex-col">
-                  <span className="text-sm" style={{ color: 'var(--text-slate-500)' }}>
+            <div className="flex-shrink-0 p-4 md:p-6 pb-4">
+              <div className={`flex ${isMobile ? 'flex-col' : 'items-center justify-between'} gap-3 md:gap-4 mb-4`}>
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="text-xs md:text-sm truncate" style={{ color: 'var(--text-slate-500)' }}>
                     Importing for: <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>
                       {[...new Set(files.map(f => fileDriverMap[f.name]?.driver).filter(Boolean).map(d => getDriverDisplayName(d)))].join(', ')}
                     </span>
                   </span>
-                  <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Preview: {filteredPreviewDeliveries.length} Total Deliveries ({previewData.skippedItems.length} Skipped)</h3>
+                  <h3 className="text-base md:text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Preview: {filteredPreviewDeliveries.length} Deliveries</h3>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-shrink-0 w-full md:w-auto">
                   <Select value={previewFilterDate} onValueChange={setPreviewFilterDate}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Filter by date" />
+                    <SelectTrigger className="w-full md:w-40 text-xs md:text-sm">
+                      <SelectValue placeholder="Filter date" />
                     </SelectTrigger>
                     <SelectContent className="z-[10002]">
                       <SelectItem value="all">All Dates</SelectItem>
@@ -1920,7 +1922,7 @@ export default function RouteImport({
                 </div>
               }
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className={`grid ${isMobile ? 'grid-cols-2 gap-2' : 'grid-cols-2 md:grid-cols-4 gap-3'}`}>
             <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-green-50)', borderColor: 'var(--border-green-200)' }}>
                 <div className="text-xs mb-1" style={{ color: 'var(--text-green-700)' }}>New Deliveries</div>
                 <div className="text-2xl font-bold" style={{ color: 'var(--text-green-800)' }}>{previewStats.creates}</div>
@@ -1958,7 +1960,7 @@ export default function RouteImport({
               </div> :
 
             <div className="flex-1 border rounded-lg flex flex-col overflow-hidden min-h-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                <div className="flex-shrink-0 border-b" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
+                {!isMobile && <div className="flex-shrink-0 border-b" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
                   <table className="w-full text-sm table-fixed">
                     <thead>
                       <tr>
@@ -1977,22 +1979,56 @@ export default function RouteImport({
                       </tr>
                     </thead>
                   </table>
-                </div>
+                </div>}
 
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  <table className="w-full text-sm table-fixed">
-                    <tbody>
+                  {isMobile ? (
+                    // Mobile card view
+                    <div className="space-y-2 p-2">
                       {filteredPreviewDeliveries.map((delivery, idx) => {
-                      const store = stores.find((s) => s.id === delivery.store_id);
-                      const newTimeFormatted = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : 'none';
-                      const patient = delivery.patient_id ? patients.find((p) => p.id === delivery.patient_id) : null;
+                        const store = stores.find((s) => s.id === delivery.store_id);
+                        const newTimeFormatted = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : 'none';
+                        const patient = delivery.patient_id ? patients.find((p) => p.id === delivery.patient_id) : null;
+                        const displayAddress = delivery.patient_id ?
+                          formatAddressWithUnit(patient?.address || delivery.delivery_address || '', patient?.unit_number || '') :
+                          formatAddressWithUnit(delivery.delivery_address || store?.address || '', delivery.unit_number || '');
 
-                      const displayAddress = delivery.patient_id ?
-                      formatAddressWithUnit(patient?.address || delivery.delivery_address || '', patient?.unit_number || '') :
-                      formatAddressWithUnit(delivery.delivery_address || store?.address || '', delivery.unit_number || '');
+                        return (
+                          <div key={`${delivery.action}-${idx}`} className="p-3 rounded border text-xs" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                            <div className="flex justify-between items-start mb-2">
+                              <Badge className={delivery.action === 'create' ? "bg-green-200 text-green-800" : "bg-blue-200 text-blue-800"}>
+                                {delivery.action === 'create' ? 'New' : 'Update'}
+                              </Badge>
+                              <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{delivery.delivery_date} {newTimeFormatted !== 'none' && newTimeFormatted}</span>
+                            </div>
+                            <div className="space-y-1">
+                              <div><span style={{ color: 'var(--text-slate-600)' }}>Patient:</span> <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{delivery.patient_name}</span></div>
+                              <div><span style={{ color: 'var(--text-slate-600)' }}>Address:</span> <span style={{ color: 'var(--text-slate-600)' }}>{displayAddress}</span></div>
+                              <div className="flex justify-between">
+                                <div><span style={{ color: 'var(--text-slate-600)' }}>TR#:</span> <span className="font-mono">{delivery.tracking_number || '-'}</span></div>
+                                <div><span style={{ color: 'var(--text-slate-600)' }}>SID:</span> <span className="font-mono">{delivery.stop_id || '-'}</span></div>
+                              </div>
+                              <div>{getStatusBadge(delivery.status)}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    // Desktop table view
+                    <table className="w-full text-sm table-fixed">
+                      <tbody>
+                        {filteredPreviewDeliveries.map((delivery, idx) => {
+                        const store = stores.find((s) => s.id === delivery.store_id);
+                        const newTimeFormatted = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : 'none';
+                        const patient = delivery.patient_id ? patients.find((p) => p.id === delivery.patient_id) : null;
 
-                      return (
-                        <tr key={`${delivery.action}-${idx}`} className="border-b" style={{ borderColor: 'var(--border-slate-200)', background: delivery.action === 'create' ? 'var(--bg-slate-50)' : 'var(--bg-slate-50)' }}>
+                        const displayAddress = delivery.patient_id ?
+                        formatAddressWithUnit(patient?.address || delivery.delivery_address || '', patient?.unit_number || '') :
+                        formatAddressWithUnit(delivery.delivery_address || store?.address || '', delivery.unit_number || '');
+
+                        return (
+                          <tr key={`${delivery.action}-${idx}`} className="border-b" style={{ borderColor: 'var(--border-slate-200)', background: delivery.action === 'create' ? 'var(--bg-slate-50)' : 'var(--bg-slate-50)' }}>
                             <td className="p-1 w-20 text-center">
                               <div className="flex flex-col gap-1 items-center">
                                 <Badge className={delivery.action === 'create' ? "bg-green-200 text-green-800 w-full justify-center" : "bg-blue-200 text-blue-800 w-full justify-center"}>
@@ -2075,17 +2111,18 @@ export default function RouteImport({
                               </div>
                             </td>
                           </tr>);
-                    })}
-                    </tbody>
-                  </table>
+                        })}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             }
           </div>
           }
 
-        <div className="px-6 py-2 flex flex-col gap-3 border-t flex-shrink-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-          <div className="flex gap-3">
+        <div className="px-3 md:px-6 py-2 flex flex-col gap-2 md:gap-3 border-t flex-shrink-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <div className={`flex ${isMobile ? 'flex-col' : ''} gap-2 md:gap-3`}>
             {!showPreview ?
               <>
                 <Button onClick={handlePreview} disabled={isParsing || isProcessing || files.length === 0 || showProgress}>
@@ -2104,49 +2141,50 @@ export default function RouteImport({
               importResult ?
               <>
                   <Button
-                  onClick={() => {
-                    setFiles([]);
-                    setFileDriverMap({});
-                    setIsProcessing(false);
-                    setImportResult(null);
-                    setShowPreview(false);
-                    setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] });
-                    setIsParsing(false);
-                    setProgressPercent(0);
-                    setProgressMessage('');
-                    setShowProgress(false);
-                    setPatients([]);
-                    setPreviewFilterDriver('all');
-                    setPreviewFilterDate('all');
-                    setImportProgress({
-                      current: 0,
-                      total: 0,
-                      phase: '',
-                      created: 0,
-                      updated: 0,
-                      errors: 0,
-                      currentFile: '',
-                      filesCompleted: 0,
-                      totalFiles: 0
-                    });
-                  }}
-                  variant="outline"
-                  className="flex-1">
-                    Start New Import
-                  </Button>
-                  <Button
-                  onClick={async () => {
-                    
-                    // Data is already on backend from handleConfirmImport
-                    // Just trigger parent refresh callback
-                    if (onImportComplete) {
-                      await onImportComplete();
-                    }
-                  }}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                  disabled={isProcessing}>
-                    Done - Close Import
-                  </Button>
+                   onClick={() => {
+                     setFiles([]);
+                     setFileDriverMap({});
+                     setIsProcessing(false);
+                     setImportResult(null);
+                     setShowPreview(false);
+                     setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] });
+                     setIsParsing(false);
+                     setProgressPercent(0);
+                     setProgressMessage('');
+                     setShowProgress(false);
+                     setPatients([]);
+                     setPreviewFilterDriver('all');
+                     setPreviewFilterDate('all');
+                     setImportProgress({
+                       current: 0,
+                       total: 0,
+                       phase: '',
+                       created: 0,
+                       updated: 0,
+                       errors: 0,
+                       currentFile: '',
+                       filesCompleted: 0,
+                       totalFiles: 0
+                     });
+                   }}
+                   variant="outline"
+                   className="flex-1"
+                   style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+                     Start New Import
+                   </Button>
+                   <Button
+                   onClick={async () => {
+
+                     // Data is already on backend from handleConfirmImport
+                     // Just trigger parent refresh callback
+                     if (onImportComplete) {
+                       await onImportComplete();
+                     }
+                   }}
+                   className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                   disabled={isProcessing}>
+                     Done - Close Import
+                   </Button>
                 </> :
               <>
                   <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing || showProgress} className="flex-1" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
