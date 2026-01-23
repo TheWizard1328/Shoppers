@@ -17,8 +17,8 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
 
     const ctx = canvas.getContext('2d');
     setContext(ctx);
+    console.log('📝 [SignatureCapture] Canvas ready');
 
-    // Set canvas size
     const resizeCanvas = () => {
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width * 2;
@@ -37,7 +37,10 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   }, []);
 
   const startDrawing = (e) => {
-    if (!context) return;
+    if (!context) {
+      console.warn('⚠️ [SignatureCapture] Context not ready');
+      return;
+    }
     setIsDrawing(true);
     setHasSignature(true);
 
@@ -71,29 +74,30 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
     context.clearRect(0, 0, canvas.width, canvas.height);
     setHasSignature(false);
     setShowClear(false);
+    console.log('🗑️ [SignatureCapture] Cleared');
   };
 
   const handleSave = async () => {
+    console.log('📝 [SignatureCapture] Saving...');
     if (isSaving) {
-      console.log('⏸️ [SignatureCapture] Already saving - ignoring duplicate tap');
+      console.log('⏸️ [SignatureCapture] Already saving - ignoring');
       return;
     }
 
     const canvas = canvasRef.current;
     if (!canvas || !hasSignature) {
-      console.warn('⚠️ [SignatureCapture] Canvas not ready or no signature');
+      console.warn('⚠️ [SignatureCapture] No signature to save');
       return;
     }
 
     setIsSaving(true);
 
     try {
-      // Convert canvas to blob with quality setting
       const blob = await new Promise((resolve, reject) => {
         canvas.toBlob(
           (blob) => {
             if (!blob) {
-              reject(new Error('Failed to create blob from canvas'));
+              reject(new Error('Failed to create blob'));
             } else {
               resolve(blob);
             }
@@ -103,15 +107,13 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
         );
       });
 
-      // Save the signature
-      console.log('📤 [SignatureCapture] Saving signature blob:', blob.size, 'bytes');
+      console.log('📤 [SignatureCapture] Uploading signature blob:', blob.size, 'bytes');
       await onSave(blob);
       
       setShowClear(true);
-      console.log('✅ [SignatureCapture] Signature saved successfully');
+      console.log('✅ [SignatureCapture] Saved successfully');
     } catch (error) {
-      console.error('❌ [SignatureCapture] Error saving signature:', error);
-      setIsSaving(false);
+      console.error('❌ [SignatureCapture] Save error:', error);
       throw error;
     } finally {
       setIsSaving(false);
@@ -119,25 +121,23 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   };
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[50000] bg-black flex items-center justify-center pt-safe pl-safe pr-safe pb-safe" style={{ aspectRatio: 'auto', orientation: 'landscape' }}>
-      <div className="bg-white w-full h-full flex flex-col relative" style={{ maxHeight: '100vh', maxWidth: '100vw' }}>
-         {/* Header - visible and accessible */}
-         <div className="border-b px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 flex-shrink-0 gap-3">
-           <div className="flex items-center gap-3 min-w-0">
-             <h3 className="text-base font-semibold text-slate-900 truncate">Customer Signature</h3>
-             {customerName && <span className="text-sm text-slate-600 truncate hidden sm:inline">— {customerName}</span>}
+    <div className="fixed inset-0 z-[50000] bg-black flex items-center justify-center">
+      <div className="bg-white w-full h-full flex flex-col">
+         <div className="border-b px-4 py-3 flex items-center justify-between bg-slate-50">
+           <div className="flex items-center gap-3">
+             <h3 className="text-base font-semibold text-slate-900">Customer Signature</h3>
+             {customerName && <span className="text-sm text-slate-600">— {customerName}</span>}
            </div>
            <Button 
              variant="ghost" 
              size="icon" 
              onClick={onCancel}
-             className="flex-shrink-0 sm:hidden"
+             disabled={isSaving}
            >
              <X className="w-5 h-5" />
            </Button>
          </div>
 
-         {/* Signature Canvas - Full screen */}
          <div className="flex-1 p-3 bg-slate-50 overflow-hidden">
            <div className="w-full h-full border-2 border-slate-300 rounded-lg bg-white relative">
              <canvas
@@ -152,21 +152,20 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
                className="w-full h-full touch-none cursor-crosshair"
                style={{ touchAction: 'none' }}
              />
-             <div className="absolute top-4 left-4 text-lg text-slate-400 pointer-events-none font-light">
+             <div className="absolute top-4 left-4 text-lg text-slate-400 pointer-events-none">
                Sign here with your finger
              </div>
            </div>
          </div>
 
-         {/* Bottom Action Buttons */}
-         <div className="flex-shrink-0 border-t px-4 py-3 bg-white flex items-center gap-2 w-full flex-wrap-reverse sm:flex-wrap justify-between sm:justify-end">
+         <div className="border-t px-4 py-3 bg-white flex gap-2 justify-end">
            {showClear ? (
              <>
                <Button 
                  variant="outline" 
                  size="sm" 
                  onClick={clearSignature}
-                 className="flex-1 sm:flex-none"
+                 disabled={isSaving}
                >
                  <RotateCcw className="w-4 h-4 mr-2" />
                  Clear
@@ -174,10 +173,20 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
                <Button 
                  size="sm" 
                  onClick={handleSave}
-                 className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700"
+                 className="bg-emerald-600 hover:bg-emerald-700"
+                 disabled={!hasSignature || isSaving}
                >
-                 <Check className="w-4 h-4 mr-2" />
-                 Update
+                 {isSaving ? (
+                   <>
+                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                     Updating...
+                   </>
+                 ) : (
+                   <>
+                     <Check className="w-4 h-4 mr-2" />
+                     Update
+                   </>
+                 )}
                </Button>
              </>
            ) : (
@@ -186,7 +195,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
                  variant="outline" 
                  size="sm" 
                  onClick={onCancel}
-                 className="flex-1 sm:flex-none"
+                 disabled={isSaving}
                >
                  Cancel
                </Button>
@@ -194,7 +203,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
                  size="sm" 
                  onClick={handleSave} 
                  disabled={!hasSignature || isSaving}
-                 className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700"
+                 className="bg-emerald-600 hover:bg-emerald-700"
                >
                  {isSaving ? (
                    <>
@@ -210,14 +219,6 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
                </Button>
              </>
            )}
-           <Button 
-             variant="ghost" 
-             size="icon" 
-             onClick={onCancel}
-             className="hidden sm:inline-flex flex-shrink-0"
-           >
-             <X className="w-5 h-5" />
-           </Button>
          </div>
        </div>
     </div>,
