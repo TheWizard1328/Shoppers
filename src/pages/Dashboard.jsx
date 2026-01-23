@@ -5860,6 +5860,7 @@ function Dashboard() {
         appUsers: appUsers
       }).catch(() => {});
 
+      console.log('✅ [START] Complete');
     } catch (error) {
       console.error('❌ [START] Error:', error);
       alert('Failed to start delivery. Please try again.');
