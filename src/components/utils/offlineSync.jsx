@@ -110,26 +110,22 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   notifySyncStatus({ status: 'loading_priority', date: selectedDateStr });
   
   try {
-    // Step 0: CRITICAL - Load ALL Stores first (required for map markers and badges)
-    const { Store } = await import('@/entities/Store');
-    const stores = await Store.list();
+    // Step 1: Stores (critical for UI - colors, abbreviations, etc.)
+    const { base44 } = await import('@/api/base44Client');
+    const stores = await base44.entities.Store.list();
     console.log(`   ✅ Loaded ${stores.length} Stores`);
     await offlineDB.bulkSave(offlineDB.STORES.STORES, stores);
-    await offlineDB.updateSyncStatus('Store', {
-      recordCount: stores.length,
-      status: 'synced',
-      lastSync: new Date().toISOString(),
-      lastFullSync: new Date().toISOString()
-    });
     
-    // Step 1: AppUsers (fast, small dataset) - save to offline DB
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    
+    // Step 2: AppUsers (fast, small dataset) - save to offline DB
     const appUsers = await AppUser.list();
     console.log(`   ✅ Loaded ${appUsers.length} AppUsers`);
     await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
-    // Step 2: Deliveries for selected date
+    // Step 3: Deliveries for selected date
     const deliveryFilter = { delivery_date: selectedDateStr, ...filters };
     const deliveries = await Delivery.filter(deliveryFilter);
     console.log(`   ✅ Loaded ${deliveries.length} deliveries for ${selectedDateStr}`);
@@ -139,7 +135,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
-    // Step 3: CRITICAL - Load ALL patients (not just delivery-linked ones)
+    // Step 4: CRITICAL - Load ALL patients (not just delivery-linked ones)
     // This ensures map markers work for new users who don't have patient data yet
     console.log(`   👥 Loading ALL patients for offline access...`);
     let patients = [];
@@ -181,6 +177,11 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     // Update sync timestamps
     await Promise.all([
+      offlineDB.updateSyncStatus('Store', { 
+        recordCount: stores.length, 
+        status: 'synced',
+        lastSync: new Date().toISOString()
+      }),
       offlineDB.updateSyncStatus('AppUser', { 
         recordCount: appUsers.length, 
         status: 'synced',
@@ -199,10 +200,10 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
       })
     ]);
     
-    notifySyncStatus({ status: 'priority_loaded', deliveries: deliveries.length, patients: patients.length });
+    notifySyncStatus({ status: 'priority_loaded', stores: stores.length, deliveries: deliveries.length, patients: patients.length });
     
     syncInProgress = false;
-    return { appUsers, deliveries, patients, stores };
+    return { stores, appUsers, deliveries, patients };
   } catch (error) {
     console.error('❌ [OfflineSync] Priority load failed:', error);
     notifySyncStatus({ status: 'error', error: error.message });
@@ -282,7 +283,20 @@ export const performBackgroundSync = async (selectedDateStr) => {
       await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     }
     
-    // ===== STEP 3: Sync AppUsers in background =====
+    // ===== STEP 3: Sync Stores in background =====
+    if (!syncPaused) {
+      console.log('   🏪 Syncing Stores...');
+      try {
+        const { base44 } = await import('@/api/base44Client');
+        const allStores = await base44.entities.Store.list();
+        await offlineDB.bulkSave(offlineDB.STORES.STORES, allStores);
+        console.log(`   ✅ Cached ${allStores.length} Stores`);
+      } catch (storeError) {
+        console.warn(`   ⚠️ Store sync failed:`, storeError.message);
+      }
+    }
+
+    // ===== STEP 4: Sync AppUsers in background =====
     if (!syncPaused) {
       console.log('   👤 Syncing AppUsers...');
       try {
@@ -294,7 +308,7 @@ export const performBackgroundSync = async (selectedDateStr) => {
       }
     }
 
-    // ===== STEP 4: Sync Square Transactions in background =====
+    // ===== STEP 5: Sync Square Transactions in background =====
     if (!syncPaused) {
       console.log('   💳 Syncing Square Transactions...');
       try {
@@ -308,7 +322,7 @@ export const performBackgroundSync = async (selectedDateStr) => {
       }
     }
 
-    // ===== STEP 5: Sync remaining patients (250 at a time) =====
+    // ===== STEP 6: Sync remaining patients (250 at a time) =====
     if (!syncPaused) {
       console.log('   👥 Syncing patients...');
       await syncAllPatients();
@@ -317,6 +331,12 @@ export const performBackgroundSync = async (selectedDateStr) => {
     // Update final sync status
     const stats = await offlineDB.getStats();
     await Promise.all([
+      offlineDB.updateSyncStatus('Store', {
+        recordCount: stats?.stores?.count || 0,
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
+      }),
       offlineDB.updateSyncStatus('AppUser', {
         recordCount: stats?.appUsers?.count || 0,
         status: 'synced',
