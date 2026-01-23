@@ -5815,8 +5815,6 @@ function Dashboard() {
     const newStatus = isPickup ? 'en_route' : 'in_transit';
 
     try {
-
-    try {
       // Use centralized mutation handler
       const { executeMutation } = await import('../components/utils/centralizedMutationHandler');
       
