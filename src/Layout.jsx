@@ -3001,7 +3001,7 @@ export default function Layout({ children, currentPageName }) {
                             {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
                             <>
                               <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
-                                Data Importers
+                                Deliveries
                               </DropdownMenuLabel>
                               {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
                                 <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
@@ -3542,7 +3542,7 @@ export default function Layout({ children, currentPageName }) {
                           {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
                           <>
                             <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
-                              Data Importers
+                              Deliveries
                             </DropdownMenuLabel>
                             {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
                               <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>

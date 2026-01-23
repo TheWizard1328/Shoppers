@@ -1738,7 +1738,7 @@ export default function RouteImport({
         }
       `}</style>
       <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
-        <DialogContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-[10001] translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg w-full max-w-7xl max-h-[90vh] flex flex-col overflow-hidden p-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <DialogContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-[10001] translate-x-[-50%] translate-y-[-50%] gap-4 border shadow-lg duration-200 sm:rounded-lg w-full max-w-7xl md:max-w-2xl max-h-[95vh] md:max-h-[90vh] flex flex-col overflow-hidden p-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
         <DialogHeader className="px-6 py-2 text-center flex flex-col space-y-1.5 sm:text-left border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
           <DialogTitle className="text-2xl flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
             <Upload className="w-6 h-6" />
@@ -1788,9 +1788,9 @@ export default function RouteImport({
           }
 
         {!showPreview ?
-          <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="flex-1 overflow-y-auto p-2 md:p-6">
             <div className="space-y-1">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 gap-3 md:gap-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="route-upload" style={{ color: 'var(--text-slate-900)' }}>Select Route Files (CSV/TSV/TXT)</Label>
@@ -1810,7 +1810,7 @@ export default function RouteImport({
                   {files.length > 0 && (
                     <div className="space-y-2">
                       <Label style={{ color: 'var(--text-slate-900)' }}>Auto-Assigned Drivers</Label>
-                      <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <div className="space-y-2 max-h-40 md:max-h-48 overflow-y-auto border rounded-lg p-2 md:p-3 text-xs md:text-sm" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                         {files.map((file, index) => {
                           const fileInfo = fileDriverMap[file.name];
                           const hasMatch = !!fileInfo?.driver;
@@ -1851,7 +1851,7 @@ export default function RouteImport({
                   )}
                 </div>
 
-                <div className="border rounded-lg p-4 text-sm" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-800)' }}>
+                {!isMobile && <div className="border rounded-lg p-4 text-sm" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-800)' }}>
                   <h4 className="font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>CSV Format (Past Routes)</h4>
                   <ul className="list-disc list-inside space-y-1">
                     <li>Date metadata: <code className="font-mono">#YYYY-MM-DD#,TotalDeliveries,...</code></li>
@@ -1862,7 +1862,7 @@ export default function RouteImport({
                     <li>Col 17: Notes</li>
                     <li>Matching by Stop ID (SID) + Date for updates.</li>
                   </ul>
-                </div>
+                </div>}
               </div>
 
 
