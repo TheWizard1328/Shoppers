@@ -849,7 +849,7 @@ export default function RouteImport({
             updatedDeliveryData.travel_dist = travelDist;
           } else {
             // Preserve existing travel_dist
-            updatedDeliveryData.travel_dist = existingDeliveryData.travel_dist;
+            updatedDeliveryData.travel_dist = existingDelivery.travel_dist;
           }
 
           // CRITICAL: Preserve existing first_delivery flag if patient has future delivery date
