@@ -82,7 +82,6 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import { getUserAgentInfo } from './components/utils/deviceUtils';
       import PatientImport from './components/patients/PatientImport';
       import RouteImport from './components/deliveries/RouteImport';
-      import ImportActiveRoutes from './components/deliveries/ImportActiveRoutes';
       import DriverStatusToggle from './components/layout/DriverStatusToggle';
       import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
       import MessagingPanel from './components/messaging/MessagingPanel';
@@ -598,7 +597,6 @@ export default function Layout({ children, currentPageName }) {
   const [smartRefreshActivity, setSmartRefreshActivity] = useState({ active: false, updatedEntities: [] });
   const [showPatientImport, setShowPatientImport] = useState(false);
   const [showDeliveryImport, setShowDeliveryImport] = useState(false);
-  const [showActiveRoutesImport, setShowActiveRoutesImport] = useState(false);
 
   const [deliveries, setDeliveries] = useState([]);
   const [patients, setPatients] = useState([]);
@@ -3011,10 +3009,6 @@ export default function Layout({ children, currentPageName }) {
                                 <FileText className="w-4 h-4 mr-2" />
                                 Past Routes
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
-                                <FileText className="w-4 h-4 mr-2" />
-                                Active Stops
-                              </DropdownMenuItem>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                             </>
                             )}
@@ -3524,24 +3518,6 @@ export default function Layout({ children, currentPageName }) {
                             <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer">
                               <FileText className="w-4 h-4 mr-2" />
                               Past Routes
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
-                              <FileText className="w-4 h-4 mr-2" />
-                              Active Stops
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                          </>
-                          )}
-
-                          {/* Active Stops Import - Drivers or App Owners without full access - Show on all devices */}
-                          {!isAppOwner(realUser) && (userHasRole(currentUser, 'driver') || (isAppOwner(currentUser) && !canAccessImports(currentUser, adminImportEnabled))) && (
-                          <>
-                            <DropdownMenuLabel className="px-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
-                              Import
-                            </DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
-                              <FileText className="w-4 h-4 mr-2" />
-                              Active Stops
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                           </>
