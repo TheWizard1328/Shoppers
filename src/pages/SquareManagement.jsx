@@ -68,8 +68,8 @@ export default function SquareManagement() {
       // Step 2: Update recent payment transactions
       console.log('💳 Step 2: Fetching recent payment transactions...');
       const paymentsResponse = await base44.functions.invoke('squareFetchPayments', {
-        locationIds,
-        daysBack: 7
+       locationIds,
+       daysBack: 14
       });
 
       const paymentsData = paymentsResponse?.data || paymentsResponse;
