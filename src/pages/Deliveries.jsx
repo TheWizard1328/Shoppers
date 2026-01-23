@@ -61,7 +61,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { getEffectiveUser, isUserDataAvailable } from "../components/utils/auth";
 import StopCard from "../components/common/StopCard";
-import RouteImport from "../components/deliveries/RouteImport";
+import ImportActiveRoutes from "../components/deliveries/ImportActiveRoutes";
 import DeliveryForm from "../components/deliveries/DeliveryForm";
 import DeliveryDetails from "../components/deliveries/DeliveryDetails";
 import PatientForm from "../components/patients/PatientForm";
@@ -3890,14 +3890,13 @@ export default function DeliveriesPage() {
           </motion.div>
         }
         {showImportModal &&
-        <RouteImport
+        <ImportActiveRoutes
           onImportComplete={handleImportComplete}
           onCancel={() => setShowImportModal(false)}
-          patients={allPatients || []}
           stores={stores || []}
-          drivers={(allUsers || []).filter((u) => userHasRole(u, 'driver')) || []}
           allUsers={allUsers}
-          currentUser={currentUser} />
+          currentUser={currentUser}
+          allDeliveries={effectiveDeliveries || []} />
 
         }
         <RouteMapView
