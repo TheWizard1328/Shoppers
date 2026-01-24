@@ -1345,7 +1345,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4 z-[9999] overflow-hidden">
-                        <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-xl sm:max-w-2xl lg:max-w-4xl flex flex-col relative transition-all duration-300">
+                        <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-md sm:max-w-3xl lg:max-w-5xl flex flex-col relative transition-all duration-300 max-h-[90vh]">
                         {/* Floating Progress Overlay */}
                         {isProcessing &&
         <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
@@ -1394,9 +1394,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         }
 
                 
-                <CardContent className="px-2 sm:px-3 py-2 sm:py-3 flex-1 overflow-y-auto space-y-3">
-                    {/* Single column on mobile, two columns on desktop */}
-                    <div className="flex flex-col lg:flex-row gap-3">
+                <CardContent className="px-3 sm:px-4 py-3 sm:py-4 flex-1 overflow-y-auto">
+                   {/* Single column on mobile, two columns on desktop */}
+                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                         {/* File Selector */}
                         <div className="flex-1 space-y-2">
                             <div className="space-y-2">
@@ -1531,18 +1531,18 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                         </div>
           }
 
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
                         <Button
-              variant="outline"
-              onClick={onClose}
-              disabled={isProcessing}
-              className="flex-1 h-10 sm:h-9">
+                            variant="outline"
+                            onClick={onClose}
+                            disabled={isProcessing}
+                            className="h-10 sm:h-9">
                             Cancel
                         </Button>
                         <Button
-              onClick={generatePreview}
-              disabled={isProcessing || files.length === 0}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-9 flex-1 text-sm sm:text-base">
+                            onClick={generatePreview}
+                            disabled={isProcessing || files.length === 0}
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-9 text-sm sm:text-base">
                             {isProcessing ? 'Generating...' : `Preview Import (${files.length} file${files.length !== 1 ? 's' : ''})`}
                         </Button>
                     </div>
