@@ -912,10 +912,11 @@ export default function SquareManagement() {
                       </td>
                       <td className="p-3">
                         <div>
-                          <span className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">
-                            ${(item.price_dollars || 0).toFixed(2)}
-                          </span>
-                          {(() => {
+                           <span className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">
+                             ${(item.price_dollars || 0).toFixed(2)}
+                           </span>
+                        </div>
+                           {(() => {
                             // Check if this item has been sold in Square transactions
                             const soldInSquare = hasBeenSoldInSquare(item);
 
