@@ -134,13 +134,13 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
     try {
       // Step 1: Invalidate all caches
-      const { dataManager } = await import('../utils/dataManager');
+      const { invalidate, invalidateAllDeliveryRangeCache } = await import('../utils/dataManager');
       console.log('   🗑️ Invalidating all caches...');
-      dataManager.invalidateCache('Patient');
-      dataManager.invalidateCache('Delivery');
-      dataManager.invalidateCache('Store');
-      dataManager.invalidateCache('AppUser');
-      dataManager.invalidateAllDeliveryRangeCache();
+      invalidate('Patient');
+      invalidate('Delivery');
+      invalidate('Store');
+      invalidate('AppUser');
+      invalidateAllDeliveryRangeCache();
 
       // Step 2: Reset all refresh timers to force immediate refresh
       smartRefreshManager.lastRefreshTimes = {
