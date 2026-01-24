@@ -39,7 +39,7 @@ export const calculateUserCodTotal = (currentUser, catalogItems = [], locationCo
       .map(c => c.square_location_id);
     
     filteredItems = catalogItems.filter(item => 
-      squareLocationIds.includes(item.location_id) && !paidItemIds.has(item.id)
+      squareLocationIds.includes(item.location_id) && !paidItemIds.has(item.catalog_object_id)
     );
   } else if (userHasRole(currentUser, 'dispatcher')) {
     // Dispatchers: See CODs for stores they manage
@@ -47,11 +47,11 @@ export const calculateUserCodTotal = (currentUser, catalogItems = [], locationCo
     filteredItems = catalogItems.filter(item => {
       const config = locationConfigs.find(c => c.square_location_id === item.location_id);
       const store = stores.find(s => s.square_location_config_id === config?.id);
-      return store && dispatcherStoreIds.includes(store.id) && !paidItemIds.has(item.id);
+      return store && dispatcherStoreIds.includes(store.id) && !paidItemIds.has(item.catalog_object_id);
     });
   } else if (userHasRole(currentUser, 'admin')) {
     // Admins: See all CODs except paid ones
-    filteredItems = catalogItems.filter(item => !paidItemIds.has(item.id));
+    filteredItems = catalogItems.filter(item => !paidItemIds.has(item.catalog_object_id));
   }
 
   // Sum the amounts
