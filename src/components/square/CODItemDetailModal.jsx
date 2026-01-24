@@ -118,13 +118,13 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
                         <div>
                           <p className="text-slate-500">Driver</p>
                           <p className="font-medium text-slate-700">
-                            {matchingDelivery?.driver_name || 'N/A'}
+                            {deliveries.find(d => d.id === t.delivery_id)?.driver_name || 'N/A'}
                           </p>
                         </div>
                         <div>
                           <p className="text-slate-500">Date</p>
                           <p className="font-medium text-slate-700">
-                            {matchingDelivery?.delivery_date ? new Date(matchingDelivery.delivery_date).toLocaleDateString() : ''}
+                            {deliveries.find(d => d.id === t.delivery_id)?.delivery_date ? new Date(deliveries.find(d => d.id === t.delivery_id).delivery_date).toLocaleDateString() : ''}
                           </p>
                         </div>
                       </div>
