@@ -124,7 +124,7 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
                           <div>
                             <p className="text-slate-500">Date</p>
                             <p className="font-medium text-slate-700">
-                              {matchingDelivery?.delivery_date ? new Date(matchingDelivery.delivery_date).toLocaleDateString() : 'N/A'}
+                              {matchingDelivery?.delivery_date ? new Date(matchingDelivery.delivery_date).toLocaleDateString() : ''}
                             </p>
                           </div>
                         </div>
