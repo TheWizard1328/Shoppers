@@ -1031,8 +1031,7 @@ export default function SquareManagement() {
                 return (
                   <div 
                     key={`${item.catalog_object_id}-${item.location_id}-${index}`}
-                    onClick={() => setSelectedCODItem(item)}
-                    className="p-4 rounded-lg cursor-pointer transition-colors bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    className="p-4 rounded-lg transition-colors bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
                   >
                     <div className="flex justify-between items-start gap-3 mb-2">
                       <div className="min-w-0 flex-1">
