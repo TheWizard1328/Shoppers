@@ -33,7 +33,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     time_window_end: '16',
     latitude: '17',
     longitude: '18',
-    inactive_flag: '19'  // Col 19: 'X' = inactive patient
+    inactive_flag: '19' // Col 19: 'X' = inactive patient
   };
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -615,7 +615,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 ...patientData,
                 store_id: existingPatient.store_id // Always preserve existing store assignment
               };
-              
+
               const changes = comparePatientData(existingPatient, patientDataForUpdate);
               if (changes.length > 0) {
                 toUpdate.push({
@@ -653,27 +653,27 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       const importedPatientPids = new Set(); // PIDs from CSV (cleaned, case-sensitive)
       const importedPatientKeys = new Set(); // For fallback matching (store+name+address) - only for rows WITHOUT PID
       const importingStoreIds = new Set(); // Track which stores are being imported
-      
+
       // Collect all patient identifiers from ALL CSV data (processed rows)
       // We need to collect from the raw processed data, not just toCreate/toUpdate
       // because toUpdate only contains patients WITH changes
-      
+
       // Re-process all files to get ALL patient PIDs from CSV
       for (const file of files) {
         const text = await file.text();
         const lines = text.split('\n').filter((line) => line.trim());
         const dataLines = lines.slice(1); // Skip header
-        
+
         for (let i = 0; i < dataLines.length; i++) {
           try {
             const values = parseCSVLine(dataLines[i]);
             const patientData = processCsvRowToPatient(values, fieldMapping, stores);
-            
+
             // Track which stores are being imported
             if (patientData.store_id) {
               importingStoreIds.add(patientData.store_id);
             }
-            
+
             if (patientData.patient_id) {
               const cleanPid = String(patientData.patient_id).trim().replace(/[^A-Za-z0-9]/g, '');
               if (cleanPid) {
@@ -685,24 +685,24 @@ export default function PatientImport({ onImportComplete, onImportStart, current
               importedPatientKeys.add(key);
             }
           } catch (err) {
+
             // Skip rows with parsing errors
-          }
-        }
+          }}
       }
-      
+
       console.log(`PatientImport: Collected ${importedPatientPids.size} PIDs and ${importedPatientKeys.size} fallback keys from CSV`);
       console.log(`PatientImport: Importing from ${importingStoreIds.size} store(s)`, Array.from(importingStoreIds));
-      
+
       // Find patients in database not in import
-      const missingFromImport = existingPatients.filter(p => {
+      const missingFromImport = existingPatients.filter((p) => {
         // Skip if patient is already inactive
         if (p.status === 'inactive') return false;
-        
+
         // CRITICAL: Only check patients from stores being imported
         if (!importingStoreIds.has(p.store_id)) {
           return false; // Skip patients from other stores
         }
-        
+
         // PRIMARY: Check by PID if database patient has one
         if (p.patient_id) {
           const dbPid = String(p.patient_id).trim().replace(/[^A-Za-z0-9]/g, '');
@@ -710,7 +710,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
             return false; // Found in CSV by PID
           }
         }
-        
+
         // FALLBACK: Only if DB patient has no PID, check by store+name+address
         if (!p.patient_id) {
           const key = `${p.store_id}_${(p.full_name || '').toLowerCase().trim()}_${(p.address || '').toLowerCase().trim()}`;
@@ -718,27 +718,27 @@ export default function PatientImport({ onImportComplete, onImportStart, current
             return false; // Found in CSV by fallback key
           }
         }
-        
+
         // Patient exists in DB but not in import
         return true;
       });
-      
+
       console.log(`PatientImport: Found ${missingFromImport.length} patients in database not in CSV`);
       setMissingPatients(missingFromImport);
-      
+
       setPreviewChanges({ toCreate, toUpdate, errors });
-      
+
       // Store importing store IDs for the popup
       if (!window.__importingStoreIds) {
         window.__importingStoreIds = Array.from(importingStoreIds);
       }
-      
+
       // Show preview first, missing patients will be shown when user tries to import
       setShowPreview(true);
-      
+
       // Store missing patients for later if needed
       setMissingPatients(missingFromImport);
-      
+
       console.log(`PatientImport: Preview generation complete. To Create: ${toCreate.length}, To Update: ${toUpdate.length}, Errors: ${errors.length}, Missing: ${missingFromImport.length}`);
 
     } catch (error) {
@@ -753,11 +753,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
   const confirmAndImport = async () => {
     console.log("PatientImport: Starting confirmation and import process...");
-    
+
     if (onImportStart) {
       onImportStart();
     }
-    
+
     setShowPreview(false);
     setIsProcessing(true);
     setImportResult(null);
@@ -782,7 +782,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       // CRITICAL: Use centralized data operation manager
       await executeDataOperation(async () => {
         console.log('📥 [PatientImport] Starting patient import with data operation manager');
-        
+
         // Retry queue arrays
         const failedCreations = [];
         const failedUpdates = [];
@@ -850,9 +850,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
               const createdPatients = await retryWithBackoff(async () => {
                 return await base44.entities.Patient.bulkCreate(batch);
               }, 5, 3000, 2); // Increased retry delay
-              
+
               await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, createdPatients);
-              
+
               totalCreated += createdPatients.length;
               setImportProgress((prev) => ({
                 ...prev,
@@ -892,7 +892,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
           const UPDATE_BATCH_SIZE = 5;
           for (let batchStart = 0; batchStart < previewChanges.toUpdate.length; batchStart += UPDATE_BATCH_SIZE) {
             const batch = previewChanges.toUpdate.slice(batchStart, batchStart + UPDATE_BATCH_SIZE);
-            
+
             for (const item of batch) {
               const { id } = item;
               const patientData = { ...item.data };
@@ -935,7 +935,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                   await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updated]);
                   return updated;
                 }, 5, 2000, 2);
-                
+
                 totalUpdated++;
                 setImportProgress((prev) => ({
                   ...prev,
@@ -952,108 +952,108 @@ export default function PatientImport({ onImportComplete, onImportStart, current
           }
         }
 
-      // --- Retry failed creations (offline DB) ---
-      if (failedCreations.length > 0) {
-        console.log(`PatientImport: Retrying ${failedCreations.length} failed offline saves...`);
-        setImportProgress((prev) => ({
-          ...prev,
-          phase: 'retrying creations',
-          current: 0,
-          total: failedCreations.length
-        }));
+        // --- Retry failed creations (offline DB) ---
+        if (failedCreations.length > 0) {
+          console.log(`PatientImport: Retrying ${failedCreations.length} failed offline saves...`);
+          setImportProgress((prev) => ({
+            ...prev,
+            phase: 'retrying creations',
+            current: 0,
+            total: failedCreations.length
+          }));
 
-        for (let i = 0; i < failedCreations.length; i++) {
-          const item = failedCreations[i];
-          const patientData = item.data;
+          for (let i = 0; i < failedCreations.length; i++) {
+            const item = failedCreations[i];
+            const patientData = item.data;
 
-          try {
-            console.log(`PatientImport: Retrying offline save ${i + 1}/${failedCreations.length}: ${patientData.full_name}`);
-            
-            const patientWithTempId = {
-              ...patientData,
-              id: `temp_patient_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              created_date: new Date().toISOString(),
-              updated_date: new Date().toISOString(),
-              _isLocal: true
-            };
-            
-            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [patientWithTempId]);
-            totalCreated++;
-            console.log(`PatientImport: Retry offline save successful for ${patientData.full_name}`);
+            try {
+              console.log(`PatientImport: Retrying offline save ${i + 1}/${failedCreations.length}: ${patientData.full_name}`);
 
-            const errorIndex = importErrors.indexOf(item.errorMsg);
-            if (errorIndex > -1) {
-              importErrors.splice(errorIndex, 1);
+              const patientWithTempId = {
+                ...patientData,
+                id: `temp_patient_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                created_date: new Date().toISOString(),
+                updated_date: new Date().toISOString(),
+                _isLocal: true
+              };
+
+              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [patientWithTempId]);
+              totalCreated++;
+              console.log(`PatientImport: Retry offline save successful for ${patientData.full_name}`);
+
+              const errorIndex = importErrors.indexOf(item.errorMsg);
+              if (errorIndex > -1) {
+                importErrors.splice(errorIndex, 1);
+              }
+
+              setImportProgress((prev) => ({
+                ...prev,
+                created: prev.created + 1,
+                errors: importErrors.length,
+                current: i + 1
+              }));
+            } catch (retryError) {
+              console.error(`PatientImport: Final offline save failed for ${patientData.full_name}:`, retryError);
+              const newErrorMsg = `Final retry failed for ${patientData.full_name} (${patientData.address}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
+              const errorIndex = importErrors.indexOf(item.errorMsg);
+              if (errorIndex > -1) {
+                importErrors[errorIndex] = newErrorMsg;
+              } else {
+                importErrors.push(newErrorMsg);
+              }
+
+              setImportProgress((prev) => ({ ...prev, errors: importErrors.length, current: i + 1 }));
             }
-
-            setImportProgress((prev) => ({
-              ...prev,
-              created: prev.created + 1,
-              errors: importErrors.length,
-              current: i + 1
-            }));
-          } catch (retryError) {
-            console.error(`PatientImport: Final offline save failed for ${patientData.full_name}:`, retryError);
-            const newErrorMsg = `Final retry failed for ${patientData.full_name} (${patientData.address}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
-            const errorIndex = importErrors.indexOf(item.errorMsg);
-            if (errorIndex > -1) {
-              importErrors[errorIndex] = newErrorMsg;
-            } else {
-              importErrors.push(newErrorMsg);
-            }
-
-            setImportProgress((prev) => ({ ...prev, errors: importErrors.length, current: i + 1 }));
           }
         }
-      }
 
-      // --- Retry failed updates (offline DB) ---
-      if (failedUpdates.length > 0) {
-        console.log(`PatientImport: Retrying ${failedUpdates.length} failed offline updates...`);
-        setImportProgress((prev) => ({
-          ...prev,
-          phase: 'retrying updates',
-          current: 0,
-          total: failedUpdates.length
-        }));
+        // --- Retry failed updates (offline DB) ---
+        if (failedUpdates.length > 0) {
+          console.log(`PatientImport: Retrying ${failedUpdates.length} failed offline updates...`);
+          setImportProgress((prev) => ({
+            ...prev,
+            phase: 'retrying updates',
+            current: 0,
+            total: failedUpdates.length
+          }));
 
-        for (let i = 0; i < failedUpdates.length; i++) {
-          const item = failedUpdates[i];
-          const { id } = item;
-          const patientData = item.data;
+          for (let i = 0; i < failedUpdates.length; i++) {
+            const item = failedUpdates[i];
+            const { id } = item;
+            const patientData = item.data;
 
-          try {
-            console.log(`PatientImport: Retrying update ${i + 1}/${failedUpdates.length}: ${patientData.full_name} (ID: ${id})`);
-            
-            // CRITICAL: Retry with backend API
-            await base44.entities.Patient.update(id, patientData);
-            totalUpdated++;
-            console.log(`PatientImport: Retry update successful for ${patientData.full_name}`);
+            try {
+              console.log(`PatientImport: Retrying update ${i + 1}/${failedUpdates.length}: ${patientData.full_name} (ID: ${id})`);
 
-            const errorIndex = importErrors.indexOf(item.errorMsg);
-            if (errorIndex > -1) {
-              importErrors.splice(errorIndex, 1);
+              // CRITICAL: Retry with backend API
+              await base44.entities.Patient.update(id, patientData);
+              totalUpdated++;
+              console.log(`PatientImport: Retry update successful for ${patientData.full_name}`);
+
+              const errorIndex = importErrors.indexOf(item.errorMsg);
+              if (errorIndex > -1) {
+                importErrors.splice(errorIndex, 1);
+              }
+
+              setImportProgress((prev) => ({
+                ...prev,
+                updated: prev.updated + 1,
+                errors: importErrors.length,
+                current: i + 1
+              }));
+            } catch (retryError) {
+              console.error(`PatientImport: Final update failed for ${patientData.full_name}:`, retryError);
+              const newErrorMsg = `Final retry update failed for patient ID ${id} (${patientData.full_name}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
+              const errorIndex = importErrors.indexOf(item.errorMsg);
+              if (errorIndex > -1) {
+                importErrors[errorIndex] = newErrorMsg;
+              } else {
+                importErrors.push(newErrorMsg);
+              }
+              setImportProgress((prev) => ({ ...prev, errors: importErrors.length, current: i + 1 }));
             }
-
-            setImportProgress((prev) => ({
-              ...prev,
-              updated: prev.updated + 1,
-              errors: importErrors.length,
-              current: i + 1
-            }));
-          } catch (retryError) {
-            console.error(`PatientImport: Final update failed for ${patientData.full_name}:`, retryError);
-            const newErrorMsg = `Final retry update failed for patient ID ${id} (${patientData.full_name}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
-            const errorIndex = importErrors.indexOf(item.errorMsg);
-            if (errorIndex > -1) {
-              importErrors[errorIndex] = newErrorMsg;
-            } else {
-              importErrors.push(newErrorMsg);
-            }
-            setImportProgress((prev) => ({ ...prev, errors: importErrors.length, current: i + 1 }));
           }
         }
-      }
 
         const aggregatedResults = {
           created: totalCreated,
@@ -1082,16 +1082,16 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         }));
 
         console.log("PatientImport: Import complete via data operation manager");
-        
+
         // CRITICAL: Trigger immediate backend sync after import
         console.log("📤 [PatientImport] Triggering immediate backend sync...");
         const { processPendingMutations } = await import('../utils/offlineSync');
-        processPendingMutations().catch(err => console.warn('Backend sync error:', err));
-        
+        processPendingMutations().catch((err) => console.warn('Backend sync error:', err));
+
         if (onImportComplete) {
           onImportComplete(aggregatedResults);
         }
-        
+
         return true; // Signal success
       }, { restartDelay: 2000 }); // 2 second delay before restarting smart refresh
 
@@ -1106,7 +1106,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         errors: importErrors.length,
         currentFile: ''
       }));
-      
+
       if (!importResult) {
         setImportResult({
           created: totalCreated,
@@ -1149,9 +1149,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         onContinue={() => {
           setShowMissingPatients(false);
           setShowPreview(true);
-        }}
-      />
-    );
+        }} />);
+
+
   }
 
   if (showPreview) {
@@ -1253,7 +1253,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 )}
                                 </div>
                             </div>
-                            }
+            }
 
                             <CardHeader className="px-3 py-2 sm:px-4 flex flex-col space-y-1.5 flex-shrink-0 border-b">
                                 <div className="flex items-center justify-between">
@@ -1268,13 +1268,92 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                             </CardHeader>
                 {/* Floating Progress Overlay */}
                 {isProcessing &&
-        <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
+            <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
                         <div className="w-full max-w-2xl">
                             <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-3 sm:p-6 space-y-3 sm:space-y-4 shadow-lg">
                                 <div className="flex justify-between items-start sm:items-center flex-col sm:flex-row gap-2">
                                     <div>
                                         <h3 className="font-semibold text-base sm:text-lg text-blue-900">{getPhaseLabel()}</h3>
                                         {/* Only show file progress if phase specifically refers to file processing, otherwise hide */}
+                                        {importProgress.phase === 'processing' && importProgress.totalFiles > 0 &&
+                      <p className="text-sm text-blue-700">
+                                                File {importProgress.filesCompleted + (importProgress.phase !== 'complete' ? 1 : 0)} of {importProgress.totalFiles}: {importProgress.currentFile}
+                                            </p>
+                      }
+                                    </div>
+                                    <span className="text-sm font-medium text-blue-700">
+                                        {importProgress.total > 0 ? `${importProgress.current} of ${importProgress.total}` : 'Initializing...'}
+                                    </span>
+                                </div>
+
+                                <div className="w-full bg-blue-200 rounded-full h-4 overflow-hidden">
+                                    <div
+                      className="bg-blue-600 h-4 rounded-full transition-all duration-300 flex items-center justify-center text-xs text-white font-medium"
+                      style={{ width: `${importProgress.total > 0 ? importProgress.current / importProgress.total * 100 : 0}%` }}>
+
+                                        {importProgress.total > 0 && `${Math.round(importProgress.current / importProgress.total * 100)}%`}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-2">
+                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
+                                        <div className="text-xl sm:text-2xl font-bold text-green-600">{importProgress.created}</div>
+                                        <div className="text-[10px] sm:text-xs text-slate-600">Created</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
+                                        <div className="text-xl sm:text-2xl font-bold text-blue-600">{importProgress.updated}</div>
+                                        <div className="text-[10px] sm:text-xs text-slate-600">Updated</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
+                                        <div className="text-xl sm:text-2xl font-bold text-red-600">{importProgress.errors}</div>
+                                        <div className="text-[10px] sm:text-xs text-slate-600">Errors</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+            }
+
+                        {/* Errors */}
+                        {previewChanges.errors.length > 0 &&
+            <div>
+                                <h3 className="text-base sm:text-lg font-semibold text-red-600 mb-2">Errors ({previewChanges.errors.length})</h3>
+                                <div className="space-y-1 max-h-[20vh] sm:max-h-[150px] overflow-y-auto bg-red-50 p-2 sm:p-3 rounded border border-red-200">
+                                    {previewChanges.errors.map((error, idx) =>
+                <div key={idx} className="text-xs text-red-800 break-words">{error}</div>
+                )}
+                                </div>
+                            </div>
+            }
+                        </CardContent>
+                        <div className="border-t p-3 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 flex-shrink-0">
+                        <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing} className="w-full sm:w-auto">
+                            Cancel
+                        </Button>
+                        <Button
+              onClick={confirmAndImport}
+              className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
+              disabled={isProcessing || previewChanges.toCreate.length === 0 && previewChanges.toUpdate.length === 0 && previewChanges.errors.length === 0}>
+
+                            {isProcessing ? 'Importing...' : `Import (${previewChanges.toCreate.length}+${previewChanges.toUpdate.length})`}
+                        </Button>
+                        </div>
+                        </Card>
+                        </div>);
+
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4 z-[9999] overflow-hidden">
+                        <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl flex flex-col relative transition-all duration-300 h-[30vh] sm:h-[23vh]">
+                        {/* Floating Progress Overlay */}
+                        {isProcessing &&
+        <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
+                        <div className="w-full max-w-2xl">
+                            <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-3 sm:p-6 space-y-3 sm:space-y-4 shadow-lg">
+                                <div className="flex justify-between items-start sm:items-center flex-col sm:flex-row gap-2">
+                                    <div>
+                                        <h3 className="font-semibold text-base sm:text-lg text-blue-900">{getPhaseLabel()}</h3>
                                         {importProgress.phase === 'processing' && importProgress.totalFiles > 0 &&
                   <p className="text-sm text-blue-700">
                                                 File {importProgress.filesCompleted + (importProgress.phase !== 'complete' ? 1 : 0)} of {importProgress.totalFiles}: {importProgress.currentFile}
@@ -1311,87 +1390,8 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                                 </div>
                             </div>
                         </div>
-                    </div>
+                        </div>
         }
-
-                        {/* Errors */}
-                        {previewChanges.errors.length > 0 &&
-                        <div>
-                                <h3 className="text-base sm:text-lg font-semibold text-red-600 mb-2">Errors ({previewChanges.errors.length})</h3>
-                                <div className="space-y-1 max-h-[20vh] sm:max-h-[150px] overflow-y-auto bg-red-50 p-2 sm:p-3 rounded border border-red-200">
-                                    {previewChanges.errors.map((error, idx) =>
-                        <div key={idx} className="text-xs text-red-800 break-words">{error}</div>
-                        )}
-                                </div>
-                            </div>
-                        }
-                        </CardContent>
-                        <div className="border-t p-3 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 flex-shrink-0">
-                        <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing} className="w-full sm:w-auto">
-                            Cancel
-                        </Button>
-                        <Button
-                        onClick={confirmAndImport}
-                        className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
-                        disabled={isProcessing || previewChanges.toCreate.length === 0 && previewChanges.toUpdate.length === 0 && previewChanges.errors.length === 0}>
-
-                            {isProcessing ? 'Importing...' : `Import (${previewChanges.toCreate.length}+${previewChanges.toUpdate.length})`}
-                        </Button>
-                        </div>
-                        </Card>
-                        </div>);
-
-                        }
-
-                        return (
-                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4 z-[9999] overflow-hidden">
-                        <Card className={`rounded-xl border bg-card text-card-foreground shadow w-full max-w-7xl flex flex-col relative transition-all duration-300 ${files.length > 0 ? 'h-[85vh] sm:h-[70vh]' : 'h-[60vh] sm:h-[42vh]'}`}>
-                        {/* Floating Progress Overlay */}
-                        {isProcessing &&
-                        <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
-                        <div className="w-full max-w-2xl">
-                            <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-3 sm:p-6 space-y-3 sm:space-y-4 shadow-lg">
-                                <div className="flex justify-between items-start sm:items-center flex-col sm:flex-row gap-2">
-                                    <div>
-                                        <h3 className="font-semibold text-base sm:text-lg text-blue-900">{getPhaseLabel()}</h3>
-                                        {importProgress.phase === 'processing' && importProgress.totalFiles > 0 &&
-                        <p className="text-sm text-blue-700">
-                                                File {importProgress.filesCompleted + (importProgress.phase !== 'complete' ? 1 : 0)} of {importProgress.totalFiles}: {importProgress.currentFile}
-                                            </p>
-                        }
-                                    </div>
-                                    <span className="text-sm font-medium text-blue-700">
-                                        {importProgress.total > 0 ? `${importProgress.current} of ${importProgress.total}` : 'Initializing...'}
-                                    </span>
-                                </div>
-
-                                <div className="w-full bg-blue-200 rounded-full h-4 overflow-hidden">
-                                    <div
-                        className="bg-blue-600 h-4 rounded-full transition-all duration-300 flex items-center justify-center text-xs text-white font-medium"
-                        style={{ width: `${importProgress.total > 0 ? importProgress.current / importProgress.total * 100 : 0}%` }}>
-
-                                        {importProgress.total > 0 && `${Math.round(importProgress.current / importProgress.total * 100)}%`}
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-2">
-                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
-                                        <div className="text-xl sm:text-2xl font-bold text-green-600">{importProgress.created}</div>
-                                        <div className="text-[10px] sm:text-xs text-slate-600">Created</div>
-                                    </div>
-                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
-                                        <div className="text-xl sm:text-2xl font-bold text-blue-600">{importProgress.updated}</div>
-                                        <div className="text-[10px] sm:text-xs text-slate-600">Updated</div>
-                                    </div>
-                                    <div className="bg-white rounded-lg p-2 sm:p-3 text-center">
-                                        <div className="text-xl sm:text-2xl font-bold text-red-600">{importProgress.errors}</div>
-                                        <div className="text-[10px] sm:text-xs text-slate-600">Errors</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        </div>
-                        }
 
                 
                 <CardContent className="px-2 sm:px-3 py-2 sm:py-3 flex-1 overflow-y-auto space-y-3">
@@ -1467,7 +1467,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                             {/* Mobile: Card View */}
                             <div className="lg:hidden overflow-y-auto max-h-[35vh] p-2 space-y-2">
                                 {previewData.map((patient, idx) =>
-                  <div key={idx} className="bg-slate-50 border rounded-lg p-2 text-xs space-y-1">
+              <div key={idx} className="bg-slate-50 border rounded-lg p-2 text-xs space-y-1">
                                         <div className="flex items-center gap-2">
                                             <span className="font-mono bg-slate-200 px-2 py-0.5 rounded">{patient.patient_id || '-'}</span>
                                             <span className="font-medium">{patient.full_name}</span>
@@ -1479,15 +1479,15 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {patient.store_name !== 'N/A' ?
-                      <Badge style={{ backgroundColor: patient.store_color, fontSize: '10px' }}>
+                  <Badge style={{ backgroundColor: patient.store_color, fontSize: '10px' }}>
                                                     {patient.store_name}
                                                 </Badge> :
-                      <span className="text-slate-400">{patient.store_name}</span>
-                      }
+                  <span className="text-slate-400">{patient.store_name}</span>
+                  }
                                         </div>
                                         {patient.notes && <div className="text-slate-600 truncate">Notes: {patient.notes}</div>}
                                     </div>
-                  )}
+              )}
                             </div>
 
                             {/* Desktop: Table View */}
@@ -1533,16 +1533,16 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
                     <div className="flex gap-2">
                         <Button
-                            variant="outline"
-                            onClick={onClose}
-                            disabled={isProcessing}
-                            className="flex-1 h-10 sm:h-9">
+              variant="outline"
+              onClick={onClose}
+              disabled={isProcessing}
+              className="flex-1 h-10 sm:h-9">
                             Cancel
                         </Button>
                         <Button
-                            onClick={generatePreview}
-                            disabled={isProcessing || files.length === 0}
-                            className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-9 flex-1 text-sm sm:text-base">
+              onClick={generatePreview}
+              disabled={isProcessing || files.length === 0}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-9 flex-1 text-sm sm:text-base">
                             {isProcessing ? 'Generating...' : `Preview Import (${files.length} file${files.length !== 1 ? 's' : ''})`}
                         </Button>
                     </div>
