@@ -2725,14 +2725,10 @@ export default function Layout({ children, currentPageName }) {
                       )}
 
                       <img
-                        src="/app-logo.png"
+                        src="https://cdn-icons-png.flaticon.com/512/3843/3843479.png"
                         alt="RxDeliver"
                         className="w-10 h-10 rounded object-contain"
-                        style={{ filter: 'var(--image-filter, none)' }}
-                        onError={(e) => {
-                          e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3843/3843479.png';
-                          e.currentTarget.onerror = null;
-                        }} />
+                        style={{ filter: 'var(--image-filter, none)' }} />
 
                       <div>
                         <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>RxDeliver</h2>
@@ -3280,14 +3276,10 @@ export default function Layout({ children, currentPageName }) {
                       }}
                     >
                       <img
-                        src="/app-logo.png"
+                        src="https://cdn-icons-png.flaticon.com/512/3843/3843479.png"
                         alt="RxDeliver"
                         className="w-8 h-8 rounded object-contain"
-                        style={{ filter: 'var(--image-filter, none)' }}
-                        onError={(e) => {
-                          e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3843/3843479.png';
-                          e.currentTarget.onerror = null;
-                        }} />
+                        style={{ filter: 'var(--image-filter, none)' }} />
                       {unreadMessageCount > 0 && (
                         <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
                           {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
