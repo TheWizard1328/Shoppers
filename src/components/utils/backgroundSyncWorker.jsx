@@ -116,10 +116,13 @@ class BackgroundSyncWorker {
   /**
    * Notify listeners
    */
-  _notify(event) {
+  async _notify(event) {
+    // CRITICAL: Import offlineDB dynamically to avoid circular dependencies
+    const { offlineDB } = await import('./offlineDatabase');
+    
     this.listeners.forEach(cb => {
       try {
-        cb(event);
+        cb(event, offlineDB);
       } catch (e) {
         console.error('[BackgroundSync] Listener error:', e);
       }

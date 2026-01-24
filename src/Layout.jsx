@@ -839,13 +839,15 @@ export default function Layout({ children, currentPageName }) {
 
         const today = new Date();
 
-        // Load initial COD data
-        const squareConfigs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
-        const catalogResponse = await base44.functions.invoke('squareSyncCatalogItems', {});
-        const initialCatalogItems = catalogResponse?.data?.items || catalogResponse?.items || [];
+        // CRITICAL: Load initial COD data from offline DB first to prevent rate limits
+        const { offlineDB } = await import('./components/utils/offlineDatabase');
+        const offlineSquareConfigs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
+        const offlineSquareTx = await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS);
 
-        setSquareLocationConfigs(squareConfigs || []);
-        setCatalogItems(initialCatalogItems);
+        // Use offline data if available, otherwise empty arrays (load in background later)
+        setSquareLocationConfigs(offlineSquareConfigs || []);
+        setCatalogItems([]); // Will be loaded in background
+        setSquareTransactions(offlineSquareTx || []);
 
         const savedDate = globalFilters.getSelectedDate();
         let effectiveDateForDriverAssignment;
@@ -1454,47 +1456,51 @@ export default function Layout({ children, currentPageName }) {
   // CRITICAL: POLLING COMPLETELY REMOVED - use offline-first + WebSocket only
   // Background sync worker handles intelligent syncing during idle time
   useEffect(() => {
-    if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
+  if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
 
-    // Start background sync worker for intelligent idle-time syncing
-    const initBackgroundSync = async () => {
-      const { backgroundSyncWorker } = await import('./components/utils/backgroundSyncWorker');
+  // Start background sync worker for intelligent idle-time syncing
+  // CRITICAL: Wait 5 minutes after initial load before starting to prevent rate limits
+  const delayedStartTimer = setTimeout(async () => {
+    const { backgroundSyncWorker } = await import('./components/utils/backgroundSyncWorker');
+    const { offlineDB } = await import('./components/utils/offlineDatabase');
 
-      // Listen for sync events to update UI
-      const unsubscribe = backgroundSyncWorker.subscribe(async (event) => {
-        if (event.type === 'sync_complete') {
-          // Load updated data from offline DB and update UI
-          if (event.entity === 'AppUser') {
-            const updatedAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-            if (updatedAppUsers && updatedAppUsers.length > 0) {
-              setAppUsers(updatedAppUsers);
-              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                detail: { appUsers: updatedAppUsers }
-              }));
-            }
-          } else if (event.entity === 'Delivery') {
-            const updatedDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-            if (updatedDeliveries && updatedDeliveries.length > 0) {
-              setDeliveries(updatedDeliveries);
-            }
-          } else if (event.entity === 'Patient') {
-            const updatedPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-            if (updatedPatients && updatedPatients.length > 0) {
-              setPatients(updatedPatients);
-            }
+    console.log('🔄 [Layout] Starting background sync worker (5min delay)');
+
+    // Listen for sync events to update UI
+    const unsubscribe = backgroundSyncWorker.subscribe(async (event, db) => {
+      if (event.type === 'sync_complete') {
+        // Load updated data from offline DB and update UI
+        if (event.entity === 'AppUser') {
+          const updatedAppUsers = await db.getAll(db.STORES.APP_USERS);
+          if (updatedAppUsers && updatedAppUsers.length > 0) {
+            setAppUsers(updatedAppUsers);
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: updatedAppUsers }
+            }));
+          }
+        } else if (event.entity === 'Delivery') {
+          const updatedDeliveries = await db.getAll(db.STORES.DELIVERIES);
+          if (updatedDeliveries && updatedDeliveries.length > 0) {
+            setDeliveries(updatedDeliveries);
+          }
+        } else if (event.entity === 'Patient') {
+          const updatedPatients = await db.getAll(db.STORES.PATIENTS);
+          if (updatedPatients && updatedPatients.length > 0) {
+            setPatients(updatedPatients);
           }
         }
-      });
+      }
+    });
 
-      backgroundSyncWorker.start();
+    backgroundSyncWorker.start();
 
-      return () => {
-        backgroundSyncWorker.stop();
-        unsubscribe();
-      };
+    return () => {
+      backgroundSyncWorker.stop();
+      unsubscribe();
     };
+  }, 300000); // 5 minutes delay
 
-    initBackgroundSync();
+  return () => clearTimeout(delayedStartTimer);
   }, [initialGlobalFiltersSet, currentUser, dataLoaded]);
 
     // Wake Lock API and visibility change handler
@@ -1696,17 +1702,15 @@ export default function Layout({ children, currentPageName }) {
       // This ensures "Show All" checkbox and map markers have complete data
       const priorityFilter = { ...cityStoreFilter };
 
-      // Load Square catalog items and location configs for COD tracking
-      const [squareConfigs, catalogData, transactionsData] = await Promise.all([
-        base44.entities.SquareLocationConfig.filter({ status: 'active' }),
-        base44.functions.invoke('squareSyncCatalogItems', {}),
-        base44.entities.SquareTransaction.filter({ type: 'collection' })
-      ]);
+      // CRITICAL: Load Square data from offline DB first to prevent rate limits
+      // API sync will happen in background later
+      const { offlineDB } = await import('./components/utils/offlineDatabase');
+      const offlineSquareConfigs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
+      const offlineSquareTx = await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS);
 
-      const catalogItemsData = catalogData?.data?.items || catalogData?.items || [];
-      setSquareLocationConfigs(squareConfigs || []);
-      setCatalogItems(catalogItemsData);
-      setSquareTransactions(transactionsData || []);
+      setSquareLocationConfigs(offlineSquareConfigs || []);
+      setCatalogItems([]); // Will be synced in background
+      setSquareTransactions(offlineSquareTx || []);
 
       // Load deliveries with instant UI callback
       await loadDeliveries(
