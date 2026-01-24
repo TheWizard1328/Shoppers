@@ -691,8 +691,16 @@ export const forceSyncAll = async () => {
     const patients = await Patient.filter({ status: 'active' }, '-created_date', 5000);
     const cleanPatients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
 
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 70, count: cleanPatients.length });
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 60, count: cleanPatients.length });
     await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanPatients);
+
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    // Step 5: Sync Square Transactions
+    notifySyncStatus({ status: 'syncing', entity: 'SquareTransactions', progress: 70 });
+    const squareTx = await SquareTransaction.list('-updated_date', 100);
+    await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, squareTx);
+    notifySyncStatus({ status: 'syncing', entity: 'SquareTransactions', progress: 85, count: squareTx.length });
 
     // Update sync timestamps - MARK ALL as full sync
     await Promise.all([
@@ -719,12 +727,18 @@ export const forceSyncAll = async () => {
         status: 'synced',
         lastSync: new Date().toISOString(),
         lastFullSync: new Date().toISOString()
+      }),
+      offlineDB.updateSyncStatus('SquareTransaction', { 
+        recordCount: squareTx.length, 
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
       })
     ]);
 
     notifySyncStatus({ status: 'syncing', entity: 'Finalizing', progress: 90 });
     
-    // Sync historical deliveries and Square Transactions in background
+    // Sync historical deliveries in background
     await performBackgroundSync(selectedDateStr);
     
     notifySyncStatus({ status: 'complete', progress: 100 });
