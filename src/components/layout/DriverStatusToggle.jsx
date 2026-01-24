@@ -63,42 +63,14 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     initAppUserAndTracker();
   }, [currentUser?.id]);
 
-  // Sync status from currentUser prop and poll AppUser directly for real-time updates
-  // CRITICAL: Skip polling when isUpdating OR when pendingStatus is set
+  // CRITICAL: Status polling DISABLED - prevents rate limits
+  // Status will only sync on component mount and after manual status changes
   useEffect(() => {
-    // Don't poll during updates or when a status change is pending
-    if (isUpdating || pendingStatus) {
-      console.log('⏸️ [DriverStatusToggle] Skipping sync - update in progress or pending');
-      return;
+    if (currentUser?.driver_status && currentUser.driver_status !== status) {
+      setStatus(currentUser.driver_status);
+      locationTracker.setDriverStatus(currentUser.driver_status);
     }
-    
-    const syncStatus = async () => {
-      // Triple-check no update is happening
-      if (isUpdating || pendingStatus || !currentUser?.id) return;
-      
-      try {
-        // Fetch fresh AppUser data directly
-        const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
-        if (appUsers && appUsers.length > 0) {
-          const freshStatus = appUsers[0].driver_status;
-          if (freshStatus && freshStatus !== status && !pendingStatus) {
-            console.log(`🔄 [DriverStatusToggle] Detected status change: ${status} → ${freshStatus}`);
-            setStatus(freshStatus);
-            // Update locationTracker's status if it changes externally
-            locationTracker.setDriverStatus(freshStatus);
-            console.log(`📍 [DriverStatusToggle] Updated locationTracker status to: ${freshStatus}`);
-          }
-        }
-      } catch (error) {
-        console.warn('⚠️ [DriverStatusToggle] Could not fetch fresh status:', error);
-      }
-    };
-    
-    syncStatus(); // Initial sync
-    const interval = setInterval(syncStatus, 5000); // Poll every 5 seconds (less aggressive)
-    
-    return () => clearInterval(interval);
-  }, [currentUser?.id, status, isUpdating, pendingStatus]);
+  }, [currentUser?.driver_status]);
 
   const handleStatusChange = useCallback(async (newStatus) => {
     // Don't allow changes while updating OR if already pending

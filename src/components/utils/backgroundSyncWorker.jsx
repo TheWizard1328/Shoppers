@@ -130,51 +130,11 @@ class BackgroundSyncWorker {
   }
   
   /**
-   * Main sync loop - checks what needs syncing and does it
+   * Main sync loop - DISABLED to prevent rate limits
    */
   async _runSyncLoop() {
-    while (this.isRunning) {
-      try {
-        // Skip if paused
-        if (this.isPaused) {
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          continue;
-        }
-        
-        // Check cooldown
-        if (Date.now() < this.cooldownUntil) {
-          await new Promise(resolve => setTimeout(resolve, 10000));
-          continue;
-        }
-        
-        const now = Date.now();
-        
-        // HIGH PRIORITY: On-duty drivers + active deliveries (every 30s when active)
-        if (now - this.lastSync.highPriority >= this.intervals.highPriority) {
-          await this._syncHighPriority();
-          this.lastSync.highPriority = now;
-        }
-        
-        // MEDIUM PRIORITY: Today's patients, Square TX (every 5min)
-        if (now - this.lastSync.mediumPriority >= this.intervals.mediumPriority) {
-          await this._syncMediumPriority();
-          this.lastSync.mediumPriority = now;
-        }
-        
-        // LOW PRIORITY: Cities, Stores, historical (every 30min, only when idle)
-        if (now - this.lastSync.lowPriority >= this.intervals.lowPriority && this.isUserIdle()) {
-          await this._syncLowPriority();
-          this.lastSync.lowPriority = now;
-        }
-        
-        // Wait before next check
-        await new Promise(resolve => setTimeout(resolve, 10000)); // Check every 10 seconds
-        
-      } catch (error) {
-        console.error('[BackgroundSync] Loop error:', error);
-        await new Promise(resolve => setTimeout(resolve, 30000));
-      }
-    }
+    console.log('📴 [BackgroundSync] Sync loop DISABLED - no automatic background syncing');
+    // App is 100% offline-only - no background API calls
   }
   
   /**
