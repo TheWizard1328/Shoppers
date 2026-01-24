@@ -915,58 +915,57 @@ export default function SquareManagement() {
                            <span className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">
                              ${(item.price_dollars || 0).toFixed(2)}
                            </span>
-                        </div>
                            {(() => {
-                            // Check if this item has been sold in Square transactions
-                            const soldInSquare = hasBeenSoldInSquare(item);
+                             // Check if this item has been sold in Square transactions
+                             const soldInSquare = hasBeenSoldInSquare(item);
 
-                            if (soldInSquare) {
-                              return (
-                                <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
-                                  ✓ Collected
-                                </Badge>
-                              );
-                            }
+                             if (soldInSquare) {
+                               return (
+                                 <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
+                                   ✓ Collected
+                                 </Badge>
+                               );
+                             }
 
-                            const codDetails = getCODPaymentDetails(item.name, item.location_id);
-                            const parsed = parseSquareItemName(item.name);
-                            const isCurrentDate = parsed && parsed.deliveryDate === format(new Date(), 'yyyy-MM-dd');
+                             const codDetails = getCODPaymentDetails(item.name, item.location_id);
+                             const parsed = parseSquareItemName(item.name);
+                             const isCurrentDate = parsed && parsed.deliveryDate === format(new Date(), 'yyyy-MM-dd');
 
-                            if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
-                              return (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {codDetails.payments.map((payment, idx) => {
-                                    const colorClass = {
-                                      'Cash': 'bg-green-100 text-green-800',
-                                      'Debit': 'bg-blue-100 text-blue-800',
-                                      'Credit': 'bg-purple-100 text-purple-800',
-                                      'Check': 'bg-amber-100 text-amber-800'
-                                    }[payment.type] || 'bg-gray-100 text-gray-800';
+                             if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
+                               return (
+                                 <div className="flex flex-wrap gap-1 mt-1">
+                                   {codDetails.payments.map((payment, idx) => {
+                                     const colorClass = {
+                                       'Cash': 'bg-green-100 text-green-800',
+                                       'Debit': 'bg-blue-100 text-blue-800',
+                                       'Credit': 'bg-purple-100 text-purple-800',
+                                       'Check': 'bg-amber-100 text-amber-800'
+                                     }[payment.type] || 'bg-gray-100 text-gray-800';
 
-                                    return (
-                                      <Badge key={idx} className={`${colorClass} text-xs`}>
-                                        {payment.type}: ${payment.amount.toFixed(2)}
-                                      </Badge>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            } else if (codDetails.status === 'cash') {
-                              return (
-                                <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
-                                  Cash
-                                </Badge>
-                              );
-                            } else {
-                              return (
-                                <Badge className={`text-xs mt-1 block w-fit ${isCurrentDate ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>
-                                  {isCurrentDate ? 'Pending Collection' : 'No Collection'}
-                                </Badge>
-                              );
-                            }
-                          })()}
+                                     return (
+                                       <Badge key={idx} className={`${colorClass} text-xs`}>
+                                         {payment.type}: ${payment.amount.toFixed(2)}
+                                       </Badge>
+                                     );
+                                   })}
+                                 </div>
+                               );
+                             } else if (codDetails.status === 'cash') {
+                               return (
+                                 <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
+                                   Cash
+                                 </Badge>
+                               );
+                             } else {
+                               return (
+                                 <Badge className={`text-xs mt-1 block w-fit ${isCurrentDate ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>
+                                   {isCurrentDate ? 'Pending Collection' : 'No Collection'}
+                                 </Badge>
+                               );
+                             }
+                           })()}
                         </div>
-                      </td>
+                       </td>
                       <td className="p-3">
                         {(() => {
                           const locationId = item.location_id;
