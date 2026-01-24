@@ -187,33 +187,37 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
       }
     }
     
-    // Update sync timestamps
+    // Update sync timestamps - CRITICAL: Mark ALL as full sync after priority load
     await Promise.all([
       offlineDB.updateSyncStatus('City', { 
         recordCount: cities.length, 
         status: 'synced',
-        lastSync: new Date().toISOString()
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
       }),
       offlineDB.updateSyncStatus('AppUser', { 
         recordCount: appUsers.length, 
         status: 'synced',
-        lastSync: new Date().toISOString()
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
       }),
       offlineDB.updateSyncStatus('Delivery', { 
         recordCount: deliveries.length, 
         status: 'synced',
-        lastSync: new Date().toISOString()
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
       }),
       offlineDB.updateSyncStatus('Patient', { 
         recordCount: patients.length, 
         status: 'synced',
         lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString() // Mark as full sync
+        lastFullSync: new Date().toISOString()
       }),
       offlineDB.updateSyncStatus('SquareTransaction', {
-        recordCount: 0, // No initial load for Square Transactions in priority
+        recordCount: 0,
         status: 'synced',
-        lastSync: new Date().toISOString()
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
       })
     ]);
 
