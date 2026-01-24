@@ -26,42 +26,21 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png'
 });
 
-// Driver color palette for "All Drivers" mode - 5 primary colors + generated extras
+// Driver color palette for "All Drivers" mode - 6 highly visible, contrasting colors
 const DRIVER_COLORS = [
   '', // Blank color storage for unused 0 index - will be handled by getDriverColor fallback
-  '#F97316', // Orange (Index 1)
-  '#10B981', // Green (Index 2)
-  '#8B5CF6', // Purple (Index 3)
-  '#EC4899', // Pink (Index 4)
-  '#EF4444'  // Red (Index 5)
+  '#F012BE', // Hot Pink (Index 1)
+  '#D946EF', // Bright Magenta (Index 2) - needs black text
+  '#7FDBFF', // Electric Cyan (Index 3)
+  '#0074D9', // Deep Blue (Index 4)
+  '#B10DC9', // Royal Purple (Index 5)
+  '#001F3F'  // Navy Blue (Index 6)
 ];
-
-// Generate additional distinct colors for drivers beyond the first 5
-const generateAdditionalColor = (index) => {
-  // Start generating from index 6+
-  // Use HSL color space for maximum distinctness
-  const baseHues = [200, 40, 280, 320, 150, 180, 60, 300, 20, 260];
-  const hueIndex = (index - 6) % baseHues.length;
-  const saturationVariation = Math.floor((index - 6) / baseHues.length) * 15;
-  
-  const hue = baseHues[hueIndex];
-  const saturation = Math.max(50, 85 - saturationVariation);
-  const lightness = 50 + (Math.floor((index - 6) / 10) * 10);
-  
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-};
 
 // Helper function to determine text color for driver colors
 const getDriverTextColor = (driverColor) => {
-  // All primary colors use white text
-  // For HSL colors, parse and check lightness
-  if (driverColor.startsWith('hsl')) {
-    const lightnessMatch = driverColor.match(/(\d+)%\)$/);
-    if (lightnessMatch) {
-      const lightness = parseInt(lightnessMatch[1]);
-      return lightness > 60 ? 'black' : 'white';
-    }
-  }
+  // Electric Cyan needs black text for readability
+  if (driverColor === '#7FDBFF') return 'black';
   return 'white';
 };
 
@@ -204,27 +183,24 @@ export const getDriverColor = (driver) => {
       for (let i = 0; i < id.length; i++) {
         hash = id.charCodeAt(i) + ((hash << 5) - hash);
       }
-      index = Math.abs(hash) % (DRIVER_COLORS.length + 10);
+      index = Math.abs(hash) % DRIVER_COLORS.length;
     } else {
       return '#607D8B'; // Default blue-grey for unassigned/unknown
     }
   } else {
-    // Use sort_order directly as index
-    index = Math.abs(driver.sort_order);
+    // Use sort_order with modulo to ensure index is within bounds
+    index = Math.abs(driver.sort_order) % DRIVER_COLORS.length;
   }
 
-  // For indices 1-5, use primary colors
-  if (index >= 1 && index <= 5) {
-    return DRIVER_COLORS[index];
+  // Ensure the color is not an empty string if index 0 was hit
+  let color = DRIVER_COLORS[index];
+  if (!color || color === '') {
+    // Fallback to a default color, or the first valid color in the list
+    // DRIVER_COLORS[1] is '#2196F3', which is a good default blue
+    color = DRIVER_COLORS[1] || '#607D8B';
   }
 
-  // For index 0 or 6+, generate additional colors
-  if (index === 0) {
-    return DRIVER_COLORS[1]; // Default to Orange for index 0
-  }
-
-  // Generate additional distinct color for index 6+
-  return generateAdditionalColor(index);
+  return color;
 };
 
 // Helper function to get inner symbol color based on status
