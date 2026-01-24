@@ -1545,12 +1545,21 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                         </div>
           }
 
-                    <Button
-            onClick={generatePreview}
-            disabled={isProcessing || files.length === 0}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-9 w-full text-sm sm:text-base">
-                        {isProcessing ? 'Generating...' : `Preview Import (${files.length} file${files.length !== 1 ? 's' : ''})`}
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={onClose}
+                            disabled={isProcessing}
+                            className="flex-1 h-10 sm:h-9">
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={generatePreview}
+                            disabled={isProcessing || files.length === 0}
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-9 flex-1 text-sm sm:text-base">
+                            {isProcessing ? 'Generating...' : `Preview Import (${files.length} file${files.length !== 1 ? 's' : ''})`}
+                        </Button>
+                    </div>
 
                     {importResult &&
           <div className="space-y-2 border-t pt-3">
