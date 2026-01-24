@@ -90,16 +90,6 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
             </div>
           </div>
 
-          {/* Location & Store */}
-          <div className="bg-blue-50 rounded-lg p-4">
-            <p className="text-xs text-slate-500 font-medium mb-2">Location & Store</p>
-            <div className="space-y-1">
-              <p className="font-semibold text-slate-900">{storeByAbbreviation?.name || 'Unknown Store'}</p>
-              <p className="text-xs text-slate-600">Location: {locationConfig?.name || 'Unknown'}</p>
-              <p className="text-xs font-mono text-slate-500">{item.location_id}</p>
-            </div>
-          </div>
-
           {/* Payment Summary */}
           <div className="border-l-4 border-l-emerald-500 bg-emerald-50 rounded-lg p-4">
             <p className="text-xs text-slate-500 font-medium mb-3">Payment Summary</p>
@@ -117,8 +107,29 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
             </div>
           </div>
 
-          {/* Transaction History */}
-          <div>
+          {/* Location & Store + Transaction History Side by Side */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Location & Store */}
+            <div className="lg:col-span-1 bg-blue-50 rounded-lg p-4">
+              <p className="text-xs text-slate-500 font-medium mb-3">Location & Store</p>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-slate-500">Store</p>
+                  <p className="font-semibold text-slate-900">{storeByAbbreviation?.name || 'Unknown Store'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Location</p>
+                  <p className="font-semibold text-slate-900">{locationConfig?.name || 'Unknown'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Location ID</p>
+                  <p className="text-xs font-mono text-slate-600">{item.location_id}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Transaction History */}
+            <div className="lg:col-span-2">
             <h3 className="font-semibold text-slate-900 mb-3">
               Transaction History ({itemTransactions.length})
             </h3>
