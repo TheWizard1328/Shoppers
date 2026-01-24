@@ -25,7 +25,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     const unsubscribe = subscribeSyncStatus((status) => {
       setSyncStatus(status);
       setIsSyncing(status.status === 'syncing' || status.status === 'force_syncing');
-      
+
       // Refresh stats in real-time during sync AND when complete
       if (status.status === 'syncing' || status.status === 'force_syncing' || status.status === 'complete' || status.status === 'synced') {
         getSyncStats().then(setStats);
@@ -43,7 +43,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const handleForceSync = async () => {
     try {
       setIsSyncing(true);
-      
+
       // DON'T clear the offline DB - just force a fresh sync from API
       // Clearing causes data loss if the sync fails
       await forceSyncAll();
@@ -94,36 +94,36 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       <div className="w-full">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors hover:bg-slate-50"
-        >
+          className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors hover:bg-slate-50">
+
           <div className="flex items-center gap-2">
             {getStatusIcon()}
             <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
               {isSyncing ? 'Syncing...' : 'Offline DB'}
             </span>
-            {stats && !isSyncing && (
-              <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+            {stats && !isSyncing &&
+            <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                 ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0)})
               </span>
-            )}
+            }
           </div>
           {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </button>
         
         <AnimatePresence>
-          {isExpanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="px-3 py-2 space-y-3 border-t border-slate-200">
-                {stats && (
-                  <>
-                    <div className="text-xs space-y-2">
+          {isExpanded &&
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden">
+
+              <div className="px-1 py-1 space-y-1 border-t border-slate-200">
+                {stats &&
+              <>
+                    <div className="text-xs space-y-0">
                       {/* Patients */}
-                      <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                      <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
                         <div className="flex-1">
                           <div className="flex items-center gap-1 mb-1">
                             <span>{getEntityIcon('patients')}</span>
@@ -136,14 +136,14 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                         </div>
                         <div className="text-right">
                           <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.patients.count}</div>
-                          {stats.fullSyncStatus?.patients?.completed && (
-                            <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                          )}
+                          {stats.fullSyncStatus?.patients?.completed &&
+                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                      }
                         </div>
                       </div>
 
                       {/* Deliveries */}
-                      <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                      <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
                         <div className="flex-1">
                           <div className="flex items-center gap-1 mb-1">
                             <span>{getEntityIcon('deliveries')}</span>
@@ -156,14 +156,14 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                         </div>
                         <div className="text-right">
                           <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveries.count}</div>
-                          {stats.fullSyncStatus?.deliveries?.completed && (
-                            <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                          )}
+                          {stats.fullSyncStatus?.deliveries?.completed &&
+                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                      }
                         </div>
                       </div>
 
                       {/* AppUsers */}
-                      <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                      <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
                         <div className="flex-1">
                           <div className="flex items-center gap-1 mb-1">
                             <span>{getEntityIcon('appUsers')}</span>
@@ -180,8 +180,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                       </div>
 
                       {/* Cities */}
-                      {stats.cities && (
-                        <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                      {stats.cities &&
+                  <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
                           <div className="flex-1">
                             <div className="flex items-center gap-1 mb-1">
                               <span>{getEntityIcon('cities')}</span>
@@ -194,16 +194,16 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                           <div className="text-right">
                             <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.cities.count}</div>
-                            {stats.fullSyncStatus?.cities?.completed && (
-                              <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                            )}
+                            {stats.fullSyncStatus?.cities?.completed &&
+                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                      }
                           </div>
                         </div>
-                      )}
+                  }
 
                       {/* Square Transactions */}
-                      {stats.squareTransactions && (
-                        <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                      {stats.squareTransactions &&
+                  <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
                           <div className="flex-1">
                             <div className="flex items-center gap-1 mb-1">
                               <span>{getEntityIcon('squareTransactions')}</span>
@@ -218,18 +218,18 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.squareTransactions.count}</div>
                           </div>
                         </div>
-                      )}
+                  }
 
-                      {stats.pendingMutations > 0 && (
-                        <div className="flex items-center justify-between p-2 rounded-md bg-amber-50 border border-amber-200">
+                      {stats.pendingMutations > 0 &&
+                  <div className="flex items-center justify-between p-2 rounded-md bg-amber-50 border border-amber-200">
                           <span className="text-amber-700 font-medium">Pending sync:</span>
                           <span className="font-bold text-amber-900">{stats.pendingMutations}</span>
                         </div>
-                      )}
+                  }
                     </div>
                     
-                    {isSyncing && (
-                      <div className="text-xs space-y-1 p-2 rounded-md bg-blue-50 border border-blue-200">
+                    {isSyncing &&
+                <div className="text-xs space-y-1 p-2 rounded-md bg-blue-50 border border-blue-200">
                         <div className="flex justify-between text-blue-700">
                           <span className="font-medium">
                             {getEntityIcon(syncStatus.entity)} {syncStatus.entity || 'Loading'} 
@@ -238,33 +238,33 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           <span className="font-bold">{syncStatus.progress || 0}%</span>
                         </div>
                         <div className="w-full rounded-full h-2 bg-blue-100">
-                          <div 
-                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${syncStatus.progress || 0}%` }}
-                          />
+                          <div
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${syncStatus.progress || 0}%` }} />
+
                         </div>
                       </div>
-                    )}
+                }
                   </>
-                )}
+              }
 
                 <Button
-                  onClick={handleForceSync}
-                  disabled={isSyncing}
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-xs font-medium"
-                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-                >
+                onClick={handleForceSync}
+                disabled={isSyncing}
+                size="sm"
+                variant="outline"
+                className="w-full text-xs font-medium"
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+
                   <RefreshCw className={`w-3 h-3 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
                   {isSyncing ? 'Syncing...' : 'Manual Sync'}
                 </Button>
               </div>
             </motion.div>
-          )}
+          }
         </AnimatePresence>
-      </div>
-    );
+      </div>);
+
   }
 
   // Floating mode for map (desktop)
@@ -274,41 +274,41 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="rounded-lg shadow-lg border overflow-hidden"
-        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
-      >
+        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+
         {/* Collapsed View */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2 px-3 py-2 transition-colors w-full hover:bg-slate-50"
-          style={{ 
+          style={{
             background: 'var(--bg-white)',
             color: 'var(--text-slate-700)'
-          }}
-        >
+          }}>
+
           {getStatusIcon()}
           <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
             {isSyncing ? 'Syncing...' : 'Offline DB'}
           </span>
-          {stats && !isSyncing && (
-            <span className="text-xs ml-1" style={{ color: 'var(--text-slate-500)' }}>
+          {stats && !isSyncing &&
+          <span className="text-xs ml-1" style={{ color: 'var(--text-slate-500)' }}>
               ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0)} records)
             </span>
-          )}
+          }
         </button>
 
         {/* Expanded View */}
         <AnimatePresence>
-          {isExpanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="border-t"
-              style={{ borderColor: 'var(--border-slate-200)' }}
-            >
+          {isExpanded &&
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="border-t"
+            style={{ borderColor: 'var(--border-slate-200)' }}>
+
               <div className="p-3 space-y-3">
-                {stats && (
-                  <>
+                {stats &&
+              <>
                     <div className="text-xs space-y-2">
                       {/* Patients */}
                       <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
@@ -324,9 +324,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                         </div>
                         <div className="text-right">
                           <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.patients.count}</div>
-                          {stats.fullSyncStatus?.patients?.completed && (
-                            <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                          )}
+                          {stats.fullSyncStatus?.patients?.completed &&
+                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                      }
                         </div>
                       </div>
 
@@ -344,9 +344,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                         </div>
                         <div className="text-right">
                           <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveries.count}</div>
-                          {stats.fullSyncStatus?.deliveries?.completed && (
-                            <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                          )}
+                          {stats.fullSyncStatus?.deliveries?.completed &&
+                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                      }
                         </div>
                       </div>
 
@@ -368,8 +368,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                       </div>
 
                       {/* Cities */}
-                      {stats.cities && (
-                        <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                      {stats.cities &&
+                  <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
                           <div className="flex-1">
                             <div className="flex items-center gap-1 mb-1">
                               <span>{getEntityIcon('cities')}</span>
@@ -382,16 +382,16 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                           <div className="text-right">
                             <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.cities.count}</div>
-                            {stats.fullSyncStatus?.cities?.completed && (
-                              <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                            )}
+                            {stats.fullSyncStatus?.cities?.completed &&
+                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                      }
                           </div>
                         </div>
-                      )}
+                  }
 
                       {/* Square Transactions */}
-                      {stats.squareTransactions && (
-                        <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                      {stats.squareTransactions &&
+                  <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
                           <div className="flex-1">
                             <div className="flex items-center gap-1 mb-1">
                               <span>{getEntityIcon('squareTransactions')}</span>
@@ -406,18 +406,18 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.squareTransactions.count}</div>
                           </div>
                         </div>
-                      )}
+                  }
 
-                      {stats.pendingMutations > 0 && (
-                        <div className="flex items-center justify-between p-2 rounded-md bg-amber-50 border border-amber-200">
+                      {stats.pendingMutations > 0 &&
+                  <div className="flex items-center justify-between p-2 rounded-md bg-amber-50 border border-amber-200">
                           <span className="text-amber-700 font-medium">Pending sync:</span>
                           <span className="font-bold text-amber-900">{stats.pendingMutations}</span>
                         </div>
-                      )}
+                  }
                     </div>
                     
-                    {isSyncing && (
-                      <div className="text-xs space-y-1 p-2 rounded-md bg-blue-50 border border-blue-200">
+                    {isSyncing &&
+                <div className="text-xs space-y-1 p-2 rounded-md bg-blue-50 border border-blue-200">
                         <div className="flex justify-between text-blue-700">
                           <span className="font-medium">
                             {getEntityIcon(syncStatus.entity)} {syncStatus.entity || 'Loading'} 
@@ -426,31 +426,31 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           <span className="font-bold">{syncStatus.progress || 0}%</span>
                         </div>
                         <div className="w-full rounded-full h-2 bg-blue-100">
-                          <div 
-                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${syncStatus.progress || 0}%` }}
-                          />
+                          <div
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${syncStatus.progress || 0}%` }} />
+
                         </div>
                       </div>
-                    )}
+                }
                   </>
-                )}
+              }
 
                 <Button
-                  onClick={handleForceSync}
-                  disabled={isSyncing}
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-xs font-medium"
-                >
+                onClick={handleForceSync}
+                disabled={isSyncing}
+                size="sm"
+                variant="outline"
+                className="w-full text-xs font-medium">
+
                   <RefreshCw className={`w-3 h-3 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
                   {isSyncing ? 'Syncing...' : 'Manual Sync'}
                 </Button>
               </div>
             </motion.div>
-          )}
+          }
         </AnimatePresence>
       </motion.div>
-    </div>
-  );
+    </div>);
+
 }
