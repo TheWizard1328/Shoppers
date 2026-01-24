@@ -35,13 +35,6 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
     return stores.find(s => s.abbreviation === storeAbbrev);
   }, [storeAbbrev, stores]);
 
-  const itemTransactions = useMemo(() => {
-    if (!matchingDelivery?.id) return [];
-    return transactions.filter(t => 
-      t.delivery_id === matchingDelivery.id && (t.square_catalog_object_id === item.id || t.item_name === item.name)
-    ).sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-  }, [transactions, item.id, item.name, matchingDelivery?.id]);
-
   const locationConfig = locationConfigs.find(c => c.square_location_id === item.location_id);
   const store = stores.find(s => s.square_location_config_id === locationConfig?.id);
 
@@ -53,6 +46,13 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
     // Find any delivery matching the date and store
     return deliveries.find(d => d.delivery_date === deliveryDate && d.store_id === store?.id);
   }, [item.name, store?.id, deliveries]);
+
+  const itemTransactions = useMemo(() => {
+    if (!matchingDelivery?.id) return [];
+    return transactions.filter(t => 
+      t.delivery_id === matchingDelivery.id && (t.square_catalog_object_id === item.id || t.item_name === item.name)
+    ).sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+  }, [transactions, item.id, item.name, matchingDelivery?.id]);
 
   const totalCollected = useMemo(() => {
     return itemTransactions
