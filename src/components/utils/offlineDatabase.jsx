@@ -5,7 +5,7 @@
 
 // CRITICAL: Use stable database name and version to prevent recreation
 const DB_NAME = 'rxdeliver_persistent_offline_v1';
-const DB_VERSION = 2; // CRITICAL: Increment version to add Stores
+const DB_VERSION = 3; // CRITICAL: Incremented to add Stores and SquareLocationConfigs
 
 // Store names
 const STORES = {
@@ -13,6 +13,8 @@ const STORES = {
   DELIVERIES: 'deliveries',
   APP_USERS: 'app_users',
   CITIES: 'cities',
+  STORES: 'stores',
+  SQUARE_LOCATION_CONFIGS: 'square_location_configs',
   SQUARE_TRANSACTIONS: 'square_transactions',
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations'
@@ -67,6 +69,19 @@ const openDatabase = () => {
         const cityStore = db.createObjectStore(STORES.CITIES, { keyPath: 'id' });
         cityStore.createIndex('name', 'name', { unique: false });
         cityStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.STORES)) {
+        const storeStore = db.createObjectStore(STORES.STORES, { keyPath: 'id' });
+        storeStore.createIndex('city_id', 'city_id', { unique: false });
+        storeStore.createIndex('name', 'name', { unique: false });
+        storeStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.SQUARE_LOCATION_CONFIGS)) {
+        const configStore = db.createObjectStore(STORES.SQUARE_LOCATION_CONFIGS, { keyPath: 'id' });
+        configStore.createIndex('square_location_id', 'square_location_id', { unique: false });
+        configStore.createIndex('updated_date', 'updated_date', { unique: false });
       }
 
       if (!db.objectStoreNames.contains(STORES.SQUARE_TRANSACTIONS)) {

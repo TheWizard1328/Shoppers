@@ -2,7 +2,9 @@ import { Patient } from '@/entities/Patient';
 import { Delivery } from '@/entities/Delivery';
 import { User } from '@/entities/User';
 import { City } from '@/entities/City';
+import { Store } from '@/entities/Store';
 import { AppUser } from '@/entities/AppUser';
+import { SquareLocationConfig } from '@/entities/SquareLocationConfig';
 import { SquareTransaction } from '@/entities/SquareTransaction';
 import { format, subDays } from 'date-fns';
 import { offlineDB } from './offlineDatabase';
@@ -23,7 +25,9 @@ const entities = {
   Delivery,
   User,
   City,
+  Store,
   AppUser,
+  SquareLocationConfig,
   SquareTransaction
 };
 
@@ -120,15 +124,17 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   
   const cacheKey = `${entityName}_${sortKey || 'default'}_${JSON.stringify(query) || 'noquery'}_${limit || 'all'}`;
   
-  // OFFLINE-FIRST: Try IndexedDB for Patient, Delivery, AppUser, City, and SquareTransaction entities ALWAYS
+  // OFFLINE-FIRST: Try IndexedDB for ALL critical entities ALWAYS
   // CRITICAL: This prevents rate limits by using local data first
   // NEVER skip offline DB - even on forceRefresh, try offline first then update in background
-  if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'SquareTransaction') {
+  if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'Store' || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
     try {
       const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
                         entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
                         entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
                         entityName === 'City' ? offlineDB.STORES.CITIES :
+                        entityName === 'Store' ? offlineDB.STORES.STORES :
+                        entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS :
                         offlineDB.STORES.SQUARE_TRANSACTIONS;
       let offlineData = await offlineDB.getAll(storeName);
       
@@ -217,11 +223,13 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       connectionMonitor.recordResponseTime(responseTime);
 
       // BACKGROUND: Save to IndexedDB for offline access
-      if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'SquareTransaction') {
+      if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'Store' || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
         const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
                           entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
                           entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
                           entityName === 'City' ? offlineDB.STORES.CITIES :
+                          entityName === 'Store' ? offlineDB.STORES.STORES :
+                          entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS :
                           offlineDB.STORES.SQUARE_TRANSACTIONS;
         offlineDB.bulkSave(storeName, data).catch(err => {
         });
