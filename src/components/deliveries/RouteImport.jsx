@@ -1983,7 +1983,7 @@ export default function RouteImport({
                   <table className="w-full text-sm table-fixed">
                     <thead>
                       <tr>
-                        <th className="p-1 text-left w-30">Type</th>
+                        <th className="p-1 text-left w-40">Type</th>
                         <th className="p-1 text-left w-24">Date</th>
                         <th className="p-1 text-left w-12">A/P</th>
                         <th className="p-1 text-left w-14">Order</th>
