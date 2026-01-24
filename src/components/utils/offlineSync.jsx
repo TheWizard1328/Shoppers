@@ -188,6 +188,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     }
     
     // Update sync timestamps - CRITICAL: Mark ALL as full sync after priority load
+    // Don't mark SquareTransaction as synced here - it gets synced in background
     await Promise.all([
       offlineDB.updateSyncStatus('City', { 
         recordCount: cities.length, 
@@ -209,12 +210,6 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
       }),
       offlineDB.updateSyncStatus('Patient', { 
         recordCount: patients.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('SquareTransaction', {
-        recordCount: 0,
         status: 'synced',
         lastSync: new Date().toISOString(),
         lastFullSync: new Date().toISOString()
@@ -414,45 +409,23 @@ const syncDeliveryDateRange = async (startDate, endDate, skipDate = null) => {
 };
 
 /**
- * Sync Square Transactions gently in batches of 50 with cooldowns
- * CRITICAL: Prevents rate limits by fetching smaller batches
+ * Sync Square Transactions - fetch all at once (smaller dataset)
+ * CRITICAL: Simpler approach since SquareTransaction is a smaller dataset
  */
 const syncSquareTransactionsGently = async () => {
   if (syncPaused) return;
   
-  console.log('   💳 [OfflineSync] Starting gentle Square Transaction sync...');
+  console.log('   💳 [OfflineSync] Starting Square Transaction sync...');
   
   try {
-    const BATCH_SIZE = 50;
-    let allTransactions = [];
-    let offset = 0;
-    let hasMore = true;
+    const allTransactions = await SquareTransaction.list('-updated_date', 500);
     
-    while (hasMore && !syncPaused) {
-      const batch = await SquareTransaction.list('-updated_date', BATCH_SIZE);
-      
-      if (batch.length === 0) {
-        hasMore = false;
-        break;
-      }
-      
-      allTransactions.push(...batch);
-      console.log(`      💳 Fetched ${batch.length} transactions (total: ${allTransactions.length})`);
-      
-      if (batch.length < BATCH_SIZE) {
-        hasMore = false;
-      } else {
-        offset += BATCH_SIZE;
-        await new Promise(r => setTimeout(r, 2000)); // 2s cooldown between batches
-      }
-      
-      // Save batch to offline DB immediately
-      if (batch.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, batch);
-      }
+    if (allTransactions.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, allTransactions);
+      console.log(`   ✅ [OfflineSync] Square Transaction sync complete: ${allTransactions.length} total`);
+    } else {
+      console.log(`   ℹ️ [OfflineSync] No Square Transactions found`);
     }
-    
-    console.log(`   ✅ [OfflineSync] Square Transaction sync complete: ${allTransactions.length} total`);
     
     await offlineDB.updateSyncStatus('SquareTransaction', {
       recordCount: allTransactions.length,
