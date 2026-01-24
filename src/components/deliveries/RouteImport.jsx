@@ -1983,7 +1983,7 @@ export default function RouteImport({
                   <table className="w-full text-sm table-fixed">
                     <thead>
                       <tr>
-                        <th className="p-1 text-left w-20">Type</th>
+                        <th className="p-1 text-left w-30">Type</th>
                         <th className="p-1 text-left w-24">Date</th>
                         <th className="p-1 text-left w-12">A/P</th>
                         <th className="p-1 text-left w-14">Order</th>
@@ -2059,7 +2059,7 @@ export default function RouteImport({
                             background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.06)' : 'rgba(59, 130, 246, 0.06)',
                             borderLeft: delivery.action === 'create' ? '4px solid #10b981' : '4px solid #3b82f6'
                           }}>
-                            <td className="p-1 w-35 text-center">
+                            <td className="p-1 w-30 text-center">
                               <div className="flex flex-col gap-1 items-center">
                                 <Badge className="w-full justify-center border-0 font-semibold text-xs py-1" style={{ 
                                   background: delivery.action === 'create' ? '#10b981' : '#3b82f6',
