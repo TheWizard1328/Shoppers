@@ -1631,9 +1631,8 @@ export default function Layout({ children, currentPageName }) {
         cityStoreFilter.store_id = { $in: cityStoreIds };
       }
 
-      // CRITICAL: Don't filter by driver here - load ALL drivers' data for city
-      // This ensures "Show All" checkbox and map markers have complete data
-      const priorityFilter = { ...cityStoreFilter };
+      // CRITICAL: Load ALL drivers' deliveries - no driver filter at all
+      const priorityFilter = { delivery_date: selectedDateStr, ...cityStoreFilter };
 
       // CRITICAL: Load Square data from offline DB first to prevent rate limits
       // API sync will happen in background later
@@ -1645,11 +1644,11 @@ export default function Layout({ children, currentPageName }) {
       setCatalogItems([]); // Will be synced in background
       setSquareTransactions(offlineSquareTx || []);
 
-      // Load deliveries with instant UI callback
+      // Load deliveries with instant UI callback - NO driver filter to get ALL drivers
       await loadDeliveries(
         selectedDateStr,
-        priorityFilter,
-        priorityFilter,
+        { delivery_date: selectedDateStr, ...cityStoreFilter }, // Priority: today's deliveries for ALL drivers
+        { delivery_date: selectedDateStr, ...cityStoreFilter }, // Background: same (no separate background load)
         forceRefresh,
         // Instant UI callback
         (initialDeliveries) => {
