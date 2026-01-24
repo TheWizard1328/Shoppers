@@ -634,13 +634,6 @@ export default function StopCard({
         const remainingAmount = codTotalRequired - codTotalCollected;
         newPayments[index].amount = Math.max(0, remainingAmount);
       }
-      // Focus and select the input after type change
-      setTimeout(() => {
-        if (codAmountInputRefs.current[index]) {
-          codAmountInputRefs.current[index].focus();
-          codAmountInputRefs.current[index].select();
-        }
-      }, 50);
     } else {
       newPayments[index] = { ...newPayments[index], [field]: value };
     }
