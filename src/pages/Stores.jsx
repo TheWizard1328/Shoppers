@@ -218,7 +218,7 @@ export default function StoresPage() {
 
         {stores.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-            {stores.map((store) => (
+            {stores.filter(s => s && s.status === 'active').map((store) => (
               <StoreCard
                 key={store.id}
                 store={store}
