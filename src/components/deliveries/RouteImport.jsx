@@ -1338,11 +1338,6 @@ export default function RouteImport({
                 created: totalCreated,
                 current: totalCreated
               }));
-
-              // CRITICAL: Longer delay between batches (3s instead of 1.5s)
-              if (batchIndex < batches.length - 1) {
-                await delay(3000);
-              }
             } catch (error) {
               console.warn(`⚠️ Batch ${batchIndex + 1} bulkCreate failed:`, error.message);
 
@@ -1365,7 +1360,6 @@ export default function RouteImport({
                     created: totalCreated,
                     current: totalCreated
                   }));
-                  await delay(1000); // Increased delay
                 } catch (individualError) {
                   failedCreations.push({ data: cleanData, error: individualError.message });
                 }
@@ -1467,7 +1461,6 @@ export default function RouteImport({
             overallResults.failed++;
             setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: i + 1 }));
           }
-          await delay(1000);
         }
 
         const failedUpdateOffset = failedCreations.length;
@@ -1504,7 +1497,6 @@ export default function RouteImport({
             overallResults.failed++;
             setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: failedUpdateOffset + i + 1 }));
           }
-          await delay(1000);
         }
       }
 
@@ -1519,6 +1511,11 @@ export default function RouteImport({
         setImportResult(overallResults);
         setProgressPercent(100);
         setProgressMessage('Import complete!');
+        
+        // CRITICAL: Trigger immediate backend sync after import
+        console.log("📤 [RouteImport] Triggering immediate backend sync...");
+        const { processPendingMutations } = await import('../utils/offlineSync');
+        processPendingMutations().catch(err => console.warn('Backend sync error:', err));
         
         driverLocationPoller.resume();
         console.log('✅ [RouteImport] Import operation complete');

@@ -1083,6 +1083,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
         console.log("PatientImport: Import complete via data operation manager");
         
+        // CRITICAL: Trigger immediate backend sync after import
+        console.log("📤 [PatientImport] Triggering immediate backend sync...");
+        const { processPendingMutations } = await import('../utils/offlineSync');
+        processPendingMutations().catch(err => console.warn('Backend sync error:', err));
+        
         if (onImportComplete) {
           onImportComplete(aggregatedResults);
         }
