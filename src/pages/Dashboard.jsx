@@ -6270,23 +6270,14 @@ function Dashboard() {
 
                     const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false, showAllDriverMarkers);
 
-                    // STEP 1.5: Force refresh driver locations
-                    console.log('📍 [Refresh Spinner] Refreshing driver locations...');
-                    const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
-                    if (locationUpdates?.hasChanges) {
-                      // CRITICAL: Merge location updates with full user data to ensure driver_status is included
-                      const mergedAppUsers = locationUpdates.appUsers.map((updatedUser) => {
-                        const existingUser = appUsers.find((u) => u?.id === updatedUser?.id);
-                        return existingUser ? { ...existingUser, ...updatedUser } : updatedUser;
-                      });
+                    // STEP 1.5: Force fresh AppUsers from backend
+                    console.log('📍 [Refresh Spinner] Loading fresh AppUsers from backend...');
+                    const freshAppUsers = await base44.entities.AppUser.list();
+                    await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+                    console.log(`   ✅ Loaded ${freshAppUsers.length} fresh AppUsers from backend`);
 
-                      setAppUsers(mergedAppUsers);
-
-                      // CRITICAL: Process updated locations through poller to update markers immediately
-                      driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, mergedAppUsers, selectedDate);
-
-                      console.log('✅ [Refresh Spinner] Driver locations refreshed and markers updated');
-                    }
+                    // CRITICAL: Process updated locations through poller to update markers immediately
+                    driverLocationPoller.processLocationData(currentUser, finalDeliveries, drivers, stores, freshAppUsers, selectedDate, true);
 
                     // STEP 2: Route optimization removed from manual refresh
                     // Optimization now only runs on 5-minute timer when driver moves 100m+
