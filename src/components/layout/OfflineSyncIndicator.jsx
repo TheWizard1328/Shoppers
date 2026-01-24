@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive, Clock, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { subscribeSyncStatus, getSyncStats, forceSyncAll } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
+import { formatDistanceToNow } from 'date-fns';
 
 export default function OfflineSyncIndicator({ embedded = false, inline = false }) {
   const { currentUser } = useUser();
@@ -69,6 +70,24 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     return <HardDrive className={`w-4 h-4 ${getStatusColor()}`} />;
   };
 
+  const formatLastSync = (lastSync) => {
+    if (!lastSync || lastSync === 'Never') return 'Never';
+    try {
+      return formatDistanceToNow(new Date(lastSync), { addSuffix: true });
+    } catch {
+      return 'Unknown';
+    }
+  };
+
+  const getEntityIcon = (entityName) => {
+    if (entityName === 'patients' || entityName === 'Patients') return '👥';
+    if (entityName === 'deliveries' || entityName === 'Deliveries') return '📦';
+    if (entityName === 'appUsers' || entityName === 'AppUsers') return '👤';
+    if (entityName === 'cities' || entityName === 'Cities') return '🏙️';
+    if (entityName === 'squareTransactions' || entityName === 'Square Transactions') return '💳';
+    return '📊';
+  };
+
   // Inline mode for stats card (mobile) or upper-left (desktop)
   if (embedded || inline) {
     return (
@@ -84,7 +103,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
             </span>
             {stats && !isSyncing && (
               <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                ({stats.patients.count + stats.deliveries.count})
+                ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0)})
               </span>
             )}
           </div>
@@ -99,35 +118,128 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              <div className="px-3 py-2 space-y-2 border-t border-slate-200">
+              <div className="px-3 py-2 space-y-3 border-t border-slate-200">
                 {stats && (
                   <>
-                    <div className="text-xs space-y-1">
-                      <div className="flex justify-between">
-                        <span style={{ color: 'var(--text-slate-600)' }}>Patients:</span>
-                        <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{stats.patients.count}</span>
+                    <div className="text-xs space-y-2">
+                      {/* Patients */}
+                      <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1 mb-1">
+                            <span>{getEntityIcon('patients')}</span>
+                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Patients</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                            <Clock className="w-3 h-3" />
+                            <span>{formatLastSync(stats.patients.lastSync)}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.patients.count}</div>
+                          {stats.fullSyncStatus?.patients?.completed && (
+                            <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                          )}
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span style={{ color: 'var(--text-slate-600)' }}>Deliveries:</span>
-                        <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveries.count}</span>
+
+                      {/* Deliveries */}
+                      <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1 mb-1">
+                            <span>{getEntityIcon('deliveries')}</span>
+                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                            <Clock className="w-3 h-3" />
+                            <span>{formatLastSync(stats.deliveries.lastSync)}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveries.count}</div>
+                          {stats.fullSyncStatus?.deliveries?.completed && (
+                            <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                          )}
+                        </div>
                       </div>
+
+                      {/* AppUsers */}
+                      <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1 mb-1">
+                            <span>{getEntityIcon('appUsers')}</span>
+                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Users</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                            <Clock className="w-3 h-3" />
+                            <span>{formatLastSync(stats.appUsers.lastSync)}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.appUsers.count}</div>
+                        </div>
+                      </div>
+
+                      {/* Cities */}
+                      {stats.cities && (
+                        <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-1 mb-1">
+                              <span>{getEntityIcon('cities')}</span>
+                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Cities</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                              <Clock className="w-3 h-3" />
+                              <span>{formatLastSync(stats.cities.lastSync)}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.cities.count}</div>
+                            {stats.fullSyncStatus?.cities?.completed && (
+                              <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Square Transactions */}
+                      {stats.squareTransactions && (
+                        <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-1 mb-1">
+                              <span>{getEntityIcon('squareTransactions')}</span>
+                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Square TX</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                              <Clock className="w-3 h-3" />
+                              <span>{formatLastSync(stats.squareTransactions.lastSync)}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.squareTransactions.count}</div>
+                          </div>
+                        </div>
+                      )}
+
                       {stats.pendingMutations > 0 && (
-                        <div className="flex justify-between text-amber-600">
-                          <span>Pending sync:</span>
-                          <span className="font-medium">{stats.pendingMutations}</span>
+                        <div className="flex items-center justify-between p-2 rounded-md bg-amber-50 border border-amber-200">
+                          <span className="text-amber-700 font-medium">Pending sync:</span>
+                          <span className="font-bold text-amber-900">{stats.pendingMutations}</span>
                         </div>
                       )}
                     </div>
                     
                     {isSyncing && (
-                      <div className="text-xs space-y-1">
-                        <div className="flex justify-between text-blue-600">
-                          <span>Syncing {syncStatus.entity || '...'} {syncStatus.count ? `(${syncStatus.count})` : ''}</span>
-                          <span>{syncStatus.progress || 0}%</span>
+                      <div className="text-xs space-y-1 p-2 rounded-md bg-blue-50 border border-blue-200">
+                        <div className="flex justify-between text-blue-700">
+                          <span className="font-medium">
+                            {getEntityIcon(syncStatus.entity)} {syncStatus.entity || 'Loading'} 
+                            {syncStatus.count ? ` (${syncStatus.count})` : ''}
+                          </span>
+                          <span className="font-bold">{syncStatus.progress || 0}%</span>
                         </div>
-                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-slate-200)' }}>
+                        <div className="w-full rounded-full h-2 bg-blue-100">
                           <div 
-                            className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${syncStatus.progress || 0}%` }}
                           />
                         </div>
@@ -141,11 +253,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                   disabled={isSyncing}
                   size="sm"
                   variant="outline"
-                  className="w-full text-xs"
-                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
+                  className="w-full text-xs font-medium"
+                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
                 >
-                  <RefreshCw className={`w-3 h-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
-                  {isSyncing ? 'Syncing...' : 'Force Sync'}
+                  <RefreshCw className={`w-3 h-3 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  {isSyncing ? 'Syncing...' : 'Manual Sync'}
                 </Button>
               </div>
             </motion.div>
@@ -179,7 +291,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
           </span>
           {stats && !isSyncing && (
             <span className="text-xs ml-1" style={{ color: 'var(--text-slate-500)' }}>
-              ({stats.patients.count + stats.deliveries.count} records)
+              ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0)} records)
             </span>
           )}
         </button>
@@ -194,35 +306,128 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
               className="border-t"
               style={{ borderColor: 'var(--border-slate-200)' }}
             >
-              <div className="p-3 space-y-2">
+              <div className="p-3 space-y-3">
                 {stats && (
                   <>
-                    <div className="text-xs space-y-1">
-                      <div className="flex justify-between">
-                        <span style={{ color: 'var(--text-slate-600)' }}>Patients:</span>
-                        <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{stats.patients.count}</span>
+                    <div className="text-xs space-y-2">
+                      {/* Patients */}
+                      <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1 mb-1">
+                            <span>{getEntityIcon('patients')}</span>
+                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Patients</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                            <Clock className="w-3 h-3" />
+                            <span>{formatLastSync(stats.patients.lastSync)}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.patients.count}</div>
+                          {stats.fullSyncStatus?.patients?.completed && (
+                            <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                          )}
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span style={{ color: 'var(--text-slate-600)' }}>Deliveries:</span>
-                        <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveries.count}</span>
+
+                      {/* Deliveries */}
+                      <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1 mb-1">
+                            <span>{getEntityIcon('deliveries')}</span>
+                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                            <Clock className="w-3 h-3" />
+                            <span>{formatLastSync(stats.deliveries.lastSync)}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveries.count}</div>
+                          {stats.fullSyncStatus?.deliveries?.completed && (
+                            <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                          )}
+                        </div>
                       </div>
+
+                      {/* AppUsers */}
+                      <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1 mb-1">
+                            <span>{getEntityIcon('appUsers')}</span>
+                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Users</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                            <Clock className="w-3 h-3" />
+                            <span>{formatLastSync(stats.appUsers.lastSync)}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.appUsers.count}</div>
+                        </div>
+                      </div>
+
+                      {/* Cities */}
+                      {stats.cities && (
+                        <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-1 mb-1">
+                              <span>{getEntityIcon('cities')}</span>
+                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Cities</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                              <Clock className="w-3 h-3" />
+                              <span>{formatLastSync(stats.cities.lastSync)}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.cities.count}</div>
+                            {stats.fullSyncStatus?.cities?.completed && (
+                              <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Square Transactions */}
+                      {stats.squareTransactions && (
+                        <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-1 mb-1">
+                              <span>{getEntityIcon('squareTransactions')}</span>
+                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Square TX</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                              <Clock className="w-3 h-3" />
+                              <span>{formatLastSync(stats.squareTransactions.lastSync)}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.squareTransactions.count}</div>
+                          </div>
+                        </div>
+                      )}
+
                       {stats.pendingMutations > 0 && (
-                        <div className="flex justify-between text-amber-600">
-                          <span>Pending sync:</span>
-                          <span className="font-medium">{stats.pendingMutations}</span>
+                        <div className="flex items-center justify-between p-2 rounded-md bg-amber-50 border border-amber-200">
+                          <span className="text-amber-700 font-medium">Pending sync:</span>
+                          <span className="font-bold text-amber-900">{stats.pendingMutations}</span>
                         </div>
                       )}
                     </div>
                     
                     {isSyncing && (
-                      <div className="text-xs space-y-1">
-                        <div className="flex justify-between text-blue-600">
-                          <span>Syncing {syncStatus.entity || '...'} {syncStatus.count ? `(${syncStatus.count})` : ''}</span>
-                          <span>{syncStatus.progress || 0}%</span>
+                      <div className="text-xs space-y-1 p-2 rounded-md bg-blue-50 border border-blue-200">
+                        <div className="flex justify-between text-blue-700">
+                          <span className="font-medium">
+                            {getEntityIcon(syncStatus.entity)} {syncStatus.entity || 'Loading'} 
+                            {syncStatus.count ? ` (${syncStatus.count})` : ''}
+                          </span>
+                          <span className="font-bold">{syncStatus.progress || 0}%</span>
                         </div>
-                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-slate-200)' }}>
+                        <div className="w-full rounded-full h-2 bg-blue-100">
                           <div 
-                            className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${syncStatus.progress || 0}%` }}
                           />
                         </div>
@@ -236,10 +441,10 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                   disabled={isSyncing}
                   size="sm"
                   variant="outline"
-                  className="w-full text-xs"
+                  className="w-full text-xs font-medium"
                 >
-                  <RefreshCw className={`w-3 h-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
-                  {isSyncing ? 'Syncing...' : 'Force Sync'}
+                  <RefreshCw className={`w-3 h-3 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  {isSyncing ? 'Syncing...' : 'Manual Sync'}
                 </Button>
               </div>
             </motion.div>
