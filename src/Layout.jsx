@@ -843,10 +843,11 @@ export default function Layout({ children, currentPageName }) {
         const { offlineDB } = await import('./components/utils/offlineDatabase');
         const offlineSquareConfigs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
         const offlineSquareTx = await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS);
+        const offlineCatalogItems = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
 
         // Use offline data if available, otherwise empty arrays (load in background later)
         setSquareLocationConfigs(offlineSquareConfigs || []);
-        setCatalogItems([]); // Will be loaded in background
+        setCatalogItems(offlineCatalogItems || []); // Load from offline DB
         setSquareTransactions(offlineSquareTx || []);
 
         const savedDate = globalFilters.getSelectedDate();
