@@ -2647,7 +2647,7 @@ export default function DeliveryMap({
                   key={`driver-to-next-${driverId}-${nextStop.id}`}
                   positions={[[location.latitude, location.longitude], [nextStop.latitude, nextStop.longitude]]}
                   pathOptions={{
-                    color: '#3B82F6',
+                    color: driverColor,
                     weight: 4,
                     opacity: 0.7,
                     dashArray: '10, 5',
@@ -2725,7 +2725,7 @@ export default function DeliveryMap({
                   key={`driver-to-next-no-marker-${driverId}-${nextStop.id}`}
                   positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
                   pathOptions={{
-                    color: '#3B82F6',
+                    color: driverColor,
                     weight: 4,
                     opacity: 0.7,
                     dashArray: '10, 5',
