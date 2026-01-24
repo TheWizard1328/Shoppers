@@ -6228,11 +6228,6 @@ function Dashboard() {
                   <SmartRefreshIndicator
                     inline={true}
                     onManualRefresh={async () => {
-                    // CRITICAL: Only affect active driver on mobile devices
-                    if (!isMobile) {
-                      return;
-                    }
-
                     console.clear();
                     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
                     
