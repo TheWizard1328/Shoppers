@@ -1154,6 +1154,7 @@ export default function SquareManagement() {
           stores={stores}
           transactions={allTransactions}
           drivers={drivers}
+          deliveries={deliveries}
           onClose={() => setSelectedCODItem(null)}
         />
       )}
