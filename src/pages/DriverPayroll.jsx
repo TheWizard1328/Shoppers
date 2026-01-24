@@ -421,7 +421,12 @@ export default function DriverPayroll() {
         .map(au => au.user_id)
     );
     return sortUsers(
-      payrollData.drivers.filter(d => d && d.status === 'active' && driverIdsInCycle.has(d.id))
+      payrollData.drivers.filter(d => {
+        if (!d || d.status !== 'active') return false;
+        // Match using user_id (for AppUser records) or id (for User records)
+        const driverId = d.user_id || d.id;
+        return driverIdsInCycle.has(driverId);
+      })
     );
   }, [payrollData?.appUsers, payrollData?.drivers, payPeriod]);
 
