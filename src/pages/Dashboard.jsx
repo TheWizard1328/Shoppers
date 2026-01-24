@@ -913,18 +913,27 @@ function Dashboard() {
 
   // Filter drivers based on role and deliveries
   const driversList = useMemo(() => {
-    // CRITICAL: ALWAYS build from appUsers first (most reliable source)
-    const driversFromAppUsers = (appUsers || [])
+    // CRITICAL: De-duplicate AppUser records by user_id FIRST
+    const appUsersByUserId = new Map();
+    (appUsers || [])
       .filter(au => au && au.app_roles && au.app_roles.includes('driver') && au.status === 'active')
-      .map(au => ({
-        id: au.user_id,
-        user_id: au.user_id,
-        user_name: au.user_name,
-        full_name: au.user_name,
-        app_roles: au.app_roles,
-        status: au.status,
-        sort_order: au.sort_order
-      }));
+      .forEach(au => {
+        // Keep the first occurrence or the one with the highest sort_order
+        const existing = appUsersByUserId.get(au.user_id);
+        if (!existing || (au.sort_order || 0) < (existing.sort_order || 0)) {
+          appUsersByUserId.set(au.user_id, au);
+        }
+      });
+    
+    const driversFromAppUsers = Array.from(appUsersByUserId.values()).map(au => ({
+      id: au.user_id,
+      user_id: au.user_id,
+      user_name: au.user_name,
+      full_name: au.user_name,
+      app_roles: au.app_roles,
+      status: au.status,
+      sort_order: au.sort_order
+    }));
     
     // Also extract from deliveries to catch any missing drivers
     const driverIdsFromDeliveries = new Set();
@@ -936,9 +945,9 @@ function Dashboard() {
       }
     });
     
-    // Merge both sources
+    // Merge both sources - using user_id as the key to prevent duplicates
     const mergedDriversMap = new Map();
-    driversFromAppUsers.forEach(d => mergedDriversMap.set(d.id, d));
+    driversFromAppUsers.forEach(d => mergedDriversMap.set(d.user_id, d));
     
     // Add missing drivers from deliveries
     driverIdsFromDeliveries.forEach(id => {
