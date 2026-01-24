@@ -486,14 +486,14 @@ export default function DriverPayroll() {
               </SelectContent>
             </Select>
 
-            {/* Driver Filter */}
+            {/* Driver Filter - filtered by pay cycle type */}
             <Select value={selectedDriverId} onValueChange={setSelectedDriverId} disabled={isDriver}>
               <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 <SelectValue placeholder="Driver" />
               </SelectTrigger>
               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
-                {sortedDrivers.map(driver => (
+                <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers ({driversInPayCycle.length})</SelectItem>
+                {driversInPayCycle.map(driver => (
                   <SelectItem key={driver.user_id} value={driver.user_id} style={{ color: 'var(--text-slate-900)' }}>
                     {getDriverDisplayName(driver)}
                   </SelectItem>
