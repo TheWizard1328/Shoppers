@@ -1554,16 +1554,17 @@ export default function RouteImport({
 
   const getStatusBadge = (status) => {
     const statusColorMap = {
-      'completed': { bg: 'var(--bg-green-100)', text: 'var(--text-green-800)' },
-      'failed': { bg: 'var(--bg-red-100)', text: 'var(--text-red-800)' },
-      'cancelled': { bg: 'var(--bg-slate-100)', text: 'var(--text-slate-800)' },
-      'in_transit': { bg: 'var(--bg-blue-100)', text: 'var(--text-blue-800)' },
-      'pending': { bg: 'var(--bg-yellow-100)', text: 'var(--text-yellow-800)' },
-      'Ready For Pickup': { bg: 'var(--bg-purple-100)', text: 'var(--text-purple-800)' },
-      'picked_up': { bg: 'var(--bg-indigo-100)', text: 'var(--text-indigo-800)' }
+      'completed': { bg: '#10b981', text: '#ffffff' }, // Green
+      'failed': { bg: '#ef4444', text: '#ffffff' }, // Red
+      'cancelled': { bg: '#64748b', text: '#ffffff' }, // Slate
+      'in_transit': { bg: '#3b82f6', text: '#ffffff' }, // Blue
+      'en_route': { bg: '#3b82f6', text: '#ffffff' }, // Blue
+      'pending': { bg: '#f59e0b', text: '#ffffff' }, // Amber
+      'Ready For Pickup': { bg: '#8b5cf6', text: '#ffffff' }, // Purple
+      'picked_up': { bg: '#6366f1', text: '#ffffff' } // Indigo
     };
-    const color = statusColorMap[status] || { bg: 'var(--bg-slate-100)', text: 'var(--text-slate-800)' };
-    return <Badge className="border-0" style={{ background: color.bg, color: color.text }}>{status}</Badge>;
+    const color = statusColorMap[status] || { bg: '#94a3b8', text: '#ffffff' };
+    return <Badge className="border-0 font-semibold" style={{ background: color.bg, color: color.text }}>{status}</Badge>;
   };
 
   const handleErrorStartOver = () => {
@@ -1939,24 +1940,24 @@ export default function RouteImport({
               }
 
             <div className={`grid ${isMobile ? 'grid-cols-2 gap-2' : 'grid-cols-2 md:grid-cols-4 gap-3'}`}>
-            <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-green-50)', borderColor: 'var(--border-green-200)' }}>
-                <div className="text-xs mb-1" style={{ color: 'var(--text-green-700)' }}>New Deliveries</div>
-                <div className="text-2xl font-bold" style={{ color: 'var(--text-green-800)' }}>{previewStats.creates}</div>
+            <div className="flex flex-col items-center rounded-lg p-3 border-2" style={{ background: '#10b981', borderColor: '#10b981' }}>
+                <div className="text-xs mb-1 text-white font-semibold">New Deliveries</div>
+                <div className="text-2xl font-bold text-white">{previewStats.creates}</div>
             </div>
 
-            <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-blue-50)', borderColor: 'var(--border-blue-200)' }}>
-                <div className="text-xs mb-1" style={{ color: 'var(--text-blue-700)' }}>Updates</div>
-                <div className="text-2xl font-bold" style={{ color: 'var(--text-blue-800)' }}>{previewStats.updates}</div>
+            <div className="flex flex-col items-center rounded-lg p-3 border-2" style={{ background: '#3b82f6', borderColor: '#3b82f6' }}>
+                <div className="text-xs mb-1 text-white font-semibold">Updates</div>
+                <div className="text-2xl font-bold text-white">{previewStats.updates}</div>
             </div>
 
-            <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
-                <div className="text-xs mb-1" style={{ color: 'var(--text-emerald-700)' }}>Completed</div>
-                <div className="text-2xl font-bold" style={{ color: 'var(--text-emerald-800)' }}>{previewStats.completed}</div>
+            <div className="flex flex-col items-center rounded-lg p-3 border-2" style={{ background: '#10b981', borderColor: '#10b981' }}>
+                <div className="text-xs mb-1 text-white font-semibold">Completed</div>
+                <div className="text-2xl font-bold text-white">{previewStats.completed}</div>
             </div>
 
-            <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-red-50)', borderColor: 'var(--border-red-200)' }}>
-                <div className="text-xs mb-1" style={{ color: 'var(--text-red-700)' }}>Failed/Returned</div>
-                <div className="text-2xl font-bold" style={{ color: 'var(--text-red-800)' }}>
+            <div className="flex flex-col items-center rounded-lg p-3 border-2" style={{ background: '#ef4444', borderColor: '#ef4444' }}>
+                <div className="text-xs mb-1 text-white font-semibold">Failed/Returned</div>
+                <div className="text-2xl font-bold text-white">
                 {previewStats.failed}/{previewStats.returned}
                 </div>
             </div>
