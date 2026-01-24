@@ -73,24 +73,6 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
         </div>
 
         <CardContent className="p-6 space-y-6">
-          {/* Item Info */}
-          <div className="bg-slate-50 rounded-lg p-4">
-            <h3 className="font-semibold text-slate-900 mb-3">{item.name}</h3>
-            {item.description && (
-              <p className="text-sm text-slate-600 mb-3">{item.description}</p>
-            )}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-slate-500 font-medium">Amount Due</p>
-                <p className="text-2xl font-bold text-emerald-600">${(item.price_dollars || 0).toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium">Catalog ID</p>
-                <p className="text-sm font-mono text-slate-700 truncate">{item.id}</p>
-              </div>
-            </div>
-          </div>
-
           {/* Transaction History */}
           <div>
             <h3 className="font-semibold text-slate-900 mb-3">
