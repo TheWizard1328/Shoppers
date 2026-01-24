@@ -3363,6 +3363,7 @@ export default function DeliveriesPage() {
               <DateListPanel
               deliveries={driverFilteredDeliveries}
               selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
+              dateListWithStats={filteredDatesBySearch}
               onDateSelect={handleDateSelect}
               selectedMonth={selectedMonth}
               onMonthChange={handleMonthChange}
@@ -3437,13 +3438,14 @@ export default function DeliveriesPage() {
               </div>
               <div className="flex-1 p-2 sm:p-4 overflow-y-auto">
                 <DateListPanel
-                deliveries={driverFilteredDeliveries}
-                selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
-                onDateSelect={(dateStr) => {
-                  handleDateSelect(dateStr);
-                  setIsMobileMenuOpen(false);
-                }}
-                selectedMonth={selectedMonth}
+                 deliveries={driverFilteredDeliveries}
+                 selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
+                 dateListWithStats={filteredDatesBySearch}
+                 onDateSelect={(dateStr) => {
+                    handleDateSelect(dateStr);
+                    setIsMobileMenuOpen(false);
+                  }}
+                 selectedMonth={selectedMonth}
                 onMonthChange={handleMonthChange}
                 selectedYear={selectedYear}
                 onYearChange={handleYearChange}
