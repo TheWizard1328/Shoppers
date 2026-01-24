@@ -135,6 +135,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     try {
       // Step 1: Invalidate all caches
       const { invalidate, invalidateDeliveryRangeCache } = await import('../utils/dataManager');
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      const { base44 } = await import('@/api/base44Client');
+      
       console.log('   🗑️ Invalidating all caches...');
       invalidate('Patient');
       invalidate('Delivery');
@@ -152,21 +155,28 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         stores: 0
       };
 
-      // Step 3: Reload data for current screen without clearing UI
+      // Step 3: Force fresh data from backend (not cache/offline DB)
+      console.log('   📥 Force loading fresh data from backend...');
+      
+      // Load fresh AppUsers (always needed for driver locations)
+      const freshAppUsers = await base44.entities.AppUser.list();
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+      console.log(`   ✅ Loaded ${freshAppUsers.length} fresh AppUsers`);
+
+      // Step 4: Reload data for current screen
       if (onManualRefresh) {
         await onManualRefresh();
       } else if (refreshData) {
         await refreshData(true);
       }
 
-      // Step 4: Force a full sync in background
+      // Step 5: Force a full bidirectional sync
       const { performBidirectionalSync } = await import('../utils/offlineSync');
-      performBidirectionalSync().catch(err => {
-        console.warn('⚠️ Background sync error:', err);
-      });
+      await performBidirectionalSync();
 
-      // Trigger route re-optimization event for Dashboard
+      // Step 6: Trigger events to update UI
       window.dispatchEvent(new CustomEvent('triggerRouteReoptimization'));
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: freshAppUsers } }));
       
       console.log('✅ [SmartRefreshIndicator] Manual refresh complete');
     } catch (error) {
