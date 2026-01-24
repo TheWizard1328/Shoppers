@@ -81,8 +81,8 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
           <div className="bg-blue-50 rounded-lg p-4">
             <p className="text-xs text-slate-500 font-medium mb-2">Location & Store</p>
             <div className="space-y-1">
-              <p className="font-semibold text-slate-900">{store?.name || locationConfig?.name || 'Unknown'}</p>
-              <p className="text-xs text-slate-600">{locationConfig?.name}</p>
+              <p className="font-semibold text-slate-900">{storeByAbbreviation?.name || 'Unknown Store'}</p>
+              <p className="text-xs text-slate-600">Location: {locationConfig?.name || 'Unknown'}</p>
               <p className="text-xs font-mono text-slate-500">{item.location_id}</p>
             </div>
           </div>
