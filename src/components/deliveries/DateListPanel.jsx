@@ -16,7 +16,8 @@ export default function DateListPanel({
   onYearChange,
   patients = [],
   selectedDriverId,
-  onDeleteRoute
+  onDeleteRoute,
+  dateListWithStats = null
 }) {
   const months = [
   { value: 0, label: 'January' },
@@ -131,7 +132,7 @@ export default function DateListPanel({
             <p className="text-sm">No deliveries this month</p>
           </div> :
 
-        datesWithDeliveries.map(({ date, dateStr, total, completed, failed, returned, canDelete }) =>
+        (dateListWithStats || datesWithDeliveries).map(({ date, dateStr, total, completed, failed, returned, canDelete }) =>
         <Card
           key={dateStr}
           onClick={() => onDateSelect(dateStr)}
