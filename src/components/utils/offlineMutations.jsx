@@ -314,15 +314,21 @@ export const deletePatientLocal = async (patientId) => {
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();
     } catch (error) {
-      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
-      // Queue for backend sync if immediate sync fails
-      await offlineDB.addPendingMutation({
-        operation: 'delete',
-        entity: 'Patient',
-        recordId: patientId
-      });
-      // CRITICAL: Restart smart refresh even if queued
-      smartRefreshManager.restart();
+      // CRITICAL: Ignore 404 errors - record doesn't exist on backend (was local-only or already deleted)
+      if (error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('not found')) {
+        console.log('ℹ️ [Sync] Patient not found on backend (was local-only or already deleted):', patientId);
+        smartRefreshManager.restart();
+      } else {
+        console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
+        // Queue for backend sync if immediate sync fails
+        await offlineDB.addPendingMutation({
+          operation: 'delete',
+          entity: 'Patient',
+          recordId: patientId
+        });
+        // CRITICAL: Restart smart refresh even if queued
+        smartRefreshManager.restart();
+      }
     }
     
     return true;
@@ -613,13 +619,18 @@ export const deleteDeliveryLocal = async (deliveryId) => {
       await base44.entities.Delivery.delete(deliveryId);
       console.log('✅ [Sync] Delivery deletion synced to backend immediately:', deliveryId);
     } catch (error) {
-      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
-      // Queue for backend sync if immediate sync fails
-      await offlineDB.addPendingMutation({
-        operation: 'delete',
-        entity: 'Delivery',
-        recordId: deliveryId
-      });
+      // CRITICAL: Ignore 404 errors - record doesn't exist on backend (was local-only or already deleted)
+      if (error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('not found')) {
+        console.log('ℹ️ [Sync] Delivery not found on backend (was local-only or already deleted):', deliveryId);
+      } else {
+        console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
+        // Queue for backend sync if immediate sync fails
+        await offlineDB.addPendingMutation({
+          operation: 'delete',
+          entity: 'Delivery',
+          recordId: deliveryId
+        });
+      }
     }
 
     // CRITICAL: Restart smart refresh after sync (not resume)
