@@ -6344,7 +6344,7 @@ function Dashboard() {
                     // CRITICAL: Dispatch event to update driver location markers for ALL drivers
                     console.log('📍 [Refresh Spinner] Dispatching driverLocationsUpdated event...');
                     window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                      detail: { appUsers: mergedAppUsers || appUsers }
+                      detail: { appUsers: freshAppUsers }
                     }));
                     
                     // CRITICAL: Force deliveries update event to refresh map markers
