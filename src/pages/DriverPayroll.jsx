@@ -393,6 +393,33 @@ export default function DriverPayroll() {
     return sortUsers(payrollData.drivers.filter(d => d && d.status === 'active'));
   }, [payrollData?.drivers]);
 
+  // Get available pay cycle types based on drivers' assigned cycles
+  const availablePayCycles = useMemo(() => {
+    if (!payrollData?.appUsers) return [];
+    const cycles = new Set();
+    payrollData.appUsers.forEach(au => {
+      if (au.pay_cycle_type && au.status === 'active') {
+        cycles.add(au.pay_cycle_type);
+      }
+    });
+    // Return in consistent order
+    const order = ['weekly', 'biweekly', 'semimonthly', 'monthly'];
+    return order.filter(c => cycles.has(c));
+  }, [payrollData?.appUsers]);
+
+  // Filter drivers by selected pay cycle type
+  const driversInPayCycle = useMemo(() => {
+    if (!payrollData?.appUsers || !payrollData?.drivers) return [];
+    const driverIdsInCycle = new Set(
+      payrollData.appUsers
+        .filter(au => au.pay_cycle_type === payPeriod && au.status === 'active')
+        .map(au => au.user_id)
+    );
+    return sortUsers(
+      payrollData.drivers.filter(d => d && d.status === 'active' && driverIdsInCycle.has(d.id))
+    );
+  }, [payrollData?.appUsers, payrollData?.drivers, payPeriod]);
+
   const cityFilteredDeliveries = useMemo(() => {
     if (!payrollData?.deliveries) return [];
     
