@@ -194,6 +194,11 @@ export default function DriverPayroll() {
   useEffect(() => {
     if (!currentUser || hasInitialized) return;
 
+    // Set city to user's assigned city if available
+    if (currentUser.city_id && !isDriver) {
+      setSelectedCityId(currentUser.city_id);
+    }
+
     if (isDriver) {
       // Drivers default to viewing their own payroll
       setSelectedDriverId(currentUser.id);
