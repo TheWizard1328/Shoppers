@@ -859,11 +859,6 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 created: prev.created + createdPatients.length,
                 current: prev.current + batch.length
               }));
-              
-              // Delay between batches
-              if (batchIndex < batches.length - 1) {
-                await delay(3000); // 3 second delay between batches
-              }
             } catch (error) {
               console.error("PatientImport: Batch creation failed:", error);
               batch.forEach((patientData, index) => {
@@ -947,20 +942,12 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                   updated: prev.updated + 1,
                   current: batchStart + batch.indexOf(item) + 1
                 }));
-                
-                await delay(800); // Increased delay between updates
               } catch (error) {
                 const errorMsg = `Update failed for ${patientData.full_name}: ${error.message}`;
                 importErrors.push(errorMsg);
                 setImportProgress((prev) => ({ ...prev, errors: importErrors.length }));
                 failedUpdates.push({ ...item, data: patientData, errorMsg });
-                await delay(800);
               }
-            }
-            
-            // Delay between batches
-            if (batchStart + UPDATE_BATCH_SIZE < previewChanges.toUpdate.length) {
-              await delay(2000); // 2 second delay between update batches
             }
           }
         }
@@ -1005,8 +992,6 @@ export default function PatientImport({ onImportComplete, onImportStart, current
               errors: importErrors.length,
               current: i + 1
             }));
-
-            await delay(100);
           } catch (retryError) {
             console.error(`PatientImport: Final offline save failed for ${patientData.full_name}:`, retryError);
             const newErrorMsg = `Final retry failed for ${patientData.full_name} (${patientData.address}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
@@ -1018,7 +1003,6 @@ export default function PatientImport({ onImportComplete, onImportStart, current
             }
 
             setImportProgress((prev) => ({ ...prev, errors: importErrors.length, current: i + 1 }));
-            await delay(200);
           }
         }
       }
@@ -1057,8 +1041,6 @@ export default function PatientImport({ onImportComplete, onImportStart, current
               errors: importErrors.length,
               current: i + 1
             }));
-
-            await delay(200);
           } catch (retryError) {
             console.error(`PatientImport: Final update failed for ${patientData.full_name}:`, retryError);
             const newErrorMsg = `Final retry update failed for patient ID ${id} (${patientData.full_name}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
@@ -1069,7 +1051,6 @@ export default function PatientImport({ onImportComplete, onImportStart, current
               importErrors.push(newErrorMsg);
             }
             setImportProgress((prev) => ({ ...prev, errors: importErrors.length, current: i + 1 }));
-            await delay(300);
           }
         }
       }
