@@ -733,6 +733,36 @@ export const invalidateDeliveryRangeCache = (specificDate = null) => {
 };
 
 /**
+ * Update specific entity in cache(s) directly
+ * This prevents UI flickering by updating the cache immediately
+ */
+export const updateCache = (entityName, id, newData) => {
+  // Update main cache
+  for (const key of cache.keys()) {
+    if (key.startsWith(`${entityName}_`)) {
+      const cachedArray = cache.get(key);
+      const index = cachedArray.findIndex(item => item.id === id);
+      if (index > -1) {
+        cachedArray[index] = newData;
+      }
+    }
+  }
+  
+  // Update delivery range cache if it's a Delivery entity
+  if (entityName === 'Delivery') {
+    for (const key of deliveryRangeCache.keys()) {
+      const cachedArray = deliveryRangeCache.get(key);
+      const index = cachedArray.findIndex(item => item.id === id);
+      if (index > -1) {
+        cachedArray[index] = newData;
+      }
+    }
+  }
+  
+  console.log(`⚡ [dataManager] Cache updated for ${entityName} ID: ${id}`);
+};
+
+/**
  * Invalidate deliveries for a specific date only
  * This is more efficient than invalidating all delivery caches
  * @param {string} dateString - Date in yyyy-MM-dd format

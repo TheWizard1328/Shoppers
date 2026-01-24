@@ -185,9 +185,9 @@ export const updatePatient = async (patientId, updates, options = {}) => {
       const backendPatient = await base44.entities.Patient.update(patientId, updates);
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
       
-      // CRITICAL: Invalidate cache
-      const { invalidate } = await import('./dataManager');
-      invalidate('Patient');
+      // CRITICAL: Update cache directly to prevent UI flickering
+      const { updateCache } = await import('./dataManager');
+      updateCache('Patient', patientId, backendPatient);
       
       notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
       await restartSmartRefresh();
@@ -207,10 +207,10 @@ export const updatePatient = async (patientId, updates, options = {}) => {
       // STEP 3: Update IndexedDB with backend version
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
       
-      // STEP 4: CRITICAL - Invalidate cache
-      const { invalidate } = await import('./dataManager');
-      invalidate('Patient');
-      console.log('🗑️ [EntityMutations] Invalidated Patient cache');
+      // STEP 4: CRITICAL - Update cache directly to prevent UI flickering
+      const { updateCache } = await import('./dataManager');
+      updateCache('Patient', patientId, backendPatient);
+      console.log('⚡ [EntityMutations] Updated Patient cache');
       
       // STEP 5: Notify UI with backend version
       notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
@@ -313,10 +313,9 @@ export const createDelivery = async (deliveryData, options = {}) => {
       });
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
       
-      // STEP 4: CRITICAL - Invalidate dataManager cache
-      const { invalidate } = await import('./dataManager');
-      invalidate('Delivery');
-      console.log('🗑️ [EntityMutations] Invalidated Delivery cache after create');
+      // STEP 4: CRITICAL - Update cache directly (will be added via notifyMutation)
+      // For creates, the cache will be updated through the mutation listener
+      console.log('⚡ [EntityMutations] Created Delivery, cache will update via listener');
       
       // STEP 5: Notify UI to replace temp with real
       notifyMutation({ type: 'replace', entity: 'Delivery', oldId: tempId, newId: backendDelivery.id, data: backendDelivery });
@@ -356,9 +355,9 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
         const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
         
-        // CRITICAL: Invalidate dataManager cache to force refresh
-        const { invalidate } = await import('./dataManager');
-        invalidate('Delivery');
+        // CRITICAL: Update cache directly to prevent UI flickering
+        const { updateCache } = await import('./dataManager');
+        updateCache('Delivery', deliveryId, backendDelivery);
         
         notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
         if (!skipSmartRefresh) await restartSmartRefresh();
@@ -386,10 +385,10 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       // STEP 3: Update IndexedDB with backend response (authoritative version)
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
       
-      // STEP 4: CRITICAL - Invalidate dataManager cache to force fresh fetch
-      const { invalidate } = await import('./dataManager');
-      invalidate('Delivery');
-      console.log('🗑️ [EntityMutations] Invalidated Delivery cache');
+      // STEP 4: CRITICAL - Update cache directly to prevent UI flickering
+      const { updateCache } = await import('./dataManager');
+      updateCache('Delivery', deliveryId, backendDelivery);
+      console.log('⚡ [EntityMutations] Updated Delivery cache');
       
       // STEP 5: Notify UI with backend version (most up-to-date)
       notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
