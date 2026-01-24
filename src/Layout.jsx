@@ -1160,9 +1160,13 @@ export default function Layout({ children, currentPageName }) {
                   window.addEventListener('forceDataRefresh', handleForceDataRefresh);
 
       // ========================================
-      // REAL-TIME SYNC - WebSocket for instant updates
+      // REAL-TIME SYNC - WebSocket for instant updates (DISABLED in preview)
       // ========================================
-      realtimeSync.connect();
+      // CRITICAL: Skip WebSocket in preview/sandbox environments
+      const isPreview = window.location.hostname.includes('preview') || window.location.hostname.includes('sandbox');
+      if (!isPreview) {
+        realtimeSync.connect();
+      }
 
       const unsubscribeRealtime = subscribeToRealtime((update) => {
         if (update.type === 'connected') {
