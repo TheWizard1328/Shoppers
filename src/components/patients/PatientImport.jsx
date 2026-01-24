@@ -687,9 +687,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
           } catch (err) {
 
 
+
             // Skip rows with parsing errors
           }}}
-
       console.log(`PatientImport: Collected ${importedPatientPids.size} PIDs and ${importedPatientKeys.size} fallback keys from CSV`);
       console.log(`PatientImport: Importing from ${importingStoreIds.size} store(s)`, Array.from(importingStoreIds));
 
@@ -1345,7 +1345,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4 z-[9999] overflow-hidden">
-                        <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl flex flex-col relative transition-all duration-300 h-[210px] sm:h-[210px]">
+                        <Card className="rounded-xl border bg-card text-card-foreground shadow w-full flex flex-col relative transition-all duration-300 h-[310px] sm:h-[210px]">
                         {/* Floating Progress Overlay */}
                         {isProcessing &&
         <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
