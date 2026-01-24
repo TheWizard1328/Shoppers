@@ -1317,32 +1317,8 @@ export default function Layout({ children, currentPageName }) {
       return unsubscribe;
     }, []);
 
-    // Fetch unread message count - only when messaging panel is closed
-      // OPTIMIZED: Delayed significantly to prevent rate limits on startup
-      useEffect(() => {
-        if (!currentUser?.id || showMessaging) return;
-
-      const fetchUnreadCount = async () => {
-        try {
-          const unreadMessages = await base44.entities.Message.filter({
-            receiver_id: currentUser.id,
-            read: false
-          }, '-created_date', 50);
-          setUnreadMessageCount(unreadMessages.length);
-        } catch (error) {
-          // Silent fail on rate limits
-        }
-      };
-
-      // Delay initial fetch to 60 seconds after app load
-      const initialTimer = setTimeout(fetchUnreadCount, 60000);
-      // Poll every 10 minutes when panel is closed
-      const interval = setInterval(fetchUnreadCount, 600000);
-      return () => {
-        clearTimeout(initialTimer);
-        clearInterval(interval);
-      };
-    }, [currentUser?.id, showMessaging]);
+    // CRITICAL: Message polling DISABLED - causes rate limits
+    // Messages will only load when user opens messaging panel
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -1453,15 +1429,8 @@ export default function Layout({ children, currentPageName }) {
     if (updates.users) setUsers(updates.users);
   }, [currentUser, isFormOverlayOpen, deliveries, patients]);
 
-  // CRITICAL: Background sync DISABLED - causing too many rate limit errors
-  // User can manually refresh if needed, otherwise rely on offline DB + real-time updates
-  useEffect(() => {
-    if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
-
-    console.log('📴 [Layout] Background sync worker DISABLED - using offline-first only');
-
-    // No automatic background syncing - only manual refresh via UI
-  }, [initialGlobalFiltersSet, currentUser, dataLoaded]);
+  // CRITICAL: Background sync COMPLETELY DISABLED
+  // App is 100% offline-only now - zero API calls after initial load
 
     // Wake Lock API and visibility change handler
     useEffect(() => {

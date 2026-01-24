@@ -137,33 +137,9 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
         cache.set(cacheKey, offlineData);
         cacheTimestamps.set(cacheKey, Date.now());
         
-        // CRITICAL: If forceRefresh=true, update from API in background WITHOUT waiting
+        // CRITICAL: Background refresh DISABLED - app is offline-only now
         if (forceRefresh) {
-          console.log(`🔄 [dataManager] Background API refresh for ${entityName}...`);
-          (async () => {
-            try {
-              await waitForRateLimit();
-              const Entity = entities[entityName];
-              let freshData;
-              
-              if (query) {
-                freshData = sortKey && limit ? await Entity.filter(query, sortKey, limit) :
-                           sortKey ? await Entity.filter(query, sortKey) :
-                           await Entity.filter(query);
-              } else {
-                freshData = sortKey && limit ? await Entity.list(sortKey, limit) :
-                           sortKey ? await Entity.list(sortKey) :
-                           await Entity.list();
-              }
-              
-              if (freshData && freshData.length > 0) {
-                await offlineDB.bulkSave(storeName, freshData);
-                console.log(`✅ [dataManager] Background: Updated offline DB with ${freshData.length} ${entityName} records`);
-              }
-            } catch (bgError) {
-              console.warn(`⚠️ [dataManager] Background API refresh failed (non-critical):`, bgError.message);
-            }
-          })();
+          console.log(`📴 [dataManager] Background refresh disabled - offline-only mode`);
         }
         
         return offlineData;
@@ -593,41 +569,8 @@ export const loadDeliveries = async (
         onInitialLoadComplete(offlineDeliveries);
         usedOfflineData = true;
         
-        // IMMEDIATELY sync with online (no delay) - selected date first
-        (async () => {
-          try {
-            console.log(`🔄 [DataManager] Syncing selected date ${selectedDateStr} with online...`);
-            const freshDeliveries = await Delivery.filter({
-              delivery_date: selectedDateStr,
-              ...priorityFilters
-            });
-            
-            // Update offline DB with fresh data
-            if (freshDeliveries.length > 0) {
-              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-            }
-            
-            // Update UI with fresh data immediately
-            console.log(`✅ [DataManager] UI updated with ${freshDeliveries.length} fresh deliveries`);
-            onInitialLoadComplete(freshDeliveries);
-            
-            // Update sync timestamp
-            await offlineDB.updateSyncStatus('Delivery', {
-              lastSync: new Date().toISOString(),
-              status: 'synced'
-            });
-
-            // CRITICAL: DISABLE eager background loading - causes rate limits
-            // Let background sync worker handle this during idle time
-            console.log(`⏭️ [dataManager] Skipping background delivery loading - using offline data only`);
-          } catch (e) {
-            console.warn('⚠️ [DataManager] Online sync failed, using offline data:', e.message);
-            // Still do background loading with offline data
-            setTimeout(async () => {
-              await loadBackgroundDeliveries(selectedDateStr, priorityFilters, onFullMonthLoadComplete, offlineDeliveries);
-            }, 2000);
-          }
-        })();
+        // CRITICAL: SYNC DISABLED - 100% offline-only mode
+        console.log(`📴 [DataManager] API sync disabled - using offline data only`);
         
         return offlineDeliveries;
       }
@@ -643,10 +586,8 @@ export const loadDeliveries = async (
   // Fire instant UI callback
   onInitialLoadComplete(selectedDateDeliveries);
   
-  // STEP 3: Background load (today + 6 future, then past 14 days)
-  setTimeout(async () => {
-    await loadBackgroundDeliveries(selectedDateStr, priorityFilters, onFullMonthLoadComplete, selectedDateDeliveries);
-  }, 3000);
+  // CRITICAL: Background loading DISABLED to prevent rate limits
+  console.log('📴 [DataManager] Background loading disabled - offline-only mode');
 
   return selectedDateDeliveries;
 };
