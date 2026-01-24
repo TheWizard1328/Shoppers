@@ -3416,6 +3416,13 @@ function Dashboard() {
       setIsExpanded(false);
       setIsEntityUpdating(true);
 
+      // CRITICAL: Uncheck "Show All" when switching to "All Drivers" mode to prevent duplicate markers
+      if (driverId === 'all' && showAllDriverMarkers) {
+        console.log('📍 [Driver Change] Switching to All Drivers - unchecking Show All to prevent duplicate markers');
+        setShowAllDriverMarkers(false);
+        localStorage.setItem('rxdeliver_show_all_driver_markers', 'false');
+      }
+
       if (currentUser?.id) {
         saveSetting(currentUser.id, 'selected_driver_id', driverId);
       }
