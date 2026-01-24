@@ -1355,6 +1355,32 @@ export default function DeliveriesPage() {
     }));
   }, [selectedDateDeliveries, effectivePatients, stores, statusFilter, searchTerm, sortDeliveriesByTime]);
 
+  // Filter date cards based on search term (search across all available dates)
+  const filteredDatesBySearch = useMemo(() => {
+    if (!searchTerm) {
+      return dateListWithStats;
+    }
+
+    const lowerSearch = searchTerm.toLowerCase();
+    return dateListWithStats.filter((dateItem) => {
+      // Get deliveries for this date and check if any match the search
+      const deliveriesOnDate = driverFilteredDeliveries.filter((d) => d.delivery_date === dateItem.date);
+      
+      return deliveriesOnDate.some((d) => {
+        const patient = effectivePatients.find((p) => p.id === d.patient_id);
+        const store = stores.find((s) => s.id === d.store_id);
+
+        return (
+          (patient?.full_name || '').toLowerCase().includes(lowerSearch) ||
+          (patient?.address || '').toLowerCase().includes(lowerSearch) ||
+          (d.driver_name || '').toLowerCase().includes(lowerSearch) ||
+          (store?.name || '').toLowerCase().includes(lowerSearch) ||
+          (d.prescription_number || '').toLowerCase().includes(lowerSearch)
+        );
+      });
+    });
+  }, [searchTerm, dateListWithStats, driverFilteredDeliveries, effectivePatients, stores]);
+
   const createDriverPickupStops = useCallback(async (driver, deliveryDate) => {
     try {
       const driverName = driver.full_name;
@@ -2534,7 +2560,7 @@ export default function DeliveriesPage() {
 
   const handleSearchChange = useMemo(() => debounce((value) => {
     setSearchTerm(value);
-  }, 300), []);
+  }, 100), []);
 
   const handleDriverChange = useCallback((driverId) => {
     try {
