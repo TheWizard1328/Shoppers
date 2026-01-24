@@ -12,6 +12,7 @@ const STORES = {
   PATIENTS: 'patients',
   DELIVERIES: 'deliveries',
   APP_USERS: 'app_users',
+  CITIES: 'cities',
   SQUARE_TRANSACTIONS: 'square_transactions',
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations'
@@ -60,6 +61,12 @@ const openDatabase = () => {
         appUserStore.createIndex('user_id', 'user_id', { unique: true });
         appUserStore.createIndex('app_roles', 'app_roles', { multiEntry: true });
         appUserStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.CITIES)) {
+        const cityStore = db.createObjectStore(STORES.CITIES, { keyPath: 'id' });
+        cityStore.createIndex('name', 'name', { unique: false });
+        cityStore.createIndex('updated_date', 'updated_date', { unique: false });
       }
 
       if (!db.objectStoreNames.contains(STORES.SQUARE_TRANSACTIONS)) {
@@ -308,14 +315,16 @@ const needsInitialSync = async (entityName) => {
  */
 const getStats = async () => {
   try {
-    const [patients, deliveries, appUsers, squareTx, patientSync, deliverySync, appUserSync, squareTxSync] = await Promise.all([
+    const [patients, deliveries, appUsers, cities, squareTx, patientSync, deliverySync, appUserSync, citySync, squareTxSync] = await Promise.all([
       getAll(STORES.PATIENTS),
       getAll(STORES.DELIVERIES),
       getAll(STORES.APP_USERS),
+      getAll(STORES.CITIES),
       getAll(STORES.SQUARE_TRANSACTIONS),
       getSyncStatus('Patient'),
       getSyncStatus('Delivery'),
       getSyncStatus('AppUser'),
+      getSyncStatus('City'),
       getSyncStatus('SquareTransaction')
     ]);
 
@@ -331,6 +340,10 @@ const getStats = async () => {
       appUsers: {
         count: appUsers.length,
         lastSync: appUserSync?.lastSyncDate || 'Never'
+      },
+      cities: {
+        count: cities.length,
+        lastSync: citySync?.lastSyncDate || 'Never'
       },
       squareTransactions: {
         count: squareTx.length,

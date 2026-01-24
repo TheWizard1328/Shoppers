@@ -120,14 +120,15 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   
   const cacheKey = `${entityName}_${sortKey || 'default'}_${JSON.stringify(query) || 'noquery'}_${limit || 'all'}`;
   
-  // OFFLINE-FIRST: Try IndexedDB for Patient, Delivery, AppUser, and SquareTransaction entities ALWAYS
+  // OFFLINE-FIRST: Try IndexedDB for Patient, Delivery, AppUser, City, and SquareTransaction entities ALWAYS
   // CRITICAL: This prevents rate limits by using local data first
   // NEVER skip offline DB - even on forceRefresh, try offline first then update in background
-  if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'SquareTransaction') {
+  if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'SquareTransaction') {
     try {
       const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
                         entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
                         entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
+                        entityName === 'City' ? offlineDB.STORES.CITIES :
                         offlineDB.STORES.SQUARE_TRANSACTIONS;
       let offlineData = await offlineDB.getAll(storeName);
       
@@ -218,10 +219,15 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
         }
       } else {
         // Use list method when no query
-        if (sortKey && limit) {
-          data = await Entity.list(sortKey, limit);
+        // CRITICAL: Apply default limits for SquareTransaction to prevent rate limits
+        const defaultLimit = (entityName === 'SquareTransaction') ? 100 : limit;
+
+        if (sortKey && defaultLimit) {
+          data = await Entity.list(sortKey, defaultLimit);
         } else if (sortKey) {
           data = await Entity.list(sortKey);
+        } else if (defaultLimit) {
+          data = await Entity.list('-updated_date', defaultLimit);
         } else {
           data = await Entity.list();
         }
@@ -235,10 +241,11 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       connectionMonitor.recordResponseTime(responseTime);
 
       // BACKGROUND: Save to IndexedDB for offline access
-      if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'SquareTransaction') {
+      if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'SquareTransaction') {
         const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
                           entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
                           entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
+                          entityName === 'City' ? offlineDB.STORES.CITIES :
                           offlineDB.STORES.SQUARE_TRANSACTIONS;
         offlineDB.bulkSave(storeName, data).catch(err => {
         });
