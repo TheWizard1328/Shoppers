@@ -2596,7 +2596,12 @@ export default function Layout({ children, currentPageName }) {
                                                         invalidate('Patient');
                                                         const freshPatients = await getData('Patient', null, null, true);
                                                         setPatients(freshPatients);
+
+                                                        // CRITICAL: Dispatch events for active page to refresh
                                                         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                                                        window.dispatchEvent(new CustomEvent('patientsUpdated', {
+                                                          detail: { triggeredBy: 'patientImportComplete' }
+                                                        }));
                                                       }}
                       />
                     )}
@@ -2651,7 +2656,15 @@ export default function Layout({ children, currentPageName }) {
                                                                                                                     invalidate('Delivery');
                                                                                                                     invalidate('Patient');
                                                                                                                     await triggerFullDataLoadRef.current(true);
+
+                                                                                                                    // CRITICAL: Dispatch events for active page to refresh
                                                                                                                     window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                                                                                                                    window.dispatchEvent(new CustomEvent('deliveriesImported', {
+                                                                                                                      detail: { source: 'routeImport', deliveries: [] }
+                                                                                                                    }));
+                                                                                                                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                                                                                                      detail: { triggeredBy: 'routeImportComplete' }
+                                                                                                                    }));
                                                                                                                   }}
                                     stores={stores}
                                     allUsers={users}
