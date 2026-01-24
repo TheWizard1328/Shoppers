@@ -384,7 +384,9 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
  * @returns {Promise<Array>} - Deliveries for that date
  */
 export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh = false) => {
-  const cacheKey = `Delivery_date_${dateStr}_${JSON.stringify(filters)}`;
+  // CRITICAL: Remove driver_id from filters - we ALWAYS load ALL drivers
+  const { driver_id, ...filtersWithoutDriver } = filters;
+  const cacheKey = `Delivery_date_${dateStr}_${JSON.stringify(filtersWithoutDriver)}`;
   
   // OFFLINE-FIRST: Try IndexedDB ALWAYS
   // CRITICAL: This prevents rate limits by using local data
@@ -392,13 +394,10 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
     try {
       let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
       
-      // Apply additional filters locally
-      if (filters.store_id) {
-        const storeIds = filters.store_id.$in || [filters.store_id];
+      // CRITICAL: Only apply store filter - NEVER filter by driver_id
+      if (filtersWithoutDriver.store_id) {
+        const storeIds = filtersWithoutDriver.store_id.$in || [filtersWithoutDriver.store_id];
         offlineData = offlineData.filter(d => storeIds.includes(d.store_id));
-      }
-      if (filters.driver_id) {
-        offlineData = offlineData.filter(d => d.driver_id === filters.driver_id);
       }
       
       if (offlineData && offlineData.length > 0) {
@@ -411,7 +410,8 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
           (async () => {
             try {
               await waitForRateLimit();
-              const dateFilters = { ...filters, delivery_date: dateStr };
+              // CRITICAL: Remove driver_id - fetch ALL drivers
+              const dateFilters = { ...filtersWithoutDriver, delivery_date: dateStr };
               const freshDeliveries = await Delivery.filter(dateFilters, '-updated_date');
               
               if (freshDeliveries && freshDeliveries.length > 0) {
@@ -441,12 +441,13 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
     }
   }
   
+  // CRITICAL: Remove driver_id from filters - ALWAYS fetch ALL drivers
   const dateFilters = {
-    ...filters,
+    ...filtersWithoutDriver,
     delivery_date: dateStr
   };
   
-  console.log(`🌐 [dataManager] Fetching deliveries from network for ${dateStr}...`);
+  console.log(`🌐 [dataManager] Fetching ALL drivers' deliveries from network for ${dateStr}...`);
   
   try {
     await waitForRateLimit();
