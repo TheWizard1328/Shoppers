@@ -726,7 +726,91 @@ export default function PayrollSummaryCard({
   return (
     <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        {/* Mobile View: 2 rows */}
+        <div className="md:hidden flex flex-col gap-2">
+          {/* Row 1: Title and PDF Button */}
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
+              <Calculator className="w-5 h-5" />
+              Payroll
+            </CardTitle>
+            <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 h-8" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              <Download className="w-4 h-4" />
+              PDF
+            </Button>
+          </div>
+          
+          {/* Row 2: Confirmed Drivers and Finalize Button */}
+          <div className="flex items-center justify-between">
+            {/* Admin View: Show finalization progress */}
+            {isAdmin && driversWithDeliveriesIds.length > 0 && 
+              !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) && (
+              <>
+                {!isAdminFinalized && (
+                  <>
+                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      <Users className="w-3 h-3 inline mr-1" />
+                      {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
+                    </span>
+                    <Button 
+                      size="sm" 
+                      onClick={() => setShowConfirmDialog(true)} 
+                      disabled={isFinalizing || isLoadingRecords || !canFinalize}
+                      className={`gap-2 h-8 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                      title={!canFinalize ? 'Cannot finalize until pay period ends' : ''}
+                    >
+                      {allDriversFinalized ? (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          {isFinalizing ? 'Finalizing...' : 'Finalize All'}
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="w-4 h-4" />
+                          {isFinalizing ? 'Finalizing...' : 'Finalize All'}
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+                {isAdminFinalized && (
+                  <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
+                    <CheckCircle className="w-4 h-4" />
+                    Finalized
+                  </div>
+                )}
+              </>
+            )}
+            
+            {/* Driver View: Show Confirm/Confirmed status */}
+            {((isDriver && selectedDriverId === currentUser?.id) || 
+              (isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)) && (
+              <>
+                {!isCurrentDriverFinalized && (
+                  <Button 
+                    size="sm" 
+                    onClick={() => setShowConfirmDialog(true)} 
+                    disabled={isFinalizing || isLoadingRecords || !canFinalize}
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8 ml-auto"
+                    title={!canFinalize ? 'Cannot finalize until pay period ends' : ''}
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
+                  </Button>
+                )}
+                {isCurrentDriverFinalized && (
+                  <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2 ml-auto">
+                    <CheckCircle className="w-4 h-4" />
+                    Confirmed
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        
+        {/* Desktop View: Original single row layout */}
+        <div className="hidden md:flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
             <Calculator className="w-5 h-5" />
             Payroll Summary
