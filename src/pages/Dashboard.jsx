@@ -6227,14 +6227,18 @@ function Dashboard() {
                     }
 
                     console.clear();
-                    // Determine active driver ID
+                    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                    
+                    // CRITICAL: Check if "Show All" is enabled - if so, fetch ALL drivers' deliveries
+                    const shouldFetchAllDrivers = showAllDriverMarkers || selectedDriverId === 'all';
                     const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
 
-                    if (!activeDriverId) {
+                    if (!activeDriverId && !shouldFetchAllDrivers) {
                       return;
                     }
 
-                    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                    console.log(`🔄 [Manual Refresh] Mode: ${shouldFetchAllDrivers ? 'ALL DRIVERS' : 'Single Driver'}, showAllDriverMarkers: ${showAllDriverMarkers}`);
+
                     const now = new Date();
                     const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -6242,9 +6246,9 @@ function Dashboard() {
                     const currentData = { deliveries, patients, appUsers, stores };
                     const filters = {
                       selectedDate,
-                      deliveryFilter: { driver_id: activeDriverId },
+                      deliveryFilter: shouldFetchAllDrivers ? {} : { driver_id: activeDriverId },
                       patientFilter: {},
-                      activeDriverIds: [activeDriverId]
+                      activeDriverIds: shouldFetchAllDrivers ? [] : [activeDriverId]
                     };
 
                     const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
@@ -6286,18 +6290,18 @@ function Dashboard() {
                     // Optimization now only runs on 5-minute timer when driver moves 100m+
                     console.log('⏭️ [Refresh Spinner] Skipping route optimization (runs on timer only)');
 
-                    // STEP 3: Force reload deliveries for active driver
+                    // STEP 3: Force reload deliveries - ALL drivers if "Show All" enabled
                     invalidateDeliveriesForDate(selectedDateStr);
-                    const freshDeliveries = await base44.entities.Delivery.filter({
-                      delivery_date: selectedDateStr,
-                      driver_id: activeDriverId
-                    });
+                    const finalDeliveries = shouldFetchAllDrivers ?
+                      await base44.entities.Delivery.filter({ delivery_date: selectedDateStr }) :
+                      await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
 
-                    // STEP 4: Update isNextDelivery flags for active driver
-                    const updatedDeliveries = await base44.entities.Delivery.filter({
-                      delivery_date: selectedDateStr,
-                      driver_id: activeDriverId
-                    }, 'stop_order');
+                    console.log(`✅ [Refresh Spinner] Loaded ${finalDeliveries.length} deliveries (${shouldFetchAllDrivers ? 'all drivers' : 'single driver'})`);
+
+                    // STEP 4: Update isNextDelivery flags for active driver only
+                    const updatedDeliveries = shouldFetchAllDrivers ?
+                      finalDeliveries.filter(d => d.driver_id === activeDriverId) :
+                      finalDeliveries;
 
                     // Reset all isNextDelivery flags for this driver
                     const resetPromises = updatedDeliveries.
@@ -6315,17 +6319,11 @@ function Dashboard() {
                       await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
                     }
 
-                    // STEP 5: Reload fresh data and update UI
-                    invalidateDeliveriesForDate(selectedDateStr);
-                    const finalDeliveries = await base44.entities.Delivery.filter({
-                      delivery_date: selectedDateStr
-                    });
-
-                    // Update UI state
+                    // STEP 5: Update UI state with ALL deliveries
                     if (updateDeliveriesLocally) {
                       const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
                       const mergedDeliveries = [...otherDateDeliveries, ...finalDeliveries];
-                      updateDeliveriesLocally(mergedDeliveries);
+                      updateDeliveriesLocally(mergedDeliveries, true);
                     }
 
                     // CRITICAL: Update offline database with fresh deliveries
@@ -6350,6 +6348,17 @@ function Dashboard() {
                       }
                     }
 
+                    // CRITICAL: Dispatch event to update driver location markers for ALL drivers
+                    console.log('📍 [Refresh Spinner] Dispatching driverLocationsUpdated event...');
+                    window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                      detail: { appUsers: mergedAppUsers || appUsers }
+                    }));
+                    
+                    // CRITICAL: Force deliveries update event to refresh map markers
+                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                      detail: { deliveryDate: selectedDateStr, triggeredBy: 'manualRefresh' }
+                    }));
+
                     // CRITICAL: Only re-lock and re-trigger FAB if current phase is Phase 2
                     if (mapViewPhase === 2) {
                       console.log(`🔒 [Refresh Spinner] Re-locking FAB to Phase 2 after optimization`);
@@ -6364,6 +6373,15 @@ function Dashboard() {
                         mapLockTimeoutRef.current = null;
                       }
                       mapLockExpiresAtRef.current = null;
+                    } else {
+                      // CRITICAL: For Phase 1 - trigger re-render to show all new markers
+                      setIsMapViewLocked(true);
+                      lastProgrammaticMapMoveRef.current = Date.now();
+                      window._lastProgrammaticMapMove = Date.now();
+                      setMapViewTrigger((prev) => prev + 1);
+                      
+                      // Auto-unlock after 500ms
+                      setTimeout(() => setIsMapViewLocked(false), 500);
                     }
 
                   }} />

@@ -70,11 +70,29 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // CRITICAL: Trigger UI refresh for current screen after sync completes
       console.log('✅ [OfflineSyncIndicator] Manual sync complete - refreshing UI');
       
+      // CRITICAL: Wait for offline DB to update before triggering events
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Refresh delivery stats
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       
       // Force data refresh on Dashboard/current screen
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+      
+      // CRITICAL: Load fresh deliveries and trigger delivery update event
+      const selectedDateStr = sessionStorage.getItem('rxdeliver_selected_date') || 
+                             new Date().toISOString().split('T')[0];
+      
+      // CRITICAL: Import offlineDB and check for fresh deliveries
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+      
+      if (freshDeliveries && freshDeliveries.length > 0) {
+        console.log(`📦 [Manual Sync] Triggering deliveriesImported event with ${freshDeliveries.length} deliveries`);
+        window.dispatchEvent(new CustomEvent('deliveriesImported', {
+          detail: { source: 'manual_sync', deliveries: freshDeliveries }
+        }));
+      }
       
       // CRITICAL: Trigger driver locations update to refresh map markers
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
