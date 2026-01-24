@@ -1453,54 +1453,14 @@ export default function Layout({ children, currentPageName }) {
     if (updates.users) setUsers(updates.users);
   }, [currentUser, isFormOverlayOpen, deliveries, patients]);
 
-  // CRITICAL: POLLING COMPLETELY REMOVED - use offline-first + WebSocket only
-  // Background sync worker handles intelligent syncing during idle time
+  // CRITICAL: Background sync DISABLED - causing too many rate limit errors
+  // User can manually refresh if needed, otherwise rely on offline DB + real-time updates
   useEffect(() => {
-  if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
+    if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
 
-  // Start background sync worker for intelligent idle-time syncing
-  // CRITICAL: Wait 5 minutes after initial load before starting to prevent rate limits
-  const delayedStartTimer = setTimeout(async () => {
-    const { backgroundSyncWorker } = await import('./components/utils/backgroundSyncWorker');
-    const { offlineDB } = await import('./components/utils/offlineDatabase');
+    console.log('📴 [Layout] Background sync worker DISABLED - using offline-first only');
 
-    console.log('🔄 [Layout] Starting background sync worker (5min delay)');
-
-    // Listen for sync events to update UI
-    const unsubscribe = backgroundSyncWorker.subscribe(async (event, db) => {
-      if (event.type === 'sync_complete') {
-        // Load updated data from offline DB and update UI
-        if (event.entity === 'AppUser') {
-          const updatedAppUsers = await db.getAll(db.STORES.APP_USERS);
-          if (updatedAppUsers && updatedAppUsers.length > 0) {
-            setAppUsers(updatedAppUsers);
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: updatedAppUsers }
-            }));
-          }
-        } else if (event.entity === 'Delivery') {
-          const updatedDeliveries = await db.getAll(db.STORES.DELIVERIES);
-          if (updatedDeliveries && updatedDeliveries.length > 0) {
-            setDeliveries(updatedDeliveries);
-          }
-        } else if (event.entity === 'Patient') {
-          const updatedPatients = await db.getAll(db.STORES.PATIENTS);
-          if (updatedPatients && updatedPatients.length > 0) {
-            setPatients(updatedPatients);
-          }
-        }
-      }
-    });
-
-    backgroundSyncWorker.start();
-
-    return () => {
-      backgroundSyncWorker.stop();
-      unsubscribe();
-    };
-  }, 300000); // 5 minutes delay
-
-  return () => clearTimeout(delayedStartTimer);
+    // No automatic background syncing - only manual refresh via UI
   }, [initialGlobalFiltersSet, currentUser, dataLoaded]);
 
     // Wake Lock API and visibility change handler

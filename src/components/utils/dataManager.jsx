@@ -616,11 +616,10 @@ export const loadDeliveries = async (
               lastSync: new Date().toISOString(),
               status: 'synced'
             });
-            
-            // Continue with background loading after selected date is synced
-            setTimeout(async () => {
-              await loadBackgroundDeliveries(selectedDateStr, priorityFilters, onFullMonthLoadComplete, freshDeliveries);
-            }, 2000);
+
+            // CRITICAL: DISABLE eager background loading - causes rate limits
+            // Let background sync worker handle this during idle time
+            console.log(`⏭️ [dataManager] Skipping background delivery loading - using offline data only`);
           } catch (e) {
             console.warn('⚠️ [DataManager] Online sync failed, using offline data:', e.message);
             // Still do background loading with offline data
