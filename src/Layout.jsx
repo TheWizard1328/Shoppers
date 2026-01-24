@@ -1653,9 +1653,10 @@ export default function Layout({ children, currentPageName }) {
       const { offlineDB } = await import('./components/utils/offlineDatabase');
       const offlineSquareConfigs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
       const offlineSquareTx = await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS);
+      const offlineCatalogItems = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
 
       setSquareLocationConfigs(offlineSquareConfigs || []);
-      setCatalogItems([]); // Will be synced in background
+      setCatalogItems(offlineCatalogItems || []); // Load from offline DB first
       setSquareTransactions(offlineSquareTx || []);
 
       // Load deliveries with instant UI callback - NO driver filter to get ALL drivers
