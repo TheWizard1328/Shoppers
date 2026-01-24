@@ -31,11 +31,33 @@ export const getTypeBadge = (type) => {
 
 export const getPaymentMethodBadge = (method) => {
   if (!method) return null;
-  const config = {
-    cash: 'bg-green-100 text-green-800',
-    debit: 'bg-blue-100 text-blue-800',
-    credit: 'bg-purple-100 text-purple-800',
-    check: 'bg-amber-100 text-amber-800'
-  };
-  return <Badge className={config[method] || 'bg-slate-100'}>{method}</Badge>;
+  
+  // Normalize method to lowercase for consistent matching
+  const normalizedMethod = String(method).toLowerCase();
+  
+  // Parse card type from credit card methods (e.g., "credit_visa", "credit_mastercard")
+  let displayMethod = normalizedMethod;
+  let className = 'bg-slate-100 text-slate-800';
+  
+  if (normalizedMethod.startsWith('cash')) {
+    displayMethod = 'Cash';
+    className = 'bg-green-100 text-green-800';
+  } else if (normalizedMethod.startsWith('debit')) {
+    displayMethod = 'Debit';
+    className = 'bg-blue-100 text-blue-800';
+  } else if (normalizedMethod.startsWith('credit')) {
+    // Extract card type if available (e.g., "credit_visa" -> "Visa")
+    const cardType = normalizedMethod.replace('credit_', '').replace('credit-', '');
+    if (cardType && cardType !== 'credit') {
+      displayMethod = `Credit (${cardType.charAt(0).toUpperCase() + cardType.slice(1)})`;
+    } else {
+      displayMethod = 'Credit';
+    }
+    className = 'bg-purple-100 text-purple-800';
+  } else if (normalizedMethod.startsWith('check')) {
+    displayMethod = 'Check';
+    className = 'bg-amber-100 text-amber-800';
+  }
+  
+  return <Badge className={className}>{displayMethod}</Badge>;
 };
