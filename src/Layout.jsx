@@ -850,6 +850,19 @@ export default function Layout({ children, currentPageName }) {
         setCatalogItems(offlineCatalogItems || []); // Load from offline DB
         setSquareTransactions(offlineSquareTx || []);
 
+        // Sync catalog items from Square in background (5 seconds after init)
+        setTimeout(async () => {
+          try {
+            const response = await base44.functions.invoke('squareSyncCatalogItems', {});
+            const items = response?.data?.items || response?.items || [];
+            setCatalogItems(items);
+            // Save to offline DB for next load
+            await offlineDB.bulkSave(offlineDB.STORES.SQUARE_CATALOG_ITEMS, items);
+          } catch (error) {
+            console.warn('⚠️ [Layout] Failed to sync catalog items:', error.message);
+          }
+        }, 5000);
+
         const savedDate = globalFilters.getSelectedDate();
         let effectiveDateForDriverAssignment;
         if (!savedDate) {
