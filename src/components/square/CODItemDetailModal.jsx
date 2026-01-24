@@ -135,43 +135,44 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
               </h3>
             {itemTransactions.length === 0 ? (
               <p className="text-center text-slate-500 py-6">No transactions yet</p>
-            ) : (
-              <div className="space-y-3">
-                {itemTransactions.map(t => (
-                  <Card key={t.id} className="bg-slate-50 border-0">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">${(t.amount || 0).toFixed(2)}</p>
-                          <p className="text-xs text-slate-500">
-                            {new Date(t.created_date).toLocaleString()}
-                          </p>
+              ) : (
+                <div className="space-y-3">
+                  {itemTransactions.map(t => (
+                    <Card key={t.id} className="bg-slate-50 border-0">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">${(t.amount || 0).toFixed(2)}</p>
+                            <p className="text-xs text-slate-500">
+                              {new Date(t.created_date).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            {getStatusBadge(t.status)}
+                            {t.payment_method && getPaymentMethodBadge(t.payment_method)}
+                          </div>
                         </div>
-                        <div className="flex gap-2 items-center">
-                          {getStatusBadge(t.status)}
-                          {t.payment_method && getPaymentMethodBadge(t.payment_method)}
+                        <div className="grid grid-cols-2 gap-3 text-xs mt-3">
+                          <div>
+                            <p className="text-slate-500">Driver</p>
+                            <p className="font-medium text-slate-700">
+                              {matchingDelivery?.driver_name || 'N/A'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Date</p>
+                            <p className="font-medium text-slate-700">
+                              {matchingDelivery?.delivery_date ? new Date(matchingDelivery.delivery_date).toLocaleDateString() : 'N/A'}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 text-xs mt-3">
-                         <div>
-                           <p className="text-slate-500">Driver</p>
-                           <p className="font-medium text-slate-700">
-                             {matchingDelivery?.driver_name || 'N/A'}
-                           </p>
-                         </div>
-                         <div>
-                           <p className="text-slate-500">Date</p>
-                           <p className="font-medium text-slate-700">
-                             {matchingDelivery?.delivery_date ? new Date(matchingDelivery.delivery_date).toLocaleDateString() : 'N/A'}
-                           </p>
-                         </div>
-                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
               </div>
-            )}
-          </div>
+              </div>
 
           {/* Item Metadata */}
           <div className="bg-slate-50 rounded-lg p-4">
