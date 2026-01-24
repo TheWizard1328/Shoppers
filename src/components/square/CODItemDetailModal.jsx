@@ -130,9 +130,9 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
 
             {/* Transaction History */}
             <div className="lg:col-span-2">
-            <h3 className="font-semibold text-slate-900 mb-3">
-              Transaction History ({itemTransactions.length})
-            </h3>
+              <h3 className="font-semibold text-slate-900 mb-3">
+                Transaction History ({itemTransactions.length})
+              </h3>
             {itemTransactions.length === 0 ? (
               <p className="text-center text-slate-500 py-6">No transactions yet</p>
             ) : (
