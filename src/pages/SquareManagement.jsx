@@ -916,7 +916,7 @@ export default function SquareManagement() {
                           {(() => {
                             // Check if this item has been sold in Square transactions
                             const soldInSquare = hasBeenSoldInSquare(item);
-                            
+
                             if (soldInSquare) {
                               return (
                                 <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
@@ -924,9 +924,11 @@ export default function SquareManagement() {
                                 </Badge>
                               );
                             }
-                            
+
                             const codDetails = getCODPaymentDetails(item.name, item.location_id);
-                            
+                            const parsed = parseSquareItemName(item.name);
+                            const isCurrentDate = parsed && parsed.deliveryDate === format(new Date(), 'yyyy-MM-dd');
+
                             if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
                               return (
                                 <div className="flex flex-wrap gap-1 mt-1">
@@ -937,7 +939,7 @@ export default function SquareManagement() {
                                       'Credit': 'bg-purple-100 text-purple-800',
                                       'Check': 'bg-amber-100 text-amber-800'
                                     }[payment.type] || 'bg-gray-100 text-gray-800';
-                                    
+
                                     return (
                                       <Badge key={idx} className={`${colorClass} text-xs`}>
                                         {payment.type}: ${payment.amount.toFixed(2)}
@@ -948,8 +950,8 @@ export default function SquareManagement() {
                               );
                             } else {
                               return (
-                                <Badge className="bg-amber-100 text-amber-800 text-xs mt-1 block w-fit">
-                                  Pending Collection
+                                <Badge className={`text-xs mt-1 block w-fit ${isCurrentDate ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>
+                                  {isCurrentDate ? 'Pending Collection' : 'No Collection'}
                                 </Badge>
                               );
                             }
@@ -1060,7 +1062,7 @@ export default function SquareManagement() {
                       {(() => {
                         // Check if this item has been sold in Square transactions
                         const soldInSquare = hasBeenSoldInSquare(item);
-                        
+
                         if (soldInSquare) {
                           return (
                             <Badge className="bg-green-100 text-green-800 text-xs">
@@ -1068,9 +1070,11 @@ export default function SquareManagement() {
                             </Badge>
                           );
                         }
-                        
+
                         const codDetails = getCODPaymentDetails(item.name, item.location_id);
-                        
+                        const parsed = parseSquareItemName(item.name);
+                        const isCurrentDate = parsed && parsed.deliveryDate === format(new Date(), 'yyyy-MM-dd');
+
                         if (codDetails.status === 'collected' && codDetails.payments.length > 0) {
                           return (
                             <div className="flex flex-wrap gap-1">
@@ -1081,7 +1085,7 @@ export default function SquareManagement() {
                                   'Credit': 'bg-purple-100 text-purple-800',
                                   'Check': 'bg-amber-100 text-amber-800'
                                 }[payment.type] || 'bg-gray-100 text-gray-800';
-                                
+
                                 return (
                                   <Badge key={idx} className={`${colorClass} text-xs`}>
                                     {payment.type}: ${payment.amount.toFixed(2)}
@@ -1092,8 +1096,8 @@ export default function SquareManagement() {
                           );
                         } else {
                           return (
-                            <Badge className="bg-amber-100 text-amber-800 text-xs">
-                              Pending Collection
+                            <Badge className={`text-xs ${isCurrentDate ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>
+                              {isCurrentDate ? 'Pending Collection' : 'No Collection'}
                             </Badge>
                           );
                         }
