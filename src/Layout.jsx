@@ -1451,166 +1451,51 @@ export default function Layout({ children, currentPageName }) {
     if (updates.users) setUsers(updates.users);
   }, [currentUser, isFormOverlayOpen, deliveries, patients]);
 
-  // Unified real-time refresh system
+  // CRITICAL: POLLING COMPLETELY REMOVED - use offline-first + WebSocket only
+  // Background sync worker handles intelligent syncing during idle time
   useEffect(() => {
-    if (!initialGlobalFiltersSet || !currentUser || isFormOverlayOpen || isEntityUpdating || !dataLoaded) {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-        refreshIntervalRef.current = null;
-      }
-      return;
-    }
+    if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
 
-    // Set up rate limit callback
-    smartRefreshManager.setRateLimitCallback((hasError) => {
-      // This will be handled by Dashboard component
-      if (window._setRateLimitError) {
-        window._setRateLimitError(hasError);
-      }
-    });
+    // Start background sync worker for intelligent idle-time syncing
+    const initBackgroundSync = async () => {
+      const { backgroundSyncWorker } = await import('./components/utils/backgroundSyncWorker');
 
-    // CRITICAL: Delay unified refresh startup significantly to avoid rate limits on initial load
-    const startupTimer = setTimeout(() => {
-    console.log('🔄 [Layout] Starting unified refresh system...');
-    const performUnifiedRefresh = async () => {
-      if (!smartRefreshManager._enabled) return;
-
-      const updatedEntities = [];
-      try {
-        setSmartRefreshActivity(prev => ({ ...prev, active: true }));
-
-        const selectedDateStr = globalFilters.getSelectedDate();
-        const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
-
-        // Build current data and filters
-        const currentData = {
-          deliveries,
-          patients,
-          appUsers,
-          stores
-        };
-
-        const filters = {
-          selectedDate,
-          deliveryFilter: {},
-          patientFilter: {},
-          activeDriverIds: drivers.map(d => d?.id).filter(Boolean)
-        };
-
-        const selectedDriverId = globalFilters.getSelectedDriverId();
-        const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
-
-        if (cityStoreIds.length > 0) {
-          filters.deliveryFilter.store_id = { $in: cityStoreIds };
-          filters.patientFilter.store_id = { $in: cityStoreIds };
-        }
-
-        const isAdmin = userHasRole(currentUser, 'admin');
-        const isDriver = userHasRole(currentUser, 'driver');
-        const isDispatcher = userHasRole(currentUser, 'dispatcher');
-
-        // CRITICAL: Only filter by driver if NOT in "all drivers" mode
-        // When selectedDriverId is 'all', fetch ALL drivers' data for complete sync
-        if (isDriver && !isDispatcher && !isAdmin) {
-          // Driver users always see only their own deliveries (no "all" option for drivers)
-          filters.deliveryFilter.driver_id = currentUser.id;
-        } else if (selectedDriverId && selectedDriverId !== 'all') {
-          // Admin/Dispatcher with specific driver selected - filter by that driver
-          filters.deliveryFilter.driver_id = selectedDriverId;
-        }
-        // When selectedDriverId === 'all', DO NOT add driver_id filter - fetch all drivers
-
-        if (isEntityUpdating) return;
-
-        // CRITICAL: Refresh driver locations - only if enough time has passed
-        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, false);
-        if (locationUpdates?.hasChanges) {
-          setAppUsers(locationUpdates.appUsers);
-          updatedEntities.push('locations');
-
-          // CRITICAL: Dispatch event to update map immediately
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: locationUpdates.appUsers }
-          }));
-        }
-
-        // CRITICAL: Get showAllDriverMarkers state to determine refresh scope
-        const showAllDriverMarkers = localStorage.getItem('rxdeliver_show_all_driver_markers') === 'true';
-        
-        const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate, filters, showAllDriverMarkers);
-        if (activeDeliveryUpdates?.hasChanges) {
-          // CRITICAL: Force new array reference to ensure React detects the change
-          setDeliveries([...activeDeliveryUpdates.deliveries]);
-          if (!updatedEntities.includes('deliveries')) updatedEntities.push('deliveries');
-
-          // Dispatch event to notify Dashboard of delivery changes
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { source: 'smartRefresh', count: activeDeliveryUpdates.deliveries.length }
-          }));
-        }
-
-        // CRITICAL: Refresh ALL patients to ensure complete data sync
-        const patientUpdates = await smartRefreshManager.refreshTodayPatients(patients, deliveries.filter(d => d && d.delivery_date === format(selectedDate, 'yyyy-MM-dd')));
-        if (patientUpdates?.hasChanges) {
-          setPatients(patientUpdates.patients);
-          if (!updatedEntities.includes('patients')) updatedEntities.push('patients');
-        }
-
-        const storesUpdate = await smartRefreshManager.refreshStores(stores);
-        if (storesUpdate?.hasChanges) {
-          setStores(storesUpdate.stores);
-          updatedEntities.push('stores');
-        }
-
-        const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, isEntityUpdating, showAllDriverMarkers);
-        if (updates) {
-          updateAppDataState(updates);
-          if (updates.deliveries) updatedEntities.push('deliveries');
-          if (updates.patients) updatedEntities.push('patients');
-          if (updates.appUsers) {
-            updatedEntities.push('appUsers');
-
-            // CRITICAL: Dispatch event to update map immediately when AppUsers change
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: updates.appUsers }
-            }));
+      // Listen for sync events to update UI
+      const unsubscribe = backgroundSyncWorker.subscribe(async (event) => {
+        if (event.type === 'sync_complete') {
+          // Load updated data from offline DB and update UI
+          if (event.entity === 'AppUser') {
+            const updatedAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+            if (updatedAppUsers && updatedAppUsers.length > 0) {
+              setAppUsers(updatedAppUsers);
+              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                detail: { appUsers: updatedAppUsers }
+              }));
+            }
+          } else if (event.entity === 'Delivery') {
+            const updatedDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+            if (updatedDeliveries && updatedDeliveries.length > 0) {
+              setDeliveries(updatedDeliveries);
+            }
+          } else if (event.entity === 'Patient') {
+            const updatedPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+            if (updatedPatients && updatedPatients.length > 0) {
+              setPatients(updatedPatients);
+            }
           }
         }
+      });
 
-        const hasAnyUpdates = locationUpdates?.hasChanges || activeDeliveryUpdates?.hasChanges || updates;
-        if (hasAnyUpdates) {
-          if (onSmartRefreshCompleteRef.current) {
-            onSmartRefreshCompleteRef.current();
-          }
-        }
-        
-        const uniqueUpdates = [...new Set(updatedEntities)];
-        setSmartRefreshActivity({ active: false, updatedEntities: uniqueUpdates });
-      } catch (error) {
-        if (error.response?.status === 429 || error.message?.includes('429')) {
-          smartRefreshManager.notifyRateLimit(true);
-        }
-        setSmartRefreshActivity({ active: false, updatedEntities: [] });
-      }
+      backgroundSyncWorker.start();
+
+      return () => {
+        backgroundSyncWorker.stop();
+        unsubscribe();
+      };
     };
 
-      // Start first refresh after initial load settles
-      performUnifiedRefresh();
-
-      // Then refresh every 2 minutes - smart refresh manager gates based on individual entity intervals
-      // CRITICAL: Rely on offline DB + WebSocket real-time for most updates, not polling
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 120000);
-      }, 120000); // Wait 2 minutes before starting to let initial load + offline DB sync complete
-
-    return () => {
-      clearTimeout(startupTimer);
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-        refreshIntervalRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [initialGlobalFiltersSet, currentUser, isFormOverlayOpen, dataLoaded, updateAppDataState, appUsers, deliveries, stores, drivers, isEntityUpdating]);
+    initBackgroundSync();
+  }, [initialGlobalFiltersSet, currentUser, dataLoaded]);
 
     // Wake Lock API and visibility change handler
     useEffect(() => {
