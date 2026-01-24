@@ -12,10 +12,7 @@ const STORES = {
   PATIENTS: 'patients',
   DELIVERIES: 'deliveries',
   APP_USERS: 'app_users',
-  STORES: 'stores', // NEW: Store entities
   SQUARE_TRANSACTIONS: 'square_transactions',
-  SQUARE_CATALOG_ITEMS: 'square_catalog_items',
-  SQUARE_PAYMENT_TRANSACTIONS: 'square_payment_transactions',
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations'
 };
@@ -83,26 +80,7 @@ const openDatabase = () => {
         mutationStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
 
-      if (!db.objectStoreNames.contains(STORES.SQUARE_CATALOG_ITEMS)) {
-        const catalogStore = db.createObjectStore(STORES.SQUARE_CATALOG_ITEMS, { keyPath: 'catalog_object_id' });
-        catalogStore.createIndex('location_id', 'location_id', { unique: false });
-        catalogStore.createIndex('updated_at', 'updated_at', { unique: false });
-      }
 
-      if (!db.objectStoreNames.contains(STORES.SQUARE_PAYMENT_TRANSACTIONS)) {
-        const txStore = db.createObjectStore(STORES.SQUARE_PAYMENT_TRANSACTIONS, { keyPath: 'id' });
-        txStore.createIndex('location_id', 'location_id', { unique: false });
-        txStore.createIndex('payment_date', 'payment_date', { unique: false });
-        txStore.createIndex('catalog_object_id', 'catalog_object_id', { unique: false });
-      }
-
-      // NEW: Add Stores object store
-      if (!db.objectStoreNames.contains(STORES.STORES)) {
-        const storeStore = db.createObjectStore(STORES.STORES, { keyPath: 'id' });
-        storeStore.createIndex('city_id', 'city_id', { unique: false });
-        storeStore.createIndex('status', 'status', { unique: false });
-        storeStore.createIndex('updated_date', 'updated_date', { unique: false });
-      }
     };
   });
 };
@@ -330,16 +308,14 @@ const needsInitialSync = async (entityName) => {
  */
 const getStats = async () => {
   try {
-    const [patients, deliveries, appUsers, stores, squareTx, patientSync, deliverySync, appUserSync, storeSync, squareTxSync] = await Promise.all([
+    const [patients, deliveries, appUsers, squareTx, patientSync, deliverySync, appUserSync, squareTxSync] = await Promise.all([
       getAll(STORES.PATIENTS),
       getAll(STORES.DELIVERIES),
       getAll(STORES.APP_USERS),
-      getAll(STORES.STORES),
       getAll(STORES.SQUARE_TRANSACTIONS),
       getSyncStatus('Patient'),
       getSyncStatus('Delivery'),
       getSyncStatus('AppUser'),
-      getSyncStatus('Store'),
       getSyncStatus('SquareTransaction')
     ]);
 
@@ -355,10 +331,6 @@ const getStats = async () => {
       appUsers: {
         count: appUsers.length,
         lastSync: appUserSync?.lastSyncDate || 'Never'
-      },
-      stores: {
-        count: stores.length,
-        lastSync: storeSync?.lastSyncDate || 'Never'
       },
       squareTransactions: {
         count: squareTx.length,

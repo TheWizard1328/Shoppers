@@ -1,9 +1,9 @@
 import { Patient } from '@/entities/Patient';
 import { Delivery } from '@/entities/Delivery';
-import { Store } from '@/entities/Store';
 import { User } from '@/entities/User';
 import { City } from '@/entities/City';
 import { AppUser } from '@/entities/AppUser';
+import { SquareTransaction } from '@/entities/SquareTransaction';
 import { format, subDays } from 'date-fns';
 import { offlineDB } from './offlineDatabase';
 import { 
@@ -21,10 +21,10 @@ import { connectionMonitor } from './connectionMonitor';
 const entities = {
   Patient,
   Delivery,
-  Store,
   User,
   City,
-  AppUser
+  AppUser,
+  SquareTransaction
 };
 
 const cache = new Map();
@@ -120,14 +120,15 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   
   const cacheKey = `${entityName}_${sortKey || 'default'}_${JSON.stringify(query) || 'noquery'}_${limit || 'all'}`;
   
-  // OFFLINE-FIRST: Try IndexedDB for Patient, Delivery, and Store entities ALWAYS
+  // OFFLINE-FIRST: Try IndexedDB for Patient, Delivery, AppUser, and SquareTransaction entities ALWAYS
   // CRITICAL: This prevents rate limits by using local data first
   // NEVER skip offline DB - even on forceRefresh, try offline first then update in background
-  if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'Store') {
+  if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'SquareTransaction') {
     try {
       const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
                         entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
-                        offlineDB.STORES.STORES;
+                        entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
+                        offlineDB.STORES.SQUARE_TRANSACTIONS;
       let offlineData = await offlineDB.getAll(storeName);
       
       if (offlineData && offlineData.length > 0) {
@@ -234,10 +235,11 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       connectionMonitor.recordResponseTime(responseTime);
 
       // BACKGROUND: Save to IndexedDB for offline access
-      if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'Store') {
+      if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'SquareTransaction') {
         const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
                           entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
-                          offlineDB.STORES.STORES;
+                          entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
+                          offlineDB.STORES.SQUARE_TRANSACTIONS;
         offlineDB.bulkSave(storeName, data).catch(err => {
         });
       }
@@ -757,6 +759,8 @@ export const updateCache = (entityName, id, newData) => {
         cachedArray[index] = newData;
       }
     }
+  } else if (entityName === 'AppUser' || entityName === 'SquareTransaction') {
+    // No specific range cache for these, main cache update is sufficient
   }
   
   console.log(`⚡ [dataManager] Cache updated for ${entityName} ID: ${id}`);
