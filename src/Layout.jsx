@@ -2844,12 +2844,12 @@ export default function Layout({ children, currentPageName }) {
                               {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
                                 <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                                   <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-                                  Patient Info
+                                  Patient Data
                                 </DropdownMenuItem>
                               ) : null}
                               <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                                 <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-                                Past Routes
+                                Deliveries
                               </DropdownMenuItem>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                             </>
@@ -3385,12 +3385,12 @@ export default function Layout({ children, currentPageName }) {
                             {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
                               <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                                 <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-                                Patient Info
+                                Patient Data
                               </DropdownMenuItem>
                             ) : null}
                             <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                               <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-                              Past Routes
+                              Deliveries
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                           </>
