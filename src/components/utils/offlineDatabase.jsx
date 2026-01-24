@@ -330,16 +330,18 @@ const needsInitialSync = async (entityName) => {
  */
 const getStats = async () => {
   try {
-    const [patients, deliveries, appUsers, cities, squareTx, patientSync, deliverySync, appUserSync, citySync, squareTxSync] = await Promise.all([
+    const [patients, deliveries, appUsers, cities, stores, squareTx, patientSync, deliverySync, appUserSync, citySync, storeSync, squareTxSync] = await Promise.all([
       getAll(STORES.PATIENTS),
       getAll(STORES.DELIVERIES),
       getAll(STORES.APP_USERS),
       getAll(STORES.CITIES),
+      getAll(STORES.STORES),
       getAll(STORES.SQUARE_TRANSACTIONS),
       getSyncStatus('Patient'),
       getSyncStatus('Delivery'),
       getSyncStatus('AppUser'),
       getSyncStatus('City'),
+      getSyncStatus('Store'),
       getSyncStatus('SquareTransaction')
     ]);
 
@@ -359,6 +361,10 @@ const getStats = async () => {
       cities: {
         count: cities.length,
         lastSync: citySync?.lastSyncDate || 'Never'
+      },
+      stores: {
+        count: stores.length,
+        lastSync: storeSync?.lastSyncDate || 'Never'
       },
       squareTransactions: {
         count: squareTx.length,
@@ -499,6 +505,26 @@ const deleteRecord = async (storeName, recordId) => {
   }
 };
 
+/**
+ * Clear all data from all stores (emergency recovery)
+ */
+const clearAllData = async () => {
+  try {
+    const db = await openDatabase();
+    const allStores = Object.values(STORES);
+    
+    for (const storeName of allStores) {
+      await clearStore(storeName);
+    }
+    
+    console.log('✅ [OfflineDB] All data cleared');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ [OfflineDB] clearAllData error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 export const offlineDB = {
   STORES,
   openDatabase,
@@ -510,6 +536,7 @@ export const offlineDB = {
   getByCompoundIndex,
   getDeliveriesSortedByDate,
   clearStore,
+  clearAllData,
   getSyncStatus,
   updateSyncStatus,
   needsInitialSync,
