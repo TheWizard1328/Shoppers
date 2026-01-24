@@ -689,9 +689,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
 
 
+
             // Skip rows with parsing errors
-          }}}console.log(`PatientImport: Collected ${importedPatientPids.size} PIDs and ${importedPatientKeys.size} fallback keys from CSV`);
-      console.log(`PatientImport: Importing from ${importingStoreIds.size} store(s)`, Array.from(importingStoreIds));
+          }}}console.log(`PatientImport: Collected ${importedPatientPids.size} PIDs and ${importedPatientKeys.size} fallback keys from CSV`);console.log(`PatientImport: Importing from ${importingStoreIds.size} store(s)`, Array.from(importingStoreIds));
 
       // Find patients in database not in import
       const missingFromImport = existingPatients.filter((p) => {
@@ -1345,7 +1345,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-2 sm:p-4 z-[9999] overflow-hidden">
-                        <Card className="rounded-xl border bg-card text-card-foreground shadow max-w-5x1 min-w-[95vw] flex flex-col relative transition-all duration-300 h-[310px] sm:h-[210px]">
+                        <Card className="rounded-xl border bg-card text-card-foreground shadow max-w-[800px] min-w-[250px] flex flex-col relative transition-all duration-300 h-[310px] sm:h-[210px]">
                         {/* Floating Progress Overlay */}
                         {isProcessing &&
         <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-3 sm:p-6">
