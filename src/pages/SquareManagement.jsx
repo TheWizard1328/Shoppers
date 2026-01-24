@@ -516,8 +516,9 @@ export default function SquareManagement() {
   const getCODPaymentDetails = (itemName, itemLocationId) => {
     const delivery = findMatchingDelivery(itemName, itemLocationId);
     
+    // If no matching delivery found, return 'no_collection' status
     if (!delivery) {
-      return { status: 'pending', payments: [] };
+      return { status: 'no_collection', payments: [] };
     }
     
     // Check if delivery has cod_payments array (new format)
@@ -536,7 +537,8 @@ export default function SquareManagement() {
       };
     }
     
-    return { status: 'pending', payments: [] };
+    // Delivery exists but no payment recorded yet - mark as "Cash"
+    return { status: 'cash', payments: [] };
   };
 
   // Check if catalog item has been sold in Square transactions
