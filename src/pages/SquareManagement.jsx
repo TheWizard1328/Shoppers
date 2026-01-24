@@ -238,12 +238,53 @@ export default function SquareManagement() {
           }
         };
 
-        const [configs, storesData, appUsersData, deliveriesData] = await Promise.all([
-          base44.entities.SquareLocationConfig.filter({ status: 'active' }),
-          base44.entities.Store.list(),
-          base44.entities.AppUser.list(),
-          base44.entities.Delivery.filter(dateFilter)
-        ]);
+        // OFFLINE-FIRST: Load from offline DB first to prevent rate limits
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        
+        // Load Stores from offline DB first
+        let storesData = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
+        if (storesData.length === 0) {
+          console.log('📥 [SquareManagement] Stores not in offline DB - fetching from API');
+          storesData = await base44.entities.Store.list();
+          await offlineDB.bulkSave(offlineDB.STORES.STORES, storesData);
+        } else {
+          console.log(`📦 [SquareManagement] Using ${storesData.length} stores from offline DB`);
+        }
+
+        // Load AppUsers from offline DB first
+        let appUsersData = await offlineDB.getAll(offlineDB.STORES.APP_USERS) || [];
+        if (appUsersData.length === 0) {
+          console.log('📥 [SquareManagement] AppUsers not in offline DB - fetching from API');
+          appUsersData = await base44.entities.AppUser.list();
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsersData);
+        } else {
+          console.log(`📦 [SquareManagement] Using ${appUsersData.length} AppUsers from offline DB`);
+        }
+
+        // Load Deliveries from offline DB first
+        let deliveriesData = [];
+        try {
+          const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
+          const fourteenDaysAgoStr = format(fourteenDaysAgo, 'yyyy-MM-dd');
+          const todayStr = format(today, 'yyyy-MM-dd');
+          
+          deliveriesData = allDeliveries.filter(d => 
+            d && d.delivery_date >= fourteenDaysAgoStr && d.delivery_date <= todayStr
+          );
+          
+          if (deliveriesData.length === 0) {
+            console.log('📥 [SquareManagement] Recent deliveries not in offline DB - fetching from API');
+            deliveriesData = await base44.entities.Delivery.filter(dateFilter);
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesData);
+          } else {
+            console.log(`📦 [SquareManagement] Using ${deliveriesData.length} recent deliveries from offline DB`);
+          }
+        } catch (offlineError) {
+          console.warn('⚠️ [SquareManagement] Offline deliveries failed, fetching from API');
+          deliveriesData = await base44.entities.Delivery.filter(dateFilter);
+        }
+
+        const configs = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
 
         setLocationConfigs(configs || []);
         setStores(storesData || []);
@@ -254,63 +295,125 @@ export default function SquareManagement() {
         );
         setDrivers(driversList || []);
 
-        // Get location IDs first
-        const configs_list = await base44.entities.SquareLocationConfig.filter({ status: 'active' });
-        const syncedLocationIds = configs_list.map(c => c.square_location_id).filter(Boolean);
+        const syncedLocationIds = configs.map(c => c.square_location_id).filter(Boolean);
         setLocationIds(syncedLocationIds);
 
-        // ALWAYS fetch fresh from Square API for catalog items (proper deduplication)
-        console.log('🔄 [SquareManagement] Initial load: clearing stale offline data and fetching fresh...');
-        await clearSquareCODOfflineData();
-
-        const [catalogResponse, paymentsResponse] = await Promise.all([
-          base44.functions.invoke('squareSyncCatalogItems', {}),
-          base44.functions.invoke('squareFetchPayments', { 
-            locationIds: syncedLocationIds, 
-            daysBack: 14 
-          })
+        // CRITICAL: Load from offline DB first, fallback to API
+        console.log('📦 [SquareManagement] Checking offline database for Square data...');
+        const [offlineCatalog, offlinePayments] = await Promise.all([
+          getCatalogItemsOffline(),
+          getPaymentTransactionsOffline()
         ]);
 
-        const catalogData = catalogResponse?.data || catalogResponse || {};
-        const paymentsData = paymentsResponse?.data || paymentsResponse || {};
+        if (offlineCatalog.length > 0 || offlinePayments.length > 0) {
+          console.log(`📦 [SquareManagement] Using offline data: ${offlineCatalog.length} catalog items, ${offlinePayments.length} payments`);
+          
+          // Use offline data immediately for instant UI
+          setCatalogItems(offlineCatalog);
+          setSoldCatalogItems(offlinePayments);
+          setAllTransactions(offlinePayments);
+          
+          const fourteenDaysAgoTx = new Date();
+          fourteenDaysAgoTx.setDate(fourteenDaysAgoTx.getDate() - 14);
+          const recentPayments = offlinePayments
+            .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
+            .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+          
+          setRecentTransactions(recentPayments);
+          setIsLoading(false);
+          
+          // Load sync status from offline
+          await loadSyncStatus();
+          
+          // Background: Refresh from API to ensure data is up to date
+          console.log('🔄 [SquareManagement] Background: Refreshing Square data from API...');
+          setTimeout(async () => {
+            try {
+              const [catalogResponse, paymentsResponse] = await Promise.all([
+                base44.functions.invoke('squareSyncCatalogItems', {}),
+                base44.functions.invoke('squareFetchPayments', { 
+                  locationIds: syncedLocationIds, 
+                  daysBack: 14 
+                })
+              ]);
 
-        const catalogItemsData = catalogData?.items || [];
-        const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
+              const catalogData = catalogResponse?.data || catalogResponse || {};
+              const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
-        console.log(`✓ Initial load: Got ${catalogItemsData.length} catalog items and ${soldCatalogItemsData.length} transactions`);
+              const catalogItemsData = catalogData?.items || [];
+              const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
 
-        // Save fresh data to offline database after clearing
-        await Promise.all([
-          saveCatalogItemsOffline(catalogItemsData),
-          savePaymentTransactionsOffline(soldCatalogItemsData)
-        ]);
+              // Save to offline DB
+              await Promise.all([
+                saveCatalogItemsOffline(catalogItemsData),
+                savePaymentTransactionsOffline(soldCatalogItemsData)
+              ]);
 
-        // Update UI with fresh data ONLY
-        setCatalogItems(catalogItemsData);
-        setSoldCatalogItems(soldCatalogItemsData);
-        setAllTransactions(soldCatalogItemsData);
+              // Update UI with fresh data
+              setCatalogItems(catalogItemsData);
+              setSoldCatalogItems(soldCatalogItemsData);
+              setAllTransactions(soldCatalogItemsData);
+              
+              const recentPaymentsFresh = soldCatalogItemsData
+                .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
+                .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+              setRecentTransactions(recentPaymentsFresh);
+              
+              await loadSyncStatus();
+              console.log('✅ [SquareManagement] Background refresh complete');
+            } catch (bgError) {
+              console.warn('⚠️ [SquareManagement] Background refresh failed (non-critical):', bgError.message);
+            }
+          }, 2000);
+        } else {
+          // No offline data - fetch from API
+          console.log('📥 [SquareManagement] No offline data - fetching from API...');
+          const [catalogResponse, paymentsResponse] = await Promise.all([
+            base44.functions.invoke('squareSyncCatalogItems', {}),
+            base44.functions.invoke('squareFetchPayments', { 
+              locationIds: syncedLocationIds, 
+              daysBack: 14 
+            })
+          ]);
 
-        const fourteenDaysAgoTx = new Date();
-        fourteenDaysAgoTx.setDate(fourteenDaysAgoTx.getDate() - 14);
-        const recentPayments = soldCatalogItemsData
-          .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
-          .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+          const catalogData = catalogResponse?.data || catalogResponse || {};
+          const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
-        setRecentTransactions(recentPayments);
-        
-        console.log(`✓ Initial load complete: UI showing ${catalogItemsData.length} catalog items`);
-        setIsLoading(false);
+          const catalogItemsData = catalogData?.items || [];
+          const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
 
-        // Load sync status after data is loaded
-        await loadSyncStatus();
-        } catch (err) {
+          console.log(`✓ Initial load: Got ${catalogItemsData.length} catalog items and ${soldCatalogItemsData.length} transactions`);
+
+          // Save to offline database
+          await Promise.all([
+            saveCatalogItemsOffline(catalogItemsData),
+            savePaymentTransactionsOffline(soldCatalogItemsData)
+          ]);
+
+          // Update UI
+          setCatalogItems(catalogItemsData);
+          setSoldCatalogItems(soldCatalogItemsData);
+          setAllTransactions(soldCatalogItemsData);
+
+          const fourteenDaysAgoTx = new Date();
+          fourteenDaysAgoTx.setDate(fourteenDaysAgoTx.getDate() - 14);
+          const recentPayments = soldCatalogItemsData
+            .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
+            .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+
+          setRecentTransactions(recentPayments);
+          setIsLoading(false);
+          
+          await loadSyncStatus();
+        }
+      } catch (err) {
         console.error('Failed to load COD data:', err);
         setIsLoading(false);
-        }
-        };
+      }
+    };
 
-        loadData();
-        }, []);
+    loadData();
+  }, []);
 
 
 
