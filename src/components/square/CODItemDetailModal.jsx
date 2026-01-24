@@ -171,8 +171,8 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
                   ))}
                 </div>
               )}
-              </div>
-              </div>
+            </div>
+          </div>
 
           {/* Item Metadata */}
           <div className="bg-slate-50 rounded-lg p-4">
