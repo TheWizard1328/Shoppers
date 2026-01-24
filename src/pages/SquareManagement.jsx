@@ -892,7 +892,7 @@ export default function SquareManagement() {
                     });
 
                     return (
-                    <tr key={`${item.catalog_object_id}-${item.location_id}-${index}`} className="cursor-pointer transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50" onClick={(e) => { e.stopPropagation(); setSelectedCODItem(item); }}>
+                    <tr key={`${item.catalog_object_id}-${item.location_id}-${index}`} className="transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="p-3">
                          <div className="font-medium text-sm text-slate-900 dark:text-slate-50">{item.name || 'N/A'}</div>
                         {userIsAppOwner && itemDrivers.length > 0 && (
