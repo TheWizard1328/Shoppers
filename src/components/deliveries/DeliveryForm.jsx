@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -1659,12 +1658,26 @@ export default function DeliveryForm({
   }, [isPickupMode, stores, patients, availableStores, stagedDeliveries, allDeliveries]);
 
   const isFormValid = useMemo(() => {
-    if (delivery) return true;
+    if (delivery) {
+      // Editing existing delivery - always valid
+      return true;
+    }
+    
+    // Editing staged delivery - check if has required data
+    if (editingStagedId) {
+      if (isPickupMode) {
+        return !!formData.store_id && !!formData.delivery_date && !!formData.driver_id;
+      }
+      return (!!formData.patient_id || !!formData.patient_name) && 
+             !!formData.store_id && 
+             !!formData.delivery_date;
+    }
+    
     // For new deliveries, driver is optional (can use "All Drivers" filter)
     if (isPickupMode) return selectedPickupOption !== '' && !!formData.delivery_date && !!formData.driver_id;
     return (!!formData.patient_id || !!formData.patient_name) && !!formData.store_id &&
     !!formData.delivery_date && !isFormDisabled;
-  }, [formData, selectedPickupOption, isPickupMode, delivery, isFormDisabled]);
+  }, [formData, selectedPickupOption, isPickupMode, delivery, isFormDisabled, editingStagedId]);
 
   const handleAddToStaging = useCallback(async () => {
     if (!isFormValid || !isPickupMode && !formData.patient_id && !formData.patient_name || !formData.store_id) {
