@@ -22,6 +22,19 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
     }
   };
 
+  // Extract store abbreviation from Square item name (e.g., "(BD)" for Bonnie Doon)
+  const getStoreAbbreviation = (itemName) => {
+    if (!itemName) return null;
+    const match = itemName.match(/\(([A-Z]{2})\)/);
+    return match ? match[1] : null;
+  };
+
+  const storeAbbrev = getStoreAbbreviation(item.name);
+  const storeByAbbreviation = useMemo(() => {
+    if (!storeAbbrev || !stores.length) return null;
+    return stores.find(s => s.abbreviation === storeAbbrev);
+  }, [storeAbbrev, stores]);
+
   const itemTransactions = useMemo(() => {
     return transactions.filter(t => 
       t.square_catalog_object_id === item.id || t.item_name === item.name
