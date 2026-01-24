@@ -38,23 +38,23 @@ class SmartRefreshManager {
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
     // Real-time refresh intervals (milliseconds)
-    // CRITICAL: SIGNIFICANTLY INCREASED to prevent rate limiting
+    // CRITICAL: MASSIVELY INCREASED to prevent rate limiting - rely on offline DB + real-time WebSocket instead
     this.intervals = {
-      driverLocation: 30000,     // 30s - driver GPS locations (reduced frequency)
-      activeDeliveries: 30000,   // 30s - today's active delivery statuses
-      todayDeliveries: 30000,    // 30s - today's delivery changes only
-      appUsers: 60000,           // 60s - driver status, assignments
-      squareTransactions: 120000, // 2min - Square transaction updates
-      todayPatients: 120000,      // 2min - patients on today's routes
-      patients: 300000,          // 5min - all other patients
-      stores: 600000,            // 10min - store data (rarely changes)
-      payroll: 60000             // 60s - payroll records
+      driverLocation: 120000,     // 2min - driver GPS locations (offline DB primary)
+      activeDeliveries: 120000,   // 2min - today's active delivery statuses (offline DB primary)
+      todayDeliveries: 120000,    // 2min - today's delivery changes only (offline DB primary)
+      appUsers: 300000,           // 5min - driver status, assignments (offline DB primary)
+      squareTransactions: 600000, // 10min - Square transaction updates (offline DB primary)
+      todayPatients: 600000,      // 10min - patients on today's routes (offline DB primary)
+      patients: 900000,           // 15min - all other patients (offline DB primary)
+      stores: 1800000,            // 30min - store data (rarely changes, offline DB primary)
+      payroll: 300000             // 5min - payroll records
     };
     
     // Adaptive driver location refresh
     this._lastUserInteraction = Date.now();
-    this._minDriverLocationInterval = 30000;  // 30s when active (increased from 15s)
-    this._maxDriverLocationInterval = 120000;  // 2min when inactive (increased from 60s)
+    this._minDriverLocationInterval = 120000;  // 2min when active (rely on offline DB)
+    this._maxDriverLocationInterval = 600000;  // 10min when inactive (rely on offline DB)
     this._adaptiveCoefficient = 1.0;          // Multiplier for current interval
     
     // Track last refresh time for each entity type
@@ -71,11 +71,11 @@ class SmartRefreshManager {
       payroll: 0
     };
     
-    // Rate limit protection - MUCH MORE AGGRESSIVE
+    // Rate limit protection - EXTREMELY AGGRESSIVE
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 5000; // 5s minimum between API calls (increased from 2s)
+    this.minTimeBetweenCalls = 10000; // 10s minimum between API calls (rely heavily on offline DB)
     this.consecutiveErrors = 0;
-    this.maxConsecutiveErrors = 1; // Enter cooldown after FIRST error (was 2)
+    this.maxConsecutiveErrors = 1; // Enter cooldown after FIRST error
     this.errorCooldownUntil = 0;
     
     // Rate limit error callback

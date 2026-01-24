@@ -1597,10 +1597,10 @@ export default function Layout({ children, currentPageName }) {
       // Start first refresh after initial load settles
       performUnifiedRefresh();
 
-      // Then refresh every 15 seconds (aggressive refresh, but only after offline DB loads)
-      // Smart refresh manager gates these based on individual entity intervals
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 15000);
-      }, 15000); // Wait 15 seconds before starting to let initial load complete
+      // Then refresh every 2 minutes - smart refresh manager gates based on individual entity intervals
+      // CRITICAL: Rely on offline DB + WebSocket real-time for most updates, not polling
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 120000);
+      }, 120000); // Wait 2 minutes before starting to let initial load + offline DB sync complete
 
     return () => {
       clearTimeout(startupTimer);
