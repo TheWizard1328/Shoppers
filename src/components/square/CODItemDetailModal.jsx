@@ -36,10 +36,11 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
   }, [storeAbbrev, stores]);
 
   const itemTransactions = useMemo(() => {
+    if (!matchingDelivery?.id) return [];
     return transactions.filter(t => 
-      t.square_catalog_object_id === item.id || t.item_name === item.name
+      t.delivery_id === matchingDelivery.id && (t.square_catalog_object_id === item.id || t.item_name === item.name)
     ).sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-  }, [transactions, item.id, item.name]);
+  }, [transactions, item.id, item.name, matchingDelivery?.id]);
 
   const locationConfig = locationConfigs.find(c => c.square_location_id === item.location_id);
   const store = stores.find(s => s.square_location_config_id === locationConfig?.id);
