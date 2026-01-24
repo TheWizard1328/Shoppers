@@ -1460,9 +1460,9 @@ export default function StopCard({
                   {/* COD Information - For active deliveries with COD required */}
                   {hasCODRequired && !isPickup && !isFinishedDelivery &&
                 <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
-                      <span className="text-base md:text-xs font-semibold text-amber-800">COD Required: ${codTotalRequired.toFixed(2)}</span>
+                      <span className="text-lg md:text-xs font-semibold text-amber-800">COD Required: ${codTotalRequired.toFixed(2)}</span>
                       {userHasRole(currentUser, 'driver') &&
-                  <Button size="sm" variant="ghost" className="h-6 text-xs text-amber-700 hover:text-amber-900" onClick={(e) => {
+                  <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs text-amber-700 hover:text-amber-900" onClick={(e) => {
                     e.stopPropagation();
                     setShowCODCollection(!showCODCollection);
                     // Auto-add payment when opening COD collection and focus dropdown
@@ -1479,7 +1479,7 @@ export default function StopCard({
                   {/* COD Collected - Show for active deliveries OR for finished deliveries with COD */}
                   {hasCODRequired && !isPickup && codPayments.length > 0 &&
                 <div className={`flex items-center justify-between rounded-md px-2 py-1 ${isCODComplete ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
-                      <span className={`text-base md:text-xs font-semibold ${isCODComplete ? 'text-emerald-800' : 'text-amber-800'}`}>
+                      <span className={`text-lg md:text-xs font-semibold ${isCODComplete ? 'text-emerald-800' : 'text-amber-800'}`}>
                         COD Collected: {codPayments.map((payment, index) =>
                     <span key={index}>
                             {payment.type}: ${payment.amount.toFixed(2)}
@@ -1489,7 +1489,7 @@ export default function StopCard({
                       </span>
                       {!isFinishedDelivery && userHasRole(currentUser, 'driver') ||
                   isFinishedDelivery && userHasRole(currentUser, 'admin') ?
-                  <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={(e) => {e.stopPropagation();setShowCODCollection(!showCODCollection);}}>Edit</Button> :
+                  <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs" onClick={(e) => {e.stopPropagation();setShowCODCollection(!showCODCollection);}}>Edit</Button> :
                   null}
                     </div>
                 }
@@ -1504,7 +1504,7 @@ export default function StopCard({
                     className="overflow-hidden bg-slate-50 rounded-md p-3 space-y-2 w-full"
                     onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-slate-700">Collect COD Payments</span>
+                          <span className="text-sm md:text-xs font-semibold text-slate-700">Collect COD Payments</span>
                           <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={(e) => {e.stopPropagation();setShowCODCollection(false);}}>
                             <X className="w-3 h-3" />
                           </Button>
@@ -1514,7 +1514,7 @@ export default function StopCard({
                           {codPayments.map((payment, index) =>
                       <div key={index} className="flex items-center gap-2 bg-white p-2 rounded border border-slate-200">
                               <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => {if (open) setShowCODCollection(true);}}>
-                               <SelectTrigger className="h-7 text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
+                               <SelectTrigger className="h-7 text-sm md:text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
                                  <SelectValue placeholder="Type" />
                                </SelectTrigger>
                                 <SelectContent onClick={(e) => e.stopPropagation()} className="z-[200]">
@@ -1526,12 +1526,12 @@ export default function StopCard({
                               </Select>
 
                               <div className="relative flex-1">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm md:text-xs text-slate-500">$</span>
                                 <input
                             ref={(el) => codAmountInputRefs.current[index] = el}
                             type="text"
                             value={payment.amount > 0 ? payment.amount.toFixed(2) : payment.amount === 0 ? '0.00' : ''}
-                            onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)} className="h-7 w-full pl-5 pr-2 text-xs bg-white border border-slate-300 rounded-md"
+                            onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)} className="h-7 w-full pl-5 pr-2 text-sm md:text-xs bg-white border border-slate-300 rounded-md"
 
                             placeholder="0.00"
                             onClick={(e) => e.stopPropagation()}
@@ -1546,13 +1546,13 @@ export default function StopCard({
                       )}
                         </div>
 
-                        <Button size="sm" variant="outline" className="w-full h-7 text-xs" onClick={(e) => {e.stopPropagation();handleAddCODPayment();}}>
+                        <Button size="sm" variant="outline" className="w-full h-7 text-sm md:text-xs" onClick={(e) => {e.stopPropagation();handleAddCODPayment();}}>
                           <Plus className="w-3 h-3 mr-1" />
                           Add Payment
                         </Button>
 
                         <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                          <div className="text-xs">
+                          <div className="text-sm md:text-xs">
                             <span className="text-slate-600">Total: </span>
                             <span className={`font-bold ${isCODComplete ? 'text-emerald-600' : 'text-amber-600'}`}>
                               ${codTotalCollected.toFixed(2)}
@@ -1560,7 +1560,7 @@ export default function StopCard({
                             <span className="text-slate-600"> / ${codTotalRequired.toFixed(2)}</span>
                           </div>
 
-                          <Button size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-xs !text-white bg-emerald-600 hover:bg-emerald-700" onClick={(e) => {e.stopPropagation();handleSaveCODPayments();}} disabled={codPayments.length === 0}>
+                          <Button size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700" onClick={(e) => {e.stopPropagation();handleSaveCODPayments();}} disabled={codPayments.length === 0}>
                             <Save className="w-3 h-3 mr-1" />
                             Save
                           </Button>
