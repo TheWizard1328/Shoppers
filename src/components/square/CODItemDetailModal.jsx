@@ -5,7 +5,23 @@ import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import { getStatusBadge, getPaymentMethodBadge } from './badgeHelpers';
 
-export default function CODItemDetailModal({ item, locationConfigs, stores, transactions = [], drivers = [], onClose }) {
+export default function CODItemDetailModal({ item, locationConfigs, stores, transactions = [], drivers = [], deliveries = [], onClose }) {
+  // Parse Square item name to extract delivery date
+  const parseSquareItemName = (itemName) => {
+    if (!itemName) return null;
+    try {
+      const dateMatch = itemName.match(/^(\d{2})\/(\d{2})/);
+      if (!dateMatch) return null;
+      
+      const month = dateMatch[1];
+      const day = dateMatch[2];
+      const currentYear = new Date().getFullYear();
+      return `${currentYear}-${month}-${day}`;
+    } catch (error) {
+      return null;
+    }
+  };
+
   const itemTransactions = useMemo(() => {
     return transactions.filter(t => 
       t.square_catalog_object_id === item.id || t.item_name === item.name
@@ -14,6 +30,15 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
 
   const locationConfig = locationConfigs.find(c => c.square_location_id === item.location_id);
   const store = stores.find(s => s.square_location_config_id === locationConfig?.id);
+
+  // Get matching delivery for this Square item to extract driver and date
+  const matchingDelivery = useMemo(() => {
+    const deliveryDate = parseSquareItemName(item.name);
+    if (!deliveryDate || !deliveries.length) return null;
+    
+    // Find any delivery matching the date and store
+    return deliveries.find(d => d.delivery_date === deliveryDate && d.store_id === store?.id);
+  }, [item.name, store?.id, deliveries]);
 
   const totalCollected = useMemo(() => {
     return itemTransactions
@@ -104,19 +129,19 @@ export default function CODItemDetailModal({ item, locationConfigs, stores, tran
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3 text-xs mt-3">
-                        <div>
-                          <p className="text-slate-500">Driver</p>
-                          <p className="font-medium text-slate-700">
-                            {t.driver_id ? drivers.find(d => d.id === t.driver_id)?.user_name || 'Unknown' : 'N/A'}
-                          </p>
-                        </div>
-                        {t.square_payment_id && (
-                          <div>
-                            <p className="text-slate-500">Payment ID</p>
-                            <p className="font-mono text-slate-600 truncate">{t.square_payment_id}</p>
-                          </div>
-                        )}
-                      </div>
+                         <div>
+                           <p className="text-slate-500">Driver</p>
+                           <p className="font-medium text-slate-700">
+                             {matchingDelivery?.driver_name || 'N/A'}
+                           </p>
+                         </div>
+                         <div>
+                           <p className="text-slate-500">Date</p>
+                           <p className="font-medium text-slate-700">
+                             {matchingDelivery?.delivery_date ? new Date(matchingDelivery.delivery_date).toLocaleDateString() : 'N/A'}
+                           </p>
+                         </div>
+                       </div>
                     </CardContent>
                   </Card>
                 ))}
