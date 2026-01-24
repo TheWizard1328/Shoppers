@@ -950,6 +950,12 @@ export default function SquareManagement() {
                                   })}
                                 </div>
                               );
+                            } else if (codDetails.status === 'cash') {
+                              return (
+                                <Badge className="bg-green-100 text-green-800 text-xs mt-1 block w-fit">
+                                  Cash
+                                </Badge>
+                              );
                             } else {
                               return (
                                 <Badge className={`text-xs mt-1 block w-fit ${isCurrentDate ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>
