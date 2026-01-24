@@ -1758,7 +1758,7 @@ export default function Layout({ children, currentPageName }) {
         }
 
         // Calculate initial COD total from offline catalog items
-        const codTotal = calculateUserCodTotal(currentUser, offlineCatalogItems || [], offlineSquareConfigs || [], allStores, offlineSquareTx || []);
+        const codTotal = calculateUserCodTotal(currentUser, catalogItems || [], squareLocationConfigs || [], allStores, squareTransactions || []);
         setTotalCodsDue(codTotal);
       }, 1000);
 
