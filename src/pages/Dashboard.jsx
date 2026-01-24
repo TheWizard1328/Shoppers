@@ -6270,7 +6270,16 @@ function Dashboard() {
 
                       const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false, showAllDriverMarkers);
 
-                      // STEP 1.5: Force fresh AppUsers from backend
+                      // STEP 2: Force reload deliveries for active page - ALL drivers if "Show All" enabled
+                      console.log(`📥 [Manual Refresh] Fetching deliveries for selected date: ${selectedDateStr}...`);
+                      invalidateDeliveriesForDate(selectedDateStr);
+                      const finalDeliveries = shouldFetchAllDrivers ?
+                      await base44.entities.Delivery.filter({ delivery_date: selectedDateStr }) :
+                      await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
+                      
+                      console.log(`✅ [Manual Refresh] Loaded ${finalDeliveries.length} deliveries for ${selectedDateStr}`);
+
+                      // STEP 2.5: Force fresh AppUsers from backend
                       console.log('📍 [Refresh Spinner] Loading fresh AppUsers from backend...');
                       const freshAppUsers = await base44.entities.AppUser.list();
                       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
@@ -6279,17 +6288,9 @@ function Dashboard() {
                       // CRITICAL: Process updated locations through poller to update markers immediately
                       driverLocationPoller.processLocationData(currentUser, finalDeliveries, drivers, stores, freshAppUsers, selectedDate, true);
 
-                      // STEP 2: Route optimization removed from manual refresh
+                      // STEP 3: Route optimization removed from manual refresh
                       // Optimization now only runs on 5-minute timer when driver moves 100m+
                       console.log('⏭️ [Refresh Spinner] Skipping route optimization (runs on timer only)');
-
-                      // STEP 3: Force reload deliveries - ALL drivers if "Show All" enabled
-                      invalidateDeliveriesForDate(selectedDateStr);
-                      const finalDeliveries = shouldFetchAllDrivers ?
-                      await base44.entities.Delivery.filter({ delivery_date: selectedDateStr }) :
-                      await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
-
-                      console.log(`✅ [Refresh Spinner] Loaded ${finalDeliveries.length} deliveries (${shouldFetchAllDrivers ? 'all drivers' : 'single driver'})`);
 
                       // STEP 4: Update isNextDelivery flags for active driver only
                       const updatedDeliveries = shouldFetchAllDrivers ?
