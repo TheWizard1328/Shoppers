@@ -690,38 +690,38 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
 
 
+
+
+
+
             // Skip rows with parsing errors
-          }}}console.log(`PatientImport: Collected ${importedPatientPids.size} PIDs and ${importedPatientKeys.size} fallback keys from CSV`);console.log(`PatientImport: Importing from ${importingStoreIds.size} store(s)`, Array.from(importingStoreIds));
-
-      // Find patients in database not in import
-      const missingFromImport = existingPatients.filter((p) => {
-        // Skip if patient is already inactive
-        if (p.status === 'inactive') return false;
-
-        // CRITICAL: Only check patients from stores being imported
-        if (!importingStoreIds.has(p.store_id)) {
-          return false; // Skip patients from other stores
-        }
-
-        // PRIMARY: Check by PID if database patient has one
-        if (p.patient_id) {
-          const dbPid = String(p.patient_id).trim().replace(/[^A-Za-z0-9]/g, '');
-          if (dbPid && importedPatientPids.has(dbPid)) {
-            return false; // Found in CSV by PID
+          }}}console.log(`PatientImport: Collected ${importedPatientPids.size} PIDs and ${importedPatientKeys.size} fallback keys from CSV`);console.log(`PatientImport: Importing from ${importingStoreIds.size} store(s)`, Array.from(importingStoreIds)); // Find patients in database not in import
+      const missingFromImport = existingPatients.filter((p) => {// Skip if patient is already inactive
+          if (p.status === 'inactive') return false;
+          // CRITICAL: Only check patients from stores being imported
+          if (!importingStoreIds.has(p.store_id)) {
+            return false; // Skip patients from other stores
           }
-        }
 
-        // FALLBACK: Only if DB patient has no PID, check by store+name+address
-        if (!p.patient_id) {
-          const key = `${p.store_id}_${(p.full_name || '').toLowerCase().trim()}_${(p.address || '').toLowerCase().trim()}`;
-          if (importedPatientKeys.has(key)) {
-            return false; // Found in CSV by fallback key
+          // PRIMARY: Check by PID if database patient has one
+          if (p.patient_id) {
+            const dbPid = String(p.patient_id).trim().replace(/[^A-Za-z0-9]/g, '');
+            if (dbPid && importedPatientPids.has(dbPid)) {
+              return false; // Found in CSV by PID
+            }
           }
-        }
 
-        // Patient exists in DB but not in import
-        return true;
-      });
+          // FALLBACK: Only if DB patient has no PID, check by store+name+address
+          if (!p.patient_id) {
+            const key = `${p.store_id}_${(p.full_name || '').toLowerCase().trim()}_${(p.address || '').toLowerCase().trim()}`;
+            if (importedPatientKeys.has(key)) {
+              return false; // Found in CSV by fallback key
+            }
+          }
+
+          // Patient exists in DB but not in import
+          return true;
+        });
 
       console.log(`PatientImport: Found ${missingFromImport.length} patients in database not in CSV`);
       setMissingPatients(missingFromImport);
@@ -1394,9 +1394,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         }
 
                 
-                <CardContent className="px-3 sm:px-4 py-3 sm:py-4 flex-1 overflow-y-auto">
+                <CardContent className="my-1 px-3 py-3 sm:px-4 sm:py-4 flex-1 overflow-y-auto">
                    {/* Single column on mobile, two columns on desktop */}
-                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+                   <div className="py-2 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                         {/* File Selector */}
                         <div className="flex-1 space-y-2">
                             <div className="space-y-2">
@@ -1459,7 +1459,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
                     {/* Live Preview - Card layout for mobile, table for desktop */}
                     {previewData.length > 0 &&
-          <div className="border rounded-lg overflow-hidden">
+          <div className="py-2 rounded-lg border overflow-hidden">
                             <div className="bg-slate-100 px-2 sm:px-4 py-1.5 sm:py-2 font-semibold text-xs sm:text-sm border-b">
                                 Preview - First 5 Rows
                             </div>
@@ -1531,18 +1531,18 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                         </div>
           }
 
-                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                    <div className="pt-2 grid grid-cols-2 gap-2 sm:gap-3">
                         <Button
-                            variant="outline"
-                            onClick={onClose}
-                            disabled={isProcessing}
-                            className="h-10 sm:h-9">
+              variant="outline"
+              onClick={onClose}
+              disabled={isProcessing}
+              className="h-10 sm:h-9">
                             Cancel
                         </Button>
                         <Button
-                            onClick={generatePreview}
-                            disabled={isProcessing || files.length === 0}
-                            className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-9 text-sm sm:text-base">
+              onClick={generatePreview}
+              disabled={isProcessing || files.length === 0}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-9 text-sm sm:text-base">
                             {isProcessing ? 'Generating...' : `Preview Import (${files.length} file${files.length !== 1 ? 's' : ''})`}
                         </Button>
                     </div>
