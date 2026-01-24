@@ -176,6 +176,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                         </div>
                         <div className="text-right">
                           <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.appUsers.count}</div>
+                          {stats.fullSyncStatus?.appUsers?.completed &&
+                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                      }
                         </div>
                       </div>
 
@@ -364,6 +367,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                         </div>
                         <div className="text-right">
                           <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.appUsers.count}</div>
+                          {stats.fullSyncStatus?.appUsers?.completed &&
+                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                      }
                         </div>
                       </div>
 

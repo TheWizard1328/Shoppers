@@ -738,6 +738,8 @@ export const getSyncStats = async () => {
   const patientStatus = await offlineDB.getSyncStatus('Patient');
   const deliveryStatus = await offlineDB.getSyncStatus('Delivery');
   const cityStatus = await offlineDB.getSyncStatus('City');
+  const appUserStatus = await offlineDB.getSyncStatus('AppUser');
+  const squareTxStatus = await offlineDB.getSyncStatus('SquareTransaction');
 
   return {
     ...stats,
@@ -757,6 +759,16 @@ export const getSyncStats = async () => {
         completed: !!cityStatus?.lastFullSync,
         lastFullSync: cityStatus?.lastFullSync,
         lastSync: cityStatus?.lastSync
+      },
+      appUsers: {
+        completed: !!appUserStatus?.lastFullSync,
+        lastFullSync: appUserStatus?.lastFullSync,
+        lastSync: appUserStatus?.lastSync
+      },
+      squareTransactions: {
+        completed: !!squareTxStatus?.lastFullSync,
+        lastFullSync: squareTxStatus?.lastFullSync,
+        lastSync: squareTxStatus?.lastSync
       }
     }
   };
