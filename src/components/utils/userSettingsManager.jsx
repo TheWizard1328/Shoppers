@@ -12,6 +12,8 @@ import { getUserAgentInfo } from './deviceUtils';
 let cachedSettings = null;
 let currentUserId = null;
 let cachedDeviceType = null; // Cache device type (Mobile or Desktop)
+let lastFetchTime = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache to prevent rate limits
 
 /**
  * Gets device type identifier - simply "Mobile" or "Desktop"
@@ -171,9 +173,10 @@ export async function loadUserSettings(userId) {
 
   const deviceType = getDeviceType();
   
-  // Return cached if same user
-  if (cachedSettings && currentUserId === userId) {
-    console.log('📋 [UserSettings] Returning cached settings');
+  // Return cached if same user AND cache is fresh (< 5 min)
+  const now = Date.now();
+  if (cachedSettings && currentUserId === userId && (now - lastFetchTime < CACHE_DURATION)) {
+    console.log('📋 [UserSettings] Returning cached settings (fresh)');
     return cachedSettings;
   }
 
@@ -235,10 +238,11 @@ export async function loadUserSettings(userId) {
         ...deviceSettings[0]
       };
       currentUserId = userId;
+      lastFetchTime = Date.now();
       
       await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
       
-      console.log(`✅ [UserSettings] Loaded ${deviceType} settings`);
+      console.log(`✅ [UserSettings] Loaded ${deviceType} settings (cached for 5 min)`);
       return cachedSettings;
     }
 
@@ -261,10 +265,11 @@ export async function loadUserSettings(userId) {
       });
       cachedSettings = { ...DEFAULT_SETTINGS, ...globalSettings, ...newSettings };
       currentUserId = userId;
+      lastFetchTime = Date.now();
       
       await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
       
-      console.log(`✅ [UserSettings] Created ${deviceType} settings record`);
+      console.log(`✅ [UserSettings] Created ${deviceType} settings record (cached for 5 min)`);
       return cachedSettings;
     } catch (createError) {
       if (createError.message?.includes('duplicate') || createError.message?.includes('conflict')) {

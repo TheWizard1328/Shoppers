@@ -1537,8 +1537,8 @@ function Dashboard() {
 
     fetchPolylineCount();
 
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchPolylineCount, 30000);
+    // Refresh every 5 minutes to avoid rate limits
+    const interval = setInterval(fetchPolylineCount, 300000);
     return () => clearInterval(interval);
   }, [currentUser, fetchPolylineCount]);
 

@@ -784,8 +784,24 @@ export default function Layout({ children, currentPageName }) {
         setCurrentUser(fetchedUser);
         setHasAccess(true);
 
-        // Load cities (critical for app function)
-          const citiesData = await City.list();
+        // Load cities from offline DB first to prevent rate limits
+          let citiesData = [];
+          try {
+            const { offlineDB } = await import('./components/utils/offlineDatabase');
+            citiesData = await offlineDB.getAll(offlineDB.STORES.CITIES);
+            
+            if (!citiesData || citiesData.length === 0) {
+              console.log('📥 [Layout] Cities not in offline DB - fetching from API');
+              citiesData = await City.list();
+              // Save to offline DB for future use
+              await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesData);
+            } else {
+              console.log(`📦 [Layout] Using ${citiesData.length} cities from offline DB`);
+            }
+          } catch (offlineError) {
+            console.warn('⚠️ [Layout] Offline DB failed, fetching from API');
+            citiesData = await City.list();
+          }
 
           citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
           setCities(citiesData || []);
