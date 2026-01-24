@@ -1811,8 +1811,8 @@ export default function Layout({ children, currentPageName }) {
           setAppUsers(locationUpdates.appUsers);
         }
 
-        // Calculate initial COD total
-        const codTotal = calculateUserCodTotal(currentUser, catalogItemsData, squareConfigs, allStores, transactionsData);
+        // Calculate initial COD total (catalog items loaded in background)
+        const codTotal = calculateUserCodTotal(currentUser, [], offlineSquareConfigs || [], allStores, offlineSquareTx || []);
         setTotalCodsDue(codTotal);
       }, 1000);
 
