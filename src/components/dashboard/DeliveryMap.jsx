@@ -991,8 +991,8 @@ export default function DeliveryMap({
     fetchGoogleRoute();
   }, [safeDeliveries, isSingleDriverMode, showRoutes]);
 
-  // CRITICAL: Create STABLE sorted drivers array to prevent color/name changes
-  // Sort drivers by sort_order ONCE and cache to ensure consistent color mapping
+  // CRITICAL: Create STABLE sorted drivers array to prevent re-sorting
+  // Only update when sort_order values actually change, not on every smart refresh
   const stableSortedDrivers = useMemo(() => {
     const drivers = safeUsers.filter(u => u && typeof u === 'object' && u.id);
     
@@ -1010,10 +1010,11 @@ export default function DeliveryMap({
     
     return drivers;
   }, [
-    // Create order-independent dependency by sorting IDs first
+    // CRITICAL: Only track sort_order and ID changes, not other properties
+    // This prevents re-sorting when other user data (like location) updates
     safeUsers
       .filter(u => u && typeof u === 'object' && u.id)
-      .map(u => `${u.id}:${u.sort_order}:${u.user_name || u.full_name}`)
+      .map(u => `${u.id}:${u.sort_order}`)
       .sort()
       .join('|')
   ]);
