@@ -2030,7 +2030,7 @@ export default function DeliveryMap({
     pickupMarkers.map(p => `${p?.id}:${p?.stop_order}:${p?.status}`).join(','),
     showRoutes,
     isAllDriversMode,
-    driverLookupMap, // CRITICAL: Include driver lookup map to recalculate when driver data changes
+    stableSortedDrivers, // CRITICAL: Use stable sorted drivers instead of driverLookupMap
     currentZoom,
     currentUser?.id,
     currentDriverLocation?.latitude,
