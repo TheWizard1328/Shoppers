@@ -992,20 +992,36 @@ export default function DeliveryMap({
     fetchGoogleRoute();
   }, [safeDeliveries, isSingleDriverMode, showRoutes]);
 
-  // CRITICAL: Create stable driver lookup map to prevent "Unassigned" names
-  // Fallback to delivery data if users prop is empty
+  // CRITICAL: Create STABLE sorted drivers array to prevent color/name changes
+  // Sort drivers by sort_order ONCE and cache to ensure consistent color mapping
+  const stableSortedDrivers = useMemo(() => {
+    const drivers = safeUsers.filter(u => u && typeof u === 'object' && u.id);
+    
+    // Sort by sort_order, then by name
+    drivers.sort((a, b) => {
+      const sortA = a.sort_order ?? Infinity;
+      const sortB = b.sort_order ?? Infinity;
+      
+      if (sortA !== sortB) return sortA - sortB;
+      
+      const nameA = (a.user_name || a.full_name || '').toLowerCase();
+      const nameB = (b.user_name || b.full_name || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+    
+    return drivers;
+  }, [safeUsers.map(u => `${u?.id}:${u?.sort_order}:${u?.user_name || u?.full_name}`).join('|')]);
+
+  // CRITICAL: Create stable driver lookup map using SORTED drivers
   const driverLookupMap = useMemo(() => {
     const map = new Map();
     
-    // First, add from users prop
-    safeUsers.forEach(u => {
-      if (u && typeof u === 'object' && u.id) {
-        map.set(u.id, u);
-      }
+    stableSortedDrivers.forEach(u => {
+      map.set(u.id, u);
     });
     
     return map;
-  }, [safeUsers.map(u => `${u?.id}:${u?.user_name || u?.full_name}`).join('|')]);
+  }, [stableSortedDrivers]);
 
   // Get coordinates for deliveries and pickups - Use backend isNextDelivery flag
   const { deliveryMarkers, groupedDeliveryMarkers, pickupMarkers, groupedPickupMarkers, hasIncompleteStops } = useMemo(() => {
