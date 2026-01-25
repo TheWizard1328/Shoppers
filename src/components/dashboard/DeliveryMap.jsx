@@ -991,41 +991,36 @@ export default function DeliveryMap({
     fetchGoogleRoute();
   }, [safeDeliveries, isSingleDriverMode, showRoutes]);
 
-  // CRITICAL: Cache initial sort_order to FREEZE legend order after first render
-  // Never re-sort, only reflect which drivers are currently active
-  const sortOrderCacheRef = useRef(new Map());
+  // CRITICAL: FREEZE driver order on component mount - NEVER change after that
+  // Use ref to store the initial sorted order, then always reuse it
+  const frozenDriverOrderRef = useRef(null);
   
   const stableSortedDrivers = useMemo(() => {
     const drivers = safeUsers.filter(u => u && typeof u === 'object' && u.id);
     
-    // Cache sort_order on first sight of each driver
-    drivers.forEach(d => {
-      if (!sortOrderCacheRef.current.has(d.id)) {
-        sortOrderCacheRef.current.set(d.id, {
-          sort_order: d.sort_order,
-          name: d.user_name || d.full_name
-        });
-      }
-    });
+    // CRITICAL: Only sort ONCE on first mount - cache the entire order
+    if (!frozenDriverOrderRef.current) {
+      // First time: create the frozen order
+      drivers.sort((a, b) => {
+        const sortA = a.sort_order ?? Infinity;
+        const sortB = b.sort_order ?? Infinity;
+        if (sortA !== sortB) return sortA - sortB;
+        const nameA = (a.user_name || a.full_name || '').toLowerCase();
+        const nameB = (b.user_name || b.full_name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+      // Freeze the driver ID order
+      frozenDriverOrderRef.current = drivers.map(d => d.id);
+    }
     
-    // Sort using CACHED sort_order, never change the order again
-    drivers.sort((a, b) => {
-      const cachedA = sortOrderCacheRef.current.get(a.id);
-      const cachedB = sortOrderCacheRef.current.get(b.id);
-      
-      const sortA = cachedA?.sort_order ?? Infinity;
-      const sortB = cachedB?.sort_order ?? Infinity;
-      
-      if (sortA !== sortB) return sortA - sortB;
-      
-      const nameA = (cachedA?.name || '').toLowerCase();
-      const nameB = (cachedB?.name || '').toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
+    // CRITICAL: Always return drivers in the FROZEN order (never re-sort)
+    const frozenIds = frozenDriverOrderRef.current;
+    const driverMap = new Map(drivers.map(d => [d.id, d]));
     
-    return drivers;
-    // CRITICAL: Only depend on WHICH drivers exist (by ID), never on their properties
-    // This prevents re-sort when smart refresh updates driver locations/data
+    // Return drivers in frozen order, only including those still present
+    return frozenIds
+      .map(id => driverMap.get(id))
+      .filter(Boolean);
   }, [safeUsers.filter(u => u?.id).map(u => u.id).sort().join('|')]);
 
   // CRITICAL: Create stable driver lookup map using SORTED drivers
