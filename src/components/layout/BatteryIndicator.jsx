@@ -82,7 +82,7 @@ export default function BatteryIndicator({ vertical = false }) {
   if (vertical) {
     return (
       <div 
-        className="flex flex-col items-center gap-0.5" 
+        className="flex flex-col items-center" 
         title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}
       >
         {getBatteryIcon()}
