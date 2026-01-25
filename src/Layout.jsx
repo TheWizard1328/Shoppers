@@ -98,6 +98,7 @@ import { realtimeSync, subscribeToRealtime } from './components/utils/realtimeSy
 import ConflictManager from './components/dashboard/ConflictManager';
 import PWAInstallPrompt from './components/common/PWAInstallPrompt';
 import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
+import BatteryIndicator from './components/layout/BatteryIndicator';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -3228,32 +3229,7 @@ export default function Layout({ children, currentPageName }) {
 
                       }
 
-                      <div className="flex gap-2 mt-3">
-                          <Button
-                              onClick={async () => {
-                                if (window.confirm('Are you sure you want to log out?')) {
-                                  try {
-                                    sessionStorage.clear();
-                                    clearUserCache();
-                                    clearSettingsCache();
-                                    await User.logout();
-                                    window.location.href = '/';
-                                  } catch (error) {
-                                    console.error('Logout failed:', error);
-                                    sessionStorage.clear();
-                                    localStorage.clear();
-                                    window.location.href = '/';
-                                  }
-                                }
-                              }}
-                              variant="outline"
-                              className="flex-1 gap-2 text-red-600 hover:bg-red-50 hover:text-red-700"
-                              style={{ borderColor: '#fecaca', background: 'var(--bg-white)', color: '#dc2626' }}
-                            >
-                          <LogOut className="w-4 h-4" />
-                          Log Out
-                        </Button>
-                      </div>
+
                     </div> :
 
                     <div className="space-y-2">
@@ -3304,19 +3280,23 @@ export default function Layout({ children, currentPageName }) {
                   style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
 
                   <div className="flex items-center justify-between gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSidebarOpen(!sidebarOpen);
-                      }}
-                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSidebarOpen(!sidebarOpen);
+                        }}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
 
-                      {sidebarOpen ?
-                        <X className="w-6 h-6 text-slate-700" /> :
+                        {sidebarOpen ?
+                          <X className="w-6 h-6 text-slate-700" /> :
 
-                        <Menu className="w-6 h-6 text-slate-700" />
-                      }
-                    </button>
+                          <Menu className="w-6 h-6 text-slate-700" />
+                        }
+                      </button>
+
+                      <BatteryIndicator />
+                    </div>
 
                     <div 
                       className="flex items-center gap-2 flex-shrink-0 relative cursor-pointer"

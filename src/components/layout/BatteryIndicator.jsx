@@ -1,0 +1,58 @@
+import React, { useState, useEffect } from 'react';
+import { Battery, BatteryCharging, BatteryLow, BatteryMedium, BatteryFull } from 'lucide-react';
+
+export default function BatteryIndicator() {
+  const [batteryLevel, setBatteryLevel] = useState(null);
+  const [isCharging, setIsCharging] = useState(false);
+
+  useEffect(() => {
+    // Check if Battery Status API is supported
+    if ('getBattery' in navigator) {
+      navigator.getBattery().then((battery) => {
+        // Set initial values
+        setBatteryLevel(Math.round(battery.level * 100));
+        setIsCharging(battery.charging);
+
+        // Update on battery level change
+        battery.addEventListener('levelchange', () => {
+          setBatteryLevel(Math.round(battery.level * 100));
+        });
+
+        // Update on charging status change
+        battery.addEventListener('chargingchange', () => {
+          setIsCharging(battery.charging);
+        });
+      }).catch(() => {
+        // Battery API not available
+        setBatteryLevel(null);
+      });
+    }
+  }, []);
+
+  // Don't render if battery level is not available
+  if (batteryLevel === null) return null;
+
+  // Determine icon and color based on battery level and charging status
+  const getBatteryIcon = () => {
+    if (isCharging) {
+      return <BatteryCharging className="w-5 h-5 text-green-600" />;
+    }
+
+    if (batteryLevel <= 20) {
+      return <BatteryLow className="w-5 h-5 text-red-600" />;
+    } else if (batteryLevel <= 50) {
+      return <BatteryMedium className="w-5 h-5 text-yellow-600" />;
+    } else if (batteryLevel <= 80) {
+      return <Battery className="w-5 h-5 text-slate-600" />;
+    } else {
+      return <BatteryFull className="w-5 h-5 text-green-600" />;
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1" title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
+      {getBatteryIcon()}
+      <span className="text-xs font-medium text-slate-700">{batteryLevel}%</span>
+    </div>
+  );
+}
