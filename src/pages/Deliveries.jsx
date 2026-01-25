@@ -1097,7 +1097,7 @@ export default function DeliveriesPage() {
     today.setHours(0, 0, 0, 0);
     const todayString = format(today, 'yyyy-MM-dd');
     
-    if (!dateParam && !globalFilters.getSelectedDate()) {
+    if (!globalFilters.getSelectedDate()) {
       if (!isDriverOverviewMode) {
         // Route Management: default to first day of the selected month
         const firstDayOfMonth = new Date(initialSelectedYear, initialSelectedMonth, 1);
