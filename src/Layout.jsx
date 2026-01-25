@@ -45,13 +45,13 @@ import {
   MoreVertical,
   MessageCircle,
   DollarSign,
-  CreditCard
-} from "lucide-react";
+  CreditCard } from
+"lucide-react";
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger
-} from "@/components/ui/popover";
+  PopoverTrigger } from
+"@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList, CommandItem } from "@/components/ui/command";
 import {
   DropdownMenu,
@@ -59,8 +59,8 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  DropdownMenuTrigger } from
+"@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -68,28 +68,28 @@ import { Switch } from "@/components/ui/switch";
 import { getEffectiveUser, clearUserCache } from "./components/utils/auth";
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
-      import { userHasRole, getPrimaryRole, formatRoles, isAppOwner, canAccessImports } from './components/utils/userRoles';
+import { userHasRole, getPrimaryRole, formatRoles, isAppOwner, canAccessImports } from './components/utils/userRoles';
 import { getDriverDisplayName } from './components/utils/driverUtils';
 import { formatPhoneNumber } from './components/utils/phoneFormatter';
 import { sortUsers, sortStores } from './components/utils/sorting';
 import { UserProvider } from './components/utils/UserContext';
 import { AppDataProvider } from './components/utils/AppDataContext';
 import { ResizableDivider } from './components/ui/resizable-divider';
-      import { globalFilters } from './components/utils/globalFilters';
-      import CitySelectionPopup from './components/cities/CitySelectionPopup';
-      import { getActiveDriversForCity, getAvailableDrivers } from './components/utils/driverSelectors';
+import { globalFilters } from './components/utils/globalFilters';
+import CitySelectionPopup from './components/cities/CitySelectionPopup';
+import { getActiveDriversForCity, getAvailableDrivers } from './components/utils/driverSelectors';
 // Removed: getCitiesWithinRadius - no longer using geographic filtering
-      import { getUserAgentInfo } from './components/utils/deviceUtils';
-      import PatientImport from './components/patients/PatientImport';
-      import RouteImport from './components/deliveries/RouteImport';
-      import DriverStatusToggle from './components/layout/DriverStatusToggle';
-      import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
-      import MessagingPanel from './components/messaging/MessagingPanel';
-      import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
-      import { isMobileDevice } from './components/utils/deviceUtils';
-                  import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
-                  import { initializeDailyCleanup } from './components/utils/messageCleaner';
-                  import { toast } from 'sonner';
+import { getUserAgentInfo } from './components/utils/deviceUtils';
+import PatientImport from './components/patients/PatientImport';
+import RouteImport from './components/deliveries/RouteImport';
+import DriverStatusToggle from './components/layout/DriverStatusToggle';
+import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
+import MessagingPanel from './components/messaging/MessagingPanel';
+import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
+import { isMobileDevice } from './components/utils/deviceUtils';
+import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
+import { initializeDailyCleanup } from './components/utils/messageCleaner';
+import { toast } from 'sonner';
 import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 import ConnectionRecoveryBanner from './components/layout/ConnectionRecoveryBanner';
@@ -195,10 +195,10 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
     const fetchStats = async (force = false) => {
       // CRITICAL: Allow re-fetch on driver/date changes, but with minimal cache (5 seconds)
       const now = Date.now();
-      if (!force && 
-          lastFetchRef.current.date === selectedDateStr && 
-          lastFetchRef.current.driver === selectedDriverId &&
-          now - lastFetchRef.current.timestamp < 5000) {
+      if (!force &&
+      lastFetchRef.current.date === selectedDateStr &&
+      lastFetchRef.current.driver === selectedDriverId &&
+      now - lastFetchRef.current.timestamp < 5000) {
         return;
       }
 
@@ -268,10 +268,10 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
       window.removeEventListener('offlineSyncComplete', handleDeliveryChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentUser, selectedDateStr, selectedDriverId]); // Removed storeIds to reduce re-fetches
+  }, [currentUser, selectedDateStr, selectedDriverId]); // Removed storeIds to reduce re-fetches
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
-      <div className="flex items-center justify-between text-sm">
+  <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
           <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500'}`} />
           <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>{label}</span>
@@ -294,16 +294,16 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
           <div className="h-6 bg-slate-200 rounded"></div>
           <div className="h-6 bg-slate-200 rounded"></div>
         </div>
-      </div>
-    );
+      </div>);
+
   }
 
   if (hasError || !stats) {
     return (
       <div className="px-3 py-2 text-sm text-slate-500">
         Unable to load stats
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -317,11 +317,11 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
           <StatItem icon={Package} label="Active Stops" value={stats.today.activeStops} colorClass="text-slate-600" />
           <StatItem icon={CheckCircle} label="Completed" value={stats.today.completed} colorClass="text-green-600" />
           {(stats.today.failed > 0 || stats.today.returns > 0) &&
-            <StatItem
-              icon={AlertCircle}
-              label="Failed/Returned"
-              value={`${stats.today.failed} / ${stats.today.returns}`}
-              colorClass="text-red-600" />
+          <StatItem
+            icon={AlertCircle}
+            label="Failed/Returned"
+            value={`${stats.today.failed} / ${stats.today.returns}`}
+            colorClass="text-red-600" />
           }
           {/* <StatItem icon={MapPin} label="Polylines" value={stats.today.polylineCount || 0} colorClass="text-blue-600" /> */}
         </div>
@@ -332,16 +332,16 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
         <div className="space-y-2">
           <StatItem icon={CheckCircle} label="Completed" value={stats.month.completed} colorClass="text-green-600" />
           {(stats.month.failed > 0 || stats.month.returns > 0) &&
-            <StatItem
-              icon={AlertCircle}
-              label="Failed/Returned"
-              value={`${stats.month.failed} / ${stats.month.returns}`}
-              colorClass="text-red-600" />
+          <StatItem
+            icon={AlertCircle}
+            label="Failed/Returned"
+            value={`${stats.month.failed} / ${stats.month.returns}`}
+            colorClass="text-red-600" />
           }
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 };
 
 const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, impersonatingUser, currentUser }) => {
@@ -362,15 +362,15 @@ const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, imp
             <CommandList style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
               <CommandGroup style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
                 {availableUsers.map((user) =>
-                  <CommandItem
-                    key={user.id}
-                    value={`${user.user_name || user.full_name} ${formatRoles(user)}`}
-                    onSelect={() => {
-                      onImpersonate(user.id);
-                      setOpen(false);
-                    }}
-                    className="flex justify-between"
-                    style={{ color: 'var(--text-slate-900)' }}>
+                <CommandItem
+                  key={user.id}
+                  value={`${user.user_name || user.full_name} ${formatRoles(user)}`}
+                  onSelect={() => {
+                    onImpersonate(user.id);
+                    setOpen(false);
+                  }}
+                  className="flex justify-between"
+                  style={{ color: 'var(--text-slate-900)' }}>
 
                     <span>{user.user_name || user.full_name}</span>
                     <span className="text-xs capitalize" style={{ color: 'var(--text-slate-500)' }}>{formatRoles(user)}</span>
@@ -391,7 +391,7 @@ const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, c
       <div
         onClick={onToggle}
         className={`group hover:bg-slate-50 transition-all duration-200 rounded-xl mb-1 cursor-pointer flex items-center justify-between gap-3 px-4 py-3 ${
-          isActive ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`
+        isActive ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`
         }>
 
         <div className="flex items-center gap-3">
@@ -403,12 +403,12 @@ const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, c
       </div>
       <AnimatePresence>
         {open &&
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.15, ease: "easeInOut" }}
-            className="overflow-hidden pl-6">
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.15, ease: "easeInOut" }}
+          className="overflow-hidden pl-6">
 
             <div className="py-2 border-l border-slate-200 space-y-1">
               {children}
@@ -428,13 +428,13 @@ class ErrorBoundary extends React.Component {
 
   static getDerivedStateFromError(error) {
     if (error.message && (
-      error.message.includes('l is not a function') ||
-      error.message.includes('_leaflet_pos') ||
-      error.message.includes('Leaflet'))) {
+    error.message.includes('l is not a function') ||
+    error.message.includes('_leaflet_pos') ||
+    error.message.includes('Leaflet'))) {
       console.warn('Leaflet error caught by ErrorBoundary, continuing normally');
       return { hasError: false };
     }
-    
+
     // Cache error to localStorage for debugging (survives refresh)
     try {
       localStorage.setItem('rxdeliver_last_error', JSON.stringify({
@@ -443,24 +443,24 @@ class ErrorBoundary extends React.Component {
         timestamp: new Date().toISOString()
       }));
     } catch (e) {
+
       // Ignore localStorage errors
     }
-    
     return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
     if (error.message && (
-      error.message.includes('l is not a function') ||
-      error.message.includes('_leaflet_pos') ||
-      error.message.includes('Leaflet'))) {
+    error.message.includes('l is not a function') ||
+    error.message.includes('_leaflet_pos') ||
+    error.message.includes('Leaflet'))) {
       console.warn('Leaflet error caught and neutralized by ErrorBoundary');
       return;
     }
-    
+
     // Store errorInfo in state for display
     this.setState({ errorInfo });
-    
+
     console.error('═══════════════════════════════════════════════════');
     console.error('❌ CRITICAL ERROR CAUGHT BY ERROR BOUNDARY');
     console.error('Error:', error);
@@ -480,9 +480,9 @@ class ErrorBoundary extends React.Component {
           cachedError = JSON.parse(cached);
         }
       } catch (e) {
+
         // Ignore
       }
-
       const errorToShow = this.state.error || cachedError;
 
       // Check if mobile device
@@ -497,9 +497,9 @@ class ErrorBoundary extends React.Component {
           isOwner = parsed?.user?.role === 'App Owner';
         }
       } catch (e) {
+
         // Ignore
       }
-
       const showErrorDetails = isMobileDevice && isOwner && errorToShow;
 
       const handleCopyError = () => {
@@ -518,16 +518,16 @@ class ErrorBoundary extends React.Component {
             <p className="text-slate-600 mb-4">An error occurred while loading the app.</p>
 
             {/* Show error details only on mobile for app owners */}
-            {showErrorDetails && (
-              <div className="text-left mb-4 p-4 bg-red-50 rounded-lg border-2 border-red-300">
+            {showErrorDetails &&
+            <div className="text-left mb-4 p-4 bg-red-50 rounded-lg border-2 border-red-300">
                 <div className="flex justify-between items-center mb-3">
                   <div className="font-bold text-red-900 text-lg">Error Details:</div>
                   <Button
-                    onClick={handleCopyError}
-                    variant="outline"
-                    size="sm"
-                    className="text-red-700 border-red-300 hover:bg-red-100"
-                  >
+                  onClick={handleCopyError}
+                  variant="outline"
+                  size="sm"
+                  className="text-red-700 border-red-300 hover:bg-red-100">
+
                     Copy Error
                   </Button>
                 </div>
@@ -537,37 +537,37 @@ class ErrorBoundary extends React.Component {
                     {errorToShow.message || 'Unknown error'}
                   </div>
                 </div>
-                {errorToShow.stack && (
-                  <div className="p-2 bg-white rounded border border-red-200">
+                {errorToShow.stack &&
+              <div className="p-2 bg-white rounded border border-red-200">
                     <div className="font-semibold text-red-900 text-sm mb-1">Stack Trace:</div>
                     <pre className="text-xs text-red-800 overflow-auto max-h-40 whitespace-pre-wrap break-words">
                       {errorToShow.stack}
                     </pre>
                   </div>
-                )}
-                {cachedError && (
-                  <div className="mt-2 text-xs text-red-600">
+              }
+                {cachedError &&
+              <div className="mt-2 text-xs text-red-600">
                     Error occurred at: {new Date(cachedError.timestamp).toLocaleString()}
                   </div>
-                )}
+              }
               </div>
-            )}
+            }
 
             <div className="flex gap-3 justify-center">
-              <Button 
+              <Button
                 onClick={() => {
                   localStorage.removeItem('rxdeliver_last_error');
                   sessionStorage.clear();
                   window.location.reload();
                 }}
-                className="bg-emerald-600 hover:bg-emerald-700"
-              >
+                className="bg-emerald-600 hover:bg-emerald-700">
+
                 Clear Cache & Refresh
               </Button>
-              <Button 
+              <Button
                 onClick={() => window.location.reload()}
-                variant="outline"
-              >
+                variant="outline">
+
                 Refresh Page
               </Button>
             </div>
@@ -589,7 +589,7 @@ export default function Layout({ children, currentPageName }) {
 
   const [initialGlobalFiltersSet, setInitialGlobalFiltersSet] = useState(false);
   const [showCitySelectionPopup, setShowCitySelectionPopup] = useState(false);
-  
+
   // Track if we've done initial driver selection (prevent re-running on filter changes)
   const hasSetInitialDriver = useRef(false);
 
@@ -629,47 +629,47 @@ export default function Layout({ children, currentPageName }) {
   // Remove unused driverLocationIntervalRef - now handled by unified refresh
 
   const [sidebarWidth, setSidebarWidth] = useState(240); // Will be loaded from user settings
-      const [themePreference, setThemePreference] = useState('auto');
-            const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
+  const [themePreference, setThemePreference] = useState('auto');
+  const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
 
-            // Apply theme class to HTML element (mobile only - desktop always light)
-            // CRITICAL: Debounced theme application to prevent blocking UI updates during critical operations
-            useEffect(() => {
-              // CRITICAL: Delay theme changes to avoid interfering with form submissions or status updates
-              const themeUpdateTimer = setTimeout(() => {
-                if (!isMobile) {
-                  // Force light mode on desktop
-                  document.documentElement.classList.remove('auto-theme', 'dark-theme');
-                  document.documentElement.classList.add('light-theme');
-                  return;
-                }
+  // Apply theme class to HTML element (mobile only - desktop always light)
+  // CRITICAL: Debounced theme application to prevent blocking UI updates during critical operations
+  useEffect(() => {
+    // CRITICAL: Delay theme changes to avoid interfering with form submissions or status updates
+    const themeUpdateTimer = setTimeout(() => {
+      if (!isMobile) {
+        // Force light mode on desktop
+        document.documentElement.classList.remove('auto-theme', 'dark-theme');
+        document.documentElement.classList.add('light-theme');
+        return;
+      }
 
-                // Mobile theme switching
-                if (themePreference === 'dark') {
-                  document.documentElement.classList.remove('auto-theme', 'light-theme');
-                  document.documentElement.classList.add('dark-theme');
-                } else if (themePreference === 'light') {
-                  document.documentElement.classList.remove('auto-theme', 'dark-theme');
-                  document.documentElement.classList.add('light-theme');
-                } else {
-                  document.documentElement.classList.remove('light-theme', 'dark-theme');
-                  document.documentElement.classList.add('auto-theme');
-                }
-              }, 300); // 300ms delay to avoid blocking critical operations
+      // Mobile theme switching
+      if (themePreference === 'dark') {
+        document.documentElement.classList.remove('auto-theme', 'light-theme');
+        document.documentElement.classList.add('dark-theme');
+      } else if (themePreference === 'light') {
+        document.documentElement.classList.remove('auto-theme', 'dark-theme');
+        document.documentElement.classList.add('light-theme');
+      } else {
+        document.documentElement.classList.remove('light-theme', 'dark-theme');
+        document.documentElement.classList.add('auto-theme');
+      }
+    }, 300); // 300ms delay to avoid blocking critical operations
 
-              return () => clearTimeout(themeUpdateTimer);
-            }, [themePreference, isMobile]);
+    return () => clearTimeout(themeUpdateTimer);
+  }, [themePreference, isMobile]);
 
-            const handleThemeChange = async (newTheme) => {
-              setThemePreference(newTheme);
-              if (currentUser?.id) {
-                await saveSetting(currentUser.id, 'theme_preference', newTheme);
-              }
-            };
-      const [showMessaging, setShowMessaging] = useState(false);
-      const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-      const [initialConversation, setInitialConversation] = useState(null);
-      const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
+  const handleThemeChange = async (newTheme) => {
+    setThemePreference(newTheme);
+    if (currentUser?.id) {
+      await saveSetting(currentUser.id, 'theme_preference', newTheme);
+    }
+  };
+  const [showMessaging, setShowMessaging] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [initialConversation, setInitialConversation] = useState(null);
+  const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
 
   // Poll for adminImportEnabled changes (for Kyle J to see updates when toggle changes)
@@ -678,7 +678,7 @@ export default function Layout({ children, currentPageName }) {
     if (!currentUser) return;
     if (isAppOwner(currentUser)) return; // App owner controls the toggle, no need to poll
     if (currentUser.user_name !== 'Kyle J') return; // Only Kyle J needs to poll
-    
+
     const pollAdminImportSetting = async () => {
       try {
         const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
@@ -689,13 +689,13 @@ export default function Layout({ children, currentPageName }) {
           }
         }
       } catch (error) {
+
         // Silent fail
-      }
-    };
+      }};
 
     // Initial check
     pollAdminImportSetting();
-    
+
     // Poll every 10 seconds for faster response
     const interval = setInterval(pollAdminImportSetting, 10000);
     return () => clearInterval(interval);
@@ -718,48 +718,48 @@ export default function Layout({ children, currentPageName }) {
 
 
 
-      // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
-      // Step 1: Load user settings from local cache (no API call)
-      try {
-        const settings = await loadUserSettings(fetchedUser.id);
-
-        // Apply sidebar width (device-specific, safe to use from settings)
-        if (settings.sidebar_width) {
-          setSidebarWidth(settings.sidebar_width);
-        }
-
-        // Apply theme preference (mobile only - desktop always light)
-        if (settings.theme_preference && isMobile) {
-          setThemePreference(settings.theme_preference);
-        } else {
-          setThemePreference('light');
-        }
-
-        setUserSettingsLoaded(true);
-      } catch (settingsError) {
-        setUserSettingsLoaded(true);
-      }
-
-      // Initialize smart refresh with defaults (don't wait for API)
-      smartRefreshManager._enabled = true;
-      smartRefreshManager._initialized = true;
-
-      // Load app-wide settings in background (non-blocking)
-      setTimeout(async () => {
+        // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
+        // Step 1: Load user settings from local cache (no API call)
         try {
-          const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-          if (settings && settings.length > 0 && settings[0].setting_value) {
-            smartRefreshManager._enabled = settings[0].setting_value.smartRefreshEnabled !== false;
-            if (settings[0].setting_value.appVersion) {
-              const version = settings[0].setting_value.appVersion;
-              setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
-            }
-            setAdminImportEnabled(settings[0].setting_value.adminImportEnabled === true);
+          const settings = await loadUserSettings(fetchedUser.id);
+
+          // Apply sidebar width (device-specific, safe to use from settings)
+          if (settings.sidebar_width) {
+            setSidebarWidth(settings.sidebar_width);
           }
-        } catch (e) {
-          // Silent fail - use defaults
+
+          // Apply theme preference (mobile only - desktop always light)
+          if (settings.theme_preference && isMobile) {
+            setThemePreference(settings.theme_preference);
+          } else {
+            setThemePreference('light');
+          }
+
+          setUserSettingsLoaded(true);
+        } catch (settingsError) {
+          setUserSettingsLoaded(true);
         }
-      }, 10000); // Load app settings 10 seconds after init
+
+        // Initialize smart refresh with defaults (don't wait for API)
+        smartRefreshManager._enabled = true;
+        smartRefreshManager._initialized = true;
+
+        // Load app-wide settings in background (non-blocking)
+        setTimeout(async () => {
+          try {
+            const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+            if (settings && settings.length > 0 && settings[0].setting_value) {
+              smartRefreshManager._enabled = settings[0].setting_value.smartRefreshEnabled !== false;
+              if (settings[0].setting_value.appVersion) {
+                const version = settings[0].setting_value.appVersion;
+                setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
+              }
+              setAdminImportEnabled(settings[0].setting_value.adminImportEnabled === true);
+            }
+          } catch (e) {
+
+            // Silent fail - use defaults
+          }}, 10000); // Load app settings 10 seconds after init
 
         const isDispatcher = userHasRole(fetchedUser, 'dispatcher');
         const isInactive = fetchedUser.status === 'inactive';
@@ -786,34 +786,34 @@ export default function Layout({ children, currentPageName }) {
         setHasAccess(true);
 
         // Load cities from offline DB first to prevent rate limits
-          let citiesData = [];
-          try {
-            const { offlineDB } = await import('./components/utils/offlineDatabase');
-            citiesData = await offlineDB.getAll(offlineDB.STORES.CITIES);
-            
-            if (!citiesData || citiesData.length === 0) {
-              console.log('📥 [Layout] Cities not in offline DB - fetching from API');
-              citiesData = await City.list();
-              // Save to offline DB for future use
-              await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesData);
-            } else {
-              console.log(`📦 [Layout] Using ${citiesData.length} cities from offline DB`);
-            }
-          } catch (offlineError) {
-            console.warn('⚠️ [Layout] Offline DB failed, fetching from API');
+        let citiesData = [];
+        try {
+          const { offlineDB } = await import('./components/utils/offlineDatabase');
+          citiesData = await offlineDB.getAll(offlineDB.STORES.CITIES);
+
+          if (!citiesData || citiesData.length === 0) {
+            console.log('📥 [Layout] Cities not in offline DB - fetching from API');
             citiesData = await City.list();
+            // Save to offline DB for future use
+            await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesData);
+          } else {
+            console.log(`📦 [Layout] Using ${citiesData.length} cities from offline DB`);
           }
+        } catch (offlineError) {
+          console.warn('⚠️ [Layout] Offline DB failed, fetching from API');
+          citiesData = await City.list();
+        }
 
-          citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-          setCities(citiesData || []);
+        citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        setCities(citiesData || []);
 
-          // Longer delay before stores to prevent rate limits
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          const storesData = await getData('Store');
+        // Longer delay before stores to prevent rate limits
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const storesData = await getData('Store');
         let initialCityId = null;
 
         if (fetchedUser.city_id) {
-          const userCity = citiesData.find(c => c && c.id === fetchedUser.city_id);
+          const userCity = citiesData.find((c) => c && c.id === fetchedUser.city_id);
 
           if (userCity) {
             initialCityId = fetchedUser.city_id;
@@ -867,10 +867,10 @@ export default function Layout({ children, currentPageName }) {
         const savedDate = globalFilters.getSelectedDate();
         let effectiveDateForDriverAssignment;
         if (!savedDate) {
-        globalFilters.setSelectedDate(today);
-        effectiveDateForDriverAssignment = today;
+          globalFilters.setSelectedDate(today);
+          effectiveDateForDriverAssignment = today;
         } else {
-        effectiveDateForDriverAssignment = new Date(savedDate + 'T00:00:00');
+          effectiveDateForDriverAssignment = new Date(savedDate + 'T00:00:00');
         }
 
         const currentDriverFilter = globalFilters.getSelectedDriverId();
@@ -889,8 +889,8 @@ export default function Layout({ children, currentPageName }) {
       } catch (error) {
         // CRITICAL: Only treat auth errors (401/403) as access issues
         // Rate limit errors (429) should not block access
-        const isAuthError = error.response?.status === 401 || error.response?.status === 403 || 
-                            error.message?.includes('Unauthorized') || error.message?.includes('Forbidden');
+        const isAuthError = error.response?.status === 401 || error.response?.status === 403 ||
+        error.message?.includes('Unauthorized') || error.message?.includes('Forbidden');
 
         if (isAuthError) {
           setHasAccess(false);
@@ -907,437 +907,437 @@ export default function Layout({ children, currentPageName }) {
     };
 
     init();
-    }, []);
+  }, []);
 
-    // Initialize daily message cleanup
-    useEffect(() => {
+  // Initialize daily message cleanup
+  useEffect(() => {
     initializeDailyCleanup();
-    }, []);
+  }, []);
 
-    // Real-time sync broadcasts removed - relying on smart refresh only
+  // Real-time sync broadcasts removed - relying on smart refresh only
 
-    // Initialize offline database sync
-    useEffect(() => {
-      if (!currentUser) return;
+  // Initialize offline database sync
+  useEffect(() => {
+    if (!currentUser) return;
 
-      // CRITICAL: Offline DB sync DISABLED to prevent rate limit issues
-      // Historical data is fetched on-demand only when needed
-      // const syncTimer = setTimeout(() => {
-      //   const selectedDateStr = globalFilters.getSelectedDate();
-      //   const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
-      //   performInitialSync(selectedDate).catch(() => {});
-      // }, 60000);
+    // CRITICAL: Offline DB sync DISABLED to prevent rate limit issues
+    // Historical data is fetched on-demand only when needed
+    // const syncTimer = setTimeout(() => {
+    //   const selectedDateStr = globalFilters.getSelectedDate();
+    //   const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
+    //   performInitialSync(selectedDate).catch(() => {});
+    // }, 60000);
 
-      // Set up periodic mutation processing (every 60 seconds to avoid rate limits)
-      const mutationSyncInterval = setInterval(() => {
-        processPendingMutations().catch(() => {});
-      }, 60000);
+    // Set up periodic mutation processing (every 60 seconds to avoid rate limits)
+    const mutationSyncInterval = setInterval(() => {
+      processPendingMutations().catch(() => {});
+    }, 60000);
 
-      // Subscribe to ALL entity mutations and refresh UI IMMEDIATELY
-      const unsubscribeMutations = subscribeMutations(async (mutation) => {
-        console.log('🔔 [Layout] Mutation received:', mutation.entity, mutation.type, mutation.id);
+    // Subscribe to ALL entity mutations and refresh UI IMMEDIATELY
+    const unsubscribeMutations = subscribeMutations(async (mutation) => {
+      console.log('🔔 [Layout] Mutation received:', mutation.entity, mutation.type, mutation.id);
 
-        // CRITICAL: Handle 'replace' mutations to swap temp IDs with real backend IDs
-        if (mutation.type === 'replace') {
-          if (mutation.entity === 'Patient') {
-            setPatients(prev => prev.map(p => p?.id === mutation.oldId ? mutation.data : p));
-          } else if (mutation.entity === 'Delivery') {
-            setDeliveries(prev => prev.map(d => d?.id === mutation.oldId ? mutation.data : d));
-          }
-          return;
+      // CRITICAL: Handle 'replace' mutations to swap temp IDs with real backend IDs
+      if (mutation.type === 'replace') {
+        if (mutation.entity === 'Patient') {
+          setPatients((prev) => prev.map((p) => p?.id === mutation.oldId ? mutation.data : p));
+        } else if (mutation.entity === 'Delivery') {
+          setDeliveries((prev) => prev.map((d) => d?.id === mutation.oldId ? mutation.data : d));
         }
-
-        // CRITICAL: Handle 'delete' mutations - remove from UI state immediately
-        if (mutation.type === 'delete') {
-          if (mutation.entity === 'Patient') {
-            setPatients(prev => prev.filter(p => p?.id !== mutation.id));
-          } else if (mutation.entity === 'Delivery') {
-            setDeliveries(prev => prev.filter(d => d?.id !== mutation.id));
-          } else if (mutation.entity === 'Store') {
-            setStores(prev => prev.filter(s => s?.id !== mutation.id));
-          } else if (mutation.entity === 'City') {
-            setCities(prev => prev.filter(c => c?.id !== mutation.id));
-          } else if (mutation.entity === 'AppUser') {
-            setAppUsers(prev => prev.filter(a => a?.id !== mutation.id));
-            setUsers(prev => prev.filter(u => u?.id !== mutation.id));
-          }
-          return;
-        }
-
-        // CRITICAL: Handle 'batch_delete' mutations - remove multiple items at once
-        if (mutation.type === 'batch_delete') {
-          const idsToDelete = new Set(mutation.ids || []);
-          if (mutation.entity === 'Delivery') {
-            setDeliveries(prev => prev.filter(d => !idsToDelete.has(d?.id)));
-          }
-          return;
-        }
-
-        // CRITICAL: Handle 'create' and 'update' mutations
-        if (mutation.type === 'create') {
-          if (mutation.entity === 'Patient') {
-            setPatients(prev => {
-              const exists = prev.some(p => p?.id === mutation.id);
-              return exists ? prev : [...prev, mutation.data];
-            });
-          } else if (mutation.entity === 'Delivery') {
-            setDeliveries(prev => {
-              const exists = prev.some(d => d?.id === mutation.id);
-              return exists ? prev : [...prev, mutation.data];
-            });
-          } else if (mutation.entity === 'Store') {
-            setStores(prev => {
-              const exists = prev.some(s => s?.id === mutation.id);
-              return exists ? prev : [...prev, mutation.data];
-            });
-          } else if (mutation.entity === 'City') {
-            setCities(prev => {
-              const exists = prev.some(c => c?.id === mutation.id);
-              return exists ? prev : [...prev, mutation.data];
-            });
-          } else if (mutation.entity === 'AppUser') {
-            setAppUsers(prev => {
-              const exists = prev.some(a => a?.id === mutation.id);
-              return exists ? prev : [...prev, mutation.data];
-            });
-
-            // CRITICAL: Immediately dispatch location update for new AppUser
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: null, singleUpdate: mutation.data }
-            }));
-          }
-        } else if (mutation.type === 'update') {
-          if (mutation.entity === 'Patient') {
-            setPatients(prev => prev.map(p => p?.id === mutation.id ? { ...p, ...mutation.data } : p));
-          } else if (mutation.entity === 'Delivery') {
-            setDeliveries(prev => prev.map(d => d?.id === mutation.id ? { ...d, ...mutation.data } : d));
-          } else if (mutation.entity === 'Store') {
-            setStores(prev => prev.map(s => s?.id === mutation.id ? { ...s, ...mutation.data } : s));
-          } else if (mutation.entity === 'City') {
-            setCities(prev => prev.map(c => c?.id === mutation.id ? { ...c, ...mutation.data } : c));
-          } else if (mutation.entity === 'AppUser') {
-            setAppUsers(prev => prev.map(a => a?.id === mutation.id ? { ...a, ...mutation.data } : a));
-
-            // CRITICAL: Immediately dispatch location update for AppUser changes
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: null, singleUpdate: mutation.data }
-            }));
-          }
-        }
-      });
-
-      // Listen for offline sync completion to refresh UI
-      const handleSyncComplete = () => {
-        invalidate('Patient');
-        invalidate('Delivery');
-        triggerFullDataLoadRef.current(true);
-      };
-      window.addEventListener('offlineSyncComplete', handleSyncComplete);
-
-      // Listen for conflict events and show resolution UI
-      const handleConflict = async (event) => {
-        const { conflicts } = event.detail || {};
-        if (!conflicts || conflicts.length === 0) return;
-
-        // Import conflict resolver dynamically
-        const { getPendingConflicts, resolveConflictManually } = await import('./components/utils/offlineConflictResolver');
-        const { default: ConflictResolutionDialog } = await import('./components/offline/ConflictResolutionDialog');
-
-        // Show conflict resolution dialog
-        // This will be handled by a global conflict manager
-        console.log(`⚠️ [Layout] ${conflicts.length} conflicts detected`);
-      };
-      window.addEventListener('dataConflictsDetected', handleConflict);
-
-      // Listen for offline deletions and update UI immediately
-      const handleOfflineDeliveriesDeleted = (event) => {
-        const { deletedIds } = event.detail || {};
-        if (deletedIds && deletedIds.length > 0) {
-          console.log(`🗑️ [Layout] Removing ${deletedIds.length} deleted deliveries from UI`);
-          setDeliveries(prevDeliveries => prevDeliveries.filter(d => !deletedIds.includes(d?.id)));
-        }
-      };
-      window.addEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
-
-      // Listen for import completion to update UI immediately
-      const handleDeliveriesImported = (event) => {
-        const { deliveries, source } = event.detail || {};
-        // CRITICAL: Only process if deliveries array is provided and non-empty
-        // Skip if source is 'layout' to prevent infinite loops
-        if (deliveries && deliveries.length > 0 && source !== 'layout') {
-          console.log(`📥 [Layout] Received ${deliveries.length} imported deliveries - updating UI immediately`);
-          setDeliveries(prevDeliveries => {
-            const map = new Map(prevDeliveries.map(d => [d.id, d]));
-            deliveries.forEach(d => map.set(d.id, d));
-            return Array.from(map.values());
-          });
-
-          // CRITICAL: Force dispatch driverLocationsUpdated to update map markers immediately
-          // This ensures "Show All" checkbox shows updated markers for other drivers
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers }
-            }));
-          }, 500);
-        }
-      };
-      window.addEventListener('deliveriesImported', handleDeliveriesImported);
-
-      // Listen for delivery updates from DeliveryForm and trigger refresh
-      const handleDeliveriesUpdated = async (event) => {
-        const { deliveryId, driverId, deliveryDate, triggeredBy } = event.detail || {};
-        console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy})`);
-
-        if (deliveryDate && driverId) {
-          // Invalidate and refresh data for this date/driver
-          invalidate('Delivery');
-          if (triggerFullDataLoadRef.current) {
-            triggerFullDataLoadRef.current(true);
-          }
-        } else if (deliveryId) {
-          // Single delivery update - fetch fresh data
-          invalidate('Delivery');
-          if (triggerFullDataLoadRef.current) {
-            triggerFullDataLoadRef.current(true);
-          }
-        }
-
-        // CRITICAL: Immediately dispatch driverLocationsUpdated with current appUsers
-        // This ensures map markers update without waiting for next smart refresh cycle
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers }
-        }));
-      };
-      window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
-
-      // AUTO-RECOVERY: Listen for force refresh after connection recovery
-                  const handleForceDataRefresh = async () => {
-                    console.log('🔄 [Layout] Force data refresh after connection recovery - COMPREHENSIVE MODE');
-
-                    // CRITICAL: Invalidate ALL data caches to ensure fresh fetch
-                    invalidate('Delivery');
-                    invalidate('Patient');
-                    invalidate('AppUser');
-                    invalidate('Store');
-                    invalidate('User');
-                    invalidate('City');
-
-                    // CRITICAL: Clear the user cache to force fresh user data fetch
-                    clearUserCache();
-                    clearSettingsCache();
-
-                    // CRITICAL: Force immediate data reload with validation
-                    if (triggerFullDataLoadRef.current) {
-                      console.log('📥 [Recovery] Starting full data reload...');
-                      await triggerFullDataLoadRef.current(true);
-                      console.log('✅ [Recovery] Full data reload complete');
-                    }
-
-                    // Wait for data to settle
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-
-                    // CRITICAL: Validate we have complete data BEFORE updating UI
-                    const hasValidData = 
-                      users.length > 0 && 
-                      drivers.length > 0 && 
-                      stores.length > 0 && 
-                      cities.length > 0 &&
-                      appUsers.length > 0;
-
-                    if (!hasValidData) {
-                      console.warn('⚠️ [Recovery] Data incomplete after reload - retrying...');
-                      // Retry once
-                      await new Promise(resolve => setTimeout(resolve, 2000));
-                      await triggerFullDataLoadRef.current(true);
-                    }
-
-                    // Refresh stats after data is loaded
-                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-
-                    // CRITICAL: Force refresh ALL UI elements
-                    console.log('🎨 [Recovery] Refreshing all UI elements...');
-
-                    // Force dispatch driverLocationsUpdated to update map markers
-                    setTimeout(async () => {
-                      // Refresh driver locations to ensure colors are correct
-                      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
-                      if (locationUpdates?.hasChanges) {
-                        setAppUsers(locationUpdates.appUsers);
-                      }
-
-                      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                        detail: { appUsers: locationUpdates?.appUsers || appUsers }
-                      }));
-
-                      console.log('✅ [Recovery] UI refresh complete');
-                    }, 1500);
-                  };
-                  window.addEventListener('forceDataRefresh', handleForceDataRefresh);
-
-      // ========================================
-      // REAL-TIME SYNC - WebSocket for instant updates (DISABLED in preview)
-      // ========================================
-      // CRITICAL: Skip WebSocket in preview/sandbox environments
-      const isPreview = window.location.hostname.includes('preview') || window.location.hostname.includes('sandbox');
-      if (!isPreview) {
-        realtimeSync.connect();
-      }
-
-      const unsubscribeRealtime = subscribeToRealtime((update) => {
-        if (update.type === 'connected') {
-          console.log('✅ [Layout] Real-time sync connected');
-          return;
-        }
-
-        if (update.type === 'disconnected') {
-          console.log('🔌 [Layout] Real-time sync disconnected');
-          return;
-        }
-
-        if (update.type !== 'entity_change') return;
-
-        console.log(`📥 [Layout] Real-time update: ${update.entity} ${update.action}`, update.id || update.ids);
-
-        // Handle Delivery updates
-        if (update.entity === 'Delivery') {
-          if (update.action === 'create') {
-            setDeliveries(prev => {
-              if (prev.some(d => d?.id === update.id)) return prev;
-              return [...prev, update.data];
-            });
-            // Refresh catalog items if delivery has COD
-            if (update.data?.cod_total_amount_required) {
-              setTimeout(() => {
-                base44.functions.invoke('squareSyncCatalogItems', {})
-                  .then(response => {
-                    const items = response?.data?.items || response?.items || [];
-                    setCatalogItems(items);
-                  });
-              }, 500);
-            }
-          } else if (update.action === 'update') {
-            setDeliveries(prev => prev.map(d => 
-              d?.id === update.id ? { ...d, ...update.data } : d
-            ));
-            // Refresh catalog items if COD amount changed
-            if (update.data?.cod_total_amount_required) {
-              setTimeout(() => {
-                base44.functions.invoke('squareSyncCatalogItems', {})
-                  .then(response => {
-                    const items = response?.data?.items || response?.items || [];
-                    setCatalogItems(items);
-                  });
-              }, 500);
-            }
-          } else if (update.action === 'delete') {
-            setDeliveries(prev => prev.filter(d => d?.id !== update.id));
-            // Refresh catalog items after deletion
-            setTimeout(() => {
-              base44.functions.invoke('squareSyncCatalogItems', {})
-                .then(response => {
-                  const items = response?.data?.items || response?.items || [];
-                  setCatalogItems(items);
-                });
-            }, 500);
-          } else if (update.action === 'batch_delete' && update.ids) {
-            const idsToDelete = new Set(update.ids);
-            setDeliveries(prev => prev.filter(d => !idsToDelete.has(d?.id)));
-            // Refresh catalog items after batch deletion
-            setTimeout(() => {
-              base44.functions.invoke('squareSyncCatalogItems', {})
-                .then(response => {
-                  const items = response?.data?.items || response?.items || [];
-                  setCatalogItems(items);
-                });
-            }, 500);
-          }
-        }
-
-        // Handle AppUser updates (driver location, status, tracking)
-        if (update.entity === 'AppUser') {
-          if (update.action === 'update') {
-            setAppUsers(prev => prev.map(au => 
-              au?.id === update.id ? { ...au, ...update.data } : au
-            ));
-
-            // Also update users array for merged user data
-            setUsers(prev => prev.map(u => 
-              u?.id === update.data?.user_id ? { ...u, ...update.data } : u
-            ));
-
-            // Dispatch event to update map markers immediately
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: null, singleUpdate: update.data }
-            }));
-          }
-        }
-
-        // Handle Patient updates
-        if (update.entity === 'Patient') {
-          if (update.action === 'create') {
-            setPatients(prev => {
-              if (prev.some(p => p?.id === update.id)) return prev;
-              return [...prev, update.data];
-            });
-          } else if (update.action === 'update') {
-            setPatients(prev => prev.map(p => 
-              p?.id === update.id ? { ...p, ...update.data } : p
-            ));
-          } else if (update.action === 'delete') {
-            setPatients(prev => prev.filter(p => p?.id !== update.id));
-          }
-        }
-      });
-
-      return () => {
-        // clearTimeout(syncTimer);
-        clearInterval(mutationSyncInterval);
-        unsubscribeMutations();
-        unsubscribeRealtime();
-        realtimeSync.disconnect();
-        window.removeEventListener('offlineSyncComplete', handleSyncComplete);
-        window.removeEventListener('deliveriesImported', handleDeliveriesImported);
-        window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
-        window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
-        window.removeEventListener('dataConflictsDetected', handleConflict);
-        window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
-        };
-      }, [currentUser]);
-
-    // Recalculate COD total whenever catalog items or user changes
-    useEffect(() => {
-      if (!currentUser || catalogItems.length === 0) {
-        setTotalCodsDue(0);
         return;
       }
 
-      const codTotal = calculateUserCodTotal(currentUser, catalogItems, squareLocationConfigs, stores, squareTransactions);
-      setTotalCodsDue(codTotal);
-    }, [currentUser, catalogItems, squareLocationConfigs, stores, squareTransactions]);
-
-    // Subscribe to real-time SquareTransaction updates to refresh catalog
-    useEffect(() => {
-      const unsubscribe = subscribeToRealtime((update) => {
-        if (update.entity === 'SquareTransaction') {
-          console.log('🔔 [Layout] SquareTransaction update detected, syncing catalog...');
-          // Refresh catalog items and transactions when transactions change
-          Promise.all([
-            base44.functions.invoke('squareSyncCatalogItems', {}),
-            base44.entities.SquareTransaction.filter({ type: 'collection' })
-          ]).then(([catalogData, transactions]) => {
-            const items = catalogData?.data?.items || catalogData?.items || [];
-            setCatalogItems(items);
-            setSquareTransactions(transactions || []);
-            toast.success('COD data updated');
-          });
+      // CRITICAL: Handle 'delete' mutations - remove from UI state immediately
+      if (mutation.type === 'delete') {
+        if (mutation.entity === 'Patient') {
+          setPatients((prev) => prev.filter((p) => p?.id !== mutation.id));
+        } else if (mutation.entity === 'Delivery') {
+          setDeliveries((prev) => prev.filter((d) => d?.id !== mutation.id));
+        } else if (mutation.entity === 'Store') {
+          setStores((prev) => prev.filter((s) => s?.id !== mutation.id));
+        } else if (mutation.entity === 'City') {
+          setCities((prev) => prev.filter((c) => c?.id !== mutation.id));
+        } else if (mutation.entity === 'AppUser') {
+          setAppUsers((prev) => prev.filter((a) => a?.id !== mutation.id));
+          setUsers((prev) => prev.filter((u) => u?.id !== mutation.id));
         }
-      });
+        return;
+      }
 
-      return unsubscribe;
-    }, []);
+      // CRITICAL: Handle 'batch_delete' mutations - remove multiple items at once
+      if (mutation.type === 'batch_delete') {
+        const idsToDelete = new Set(mutation.ids || []);
+        if (mutation.entity === 'Delivery') {
+          setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
+        }
+        return;
+      }
 
-    // CRITICAL: Message polling DISABLED - causes rate limits
-    // Messages will only load when user opens messaging panel
+      // CRITICAL: Handle 'create' and 'update' mutations
+      if (mutation.type === 'create') {
+        if (mutation.entity === 'Patient') {
+          setPatients((prev) => {
+            const exists = prev.some((p) => p?.id === mutation.id);
+            return exists ? prev : [...prev, mutation.data];
+          });
+        } else if (mutation.entity === 'Delivery') {
+          setDeliveries((prev) => {
+            const exists = prev.some((d) => d?.id === mutation.id);
+            return exists ? prev : [...prev, mutation.data];
+          });
+        } else if (mutation.entity === 'Store') {
+          setStores((prev) => {
+            const exists = prev.some((s) => s?.id === mutation.id);
+            return exists ? prev : [...prev, mutation.data];
+          });
+        } else if (mutation.entity === 'City') {
+          setCities((prev) => {
+            const exists = prev.some((c) => c?.id === mutation.id);
+            return exists ? prev : [...prev, mutation.data];
+          });
+        } else if (mutation.entity === 'AppUser') {
+          setAppUsers((prev) => {
+            const exists = prev.some((a) => a?.id === mutation.id);
+            return exists ? prev : [...prev, mutation.data];
+          });
+
+          // CRITICAL: Immediately dispatch location update for new AppUser
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: null, singleUpdate: mutation.data }
+          }));
+        }
+      } else if (mutation.type === 'update') {
+        if (mutation.entity === 'Patient') {
+          setPatients((prev) => prev.map((p) => p?.id === mutation.id ? { ...p, ...mutation.data } : p));
+        } else if (mutation.entity === 'Delivery') {
+          setDeliveries((prev) => prev.map((d) => d?.id === mutation.id ? { ...d, ...mutation.data } : d));
+        } else if (mutation.entity === 'Store') {
+          setStores((prev) => prev.map((s) => s?.id === mutation.id ? { ...s, ...mutation.data } : s));
+        } else if (mutation.entity === 'City') {
+          setCities((prev) => prev.map((c) => c?.id === mutation.id ? { ...c, ...mutation.data } : c));
+        } else if (mutation.entity === 'AppUser') {
+          setAppUsers((prev) => prev.map((a) => a?.id === mutation.id ? { ...a, ...mutation.data } : a));
+
+          // CRITICAL: Immediately dispatch location update for AppUser changes
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: null, singleUpdate: mutation.data }
+          }));
+        }
+      }
+    });
+
+    // Listen for offline sync completion to refresh UI
+    const handleSyncComplete = () => {
+      invalidate('Patient');
+      invalidate('Delivery');
+      triggerFullDataLoadRef.current(true);
+    };
+    window.addEventListener('offlineSyncComplete', handleSyncComplete);
+
+    // Listen for conflict events and show resolution UI
+    const handleConflict = async (event) => {
+      const { conflicts } = event.detail || {};
+      if (!conflicts || conflicts.length === 0) return;
+
+      // Import conflict resolver dynamically
+      const { getPendingConflicts, resolveConflictManually } = await import('./components/utils/offlineConflictResolver');
+      const { default: ConflictResolutionDialog } = await import('./components/offline/ConflictResolutionDialog');
+
+      // Show conflict resolution dialog
+      // This will be handled by a global conflict manager
+      console.log(`⚠️ [Layout] ${conflicts.length} conflicts detected`);
+    };
+    window.addEventListener('dataConflictsDetected', handleConflict);
+
+    // Listen for offline deletions and update UI immediately
+    const handleOfflineDeliveriesDeleted = (event) => {
+      const { deletedIds } = event.detail || {};
+      if (deletedIds && deletedIds.length > 0) {
+        console.log(`🗑️ [Layout] Removing ${deletedIds.length} deleted deliveries from UI`);
+        setDeliveries((prevDeliveries) => prevDeliveries.filter((d) => !deletedIds.includes(d?.id)));
+      }
+    };
+    window.addEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
+
+    // Listen for import completion to update UI immediately
+    const handleDeliveriesImported = (event) => {
+      const { deliveries, source } = event.detail || {};
+      // CRITICAL: Only process if deliveries array is provided and non-empty
+      // Skip if source is 'layout' to prevent infinite loops
+      if (deliveries && deliveries.length > 0 && source !== 'layout') {
+        console.log(`📥 [Layout] Received ${deliveries.length} imported deliveries - updating UI immediately`);
+        setDeliveries((prevDeliveries) => {
+          const map = new Map(prevDeliveries.map((d) => [d.id, d]));
+          deliveries.forEach((d) => map.set(d.id, d));
+          return Array.from(map.values());
+        });
+
+        // CRITICAL: Force dispatch driverLocationsUpdated to update map markers immediately
+        // This ensures "Show All" checkbox shows updated markers for other drivers
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers }
+          }));
+        }, 500);
+      }
+    };
+    window.addEventListener('deliveriesImported', handleDeliveriesImported);
+
+    // Listen for delivery updates from DeliveryForm and trigger refresh
+    const handleDeliveriesUpdated = async (event) => {
+      const { deliveryId, driverId, deliveryDate, triggeredBy } = event.detail || {};
+      console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy})`);
+
+      if (deliveryDate && driverId) {
+        // Invalidate and refresh data for this date/driver
+        invalidate('Delivery');
+        if (triggerFullDataLoadRef.current) {
+          triggerFullDataLoadRef.current(true);
+        }
+      } else if (deliveryId) {
+        // Single delivery update - fetch fresh data
+        invalidate('Delivery');
+        if (triggerFullDataLoadRef.current) {
+          triggerFullDataLoadRef.current(true);
+        }
+      }
+
+      // CRITICAL: Immediately dispatch driverLocationsUpdated with current appUsers
+      // This ensures map markers update without waiting for next smart refresh cycle
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+        detail: { appUsers }
+      }));
+    };
+    window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+
+    // AUTO-RECOVERY: Listen for force refresh after connection recovery
+    const handleForceDataRefresh = async () => {
+      console.log('🔄 [Layout] Force data refresh after connection recovery - COMPREHENSIVE MODE');
+
+      // CRITICAL: Invalidate ALL data caches to ensure fresh fetch
+      invalidate('Delivery');
+      invalidate('Patient');
+      invalidate('AppUser');
+      invalidate('Store');
+      invalidate('User');
+      invalidate('City');
+
+      // CRITICAL: Clear the user cache to force fresh user data fetch
+      clearUserCache();
+      clearSettingsCache();
+
+      // CRITICAL: Force immediate data reload with validation
+      if (triggerFullDataLoadRef.current) {
+        console.log('📥 [Recovery] Starting full data reload...');
+        await triggerFullDataLoadRef.current(true);
+        console.log('✅ [Recovery] Full data reload complete');
+      }
+
+      // Wait for data to settle
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // CRITICAL: Validate we have complete data BEFORE updating UI
+      const hasValidData =
+      users.length > 0 &&
+      drivers.length > 0 &&
+      stores.length > 0 &&
+      cities.length > 0 &&
+      appUsers.length > 0;
+
+      if (!hasValidData) {
+        console.warn('⚠️ [Recovery] Data incomplete after reload - retrying...');
+        // Retry once
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await triggerFullDataLoadRef.current(true);
+      }
+
+      // Refresh stats after data is loaded
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
+      // CRITICAL: Force refresh ALL UI elements
+      console.log('🎨 [Recovery] Refreshing all UI elements...');
+
+      // Force dispatch driverLocationsUpdated to update map markers
+      setTimeout(async () => {
+        // Refresh driver locations to ensure colors are correct
+        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+        if (locationUpdates?.hasChanges) {
+          setAppUsers(locationUpdates.appUsers);
+        }
+
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: locationUpdates?.appUsers || appUsers }
+        }));
+
+        console.log('✅ [Recovery] UI refresh complete');
+      }, 1500);
+    };
+    window.addEventListener('forceDataRefresh', handleForceDataRefresh);
+
+    // ========================================
+    // REAL-TIME SYNC - WebSocket for instant updates (DISABLED in preview)
+    // ========================================
+    // CRITICAL: Skip WebSocket in preview/sandbox environments
+    const isPreview = window.location.hostname.includes('preview') || window.location.hostname.includes('sandbox');
+    if (!isPreview) {
+      realtimeSync.connect();
+    }
+
+    const unsubscribeRealtime = subscribeToRealtime((update) => {
+      if (update.type === 'connected') {
+        console.log('✅ [Layout] Real-time sync connected');
+        return;
+      }
+
+      if (update.type === 'disconnected') {
+        console.log('🔌 [Layout] Real-time sync disconnected');
+        return;
+      }
+
+      if (update.type !== 'entity_change') return;
+
+      console.log(`📥 [Layout] Real-time update: ${update.entity} ${update.action}`, update.id || update.ids);
+
+      // Handle Delivery updates
+      if (update.entity === 'Delivery') {
+        if (update.action === 'create') {
+          setDeliveries((prev) => {
+            if (prev.some((d) => d?.id === update.id)) return prev;
+            return [...prev, update.data];
+          });
+          // Refresh catalog items if delivery has COD
+          if (update.data?.cod_total_amount_required) {
+            setTimeout(() => {
+              base44.functions.invoke('squareSyncCatalogItems', {}).
+              then((response) => {
+                const items = response?.data?.items || response?.items || [];
+                setCatalogItems(items);
+              });
+            }, 500);
+          }
+        } else if (update.action === 'update') {
+          setDeliveries((prev) => prev.map((d) =>
+          d?.id === update.id ? { ...d, ...update.data } : d
+          ));
+          // Refresh catalog items if COD amount changed
+          if (update.data?.cod_total_amount_required) {
+            setTimeout(() => {
+              base44.functions.invoke('squareSyncCatalogItems', {}).
+              then((response) => {
+                const items = response?.data?.items || response?.items || [];
+                setCatalogItems(items);
+              });
+            }, 500);
+          }
+        } else if (update.action === 'delete') {
+          setDeliveries((prev) => prev.filter((d) => d?.id !== update.id));
+          // Refresh catalog items after deletion
+          setTimeout(() => {
+            base44.functions.invoke('squareSyncCatalogItems', {}).
+            then((response) => {
+              const items = response?.data?.items || response?.items || [];
+              setCatalogItems(items);
+            });
+          }, 500);
+        } else if (update.action === 'batch_delete' && update.ids) {
+          const idsToDelete = new Set(update.ids);
+          setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
+          // Refresh catalog items after batch deletion
+          setTimeout(() => {
+            base44.functions.invoke('squareSyncCatalogItems', {}).
+            then((response) => {
+              const items = response?.data?.items || response?.items || [];
+              setCatalogItems(items);
+            });
+          }, 500);
+        }
+      }
+
+      // Handle AppUser updates (driver location, status, tracking)
+      if (update.entity === 'AppUser') {
+        if (update.action === 'update') {
+          setAppUsers((prev) => prev.map((au) =>
+          au?.id === update.id ? { ...au, ...update.data } : au
+          ));
+
+          // Also update users array for merged user data
+          setUsers((prev) => prev.map((u) =>
+          u?.id === update.data?.user_id ? { ...u, ...update.data } : u
+          ));
+
+          // Dispatch event to update map markers immediately
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: null, singleUpdate: update.data }
+          }));
+        }
+      }
+
+      // Handle Patient updates
+      if (update.entity === 'Patient') {
+        if (update.action === 'create') {
+          setPatients((prev) => {
+            if (prev.some((p) => p?.id === update.id)) return prev;
+            return [...prev, update.data];
+          });
+        } else if (update.action === 'update') {
+          setPatients((prev) => prev.map((p) =>
+          p?.id === update.id ? { ...p, ...update.data } : p
+          ));
+        } else if (update.action === 'delete') {
+          setPatients((prev) => prev.filter((p) => p?.id !== update.id));
+        }
+      }
+    });
+
+    return () => {
+      // clearTimeout(syncTimer);
+      clearInterval(mutationSyncInterval);
+      unsubscribeMutations();
+      unsubscribeRealtime();
+      realtimeSync.disconnect();
+      window.removeEventListener('offlineSyncComplete', handleSyncComplete);
+      window.removeEventListener('deliveriesImported', handleDeliveriesImported);
+      window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
+      window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+      window.removeEventListener('dataConflictsDetected', handleConflict);
+      window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
+    };
+  }, [currentUser]);
+
+  // Recalculate COD total whenever catalog items or user changes
+  useEffect(() => {
+    if (!currentUser || catalogItems.length === 0) {
+      setTotalCodsDue(0);
+      return;
+    }
+
+    const codTotal = calculateUserCodTotal(currentUser, catalogItems, squareLocationConfigs, stores, squareTransactions);
+    setTotalCodsDue(codTotal);
+  }, [currentUser, catalogItems, squareLocationConfigs, stores, squareTransactions]);
+
+  // Subscribe to real-time SquareTransaction updates to refresh catalog
+  useEffect(() => {
+    const unsubscribe = subscribeToRealtime((update) => {
+      if (update.entity === 'SquareTransaction') {
+        console.log('🔔 [Layout] SquareTransaction update detected, syncing catalog...');
+        // Refresh catalog items and transactions when transactions change
+        Promise.all([
+        base44.functions.invoke('squareSyncCatalogItems', {}),
+        base44.entities.SquareTransaction.filter({ type: 'collection' })]
+        ).then(([catalogData, transactions]) => {
+          const items = catalogData?.data?.items || catalogData?.items || [];
+          setCatalogItems(items);
+          setSquareTransactions(transactions || []);
+          toast.success('COD data updated');
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // CRITICAL: Message polling DISABLED - causes rate limits
+  // Messages will only load when user opens messaging panel
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -1375,7 +1375,7 @@ export default function Layout({ children, currentPageName }) {
         clearInterval(refreshIntervalRef.current);
       }
     };
-    }, [sidebarOpen, isMobile]);
+  }, [sidebarOpen, isMobile]);
 
   // Ref to track if we're currently reloading data due to AppUser change
   const isReloadingFromAppUserChange = useRef(false);
@@ -1387,10 +1387,10 @@ export default function Layout({ children, currentPageName }) {
       // CRITICAL: Force new array reference to trigger React re-render
       setDeliveries([...newDeliveries.filter(Boolean)]);
     } else {
-      setDeliveries(prevDeliveries => {
-        const updatesMap = new Map(newDeliveries.map(u => [u.id, u]));
+      setDeliveries((prevDeliveries) => {
+        const updatesMap = new Map(newDeliveries.map((u) => [u.id, u]));
         // CRITICAL: Create new array with spread to ensure React detects change
-        return prevDeliveries.map(delivery => {
+        return prevDeliveries.map((delivery) => {
           if (!delivery) return delivery;
           const update = updatesMap.get(delivery.id);
           if (update) return { ...delivery, ...update };
@@ -1412,7 +1412,7 @@ export default function Layout({ children, currentPageName }) {
     if (updates.appUsers) {
 
       if (currentUser && !currentUser._isImpersonating && !isReloadingFromAppUserChange.current) {
-        const updatedAppUserForCurrentUser = updates.appUsers.find(au => au && au.user_id === currentUser.id);
+        const updatedAppUserForCurrentUser = updates.appUsers.find((au) => au && au.user_id === currentUser.id);
 
         if (updatedAppUserForCurrentUser) {
           const oldStoreIds = JSON.stringify(currentUser.store_ids || []);
@@ -1451,72 +1451,72 @@ export default function Layout({ children, currentPageName }) {
   // CRITICAL: Background sync COMPLETELY DISABLED
   // App is 100% offline-only now - zero API calls after initial load
 
-    // Wake Lock API and visibility change handler
-    useEffect(() => {
-      // Wake Lock API - keep screen on when app is focused
-      const requestWakeLock = async () => {
-        if ('wakeLock' in navigator && document.visibilityState === 'visible') {
-          try {
-            wakeLockRef.current = await navigator.wakeLock.request('screen');
-            wakeLockRef.current.addEventListener('release', () => {});
-          } catch (err) {}
-        }
-      };
-
-      const releaseWakeLock = () => {
-        if (wakeLockRef.current) {
-          wakeLockRef.current.release();
-          wakeLockRef.current = null;
-        }
-      };
-
-      const handleVisibilityChange = async () => {
-        if (document.visibilityState === 'visible') {
-          await requestWakeLock();
-          if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
-            // Force immediate refresh when app becomes visible
-            smartRefreshManager.lastRefreshTimes = {
-              driverLocation: 0,
-              activeDeliveries: 0,
-              todayDeliveries: 0,
-              appUsers: 0,
-              patients: 0,
-              stores: 0
-            };
-          }
-        } else {
-          releaseWakeLock();
-        }
-      };
-
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      if (document.visibilityState === 'visible') {
-        requestWakeLock();
+  // Wake Lock API and visibility change handler
+  useEffect(() => {
+    // Wake Lock API - keep screen on when app is focused
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator && document.visibilityState === 'visible') {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+          wakeLockRef.current.addEventListener('release', () => {});
+        } catch (err) {}
       }
+    };
 
-      return () => {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
+    const releaseWakeLock = () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    };
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        await requestWakeLock();
+        if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
+          // Force immediate refresh when app becomes visible
+          smartRefreshManager.lastRefreshTimes = {
+            driverLocation: 0,
+            activeDeliveries: 0,
+            todayDeliveries: 0,
+            appUsers: 0,
+            patients: 0,
+            stores: 0
+          };
+        }
+      } else {
         releaseWakeLock();
-      };
-    }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen]);
+      }
+    };
 
-    // Trigger smart refresh when navigating to Dashboard
-    useEffect(() => {
-      if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
-      if (currentPageName !== 'Dashboard') return;
-      
-      // Force immediate refresh when navigating to Dashboard
-      smartRefreshManager.lastRefreshTimes = {
-        driverLocation: 0,
-        activeDeliveries: 0,
-        todayDeliveries: 0,
-        appUsers: 0,
-        patients: 0,
-        stores: 0
-      };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentPageName]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    if (document.visibilityState === 'visible') {
+      requestWakeLock();
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      releaseWakeLock();
+    };
+  }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen]);
+
+  // Trigger smart refresh when navigating to Dashboard
+  useEffect(() => {
+    if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
+    if (currentPageName !== 'Dashboard') return;
+
+    // Force immediate refresh when navigating to Dashboard
+    smartRefreshManager.lastRefreshTimes = {
+      driverLocation: 0,
+      activeDeliveries: 0,
+      todayDeliveries: 0,
+      appUsers: 0,
+      patients: 0,
+      stores: 0
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPageName]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1555,9 +1555,9 @@ export default function Layout({ children, currentPageName }) {
         }
       });
     } catch (error) {
+
       // Silent fail
-    }
-  };
+    }};
 
   const handleImpersonate = useCallback(async (userId) => {
     sessionStorage.setItem('impersonationId', userId);
@@ -1593,7 +1593,7 @@ export default function Layout({ children, currentPageName }) {
   }, []);
 
   const triggerFullDataLoadRef = useRef();
-  
+
   const triggerFullDataLoad = useCallback(async (forceRefresh = false) => {
     if (isFormOverlayOpen) return;
     if (triggerFullDataLoad.isRunning) return;
@@ -1621,12 +1621,12 @@ export default function Layout({ children, currentPageName }) {
       const citiesData = workingCities?.length > 0 ? workingCities : await City.list();
 
       // Small delay before next batch
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       const allStores = await getData('Store', null, null, forceRefresh);
 
       // Another delay before AppUsers
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
 
@@ -1641,7 +1641,7 @@ export default function Layout({ children, currentPageName }) {
       // CRITICAL: ALWAYS load ALL drivers' deliveries for selected date (no driver filtering)
       // Dashboard will filter locally based on driver selection
       let cityStoreFilter = {};
-      const cityStoreIds = allStores.map(s => s?.id).filter(Boolean);
+      const cityStoreIds = allStores.map((s) => s?.id).filter(Boolean);
       if (cityStoreIds.length > 0) {
         cityStoreFilter.store_id = { $in: cityStoreIds };
       }
@@ -1678,10 +1678,10 @@ export default function Layout({ children, currentPageName }) {
         },
         // Background callback
         (fullMonthDeliveries) => {
-          setDeliveries(prevDeliveries => {
+          setDeliveries((prevDeliveries) => {
             const map = new Map();
-            fullMonthDeliveries.forEach(d => map.set(d.id, d));
-            prevDeliveries.forEach(d => map.set(d.id, d));
+            fullMonthDeliveries.forEach((d) => map.set(d.id, d));
+            prevDeliveries.forEach((d) => map.set(d.id, d));
             return Array.from(map.values());
           });
         }
@@ -1696,9 +1696,9 @@ export default function Layout({ children, currentPageName }) {
           const mergedUsersMap = new Map();
           if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
 
-          authUsersData.forEach(authUser => {
+          authUsersData.forEach((authUser) => {
             if (!authUser) return;
-            const appUser = allAppUsers.find(au => au && au.user_id === authUser.id);
+            const appUser = allAppUsers.find((au) => au && au.user_id === authUser.id);
             const merged = createMergedUser(authUser, appUser);
             if (merged) mergedUsersMap.set(merged.id, merged);
           });
@@ -1706,7 +1706,7 @@ export default function Layout({ children, currentPageName }) {
           const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
           setUsers(mergedUsers);
 
-          let activeDrivers = mergedUsers.filter(user => {
+          let activeDrivers = mergedUsers.filter((user) => {
             if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
             if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
             if (!user.user_name) return false;
@@ -1727,7 +1727,7 @@ export default function Layout({ children, currentPageName }) {
       }
 
       // For non-admins: create users from AppUser data only (faster)
-      allAppUsers.forEach(appUser => {
+      allAppUsers.forEach((appUser) => {
         if (!appUser || mergedUsersMap.has(appUser.user_id)) return;
         const pseudoUser = createMergedUser(null, appUser);
         if (pseudoUser) {
@@ -1737,7 +1737,7 @@ export default function Layout({ children, currentPageName }) {
 
       const initialUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
 
-      let activeDrivers = initialUsers.filter(user => {
+      let activeDrivers = initialUsers.filter((user) => {
         if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
         if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
         if (!user.user_name) return false;
@@ -1764,7 +1764,7 @@ export default function Layout({ children, currentPageName }) {
         setTotalCodsDue(codTotal);
       }, 1000);
 
-      } catch (error) {
+    } catch (error) {
       setUsers([]);
       setDrivers([]);
       setStores([]);
@@ -1772,12 +1772,12 @@ export default function Layout({ children, currentPageName }) {
       setDeliveries([]);
       setAppUsers([]);
       setDataLoaded(true); // Ensure it's set even on error
-      } finally {
+    } finally {
       triggerFullDataLoad.isRunning = false;
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [currentUser, isFormOverlayOpen]);
-  
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, isFormOverlayOpen]);
+
   triggerFullDataLoadRef.current = triggerFullDataLoad;
 
   useEffect(() => {
@@ -1799,7 +1799,7 @@ export default function Layout({ children, currentPageName }) {
 
   const filteredDeliveries = useMemo(() => {
     if (!deliveries.length || !currentUser) return [];
-    let data = deliveries.filter(delivery => delivery);
+    let data = deliveries.filter((delivery) => delivery);
 
     if (selectedStoreId && selectedStoreId !== 'all') {
       data = data.filter((delivery) => delivery && delivery.store_id === selectedStoreId);
@@ -1835,7 +1835,7 @@ export default function Layout({ children, currentPageName }) {
 
   const filteredPatients = useMemo(() => {
     if (!patients.length || !currentUser) return [];
-    let data = patients.filter(patient => patient);
+    let data = patients.filter((patient) => patient);
 
     if (selectedStoreId && selectedStoreId !== 'all') {
       data = data.filter((p) => p && p.store_id === selectedStoreId);
@@ -1855,71 +1855,71 @@ export default function Layout({ children, currentPageName }) {
   // Route count - count driver-routes (each driver-date combination) in the selected month
   const totalRoutesCount = useMemo(() => {
     if (!deliveries || deliveries.length === 0 || !currentUser) return 0;
-    
+
     const selectedDateStr = globalFilters.getSelectedDate();
     if (!selectedDateStr) return 0;
-    
+
     const selectedDate = new Date(selectedDateStr + 'T00:00:00');
     const selectedYear = selectedDate.getFullYear();
     const selectedMonth = selectedDate.getMonth();
-    
+
     // CRITICAL: Filter deliveries based on user role
     let relevantDeliveries = deliveries;
-    
+
     if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
       // DISPATCHERS: Count driver-routes where driver has ANY stops in dispatcher's stores
       const dispatcherStoreIds = new Set(currentUser.store_ids || []);
-      
+
       // Get all drivers who have ANY delivery in dispatcher's stores
       const driversInStores = new Set(
-        deliveries.filter(d => d && dispatcherStoreIds.has(d.store_id)).map(d => d.driver_id).filter(Boolean)
+        deliveries.filter((d) => d && dispatcherStoreIds.has(d.store_id)).map((d) => d.driver_id).filter(Boolean)
       );
-      
+
       // Filter to deliveries from those drivers only
-      relevantDeliveries = relevantDeliveries.filter(d => d && driversInStores.has(d.driver_id));
+      relevantDeliveries = relevantDeliveries.filter((d) => d && driversInStores.has(d.driver_id));
     } else if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
       // Drivers: only count their own routes
-      relevantDeliveries = relevantDeliveries.filter(d => d && d.driver_id === currentUser.id);
+      relevantDeliveries = relevantDeliveries.filter((d) => d && d.driver_id === currentUser.id);
     }
-    
+
     // For each date in the selected month, count unique drivers
     const dateDriverMap = new Map();
-    
-    relevantDeliveries.forEach(delivery => {
+
+    relevantDeliveries.forEach((delivery) => {
       if (!delivery || !delivery.delivery_date || !delivery.driver_id) return;
-      
+
       const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
-      if (deliveryDate.getFullYear() !== selectedYear || 
-          deliveryDate.getMonth() !== selectedMonth) return;
-      
+      if (deliveryDate.getFullYear() !== selectedYear ||
+      deliveryDate.getMonth() !== selectedMonth) return;
+
       const dateKey = delivery.delivery_date;
       if (!dateDriverMap.has(dateKey)) {
         dateDriverMap.set(dateKey, new Set());
       }
       dateDriverMap.get(dateKey).add(delivery.driver_id);
     });
-    
+
     // Sum up the number of drivers across all dates
     let totalRoutes = 0;
-    dateDriverMap.forEach(driverSet => {
+    dateDriverMap.forEach((driverSet) => {
       totalRoutes += driverSet.size;
     });
-    
+
     return totalRoutes;
   }, [deliveries, currentUser]);
 
   const getPatientStoreData = useCallback(() => {
     if (!stores.length || !patients.length) return [];
     const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-    
+
     // CRITICAL: For dispatchers, only count patients from their assigned stores
     let relevantPatients = patients;
     const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
     if (isDispatcher && currentUser?.store_ids) {
       const dispatcherStoreIds = new Set(currentUser.store_ids);
-      relevantPatients = patients.filter(p => p && dispatcherStoreIds.has(p.store_id));
+      relevantPatients = patients.filter((p) => p && dispatcherStoreIds.has(p.store_id));
     }
-    
+
     return sortedStores.map((store) => ({
       ...store,
       patientCount: relevantPatients.filter((p) => p && p.store_id === store.id).length
@@ -1927,7 +1927,7 @@ export default function Layout({ children, currentPageName }) {
   }, [stores, patients, currentUser]);
 
   const getLatestDateWithDeliveries = useCallback((driverId = null) => {
-    let relevantDeliveries = filteredDeliveries.filter(delivery => delivery);
+    let relevantDeliveries = filteredDeliveries.filter((delivery) => delivery);
     if (driverId) {
       const driver = users.find((u) => u && u.id === driverId);
       if (driver) {
@@ -1939,7 +1939,7 @@ export default function Layout({ children, currentPageName }) {
       return format(new Date(), 'yyyy-MM-dd');
     }
 
-    const dates = [...new Set(relevantDeliveries.filter(delivery => delivery && delivery.delivery_date).map((delivery) => delivery.delivery_date))];
+    const dates = [...new Set(relevantDeliveries.filter((delivery) => delivery && delivery.delivery_date).map((delivery) => delivery.delivery_date))];
     dates.sort((a, b) => b.localeCompare(a));
 
     return dates[0] || format(new Date(), 'yyyy-MM-dd');
@@ -1959,15 +1959,15 @@ export default function Layout({ children, currentPageName }) {
         let filteredStoreIds = [];
 
         if (userHasRole(currentUser, 'admin')) {
-          filteredStoreIds = stores.map(s => s?.id).filter(Boolean);
+          filteredStoreIds = stores.map((s) => s?.id).filter(Boolean);
         } else if (userHasRole(currentUser, 'dispatcher')) {
           filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
         } else if (userHasRole(currentUser, 'driver')) {
           const driverStoreIds = new Set(
-            deliveries
-              .filter(d => d && d.driver_id === currentUser.id)
-              .map(d => d.store_id)
-              .filter(Boolean)
+            deliveries.
+            filter((d) => d && d.driver_id === currentUser.id).
+            map((d) => d.store_id).
+            filter(Boolean)
           );
           filteredStoreIds = Array.from(driverStoreIds);
         }
@@ -2017,43 +2017,43 @@ export default function Layout({ children, currentPageName }) {
 
   const adminNavigationItems = useMemo(() => {
     const items = [
-      {
-        title: 'Cities',
-        pageName: 'Cities',
-        count: entityCounts.cities,
-        url: createPageUrl("Cities"),
-        icon: Building2
-      },
-      {
-        title: 'Stores',
-        pageName: 'Stores',
-        count: entityCounts.stores,
-        url: createPageUrl("Stores"),
-        icon: Building
-      },
-      {
-        title: 'Drivers',
-        pageName: 'DriverSettings',
-        count: drivers.length,
-        url: createPageUrl("DriverSettings"),
-        icon: Truck
-      },
-      {
-        title: 'Users',
-        pageName: 'AppUsers',
-        count: entityCounts.users,
-        url: createPageUrl("AppUsers"),
-        icon: Users2
-      }];
+    {
+      title: 'Cities',
+      pageName: 'Cities',
+      count: entityCounts.cities,
+      url: createPageUrl("Cities"),
+      icon: Building2
+    },
+    {
+      title: 'Stores',
+      pageName: 'Stores',
+      count: entityCounts.stores,
+      url: createPageUrl("Stores"),
+      icon: Building
+    },
+    {
+      title: 'Drivers',
+      pageName: 'DriverSettings',
+      count: drivers.length,
+      url: createPageUrl("DriverSettings"),
+      icon: Truck
+    },
+    {
+      title: 'Users',
+      pageName: 'AppUsers',
+      count: entityCounts.users,
+      url: createPageUrl("AppUsers"),
+      icon: Users2
+    }];
 
     if (realUser && (isAppOwner(realUser) || userHasRole(realUser, 'admin'))) {
-          items.push({
-            title: "Admin Metrics",
-            pageName: 'AdminMetrics',
-            url: createPageUrl("AdminMetrics"),
-            icon: BarChart3
-          });
-        }
+      items.push({
+        title: "Admin Metrics",
+        pageName: 'AdminMetrics',
+        url: createPageUrl("AdminMetrics"),
+        icon: BarChart3
+      });
+    }
 
     if (realUser && canAccessImports(realUser, adminImportEnabled)) {
       items.push({
@@ -2575,9 +2575,9 @@ export default function Layout({ children, currentPageName }) {
 
         ${Array.from({ length: 12 }, (_, i) => {
           const colors = [
-            '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
-            '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
-            '#06b6d4', '#a855f7'];
+          '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
+          '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
+          '#06b6d4', '#a855f7'];
 
           return `.store-color-${i} { color: ${colors[i]}; }`;
         }).join('\n')}
@@ -2589,152 +2589,152 @@ export default function Layout({ children, currentPageName }) {
       {/* PWA Install Prompt */}
       <PWAInstallPrompt />
 
-      {showCitySelectionPopup && currentUser && cities && cities.length > 0 && (
-        <CitySelectionPopup
-          cities={cities}
-          currentUser={currentUser}
-          onCitySelected={handleCitySelected}
-        />
-      )}
+      {showCitySelectionPopup && currentUser && cities && cities.length > 0 &&
+      <CitySelectionPopup
+        cities={cities}
+        currentUser={currentUser}
+        onCitySelected={handleCitySelected} />
 
-      {showPatientImport && (
-                      <PatientImport
-                        onClose={() => {
-                          setShowPatientImport(false);
-                          setIsFormOverlayOpen(false);
-                        }}
-                        onImportStart={() => {
-                          setIsFormOverlayOpen(true);
-                        }}
-                        onImportComplete={async () => {
-                                                        setShowPatientImport(false);
-                                                        setIsFormOverlayOpen(false);
-                                                        invalidate('Patient');
-                                                        const freshPatients = await getData('Patient', null, null, true);
-                                                        setPatients(freshPatients);
+      }
 
-                                                        // CRITICAL: Dispatch events for active page to refresh
-                                                        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                                                        window.dispatchEvent(new CustomEvent('patientsUpdated', {
-                                                          detail: { triggeredBy: 'patientImportComplete' }
-                                                        }));
-                                                      }}
-                      />
-                    )}
+      {showPatientImport &&
+      <PatientImport
+        onClose={() => {
+          setShowPatientImport(false);
+          setIsFormOverlayOpen(false);
+        }}
+        onImportStart={() => {
+          setIsFormOverlayOpen(true);
+        }}
+        onImportComplete={async () => {
+          setShowPatientImport(false);
+          setIsFormOverlayOpen(false);
+          invalidate('Patient');
+          const freshPatients = await getData('Patient', null, null, true);
+          setPatients(freshPatients);
 
-      {showMessaging && (
-                    <MessagingPanel
-                      currentUser={currentUser}
-                      users={users}
-                      onClose={() => {
-                        setShowMessaging(false);
-                        setInitialConversation(null);
-                      }}
-                      initialConversation={initialConversation}
-                      onUnreadCountChange={setUnreadMessageCount}
-                    />
-                  )}
+          // CRITICAL: Dispatch events for active page to refresh
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+          window.dispatchEvent(new CustomEvent('patientsUpdated', {
+            detail: { triggeredBy: 'patientImportComplete' }
+          }));
+        }} />
+
+      }
+
+      {showMessaging &&
+      <MessagingPanel
+        currentUser={currentUser}
+        users={users}
+        onClose={() => {
+          setShowMessaging(false);
+          setInitialConversation(null);
+        }}
+        initialConversation={initialConversation}
+        onUnreadCountChange={setUnreadMessageCount} />
+
+      }
 
                   {/* Global Conflict Manager */}
                   <ConflictManager />
                   
                   {/* Message Notification Balloon */}
-                  {currentUser && !showMessaging && (
-                    <MessageNotificationBalloon
-                      currentUser={currentUser}
-                      onOpenConversation={(conversationId, otherUserId, otherUserName) => {
-                        setInitialConversation({ conversationId, otherUserId, otherUserName });
-                        setShowMessaging(true);
-                        setUnreadMessageCount(0);
-                      }}
-                    />
-                  )}
+                  {currentUser && !showMessaging &&
+      <MessageNotificationBalloon
+        currentUser={currentUser}
+        onOpenConversation={(conversationId, otherUserId, otherUserName) => {
+          setInitialConversation({ conversationId, otherUserId, otherUserName });
+          setShowMessaging(true);
+          setUnreadMessageCount(0);
+        }} />
 
-                  {showDeliveryImport && (
-                                                        <RouteImport
-                                              onCancel={() => {
-                                                setShowDeliveryImport(false);
-                                                setIsFormOverlayOpen(false);
-                                                // Clean up global callback
-                                                if (typeof window !== 'undefined') {
-                                                  delete window.__routeImportStartCallback;
-                                                }
-                                              }}
-                                              onImportStart={() => {
-                                                setIsFormOverlayOpen(true);
-                                              }}
-                                              onImportComplete={async () => {
-                                                                                                                    setShowDeliveryImport(false);
-                                                                                                                    setIsFormOverlayOpen(false);
-                                                                                                                    if (typeof window !== 'undefined') {
-                                                                                                                      delete window.__routeImportStartCallback;
-                                                                                                                    }
-                                                                                                                    invalidate('Delivery');
-                                                                                                                    invalidate('Patient');
-                                                                                                                    await triggerFullDataLoadRef.current(true);
+      }
 
-                                                                                                                    // CRITICAL: Dispatch events for active page to refresh
-                                                                                                                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                                                                                                                    window.dispatchEvent(new CustomEvent('deliveriesImported', {
-                                                                                                                      detail: { source: 'routeImport', deliveries: [] }
-                                                                                                                    }));
-                                                                                                                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                                                                                                      detail: { triggeredBy: 'routeImportComplete' }
-                                                                                                                    }));
-                                                                                                                  }}
-                                    stores={stores}
-                                    allUsers={users}
-                                    currentUser={currentUser}
-                                    allDeliveries={deliveries}
-                                  />
-                                )}
+                  {showDeliveryImport &&
+      <RouteImport
+        onCancel={() => {
+          setShowDeliveryImport(false);
+          setIsFormOverlayOpen(false);
+          // Clean up global callback
+          if (typeof window !== 'undefined') {
+            delete window.__routeImportStartCallback;
+          }
+        }}
+        onImportStart={() => {
+          setIsFormOverlayOpen(true);
+        }}
+        onImportComplete={async () => {
+          setShowDeliveryImport(false);
+          setIsFormOverlayOpen(false);
+          if (typeof window !== 'undefined') {
+            delete window.__routeImportStartCallback;
+          }
+          invalidate('Delivery');
+          invalidate('Patient');
+          await triggerFullDataLoadRef.current(true);
+
+          // CRITICAL: Dispatch events for active page to refresh
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+          window.dispatchEvent(new CustomEvent('deliveriesImported', {
+            detail: { source: 'routeImport', deliveries: [] }
+          }));
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { triggeredBy: 'routeImportComplete' }
+          }));
+        }}
+        stores={stores}
+        allUsers={users}
+        currentUser={currentUser}
+        allDeliveries={deliveries} />
+
+      }
 
 
 
-      {isLoadingLayout ? (
-        <div className="h-screen flex items-center justify-center bg-slate-50">
+      {isLoadingLayout ?
+      <div className="h-screen flex items-center justify-center bg-slate-50">
           <div className="text-center">
             <div className="animate-spin w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
             <p className="text-slate-600 text-lg font-medium">Loading RxDeliver...</p>
           </div>
-        </div>
-      ) : !hasAccess || !currentUser ? (
-        <div className="h-screen flex items-center justify-center bg-slate-50">
+        </div> :
+      !hasAccess || !currentUser ?
+      <div className="h-screen flex items-center justify-center bg-slate-50">
           <div className="text-center p-8">
             <h2 className="2xl font-bold text-slate-900 mb-4">RxDeliver</h2>
             <p className="text-slate-600 mb-6">Redirecting to login...</p>
             <p className="text-sm text-slate-500">If you're not redirected automatically, please refresh the page.</p>
           </div>
-        </div>
-      ) : (
-        <UserProvider initialUser={currentUser}>
+        </div> :
+
+      <UserProvider initialUser={currentUser}>
           <AppDataProvider value={{
-              deliveries: deliveries || [],
-              patients: patients || [],
-              stores: stores || [],
-              drivers: drivers || [],
-              users: users || [],
-              appUsers: appUsers || [],
-              cities: cities || [],
-              isDataLoaded: dataLoaded,
-              refreshData: triggerFullDataLoadRef.current,
-              updateDeliveriesLocally: updateDeliveriesLocally,
-              isFormOverlayOpen: isFormOverlayOpen,
-              setIsFormOverlayOpen: setIsFormOverlayOpen,
-              isEntityUpdating: isEntityUpdating,
-              setIsEntityUpdating: setIsEntityUpdating,
-              smartRefreshActivity: smartRefreshActivity,
-              setSmartRefreshActivity: setSmartRefreshActivity,
-              setOnSmartRefreshComplete: (callback) => { onSmartRefreshCompleteRef.current = callback; },
-              // Data is already loaded from last 30 days - Dashboard filters locally
-              dataReadyForSelectedDate: dataLoaded
-              }}>
+          deliveries: deliveries || [],
+          patients: patients || [],
+          stores: stores || [],
+          drivers: drivers || [],
+          users: users || [],
+          appUsers: appUsers || [],
+          cities: cities || [],
+          isDataLoaded: dataLoaded,
+          refreshData: triggerFullDataLoadRef.current,
+          updateDeliveriesLocally: updateDeliveriesLocally,
+          isFormOverlayOpen: isFormOverlayOpen,
+          setIsFormOverlayOpen: setIsFormOverlayOpen,
+          isEntityUpdating: isEntityUpdating,
+          setIsEntityUpdating: setIsEntityUpdating,
+          smartRefreshActivity: smartRefreshActivity,
+          setSmartRefreshActivity: setSmartRefreshActivity,
+          setOnSmartRefreshComplete: (callback) => {onSmartRefreshCompleteRef.current = callback;},
+          // Data is already loaded from last 30 days - Dashboard filters locally
+          dataReadyForSelectedDate: dataLoaded
+        }}>
             <div className="app-container">
               {isMobile && sidebarOpen &&
-                <div
-                  className="sidebar-overlay"
-                  onClick={() => setSidebarOpen(false)} />
-              }
+            <div
+              className="sidebar-overlay"
+              onClick={() => setSidebarOpen(false)} />
+            }
 
               {/* Sidebar */}
               <div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200]`} style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
@@ -2742,27 +2742,27 @@ export default function Layout({ children, currentPageName }) {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       {/* Close button - show when sidebar is open (always on mobile, on desktop when expanded) */}
-                      {sidebarOpen && (
-                        <button
-                          onClick={() => setSidebarOpen(false)}
-                          className="p-2 rounded-lg transition-colors"
-                          style={{
-                            '&:hover': { background: 'var(--bg-slate-100)' }
-                          }}>
+                      {sidebarOpen &&
+                    <button
+                      onClick={() => setSidebarOpen(false)}
+                      className="p-2 rounded-lg transition-colors"
+                      style={{
+                        '&:hover': { background: 'var(--bg-slate-100)' }
+                      }}>
                           <X className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
                         </button>
-                      )}
+                    }
 
                       <img
-                        src="https://cdn-icons-png.flaticon.com/512/3843/3843479.png"
-                        alt="RxDeliver"
-                        className="w-10 h-10 rounded object-contain"
-                        style={{ filter: 'var(--image-filter, none)' }} />
+                      src="https://cdn-icons-png.flaticon.com/512/3843/3843479.png"
+                      alt="RxDeliver"
+                      className="w-10 h-10 rounded object-contain"
+                      style={{ filter: 'var(--image-filter, none)' }} />
 
                       <div>
                         <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>RxDeliver</h2>
                         <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Pharmacy Logistics</p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center">
                           <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{appVersion}</p>
                           <BatteryIndicator />
                         </div>
@@ -2771,24 +2771,24 @@ export default function Layout({ children, currentPageName }) {
 
                     <div className="flex items-center gap-2">
                       {/* Driver Status Toggle - Show in sidebar on wider mobile screens (when mobile header is hidden) */}
-                      {isMobile && currentUser && userHasRole(currentUser, 'driver') && (
-                        <div className="hidden lg:flex">
-                          <DriverStatusToggle 
-                            currentUser={currentUser}
-                            vertical={true}
-                            onStatusChange={async (newStatus) => {
-                              clearUserCache();
-                              const refreshedUser = await getEffectiveUser();
-                              if (refreshedUser) {
-                                setCurrentUser(refreshedUser);
-                              }
-                            }}
-                          />
-                        </div>
-                      )}
+                      {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
+                    <div className="hidden lg:flex">
+                          <DriverStatusToggle
+                        currentUser={currentUser}
+                        vertical={true}
+                        onStatusChange={async (newStatus) => {
+                          clearUserCache();
+                          const refreshedUser = await getEffectiveUser();
+                          if (refreshedUser) {
+                            setCurrentUser(refreshedUser);
+                          }
+                        }} />
 
-                      {!sidebarOpen && ((userHasRole(currentUser, 'admin') && cities && cities.length > 0) || userHasRole(currentUser, 'driver')) && (
-                        <DropdownMenu>
+                        </div>
+                    }
+
+                      {!sidebarOpen && (userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
+                    <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                               <MoreVertical className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2 text-slate-500`} />
@@ -2796,47 +2796,47 @@ export default function Layout({ children, currentPageName }) {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56 z-[10000]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
                             {/* Settings header and Admin Import toggle - only for admins/app owners */}
-                            {(userHasRole(currentUser, 'admin') || isAppOwner(currentUser)) && (
-                              <>
+                            {(userHasRole(currentUser, 'admin') || isAppOwner(currentUser)) &&
+                        <>
                                 <div className="px-2 py-2">
                                   <div className="flex items-center justify-between">
                                     <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>Settings</DropdownMenuLabel>
-                                    {isAppOwner(currentUser) && (
-                                      <label className="flex items-center gap-2 cursor-pointer">
+                                    {isAppOwner(currentUser) &&
+                              <label className="flex items-center gap-2 cursor-pointer">
                                         <span className="font-medium" style={{ color: 'var(--text-slate-600)', fontSize: isMobile ? '14px' : '13px' }}>Admin Import</span>
                                         <Switch
-                                          checked={adminImportEnabled}
-                                          onCheckedChange={async (checked) => {
-                                            if (currentUser?._isImpersonating) return;
-                                            
-                                            setAdminImportEnabled(checked);
-                                            
-                                            try {
-                                              const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                                              if (settings && settings.length > 0) {
-                                                await base44.entities.AppSettings.update(settings[0].id, {
-                                                  setting_value: {
-                                                    ...settings[0].setting_value,
-                                                    adminImportEnabled: checked
-                                                  }
-                                                });
-                                              }
-                                            } catch (error) {
-                                              console.error('Failed to save admin import setting:', error);
-                                            }
-                                          }}
-                                        />
+                                  checked={adminImportEnabled}
+                                  onCheckedChange={async (checked) => {
+                                    if (currentUser?._isImpersonating) return;
+
+                                    setAdminImportEnabled(checked);
+
+                                    try {
+                                      const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                      if (settings && settings.length > 0) {
+                                        await base44.entities.AppSettings.update(settings[0].id, {
+                                          setting_value: {
+                                            ...settings[0].setting_value,
+                                            adminImportEnabled: checked
+                                          }
+                                        });
+                                      }
+                                    } catch (error) {
+                                      console.error('Failed to save admin import setting:', error);
+                                    }
+                                  }} />
+
                                       </label>
-                                    )}
+                              }
                                   </div>
                                 </div>
                                 <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                               </>
-                            )}
+                        }
 
                             {/* Theme Toggle - Mobile Only (for all users including drivers) */}
-                            {isMobile && (
-                              <>
+                            {isMobile &&
+                        <>
                                 <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
                                       Display
                                     </DropdownMenuLabel>
@@ -2845,9 +2845,9 @@ export default function Layout({ children, currentPageName }) {
                                         Theme
                                       </label>
                                       <Select
-                                        value={themePreference}
-                                        onValueChange={handleThemeChange}
-                                      >
+                              value={themePreference}
+                              onValueChange={handleThemeChange}>
+
                                         <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
                                           <SelectValue />
                                         </SelectTrigger>
@@ -2860,105 +2860,105 @@ export default function Layout({ children, currentPageName }) {
                                 </div>
                                 <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                               </>
-                            )}
+                        }
 
                             {/* Import Buttons - Always visible for app owners on any device, available to others when admin toggle is enabled */}
-                            {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
-                            <>
+                            {realUser && isAppOwner(realUser) || adminImportEnabled ?
+                        <>
                               <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
                                 Deliveries
                               </DropdownMenuLabel>
-                              {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
-                                <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
+                              {realUser && isAppOwner(realUser) || adminImportEnabled ?
+                          <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                                   <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                                   Patient Data
-                                </DropdownMenuItem>
-                              ) : null}
+                                </DropdownMenuItem> :
+                          null}
                               <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                                 <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                                 Deliveries
                               </DropdownMenuItem>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                            </>
-                            ) : null}
+                            </> :
+                        null}
 
 
 
                             {/* City Filter - Admin Only */}
-                            {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
-                              <div className="px-2 py-2">
+                            {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
+                        <div className="px-2 py-2">
                                 <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobile ? '14px' : '13px' }}>
                                   City Filter
                                 </label>
                                 <Select
-                                  value={globalFilters.getSelectedCityId()}
-                                  onValueChange={(cityId) => {
-                                    globalFilters.setSelectedCityId(cityId);
-                                  }}
-                                >
+                            value={globalFilters.getSelectedCityId()}
+                            onValueChange={(cityId) => {
+                              globalFilters.setSelectedCityId(cityId);
+                            }}>
+
                                   <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
                                     <SelectValue placeholder="City" />
                                   </SelectTrigger>
                                   <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobile ? '16px' : '15px' }}>
-                                    {cities.map((city) => (
-                                      <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                                    {cities.map((city) =>
+                              <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
                                         {city.name}
                                       </SelectItem>
-                                    ))}
+                              )}
                                   </SelectContent>
                                 </Select>
                               </div>
-                            )}
+                        }
                             
                             {/* Force Full App Refresh */}
                             <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                            <DropdownMenuItem 
-                              onClick={async () => {
-                                try {
-                                  localStorage.clear();
+                            <DropdownMenuItem
+                          onClick={async () => {
+                            try {
+                              localStorage.clear();
 
-                                  window.location.reload(true);
-                                } catch (error) {
-                                  // Silent fail
-                                }
-                              }}
-                              className="cursor-pointer text-blue-600"
-                              style={{ fontSize: isMobile ? '16px' : '15px' }}
-                            >
+                              window.location.reload(true);
+                            } catch (error) {
+
+                              // Silent fail
+                            }}}
+                          className="cursor-pointer text-blue-600"
+                          style={{ fontSize: isMobile ? '16px' : '15px' }}>
+
                               <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                               Force Full App Refresh
                             </DropdownMenuItem>
 
                             {/* Emergency Recovery - Clear Offline DB */}
-                            <DropdownMenuItem 
-                              onClick={async () => {
-                                if (!window.confirm('Clear offline database and reload fresh data? This will fix stuck data issues.')) {
-                                  return;
-                                }
-                                
-                                try {
-                                  const { offlineDB } = await import('./components/utils/offlineDatabase');
-                                  const { offlineMutationQueue } = await import('./components/utils/offlineMutations');
-                                  
-                                  await offlineDB.clearAllData();
-                                  await offlineMutationQueue.clearAllMutations();
-                                  localStorage.setItem('rxdeliver_offline_db_cleared', new Date().toISOString());
-                                  
-                                  alert('Offline database cleared. Reloading...');
-                                  window.location.reload();
-                                } catch (error) {
-                                  alert('Failed to clear offline DB: ' + error.message);
-                                }
-                              }}
-                              className="cursor-pointer text-red-600"
-                              style={{ fontSize: isMobile ? '16px' : '15px' }}
-                            >
+                            <DropdownMenuItem
+                          onClick={async () => {
+                            if (!window.confirm('Clear offline database and reload fresh data? This will fix stuck data issues.')) {
+                              return;
+                            }
+
+                            try {
+                              const { offlineDB } = await import('./components/utils/offlineDatabase');
+                              const { offlineMutationQueue } = await import('./components/utils/offlineMutations');
+
+                              await offlineDB.clearAllData();
+                              await offlineMutationQueue.clearAllMutations();
+                              localStorage.setItem('rxdeliver_offline_db_cleared', new Date().toISOString());
+
+                              alert('Offline database cleared. Reloading...');
+                              window.location.reload();
+                            } catch (error) {
+                              alert('Failed to clear offline DB: ' + error.message);
+                            }
+                          }}
+                          className="cursor-pointer text-red-600"
+                          style={{ fontSize: isMobile ? '16px' : '15px' }}>
+
                               <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                               Clear Offline Data
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      )}
+                    }
                     </div>
                   </div>
                 </div>
@@ -2966,19 +2966,19 @@ export default function Layout({ children, currentPageName }) {
                 <div className="flex-1 overflow-y-auto p-3 custom-scrollbar" style={{ background: 'var(--bg-white)' }}>
                   <div className="">
                     <Link
-                      to={constructUrlWithParams("Dashboard")}
-                      onClick={() => setSidebarOpen(false)}
-                      className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                        currentPageName === 'Dashboard' ?
-                          'shadow-sm' :
-                          'hover:opacity-80'}`
-                      }
-                      style={currentPageName === 'Dashboard' ? {
-                        background: 'var(--bg-slate-100)',
-                        color: 'var(--text-slate-900)'
-                      } : {
-                        color: 'var(--text-slate-600)'
-                      }}>
+                    to={constructUrlWithParams("Dashboard")}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                    currentPageName === 'Dashboard' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
+                    style={currentPageName === 'Dashboard' ? {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)'
+                    } : {
+                      color: 'var(--text-slate-600)'
+                    }}>
                       <LayoutDashboard className="w-5 h-5" />
                       <span className="font-semibold">Dashboard</span>
                     </Link>
@@ -2986,340 +2986,340 @@ export default function Layout({ children, currentPageName }) {
                     <div className="border-t my-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                        <Link
-                          to={createPageUrl('Patients')}
-                          onClick={() => setSidebarOpen(false)}
-                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                            currentPageName === 'Patients' ?
-                              'shadow-sm' :
-                              'hover:opacity-80'}`
-                          }
-                          style={currentPageName === 'Patients' ? {
-                            background: 'var(--bg-slate-100)',
-                            color: 'var(--text-slate-900)'
-                          } : {
-                            color: 'var(--text-slate-600)'
-                          }}>
+                  <Link
+                    to={createPageUrl('Patients')}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    currentPageName === 'Patients' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
+                    style={currentPageName === 'Patients' ? {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)'
+                    } : {
+                      color: 'var(--text-slate-600)'
+                    }}>
                           <Users className="w-5 h-5" />
                           <span className="font-semibold">Patients</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>
-                            {userHasRole(currentUser, 'admin') 
-                              ? entityCounts.patients 
-                              : patients.filter(p => p && currentUser?.store_ids?.includes(p.store_id)).length}
+                            {userHasRole(currentUser, 'admin') ?
+                      entityCounts.patients :
+                      patients.filter((p) => p && currentUser?.store_ids?.includes(p.store_id)).length}
                           </Badge>
                           </Link>
-                          }
+                  }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                        <Link
-                          to={getRouteNavigationUrl('Deliveries')}
-                          onClick={() => setSidebarOpen(false)}
-                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                            currentPageName === 'Deliveries' ?
-                              'shadow-sm' :
-                              'hover:opacity-80'}`
-                          }
-                          style={currentPageName === 'Deliveries' ? {
-                            background: 'var(--bg-slate-100)',
-                            color: 'var(--text-slate-900)'
-                          } : {
-                            color: 'var(--text-slate-600)'
-                          }}>
+                  <Link
+                    to={getRouteNavigationUrl('Deliveries')}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    currentPageName === 'Deliveries' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
+                    style={currentPageName === 'Deliveries' ? {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)'
+                    } : {
+                      color: 'var(--text-slate-600)'
+                    }}>
                           <Package className="w-5 h-5" />
                           <span className="font-semibold">Routes</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
                           </Link>
-                          }
+                  }
 
                     {(isAppOwner(currentUser) || userHasRole(currentUser, 'driver')) &&
-                        <Link
-                          to={createPageUrl('SquareManagement')}
-                          onClick={() => setSidebarOpen(false)}
-                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                            currentPageName === 'SquareManagement' ?
-                              'shadow-sm' :
-                              'hover:opacity-80'}`
-                          }
-                          style={currentPageName === 'SquareManagement' ? {
-                            background: 'var(--bg-slate-100)',
-                            color: 'var(--text-slate-900)'
-                          } : {
-                            color: 'var(--text-slate-600)'
-                          }}>
+                  <Link
+                    to={createPageUrl('SquareManagement')}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    currentPageName === 'SquareManagement' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
+                    style={currentPageName === 'SquareManagement' ? {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)'
+                    } : {
+                      color: 'var(--text-slate-600)'
+                    }}>
                           <CreditCard className="w-5 h-5" />
                           <span className="font-semibold">Square COD</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>
                             ${totalCodsDue.toFixed(2)}
                           </Badge>
                           </Link>
-                          }
+                  }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-                        <Link
-                          to={createPageUrl('DriverPayroll')}
-                          onClick={() => setSidebarOpen(false)}
-                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                            currentPageName === 'DriverPayroll' ?
-                              'shadow-sm' :
-                              'hover:opacity-80'}`
-                          }
-                          style={currentPageName === 'DriverPayroll' ? {
-                            background: 'var(--bg-slate-100)',
-                            color: 'var(--text-slate-900)'
-                          } : {
-                            color: 'var(--text-slate-600)'
-                          }}>
+                  <Link
+                    to={createPageUrl('DriverPayroll')}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    currentPageName === 'DriverPayroll' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
+                    style={currentPageName === 'DriverPayroll' ? {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)'
+                    } : {
+                      color: 'var(--text-slate-600)'
+                    }}>
                           <DollarSign className="w-5 h-5" />
                           <span className="font-semibold">Driver Payroll</span>
                           </Link>
-                          }
+                  }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                        <Link
-                          to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
-                        onClick={() => setSidebarOpen(false)}
-                        className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                          currentPageName === 'DeliveryMetrics' ?
-                            'shadow-sm' :
-                            'hover:opacity-80'}`
-                        }
-                        style={currentPageName === 'DeliveryMetrics' ? {
-                          background: 'var(--bg-slate-100)',
-                          color: 'var(--text-slate-900)'
-                        } : {
-                          color: 'var(--text-slate-600)'
-                        }}>
+                  <Link
+                    to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    currentPageName === 'DeliveryMetrics' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
+                    style={currentPageName === 'DeliveryMetrics' ? {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)'
+                    } : {
+                      color: 'var(--text-slate-600)'
+                    }}>
                         <BarChart3 className="w-5 h-5" />
                         <span className="font-semibold">Route Metrics</span>
                       </Link>
-                    }
+                  }
 
                     </div>
 
                   {userHasRole(currentUser, 'admin') &&
-                    <div className="mt-2">
+                <div className="mt-2">
                       <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
                       <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
                         Admin
                       </div>
                       <div className="space-y-1">
                         {adminNavigationItems.map((item) =>
-                          <Link
-                            key={item.title}
-                            to={constructUrlWithParams(item.url)}
-                            onClick={() => setSidebarOpen(false)}
-                            className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                              currentPageName === item.pageName ?
-                                'shadow-sm' :
-                                'hover:opacity-80'}`
-                            }
-                            style={currentPageName === item.pageName ? {
-                              background: 'var(--bg-slate-100)',
-                              color: 'var(--text-slate-900)'
-                            } : {
-                              color: 'var(--text-slate-600)'
-                            }}>
+                    <Link
+                      key={item.title}
+                      to={constructUrlWithParams(item.url)}
+                      onClick={() => setSidebarOpen(false)}
+                      className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                      currentPageName === item.pageName ?
+                      'shadow-sm' :
+                      'hover:opacity-80'}`
+                      }
+                      style={currentPageName === item.pageName ? {
+                        background: 'var(--bg-slate-100)',
+                        color: 'var(--text-slate-900)'
+                      } : {
+                        color: 'var(--text-slate-600)'
+                      }}>
                             {item.icon && <item.icon className="w-5 h-5" />}
                             <span className="font-semibold">{item.title}</span>
                             {item.count !== undefined && <Badge variant="secondary" className="ml-auto justify-center w-[30px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{item.count}</Badge>}
                             </Link>
-                            )}
+                    )}
                             </div>
                             </div>
-                            }
+                }
 
                   {currentPageName === 'Dashboard' &&
-                    <div className="mt-2">
+                <div className="mt-2">
                       <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
                       <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
                         Quick Stats
                       </div>
                       <QuickStats
-                        currentUser={currentUser}
-                        storeIds={stores.map(s => s?.id).filter(Boolean)} />
+                    currentUser={currentUser}
+                    storeIds={stores.map((s) => s?.id).filter(Boolean)} />
 
                     </div>
-                  }
+                }
                 </div>
 
                 <div className="border-t p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
                     {currentUser ?
-                    <div>
+                <div>
                       <div className={`flex items-center gap-3 mb-3 p-3 rounded-lg ${
-                        impersonatingUser ? 'bg-yellow-50 border-2 border-yellow-300' : ''}`
-                      }>
+                  impersonatingUser ? 'bg-yellow-50 border-2 border-yellow-300' : ''}`
+                  }>
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
-                          impersonatingUser ?
-                            'bg-gradient-to-br from-yellow-500 to-yellow-600' :
-                            userHasRole(currentUser, 'admin') ?
-                              'bg-gradient-to-br from-blue-500 to-blue-600' :
-                              userHasRole(currentUser, 'dispatcher') ?
-                                'bg-gradient-to-br from-red-500 to-red-600' :
-                                userHasRole(currentUser, 'driver') ?
-                                  'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-                                  'bg-gradient-to-br from-gray-400 to-gray-500' // Added fallback gradient for roles not specifically colored
-                          }`
-                        }>
+                    impersonatingUser ?
+                    'bg-gradient-to-br from-yellow-500 to-yellow-600' :
+                    userHasRole(currentUser, 'admin') ?
+                    'bg-gradient-to-br from-blue-500 to-blue-600' :
+                    userHasRole(currentUser, 'dispatcher') ?
+                    'bg-gradient-to-br from-red-500 to-red-600' :
+                    userHasRole(currentUser, 'driver') ?
+                    'bg-gradient-to-br from-emerald-500 to-emerald-600' :
+                    'bg-gradient-to-br from-gray-400 to-gray-500' // Added fallback gradient for roles not specifically colored
+                    }`
+                    }>
                           <span className="text-white font-bold text-sm">
                             {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">
                           {impersonatingUser &&
-                            <p className="text-xs font-semibold text-yellow-800 mb-1">
+                      <p className="text-xs font-semibold text-yellow-800 mb-1">
                               Viewing As
                             </p>
-                          }
+                      }
                           <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
-                            {getDriverDisplayName(currentUser)} {showWatermark && (<>[{deviceType} - {os}]</>)}
+                            {getDriverDisplayName(currentUser)} {showWatermark && <>[{deviceType} - {os}]</>}
                           </p>
                           <p className="text-xs truncate capitalize" style={{ color: 'var(--text-slate-500)' }}>
                             {formatRoles(currentUser)}
                           </p>
                           {currentUser.phone &&
-                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
                               <Phone className="w-3 h-3" />
                               <a
-                                href={`tel:${currentUser.phone}`}
-                                className="hover:text-slate-700 transition-colors">
+                          href={`tel:${currentUser.phone}`}
+                          className="hover:text-slate-700 transition-colors">
 
                                 {formatPhoneNumber(currentUser.phone)}
                               </a>
                             </div>
-                          }
+                      }
                         </div>
-                        <button 
-                              onClick={() => {
-                                setShowMessaging(true);
-                                setUnreadMessageCount(0);
-                                setSidebarOpen(false); // Close sidebar when opening messages
-                              }}
-                              className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
-                              title="Messages"
-                            >
+                        <button
+                      onClick={() => {
+                        setShowMessaging(true);
+                        setUnreadMessageCount(0);
+                        setSidebarOpen(false); // Close sidebar when opening messages
+                      }}
+                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
+                      title="Messages">
+
                               <MessageCircle className="w-5 h-5 text-slate-500 hover:text-slate-700" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
-                              {unreadMessageCount > 0 && (
-                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
+                              {unreadMessageCount > 0 &&
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
                                       {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                                     </span>
-                              )}
+                      }
                             </button>
                       </div>
 
                       {impersonatingUser &&
-                        <Button
-                          onClick={handleStopImpersonating}
-                          variant="destructive"
-                          className="w-full gap-2 mb-3">
+                  <Button
+                    onClick={handleStopImpersonating}
+                    variant="destructive"
+                    className="w-full gap-2 mb-3">
                           <LogOut className="w-4 h-4" /> Stop Viewing As
                         </Button>
-                      }
+                  }
 
                       {(impersonatingUser || userHasRole(realUser, 'admin')) &&
-                        <UserImpersonation
-                          users={users} // Pass Layout's local users state
-                          currentUser={currentUser}
-                          onImpersonate={handleImpersonate}
-                          onStopImpersonating={handleStopImpersonating}
-                          impersonatingUser={impersonatingUser} />
+                  <UserImpersonation
+                    users={users} // Pass Layout's local users state
+                    currentUser={currentUser}
+                    onImpersonate={handleImpersonate}
+                    onStopImpersonating={handleStopImpersonating}
+                    impersonatingUser={impersonatingUser} />
 
 
-                      }
+                  }
 
 
                     </div> :
 
-                    <div className="space-y-2">
+                <div className="space-y-2">
                       <div className="text-sm text-slate-500 mb-2">Not logged in</div>
                       <Button
-                        onClick={async () => {
-                          try {
-                            sessionStorage.clear();
-                            clearUserCache();
-                            const currentUrl = window.location.origin + window.location.pathname;
-                            await User.loginWithRedirect(currentUrl);
-                          } catch (error) {
-                            console.error('Login failed:', error);
-                            window.location.href = '/';
-                          }
-                        }}
-                        className="w-full gap-2 bg-emerald-500 hover:bg-emerald-600">
+                    onClick={async () => {
+                      try {
+                        sessionStorage.clear();
+                        clearUserCache();
+                        const currentUrl = window.location.origin + window.location.pathname;
+                        await User.loginWithRedirect(currentUrl);
+                      } catch (error) {
+                        console.error('Login failed:', error);
+                        window.location.href = '/';
+                      }
+                    }}
+                    className="w-full gap-2 bg-emerald-500 hover:bg-emerald-600">
 
                         Log In
                       </Button>
                     </div>
-                  }
+                }
                 </div>
               </div>
 
               {/* Resizable Divider for Sidebar - Only on desktop */}
               {!isMobile &&
-                <ResizableDivider
-                  storageKey="rxdeliver_sidebar_width"
-                  defaultWidth={240}
-                  minWidth={200}
-                  maxWidth={400}
-                  onWidthChange={(width) => {
-                    setSidebarWidth(width);
-                    // Save to user settings (debounced via localStorage in ResizableDivider, but also save to backend)
-                    if (currentUser?.id) {
-                      saveSetting(currentUser.id, 'sidebar_width', width);
-                    }
-                  }} />
+            <ResizableDivider
+              storageKey="rxdeliver_sidebar_width"
+              defaultWidth={240}
+              minWidth={200}
+              maxWidth={400}
+              onWidthChange={(width) => {
+                setSidebarWidth(width);
+                // Save to user settings (debounced via localStorage in ResizableDivider, but also save to backend)
+                if (currentUser?.id) {
+                  saveSetting(currentUser.id, 'sidebar_width', width);
+                }
+              }} />
 
-              }
+            }
 
               {/* Main Content Area */}
               <div className="main-content-area">
 
                 <header
-                  className="mobile-header border-b px-4 py-3 sticky top-0"
-                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+                className="mobile-header border-b px-4 py-3 sticky top-0"
+                style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
 
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSidebarOpen(!sidebarOpen);
-                        }}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSidebarOpen(!sidebarOpen);
+                      }}
+                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
 
                         {sidebarOpen ?
-                          <X className="w-6 h-6 text-slate-700" /> :
+                      <X className="w-6 h-6 text-slate-700" /> :
 
-                          <Menu className="w-6 h-6 text-slate-700" />
-                        }
+                      <Menu className="w-6 h-6 text-slate-700" />
+                      }
                       </button>
                     </div>
 
-                    <div 
-                      className="flex items-center gap-2 flex-shrink-0 relative cursor-pointer"
-                      onClick={() => {
-                        if (unreadMessageCount > 0) {
-                          setShowMessaging(true);
-                          setUnreadMessageCount(0);
-                        }
-                      }}
-                    >
+                    <div
+                    className="flex items-center gap-2 flex-shrink-0 relative cursor-pointer"
+                    onClick={() => {
+                      if (unreadMessageCount > 0) {
+                        setShowMessaging(true);
+                        setUnreadMessageCount(0);
+                      }
+                    }}>
+
                       <img
-                        src="https://cdn-icons-png.flaticon.com/512/3843/3843479.png"
-                        alt="RxDeliver"
-                        className="w-8 h-8 rounded object-contain"
-                        style={{ filter: 'var(--image-filter, none)' }} />
-                      {unreadMessageCount > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
+                      src="https://cdn-icons-png.flaticon.com/512/3843/3843479.png"
+                      alt="RxDeliver"
+                      className="w-8 h-8 rounded object-contain"
+                      style={{ filter: 'var(--image-filter, none)' }} />
+                      {unreadMessageCount > 0 &&
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
                           {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                         </span>
-                      )}
+                    }
                     </div>
 
                     <div className="flex-1"></div>
 
                         {/* --- PHASE 4: SUBTLE SETTINGS MENU (MOBILE) --- */}
                         {/* Show for admins (with cities) OR drivers (for Active Stops import and theme) */}
-                        {((userHasRole(currentUser, 'admin') && cities && cities.length > 0) || userHasRole(currentUser, 'driver')) && (
-                        <DropdownMenu>
+                        {(userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
+                  <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
                             <MoreVertical className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'} text-slate-500`} />
@@ -3327,48 +3327,48 @@ export default function Layout({ children, currentPageName }) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56 z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
                           {/* Settings header and Admin Import toggle - only for admins/app owners */}
-                          {(userHasRole(currentUser, 'admin') || isAppOwner(currentUser)) && (
-                            <>
+                          {(userHasRole(currentUser, 'admin') || isAppOwner(currentUser)) &&
+                      <>
                               <div className="px-2 py-2">
                                 <div className="flex items-center justify-between">
                                   <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>Settings</DropdownMenuLabel>
-                                  {isAppOwner(currentUser) && (
-                                    <label className="flex items-center gap-2 cursor-pointer">
+                                  {isAppOwner(currentUser) &&
+                            <label className="flex items-center gap-2 cursor-pointer">
                                       <span className="font-medium" style={{ color: 'var(--text-slate-600)', fontSize: isMobile ? '14px' : '13px' }}>Admin Import</span>
                                       <Switch
-                                        checked={adminImportEnabled}
-                                        onCheckedChange={async (checked) => {
-                                          if (currentUser?._isImpersonating) return;
-                                          
-                                          setAdminImportEnabled(checked);
-                                          
-                                          // Save to AppSettings so all admins can see it
-                                          try {
-                                            const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                                            if (settings && settings.length > 0) {
-                                              await base44.entities.AppSettings.update(settings[0].id, {
-                                                setting_value: {
-                                                  ...settings[0].setting_value,
-                                                  adminImportEnabled: checked
-                                                }
-                                              });
-                                            }
-                                          } catch (error) {
-                                            console.error('Failed to save admin import setting:', error);
-                                          }
-                                        }}
-                                      />
+                                checked={adminImportEnabled}
+                                onCheckedChange={async (checked) => {
+                                  if (currentUser?._isImpersonating) return;
+
+                                  setAdminImportEnabled(checked);
+
+                                  // Save to AppSettings so all admins can see it
+                                  try {
+                                    const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                    if (settings && settings.length > 0) {
+                                      await base44.entities.AppSettings.update(settings[0].id, {
+                                        setting_value: {
+                                          ...settings[0].setting_value,
+                                          adminImportEnabled: checked
+                                        }
+                                      });
+                                    }
+                                  } catch (error) {
+                                    console.error('Failed to save admin import setting:', error);
+                                  }
+                                }} />
+
                                     </label>
-                                  )}
+                            }
                                 </div>
                               </div>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                             </>
-                          )}
+                      }
 
                           {/* Theme Toggle - Mobile Only (for all users including drivers) */}
-                          {isMobile && (
-                            <>
+                          {isMobile &&
+                      <>
                               <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
                                 Display
                               </DropdownMenuLabel>
@@ -3377,9 +3377,9 @@ export default function Layout({ children, currentPageName }) {
                                   Theme
                                 </label>
                                 <Select
-                                  value={themePreference}
-                                  onValueChange={handleThemeChange}
-                                >
+                            value={themePreference}
+                            onValueChange={handleThemeChange}>
+
                                   <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
                                     <SelectValue />
                                   </SelectTrigger>
@@ -3392,136 +3392,136 @@ export default function Layout({ children, currentPageName }) {
                               </div>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                             </>
-                          )}
+                      }
 
                           {/* Import Buttons - Always visible for app owners on any device, available to others when admin toggle is enabled */}
-                          {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
-                          <>
+                          {realUser && isAppOwner(realUser) || adminImportEnabled ?
+                      <>
                             <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
                               Deliveries
                             </DropdownMenuLabel>
-                            {(realUser && isAppOwner(realUser)) || adminImportEnabled ? (
-                              <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
+                            {realUser && isAppOwner(realUser) || adminImportEnabled ?
+                        <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                                 <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                                 Patient Data
-                              </DropdownMenuItem>
-                            ) : null}
+                              </DropdownMenuItem> :
+                        null}
                             <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
                               <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                               Deliveries
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                          </>
-                          ) : null}
+                          </> :
+                      null}
 
                           {/* City Filter - Admin Only */}
-                          {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
-                            <div className="px-2 py-2">
+                          {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
+                      <div className="px-2 py-2">
                               <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobile ? '14px' : '13px' }}>
                                 City Filter
                               </label>
                               <Select
-                                value={globalFilters.getSelectedCityId()}
-                                onValueChange={(cityId) => {
-                                  globalFilters.setSelectedCityId(cityId);
-                                }}
-                              >
+                          value={globalFilters.getSelectedCityId()}
+                          onValueChange={(cityId) => {
+                            globalFilters.setSelectedCityId(cityId);
+                          }}>
+
                                 <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
                                   <SelectValue placeholder="City" />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobile ? '16px' : '15px' }}>
-                                  {cities.map((city) => (
-                                    <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                                  {cities.map((city) =>
+                            <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
                                       {city.name}
                                     </SelectItem>
-                                  ))}
+                            )}
                                 </SelectContent>
                               </Select>
                             </div>
-                          )}
+                      }
 
                           {/* Force Full App Refresh - Does NOT clear offline DB */}
                           <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                          <DropdownMenuItem 
-                            onClick={async () => {
-                              try {
-                                clearUserCache();
-                                clearSettingsCache();
+                          <DropdownMenuItem
+                        onClick={async () => {
+                          try {
+                            clearUserCache();
+                            clearSettingsCache();
 
-                                window.location.reload(true);
-                              } catch (error) {
-                                // Silent fail
-                              }
-                            }}
-                            className="cursor-pointer text-blue-600"
-                            style={{ fontSize: isMobile ? '16px' : '15px' }}
-                          >
+                            window.location.reload(true);
+                          } catch (error) {
+
+                            // Silent fail
+                          }}}
+                        className="cursor-pointer text-blue-600"
+                        style={{ fontSize: isMobile ? '16px' : '15px' }}>
+
                             <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                             Force Full App Refresh
                           </DropdownMenuItem>
 
                           {/* Emergency Recovery - Clear Offline DB */}
-                          <DropdownMenuItem 
-                            onClick={async () => {
-                              if (!window.confirm('Clear offline database and reload fresh data? This will fix stuck data issues.')) {
-                                return;
-                              }
-                              
-                              try {
-                                const { offlineDB } = await import('./components/utils/offlineDatabase');
-                                const { offlineMutationQueue } = await import('./components/utils/offlineMutations');
-                                
-                                await offlineDB.clearAllData();
-                                await offlineMutationQueue.clearAllMutations();
-                                localStorage.setItem('rxdeliver_offline_db_cleared', new Date().toISOString());
-                                
-                                alert('Offline database cleared. Reloading...');
-                                window.location.reload();
-                              } catch (error) {
-                                alert('Failed to clear offline DB: ' + error.message);
-                              }
-                            }}
-                            className="cursor-pointer text-red-600"
-                            style={{ fontSize: isMobile ? '16px' : '15px' }}
-                          >
+                          <DropdownMenuItem
+                        onClick={async () => {
+                          if (!window.confirm('Clear offline database and reload fresh data? This will fix stuck data issues.')) {
+                            return;
+                          }
+
+                          try {
+                            const { offlineDB } = await import('./components/utils/offlineDatabase');
+                            const { offlineMutationQueue } = await import('./components/utils/offlineMutations');
+
+                            await offlineDB.clearAllData();
+                            await offlineMutationQueue.clearAllMutations();
+                            localStorage.setItem('rxdeliver_offline_db_cleared', new Date().toISOString());
+
+                            alert('Offline database cleared. Reloading...');
+                            window.location.reload();
+                          } catch (error) {
+                            alert('Failed to clear offline DB: ' + error.message);
+                          }
+                        }}
+                        className="cursor-pointer text-red-600"
+                        style={{ fontSize: isMobile ? '16px' : '15px' }}>
+
                             <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                             Clear Offline Data
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    )}
+                  }
                   </div>
 
                   {/* Driver Status Toggle - Centered in Mobile Header - Only on mobile */}
-                  {isMobile && currentUser && userHasRole(currentUser, 'driver') && (
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                      <DriverStatusToggle 
-                        currentUser={currentUser}
-                        onStatusChange={async (newStatus) => {
-                          clearUserCache();
-                          const refreshedUser = await getEffectiveUser();
-                          if (refreshedUser) {
-                            setCurrentUser(refreshedUser);
-                          }
-                        }}
-                      />
+                  {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                      <DriverStatusToggle
+                    currentUser={currentUser}
+                    onStatusChange={async (newStatus) => {
+                      clearUserCache();
+                      const refreshedUser = await getEffectiveUser();
+                      if (refreshedUser) {
+                        setCurrentUser(refreshedUser);
+                      }
+                    }} />
+
                     </div>
-                  )}
+                }
 
                   {currentUser &&
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
                       <BatteryIndicator vertical={true} />
                       <div className="flex flex-col items-center gap-1">
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
-                          userHasRole(currentUser, 'admin') ?
-                            'bg-gradient-to-br from-blue-500 to-blue-600' :
-                            userHasRole(currentUser, 'dispatcher') ?
-                              'bg-gradient-to-br from-red-500 to-red-600' :
-                              userHasRole(currentUser, 'driver') ?
-                                'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-                                'bg-gradient-to-br from-gray-400 to-gray-500'
-                          }`
-                        }>
+                    userHasRole(currentUser, 'admin') ?
+                    'bg-gradient-to-br from-blue-500 to-blue-600' :
+                    userHasRole(currentUser, 'dispatcher') ?
+                    'bg-gradient-to-br from-red-500 to-red-600' :
+                    userHasRole(currentUser, 'driver') ?
+                    'bg-gradient-to-br from-emerald-500 to-emerald-600' :
+                    'bg-gradient-to-br from-gray-400 to-gray-500'}`
+
+                    }>
                           <span className="text-white font-bold text-sm">
                             {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
                           </span>
@@ -3531,7 +3531,7 @@ export default function Layout({ children, currentPageName }) {
                         </span>
                       </div>
                     </div>
-                  }
+                }
                 </header>
 
                 <main className="flex-1 overflow-y-auto relative" style={{ background: 'var(--bg-slate-50)' }}>
@@ -3541,7 +3541,7 @@ export default function Layout({ children, currentPageName }) {
             </div>
           </AppDataProvider>
         </UserProvider>
-      )}
-    </ErrorBoundary>
-  );
+      }
+    </ErrorBoundary>);
+
 }
