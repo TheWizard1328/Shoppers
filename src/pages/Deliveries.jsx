@@ -3326,7 +3326,7 @@ export default function DeliveriesPage() {
                   <SmartRefreshIndicator inline={true} />
                   Route Management
                   <Badge variant="outline" className="ml-2 text-sm font-normal" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
-                    {selectedDate ? format(selectedDate, 'MMM d, yyyy') : 'Select a Date'}
+                    {format(new Date(), 'MMM d, yyyy')}
                   </Badge>
                 </h1>
                 <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>
