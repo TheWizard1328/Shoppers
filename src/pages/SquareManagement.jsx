@@ -897,8 +897,13 @@ export default function SquareManagement() {
                     return (
                     <tr key={`${item.catalog_object_id}-${item.location_id}-${index}`} className="transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="p-3">
-                         <div className="font-medium text-sm text-slate-900 dark:text-slate-50">{item.name || 'N/A'}</div>
-                        {userIsAppOwner && itemDrivers.length > 0 && (
+                        <div className="font-medium text-sm text-slate-900 dark:text-slate-50">
+                          {(() => {
+                            const parsed = parseSquareItemName(item.name);
+                            return parsed?.patientName || item.name || 'N/A';
+                          })()}
+                        </div>
+                       {userIsAppOwner && itemDrivers.length > 0 && (
                           <div className="flex gap-1 mt-1.5 flex-wrap">
                             {itemDrivers.map(driver => (
                               <Badge key={driver.id} className={`${getDriverColor(driver.id)} text-xs border`}>
@@ -1047,7 +1052,10 @@ export default function SquareManagement() {
                     <div className="flex justify-between items-start gap-3 mb-2">
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-sm text-slate-900 dark:text-slate-50">
-                          {item.name || 'N/A'}
+                          {(() => {
+                            const parsed = parseSquareItemName(item.name);
+                            return parsed?.patientName || item.name || 'N/A';
+                          })()}
                         </p>
                         {item.description && (
                           <p className="text-xs truncate mt-1 text-slate-600 dark:text-slate-400">
