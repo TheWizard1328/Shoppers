@@ -1024,16 +1024,23 @@ export default function DeliveriesPage() {
     const monthParam = params.get("month");
     const cityParam = params.get("city");
 
+    // CRITICAL: When URL has month param, use it; otherwise use today's month
     let initialSelectedYear = new Date().getFullYear();
     let initialSelectedMonth = new Date().getMonth();
 
     if (yearParam) initialSelectedYear = parseInt(yearParam);
-    if (monthParam) initialSelectedMonth = parseInt(monthParam) - 1;
+    if (monthParam) {
+      initialSelectedMonth = parseInt(monthParam) - 1;
+    } else {
+      // No month param: use current month
+      initialSelectedMonth = new Date().getMonth();
+    }
 
     console.log('📅 [Deliveries] Setting year/month from URL:', {
       year: initialSelectedYear,
       month: initialSelectedMonth,
-      monthParam
+      monthParam,
+      hasMonthParam: !!monthParam
     });
 
     setSelectedYear(initialSelectedYear);
