@@ -1162,8 +1162,14 @@ export default function Layout({ children, currentPageName }) {
       // Refresh stats after data is loaded
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-      // CRITICAL: Force refresh ALL UI elements
+      // CRITICAL: Force refresh ALL UI elements including COD data
       console.log('🎨 [Recovery] Refreshing all UI elements...');
+
+      // Refresh COD data
+      base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
+        const items = response?.data?.items || response?.items || [];
+        setCatalogItems(items);
+      }).catch(() => {});
 
       // Force dispatch driverLocationsUpdated to update map markers
       setTimeout(async () => {
@@ -1278,6 +1284,17 @@ export default function Layout({ children, currentPageName }) {
             detail: { appUsers: null, singleUpdate: update.data }
           }));
         }
+      }
+
+      // Handle SquareTransaction updates - refresh COD data
+      if (update.entity === 'SquareTransaction') {
+        console.log('🔔 [Layout] SquareTransaction realtime update - syncing COD data');
+        setTimeout(() => {
+          base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
+            const items = response?.data?.items || response?.items || [];
+            setCatalogItems(items);
+          }).catch(() => {});
+        }, 500);
       }
 
       // Handle Patient updates
