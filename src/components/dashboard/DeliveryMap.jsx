@@ -2009,13 +2009,9 @@ export default function DeliveryMap({
         showWaypoints
       };
     });
-    
-    // CRITICAL: Return routes ALREADY SORTED - never re-sort in legend
-    // This ensures legend order is ALWAYS stable and never changes after recalculations
-    const routesArray = Object.values(routesByDriver);
-    
-    // Sort by stable index (from stableSortedDrivers order)
-    routesArray.sort((a, b) => a.sortOrder - b.sortOrder);
+
+    // Sort stops by stop_order and create route lines
+    const routes = Object.values(routesByDriver).sort((a, b) => a.sortOrder - b.sortOrder).map((route) => {
     
     // CRITICAL: Only update ref if routes actually changed (deep comparison of driver IDs and stop counts)
     const routesKey = routesArray.map(r => `${r.driverId}:${r.totalStops}`).join('|');
