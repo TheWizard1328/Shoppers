@@ -18,6 +18,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
   const [columnCount, setColumnCount] = useState(0);
   // previewData will now store processed Patient-like objects for the live preview table
   const [previewData, setPreviewData] = useState([]);
+  const fileInputRef = React.useRef(null);
 
   // FIXED COLUMN MAPPING - NO USER INPUT NEEDED
   const fieldMapping = {
@@ -59,6 +60,13 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     console.log("PatientImport: Component mounted, loading stores.");
     loadData();
     // loadSavedMapping is removed as mapping is fixed
+    
+    // CRITICAL: Auto-open file dialog on mount
+    setTimeout(() => {
+      if (fileInputRef.current) {
+        fileInputRef.current.click();
+      }
+    }, 100);
   }, []);
 
   const loadData = async () => {
@@ -1402,6 +1410,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                             <div className="space-y-2">
                                 <Label htmlFor="csv-upload" className="text-sm">Select CSV File(s)</Label>
                                 <Input
+                  ref={fileInputRef}
                   id="csv-upload"
                   type="file"
                   accept=".csv"
