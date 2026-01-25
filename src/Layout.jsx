@@ -2166,8 +2166,11 @@ export default function Layout({ children, currentPageName }) {
     }
 
     if (pageName === 'Deliveries') {
+      // CRITICAL: Use year/month only, not date
       const latestDate = getLatestDateWithDeliveries();
-      url.searchParams.set("date", latestDate);
+      const [y, m] = latestDate.split('-');
+      url.searchParams.set("year", y);
+      url.searchParams.set("month", m);
       return url.pathname + url.search;
     }
 
