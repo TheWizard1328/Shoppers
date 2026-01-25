@@ -178,22 +178,22 @@ export default function DateListPanel({
 
               <div className="flex items-center justify-between">
                 <div className="flex gap-3 text-xs">
-                  <div className="flex items-center gap-1 text-slate-700 font-medium">
+                  <div className="flex items-center gap-1 text-slate-700 font-medium" title={`${total} stops`}>
                     <Package className="w-3 h-3" />
-                    <span>{total} stops</span>
+                    <span>{total}</span>
                   </div>
-                  <div className="flex items-center gap-1 text-green-600">
+                  <div className="flex items-center gap-1 text-green-600" title={`${completed} paid`}>
                     <CheckCircle className="w-3 h-3" />
-                    <span>{completed} paid</span>
+                    <span>{completed}</span>
                   </div>
                   {failed > 0 &&
-              <div className="flex items-center gap-1 text-red-600">
+              <div className="flex items-center gap-1 text-red-600" title={`${failed} failed`}>
                       <XCircle className="w-3 h-3" />
                       <span>{failed}</span>
                     </div>
               }
                   {returned > 0 &&
-              <div className="flex items-center gap-1 text-amber-600">
+              <div className="flex items-center gap-1 text-amber-600" title={`${returned} returned`}>
                       <RotateCcw className="w-3 h-3" />
                       <span>{returned}</span>
                     </div>
