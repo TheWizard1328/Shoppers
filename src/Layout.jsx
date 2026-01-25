@@ -1107,6 +1107,14 @@ export default function Layout({ children, currentPageName }) {
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
         detail: { appUsers }
       }));
+
+      // Refresh COD data after delivery updates
+      setTimeout(() => {
+        base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
+          const items = response?.data?.items || response?.items || [];
+          setCatalogItems(items);
+        }).catch(() => {});
+      }, 1000);
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
@@ -1762,6 +1770,12 @@ export default function Layout({ children, currentPageName }) {
         // Calculate initial COD total from offline catalog items
         const codTotal = calculateUserCodTotal(currentUser, catalogItems || [], squareLocationConfigs || [], allStores, squareTransactions || []);
         setTotalCodsDue(codTotal);
+
+        // Refresh COD data from server to ensure it's up-to-date
+        base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
+          const items = response?.data?.items || response?.items || [];
+          setCatalogItems(items);
+        }).catch(() => {});
       }, 1000);
 
     } catch (error) {
@@ -2588,6 +2602,9 @@ export default function Layout({ children, currentPageName }) {
 
       {/* PWA Install Prompt */}
       <PWAInstallPrompt />
+
+      {/* Version Update Notification */}
+      <VersionChecker currentVersion={appVersion} />
 
       {showCitySelectionPopup && currentUser && cities && cities.length > 0 &&
       <CitySelectionPopup
