@@ -95,7 +95,19 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     const unsubscribe = offlineManager.subscribe((online) => {
       setIsOnline(online);
     });
-    return unsubscribe;
+
+    // Listen for manual refresh trigger events
+    const handleTriggerRefresh = () => {
+      console.log('🔄 [SmartRefreshIndicator] Manual refresh triggered via event');
+      handleManualRefresh();
+    };
+
+    window.addEventListener('triggerManualRefresh', handleTriggerRefresh);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('triggerManualRefresh', handleTriggerRefresh);
+    };
   }, []);
 
   // Subscribe to rate limit errors from smartRefreshManager
