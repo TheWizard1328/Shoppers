@@ -178,9 +178,13 @@ export default function DateListPanel({
 
               <div className="flex items-center justify-between">
                 <div className="flex gap-3 text-xs">
+                  <div className="flex items-center gap-1 text-slate-700 font-medium">
+                    <Package className="w-3 h-3" />
+                    <span>{total} stops</span>
+                  </div>
                   <div className="flex items-center gap-1 text-green-600">
                     <CheckCircle className="w-3 h-3" />
-                    <span>{completed}</span>
+                    <span>{completed} paid</span>
                   </div>
                   {failed > 0 &&
               <div className="flex items-center gap-1 text-red-600">
