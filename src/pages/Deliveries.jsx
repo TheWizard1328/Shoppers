@@ -421,70 +421,61 @@ export default function DeliveriesPage() {
       let deliveriesData = [];
 
       if (isDriverOverviewMode) {
-        console.log('📋 [Deliveries] Loading Driver Overview - fetching from offline DB first');
+        console.log('📋 [Deliveries] Loading Driver Overview - fetching FRESH data from server for accurate stats');
 
-        // CRITICAL: Load from offline DB FIRST for instant display
+        // CRITICAL: For accurate driver stats, ALWAYS fetch from server (not offline DB)
+        const targetYear = selectedOverviewYear === 'all' ? new Date().getFullYear() : parseInt(selectedOverviewYear, 10);
+        
+        console.log(`📅 [Deliveries] Fetching deliveries for year ${targetYear} in quarterly chunks`);
+
         try {
-          const { offlineDB } = await import('../components/utils/offlineDatabase');
-          const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          
-          if (offlineDeliveries && offlineDeliveries.length > 0) {
-            console.log(`📦 [Deliveries] Loaded ${offlineDeliveries.length} total deliveries from offline DB`);
-            
-            // Filter by year if specified
-            const targetYear = selectedOverviewYear === 'all' ? null : parseInt(selectedOverviewYear, 10);
-            
-            if (targetYear) {
-              deliveriesData = offlineDeliveries.filter((d) => {
-                if (!d || !d.delivery_date) return false;
-                try {
-                  const deliveryYear = new Date(d.delivery_date.replace(/-/g, '/')).getFullYear();
-                  return deliveryYear === targetYear;
-                } catch {
-                  return false;
-                }
-              });
-              console.log(`📅 [Deliveries] Filtered to ${deliveriesData.length} deliveries for year ${targetYear}`);
-            } else {
-              deliveriesData = offlineDeliveries;
-              console.log(`📅 [Deliveries] Showing all ${deliveriesData.length} deliveries (all years)`);
-            }
-            
-            // Log date range for debugging
-            if (deliveriesData && deliveriesData.length > 0) {
-              const dates = deliveriesData.map((d) => d.delivery_date).filter(Boolean).sort();
-              console.log(`📅 [Deliveries] Date range: ${dates[0]} to ${dates[dates.length - 1]}`);
-            }
-          } else {
-            console.log('❌ [Deliveries] No offline data found, fetching from server...');
-            // Fallback to server fetch
-            const targetYear = selectedOverviewYear === 'all' ? new Date().getFullYear() : parseInt(selectedOverviewYear, 10);
-            
-            const quarters = [
-              { start: `${targetYear}-01-01`, end: `${targetYear}-03-31`, label: 'Q1' },
-              { start: `${targetYear}-04-01`, end: `${targetYear}-06-30`, label: 'Q2' },
-              { start: `${targetYear}-07-01`, end: `${targetYear}-09-30`, label: 'Q3' },
-              { start: `${targetYear}-10-01`, end: `${targetYear}-12-31`, label: 'Q4' }
-            ];
+          // Fetch each quarter separately to avoid hitting the 5000 limit
+          const quarters = [
+            { start: `${targetYear}-01-01`, end: `${targetYear}-03-31`, label: 'Q1' },
+            { start: `${targetYear}-04-01`, end: `${targetYear}-06-30`, label: 'Q2' },
+            { start: `${targetYear}-07-01`, end: `${targetYear}-09-30`, label: 'Q3' },
+            { start: `${targetYear}-10-01`, end: `${targetYear}-12-31`, label: 'Q4' }
+          ];
 
-            const allQuarterData = [];
-            for (const quarter of quarters) {
-              console.log(`📅 [Deliveries] Fetching ${quarter.label}: ${quarter.start} to ${quarter.end}`);
-              const quarterData = await base44.entities.Delivery.filter({
-                delivery_date: { $gte: quarter.start, $lte: quarter.end }
-              }, '-delivery_date');
-              console.log(`✅ [Deliveries] ${quarter.label}: ${quarterData?.length || 0} deliveries`);
-              if (quarterData && quarterData.length > 0) {
-                allQuarterData.push(...quarterData);
-              }
+          const allQuarterData = [];
+
+          for (const quarter of quarters) {
+            console.log(`📅 [Deliveries] Fetching ${quarter.label}: ${quarter.start} to ${quarter.end}`);
+            const quarterData = await base44.entities.Delivery.filter({
+              delivery_date: { $gte: quarter.start, $lte: quarter.end }
+            }, '-delivery_date');
+            console.log(`✅ [Deliveries] ${quarter.label}: ${quarterData?.length || 0} deliveries`);
+            if (quarterData && quarterData.length > 0) {
+              allQuarterData.push(...quarterData);
             }
-            deliveriesData = allQuarterData;
-            console.log(`✅ [Deliveries] Total loaded: ${deliveriesData.length} deliveries for year ${targetYear}`);
           }
-        } catch (offlineError) {
-          console.warn('⚠️ [Deliveries] Offline DB error:', offlineError.message);
-          // Final fallback to cache
-          deliveriesData = await getData('Delivery', '-delivery_date', {}, forceRefresh);
+
+          deliveriesData = allQuarterData;
+          console.log(`✅ [Deliveries] Total loaded: ${deliveriesData.length} deliveries for year ${targetYear}`);
+          
+          // Also save to offline DB for fallback
+          if (deliveriesData.length > 0) {
+            const { offlineDB } = await import('../components/utils/offlineDatabase');
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesData);
+            console.log(`💾 [Deliveries] Cached ${deliveriesData.length} deliveries to offline DB`);
+          }
+        } catch (error) {
+          console.error('Failed to fetch year deliveries, falling back to offline DB:', error);
+          try {
+            const { offlineDB } = await import('../components/utils/offlineDatabase');
+            const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+            if (offlineDeliveries && offlineDeliveries.length > 0) {
+              deliveriesData = offlineDeliveries;
+              console.log(`⚠️ [Deliveries] Using ${deliveriesData.length} deliveries from offline DB (fallback)`);
+            }
+          } catch (offlineError) {
+            console.error('Offline DB fallback also failed:', offlineError);
+          }
+        }
+
+        if (deliveriesData && deliveriesData.length > 0) {
+          const dates = deliveriesData.map((d) => d.delivery_date).filter(Boolean).sort();
+          console.log(`📅 [Deliveries] Delivery date range: ${dates[0]} to ${dates[dates.length - 1]}`);
         }
       } else {
         // CRITICAL: Load ENTIRE MONTH's data for Route Management
