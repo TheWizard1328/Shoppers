@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Battery, BatteryCharging, BatteryLow, BatteryMedium, BatteryFull } from 'lucide-react';
 
-export default function BatteryIndicator() {
+export default function BatteryIndicator({ vertical = false }) {
   const [batteryLevel, setBatteryLevel] = useState(null);
   const [isCharging, setIsCharging] = useState(false);
 
@@ -34,20 +34,31 @@ export default function BatteryIndicator() {
 
   // Determine icon and color based on battery level and charging status
   const getBatteryIcon = () => {
+    const iconSize = vertical ? "w-4 h-4" : "w-5 h-5";
+    
     if (isCharging) {
-      return <BatteryCharging className="w-5 h-5 text-green-600" />;
+      return <BatteryCharging className={`${iconSize} text-green-600`} />;
     }
 
     if (batteryLevel <= 20) {
-      return <BatteryLow className="w-5 h-5 text-red-600" />;
+      return <BatteryLow className={`${iconSize} text-red-600`} />;
     } else if (batteryLevel <= 50) {
-      return <BatteryMedium className="w-5 h-5 text-yellow-600" />;
+      return <BatteryMedium className={`${iconSize} text-yellow-600`} />;
     } else if (batteryLevel <= 80) {
-      return <Battery className="w-5 h-5 text-slate-600" />;
+      return <Battery className={`${iconSize} text-slate-600`} />;
     } else {
-      return <BatteryFull className="w-5 h-5 text-green-600" />;
+      return <BatteryFull className={`${iconSize} text-green-600`} />;
     }
   };
+
+  if (vertical) {
+    return (
+      <div className="flex flex-col items-center gap-0.5" title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
+        {getBatteryIcon()}
+        <span className="text-[10px] font-medium text-slate-700">{batteryLevel}%</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-1" title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>

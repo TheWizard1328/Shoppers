@@ -2762,7 +2762,10 @@ export default function Layout({ children, currentPageName }) {
                       <div>
                         <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>RxDeliver</h2>
                         <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Pharmacy Logistics</p>
-                        <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{appVersion}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{appVersion}</p>
+                          {!isMobile && <BatteryIndicator />}
+                        </div>
                       </div>
                     </div>
 
@@ -2913,7 +2916,6 @@ export default function Layout({ children, currentPageName }) {
                               onClick={async () => {
                                 try {
                                   localStorage.clear();
-                                  sessionStorage.clear();
 
                                   window.location.reload(true);
                                 } catch (error) {
@@ -3289,8 +3291,6 @@ export default function Layout({ children, currentPageName }) {
                           <Menu className="w-6 h-6 text-slate-700" />
                         }
                       </button>
-
-                      <BatteryIndicator />
                     </div>
 
                     <div 
@@ -3445,7 +3445,6 @@ export default function Layout({ children, currentPageName }) {
                           <DropdownMenuItem 
                             onClick={async () => {
                               try {
-                                sessionStorage.clear();
                                 clearUserCache();
                                 clearSettingsCache();
 
@@ -3511,6 +3510,7 @@ export default function Layout({ children, currentPageName }) {
 
                   {currentUser &&
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
+                      <BatteryIndicator vertical={true} />
                       <div className="flex flex-col items-center gap-1">
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
                           userHasRole(currentUser, 'admin') ?
