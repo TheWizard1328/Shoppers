@@ -6329,18 +6329,10 @@ function Dashboard() {
                         console.warn('⚠️ [Refresh] Failed to update offline database:', dbError);
                       }
 
-                      // Apply any smart refresh updates
-                      if (updates) {
-                        if (updates.patients) {
-                          setPatients(updates.patients);
-                        }
-                        if (updates.appUsers) {
-                          setAppUsers(updates.appUsers);
-                        }
-                        if (updates.stores) {
-                          setStores(updates.stores);
-                        }
-                      }
+                      // Apply any smart refresh updates (handled by context)
+                       if (updates) {
+                         console.log('✅ [Manual Refresh] Smart refresh updates received');
+                       }
 
                       // CRITICAL: Dispatch event to update driver location markers for ALL drivers
                       console.log('📍 [Refresh Spinner] Dispatching driverLocationsUpdated event...');
