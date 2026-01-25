@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
         status: newStatus,
         raw_square_data: {
-          ...transaction.raw_square_data,
+          ...(transaction.raw_square_data || {}),
           deleted_at: new Date().toISOString(),
           deleted_reason: reason || 'manual_delete'
         }
