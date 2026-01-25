@@ -6713,19 +6713,19 @@ function Dashboard() {
                       key={route.driverId}
                       className="flex items-center gap-1.5">
 
-                      <div
-                      className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                      style={{ backgroundColor: freshColor }} />
+                        <div
+                        className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                        style={{ backgroundColor: routeColor }} />
 
-                      <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>
-                        {displayName}
-                      </span>
-                      <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                        ({route.totalStops})
-                      </span>
-                    </div>);
+                        <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>
+                          {displayName}
+                        </span>
+                        <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                          ({route.totalStops})
+                        </span>
+                      </div>);
 
-                })}
+                    })}
               </div>
             </div>
           }
