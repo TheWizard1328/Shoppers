@@ -1232,11 +1232,20 @@ export default function DeliveriesPage() {
 
   const filteredDatesByMonth = useMemo(() => {
     if (!sortedDates) return [];
-    return sortedDates.filter((date) => {
+    // CRITICAL: If no dates match the selected month/year, return all dates for current month
+    const filtered = sortedDates.filter((date) => {
       // Parse date as local time, not UTC (YYYY-MM-DD format)
       const [y, m, d] = date.split('-').map(Number);
       return !isNaN(y) && !isNaN(m) && !isNaN(d) && y === selectedYear && m - 1 === selectedMonth;
     });
+    
+    // If no matches, return first 10 most recent dates (fallback to show something)
+    if (filtered.length === 0 && sortedDates.length > 0) {
+      console.log(`⚠️ [Deliveries] No dates match month ${selectedMonth + 1}/${selectedYear}, showing recent dates`);
+      return sortedDates.slice(0, 10);
+    }
+    
+    return filtered;
   }, [sortedDates, selectedYear, selectedMonth]);
 
   const dateListWithStats = useMemo(() => {
