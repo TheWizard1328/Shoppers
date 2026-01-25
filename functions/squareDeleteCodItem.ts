@@ -58,14 +58,19 @@ Deno.serve(async (req) => {
     // Update our transaction record if we have one
     if (transaction) {
       const newStatus = reason === 'failed' ? 'failed' : 'cancelled';
-      await base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
-        status: newStatus,
-        raw_square_data: {
-          ...(transaction.raw_square_data || {}),
-          deleted_at: new Date().toISOString(),
-          deleted_reason: reason || 'manual_delete'
-        }
-      });
+      try {
+        await base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
+          status: newStatus,
+          raw_square_data: {
+            ...(transaction.raw_square_data || {}),
+            deleted_at: new Date().toISOString(),
+            deleted_reason: reason || 'manual_delete'
+          }
+        });
+      } catch (updateError) {
+        console.warn('Could not update transaction record:', updateError.message);
+        // Continue anyway - catalog item was deleted
+      }
     }
 
     return Response.json({
