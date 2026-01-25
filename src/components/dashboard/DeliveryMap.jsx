@@ -2010,10 +2010,15 @@ export default function DeliveryMap({
       };
     });
     
-    const sortedRoutes = routes.sort((a, b) => a.sortOrder - b.sortOrder);
+    // CRITICAL: Return routes ALREADY SORTED - never re-sort in legend
+    // This ensures legend order is ALWAYS stable and never changes after recalculations
+    const routesArray = Object.values(routesByDriver);
+    
+    // Sort by stable index (from stableSortedDrivers order)
+    routesArray.sort((a, b) => a.sortOrder - b.sortOrder);
     
     // CRITICAL: Only update ref if routes actually changed (deep comparison of driver IDs and stop counts)
-    const routesKey = sortedRoutes.map(r => `${r.driverId}:${r.totalStops}`).join('|');
+    const routesKey = routesArray.map(r => `${r.driverId}:${r.totalStops}`).join('|');
     const prevRoutesKey = prevDriverRoutesRef.current.map(r => `${r.driverId}:${r.totalStops}`).join('|');
     
     if (routesKey === prevRoutesKey) {
@@ -2021,9 +2026,9 @@ export default function DeliveryMap({
       return prevDriverRoutesRef.current;
     }
     
-    // Routes changed - update cache and return new routes
-    prevDriverRoutesRef.current = sortedRoutes;
-    return sortedRoutes;
+    // Routes changed - update cache and return new routes (ALREADY SORTED)
+    prevDriverRoutesRef.current = routesArray;
+    return routesArray;
   // CRITICAL: Use stable references for driverRoutes to prevent legend flickering
   }, [
     deliveryMarkers.map(d => `${d?.id}:${d?.stop_order}:${d?.status}`).join(','),
