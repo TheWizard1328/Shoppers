@@ -1328,26 +1328,37 @@ export default function DeliveriesPage() {
   }, [filteredDatesByMonth, groupedDeliveries, effectivePatients, selectedYear, selectedMonth, refreshKey]);
 
   useEffect(() => {
-    if (isDriverOverviewMode || isLoading || !dateListWithStats.length || isLoadingData) {
+    if (isDriverOverviewMode || isLoading || isLoadingData) {
       return;
     }
 
-    if (dateListWithStats.length > 0) {
-      const currentSelectedDateString = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
+    // CRITICAL: Only auto-select if the current selection is invalid for the selected month/year
+    // Do NOT auto-select on every data refresh - that breaks user selection
+    if (selectedDate) {
+      const selectedDateYear = selectedDate.getFullYear();
+      const selectedDateMonth = selectedDate.getMonth();
 
-      const isCurrentDateInList = dateListWithStats.some((d) => d.date === currentSelectedDateString);
+      // If selected date is NOT in the currently selected month/year, auto-select first valid date
+      if (selectedDateYear !== selectedYear || selectedDateMonth !== selectedMonth) {
+        if (dateListWithStats.length > 0) {
+          const topDate = dateListWithStats[0].date;
+          const topDateObj = new Date(topDate.replace(/-/g, '/'));
+          topDateObj.setHours(0, 0, 0, 0);
 
-      if (!isCurrentDateInList) {
-        const topDate = dateListWithStats[0].date;
-        const topDateObj = new Date(topDate.replace(/-/g, '/'));
-        topDateObj.setHours(0, 0, 0, 0);
-
-        console.log(`📅 [Deliveries] Current date not in list, auto-selecting topmost date: ${topDate}`);
-        setSelectedDate(topDateObj);
-        // CRITICAL: Do NOT update URL with date - keep date local to Route Management page
+          console.log(`📅 [Deliveries] Selected date not in month/year range, auto-selecting: ${format(topDateObj, 'yyyy-MM-dd')}`);
+          setSelectedDate(topDateObj);
+        }
       }
+      // Otherwise: KEEP the user's selection even if data refreshes
+    } else if (!selectedDate && dateListWithStats.length > 0) {
+      // CRITICAL: Only set initial date if nothing is selected
+      const topDate = dateListWithStats[0].date;
+      const topDateObj = new Date(topDate.replace(/-/g, '/'));
+      topDateObj.setHours(0, 0, 0, 0);
+      console.log(`📅 [Deliveries] Initial date selection: ${format(topDateObj, 'yyyy-MM-dd')}`);
+      setSelectedDate(topDateObj);
     }
-  }, [selectedMonth, selectedYear, dateListWithStats.length, isDriverOverviewMode, isLoading, isLoadingData]);
+  }, [selectedMonth, selectedYear, isDriverOverviewMode, isLoading, isLoadingData]);
 
 
   useEffect(() => {
