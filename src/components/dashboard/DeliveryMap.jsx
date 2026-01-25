@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import * as ReactExports from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
@@ -1614,7 +1615,6 @@ export default function DeliveryMap({
     return markers;
   // CRITICAL: Use stable references - minimize dependencies to prevent blinking
   }, [
-    // Only include essential data that affects marker visibility
     isViewingCurrentDate,
     currentUser?.id,
     isMobile,
@@ -1848,7 +1848,7 @@ export default function DeliveryMap({
     });
 
     // Sort stops by stop_order and create route lines
-    const routes = Object.values(routesByDriver).sort((a, b) => a.sortOrder - b.sortOrder).map((route) => {
+    const sortedRoutes = Object.values(routesByDriver).sort((a, b) => a.sortOrder - b.sortOrder).map((route) => {
     // Find ALL pickup locations for this driver
     const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
 
@@ -2010,11 +2010,6 @@ export default function DeliveryMap({
       };
     });
 
-    // Sort stops by stop_order and create route lines
-    const routesArray = Object.values(routesByDriver).map((route) => {
-    // Find ALL pickup locations for this driver
-    const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
-    
     // CRITICAL: Only update ref if routes actually changed (deep comparison of driver IDs and stop counts)
     const routesKey = sortedRoutes.map(r => `${r.driverId}:${r.totalStops}`).join('|');
     const prevRoutesKey = prevDriverRoutesRef.current.map(r => `${r.driverId}:${r.totalStops}`).join('|');
