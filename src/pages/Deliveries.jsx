@@ -3021,14 +3021,11 @@ export default function DeliveriesPage() {
         if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
           targetDate = new Date(y, m - 1, d);
           targetDate.setHours(0, 0, 0, 0);
-        } else {
-          console.warn('[Deliveries] Invalid date components from latest delivery for driver card click:', latest.delivery_date);
         }
       }
     }
 
     if (isNaN(targetDate.getTime())) {
-      console.error('[Deliveries] Invalid target date after calculating for driver card click.');
       targetDate = new Date();
       targetDate.setHours(0, 0, 0, 0);
     }
@@ -3036,16 +3033,15 @@ export default function DeliveriesPage() {
     const targetYear = targetDate.getFullYear();
     const targetMonth = targetDate.getMonth();
 
-    console.log('🎯 [Deliveries] Switching to driver view:', {
+    console.log('🎯 [Deliveries] Switching to Route Management:', {
       driverId: driver.id,
-      date: format(targetDate, 'yyyy-MM-dd'),
       year: targetYear,
       month: targetMonth + 1
     });
 
+    // CRITICAL: Only use year/month/driver in URL, NO date param
     const params = new URLSearchParams();
     params.set('driver', driver.id);
-    params.set('date', format(targetDate, 'yyyy-MM-dd'));
     params.set('year', targetYear.toString());
     params.set('month', (targetMonth + 1).toString());
 
