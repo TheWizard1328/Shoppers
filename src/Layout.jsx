@@ -175,13 +175,11 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
         setSelectedDateStr(currentDateStr);
         // CRITICAL: Force immediate stats refresh on date change
         lastFetchRef.current = { date: null, driver: null, timestamp: 0 };
-        refreshTriggeredRef.current = { date: null, driver: null };
       }
       if (currentDriverId !== selectedDriverId) {
         setSelectedDriverIdLocal(currentDriverId);
         // CRITICAL: Force immediate stats refresh on driver change
         lastFetchRef.current = { date: null, driver: null, timestamp: 0 };
-        refreshTriggeredRef.current = { date: null, driver: null };
       }
     });
 
