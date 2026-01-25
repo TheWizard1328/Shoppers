@@ -992,6 +992,21 @@ export default function DeliveryMap({
     fetchGoogleRoute();
   }, [safeDeliveries, isSingleDriverMode, showRoutes]);
 
+  // CRITICAL: Create stable driver lookup map to prevent "Unassigned" names
+  // Fallback to delivery data if users prop is empty
+  const driverLookupMap = useMemo(() => {
+    const map = new Map();
+    
+    // First, add from users prop
+    safeUsers.forEach(u => {
+      if (u && typeof u === 'object' && u.id) {
+        map.set(u.id, u);
+      }
+    });
+    
+    return map;
+  }, [safeUsers.map(u => `${u?.id}:${u?.user_name || u?.full_name}`).join('|')]);
+
   // Get coordinates for deliveries and pickups - Use backend isNextDelivery flag
   const { deliveryMarkers, groupedDeliveryMarkers, pickupMarkers, groupedPickupMarkers, hasIncompleteStops } = useMemo(() => {
     // Check if route has any incomplete stops
