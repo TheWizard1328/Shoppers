@@ -1016,7 +1016,6 @@ export default function DeliveriesPage() {
     console.log('🔍 [Deliveries] Processing URL parameters and setting initial state');
 
     const params = new URLSearchParams(location.search);
-    const dateParam = params.get("date");
     const driverParam = params.get("driver");
     const statusParam = params.get("status");
     const searchParam = params.get("search");
@@ -1024,7 +1023,7 @@ export default function DeliveriesPage() {
     const monthParam = params.get("month");
     const cityParam = params.get("city");
 
-    // CRITICAL: When URL has month param, use it; otherwise use today's month
+    // CRITICAL: Route Management only uses year/month in URL (no date param)
     let initialSelectedYear = new Date().getFullYear();
     let initialSelectedMonth = new Date().getMonth();
 
@@ -1059,21 +1058,7 @@ export default function DeliveriesPage() {
     let initialSelectedDate = new Date();
     initialSelectedDate.setHours(0, 0, 0, 0);
 
-    if (dateParam) {
-      const [year, month, day] = dateParam.split('-').map(Number);
-      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
-        const parsedDate = new Date(year, month - 1, day);
-        parsedDate.setHours(0, 0, 0, 0);
-        if (!isNaN(parsedDate.getTime())) {
-          initialSelectedDate = parsedDate;
-          console.log('📅 [Deliveries] Using date from URL:', format(initialSelectedDate, 'yyyy-MM-dd'));
-        } else {
-          console.warn('[Deliveries] Invalid date from URL dateParam:', dateParam);
-        }
-      } else {
-        console.warn('[Deliveries] Could not parse date components from URL dateParam:', dateParam);
-      }
-    } else if (isDriverOverviewMode) {
+    if (isDriverOverviewMode) {
       // Driver Overview: use global dashboard date if available
       const globalDate = globalFilters.getSelectedDate();
       if (globalDate) {
@@ -1089,16 +1074,8 @@ export default function DeliveriesPage() {
         initialSelectedDate = new Date(initialSelectedYear, initialSelectedMonth, 1);
       }
     } else {
-      // Route Management: use selected month/year, default to first of month IF no dateParam
-      if (!dateParam) {
-        initialSelectedDate = new Date(initialSelectedYear, initialSelectedMonth, 1);
-      } else {
-        // If dateParam exists, use it but also ensure year/month match
-        const [y, m, d] = dateParam.split('-').map(Number);
-        initialSelectedDate = new Date(y, m - 1, d);
-        initialSelectedYear = y;
-        initialSelectedMonth = m - 1;
-      }
+      // Route Management: default to first of month (date is selected via date cards, not URL)
+      initialSelectedDate = new Date(initialSelectedYear, initialSelectedMonth, 1);
       initialSelectedDate.setHours(0, 0, 0, 0);
     }
 
