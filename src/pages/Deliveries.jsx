@@ -3329,9 +3329,6 @@ export default function DeliveriesPage() {
                     {format(new Date(), 'MMM d, yyyy')}
                   </Badge>
                 </h1>
-                <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>
-                  Manage deliveries and routes for {selectedDate ? format(selectedDate, 'EEEE, MMMM d, yyyy') : 'the selected date'}
-                </p>
               </div>
               <div className="flex gap-3 flex-wrap items-center">
                 {canAccessImports(currentUser) && !isMobile &&
