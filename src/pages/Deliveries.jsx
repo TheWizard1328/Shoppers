@@ -748,7 +748,7 @@ export default function DeliveriesPage() {
 
     console.log('🚗 [Deliveries] Driver selected in Route Management, refreshing month data...');
     loadData(true).catch(() => {});
-  }, [driverFilter, isDriverOverviewMode, dataLoaded]);
+  }, [driverFilter, isDriverOverviewMode, dataLoaded, loadData]);
 
 
   const availableOverviewYears = useMemo(() => {
