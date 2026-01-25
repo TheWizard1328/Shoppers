@@ -2649,12 +2649,11 @@ export default function DeliveriesPage() {
       console.log('📅 [handleDateSelect] Setting date:', dateString);
 
       setSelectedDate(dateObj);
-
-      updateUrl({ date: dateString });
+      // CRITICAL: Do NOT add date to URL - keep date selection local to page
     } catch (error) {
       console.error('[handleDateSelect] Error:', error);
     }
-  }, [updateUrl]);
+  }, []);
 
   const handleSearchChange = useMemo(() => debounce((value) => {
     setSearchTerm(value);
