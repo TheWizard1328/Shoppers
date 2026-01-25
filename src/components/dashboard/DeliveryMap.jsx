@@ -26,21 +26,22 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png'
 });
 
-// Driver color palette for "All Drivers" mode - 6 highly visible, contrasting colors
+// Driver color palette for "All Drivers" mode - 6 highly distinct colors
+// Avoids: greens (completed status), reds/oranges (failed status), yellows
 const DRIVER_COLORS = [
-  '', // Blank color storage for unused 0 index - will be handled by getDriverColor fallback
-  '#F012BE', // Hot Pink (Index 1)
-  '#D946EF', // Bright Magenta (Index 2) - needs black text
-  '#7FDBFF', // Electric Cyan (Index 3)
-  '#0074D9', // Deep Blue (Index 4)
-  '#B10DC9', // Royal Purple (Index 5)
-  '#001F3F'  // Navy Blue (Index 6)
+  '', // Index 0 - not used, to align with 1-based sort_order/hashing
+  '#1E90FF', // Dodger Blue (Index 1)
+  '#8A2BE2', // Blue Violet (Index 2)
+  '#00CED1', // Dark Cyan/Teal (Index 3)
+  '#FF69B4', // Hot Pink (Index 4)
+  '#4B0082', // Indigo (Index 5)
+  '#A0522D'  // Sienna - Reddish-Brown (Index 6)
 ];
 
 // Helper function to determine text color for driver colors
 const getDriverTextColor = (driverColor) => {
-  // Electric Cyan needs black text for readability
-  if (driverColor === '#7FDBFF') return 'black';
+  // Light colors need black text for readability
+  if (driverColor === '#00CED1' || driverColor === '#FF69B4') return 'black';
   return 'white';
 };
 
@@ -168,38 +169,42 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
 // Generate consistent driver color based on driver's sort_order
 // EXPORT this function so it can be imported by Dashboard.jsx
 export const getDriverColor = (driver) => {
-  // ENHANCED SAFETY: Check for null/undefined AND valid object type
-  if (!driver || typeof driver !== 'object') {
-    console.warn('[DeliveryMap] getDriverColor: Invalid driver:', driver);
-    return '#607D8B'; // Default blue-grey for invalid
+  if (!driver || typeof driver !== 'object' || !driver.id) {
+    console.warn('[DeliveryMap] getDriverColor: Invalid driver or missing ID:', driver);
+    return '#607D8B'; // Default blue-grey for invalid/unassigned
   }
 
-  let index;
-  if (driver.sort_order === undefined || driver.sort_order === null) {
-    // Fallback to hashing the ID if sort_order is missing
-    if (driver.id) {
-      let hash = 0;
-      const id = driver.id.toString();
-      for (let i = 0; i < id.length; i++) {
-        hash = id.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      index = Math.abs(hash) % DRIVER_COLORS.length;
-    } else {
-      return '#607D8B'; // Default blue-grey for unassigned/unknown
-    }
+  const numFixedColors = DRIVER_COLORS.length - 1; // Exclude the empty index 0
+
+  let effectiveIndex;
+  // Prioritize sort_order for fixed colors if provided and positive
+  if (typeof driver.sort_order === 'number' && driver.sort_order > 0 && driver.sort_order <= numFixedColors) {
+    effectiveIndex = driver.sort_order;
   } else {
-    // Use sort_order with modulo to ensure index is within bounds
-    index = Math.abs(driver.sort_order) % DRIVER_COLORS.length;
+    // If sort_order is missing, zero, or beyond fixed palette, use hash of ID for more consistent assignment
+    let hash = 0;
+    const idString = driver.id.toString();
+    for (let i = 0; i < idString.length; i++) {
+      hash = idString.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    effectiveIndex = (Math.abs(hash) % numFixedColors) + 1; // Map hash to 1-based index within fixed palette
   }
 
-  // Ensure the color is not an empty string if index 0 was hit
-  let color = DRIVER_COLORS[index];
-  if (!color || color === '') {
-    // Fallback to a default color, or the first valid color in the list
-    color = DRIVER_COLORS[1] || '#607D8B';
+  // Try to use a color from the fixed palette first
+  // If the effectiveIndex maps to a valid slot in DRIVER_COLORS (1 to numFixedColors), use it.
+  if (effectiveIndex >= 1 && effectiveIndex <= numFixedColors && DRIVER_COLORS[effectiveIndex]) {
+    return DRIVER_COLORS[effectiveIndex];
+  } else {
+    // If sort_order maps to an index outside the fixed palette, or if there are more drivers than fixed colors
+    // Generate an HSL color based on the hash of the driver ID
+    // Restrict hues to cool colors only (avoid greens, reds, oranges, yellows)
+    // Safe hue ranges: Blues (190-280), some purples/magentas (280-330)
+    const idHash = Math.abs(driver.id.split('').reduce((acc, char) => (acc * 31) + char.charCodeAt(0), 0));
+    const safeHueMin = 190; // Start from blue
+    const safeHueRange = 140; // 190-330 gives us blues, cyans, purples, and magentas
+    const hue = safeHueMin + (idHash % safeHueRange);
+    return `hsl(${hue}, 70%, 50%)`; // Bright, vibrant colors with good saturation
   }
-
-  return color;
 };
 
 // Helper function to get inner symbol color based on status
