@@ -1791,6 +1791,19 @@ class SmartRefreshManager {
     const updates = {};
     
     try {
+      // Driver location refresh (fast polling)
+      if (this.shouldRefresh('driverLocation') && currentData.appUsers) {
+        try {
+          const locationResult = await this.refreshDriverLocations(currentData.appUsers);
+          if (locationResult?.hasChanges) {
+            updates.appUsers = locationResult.appUsers;
+          }
+          this.markRefreshed('driverLocation');
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Driver location refresh failed:', e.message);
+        }
+      }
+      
       // CRITICAL: If Show All Drivers is enabled, force refresh of all drivers' deliveries
       if (showAllDrivers && currentData.deliveries && this.shouldRefresh('activeDeliveries')) {
         try {
@@ -1806,6 +1819,43 @@ class SmartRefreshManager {
           this.markRefreshed('activeDeliveries');
         } catch (e) {
           console.warn('⚠️ [SmartRefresh] Show All Drivers refresh failed:', e.message);
+        }
+      }
+      
+      // Refresh today's deliveries (if not already updated by Show All)
+      if (!showAllDrivers && this.shouldRefresh('todayDeliveries') && currentData.deliveries && filters.selectedDate) {
+        try {
+          const deliveryResult = await this.refreshCurrentDayDeliveries(
+            currentData.deliveries,
+            filters.selectedDate,
+            filters.deliveryFilter || {},
+            currentData.stores || [],
+            currentData.drivers || []
+          );
+          if (deliveryResult?.hasChanges) {
+            updates.deliveries = deliveryResult.deliveries;
+          }
+          this.markRefreshed('todayDeliveries');
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Delivery refresh failed:', e.message);
+        }
+      }
+      
+      // Refresh today's patients
+      if (this.shouldRefresh('todayPatients') && currentData.patients) {
+        try {
+          const todayDeliveries = currentData.deliveries?.filter(d => {
+            const todayStr = format(new Date(), 'yyyy-MM-dd');
+            return d && d.delivery_date === todayStr;
+          }) || [];
+          
+          const patientResult = await this.refreshTodayPatients(currentData.patients, todayDeliveries);
+          if (patientResult?.hasChanges) {
+            updates.patients = patientResult.patients;
+          }
+          this.markRefreshed('todayPatients');
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Patient refresh failed:', e.message);
         }
       }
 
