@@ -1206,8 +1206,9 @@ export default function DeliveriesPage() {
   const filteredDatesByMonth = useMemo(() => {
     if (!sortedDates) return [];
     return sortedDates.filter((date) => {
-      const dateObj = new Date(date.replace(/-/g, '/'));
-      return dateObj.getFullYear() === selectedYear && dateObj.getMonth() === selectedMonth;
+      // Parse date as local time, not UTC (YYYY-MM-DD format)
+      const [y, m, d] = date.split('-').map(Number);
+      return !isNaN(y) && !isNaN(m) && !isNaN(d) && y === selectedYear && m - 1 === selectedMonth;
     });
   }, [sortedDates, selectedYear, selectedMonth]);
 
