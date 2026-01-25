@@ -475,7 +475,7 @@ export default function DeliveriesPage() {
 
         // Load from offline DB first, then sync if forced refresh
         try {
-          const { offlineDB } = await import('./components/utils/offlineDatabase');
+          const { offlineDB } = await import('../components/utils/offlineDatabase');
           const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
           
           if (offlineDeliveries && offlineDeliveries.length > 0) {
