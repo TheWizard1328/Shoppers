@@ -64,26 +64,35 @@ export default function DateListPanel({
 
     // Build stats for each unique date
     const list = Array.from(dateMap.entries()).map(([dateStr, dateDeliveries]) => {
-      const failed = dateDeliveries.filter((d) => d.status === 'failed').length;
-
-      // Calculate returned deliveries (by notes or address)
+      // Helper function to detect returns (by notes or address)
       const isReturnDelivery = (d) => {
         const patient = patientMap.get(d.patient_id);
         const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
         const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
         return notesReturn || addressReturn;
       };
-      
-      const returned = dateDeliveries.filter((d) => isReturnDelivery(d)).length;
 
-      // Completed: completed deliveries + after hours pickups only
-      const completed = dateDeliveries.filter((d) => 
-        (d.status === 'completed' && !isReturnDelivery(d)) ||
-        (d.after_hours_pickup === true && d.status === 'completed')
-      ).length;
-
-      // Total: all stops & pickups
+      // Total Stops: all stops for the driver for the date (including pickups)
       const total = dateDeliveries.length;
+
+      // Completed: all completed deliveries (no returns, no pickups) + after hours pickups (completed or cancelled)
+      const completed = dateDeliveries.filter((d) => {
+        // Completed deliveries (exclude returns and pickups)
+        if (d.status === 'completed' && !isReturnDelivery(d) && !d.after_hours_pickup) {
+          return true;
+        }
+        // After hours pickups (completed or cancelled only)
+        if (d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')) {
+          return true;
+        }
+        return false;
+      }).length;
+
+      // Failed: all failed deliveries only
+      const failed = dateDeliveries.filter((d) => d.status === 'failed').length;
+
+      // Returned: all deliveries marked as returned
+      const returned = dateDeliveries.filter((d) => isReturnDelivery(d)).length;
 
       // Parse date as local time (YYYY-MM-DD format is always local)
       const [y, m, day] = dateStr.split('-').map(Number);
