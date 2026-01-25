@@ -991,37 +991,23 @@ export default function DeliveryMap({
     fetchGoogleRoute();
   }, [safeDeliveries, isSingleDriverMode, showRoutes]);
 
-  // CRITICAL: FREEZE driver order on component mount - NEVER change after that
-  // Use ref to store the initial sorted order, then always reuse it
+  // CRITICAL: FREEZE driver order on FIRST component mount - NEVER recalculate
+  // Don't use useMemo—compute once via ref and always return cached result
+  if (!frozenDriverOrderRef.current) {
+    const drivers = safeUsers.filter(u => u && typeof u === 'object' && u.id);
+    drivers.sort((a, b) => {
+      const sortA = a.sort_order ?? Infinity;
+      const sortB = b.sort_order ?? Infinity;
+      if (sortA !== sortB) return sortA - sortB;
+      const nameA = (a.user_name || a.full_name || '').toLowerCase();
+      const nameB = (b.user_name || b.full_name || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+    frozenDriverOrderRef.current = drivers.map(d => ({ id: d.id, ...d }));
+  }
   const frozenDriverOrderRef = useRef(null);
   
-  const stableSortedDrivers = useMemo(() => {
-    const drivers = safeUsers.filter(u => u && typeof u === 'object' && u.id);
-    
-    // CRITICAL: Only sort ONCE on first mount - cache the entire order
-    if (!frozenDriverOrderRef.current) {
-      // First time: create the frozen order
-      drivers.sort((a, b) => {
-        const sortA = a.sort_order ?? Infinity;
-        const sortB = b.sort_order ?? Infinity;
-        if (sortA !== sortB) return sortA - sortB;
-        const nameA = (a.user_name || a.full_name || '').toLowerCase();
-        const nameB = (b.user_name || b.full_name || '').toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
-      // Freeze the driver ID order
-      frozenDriverOrderRef.current = drivers.map(d => d.id);
-    }
-    
-    // CRITICAL: Always return drivers in the FROZEN order (never re-sort)
-    const frozenIds = frozenDriverOrderRef.current;
-    const driverMap = new Map(drivers.map(d => [d.id, d]));
-    
-    // Return drivers in frozen order, only including those still present
-    return frozenIds
-      .map(id => driverMap.get(id))
-      .filter(Boolean);
-  }, [safeUsers.filter(u => u?.id).map(u => u.id).sort().join('|')]);
+  const stableSortedDrivers = frozenDriverOrderRef.current || [];
 
   // CRITICAL: Create stable driver lookup map using SORTED drivers
   const driverLookupMap = useMemo(() => {
