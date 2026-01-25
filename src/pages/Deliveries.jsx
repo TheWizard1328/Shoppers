@@ -603,6 +603,28 @@ export default function DeliveriesPage() {
     };
   }, []);
 
+  // CRITICAL: Subscribe to delivery mutations to update data in real-time
+  useEffect(() => {
+    const unsubscribe = base44.entities.Delivery.subscribe((event) => {
+      if (!isMounted.current) return;
+      
+      console.log(`📡 [Deliveries] Delivery ${event.type}:`, event.id);
+      
+      if (event.type === 'create') {
+        setAllDeliveries((prev) => {
+          const exists = prev.some((d) => d?.id === event.id);
+          return exists ? prev : [...prev, event.data];
+        });
+      } else if (event.type === 'update') {
+        setAllDeliveries((prev) => prev.map((d) => d?.id === event.id ? { ...d, ...event.data } : d));
+      } else if (event.type === 'delete') {
+        setAllDeliveries((prev) => prev.filter((d) => d?.id !== event.id));
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   // Fetch fresh AppUser data periodically for accurate driver_status
   useEffect(() => {
     if (!isDriverOverviewMode) return;
