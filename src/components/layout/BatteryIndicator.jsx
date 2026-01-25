@@ -6,6 +6,15 @@ export default function BatteryIndicator({ vertical = false }) {
   const [isCharging, setIsCharging] = useState(false);
 
   useEffect(() => {
+    // Only show on mobile devices and laptops, not desktop PCs
+    const isMobileOrLaptop = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(navigator.userAgent) ||
+                             (navigator.maxTouchPoints > 0 && navigator.maxTouchPoints > 1);
+    
+    if (!isMobileOrLaptop) {
+      setBatteryLevel(null);
+      return;
+    }
+
     // Check if Battery Status API is supported
     if ('getBattery' in navigator) {
       navigator.getBattery().then((battery) => {
