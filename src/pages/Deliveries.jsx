@@ -1089,8 +1089,16 @@ export default function DeliveriesPage() {
         initialSelectedDate = new Date(initialSelectedYear, initialSelectedMonth, 1);
       }
     } else {
-      // Route Management: use only its own month/year selection, default to first of month
-      initialSelectedDate = new Date(initialSelectedYear, initialSelectedMonth, 1);
+      // Route Management: use selected month/year, default to first of month IF no dateParam
+      if (!dateParam) {
+        initialSelectedDate = new Date(initialSelectedYear, initialSelectedMonth, 1);
+      } else {
+        // If dateParam exists, use it but also ensure year/month match
+        const [y, m, d] = dateParam.split('-').map(Number);
+        initialSelectedDate = new Date(y, m - 1, d);
+        initialSelectedYear = y;
+        initialSelectedMonth = m - 1;
+      }
       initialSelectedDate.setHours(0, 0, 0, 0);
     }
 
