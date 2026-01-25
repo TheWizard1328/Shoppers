@@ -3336,9 +3336,6 @@ function Dashboard() {
       // CRITICAL: Force stats refresh immediately after date change
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-      // CRITICAL: Trigger manual smart refresh spinner
-      window.dispatchEvent(new CustomEvent('triggerManualRefresh'));
-
       // STEP 5.5: Wait for UI to fully render before triggering map
       await new Promise((resolve) => setTimeout(resolve, 300));
 
@@ -3476,9 +3473,6 @@ function Dashboard() {
 
       // CRITICAL: Force stats refresh immediately after driver change
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-
-      // CRITICAL: Trigger manual smart refresh spinner
-      window.dispatchEvent(new CustomEvent('triggerManualRefresh'));
 
       // CRITICAL: Only trigger map ONCE after all state is updated
       if (mapLockTimeoutRef.current) {
