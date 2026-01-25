@@ -99,6 +99,7 @@ import ConflictManager from './components/dashboard/ConflictManager';
 import PWAInstallPrompt from './components/common/PWAInstallPrompt';
 import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
 import BatteryIndicator from './components/layout/BatteryIndicator';
+import VersionChecker from './components/layout/VersionChecker';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
