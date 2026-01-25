@@ -1990,7 +1990,7 @@ export default function DeliveryMap({
     pickupMarkers.map(p => `${p?.id}:${p?.stop_order}:${p?.status}`).join(','),
     showRoutes,
     isAllDriversMode,
-    safeUsers.map(u => u?.id).join(','),
+    driverLookupMap, // CRITICAL: Include driver lookup map to recalculate when driver data changes
     currentZoom,
     currentUser?.id,
     currentDriverLocation?.latitude,
