@@ -73,6 +73,13 @@ export function ResizableDivider({
         style={{ cursor: 'col-resize' }}
       />
       
+      {/* Touch-friendly gripper for mobile */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex flex-col gap-0.5">
+        <div className="w-1 h-1 rounded-full bg-slate-400 hover:bg-emerald-500"></div>
+        <div className="w-1 h-1 rounded-full bg-slate-400 hover:bg-emerald-500"></div>
+        <div className="w-1 h-1 rounded-full bg-slate-400 hover:bg-emerald-500"></div>
+      </div>
+      
       {/* Visual indicator when dragging */}
       {isDragging && (
         <div className="absolute inset-y-0 left-0 w-[2px] bg-emerald-500" />
