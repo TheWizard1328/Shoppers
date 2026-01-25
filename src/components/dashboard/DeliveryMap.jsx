@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import * as ReactExports from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
@@ -197,7 +196,6 @@ export const getDriverColor = (driver) => {
   let color = DRIVER_COLORS[index];
   if (!color || color === '') {
     // Fallback to a default color, or the first valid color in the list
-    // DRIVER_COLORS[1] is '#2196F3', which is a good default blue
     color = DRIVER_COLORS[1] || '#607D8B';
   }
 
