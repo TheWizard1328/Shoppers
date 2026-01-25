@@ -1163,19 +1163,46 @@ export default function DeliveriesPage() {
   }, [effectiveDeliveries, effectiveDrivers, driverFilter]);
 
   const groupedDeliveries = useMemo(() => {
-    return (driverFilteredDeliveries || []).reduce((acc, delivery) => {
+    // CRITICAL: Group deliveries by date within selected month/year
+    if (!driverFilteredDeliveries || driverFilteredDeliveries.length === 0) {
+      return {};
+    }
+
+    // When in Route Management mode (not Driver Overview), only show dates in selected month
+    if (!isDriverOverviewMode && selectedYear !== undefined && selectedMonth !== undefined) {
+      const monthStart = new Date(selectedYear, selectedMonth, 1);
+      const monthEnd = new Date(selectedYear, selectedMonth + 1, 0);
+      
+      const filtered = driverFilteredDeliveries.filter((d) => {
+        if (!d || !d.delivery_date) return false;
+        const [y, m, day] = d.delivery_date.split('-').map(Number);
+        const deliveryDate = new Date(y, m - 1, day);
+        return deliveryDate >= monthStart && deliveryDate <= monthEnd;
+      });
+
+      return filtered.reduce((acc, delivery) => {
+        const dateKey = delivery.delivery_date.substring(0, 10);
+        if (!acc[dateKey]) {
+          acc[dateKey] = [];
+        }
+        acc[dateKey].push(delivery);
+        return acc;
+      }, {});
+    }
+
+    // Driver Overview: show all dates
+    return driverFilteredDeliveries.reduce((acc, delivery) => {
       if (!delivery || !delivery.delivery_date) {
         return acc;
       }
       const dateKey = delivery.delivery_date.substring(0, 10);
-
       if (!acc[dateKey]) {
         acc[dateKey] = [];
       }
       acc[dateKey].push(delivery);
       return acc;
     }, {});
-  }, [driverFilteredDeliveries]);
+  }, [driverFilteredDeliveries, isDriverOverviewMode, selectedYear, selectedMonth]);
 
   const sortedDates = useMemo(() => {
     return Object.keys(groupedDeliveries).sort((a, b) => new Date(b.replace(/-/g, '/')) - new Date(a.replace(/-/g, '/')));
