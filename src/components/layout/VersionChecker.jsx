@@ -3,11 +3,29 @@ import { Button } from '@/components/ui/button';
 import { X, RefreshCw } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
+import { saveSetting } from '@/components/utils/userSettingsManager';
 
 export default function VersionChecker({ currentVersion }) {
   const [newVersionAvailable, setNewVersionAvailable] = useState(false);
   const [serverVersion, setServerVersion] = useState(null);
+  const [userVersion, setUserVersion] = useState(null);
+  const [userId, setUserId] = useState(null);
   const [dismissed, setDismissed] = useState(false);
+
+  // Get current user
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const user = await base44.auth.me();
+        if (user?.id) {
+          setUserId(user.id);
+        }
+      } catch (error) {
+        // Silent fail
+      }
+    };
+    getUser();
+  }, []);
 
   useEffect(() => {
     const checkVersion = async () => {
@@ -18,9 +36,24 @@ export default function VersionChecker({ currentVersion }) {
           const versionString = `v${version.major}.${version.minor}.${version.build}`;
           setServerVersion(versionString);
           
-          // Check if server version differs from current version
-          if (versionString !== currentVersion) {
-            setNewVersionAvailable(true);
+          // Load user's stored version if we have a user
+          if (userId) {
+            try {
+              const userSettings = await base44.auth.me();
+              const storedVersion = userSettings?.user_version;
+              setUserVersion(storedVersion || currentVersion);
+              
+              // Show notification only if server version is newer than user's version
+              if (versionString !== (storedVersion || currentVersion)) {
+                setNewVersionAvailable(true);
+              }
+            } catch (error) {
+              // Fall back to currentVersion
+              setUserVersion(currentVersion);
+              if (versionString !== currentVersion) {
+                setNewVersionAvailable(true);
+              }
+            }
           }
         }
       } catch (error) {
@@ -28,35 +61,34 @@ export default function VersionChecker({ currentVersion }) {
       }
     };
 
-    // Check immediately
     checkVersion();
 
     // Check every 5 minutes
     const interval = setInterval(checkVersion, 300000);
 
     return () => clearInterval(interval);
-  }, [currentVersion]);
+  }, [currentVersion, userId]);
 
   const handleRefresh = () => {
-    // Store that we've refreshed for this version BEFORE clearing localStorage
-    localStorage.setItem('versionUpdateDismissed', serverVersion);
-    // Clear everything except the dismissal flag
-    const dismissedVersion = localStorage.getItem('versionUpdateDismissed');
-    localStorage.clear();
-    localStorage.setItem('versionUpdateDismissed', dismissedVersion);
+    // Store the server version as the user's current version
+    if (userId && serverVersion) {
+      saveSetting(userId, 'user_version', serverVersion);
+    }
+    
+    // Update user data to persist version
+    if (userId && serverVersion) {
+      base44.auth.updateMe({ user_version: serverVersion }).catch(() => {});
+    }
+    
     window.location.reload(true);
   };
 
   const handleDismiss = () => {
     setDismissed(true);
-    // Remember dismissal permanently
-    localStorage.setItem('versionUpdateDismissed', serverVersion);
   };
 
-  // Don't show if dismissed or if dismissed version matches current server version
-  const shouldShow = newVersionAvailable && 
-                     !dismissed && 
-                     localStorage.getItem('versionUpdateDismissed') !== serverVersion;
+  // Show if new version available, not dismissed, and server version is newer than user version
+  const shouldShow = newVersionAvailable && !dismissed && serverVersion && userVersion && serverVersion !== userVersion;
 
   return (
     <AnimatePresence>
