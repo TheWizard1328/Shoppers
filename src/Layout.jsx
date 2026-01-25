@@ -227,11 +227,11 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
           setStats(data);
           lastFetchRef.current = { date: selectedDateStr, driver: selectedDriverId, timestamp: now };
 
-          // CRITICAL: Check if month has data but today is empty - trigger refresh
+          // CRITICAL: Only trigger refresh on initial load, not after manual refresh
           const todayEmpty = data.today.activeStops === 0 && data.today.completed === 0;
           const monthHasData = data.month.completed > 0 || data.month.failed > 0 || data.month.returns > 0;
 
-          if (todayEmpty && monthHasData) {
+          if (!force && todayEmpty && monthHasData) {
             console.log('🔄 [QuickStats] Month has data but today is empty - triggering refresh');
             window.dispatchEvent(new CustomEvent('triggerManualRefresh'));
           }
