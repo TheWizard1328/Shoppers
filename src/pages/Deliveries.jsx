@@ -653,10 +653,11 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // CRITICAL: In Driver Overview mode, DON'T overwrite deliveries from context
-    // because we fetch the full year directly from the database
-    if (isDriverOverviewMode) {
-      console.log('⏸️ [Deliveries] Skipping context sync for deliveries - Driver Overview mode uses full year data');
+    // CRITICAL: Route Management loads its own month data independently
+    // NEVER sync context deliveries into Route Management (both overview and with driver selected)
+    // Route Management is completely decoupled from Dashboard
+    if (!isDriverOverviewMode) {
+      console.log('⏸️ [Deliveries] Skipping context sync for deliveries - Route Management loads independently from offline DB');
       // Still sync other data
       if (contextPatients.length > 0) {
         setAllPatients(contextPatients);
@@ -673,9 +674,10 @@ export default function DeliveriesPage() {
       return;
     }
 
+    // Driver Overview: sync deliveries from context
     if (contextDeliveries.length > 0) {
       setAllDeliveries(contextDeliveries);
-      setRefreshKey((prev) => prev + 1); // Force driver card stats to recalculate
+      setRefreshKey((prev) => prev + 1);
     }
 
     if (contextPatients.length > 0) {
