@@ -3464,6 +3464,59 @@ export default function Layout({ children, currentPageName }) {
                               </Select>
                             </div>
                           )}
+
+                          {/* Force Full App Refresh - Does NOT clear offline DB */}
+                          <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                          <DropdownMenuItem 
+                            onClick={async () => {
+                              if (!window.confirm('Force a full app refresh? This will clear cache and reload the application to ensure you have the latest updates.')) {
+                                return;
+                              }
+                              
+                              try {
+                                localStorage.clear();
+                                sessionStorage.clear();
+                                
+                                alert('Cache cleared. Reloading application...');
+                                window.location.reload(true);
+                              } catch (error) {
+                                alert('Failed to perform full refresh: ' + error.message);
+                              }
+                            }}
+                            className="cursor-pointer text-blue-600"
+                            style={{ fontSize: isMobile ? '16px' : '15px' }}
+                          >
+                            <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                            Force Full App Refresh
+                          </DropdownMenuItem>
+
+                          {/* Emergency Recovery - Clear Offline DB */}
+                          <DropdownMenuItem 
+                            onClick={async () => {
+                              if (!window.confirm('Clear offline database and reload fresh data? This will fix stuck data issues.')) {
+                                return;
+                              }
+                              
+                              try {
+                                const { offlineDB } = await import('./components/utils/offlineDatabase');
+                                const { offlineMutationQueue } = await import('./components/utils/offlineMutations');
+                                
+                                await offlineDB.clearAllData();
+                                await offlineMutationQueue.clearAllMutations();
+                                localStorage.setItem('rxdeliver_offline_db_cleared', new Date().toISOString());
+                                
+                                alert('Offline database cleared. Reloading...');
+                                window.location.reload();
+                              } catch (error) {
+                                alert('Failed to clear offline DB: ' + error.message);
+                              }
+                            }}
+                            className="cursor-pointer text-red-600"
+                            style={{ fontSize: isMobile ? '16px' : '15px' }}
+                          >
+                            <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                            Clear Offline Data
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     )}
