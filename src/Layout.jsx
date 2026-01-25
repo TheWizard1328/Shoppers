@@ -444,9 +444,9 @@ class ErrorBoundary extends React.Component {
       }));
     } catch (e) {
 
+
       // Ignore localStorage errors
-    }
-    return { hasError: true, error };
+    }return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
@@ -481,9 +481,9 @@ class ErrorBoundary extends React.Component {
         }
       } catch (e) {
 
+
         // Ignore
-      }
-      const errorToShow = this.state.error || cachedError;
+      }const errorToShow = this.state.error || cachedError;
 
       // Check if mobile device
       const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -498,9 +498,9 @@ class ErrorBoundary extends React.Component {
         }
       } catch (e) {
 
+
         // Ignore
-      }
-      const showErrorDetails = isMobileDevice && isOwner && errorToShow;
+      }const showErrorDetails = isMobileDevice && isOwner && errorToShow;
 
       const handleCopyError = () => {
         const errorText = `Error Message:\n${errorToShow?.message || 'Unknown error'}\n\nStack Trace:\n${errorToShow?.stack || 'No stack trace'}`;
@@ -690,9 +690,9 @@ export default function Layout({ children, currentPageName }) {
         }
       } catch (error) {
 
+
         // Silent fail
       }};
-
     // Initial check
     pollAdminImportSetting();
 
@@ -758,9 +758,9 @@ export default function Layout({ children, currentPageName }) {
             }
           } catch (e) {
 
+
             // Silent fail - use defaults
           }}, 10000); // Load app settings 10 seconds after init
-
         const isDispatcher = userHasRole(fetchedUser, 'dispatcher');
         const isInactive = fetchedUser.status === 'inactive';
 
@@ -1556,9 +1556,9 @@ export default function Layout({ children, currentPageName }) {
       });
     } catch (error) {
 
+
       // Silent fail
     }};
-
   const handleImpersonate = useCallback(async (userId) => {
     sessionStorage.setItem('impersonationId', userId);
     window.location.reload();
@@ -2762,7 +2762,7 @@ export default function Layout({ children, currentPageName }) {
                       <div>
                         <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>RxDeliver</h2>
                         <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Pharmacy Logistics</p>
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-2">
                           <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{appVersion}</p>
                           <BatteryIndicator />
                         </div>
@@ -2920,9 +2920,9 @@ export default function Layout({ children, currentPageName }) {
                               window.location.reload(true);
                             } catch (error) {
 
+
                               // Silent fail
-                            }}}
-                          className="cursor-pointer text-blue-600"
+                            }}} className="cursor-pointer text-blue-600"
                           style={{ fontSize: isMobile ? '16px' : '15px' }}>
 
                               <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
@@ -3276,7 +3276,7 @@ export default function Layout({ children, currentPageName }) {
                 className="mobile-header border-b px-4 py-3 sticky top-0"
                 style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
 
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-1">
                     <div className="flex items-center gap-2">
                       <button
                       onClick={(e) => {
@@ -3325,7 +3325,7 @@ export default function Layout({ children, currentPageName }) {
                             <MoreVertical className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'} text-slate-500`} />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56 z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
+                        <DropdownMenuContent align="end" className="min-w-[9rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 w-60 z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
                           {/* Settings header and Admin Import toggle - only for admins/app owners */}
                           {(userHasRole(currentUser, 'admin') || isAppOwner(currentUser)) &&
                       <>
@@ -3451,9 +3451,9 @@ export default function Layout({ children, currentPageName }) {
                             window.location.reload(true);
                           } catch (error) {
 
+
                             // Silent fail
-                          }}}
-                        className="cursor-pointer text-blue-600"
+                          }}} className="cursor-pointer text-blue-600"
                         style={{ fontSize: isMobile ? '16px' : '15px' }}>
 
                             <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
