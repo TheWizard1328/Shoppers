@@ -38,20 +38,25 @@ export default function VersionChecker({ currentVersion }) {
   }, [currentVersion]);
 
   const handleRefresh = () => {
+    // Store that we've refreshed for this version BEFORE clearing localStorage
+    localStorage.setItem('versionUpdateDismissed', serverVersion);
+    // Clear everything except the dismissal flag
+    const dismissedVersion = localStorage.getItem('versionUpdateDismissed');
     localStorage.clear();
+    localStorage.setItem('versionUpdateDismissed', dismissedVersion);
     window.location.reload(true);
   };
 
   const handleDismiss = () => {
     setDismissed(true);
-    // Remember dismissal for this session only
-    sessionStorage.setItem('versionUpdateDismissed', serverVersion);
+    // Remember dismissal permanently
+    localStorage.setItem('versionUpdateDismissed', serverVersion);
   };
 
   // Don't show if dismissed or if dismissed version matches current server version
   const shouldShow = newVersionAvailable && 
                      !dismissed && 
-                     sessionStorage.getItem('versionUpdateDismissed') !== serverVersion;
+                     localStorage.getItem('versionUpdateDismissed') !== serverVersion;
 
   return (
     <AnimatePresence>
