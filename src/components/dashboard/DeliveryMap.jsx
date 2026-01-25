@@ -1780,7 +1780,8 @@ export default function DeliveryMap({
     if (!delivery) return;
     const driverId = delivery.driver_id || 'unassigned';
     if (!routesByDriver[driverId]) {
-      const driverForRoute = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
+      // CRITICAL: Use stable driver lookup map to prevent "Unassigned" names
+      const driverForRoute = driverLookupMap.get(driverId);
 
       // CRITICAL: Determine route color based on mode - calculated ONCE before rendering
       const routeColor = isAllDriversMode ?
