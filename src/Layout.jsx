@@ -230,13 +230,20 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
           setStats(data);
           lastFetchRef.current = { date: selectedDateStr, driver: selectedDriverId, timestamp: now };
 
-          // CRITICAL: Only trigger refresh on initial load, not after manual refresh
-          const todayEmpty = data.today.activeStops === 0 && data.today.completed === 0;
-          const monthHasData = data.month.completed > 0 || data.month.failed > 0 || data.month.returns > 0;
+          // CRITICAL: Compare delivery counts (row 1) with performance stats (row 2)
+          const todayDeliveryCountsZero = data.today.activeStops === 0 && data.today.completed === 0;
+          const hasPerformanceStats = (data.performanceStats?.totalPay || 0) > 0 ||
+                                      (data.performanceStats?.totalKm || 0) > 0 ||
+                                      (data.performanceStats?.totalTimeOnDuty && data.performanceStats.totalTimeOnDuty !== '00:00');
 
-          if (!force && todayEmpty && monthHasData) {
-            console.log('🔄 [QuickStats] Month has data but today is empty - triggering refresh');
+          const alreadyTriggeredForThisFilter = 
+            refreshTriggeredRef.current.date === selectedDateStr &&
+            refreshTriggeredRef.current.driver === selectedDriverId;
+
+          if (!force && todayDeliveryCountsZero && hasPerformanceStats && !alreadyTriggeredForThisFilter) {
+            console.log('🔄 [QuickStats] Delivery counts zero but performance stats exist - triggering refresh');
             window.dispatchEvent(new CustomEvent('triggerManualRefresh'));
+            refreshTriggeredRef.current = { date: selectedDateStr, driver: selectedDriverId };
           }
 
           // CRITICAL: Dispatch events to pass stats to Dashboard
