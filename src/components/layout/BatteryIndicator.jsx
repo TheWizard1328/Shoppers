@@ -9,9 +9,9 @@ export default function BatteryIndicator({ vertical = false }) {
     // Only show on mobile devices and laptops, not desktop PCs
     const userAgent = navigator.userAgent.toLowerCase();
     const isMobileOrLaptop = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i.test(userAgent) ||
-                             navigator.maxTouchPoints > 1 ||
-                             window.innerWidth < 1024; // Treat narrow screens as mobile
-    
+    navigator.maxTouchPoints > 1 ||
+    window.innerWidth < 1024; // Treat narrow screens as mobile
+
     if (!isMobileOrLaptop) {
       setBatteryLevel(null);
       return;
@@ -63,7 +63,7 @@ export default function BatteryIndicator({ vertical = false }) {
   const getBatteryIcon = () => {
     const iconSize = vertical ? "w-6 h-4" : "w-10 h-5";
     const colorClass = getColor();
-    
+
     if (isCharging) {
       return <BatteryCharging className={`${iconSize} ${colorClass}`} />;
     }
@@ -81,23 +81,23 @@ export default function BatteryIndicator({ vertical = false }) {
 
   if (vertical) {
     return (
-      <div 
-        className="flex flex-col items-center" 
-        title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}
-      >
+      <div
+        className="flex flex-col items-center"
+        title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
+
         {getBatteryIcon()}
         <span className={`text-[10px] font-bold ${getColor()}`}>{batteryLevel}%</span>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
-    <div 
-      className="flex items-center gap-1.5" 
-      title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}
-    >
+    <div className="flex items-center"
+
+    title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
+
       {getBatteryIcon()}
       <span className={`text-xs font-bold ${getColor()}`}>{batteryLevel}%</span>
-    </div>
-  );
+    </div>);
+
 }
