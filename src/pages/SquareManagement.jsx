@@ -829,6 +829,9 @@ export default function SquareManagement() {
                     <div className="text-xs text-slate-600 dark:text-slate-400">
                       {locationItems.length} {locationItems.length === 1 ? 'item' : 'items'}
                     </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 italic">
+                      Click to view details
+                    </div>
                   </div>
                 );
               })}
