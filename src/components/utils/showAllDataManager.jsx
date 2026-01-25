@@ -1,14 +1,7 @@
 /**
  * Show All Data Manager
- * 
- * Ensures that when "Show All" checkbox is enabled on Dashboard,
- * the UI properly reflects ALL drivers' data for the selected date.
- * 
- * This utility:
- * 1. Checks the "Show All" checkbox state
- * 2. Verifies if all drivers' data is available for the selected date
- * 3. Loads missing data if needed
- * 4. Coordinates with smart refresh to respect the "Show All" state
+ * Ensures that when "Show All" checkbox is enabled, all drivers' deliveries are loaded
+ * Integrates with smart refresh to prevent data mismatches
  */
 
 import { base44 } from '@/api/base44Client';
@@ -17,219 +10,159 @@ import { format } from 'date-fns';
 
 class ShowAllDataManager {
   constructor() {
-    this.isLoading = false;
-    this.lastCheckTimestamp = 0;
-    this.checkCooldown = 2000; // 2 seconds between checks
+    this.listeners = new Set();
   }
 
   /**
-   * Check if "Show All" is enabled
+   * Get the current state of "Show All" checkbox
    */
-  isShowAllEnabled() {
+  getShowAllState() {
     const saved = localStorage.getItem('rxdeliver_show_all_driver_markers');
     return saved === 'true';
   }
 
   /**
-   * Check if we have all drivers' data for the selected date
-   * Returns { hasAllData: boolean, missingDriverIds: string[] }
+   * Check if we need to load all drivers' data for the selected date
+   * @param {Array} currentDeliveries - Current deliveries in memory
+   * @param {string} selectedDateStr - Selected date (yyyy-MM-dd)
+   * @param {string} selectedDriverId - Selected driver ID
+   * @returns {boolean} - True if we need to load additional data
    */
-  async checkDataCompleteness(selectedDate, deliveries, drivers) {
-    try {
-      const selectedDateStr = typeof selectedDate === 'string' 
-        ? selectedDate 
-        : format(selectedDate, 'yyyy-MM-dd');
+  needsAllDriversData(currentDeliveries, selectedDateStr, selectedDriverId) {
+    const showAll = this.getShowAllState();
+    const isAllDriversMode = selectedDriverId === 'all';
 
-      // Get all deliveries for the selected date from the deliveries array
-      const deliveriesForDate = (deliveries || []).filter(d => 
-        d && d.delivery_date === selectedDateStr
-      );
-
-      // Get unique driver IDs from deliveries
-      const driversWithDeliveries = new Set(
-        deliveriesForDate.map(d => d.driver_id).filter(Boolean)
-      );
-
-      console.log(`🔍 [Show All Manager] Found ${driversWithDeliveries.size} drivers with deliveries for ${selectedDateStr}`);
-
-      // Get all drivers from deliveries for the date from the backend to verify completeness
-      const allDeliveriesFromBackend = await base44.entities.Delivery.filter({
-        delivery_date: selectedDateStr
-      });
-
-      const allDriversWithDeliveriesBackend = new Set(
-        allDeliveriesFromBackend.map(d => d.driver_id).filter(Boolean)
-      );
-
-      // Compare - find missing drivers
-      const missingDriverIds = Array.from(allDriversWithDeliveriesBackend).filter(
-        driverId => !driversWithDeliveries.has(driverId)
-      );
-
-      const hasAllData = missingDriverIds.length === 0;
-
-      if (!hasAllData) {
-        console.log(`⚠️ [Show All Manager] Missing data for ${missingDriverIds.length} drivers:`, missingDriverIds);
-      } else {
-        console.log(`✅ [Show All Manager] Have complete data for all ${driversWithDeliveries.size} drivers`);
-      }
-
-      return {
-        hasAllData,
-        missingDriverIds,
-        totalDriversExpected: allDriversWithDeliveriesBackend.size,
-        driversCurrentlyLoaded: driversWithDeliveries.size
-      };
-    } catch (error) {
-      console.error('❌ [Show All Manager] Error checking data completeness:', error);
-      return { hasAllData: false, missingDriverIds: [] };
+    // If neither "Show All" nor "All Drivers" mode, we don't need all drivers' data
+    if (!showAll && !isAllDriversMode) {
+      return false;
     }
+
+    // Check if we have deliveries for the selected date
+    const deliveriesForDate = (currentDeliveries || []).filter(d => 
+      d && d.delivery_date === selectedDateStr
+    );
+
+    // If we have no deliveries at all, we need to load
+    if (deliveriesForDate.length === 0) {
+      console.log('📊 [ShowAllDataManager] No deliveries for date - need to load');
+      return true;
+    }
+
+    // Check if we have multiple drivers' data
+    const uniqueDrivers = new Set(
+      deliveriesForDate.map(d => d.driver_id).filter(Boolean)
+    );
+
+    // If Show All is checked or All Drivers mode, we should have multiple drivers
+    // If we only have 1 driver, we likely don't have all drivers' data yet
+    if (uniqueDrivers.size <= 1) {
+      console.log(`📊 [ShowAllDataManager] Only ${uniqueDrivers.size} driver(s) found - need to load all drivers`);
+      return true;
+    }
+
+    console.log(`✅ [ShowAllDataManager] Already have ${uniqueDrivers.size} drivers' data - no load needed`);
+    return false;
   }
 
   /**
    * Load all drivers' deliveries for the selected date
-   * Called when "Show All" is enabled but data is incomplete
+   * @param {string} selectedDateStr - Selected date (yyyy-MM-dd)
+   * @param {Array} currentDeliveries - Current deliveries in memory
+   * @param {Function} updateCallback - Callback to update UI state
+   * @returns {Promise<Array>} - Updated deliveries array
    */
-  async ensureAllDriversDataLoaded(selectedDate, currentDeliveries, updateDeliveriesCallback) {
-    // Prevent concurrent loads
-    if (this.isLoading) {
-      console.log('⏭️ [Show All Manager] Already loading data - skipping duplicate call');
-      return;
-    }
-
-    // Cooldown to prevent excessive checks
-    const now = Date.now();
-    if (now - this.lastCheckTimestamp < this.checkCooldown) {
-      console.log('⏭️ [Show All Manager] Cooldown active - skipping check');
-      return;
-    }
-
-    this.isLoading = true;
-    this.lastCheckTimestamp = now;
+  async ensureAllDriversDataLoaded(selectedDateStr, currentDeliveries, updateCallback) {
+    console.log('📥 [ShowAllDataManager] Loading all drivers\' deliveries...');
 
     try {
-      const selectedDateStr = typeof selectedDate === 'string' 
-        ? selectedDate 
-        : format(selectedDate, 'yyyy-MM-dd');
+      // Try offline DB first
+      let allDateDeliveries = await offlineDB.getByDate(
+        offlineDB.STORES.DELIVERIES, 
+        selectedDateStr
+      );
 
-      console.log(`📥 [Show All Manager] Loading ALL drivers' data for ${selectedDateStr}...`);
-
-      // Step 1: Try offline DB first
-      let allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-
-      // Step 2: If offline DB is empty or incomplete, fetch from API
+      // If offline DB is empty or incomplete, fetch from API
       if (!allDateDeliveries || allDateDeliveries.length === 0) {
-        console.log('📥 [Show All Manager] Offline DB empty - fetching from API');
+        console.log('📥 [ShowAllDataManager] Offline DB empty - fetching from API');
         allDateDeliveries = await base44.entities.Delivery.filter({ 
           delivery_date: selectedDateStr 
         });
-
-        // Save to offline DB for future use
-        if (allDateDeliveries.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
-          console.log(`✅ [Show All Manager] Saved ${allDateDeliveries.length} deliveries to offline DB`);
-        }
-      } else {
-        console.log(`📦 [Show All Manager] Using ${allDateDeliveries.length} deliveries from offline DB`);
         
-        // Verify completeness by comparing with backend
-        const backendDeliveries = await base44.entities.Delivery.filter({ 
-          delivery_date: selectedDateStr 
-        });
-
-        if (backendDeliveries.length > allDateDeliveries.length) {
-          console.log(`⚠️ [Show All Manager] Offline DB incomplete (${allDateDeliveries.length} vs ${backendDeliveries.length}) - using backend data`);
-          allDateDeliveries = backendDeliveries;
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
-        }
+        // Save to offline DB for future use
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
+      } else {
+        console.log(`📦 [ShowAllDataManager] Using ${allDateDeliveries.length} deliveries from offline DB`);
       }
 
-      // Step 3: Update UI with complete data
-      if (updateDeliveriesCallback && allDateDeliveries.length > 0) {
-        // Merge with deliveries from other dates
-        const otherDateDeliveries = (currentDeliveries || []).filter(d => 
-          d && d.delivery_date !== selectedDateStr
-        );
-        const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
+      // Merge with existing deliveries from other dates
+      const otherDateDeliveries = (currentDeliveries || []).filter(d => 
+        d && d.delivery_date !== selectedDateStr
+      );
+      const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
 
-        console.log(`✅ [Show All Manager] Updating UI with ${allDateDeliveries.length} deliveries for ${selectedDateStr}`);
-        updateDeliveriesCallback(mergedDeliveries, true);
-
-        return allDateDeliveries;
+      // Update UI via callback
+      if (updateCallback) {
+        updateCallback(mergedDeliveries, true);
       }
 
-      return allDateDeliveries;
+      console.log(`✅ [ShowAllDataManager] Loaded ${allDateDeliveries.length} deliveries for ${selectedDateStr}`);
+      return mergedDeliveries;
+
     } catch (error) {
-      console.error('❌ [Show All Manager] Error loading data:', error);
-      return null;
-    } finally {
-      this.isLoading = false;
+      console.error('❌ [ShowAllDataManager] Failed to load all drivers data:', error);
+      return currentDeliveries;
     }
   }
 
   /**
-   * Smart refresh integration - ensures smart refresh respects "Show All" state
-   * Returns the appropriate filter to use for fetching deliveries
+   * Hook into smart refresh to ensure Show All data is loaded
+   * Call this after smart refresh completes
    */
-  getDeliveryFilterForSmartRefresh(selectedDate, selectedDriverId) {
-    const showAll = this.isShowAllEnabled();
-    const selectedDateStr = typeof selectedDate === 'string' 
-      ? selectedDate 
-      : format(selectedDate, 'yyyy-MM-dd');
+  async validateDataAfterRefresh(currentDeliveries, selectedDateStr, selectedDriverId, updateCallback) {
+    const showAll = this.getShowAllState();
+    const isAllDriversMode = selectedDriverId === 'all';
 
-    const filter = { delivery_date: selectedDateStr };
+    console.log(`🔍 [ShowAllDataManager] Validating data after refresh...`);
+    console.log(`   - Show All: ${showAll}, All Drivers Mode: ${isAllDriversMode}`);
 
-    // If "Show All" is enabled, don't add driver filter (fetch all)
-    // If "All Drivers" mode, don't add driver filter
-    // Otherwise, filter by selected driver
-    if (!showAll && selectedDriverId && selectedDriverId !== 'all') {
-      filter.driver_id = selectedDriverId;
-      console.log(`🔍 [Show All Manager] Smart refresh filter: Single driver (${selectedDriverId})`);
-    } else {
-      console.log(`🔍 [Show All Manager] Smart refresh filter: All drivers (showAll: ${showAll}, mode: ${selectedDriverId})`);
+    // If neither mode is active, no validation needed
+    if (!showAll && !isAllDriversMode) {
+      console.log('⏭️ [ShowAllDataManager] Neither Show All nor All Drivers mode - skipping validation');
+      return currentDeliveries;
     }
 
-    return filter;
+    // Check if we need to load all drivers' data
+    const needsData = this.needsAllDriversData(currentDeliveries, selectedDateStr, selectedDriverId);
+
+    if (needsData) {
+      console.log('🔄 [ShowAllDataManager] Loading missing drivers\' data...');
+      return await this.ensureAllDriversDataLoaded(selectedDateStr, currentDeliveries, updateCallback);
+    }
+
+    console.log('✅ [ShowAllDataManager] Data validation passed');
+    return currentDeliveries;
   }
 
   /**
-   * Check and load data if needed
-   * Should be called when:
-   * - Dashboard mounts
-   * - "Show All" checkbox is toggled
-   * - Smart refresh completes
-   * - Driver/date changes
+   * Subscribe to show all state changes
    */
-  async checkAndLoadIfNeeded(selectedDate, currentDeliveries, drivers, updateDeliveriesCallback) {
-    const showAll = this.isShowAllEnabled();
-
-    // Only proceed if "Show All" is enabled
-    if (!showAll) {
-      console.log('⏭️ [Show All Manager] Not enabled - skipping check');
-      return null;
-    }
-
-    console.log('🔍 [Show All Manager] Checking data completeness...');
-
-    const completeness = await this.checkDataCompleteness(selectedDate, currentDeliveries, drivers);
-
-    if (!completeness.hasAllData && completeness.missingDriverIds.length > 0) {
-      console.log(`📥 [Show All Manager] Loading missing data for ${completeness.missingDriverIds.length} drivers`);
-      return await this.ensureAllDriversDataLoaded(selectedDate, currentDeliveries, updateDeliveriesCallback);
-    }
-
-    console.log(`✅ [Show All Manager] Data is complete - no loading needed`);
-    return null;
+  subscribe(callback) {
+    this.listeners.add(callback);
+    return () => this.listeners.delete(callback);
   }
 
   /**
-   * Reset state (call when unmounting or changing dates)
+   * Notify listeners of state change
    */
-  reset() {
-    this.isLoading = false;
-    this.lastCheckTimestamp = 0;
+  notifyListeners(data) {
+    this.listeners.forEach(listener => {
+      try {
+        listener(data);
+      } catch (error) {
+        console.error('ShowAllDataManager listener error:', error);
+      }
+    });
   }
 }
 
-// Export singleton instance
 export const showAllDataManager = new ShowAllDataManager();
