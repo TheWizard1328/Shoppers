@@ -1102,19 +1102,14 @@ export default function DeliveryMap({
       if (isStopInDispatcherStore) {
         // Dispatcher's own stores - ALWAYS use store colors regardless of driver or PUID
         pinColor = store ? getStoreColor(store) : '#6B7280';
-      } else if (hasNoPickup) {
-        // CRITICAL: Yellow ONLY for active driver's markers OR all drivers mode when pickup is missing
-        // For "Show All" mode with other drivers, use store color even when missing pickup
-        if (isOtherDriver) {
-          pinColor = store ? getStoreColor(store) : '#6B7280';
-        } else {
-          pinColor = '#FBBF24';
-        }
       } else if (isAllDriversMode) {
-        // All drivers mode - use driver colors
+        // All drivers mode - ALWAYS use driver colors, never yellow
         pinColor = enrichedDriver && typeof enrichedDriver === 'object' ? getDriverColor(enrichedDriver) : '#607D8B';
+      } else if (hasNoPickup && !isOtherDriver) {
+        // Single driver mode ONLY: Yellow for deliveries without assigned pickup
+        pinColor = '#FBBF24';
       } else if (isOtherDriver) {
-        // CRITICAL: "Show All" mode for drivers - other drivers use STORE COLORS
+        // "Show All" mode for drivers - other drivers use STORE COLORS
         pinColor = store ? getStoreColor(store) : '#6B7280';
       } else {
         // Single driver mode - use store colors
