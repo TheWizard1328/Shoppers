@@ -6703,14 +6703,10 @@ function Dashboard() {
           onMouseEnter={() => handleCardInteraction(true)}
           onMouseLeave={() => handleCardInteraction(false)}>
               <div className="flex flex-wrap gap-x-1 gap-y-1 items-center justify-center">
-                {sortUsers(driverRoutes.map((route) => {
-                  // CRITICAL: Find the actual driver user object for sorting
-                  const driver = users.find((u) => u && u.id === route.driverId);
-                  return { ...route, _driver: driver };
-                }).filter(r => r._driver)).map((route) => {
-                  const driver = route._driver;
-                  const displayName = driver?.user_name || driver?.full_name || route.driverName || 'Unknown';
-                  const freshColor = driver ? getDriverColor(driver) : route.color;
+                {driverRoutes.map((route) => {
+                  // CRITICAL: Use route color and driver name already calculated in DeliveryMap
+                  const displayName = route.driverName || 'Unknown';
+                  const routeColor = route.color;
 
                   return (
                     <div
