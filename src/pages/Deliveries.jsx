@@ -2689,11 +2689,9 @@ export default function DeliveriesPage() {
 
       const targetYear = targetDate.getFullYear();
       const targetMonth = targetDate.getMonth();
-      const dateString = format(targetDate, 'yyyy-MM-dd');
 
       console.log('🎯 [handleDriverChange] Updating filters:', {
         driver: driverId,
-        date: dateString,
         year: targetYear,
         month: targetMonth + 1
       });
@@ -2703,9 +2701,9 @@ export default function DeliveriesPage() {
       setSelectedYear(targetYear);
       setSelectedMonth(targetMonth);
 
+      // CRITICAL: Only use year/month/driver in URL, no date param
       updateUrl({
         driver: driverId,
-        date: dateString,
         year: targetYear.toString(),
         month: (targetMonth + 1).toString()
       });
