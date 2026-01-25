@@ -27,31 +27,42 @@ Deno.serve(async (req) => {
     let catalogIdToDelete = catalogObjectId;
 
     // Find the transaction by various methods
-    if (transactionId) {
-      // Direct transaction ID lookup
-      const transactions = await base44.asServiceRole.entities.SquareTransaction.filter({ id: transactionId });
-      transaction = transactions[0];
-      catalogIdToDelete = transaction?.square_catalog_object_id || catalogObjectId;
-    } else if (deliveryId) {
-      // Find by delivery ID (any status, not just pending)
-      const transactions = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId });
-      transaction = transactions[0];
-      catalogIdToDelete = transaction?.square_catalog_object_id || catalogObjectId;
+    try {
+      if (transactionId) {
+        // Direct transaction ID lookup
+        const transactions = await base44.asServiceRole.entities.SquareTransaction.filter({ id: transactionId });
+        transaction = transactions[0];
+        catalogIdToDelete = transaction?.square_catalog_object_id || catalogObjectId;
+      } else if (deliveryId) {
+        // Find by delivery ID (any status, not just pending)
+        const transactions = await base44.asServiceRole.entities.SquareTransaction.filter({ delivery_id: deliveryId });
+        transaction = transactions[0];
+        catalogIdToDelete = transaction?.square_catalog_object_id || catalogObjectId;
+      }
+    } catch (lookupError) {
+      console.warn('Could not find transaction record:', lookupError.message);
+      // Continue with catalog delete if we have the ID
     }
-    if (catalogIdToDelete) {
-      // Delete the catalog item from Square
-      const deleteResponse = await fetch(`${SQUARE_BASE_URL}/catalog/object/${catalogIdToDelete}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Square-Version': '2024-01-18'
-        }
-      });
 
-      if (!deleteResponse.ok) {
-        const errorData = await deleteResponse.json();
-        console.error('Square delete error:', errorData);
-        // Continue to update our record even if Square delete fails
+    if (catalogIdToDelete) {
+      try {
+        // Delete the catalog item from Square
+        const deleteResponse = await fetch(`${SQUARE_BASE_URL}/catalog/object/${catalogIdToDelete}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Square-Version': '2024-01-18'
+          }
+        });
+
+        if (!deleteResponse.ok) {
+          const errorData = await deleteResponse.json();
+          console.warn('Square delete error:', errorData);
+          // Continue to update our record even if Square delete fails
+        }
+      } catch (squareError) {
+        console.warn('Could not delete from Square:', squareError.message);
+        // Continue anyway
       }
     }
 
