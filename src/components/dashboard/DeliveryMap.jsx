@@ -993,6 +993,8 @@ export default function DeliveryMap({
 
   // CRITICAL: FREEZE driver order on FIRST component mount - NEVER recalculate
   // Don't use useMemo—compute once via ref and always return cached result
+  const frozenDriverOrderRef = useRef(null);
+  
   if (!frozenDriverOrderRef.current) {
     const drivers = safeUsers.filter(u => u && typeof u === 'object' && u.id);
     drivers.sort((a, b) => {
@@ -1003,9 +1005,8 @@ export default function DeliveryMap({
       const nameB = (b.user_name || b.full_name || '').toLowerCase();
       return nameA.localeCompare(nameB);
     });
-    frozenDriverOrderRef.current = drivers.map(d => ({ id: d.id, ...d }));
+    frozenDriverOrderRef.current = drivers;
   }
-  const frozenDriverOrderRef = useRef(null);
   
   const stableSortedDrivers = frozenDriverOrderRef.current || [];
 
