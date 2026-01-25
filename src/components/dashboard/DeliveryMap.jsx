@@ -1024,7 +1024,9 @@ export default function DeliveryMap({
     });
     
     return drivers;
-  }, [safeUsers.map(u => u?.id).sort().join('|')]);
+    // CRITICAL: Only depend on WHICH drivers exist (by ID), never on their properties
+    // This prevents re-sort when smart refresh updates driver locations/data
+  }, [safeUsers.filter(u => u?.id).map(u => u.id).sort().join('|')]);
 
   // CRITICAL: Create stable driver lookup map using SORTED drivers
   const driverLookupMap = useMemo(() => {
