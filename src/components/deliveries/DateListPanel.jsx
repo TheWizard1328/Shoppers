@@ -132,9 +132,9 @@ export default function DateListPanel({
             <p className="text-sm">No deliveries this month</p>
           </div> :
 
-        (dateListWithStats || datesWithDeliveries).map(({ date, dateStr, total, completed, failed, returned, canDelete }) =>
+        (dateListWithStats || datesWithDeliveries).map(({ date, dateStr, total, completed, failed, returned, canDelete }, index) =>
         <Card
-          key={dateStr}
+          key={dateStr || `date-${index}`}
           onClick={() => onDateSelect(dateStr)}
           className={`p-3 cursor-pointer transition-all hover:shadow-md relative ${
           isSelected(dateStr) ?
