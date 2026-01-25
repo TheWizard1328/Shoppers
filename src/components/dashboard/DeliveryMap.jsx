@@ -1131,7 +1131,8 @@ export default function DeliveryMap({
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === pickup.driver_id);
 
       // CRITICAL: Enrich driver data with denormalized driver_name if driver not found
-      const enrichedDriver = driver || (pickup.driver_name ? { 
+      // Use lookup map first, then fallback to denormalized driver name
+      const enrichedDriver = driverLookupMap.get(pickup.driver_id) || driver || (pickup.driver_name ? { 
         id: pickup.driver_id, 
         user_name: pickup.driver_name,
         full_name: pickup.driver_name 
