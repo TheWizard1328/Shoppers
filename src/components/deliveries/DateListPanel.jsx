@@ -187,10 +187,6 @@ export default function DateListPanel({
 
               <div className="flex items-center justify-between">
                 <div className="flex gap-3 text-xs">
-                  <div className="flex items-center gap-1 text-slate-700 font-medium" title={`${total} stops`}>
-                    <Package className="w-3 h-3" />
-                    <span>{total}</span>
-                  </div>
                   <div className="flex items-center gap-1 text-green-600" title={`${completed} paid`}>
                     <CheckCircle className="w-3 h-3" />
                     <span>{completed}</span>
