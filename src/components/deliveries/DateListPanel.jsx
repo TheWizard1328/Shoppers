@@ -40,18 +40,30 @@ export default function DateListPanel({
   }, []);
 
   // Get all dates in selected month that have deliveries
+  // CRITICAL: Extract dates directly from deliveries to avoid UTC conversion issues
   const datesWithDeliveries = useMemo(() => {
-    const start = startOfMonth(new Date(selectedYear, selectedMonth));
-    const end = endOfMonth(new Date(selectedYear, selectedMonth));
-    const allDates = eachDayOfInterval({ start, end });
+    if (!deliveries || deliveries.length === 0) {
+      return [];
+    }
 
     // Create patient map for quick lookup
     const patientMap = new Map((patients || []).map((p) => [p.id, p]));
 
-    const list = allDates.map((date) => {
-      const dateStr = format(date, 'yyyy-MM-dd');
-      const dateDeliveries = deliveries.filter((d) => d.delivery_date === dateStr);
+    // Extract unique dates directly from delivery data (no UTC conversion)
+    const dateMap = new Map();
 
+    deliveries.forEach((d) => {
+      if (!d || !d.delivery_date) return;
+
+      const dateStr = d.delivery_date;
+      if (!dateMap.has(dateStr)) {
+        dateMap.set(dateStr, []);
+      }
+      dateMap.get(dateStr).push(d);
+    });
+
+    // Build stats for each unique date
+    const list = Array.from(dateMap.entries()).map(([dateStr, dateDeliveries]) => {
       const failed = dateDeliveries.filter((d) => d.status === 'failed').length;
 
       // Calculate returned deliveries (by notes or address)
@@ -73,6 +85,10 @@ export default function DateListPanel({
 
       const total = dateDeliveries.length;
 
+      // Parse date as local time (YYYY-MM-DD format is always local)
+      const [y, m, day] = dateStr.split('-').map(Number);
+      const date = new Date(y, m - 1, day);
+
       return {
         date,
         dateStr,
@@ -81,12 +97,12 @@ export default function DateListPanel({
         failed,
         returned,
         hasDeliveries: total > 0,
-        canDelete: completed === 0 && total > 0 // Can delete if no completed deliveries
+        canDelete: completed === 0 && total > 0
       };
-    }).filter((d) => d.hasDeliveries);
+    });
 
     return list.sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [deliveries, selectedMonth, selectedYear, patients]);
+  }, [deliveries, patients]);
 
   const isSelected = (dateStr) => selectedDate === dateStr;
   const isToday = (date) => isSameDay(date, new Date());
