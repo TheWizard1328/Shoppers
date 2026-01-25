@@ -3473,7 +3473,7 @@ export default function DeliveriesPage() {
               <DateListPanel
               deliveries={driverFilteredDeliveries}
               selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
-              dateListWithStats={filteredDatesBySearch}
+              dateListWithStats={null}
               onDateSelect={handleDateSelect}
               selectedMonth={selectedMonth}
               onMonthChange={handleMonthChange}
