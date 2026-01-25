@@ -1796,7 +1796,10 @@ export default function DeliveryMap({
     });
 
     // Sort stops by stop_order and create route lines
-    const routes = Object.values(routesByDriver).map((route) => {
+    const routes = sortUsers(Object.values(routesByDriver).map(route => ({
+      ...route,
+      _driverForSort: route._driverObj
+    }))).map((route) => {
     // Find ALL pickup locations for this driver
     const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
 
