@@ -1137,7 +1137,17 @@ export default function DeliveriesPage() {
       setIsDriverOnline(false);
     }
 
-  }, [location.search, currentUser, dataLoaded, hasAccess, isLoadingData, cities]);
+    // CRITICAL: Ensure year/month are always in URL for both modes
+    if (!yearParam || !monthParam) {
+      const urlParams = new URLSearchParams(location.search);
+      if (!yearParam) urlParams.set('year', initialSelectedYear.toString());
+      if (!monthParam) urlParams.set('month', (initialSelectedMonth + 1).toString());
+      // Remove date param if it exists (should never be in URL)
+      urlParams.delete('date');
+      navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
+    }
+
+  }, [location.search, currentUser, dataLoaded, hasAccess, isLoadingData, cities, navigate, location.pathname]);
 
 
   const driverFilteredDeliveries = useMemo(() => {
