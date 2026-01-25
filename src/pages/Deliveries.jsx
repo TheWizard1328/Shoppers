@@ -1082,6 +1082,11 @@ export default function DeliveriesPage() {
     }
     setDriverFilter(newDriverFilter);
 
+    // CRITICAL: Default to today's date first, then fall back to latest delivery
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayString = format(today, 'yyyy-MM-dd');
+    
     if (!dateParam && !globalFilters.getSelectedDate()) {
       const driverToFilterBy = (effectiveDrivers || []).find((d) => d.id === newDriverFilter);
 
@@ -1093,7 +1098,13 @@ export default function DeliveriesPage() {
       d.driver_name === driverToFilterBy.full_name || d.driver_name === driverToFilterBy.user_name)
       );
 
-      if (deliveriesForDateCalculation && deliveriesForDateCalculation.length > 0) {
+      // CRITICAL: Check if today has deliveries first
+      const todayHasDeliveries = deliveriesForDateCalculation.some((d) => d.delivery_date === todayString);
+      
+      if (todayHasDeliveries) {
+        initialSelectedDate = today;
+        console.log('📅 [Deliveries] Today has deliveries, defaulting to today:', todayString);
+      } else if (deliveriesForDateCalculation && deliveriesForDateCalculation.length > 0) {
         const sorted = [...deliveriesForDateCalculation].sort((a, b) =>
         new Date(b.delivery_date.replace(/-/g, '/')) - new Date(a.delivery_date.replace(/-/g, '/'))
         );
@@ -1104,6 +1115,7 @@ export default function DeliveriesPage() {
             latestDate.setHours(0, 0, 0, 0);
             if (!isNaN(latestDate.getTime())) {
               initialSelectedDate = latestDate;
+              console.log('📅 [Deliveries] No today deliveries, using latest:', format(latestDate, 'yyyy-MM-dd'));
             }
           }
         }
