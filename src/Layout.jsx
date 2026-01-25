@@ -2906,8 +2906,32 @@ export default function Layout({ children, currentPageName }) {
                               </div>
                             )}
                             
-                            {/* Emergency Recovery - Clear Offline DB */}
+                            {/* Force Full App Refresh */}
                             <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                            <DropdownMenuItem 
+                              onClick={async () => {
+                                if (!window.confirm('Force a full app refresh? This will clear cache and reload the application to ensure you have the latest updates.')) {
+                                  return;
+                                }
+                                
+                                try {
+                                  localStorage.clear();
+                                  sessionStorage.clear();
+                                  
+                                  alert('Cache cleared. Reloading application...');
+                                  window.location.reload(true);
+                                } catch (error) {
+                                  alert('Failed to perform full refresh: ' + error.message);
+                                }
+                              }}
+                              className="cursor-pointer text-blue-600"
+                              style={{ fontSize: isMobile ? '16px' : '15px' }}
+                            >
+                              <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                              Force Full App Refresh
+                            </DropdownMenuItem>
+
+                            {/* Emergency Recovery - Clear Offline DB */}
                             <DropdownMenuItem 
                               onClick={async () => {
                                 if (!window.confirm('Clear offline database and reload fresh data? This will fix stuck data issues.')) {
