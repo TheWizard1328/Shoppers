@@ -844,6 +844,17 @@ export default function DeliveryMap({
   // CRITICAL: Use isAllDriversMode calculated above
   const isSingleDriverMode = useMemo(() => !isAllDriversMode, [isAllDriversMode]);
 
+  // CRITICAL: Create stable driver lookup map to prevent "Unassigned" names
+  const driverLookupMap = useMemo(() => {
+    const map = new Map();
+    safeUsers.forEach(u => {
+      if (u && typeof u === 'object' && u.id) {
+        map.set(u.id, u);
+      }
+    });
+    return map;
+  }, [safeUsers.map(u => `${u?.id}:${u?.user_name || u?.full_name}`).join('|')]);
+
   // CRITICAL: Check if current user is a driver viewing their own route (any date)
   const isDriverViewingSelf = useMemo(() => {
     if (!currentUser || !userHasRole(currentUser, 'driver')) return false;
