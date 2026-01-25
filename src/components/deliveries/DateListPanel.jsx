@@ -75,14 +75,14 @@ export default function DateListPanel({
       };
       
       const returned = dateDeliveries.filter((d) => isReturnDelivery(d)).length;
-      
-      // Completed should NOT include failed, returned, or cancelled statuses
+
+      // Completed: completed deliveries + after hours pickups only
       const completed = dateDeliveries.filter((d) => 
-        d.status === 'completed' && 
-        !['failed', 'returned', 'cancelled'].includes(d.status) &&
-        !isReturnDelivery(d)
+        (d.status === 'completed' && !isReturnDelivery(d)) ||
+        (d.after_hours_pickup === true && d.status === 'completed')
       ).length;
 
+      // Total: all stops & pickups
       const total = dateDeliveries.length;
 
       // Parse date as local time (YYYY-MM-DD format is always local)
