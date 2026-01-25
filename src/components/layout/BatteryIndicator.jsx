@@ -43,60 +43,61 @@ export default function BatteryIndicator({ vertical = false }) {
   // Don't render if battery level is not available
   if (batteryLevel === null) return null;
 
-  // Determine icon, color, and background based on battery level and charging status
-  const getBatteryIcon = () => {
-    const iconSize = vertical ? "w-4 h-4" : "w-6 h-6";
-    
+  // Determine color based on battery level and charging status
+  const getColor = () => {
     if (isCharging) {
-      return <BatteryCharging className={`${iconSize} text-white`} />;
+      return 'text-green-600';
     }
 
     if (batteryLevel <= 20) {
-      return <BatteryLow className={`${iconSize} text-white`} />;
+      return 'text-red-600';
     } else if (batteryLevel <= 50) {
-      return <BatteryMedium className={`${iconSize} text-white`} />;
+      return 'text-yellow-600';
     } else if (batteryLevel <= 80) {
-      return <Battery className={`${iconSize} text-white`} />;
+      return 'text-blue-600';
     } else {
-      return <BatteryFull className={`${iconSize} text-white`} />;
+      return 'text-green-600';
     }
   };
 
-  const getBackgroundColor = () => {
+  const getBatteryIcon = () => {
+    const iconSize = vertical ? "w-4 h-4" : "w-6 h-6";
+    const colorClass = getColor();
+    
     if (isCharging) {
-      return 'bg-green-500';
+      return <BatteryCharging className={`${iconSize} ${colorClass}`} />;
     }
 
     if (batteryLevel <= 20) {
-      return 'bg-red-500';
+      return <BatteryLow className={`${iconSize} ${colorClass}`} />;
     } else if (batteryLevel <= 50) {
-      return 'bg-yellow-500';
+      return <BatteryMedium className={`${iconSize} ${colorClass}`} />;
     } else if (batteryLevel <= 80) {
-      return 'bg-blue-500';
+      return <Battery className={`${iconSize} ${colorClass}`} />;
     } else {
-      return 'bg-green-500';
+      return <BatteryFull className={`${iconSize} ${colorClass}`} />;
     }
   };
 
   if (vertical) {
     return (
       <div 
-        className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg ${getBackgroundColor()}`} 
+        className="flex flex-col items-center gap-0.5" 
         title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}
       >
         {getBatteryIcon()}
-        <span className="text-[10px] font-bold text-white">{batteryLevel}%</span>
+        <span className={`text-[10px] font-bold ${getColor()}`}>{batteryLevel}%</span>
       </div>
     );
   }
 
   return (
     <div 
-      className={`flex items-center gap-1.5 px-2 py-1 rounded-lg ${getBackgroundColor()}`} 
+      className="flex items-center gap-1.5" 
       title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}
     >
       {getBatteryIcon()}
-      <span className="text-xs font-bold text-white">{batteryLevel}%</span>
+      <span className={`text-xs font-bold ${getColor()}`}>{batteryLevel}%</span>
     </div>
   );
 }
