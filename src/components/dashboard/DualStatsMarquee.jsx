@@ -59,6 +59,21 @@ export default function DualStatsMarquee({
   const completedDeliveries = localStats?.completed || 0;
   const failedDeliveries = localStats?.failed || 0;
   const returnedDeliveries = localStats?.returned || 0;
+
+  // CRITICAL: Check if performance stats have data but delivery stats are empty - trigger refresh
+  React.useEffect(() => {
+    const deliveryStatsEmpty = totalDeliveries === 0 && completedDeliveries === 0 && failedDeliveries === 0;
+    const performanceStatsHaveData = (performanceStats?.totalPay || 0) > 0 || 
+                                      (performanceStats?.totalKm || 0) > 0 || 
+                                      liveDistance > 0 ||
+                                      (performanceStats?.totalTimeOnDuty && performanceStats.totalTimeOnDuty !== '00:00') ||
+                                      (liveTimeOnDuty && liveTimeOnDuty !== '00:00');
+
+    if (deliveryStatsEmpty && performanceStatsHaveData) {
+      console.log('🔄 [DualStatsMarquee] Performance stats have data but delivery stats empty - triggering refresh');
+      window.dispatchEvent(new CustomEvent('triggerManualRefresh'));
+    }
+  }, [totalDeliveries, completedDeliveries, failedDeliveries, performanceStats, liveDistance, liveTimeOnDuty]);
   
   // Pickup values for drivers
   const totalPickups = localStats?.totalPickups || 0;
