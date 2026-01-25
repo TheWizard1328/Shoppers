@@ -1282,13 +1282,6 @@ export default function DeliveriesPage() {
       return;
     }
 
-    const params = new URLSearchParams(location.search);
-    const dateParam = params.get("date");
-    if (dateParam) {
-      console.log('⏩ [Deliveries] Skipping auto-select - date param in URL:', dateParam);
-      return;
-    }
-
     if (dateListWithStats.length > 0) {
       const currentSelectedDateString = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
 
@@ -1301,10 +1294,10 @@ export default function DeliveriesPage() {
 
         console.log(`📅 [Deliveries] Current date not in list, auto-selecting topmost date: ${topDate}`);
         setSelectedDate(topDateObj);
-        updateUrl({ date: topDate });
+        // CRITICAL: Do NOT update URL with date - keep date local to Route Management page
       }
     }
-  }, [selectedMonth, selectedYear, dateListWithStats.length, isDriverOverviewMode, isLoading, isLoadingData, location.search]);
+  }, [selectedMonth, selectedYear, dateListWithStats.length, isDriverOverviewMode, isLoading, isLoadingData]);
 
 
   useEffect(() => {
