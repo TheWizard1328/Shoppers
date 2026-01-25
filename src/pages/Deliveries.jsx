@@ -1104,42 +1104,26 @@ export default function DeliveriesPage() {
     }
     setDriverFilter(newDriverFilter);
 
-    // CRITICAL: Default to today's date first, then fall back to latest delivery
+    // CRITICAL: In Route Management, default to first day of selected month for full month view
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayString = format(today, 'yyyy-MM-dd');
     
     if (!dateParam && !globalFilters.getSelectedDate()) {
-      const driverToFilterBy = (effectiveDrivers || []).find((d) => d.id === newDriverFilter);
-
-      const deliveriesForDateCalculation = newDriverFilter === 'all' ?
-      effectiveDeliveries || [] :
-      (effectiveDeliveries || []).filter((d) =>
-      d.driver_id && driverToFilterBy && d.driver_id === driverToFilterBy.id ||
-      !d.driver_id && driverToFilterBy && d.driver_name && (
-      d.driver_name === driverToFilterBy.full_name || d.driver_name === driverToFilterBy.user_name)
-      );
-
-      // CRITICAL: Check if today has deliveries first
-      const todayHasDeliveries = deliveriesForDateCalculation.some((d) => d.delivery_date === todayString);
-      
-      if (todayHasDeliveries) {
-        initialSelectedDate = today;
-        console.log('📅 [Deliveries] Today has deliveries, defaulting to today:', todayString);
-      } else if (deliveriesForDateCalculation && deliveriesForDateCalculation.length > 0) {
-        const sorted = [...deliveriesForDateCalculation].sort((a, b) =>
-        new Date(b.delivery_date.replace(/-/g, '/')) - new Date(a.delivery_date.replace(/-/g, '/'))
-        );
-        if (sorted.length > 0 && sorted[0].delivery_date) {
-          const [y, m, d] = sorted[0].delivery_date.split('-').map(Number);
-          if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-            const latestDate = new Date(y, m - 1, d);
-            latestDate.setHours(0, 0, 0, 0);
-            if (!isNaN(latestDate.getTime())) {
-              initialSelectedDate = latestDate;
-              console.log('📅 [Deliveries] No today deliveries, using latest:', format(latestDate, 'yyyy-MM-dd'));
-            }
-          }
+      if (!isDriverOverviewMode) {
+        // Route Management: default to first day of the selected month
+        const firstDayOfMonth = new Date(initialSelectedYear, initialSelectedMonth, 1);
+        firstDayOfMonth.setHours(0, 0, 0, 0);
+        initialSelectedDate = firstDayOfMonth;
+        console.log('📅 [Deliveries] Route Management mode, defaulting to first day of month:', format(firstDayOfMonth, 'yyyy-MM-dd'));
+      } else {
+        // Driver Overview: use today if available, otherwise latest delivery
+        const todayHasDeliveries = (effectiveDeliveries || []).some((d) => d.delivery_date === todayString);
+        if (todayHasDeliveries) {
+          initialSelectedDate = today;
+          console.log('📅 [Deliveries] Today has deliveries, defaulting to today:', todayString);
+        } else {
+          initialSelectedDate = today;
         }
       }
     }
