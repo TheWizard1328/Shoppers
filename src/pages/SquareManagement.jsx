@@ -325,46 +325,8 @@ export default function SquareManagement() {
           // Load sync status from offline
           await loadSyncStatus();
           
-          // Background: Refresh from API to ensure data is up to date
-          console.log('🔄 [SquareManagement] Background: Refreshing Square data from API...');
-          setTimeout(async () => {
-            try {
-              const [catalogResponse, paymentsResponse] = await Promise.all([
-                base44.functions.invoke('squareSyncCatalogItems', {}),
-                base44.functions.invoke('squareFetchPayments', { 
-                  locationIds: syncedLocationIds, 
-                  daysBack: 14 
-                })
-              ]);
-
-              const catalogData = catalogResponse?.data || catalogResponse || {};
-              const paymentsData = paymentsResponse?.data || paymentsResponse || {};
-
-              const catalogItemsData = catalogData?.items || [];
-              const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
-
-              // Save to offline DB
-              await Promise.all([
-                saveCatalogItemsOffline(catalogItemsData),
-                savePaymentTransactionsOffline(soldCatalogItemsData)
-              ]);
-
-              // Update UI with fresh data
-              setCatalogItems(catalogItemsData);
-              setSoldCatalogItems(soldCatalogItemsData);
-              setAllTransactions(soldCatalogItemsData);
-              
-              const recentPaymentsFresh = soldCatalogItemsData
-                .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
-                .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
-              setRecentTransactions(recentPaymentsFresh);
-              
-              await loadSyncStatus();
-              console.log('✅ [SquareManagement] Background refresh complete');
-            } catch (bgError) {
-              console.warn('⚠️ [SquareManagement] Background refresh failed (non-critical):', bgError.message);
-            }
-          }, 2000);
+          // DISABLED: Background API refresh removed - only manual sync button refreshes from Square
+          console.log('✅ [SquareManagement] Loaded from offline DB - use Sync button to refresh from Square');
         } else {
           // No offline data - fetch from API
           console.log('📥 [SquareManagement] No offline data - fetching from API...');
