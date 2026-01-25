@@ -231,10 +231,10 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
 // ==================== BACKGROUND SYNC ====================
 
 /**
- * Background sync: Today + 6 future days, then past 14 days (7 days at a time)
- * NEVER clears DB - only merges new data
+ * Background sync: Current month + 6 future days, then past 30 days
+ * CRITICAL: Loads ENTIRE current month for all drivers to support Route Management
  */
-export const performBackgroundSync = async (selectedDateStr) => {
+export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
   if (syncInProgress || syncPaused) {
     console.log(`⏸️ [OfflineSync] Background sync skipped - ${syncInProgress ? 'in progress' : 'paused'}`);
     return { skipped: true };
@@ -248,21 +248,55 @@ export const performBackgroundSync = async (selectedDateStr) => {
   const todayStr = format(today, 'yyyy-MM-dd');
   
   try {
-    // ===== STEP 1: Sync today + 6 future days =====
-    console.log('   📅 Syncing today + 6 future days...');
+    // ===== STEP 1: CRITICAL - Sync ENTIRE CURRENT MONTH (all drivers, all dates) =====
+    console.log('   📅 Syncing ENTIRE current month for all drivers...');
     
-    for (let i = 0; i <= 6; i++) {
+    const currentMonthStart = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
+    const currentMonthEnd = format(new Date(today.getFullYear(), today.getMonth() + 1, 0), 'yyyy-MM-dd');
+    
+    try {
+      // Build filter for current month + store filter if provided
+      const monthFilter = {
+        delivery_date: { $gte: currentMonthStart, $lte: currentMonthEnd }
+      };
+      
+      if (storeIds && storeIds.length > 0) {
+        monthFilter.store_id = { $in: storeIds };
+      }
+      
+      const currentMonthDeliveries = await Delivery.filter(monthFilter);
+      console.log(`   ✅ Loaded ${currentMonthDeliveries.length} deliveries for current month (${currentMonthStart} to ${currentMonthEnd})`);
+      
+      if (currentMonthDeliveries.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, currentMonthDeliveries);
+        console.log(`   ✅ Saved entire current month to offline DB`);
+      }
+      
+      await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    } catch (monthError) {
+      console.warn(`   ⚠️ Current month sync failed:`, monthError.message);
+      if (monthError.response?.status === 429) {
+        await new Promise(r => setTimeout(r, 5000));
+      }
+    }
+    
+    // ===== STEP 2: Sync future 6 days =====
+    console.log('   📅 Syncing next 6 days...');
+    
+    for (let i = 1; i <= 6; i++) {
       if (syncPaused) break;
       
       const fetchDate = new Date(today);
       fetchDate.setDate(today.getDate() + i);
       const fetchDateStr = format(fetchDate, 'yyyy-MM-dd');
       
-      // Skip if already loaded as selected date
-      if (fetchDateStr === selectedDateStr) continue;
-      
       try {
-        const dateDeliveries = await Delivery.filter({ delivery_date: fetchDateStr });
+        const futureDateFilter = { delivery_date: fetchDateStr };
+        if (storeIds && storeIds.length > 0) {
+          futureDateFilter.store_id = { $in: storeIds };
+        }
+        
+        const dateDeliveries = await Delivery.filter(futureDateFilter);
         if (dateDeliveries.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, dateDeliveries);
           console.log(`      ✅ ${fetchDateStr}: ${dateDeliveries.length} deliveries`);
@@ -272,12 +306,12 @@ export const performBackgroundSync = async (selectedDateStr) => {
       } catch (error) {
         console.warn(`      ⚠️ ${fetchDateStr} failed:`, error.message);
         if (error.response?.status === 429) {
-          await new Promise(r => setTimeout(r, 5000)); // Extra cooldown on rate limit
+          await new Promise(r => setTimeout(r, 5000));
         }
       }
     }
     
-    // ===== STEP 2: Sync past 30 days (7 days at a time with 1s cooldown) =====
+    // ===== STEP 3: Sync past 30 days (7 days at a time with 1s cooldown) =====
     console.log('   📅 Syncing past 30 days...');
     
     const chunks = [
@@ -293,7 +327,8 @@ export const performBackgroundSync = async (selectedDateStr) => {
       await syncDeliveryDateRange(
         format(subDays(today, chunk.end), 'yyyy-MM-dd'),
         format(subDays(today, chunk.start), 'yyyy-MM-dd'),
-        selectedDateStr
+        selectedDateStr,
+        storeIds
       );
       
       await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
@@ -381,15 +416,21 @@ export const performBackgroundSync = async (selectedDateStr) => {
 /**
  * Sync deliveries for a date range (used for historical batches)
  */
-const syncDeliveryDateRange = async (startDate, endDate, skipDate = null) => {
+const syncDeliveryDateRange = async (startDate, endDate, skipDate = null, storeIds = null) => {
   if (syncPaused) return;
   
   console.log(`      📅 Fetching ${startDate} to ${endDate}...`);
   
   try {
-    const deliveries = await Delivery.filter({
+    const rangeFilter = {
       delivery_date: { $gte: startDate, $lte: endDate }
-    });
+    };
+    
+    if (storeIds && storeIds.length > 0) {
+      rangeFilter.store_id = { $in: storeIds };
+    }
+    
+    const deliveries = await Delivery.filter(rangeFilter);
     
     // Filter out the skip date if provided
     const filteredDeliveries = skipDate 

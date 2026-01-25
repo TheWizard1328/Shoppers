@@ -1315,7 +1315,7 @@ export default function Layout({ children, currentPageName }) {
     });
 
     return () => {
-      // clearTimeout(syncTimer);
+      clearTimeout(bgSyncTimer);
       clearInterval(mutationSyncInterval);
       unsubscribeMutations();
       unsubscribeRealtime();
@@ -1473,8 +1473,20 @@ export default function Layout({ children, currentPageName }) {
     if (updates.users) setUsers(updates.users);
   }, [currentUser, isFormOverlayOpen, deliveries, patients]);
 
-  // CRITICAL: Background sync COMPLETELY DISABLED
-  // App is 100% offline-only now - zero API calls after initial load
+  // CRITICAL: Background sync ENABLED with staggered start to prevent rate limits
+  // Syncs entire current month + historical data for robust offline access
+
+  // Start background sync 60 seconds after init to avoid competing with initial load
+  const bgSyncTimer = setTimeout(() => {
+    if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
+
+    const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+    const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
+
+    console.log('🔄 [Layout] Starting background sync for current month...');
+    const { performBackgroundSync } = await import('./components/utils/offlineSync');
+    performBackgroundSync(selectedDateStr, cityStoreIds).catch(() => {});
+  }, 60000);
 
   // Wake Lock API and visibility change handler
   useEffect(() => {
