@@ -164,6 +164,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const lastFetchRef = useRef({ date: null, driver: null, timestamp: 0 });
+  const refreshTriggeredRef = useRef({ date: null, driver: null });
 
   // Subscribe to global filter changes (not polling)
   useEffect(() => {
