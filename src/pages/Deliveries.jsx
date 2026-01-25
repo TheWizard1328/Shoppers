@@ -1161,20 +1161,24 @@ export default function DeliveriesPage() {
 
 
   const driverFilteredDeliveries = useMemo(() => {
-    if (!effectiveDeliveries || !Array.isArray(effectiveDeliveries)) return [];
+    // CRITICAL: Use allDeliveries in Route Management mode (not effectiveDeliveries)
+    // because we've already loaded the full month's data
+    const source = !isDriverOverviewMode ? allDeliveries : effectiveDeliveries;
+    
+    if (!source || !Array.isArray(source)) return [];
 
     if (driverFilter === 'all') {
-      return effectiveDeliveries;
+      return source;
     }
 
     const selectedDriver = (effectiveDrivers || []).find((d) => d.id === driverFilter);
     if (!selectedDriver) return [];
 
-    return effectiveDeliveries.filter((d) =>
+    return source.filter((d) =>
     d.driver_id && (d.driver_id === selectedDriver.id || d.driver_id === selectedDriver.appUserId) ||
     !d.driver_id && d.driver_name && (d.driver_name === selectedDriver.full_name || d.driver_name === selectedDriver.user_name)
     );
-  }, [effectiveDeliveries, effectiveDrivers, driverFilter]);
+  }, [allDeliveries, effectiveDeliveries, effectiveDrivers, driverFilter, isDriverOverviewMode]);
 
   const groupedDeliveries = useMemo(() => {
     // CRITICAL: Group deliveries by date within selected month/year
