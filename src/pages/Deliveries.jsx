@@ -740,6 +740,16 @@ export default function DeliveriesPage() {
     });
   }, [hasAccess]);
 
+  // CRITICAL: Force data reload when driver is selected in Route Management mode
+  useEffect(() => {
+    if (isDriverOverviewMode || !driverFilter || driverFilter === 'all' || !dataLoaded) {
+      return;
+    }
+
+    console.log('🚗 [Deliveries] Driver selected in Route Management, refreshing month data...');
+    loadData(true).catch(() => {});
+  }, [driverFilter, isDriverOverviewMode, dataLoaded]);
+
 
   const availableOverviewYears = useMemo(() => {
     console.log('🗓️ Calculating availableOverviewYears...');
