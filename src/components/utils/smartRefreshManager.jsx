@@ -1752,31 +1752,6 @@ class SmartRefreshManager {
    * @param {boolean} showAllDrivers - If true, fetch all drivers' deliveries
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false, showAllDrivers = false) {
-    // CRITICAL: Check and load Show All data if needed
-    const { showAllDataManager } = await import('./showAllDataManager');
-    const selectedDateStr = filters.selectedDate ? format(filters.selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-    const selectedDriverId = filters.activeDriverIds?.[0] || 'all';
-    
-    // Validate and load Show All data BEFORE starting refresh
-    if (showAllDataManager.needsAllDriversData(currentData.deliveries || [], selectedDateStr, selectedDriverId)) {
-      console.log('🔍 [SmartRefresh] Show All data validation - loading missing drivers...');
-      const updatedDeliveries = await showAllDataManager.ensureAllDriversDataLoaded(
-        selectedDateStr, 
-        currentData.deliveries || [], 
-        (mergedDeliveries, isFullReplacement) => {
-          // Dispatch event to update UI
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('deliveriesImported', {
-              detail: { source: 'showAllValidation', deliveries: mergedDeliveries }
-            }));
-          }
-        }
-      );
-      
-      if (updatedDeliveries) {
-        currentData.deliveries = updatedDeliveries;
-      }
-    }
     // CRITICAL: When disabled, skip background polling
     if (!this._enabled) {
       this.isRefreshing = false; // Always ensure unlocked
