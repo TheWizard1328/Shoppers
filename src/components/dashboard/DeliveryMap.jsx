@@ -1009,7 +1009,14 @@ export default function DeliveryMap({
     });
     
     return drivers;
-  }, [safeUsers.map(u => `${u?.id}:${u?.sort_order}:${u?.user_name || u?.full_name}`).join('|')]);
+  }, [
+    // Create order-independent dependency by sorting IDs first
+    safeUsers
+      .filter(u => u && typeof u === 'object' && u.id)
+      .map(u => `${u.id}:${u.sort_order}:${u.user_name || u.full_name}`)
+      .sort()
+      .join('|')
+  ]);
 
   // CRITICAL: Create stable driver lookup map using SORTED drivers
   const driverLookupMap = useMemo(() => {
