@@ -2776,23 +2776,69 @@ export default function DeliveryMap({
 
             // Main route line segments - NOW WITH AM/PM styling
             route.coordinates.length >= 2 && (() => {
-              // CRITICAL: Create segments based on AM/PM status of DESTINATION stop
               const segments = [];
-              const routeStops = route.stops.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
               
-              for (let i = 0; i < route.coordinates.length - 1; i++) {
-                // Determine if destination stop (i+1) is from AM or PM pickup
-                const destinationStop = routeStops[i + 1];
-                const isAMDelivery = destinationStop?.ampm_deliveries === 'AM';
-                const isPMDelivery = destinationStop?.ampm_deliveries === 'PM';
+              // CRITICAL: Get ALL stops (pickups + deliveries) sorted by stop_order
+              const allRouteStops = [];
+              
+              // Add pickups
+              pickupMarkers.filter(p => p && p.driver_id === route.driverId)
+                .forEach(p => allRouteStops.push({ ...p, type: 'pickup' }));
+              
+              // Add deliveries
+              route.stops.forEach(d => allRouteStops.push({ ...d, type: 'delivery' }));
+              
+              // Sort by stop_order
+              allRouteStops.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+              
+              // Create segments based on AM/PM rules
+              for (let i = 0; i < allRouteStops.length - 1; i++) {
+                const stop1 = allRouteStops[i];
+                const stop2 = allRouteStops[i + 1];
                 
-                // Dashed for AM, dotted for PM, solid fallback
-                const dashArray = isPMDelivery ? '2, 8' : (isAMDelivery ? '10, 5' : '10, 10');
+                const stop1IsPickup = stop1.type === 'pickup';
+                const stop2IsPickup = stop2.type === 'pickup';
+                const stop1IsDelivery = stop1.type === 'delivery';
+                const stop2IsDelivery = stop2.type === 'delivery';
+                
+                const stop1IsAM = stop1.ampm_deliveries === 'AM';
+                const stop1IsPM = stop1.ampm_deliveries === 'PM';
+                const stop2IsAM = stop2.ampm_deliveries === 'AM';
+                const stop2IsPM = stop2.ampm_deliveries === 'PM';
+                
+                // Determine line style based on rules
+                let dashArray = '10, 10'; // Default solid
+                
+                // DASHED (AM-related): 10, 5
+                if (
+                  (stop2IsPickup && stop2IsAM) || // Destination is AM pickup
+                  (stop2IsDelivery && stop2IsAM) || // Destination is AM delivery
+                  (stop1IsPickup && stop1IsAM && stop2IsDelivery && stop2IsAM) || // 1a: AM pickup → AM delivery
+                  (stop1IsPickup && stop1IsAM && stop2IsPickup && stop2IsAM) || // 1b: AM pickup → AM pickup
+                  (stop1IsPickup && stop1IsPM && stop2IsDelivery && stop2IsAM) || // 1c: PM pickup → AM delivery
+                  (stop1IsDelivery && stop1IsPM && stop2IsDelivery && stop2IsAM) // 1d: PM delivery → AM delivery
+                ) {
+                  dashArray = '10, 5'; // Dashed
+                }
+                // DOTTED (PM-related): 2, 8
+                else if (
+                  (stop2IsPickup && stop2IsPM) || // Destination is PM pickup
+                  (stop2IsDelivery && stop2IsPM) || // Destination is PM delivery
+                  (stop1IsPickup && stop1IsPM && stop2IsDelivery && stop2IsPM) || // 2a: PM pickup → PM delivery
+                  (stop1IsPickup && stop1IsPM && stop2IsPickup && stop2IsPM) || // 2b: PM pickup → PM pickup
+                  (stop1IsDelivery && stop1IsPM && stop2IsDelivery && stop2IsPM) || // 2c: PM delivery → PM delivery
+                  (stop1IsDelivery && stop1IsAM && stop2IsDelivery && stop2IsPM) // 2d: AM delivery → PM delivery
+                ) {
+                  dashArray = '2, 8'; // Dotted
+                }
                 
                 segments.push(
                   <Polyline
                     key={`route-segment-${route.driverId}-${i}`}
-                    positions={[route.coordinates[i], route.coordinates[i + 1]]}
+                    positions={[
+                      [stop1.latitude, stop1.longitude],
+                      [stop2.latitude, stop2.longitude]
+                    ]}
                     pathOptions={{
                       color: route.color,
                       weight: routeWeight,
