@@ -871,7 +871,7 @@ export default function SquareManagement() {
                     <th className="p-3">Store</th>
                     {currentUser && isAppOwner(currentUser) && <th className="p-3">Square Location ID</th>}
                     <th className="p-3">Catalog ID</th>
-                    <th className="p-3">Last Updated</th>
+                    <th className="p-3">Delivery Date</th>
                     <th className="p-3">Actions</th>
                   </tr>
                 </thead>
@@ -995,7 +995,15 @@ export default function SquareManagement() {
                           </div>
                           </td>
                           <td className="p-3 text-xs text-slate-600 dark:text-slate-400">
-                        {item.updated_at ? new Date(item.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
+                        {(() => {
+                          const delivery = findMatchingDelivery(item.name, item.location_id);
+                          if (delivery?.delivery_date) {
+                            const [year, month, day] = delivery.delivery_date.split('-');
+                            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                            return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                          }
+                          return 'N/A';
+                        })()}
                       </td>
                       <td className="p-3">
                         <Button
