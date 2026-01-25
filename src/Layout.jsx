@@ -3474,10 +3474,10 @@ export default function Layout({ children, currentPageName }) {
                               }
                               
                               try {
-                                localStorage.clear();
                                 sessionStorage.clear();
+                                clearUserCache();
+                                clearSettingsCache();
                                 
-                                alert('Cache cleared. Reloading application...');
                                 window.location.reload(true);
                               } catch (error) {
                                 alert('Failed to perform full refresh: ' + error.message);
