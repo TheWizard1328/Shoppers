@@ -3806,9 +3806,7 @@ export default function DeliveryMap({
         >
           <div className="backdrop-blur-sm rounded-lg shadow-lg border px-3 py-2" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}>
             <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center justify-center">
-              {driverRoutes
-                .sort((a, b) => a.sortOrder - b.sortOrder)
-                .map((route) => (
+              {driverRoutes.map((route) => (
                   <div
                     key={route.driverId}
                     className="flex items-center gap-1.5 cursor-pointer hover:opacity-70 transition-opacity"
