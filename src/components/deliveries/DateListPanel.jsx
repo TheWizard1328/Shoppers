@@ -41,9 +41,15 @@ export default function DateListPanel({
 
   // Get all dates in selected month that have deliveries
   const datesWithDeliveries = useMemo(() => {
-    const start = startOfMonth(new Date(selectedYear, selectedMonth));
-    const end = endOfMonth(new Date(selectedYear, selectedMonth));
-    const allDates = eachDayOfInterval({ start, end });
+    // CRITICAL: Create date range using local dates, not UTC
+    const start = new Date(selectedYear, selectedMonth, 1);
+    const end = new Date(selectedYear, selectedMonth + 1, 0);
+    
+    // Manually build date array for selected month in local time
+    const allDates = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      allDates.push(new Date(d));
+    }
 
     // Create patient map for quick lookup
     const patientMap = new Map((patients || []).map((p) => [p.id, p]));
