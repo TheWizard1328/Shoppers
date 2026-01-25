@@ -156,27 +156,42 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       };
 
       // Step 3: Force fresh data from backend (not cache/offline DB)
-      console.log('   📥 Force loading fresh data from backend...');
-      
-      // Load fresh AppUsers (always needed for driver locations)
-      const freshAppUsers = await base44.entities.AppUser.list();
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-      console.log(`   ✅ Loaded ${freshAppUsers.length} fresh AppUsers`);
+       console.log('   📥 Force loading fresh data from backend...');
 
-      // Step 4: Reload data for current screen
-      if (onManualRefresh) {
-        await onManualRefresh();
-      } else if (refreshData) {
-        await refreshData(true);
-      }
+       // Load fresh AppUsers (always needed for driver locations)
+       let freshAppUsers = [];
+       try {
+         freshAppUsers = await base44.entities.AppUser.list();
+         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+         console.log(`   ✅ Loaded ${freshAppUsers.length} fresh AppUsers`);
+       } catch (appUserError) {
+         console.warn('   ⚠️ Failed to load AppUsers:', appUserError.message);
+       }
 
-      // Step 5: Force a full bidirectional sync
-      const { performBidirectionalSync } = await import('../utils/offlineSync');
-      await performBidirectionalSync();
+       // Step 4: Reload data for current screen
+       try {
+         if (onManualRefresh) {
+           await onManualRefresh();
+         } else if (refreshData) {
+           await refreshData(true);
+         }
+       } catch (refreshError) {
+         console.warn('   ⚠️ Data refresh failed:', refreshError.message);
+       }
 
-      // Step 6: Trigger events to update UI
-      window.dispatchEvent(new CustomEvent('triggerRouteReoptimization'));
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: freshAppUsers } }));
+       // Step 5: Force a full bidirectional sync
+       try {
+         const { performBidirectionalSync } = await import('../utils/offlineSync');
+         await performBidirectionalSync();
+       } catch (syncError) {
+         console.warn('   ⚠️ Bidirectional sync failed:', syncError.message);
+       }
+
+       // Step 6: Trigger events to update UI
+       window.dispatchEvent(new CustomEvent('triggerRouteReoptimization'));
+       if (freshAppUsers.length > 0) {
+         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: freshAppUsers } }));
+       }
       
       console.log('✅ [SmartRefreshIndicator] Manual refresh complete');
     } catch (error) {
