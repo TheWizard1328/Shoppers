@@ -1066,14 +1066,13 @@ export default function DeliveriesPage() {
       } else {
         console.warn('[Deliveries] Could not parse date components from URL dateParam:', dateParam);
       }
-    } else {
+    } else if (isDriverOverviewMode) {
+      // Driver Overview: use global dashboard date if available
       const globalDate = globalFilters.getSelectedDate();
       if (globalDate) {
         try {
           const globalDateObj = new Date(globalDate);
-          if (!isNaN(globalDateObj.getTime()) &&
-          globalDateObj.getFullYear() === initialSelectedYear &&
-          globalDateObj.getMonth() === initialSelectedMonth) {
+          if (!isNaN(globalDateObj.getTime())) {
             initialSelectedDate = globalDateObj;
           }
         } catch (e) {
@@ -1081,14 +1080,11 @@ export default function DeliveriesPage() {
         }
       } else {
         initialSelectedDate = new Date(initialSelectedYear, initialSelectedMonth, 1);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (initialSelectedYear === today.getFullYear() &&
-        initialSelectedMonth === today.getMonth() &&
-        initialSelectedDate > today) {
-          initialSelectedDate = today;
-        }
       }
+    } else {
+      // Route Management: use only its own month/year selection, default to first of month
+      initialSelectedDate = new Date(initialSelectedYear, initialSelectedMonth, 1);
+      initialSelectedDate.setHours(0, 0, 0, 0);
     }
 
     let newDriverFilter = globalFilters.getSelectedDriverId() || 'all';
