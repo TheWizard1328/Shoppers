@@ -991,33 +991,40 @@ export default function DeliveryMap({
     fetchGoogleRoute();
   }, [safeDeliveries, isSingleDriverMode, showRoutes]);
 
-  // CRITICAL: Create STABLE sorted drivers array to prevent re-sorting
-  // Only update when sort_order values actually change, not on every smart refresh
+  // CRITICAL: Cache initial sort_order to FREEZE legend order after first render
+  // Never re-sort, only reflect which drivers are currently active
+  const sortOrderCacheRef = useRef(new Map());
+  
   const stableSortedDrivers = useMemo(() => {
     const drivers = safeUsers.filter(u => u && typeof u === 'object' && u.id);
     
-    // Sort by sort_order, then by name
+    // Cache sort_order on first sight of each driver
+    drivers.forEach(d => {
+      if (!sortOrderCacheRef.current.has(d.id)) {
+        sortOrderCacheRef.current.set(d.id, {
+          sort_order: d.sort_order,
+          name: d.user_name || d.full_name
+        });
+      }
+    });
+    
+    // Sort using CACHED sort_order, never change the order again
     drivers.sort((a, b) => {
-      const sortA = a.sort_order ?? Infinity;
-      const sortB = b.sort_order ?? Infinity;
+      const cachedA = sortOrderCacheRef.current.get(a.id);
+      const cachedB = sortOrderCacheRef.current.get(b.id);
+      
+      const sortA = cachedA?.sort_order ?? Infinity;
+      const sortB = cachedB?.sort_order ?? Infinity;
       
       if (sortA !== sortB) return sortA - sortB;
       
-      const nameA = (a.user_name || a.full_name || '').toLowerCase();
-      const nameB = (b.user_name || b.full_name || '').toLowerCase();
+      const nameA = (cachedA?.name || '').toLowerCase();
+      const nameB = (cachedB?.name || '').toLowerCase();
       return nameA.localeCompare(nameB);
     });
     
     return drivers;
-  }, [
-    // CRITICAL: Only track sort_order and ID changes, not other properties
-    // This prevents re-sorting when other user data (like location) updates
-    safeUsers
-      .filter(u => u && typeof u === 'object' && u.id)
-      .map(u => `${u.id}:${u.sort_order}`)
-      .sort()
-      .join('|')
-  ]);
+  }, [safeUsers.map(u => u?.id).sort().join('|')]);
 
   // CRITICAL: Create stable driver lookup map using SORTED drivers
   const driverLookupMap = useMemo(() => {
