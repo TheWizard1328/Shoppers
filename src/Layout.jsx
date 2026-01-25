@@ -2911,18 +2911,13 @@ export default function Layout({ children, currentPageName }) {
                             <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                             <DropdownMenuItem 
                               onClick={async () => {
-                                if (!window.confirm('Force a full app refresh? This will clear cache and reload the application to ensure you have the latest updates.')) {
-                                  return;
-                                }
-                                
                                 try {
                                   localStorage.clear();
                                   sessionStorage.clear();
-                                  
-                                  alert('Cache cleared. Reloading application...');
+
                                   window.location.reload(true);
                                 } catch (error) {
-                                  alert('Failed to perform full refresh: ' + error.message);
+                                  // Silent fail
                                 }
                               }}
                               className="cursor-pointer text-blue-600"
