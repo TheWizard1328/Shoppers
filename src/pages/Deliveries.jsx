@@ -618,6 +618,40 @@ export default function DeliveriesPage() {
     };
   }, []);
 
+  // CRITICAL: Listen for smart refresh and import completion to update date cards
+  useEffect(() => {
+    const handleSmartRefreshComplete = () => {
+      if (!isDriverOverviewMode) {
+        console.log('🔄 [Deliveries] Smart refresh complete - forcing UI update');
+        setRefreshKey((prev) => prev + 1);
+      }
+    };
+
+    const handleImportComplete = () => {
+      if (!isDriverOverviewMode) {
+        console.log('📥 [Deliveries] Import complete - forcing UI update');
+        setRefreshKey((prev) => prev + 1);
+      }
+    };
+
+    const handleDataRefresh = () => {
+      console.log('🔄 [Deliveries] Data refresh event - forcing UI update');
+      setRefreshKey((prev) => prev + 1);
+    };
+
+    window.addEventListener('smartRefreshComplete', handleSmartRefreshComplete);
+    window.addEventListener('offlineSyncComplete', handleImportComplete);
+    window.addEventListener('deliveriesImported', handleImportComplete);
+    window.addEventListener('refreshDeliveryStats', handleDataRefresh);
+
+    return () => {
+      window.removeEventListener('smartRefreshComplete', handleSmartRefreshComplete);
+      window.removeEventListener('offlineSyncComplete', handleImportComplete);
+      window.removeEventListener('deliveriesImported', handleImportComplete);
+      window.removeEventListener('refreshDeliveryStats', handleDataRefresh);
+    };
+  }, [isDriverOverviewMode]);
+
   // CRITICAL: Subscribe to delivery mutations to update data in real-time
   useEffect(() => {
     const unsubscribe = base44.entities.Delivery.subscribe((event) => {
