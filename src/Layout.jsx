@@ -99,7 +99,6 @@ import ConflictManager from './components/dashboard/ConflictManager';
 import PWAInstallPrompt from './components/common/PWAInstallPrompt';
 import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
 import BatteryIndicator from './components/layout/BatteryIndicator';
-import VersionChecker from './components/layout/VersionChecker';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -2620,9 +2619,6 @@ export default function Layout({ children, currentPageName }) {
 
       {/* PWA Install Prompt */}
       <PWAInstallPrompt />
-
-      {/* Version Update Notification */}
-      <VersionChecker currentVersion={appVersion} />
 
       {showCitySelectionPopup && currentUser && cities && cities.length > 0 &&
       <CitySelectionPopup
