@@ -22,7 +22,7 @@ const FRESHNESS_THRESHOLD = 10 * 60 * 1000; // 10 minutes
 const DELIVERY_BATCH_DAYS = 7; // Fetch 7 days at a time for historical
 const PATIENT_BATCH_SIZE = 250; // 250 patients at a time
 const BATCH_COOLDOWN = 1000; // 1 second between batches
-const HISTORICAL_DAYS = 30; // Keep 30 days of historical data for broader offline access
+const HISTORICAL_DAYS = 90; // Keep 90 days of historical data for offline access
 
 let syncInProgress = false;
 let syncPaused = false;
@@ -311,14 +311,21 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       }
     }
     
-    // ===== STEP 3: Sync past 30 days (7 days at a time with 1s cooldown) =====
-    console.log('   📅 Syncing past 30 days...');
+    // ===== STEP 3: Sync past 90 days (7 days at a time with 1s cooldown) =====
+    console.log('   📅 Syncing past 90 days...');
     
     const chunks = [
       { start: 1, end: 7 },
       { start: 8, end: 14 },
       { start: 15, end: 21 },
-      { start: 22, end: 30 }
+      { start: 22, end: 30 },
+      { start: 31, end: 37 },
+      { start: 38, end: 44 },
+      { start: 45, end: 51 },
+      { start: 52, end: 58 },
+      { start: 59, end: 65 },
+      { start: 66, end: 72 },
+      { start: 73, end: 90 }
     ];
     
     for (const chunk of chunks) {
@@ -370,8 +377,11 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       await syncAllPatients();
     }
     
-    // Update final sync status
+    // Update final sync status with actual counts from DB
     const stats = await offlineDB.getStats();
+    
+    console.log(`✅ [OfflineSync] Final counts - Deliveries: ${stats?.deliveries?.count || 0}, Patients: ${stats?.patients?.count || 0}, Cities: ${stats?.cities?.count || 0}, AppUsers: ${stats?.appUsers?.count || 0}`);
+    
     await Promise.all([
       offlineDB.updateSyncStatus('City', {
         recordCount: stats?.cities?.count || 0,
@@ -396,10 +406,16 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
         status: 'synced',
         lastSync: new Date().toISOString(),
         lastFullSync: new Date().toISOString()
+      }),
+      offlineDB.updateSyncStatus('Patient', {
+        recordCount: stats?.patients?.count || 0,
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
       })
     ]);
     
-    console.log('✅ [OfflineSync] Background sync complete');
+    console.log('✅ [OfflineSync] Background sync complete - 90-day history loaded');
     notifySyncStatus({ status: 'complete' });
     window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
     
@@ -438,8 +454,17 @@ const syncDeliveryDateRange = async (startDate, endDate, skipDate = null, storeI
       : deliveries;
     
     if (filteredDeliveries.length > 0) {
+      // CRITICAL: bulkSave should MERGE, not replace - verify it's not clearing existing data
+      const existingCount = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES))?.length || 0;
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, filteredDeliveries);
-      console.log(`      ✅ Saved ${filteredDeliveries.length} deliveries`);
+      const newCount = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES))?.length || 0;
+      
+      console.log(`      ✅ Saved ${filteredDeliveries.length} deliveries (DB: ${existingCount} → ${newCount})`);
+      
+      // CRITICAL: Warn if data mysteriously disappeared
+      if (newCount < existingCount) {
+        console.error(`      ❌ WARNING: Data loss detected! Before: ${existingCount}, After: ${newCount}`);
+      }
     }
   } catch (error) {
     console.warn(`      ⚠️ Date range sync failed:`, error.message);
