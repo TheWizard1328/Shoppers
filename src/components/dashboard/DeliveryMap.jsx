@@ -2774,56 +2774,32 @@ export default function DeliveryMap({
             // Pre-route line - DEPRECATED - handled by separate blue dashed line section below
             null,
 
-            // Main route line - NOW WITH AM/PM STYLING
-            route.coordinates.length >= 2 && (() => {
-              // Build segments with AM/PM styling
-              const segments = [];
-              const routeStops = route.stops.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-              
-              for (let i = 0; i < route.coordinates.length - 1; i++) {
-                const currentStop = routeStops[i];
-                const nextStop = routeStops[i + 1];
-                
-                // Determine style based on next stop's AM/PM designation
-                const isAM = nextStop?.ampm_deliveries === 'AM';
-                const isPM = nextStop?.ampm_deliveries === 'PM';
-                
-                // AM = dashed, PM = dotted
-                const dashArray = isAM ? '10, 5' : isPM ? '2, 8' : '10, 10';
-                
-                segments.push(
-                  <Polyline
-                    key={`route-segment-${route.driverId}-${i}`}
-                    positions={[route.coordinates[i], route.coordinates[i + 1]]}
-                    pathOptions={{
-                      color: route.color,
-                      weight: routeWeight,
-                      opacity: routeOpacity,
-                      dashArray: isOtherDriverRoute ? '5, 5' : dashArray,
-                      lineJoin: 'round',
-                      lineCap: 'round'
-                    }}
-                    eventHandlers={{
-                      click: () => setHighlightedRouteId(isHighlighted ? null : route.driverId),
-                      mouseover: () => setHighlightedRouteId(route.driverId),
-                      mouseout: () => setHighlightedRouteId(null)
-                    }}>
-                    <Popup autoPan={false} closeButton={false} className="route-popup">
-                      <div className="text-xs">
-                        <p className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{route.driverName}</p>
-                        <p style={{ color: 'var(--text-slate-600)' }}>{route.totalStops} stops</p>
-                        <p className="text-[10px] mt-1" style={{ color: 'var(--text-slate-500)' }}>
-                          {isAM ? '--- AM Route' : isPM ? '··· PM Route' : 'Route'}
-                        </p>
-                        {route.isCompleted && <p className="text-emerald-600 font-medium">✓ Route Complete</p>}
-                      </div>
-                    </Popup>
-                  </Polyline>
-                );
-              }
-              
-              return segments;
-            })(),
+            // Main route line - NOW INTERACTIVE
+            route.coordinates.length >= 2 &&
+            <Polyline
+              key={`route-line-${route.driverId}-${index}`}
+              positions={route.coordinates}
+              pathOptions={{
+                color: route.color,
+                weight: routeWeight,
+                opacity: routeOpacity,
+                dashArray: isOtherDriverRoute ? '5, 5' : (route.hasPickup ? '10, 5' : '10, 10'), // NEW: Dashed for other drivers
+                lineJoin: 'round',
+                lineCap: 'round'
+              }}
+              eventHandlers={{
+                click: () => setHighlightedRouteId(isHighlighted ? null : route.driverId),
+                mouseover: () => setHighlightedRouteId(route.driverId),
+                mouseout: () => setHighlightedRouteId(null)
+              }}>
+              <Popup autoPan={false} closeButton={false} className="route-popup">
+                <div className="text-xs">
+                  <p className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{route.driverName}</p>
+                  <p style={{ color: 'var(--text-slate-600)' }}>{route.totalStops} stops</p>
+                  {route.isCompleted && <p className="text-emerald-600 font-medium">✓ Route Complete</p>}
+                </div>
+              </Popup>
+            </Polyline>,
 
             // Waypoint circles
             ...(route.showWaypoints && route.coordinates.length >= 2 ? route.coordinates.map((coord, idx) => {

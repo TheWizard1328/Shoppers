@@ -2909,10 +2909,28 @@ export default function Layout({ children, currentPageName }) {
                                 </Select>
                               </div>
                         }
+                            
+                            {/* Force Full App Refresh */}
+                            <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                            <DropdownMenuItem
+                          onClick={async () => {
+                            try {
+                              localStorage.clear();
 
-                        {/* Emergency Recovery - Clear Offline DB */}
-                        <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                        <DropdownMenuItem
+                              window.location.reload(true);
+                            } catch (error) {
+
+                              // Silent fail
+                            }}}
+                          className="cursor-pointer text-blue-600"
+                          style={{ fontSize: isMobile ? '16px' : '15px' }}>
+
+                              <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                              Force Full App Refresh
+                            </DropdownMenuItem>
+
+                            {/* Emergency Recovery - Clear Offline DB */}
+                            <DropdownMenuItem
                           onClick={async () => {
                             if (!window.confirm('Clear offline database and reload fresh data? This will fix stuck data issues.')) {
                               return;
@@ -3422,8 +3440,27 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                       }
 
-                          {/* Emergency Recovery - Clear Offline DB */}
+                          {/* Force Full App Refresh - Does NOT clear offline DB */}
                           <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                          <DropdownMenuItem
+                        onClick={async () => {
+                          try {
+                            clearUserCache();
+                            clearSettingsCache();
+
+                            window.location.reload(true);
+                          } catch (error) {
+
+                            // Silent fail
+                          }}}
+                        className="cursor-pointer text-blue-600"
+                        style={{ fontSize: isMobile ? '16px' : '15px' }}>
+
+                            <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                            Force Full App Refresh
+                          </DropdownMenuItem>
+
+                          {/* Emergency Recovery - Clear Offline DB */}
                           <DropdownMenuItem
                         onClick={async () => {
                           if (!window.confirm('Clear offline database and reload fresh data? This will fix stuck data issues.')) {
