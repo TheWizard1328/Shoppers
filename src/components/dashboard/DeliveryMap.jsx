@@ -1795,6 +1795,12 @@ export default function DeliveryMap({
     // Use shared finished statuses
     const activeStatuses = ['in_transit']; // NEW
 
+    // CRITICAL: Pre-build driver lookup with STABLE sort order from stableSortedDrivers
+    const driverOrderMap = new Map();
+    stableSortedDrivers.forEach((driver, index) => {
+      driverOrderMap.set(driver.id, { driver, sortIndex: index });
+    });
+
     // Group deliveries by driver
     const routesByDriver = {};
 
@@ -1802,8 +1808,10 @@ export default function DeliveryMap({
     if (!delivery) return;
     const driverId = delivery.driver_id || 'unassigned';
     if (!routesByDriver[driverId]) {
-      // CRITICAL: Use stable driver lookup map to prevent "Unassigned" names
-      let driverForRoute = driverLookupMap.get(driverId);
+      // CRITICAL: Use stable driver order map
+      const driverInfo = driverOrderMap.get(driverId);
+      let driverForRoute = driverInfo?.driver || driverLookupMap.get(driverId);
+      let stableSortIndex = driverInfo?.sortIndex ?? Infinity;
       
       // CRITICAL: Fallback to denormalized driver name if not in lookup map
       if (!driverForRoute && delivery.driver_name) {
@@ -1812,6 +1820,7 @@ export default function DeliveryMap({
           user_name: delivery.driver_name,
           full_name: delivery.driver_name
         };
+        stableSortIndex = Infinity;
       }
 
       // CRITICAL: Determine route color based on mode - calculated ONCE before rendering
@@ -1830,7 +1839,7 @@ export default function DeliveryMap({
         driver: driverForRoute,
         color: routeColor,
         stops: [],
-        sortOrder: driverForRoute?.sort_order ?? Infinity,
+        sortOrder: stableSortIndex, // Use stable index instead of dynamic sort_order
         // CRITICAL: Store both the route color AND the driver object for legend lookup
         _driverObj: driverForRoute
       };
