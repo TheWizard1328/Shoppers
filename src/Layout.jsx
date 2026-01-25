@@ -1477,7 +1477,7 @@ export default function Layout({ children, currentPageName }) {
   // Syncs entire current month + historical data for robust offline access
 
   // Start background sync 60 seconds after init to avoid competing with initial load
-  const bgSyncTimer = setTimeout(() => {
+  const bgSyncTimer = setTimeout(async () => {
     if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
 
     const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
