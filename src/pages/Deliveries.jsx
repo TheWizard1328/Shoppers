@@ -1023,6 +1023,8 @@ export default function DeliveriesPage() {
     const monthParam = params.get("month");
     const cityParam = params.get("city");
 
+    // NOTE: dateParam is no longer used in Route Management (only year/month are used in URL)
+
     // CRITICAL: Route Management only uses year/month in URL (no date param)
     let initialSelectedYear = new Date().getFullYear();
     let initialSelectedMonth = new Date().getMonth();
