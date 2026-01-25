@@ -50,7 +50,12 @@ export default function DateListPanel({
 
     const list = allDates.map((date) => {
       const dateStr = format(date, 'yyyy-MM-dd');
-      const dateDeliveries = deliveries.filter((d) => d.delivery_date === dateStr);
+      // CRITICAL: Compare as local date strings without UTC conversion
+      const dateDeliveries = deliveries.filter((d) => {
+        if (!d || !d.delivery_date) return false;
+        // Parse delivery_date as local date string, not UTC
+        return d.delivery_date.split('T')[0] === dateStr;
+      });
 
       const failed = dateDeliveries.filter((d) => d.status === 'failed').length;
 
