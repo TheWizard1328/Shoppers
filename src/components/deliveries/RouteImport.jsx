@@ -165,6 +165,7 @@ export default function RouteImport({
   const [progressMessage, setProgressMessage] = useState('');
   const [showProgress, setShowProgress] = useState(false);
   const [patients, setPatients] = useState([]);
+  const fileInputRef = useRef(null);
 
   const [previewFilterDriver, setPreviewFilterDriver] = useState('all');
   const [previewFilterDate, setPreviewFilterDate] = useState('all');
@@ -1005,6 +1006,13 @@ export default function RouteImport({
     };
 
     loadAllDrivers();
+    
+    // CRITICAL: Auto-open file dialog on mount
+    setTimeout(() => {
+      if (fileInputRef.current) {
+        fileInputRef.current.click();
+      }
+    }, 100);
   }, [allUsers]);
 
   const availableDrivers = useMemo(() => {
@@ -1793,6 +1801,7 @@ export default function RouteImport({
                   <div className="space-y-2">
                     <Label htmlFor="route-upload" style={{ color: 'var(--text-slate-900)' }}>Select Route Files (CSV/TSV/TXT)</Label>
                     <Input
+                      ref={fileInputRef}
                       id="route-upload"
                       type="file"
                       accept=".csv,.tsv,.txt"
