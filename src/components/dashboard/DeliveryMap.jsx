@@ -845,15 +845,35 @@ export default function DeliveryMap({
   const isSingleDriverMode = useMemo(() => !isAllDriversMode, [isAllDriversMode]);
 
   // CRITICAL: Create stable driver lookup map to prevent "Unassigned" names
+  // Fallback to delivery data if users prop is empty
   const driverLookupMap = useMemo(() => {
     const map = new Map();
+    
+    // First, add from users prop
     safeUsers.forEach(u => {
       if (u && typeof u === 'object' && u.id) {
         map.set(u.id, u);
       }
     });
+    
+    // CRITICAL: If users prop is empty/loading, extract driver names from deliveries
+    if (map.size === 0 && deliveryMarkers.length > 0) {
+      deliveryMarkers.forEach(d => {
+        if (d?.driver_id && d?.driver_name && !map.has(d.driver_id)) {
+          map.set(d.driver_id, {
+            id: d.driver_id,
+            user_name: d.driver_name,
+            full_name: d.driver_name
+          });
+        }
+      });
+    }
+    
     return map;
-  }, [safeUsers.map(u => `${u?.id}:${u?.user_name || u?.full_name}`).join('|')]);
+  }, [
+    safeUsers.map(u => `${u?.id}:${u?.user_name || u?.full_name}`).join('|'),
+    deliveryMarkers.map(d => `${d?.driver_id}:${d?.driver_name}`).join('|')
+  ]);
 
   // CRITICAL: Check if current user is a driver viewing their own route (any date)
   const isDriverViewingSelf = useMemo(() => {
