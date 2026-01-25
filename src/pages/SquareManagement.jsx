@@ -325,8 +325,56 @@ export default function SquareManagement() {
           // Load sync status from offline
           await loadSyncStatus();
           
-          // DISABLED: Background API refresh removed - only manual sync button refreshes from Square
-          console.log('✅ [SquareManagement] Loaded from offline DB - use Sync button to refresh from Square');
+          // Background: Refresh from API only if data changed
+          console.log('🔄 [SquareManagement] Background: Checking for updates from Square...');
+          setTimeout(async () => {
+            try {
+              const [catalogResponse, paymentsResponse] = await Promise.all([
+                base44.functions.invoke('squareSyncCatalogItems', {}),
+                base44.functions.invoke('squareFetchPayments', { 
+                  locationIds: syncedLocationIds, 
+                  daysBack: 14 
+                })
+              ]);
+
+              const catalogData = catalogResponse?.data || catalogResponse || {};
+              const paymentsData = paymentsResponse?.data || paymentsResponse || {};
+
+              const catalogItemsData = catalogData?.items || [];
+              const soldCatalogItemsData = paymentsData?.soldCatalogItems || [];
+
+              // Compare with current data - only update if different
+              const catalogChanged = JSON.stringify(catalogItemsData) !== JSON.stringify(offlineCatalog);
+              const paymentsChanged = JSON.stringify(soldCatalogItemsData) !== JSON.stringify(offlinePayments);
+
+              if (catalogChanged || paymentsChanged) {
+                console.log(`🔄 [SquareManagement] Data changed - updating UI (catalog: ${catalogChanged}, payments: ${paymentsChanged})`);
+                
+                // Save to offline DB
+                await Promise.all([
+                  saveCatalogItemsOffline(catalogItemsData),
+                  savePaymentTransactionsOffline(soldCatalogItemsData)
+                ]);
+
+                // Update UI with fresh data
+                setCatalogItems(catalogItemsData);
+                setSoldCatalogItems(soldCatalogItemsData);
+                setAllTransactions(soldCatalogItemsData);
+                
+                const recentPaymentsFresh = soldCatalogItemsData
+                  .filter(item => new Date(item.payment_date) >= fourteenDaysAgoTx)
+                  .sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+                setRecentTransactions(recentPaymentsFresh);
+                
+                await loadSyncStatus();
+                toast.success('Square data updated');
+              } else {
+                console.log('✅ [SquareManagement] No changes detected - UI stays current');
+              }
+            } catch (bgError) {
+              console.warn('⚠️ [SquareManagement] Background refresh failed (non-critical):', bgError.message);
+            }
+          }, 2000);
         } else {
           // No offline data - fetch from API
           console.log('📥 [SquareManagement] No offline data - fetching from API...');
