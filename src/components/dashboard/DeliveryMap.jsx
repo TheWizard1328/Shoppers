@@ -2624,6 +2624,7 @@ export default function DeliveryMap({
               
               if (!startPoint) return;
               
+              // ONLY draw polyline to next stop, no full route
               polylines.push(
                 <Polyline
                   key={`dispatcher-driver-to-next-${driverId}-${nextStop.id}`}
