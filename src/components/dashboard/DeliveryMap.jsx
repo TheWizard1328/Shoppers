@@ -2821,17 +2821,25 @@ export default function DeliveryMap({
               for (let i = 0; i < allRouteStops.length - 1; i++) {
                 const stop1 = allRouteStops[i];
                 const stop2 = allRouteStops[i + 1];
-                
+
+                // CRITICAL POLYLINE RULE FOR ACTIVE ROUTES: Skip segments involving finished stops
+                // Only draw segments BETWEEN incomplete stops
+                if (!isRouteCompleted) {
+                  const stop1Finished = FINISHED_STATUSES.includes(stop1.status) || stop1.status === 'pending';
+                  const stop2Finished = FINISHED_STATUSES.includes(stop2.status) || stop2.status === 'pending';
+                  if (stop1Finished || stop2Finished) continue; // Skip this segment
+                }
+
                 const stop1IsPickup = stop1.type === 'pickup';
                 const stop2IsPickup = stop2.type === 'pickup';
                 const stop1IsDelivery = stop1.type === 'delivery';
                 const stop2IsDelivery = stop2.type === 'delivery';
-                
+
                 const stop1IsAM = stop1.ampm_deliveries === 'AM';
                 const stop1IsPM = stop1.ampm_deliveries === 'PM';
                 const stop2IsAM = stop2.ampm_deliveries === 'AM';
                 const stop2IsPM = stop2.ampm_deliveries === 'PM';
-                
+
                 // Determine line style based on rules
                 let dashArray = '10, 10'; // Default solid
                 
