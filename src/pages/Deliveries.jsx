@@ -455,15 +455,15 @@ export default function DeliveriesPage() {
           
           // Also save to offline DB for fallback
           if (deliveriesData.length > 0) {
-            const { offlineDB } = await import('../components/utils/offlineDatabase');
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesData);
+            const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
+            await offlineDBInstance.bulkSave(offlineDBInstance.STORES.DELIVERIES, deliveriesData);
             console.log(`💾 [Deliveries] Cached ${deliveriesData.length} deliveries to offline DB`);
           }
         } catch (error) {
           console.error('Failed to fetch year deliveries, falling back to offline DB:', error);
           try {
-            const { offlineDB } = await import('../components/utils/offlineDatabase');
-            const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+            const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
+            const offlineDeliveries = await offlineDBInstance.getAll(offlineDBInstance.STORES.DELIVERIES);
             if (offlineDeliveries && offlineDeliveries.length > 0) {
               deliveriesData = offlineDeliveries;
               console.log(`⚠️ [Deliveries] Using ${deliveriesData.length} deliveries from offline DB (fallback)`);
@@ -490,8 +490,8 @@ export default function DeliveriesPage() {
 
         // Load from offline DB first, then sync if forced refresh
         try {
-          const { offlineDB } = await import('../components/utils/offlineDatabase');
-          const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+          const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
+          const offlineDeliveries = await offlineDBInstance.getAll(offlineDBInstance.STORES.DELIVERIES);
           
           if (offlineDeliveries && offlineDeliveries.length > 0) {
             // Filter offline data for this month
