@@ -615,8 +615,14 @@ export default function RouteImport({
       // CRITICAL: Auto-generate preview for non-app-owners immediately after file selection
       const isNotAppOwner = currentUser && currentUser.role !== 'App Owner';
       if (isNotAppOwner && selectedFiles.length > 0) {
-        // Delay slightly to let file state update
+        // CRITICAL: Wait for fileDriverMap state to update before calling handlePreview
         setTimeout(() => {
+          // Verify all files have matched drivers before auto-previewing
+          const hasUnmatchedFiles = selectedFiles.some(f => !newFileDriverMap[f.name]?.driver);
+          if (hasUnmatchedFiles) {
+            console.log('[RouteImport] Auto-preview skipped - some files have no matched driver');
+            return;
+          }
           handlePreview();
         }, 300);
       }
