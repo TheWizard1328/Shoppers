@@ -288,30 +288,34 @@ export default function RouteImport({
       return driverMatch;
     });
 
-    // Check for multiple patient deliveries in same slot (require SID for patients only)
-    let hasMultipleInSlot = false;
-    if (importedAMPM && importedDeliveryPatientId) {
-      const sameSlotDeliveries = sameDateDeliveries.filter((d) => d.ampm_deliveries === importedAMPM);
-      const patientDeliveriesInSlot = sameSlotDeliveries.filter((d) => d.patient_id === importedDeliveryPatientId);
-      if (patientDeliveriesInSlot.length > 1) {
-        hasMultipleInSlot = true;
+    // CRITICAL: Check for multiple patient deliveries with same PID
+    // If there are multiple stops for the same PID, require SID to match
+    let hasMultipleSamePID = false;
+    let multipleCount = 0;
+    if (importedDeliveryPatientId) {
+      const samePIDDeliveries = sameDateDeliveries.filter((d) => d.patient_id === importedDeliveryPatientId);
+      multipleCount = samePIDDeliveries.length;
+      if (samePIDDeliveries.length > 1) {
+        hasMultipleSamePID = true;
       }
     }
 
-    if (hasMultipleInSlot) {
+    if (hasMultipleSamePID) {
+      // Multiple stops for this PID - MUST match by SID to prevent overwrites
       if (importedDeliveryStopId) {
         const sidMatch = sameDateDeliveries.find((d) => {
           const existingSID = (d.stop_id || '').trim();
-          const matches = existingSID === importedDeliveryStopId;
+          const matches = existingSID === importedDeliveryStopId && d.patient_id === importedDeliveryPatientId;
           return matches;
         });
         if (sidMatch) {
-          return { match: sidMatch, reason: `SID Match (${importedDeliveryStopId})` };
+          return { match: sidMatch, reason: `SID Match (${importedDeliveryStopId}) - ${multipleCount} stops for PID` };
         } else {
-          return { match: null, reason: 'Multiple in slot - SID required but not matched' };
+          // No SID match found - this is likely a NEW stop for this PID
+          return { match: null, reason: `Multiple stops for PID - SID (${importedDeliveryStopId}) not matched, creating new` };
         }
       } else {
-        return { match: null, reason: 'Multiple in slot - no SID provided' };
+        return { match: null, reason: `Multiple stops for PID (${multipleCount} existing) - no SID provided to disambiguate, creating new` };
       }
     }
 
