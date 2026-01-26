@@ -873,11 +873,21 @@ export default function RouteImport({
 
       // PUID assignment will be done after all rows are parsed (see below)
 
+      // CRITICAL: Set delivery_time_start based on stop order and completion time
       if (completionTimeStr && currentDate) {
         // Validate time format before setting
         const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
         if (timeRegex.test(completionTimeStr)) {
-          newDeliveryData.actual_delivery_time = `${currentDate}T${completionTimeStr}:00`;
+          // 1. If stop has order number (completed/failed/cancelled), set delivery_time_start to completion time
+          if (stopOrder > 0) {
+            newDeliveryData.actual_delivery_time = `${currentDate}T${completionTimeStr}:00`;
+            newDeliveryData.delivery_time_start = completionTimeStr;
+          } 
+          // 2. If stop order is 0, set delivery_time_start to ETA time (same column)
+          else if (stopOrder === 0) {
+            newDeliveryData.delivery_time_start = completionTimeStr;
+            newDeliveryData.delivery_time_eta = completionTimeStr;
+          }
         } else {
           console.warn(`⚠️ Row ${lineNumber}: Invalid time format "${completionTimeStr}", skipping time assignment`);
           // Don't throw - just skip the time but continue with the record
