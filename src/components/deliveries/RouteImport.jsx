@@ -933,7 +933,14 @@ export default function RouteImport({
       const cleanedNotes = processDeliveryNotes(rawNotes, newDeliveryData, patient, isPickup, true);
       newDeliveryData.delivery_notes = cleanedNotes;
 
-      const matchResult = matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
+      // CRITICAL: If this PID has duplicates in the import, ONLY match by exact SID
+      // This prevents stop 13 from overwriting stop 10's data
+      const pidHasDuplicatesInImport = patientPID && pidCountInImport.get(patientPID) > 1;
+      
+      const matchResult = pidHasDuplicatesInImport && stopId
+        ? { match: allDeliveriesData.find(d => d.stop_id === stopId && d.delivery_date === currentDate && d.driver_id === selectedDriver.id), reason: 'SID Match (PID has duplicates)' }
+        : matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
+      
       let existingDelivery = matchResult?.match || null;
       const matchReason = matchResult?.reason || 'Unknown';
 
