@@ -790,8 +790,8 @@ export default function Layout({ children, currentPageName }) {
         // Load cities from offline DB first to prevent rate limits
         let citiesData = [];
         try {
-          const { offlineDB } = await import('./components/utils/offlineDatabase');
-          citiesData = await offlineDB.getAll(offlineDB.STORES.CITIES);
+          const { offlineDB: offlineDBInstance } = await import('./components/utils/offlineDatabase');
+          citiesData = await offlineDBInstance.getAll(offlineDBInstance.STORES.CITIES);
 
           if (!citiesData || citiesData.length === 0) {
             console.log('📥 [Layout] Cities not in offline DB - fetching from API');
