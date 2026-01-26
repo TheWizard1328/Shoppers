@@ -924,9 +924,9 @@ export default function Layout({ children, currentPageName }) {
   useEffect(() => {
     if (!currentUser) return;
 
-    // CRITICAL: Background sync runs ONCE after 60 seconds
+    // CRITICAL: Background sync runs ONCE after 60 seconds (DISABLED if form overlay open)
     const bgSyncTimer = setTimeout(async () => {
-      if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
+      if (!initialGlobalFiltersSet || !currentUser || !dataLoaded || isFormOverlayOpen) return;
 
       const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
       const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
