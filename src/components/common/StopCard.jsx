@@ -158,9 +158,17 @@ export default function StopCard({
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
 
   // Detect if this is a stripped delivery (from other store)
+  // For drivers: strip completed deliveries (_isStripped flag from Dashboard)
   // For dispatchers: strip deliveries that aren't from their assigned stores
   // CRITICAL: Must be defined BEFORE isExpanded which depends on it
-  const isStrippedDelivery = useMemo(() => {
+  const isStrippedForDriver = useMemo(() => {
+    if (!currentUser || !delivery) return false;
+    if (userHasRole(currentUser, 'admin')) return false;
+    if (!userHasRole(currentUser, 'driver')) return false;
+    return delivery._isStripped === true;
+  }, [delivery?._isStripped, currentUser]);
+
+  const isStrippedForDispatcher = useMemo(() => {
     if (delivery?._isStripped === true) return true;
 
     // Check if current user is a dispatcher (but not admin)
@@ -168,7 +176,7 @@ export default function StopCard({
     const isDispatcher = userHasRole(currentUser, 'dispatcher');
     const isAdmin = userHasRole(currentUser, 'admin');
 
-    // Admins see everything, drivers see their own deliveries (handled elsewhere)
+    // Admins see everything, drivers handled above
     if (isAdmin || !isDispatcher) return false;
 
     // For dispatchers, check if this delivery's store is in their assigned stores
@@ -178,6 +186,8 @@ export default function StopCard({
     // If the delivery's store is not in dispatcher's stores, strip it
     return delivery?.store_id && !dispatcherStoreIds.includes(delivery.store_id);
   }, [delivery?._isStripped, delivery?.store_id, currentUser]);
+
+  const isStrippedDelivery = isStrippedForDriver || isStrippedForDispatcher;
 
   // Helper to auto-toggle driver online if offline
   const ensureDriverOnline = async () => {
@@ -978,10 +988,10 @@ export default function StopCard({
             </div>
           </div>
 
-          {/* Hide address/phone section for stripped deliveries OR finished deliveries that aren't expanded */}
-          {!isStrippedDelivery && (!isFinishedDelivery || isExpanded) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
+          {/* Hide address/phone section for driver-stripped deliveries OR finished deliveries that aren't expanded */}
+          {!isStrippedForDriver && (!isFinishedDelivery || isExpanded) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
 
-          {!isStrippedDelivery && (!isFinishedDelivery || isExpanded) && <div className="flex flex-col">
+          {!isStrippedForDriver && (!isFinishedDelivery || isExpanded) && <div className="flex flex-col">
             <div className="flex items-start justify-between">
             <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
             {finalDisplayAddress ?
@@ -1446,7 +1456,7 @@ export default function StopCard({
 
           {/* BODY SECTION - Expandable */}
           <AnimatePresence>
-            {isExpanded && !isStrippedDelivery &&
+            {isExpanded && !isStrippedForDriver &&
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="pt-3 space-y-3 border-t mt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                   {/* Phone number - moved below divider - HIDE for finished patient deliveries */}
@@ -1457,11 +1467,11 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* COD Information - For active deliveries with COD required */}
+                  {/* COD Information - For active deliveries with COD required (always show, but disable editing for driver-stripped) */}
                   {hasCODRequired && !isPickup && !isFinishedDelivery &&
                 <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
                       <span className="text-lg md:text-xs font-semibold text-amber-800">COD Required: ${codTotalRequired.toFixed(2)}</span>
-                      {userHasRole(currentUser, 'driver') &&
+                      {userHasRole(currentUser, 'driver') && !isStrippedForDriver &&
                   <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs text-amber-700 hover:text-amber-900" onClick={(e) => {
                     e.stopPropagation();
                     setShowCODCollection(!showCODCollection);
@@ -1476,7 +1486,7 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* COD Collected - Show for active deliveries OR for finished deliveries with COD */}
+                  {/* COD Collected - Show for active deliveries OR for finished deliveries with COD (disable editing for driver-stripped) */}
                   {hasCODRequired && !isPickup && codPayments.length > 0 &&
                 <div className={`flex items-center justify-between rounded-md px-2 py-1 ${isCODComplete ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
                       <span className={`text-lg md:text-xs font-semibold ${isCODComplete ? 'text-emerald-800' : 'text-amber-800'}`}>
@@ -1487,15 +1497,15 @@ export default function StopCard({
                           </span>
                     )}
                       </span>
-                      {!isFinishedDelivery && userHasRole(currentUser, 'driver') ||
-                  isFinishedDelivery && userHasRole(currentUser, 'admin') ?
+                      {(!isStrippedForDriver && !isFinishedDelivery && userHasRole(currentUser, 'driver')) ||
+                  (isFinishedDelivery && userHasRole(currentUser, 'admin')) ?
                   <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs" onClick={(e) => {e.stopPropagation();setShowCODCollection(!showCODCollection);}}>Edit</Button> :
                   null}
                     </div>
                 }
 
                   <AnimatePresence>
-                    {showCODCollection && hasCODRequired && !isPickup && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
+                    {showCODCollection && hasCODRequired && !isPickup && !isStrippedForDriver && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
@@ -1569,8 +1579,8 @@ export default function StopCard({
                   }
                   </AnimatePresence>
 
-                  {/* Patient Notes - Show for finished deliveries (only notes, no preferences/recurring) */}
-                  {isFinishedDelivery && !isPickup && patient?.notes &&
+                  {/* Patient Notes - Hide for driver-stripped deliveries */}
+                  {!isStrippedForDriver && isFinishedDelivery && !isPickup && patient?.notes &&
                 <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
@@ -1582,8 +1592,8 @@ export default function StopCard({
                   </div>
                 }
 
-                  {/* Full Patient Info - Only for non-finished deliveries */}
-                  {!isFinishedDelivery && !isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
+                  {/* Full Patient Info - Hide for driver-stripped deliveries */}
+                  {!isStrippedForDriver && !isFinishedDelivery && !isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
                 <div className="flex items-start gap-2">
                 <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
@@ -2061,8 +2071,18 @@ export default function StopCard({
             }
           </AnimatePresence>
 
-          {/* FOOTER SECTION - Only visible to assigned driver or app owner, hidden for finished when not expanded */}
-          {!isStrippedDelivery && isAssignedDriverOrAppOwner && (!isFinishedDelivery || isExpanded) && <div className="space-y-3 mt-2">
+          {/* FOOTER SECTION - Driver-stripped: hide UNLESS Retry or Return buttons are available */}
+          {(() => {
+            // For drivers: hide footer unless Retry or Return buttons are available
+            if (isStrippedForDriver) {
+              const hasRetryButton = delivery.status === 'failed' && canRetry && !hasFutureRetry && !hasCompletedDelivery;
+              const hasReturnButton = delivery.status === 'failed' && !isPickup && !hasFutureReturn && !hasCompletedDelivery;
+              if (!hasRetryButton && !hasReturnButton) return null;
+            }
+
+            // For dispatchers and others: show footer normally
+            return isAssignedDriverOrAppOwner && (!isFinishedDelivery || isExpanded);
+          })() && <div className="space-y-3 mt-2">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
@@ -2733,7 +2753,7 @@ export default function StopCard({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
-                          {onEditDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                          {onEditDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                         <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}} className="text-base md:text-sm py-2.5 md:py-1.5">
                               <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                               {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
@@ -2766,9 +2786,9 @@ export default function StopCard({
                             </>
                         }
 
-                          {onDeleteDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
+                          {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
 
-                          {onDeleteDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                          {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                         <DropdownMenuItem
                           onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}}
                           className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
