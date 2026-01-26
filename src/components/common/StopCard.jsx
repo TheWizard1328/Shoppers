@@ -255,19 +255,19 @@ export default function StopCard({
   // Check if this is an InterStore Pickup (store pickup where patient name contains InterStore)
   const isInterStorePickup = useMemo(() => {
     if (!delivery) return false;
-    
+
     // For pickups, check if patient_name (denormalized) contains InterStore
     const patientName = (delivery.patient_name || '').toLowerCase();
     if (patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store')) {
       return true;
     }
-    
+
     // Also check delivery notes for InterStore marker (in case it was added there)
     const deliveryNotes = (delivery.delivery_notes || '').toLowerCase();
     if (deliveryNotes.includes('interstore pickup') || deliveryNotes.includes('inter-store pickup') || deliveryNotes.includes('isp')) {
       return true;
     }
-    
+
     return false;
   }, [delivery]);
 
@@ -382,19 +382,19 @@ export default function StopCard({
   // Check if this is an InterStore delivery (DropOff or Pickup)
   const isInterStore = useMemo(() => {
     if (!delivery) return false;
-    
+
     // Check patient name (from patient entity or denormalized field)
     const patientName = (patient?.full_name || delivery.patient_name || '').toLowerCase();
     if (patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store')) {
       return true;
     }
-    
+
     // Check patient notes (NOT delivery notes or driver notes)
     const patientNotes = (patient?.notes || '').toLowerCase();
     if (patientNotes.includes('interstore') || patientNotes.includes('inter-store') || patientNotes.includes('inter store')) {
       return true;
     }
-    
+
     return false;
   }, [delivery, patient]);
 
@@ -959,11 +959,11 @@ export default function StopCard({
             <div className="flex flex-col py-0.5 gap-0.5 items-center">
               <div className="flex items-center gap-1">
                 <Badge
-                  variant="secondary" 
+                  variant="secondary"
                   className={`text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-full hover:bg-secondary/80 border-transparent inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
-                    isReturnDelivery ? 'bg-orange-500' :
-                    delivery.status === 'failed' || delivery.status === 'cancelled' ? 'bg-red-500' : 'bg-emerald-500'
-                  }`}
+                  isReturnDelivery ? 'bg-orange-500' :
+                  delivery.status === 'failed' || delivery.status === 'cancelled' ? 'bg-red-500' : 'bg-emerald-500'}`
+                  }
                   style={{ color: isPickup && delivery.after_hours_pickup && FINISHED_STATUSES.includes(delivery.status) ? '#3b82f6' : 'white' }}>
                     {isReturnDelivery ? 'Return' : statusConfig[delivery.status]?.label || delivery.status}
                   </Badge>
@@ -987,9 +987,9 @@ export default function StopCard({
           </div>
 
           {/* Show address/phone: NOT driver-stripped, AND (not finished OR expanded), allow dispatcher-stripped when expanded */}
-          {(!isStrippedForDriver && (!isFinishedDelivery || isExpanded)) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
+          {!isStrippedForDriver && (!isFinishedDelivery || isExpanded) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
 
-          {(!isStrippedForDriver && (!isFinishedDelivery || isExpanded)) && <div className="flex flex-col">
+          {!isStrippedForDriver && (!isFinishedDelivery || isExpanded) && <div className="flex flex-col">
             <div className="flex items-start justify-between">
             <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
             {finalDisplayAddress ?
@@ -1146,88 +1146,88 @@ export default function StopCard({
 
           {/* Signature Capture - Full Screen Landscape */}
           {showSignatureCapture &&
-            <SignatureCapture
-              customerName={displayName}
-              onSave={async (signatureBlob) => {
-                try {
-                  console.log('📝 [Signature] Starting upload...', signatureBlob);
-                  
-                  // Upload signature immediately
-                  const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureBlob });
-                  const signatureUrl = uploadResult.file_url;
-                  
-                  console.log('📝 [Signature] Upload complete:', signatureUrl);
-                  
-                  // Update delivery with signature DIRECTLY
-                  await base44.entities.Delivery.update(delivery.id, {
-                    signature_image_url: signatureUrl
-                  });
-                  
-                  console.log('📝 [Signature] Database updated');
-                  
-                  // Close modal
-                  setShowSignatureCapture(false);
-                  
-                  // Force immediate refresh
-                  invalidate('Delivery');
-                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                  
-                  console.log('📝 [Signature] UI refreshed - signature should now show green');
-                  
-                  toast.success('Signature saved!');
-                } catch (error) {
-                  console.error('❌ [Signature] Save failed:', error);
-                  toast.error(`Failed to save signature: ${error.message}`);
-                  setShowSignatureCapture(false);
-                }
-              }}
-              onCancel={() => setShowSignatureCapture(false)}
-            />
+          <SignatureCapture
+            customerName={displayName}
+            onSave={async (signatureBlob) => {
+              try {
+                console.log('📝 [Signature] Starting upload...', signatureBlob);
+
+                // Upload signature immediately
+                const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureBlob });
+                const signatureUrl = uploadResult.file_url;
+
+                console.log('📝 [Signature] Upload complete:', signatureUrl);
+
+                // Update delivery with signature DIRECTLY
+                await base44.entities.Delivery.update(delivery.id, {
+                  signature_image_url: signatureUrl
+                });
+
+                console.log('📝 [Signature] Database updated');
+
+                // Close modal
+                setShowSignatureCapture(false);
+
+                // Force immediate refresh
+                invalidate('Delivery');
+                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+                console.log('📝 [Signature] UI refreshed - signature should now show green');
+
+                toast.success('Signature saved!');
+              } catch (error) {
+                console.error('❌ [Signature] Save failed:', error);
+                toast.error(`Failed to save signature: ${error.message}`);
+                setShowSignatureCapture(false);
+              }
+            }}
+            onCancel={() => setShowSignatureCapture(false)} />
+
           }
 
           {/* Photo Capture */}
           {showPhotoCapture &&
-            <PhotoCapture
-              onSave={async (photoBlobs) => {
-                try {
-                  console.log('📷 [Photos] Starting upload...', photoBlobs.length, 'photos');
-                  
-                  // Upload photos immediately
-                  const uploadPromises = photoBlobs.map((blob) =>
-                    base44.integrations.Core.UploadFile({ file: blob })
-                  );
-                  const results = await Promise.all(uploadPromises);
-                  const newPhotoUrls = results.map((r) => r.file_url);
-                  
-                  console.log('📷 [Photos] Upload complete:', newPhotoUrls);
-                  
-                  // Update delivery with photos DIRECTLY
-                  const existingPhotos = delivery.proof_photo_urls || [];
-                  await base44.entities.Delivery.update(delivery.id, {
-                    proof_photo_urls: [...existingPhotos, ...newPhotoUrls]
-                  });
-                  
-                  console.log('📷 [Photos] Database updated');
-                  
-                  // Close modal
-                  setShowPhotoCapture(false);
-                  
-                  // Force immediate refresh
-                  invalidate('Delivery');
-                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                  
-                  console.log('📷 [Photos] UI refreshed - photos should now show green');
-                  
-                  toast.success(`${photoBlobs.length} photo(s) saved!`);
-                } catch (error) {
-                  console.error('❌ [Photos] Save failed:', error);
-                  toast.error(`Failed to save photos: ${error.message}`);
-                  setShowPhotoCapture(false);
-                }
-              }}
-              onCancel={() => setShowPhotoCapture(false)}
-              maxPhotos={3}
-            />
+          <PhotoCapture
+            onSave={async (photoBlobs) => {
+              try {
+                console.log('📷 [Photos] Starting upload...', photoBlobs.length, 'photos');
+
+                // Upload photos immediately
+                const uploadPromises = photoBlobs.map((blob) =>
+                base44.integrations.Core.UploadFile({ file: blob })
+                );
+                const results = await Promise.all(uploadPromises);
+                const newPhotoUrls = results.map((r) => r.file_url);
+
+                console.log('📷 [Photos] Upload complete:', newPhotoUrls);
+
+                // Update delivery with photos DIRECTLY
+                const existingPhotos = delivery.proof_photo_urls || [];
+                await base44.entities.Delivery.update(delivery.id, {
+                  proof_photo_urls: [...existingPhotos, ...newPhotoUrls]
+                });
+
+                console.log('📷 [Photos] Database updated');
+
+                // Close modal
+                setShowPhotoCapture(false);
+
+                // Force immediate refresh
+                invalidate('Delivery');
+                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+                console.log('📷 [Photos] UI refreshed - photos should now show green');
+
+                toast.success(`${photoBlobs.length} photo(s) saved!`);
+              } catch (error) {
+                console.error('❌ [Photos] Save failed:', error);
+                toast.error(`Failed to save photos: ${error.message}`);
+                setShowPhotoCapture(false);
+              }
+            }}
+            onCancel={() => setShowPhotoCapture(false)}
+            maxPhotos={3} />
+
           }
 
           {/* Failure Reason Dialog */}
@@ -1239,7 +1239,7 @@ export default function StopCard({
             }}
             onConfirm={async (reason) => {
               const status = pendingFailureStatus;
-              
+
               try {
                 setShowFailureReasonDialog(false);
                 setPendingFailureStatus(null);
@@ -1270,7 +1270,7 @@ export default function StopCard({
                 const roundedMinutes = Math.round(totalMinutes / 5) * 5;
                 const roundedHours = Math.floor(roundedMinutes / 60);
                 const roundedMins = roundedMinutes % 60;
-                
+
                 const year = currentTime.getFullYear();
                 const month = String(currentTime.getMonth() + 1).padStart(2, '0');
                 const day = String(currentTime.getDate()).padStart(2, '0');
@@ -1289,26 +1289,26 @@ export default function StopCard({
                   return;
                 }
 
-                await onStatusUpdate(delivery.id, status, { 
+                await onStatusUpdate(delivery.id, status, {
                   delivery_notes: updatedNotes,
                   actual_delivery_time: localTimeString
                 }, false);
-                
+
                 // Check if this is the FINAL stop
                 const allDriverDeliveries = allDeliveries.filter((d) =>
-                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                 );
-                const incompleteAfterThis = allDriverDeliveries.filter((d) => 
-                  d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
+                const incompleteAfterThis = allDriverDeliveries.filter((d) =>
+                d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
                 );
-                
+
                 if (incompleteAfterThis.length === 0) {
                   console.log('🏁 [FAILED/CANCELLED] FINAL STOP - Activating FAB and showing route summary');
                   fabControlEvents.notifyDoneButtonClicked();
                   window.dispatchEvent(new CustomEvent('showRouteSummary', {
                     detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                   }));
-                  
+
                   if (currentUser?.id) {
                     const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
                     if (appUsers && appUsers.length > 0) {
@@ -1456,7 +1456,7 @@ export default function StopCard({
           <AnimatePresence>
             {isExpanded &&
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-                <div className="pt-3 space-y-3 border-t mt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+                <div className="mt-2 pt-3 pb-1 space-y-3 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                   {/* Phone number - moved below divider - HIDE for finished patient deliveries */}
                   {finalDisplayPhone && !(isFinishedDelivery && !isPickup) &&
                 <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
@@ -1495,8 +1495,8 @@ export default function StopCard({
                           </span>
                     )}
                       </span>
-                      {(!isStrippedForDriver && !isFinishedDelivery && userHasRole(currentUser, 'driver')) ||
-                  (isFinishedDelivery && userHasRole(currentUser, 'admin')) ?
+                      {!isStrippedForDriver && !isFinishedDelivery && userHasRole(currentUser, 'driver') ||
+                  isFinishedDelivery && userHasRole(currentUser, 'admin') ?
                   <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs" onClick={(e) => {e.stopPropagation();setShowCODCollection(!showCODCollection);}}>Edit</Button> :
                   null}
                     </div>
@@ -1662,7 +1662,7 @@ export default function StopCard({
 
                       onClick={async (e) => {
                         e.stopPropagation();
-                        
+
                         console.log('🟢 [Assign All] Step 1: Running smart refresh...');
 
                         // Step 1: Run smart refresh
@@ -1709,7 +1709,7 @@ export default function StopCard({
                             // SQUARE INTEGRATION: Create COD item if applicable
                             if (pendingDelivery.cod_total_amount_required > 0 && pendingDelivery.patient_id) {
                               try {
-                                const storeForCod = stores.find(s => s && s.id === pendingDelivery.store_id);
+                                const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
                                 const codAmountDollars = pendingDelivery.cod_total_amount_required;
                                 console.log('💳 [Square] Creating COD item for accepted/assigned delivery:', pendingDelivery.id, 'Amount:', codAmountDollars);
                                 await base44.functions.invoke('squareCreateCodItem', {
@@ -1974,7 +1974,7 @@ export default function StopCard({
                                 // SQUARE INTEGRATION: Create COD item if applicable
                                 if (projectedDelivery.cod_total_amount_required > 0 && projectedDelivery.patient_id) {
                                   try {
-                                    const storeForCod = stores.find(s => s && s.id === projectedDelivery.store_id);
+                                    const storeForCod = stores.find((s) => s && s.id === projectedDelivery.store_id);
                                     const codAmountDollars = projectedDelivery.cod_total_amount_required;
                                     console.log('💳 [Square] Creating COD item for single accept:', projectedDelivery.id, 'Amount:', codAmountDollars);
                                     await base44.functions.invoke('squareCreateCodItem', {
@@ -2036,44 +2036,44 @@ export default function StopCard({
                 }
 
                   {/* Driver Notes - ALWAYS show when expanded (even if empty) */}
-                  {isFinishedDelivery && !isPickup ? (
-                    <div className="space-y-1 mt-2">
+                  {isFinishedDelivery && !isPickup ?
+                <div className="space-y-1 mt-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
                       </div>
-                      {delivery.delivery_notes ? (
-                        <div 
-                          className="text-base md:text-xs rounded px-2 py-1.5 min-h-[60px]" 
-                          style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
-                          onClick={(e) => e.stopPropagation()}>
+                      {delivery.delivery_notes ?
+                  <div
+                    className="text-base md:text-xs rounded px-2 py-1.5 min-h-[60px]"
+                    style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
+                    onClick={(e) => e.stopPropagation()}>
                           <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
-                        </div>
-                      ) : (
-                        <div 
-                          className="text-base md:text-xs rounded px-2 py-1.5 italic min-h-[60px]" 
-                          style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
-                          onClick={(e) => e.stopPropagation()}>
+                        </div> :
+
+                  <div
+                    className="text-base md:text-xs rounded px-2 py-1.5 italic min-h-[60px]"
+                    style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
+                    onClick={(e) => e.stopPropagation()}>
                           No driver notes
                         </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-1 mt-2">
+                  }
+                    </div> :
+
+                <div className="space-y-1 mt-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
                       </div>
                       <Textarea
-                      value={notesInput}
-                      onChange={(e) => setNotesInput(e.target.value)}
-                      onBlur={handleNotesBlur}
-                      onKeyDown={handleNotesKeyDown}
-                      onClick={(e) => e.stopPropagation()}
-                      placeholder="Add driver notes..."
-                      className="text-base md:text-xs resize-none h-24"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
-                      disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
+                    value={notesInput}
+                    onChange={(e) => setNotesInput(e.target.value)}
+                    onBlur={handleNotesBlur}
+                    onKeyDown={handleNotesKeyDown}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder="Add driver notes..."
+                    className="text-base md:text-xs resize-none h-24"
+                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
+                    disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
                     </div>
-                  )}
+                }
                 </div>
               </motion.div>
             }
@@ -2096,57 +2096,57 @@ export default function StopCard({
                 {(isAssignedDriverOrAppOwner || canEdit) &&
                 <>
                     {/* Proof of Delivery Buttons - Only on next delivery, OR completed with captured proof */}
-                    {!isPickup && (
-                      <div className="flex items-center gap-2">
+                    {!isPickup &&
+                  <div className="flex items-center gap-2">
                         {/* Signature Button - show ONLY on next delivery OR completed with signature */}
-                        {(isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.signature_image_url) ? (
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (delivery.status !== 'completed') {
-                                setShowSignatureCapture(true);
-                              }
-                            }}
-                            size="sm"
-                            variant="outline"
-                            disabled={delivery.status === 'completed'}
-                            className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
-                              delivery.signature_image_url 
-                                ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' 
-                                : 'border-slate-300 hover:bg-slate-100'
-                            }`}
-                          >
+                        {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.signature_image_url ?
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (delivery.status !== 'completed') {
+                          setShowSignatureCapture(true);
+                        }
+                      }}
+                      size="sm"
+                      variant="outline"
+                      disabled={delivery.status === 'completed'}
+                      className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                      delivery.signature_image_url ?
+                      'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
+                      'border-slate-300 hover:bg-slate-100'}`
+                      }>
+
                             <Pen className={`w-5 h-5 md:w-4 md:h-4 ${
-                              delivery.signature_image_url ? 'text-emerald-700' : 'text-slate-700'
-                            }`} />
-                          </Button>
-                        ) : null}
+                      delivery.signature_image_url ? 'text-emerald-700' : 'text-slate-700'}`
+                      } />
+                          </Button> :
+                    null}
 
                         {/* Photo Button - show ONLY on next delivery OR completed with photos */}
-                        {(isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0) ? (
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (delivery.status !== 'completed') {
-                                setShowPhotoCapture(true);
-                              }
-                            }}
-                            size="sm"
-                            variant="outline"
-                            disabled={delivery.status === 'completed'}
-                            className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
-                              delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0
-                                ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' 
-                                : 'border-slate-300 hover:bg-slate-100'
-                            }`}
-                          >
+                        {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (delivery.status !== 'completed') {
+                          setShowPhotoCapture(true);
+                        }
+                      }}
+                      size="sm"
+                      variant="outline"
+                      disabled={delivery.status === 'completed'}
+                      className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                      delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
+                      'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
+                      'border-slate-300 hover:bg-slate-100'}`
+                      }>
+
                             <Camera className={`w-5 h-5 md:w-4 md:h-4 ${
-                              delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-slate-700'
-                            }`} />
-                          </Button>
-                        ) : null}
+                      delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-slate-700'}`
+                      } />
+                          </Button> :
+                    null}
                       </div>
-                    )}
+                  }
 
                     {/* Return button for failed deliveries - creates new return delivery */}
                     {delivery.status === 'failed' && !isPickup &&
@@ -2254,11 +2254,11 @@ export default function StopCard({
                           <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
                           <span className="text-white">Restart</span>
                         </Button> :
-                      delivery.status === 'failed' && onStatusUpdate ?
+                    delivery.status === 'failed' && onStatusUpdate ?
                     <Button
                       onClick={async (e) => {
                         e.stopPropagation();
-                        
+
                         fabControlEvents.deactivateFAB();
                         setIsRetrying(true);
                         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
@@ -2419,21 +2419,21 @@ export default function StopCard({
                           const roundedMinutes = Math.round(totalMinutes / 5) * 5;
                           const roundedHours = Math.floor(roundedMinutes / 60);
                           const roundedMins = roundedMinutes % 60;
-                          
+
                           const year = currentTime.getFullYear();
                           const month = String(currentTime.getMonth() + 1).padStart(2, '0');
                           const day = String(currentTime.getDate()).padStart(2, '0');
                           const hours = String(roundedHours).padStart(2, '0');
                           const minutes = String(roundedMins).padStart(2, '0');
                           const seconds = '00';
-                          
+
                           // Get timezone offset in minutes and format as ±HH:MM
                           const offsetMinutes = -currentTime.getTimezoneOffset();
                           const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
                           const offsetMins = Math.abs(offsetMinutes) % 60;
                           const offsetSign = offsetMinutes >= 0 ? '+' : '-';
                           const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
-                          
+
                           const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
 
                           const completionUpdate = {
@@ -2460,15 +2460,15 @@ export default function StopCard({
                           } else {
                             // CRITICAL: This is the FINAL stop - activate FAB phase 1 and show route summary
                             console.log('🏁 [COMPLETE] FINAL STOP COMPLETED - Activating FAB and showing route summary');
-                            
+
                             // Activate FAB phase 1
                             fabControlEvents.notifyDoneButtonClicked();
-                            
+
                             // Show route summary popup
                             window.dispatchEvent(new CustomEvent('showRouteSummary', {
                               detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                             }));
-                            
+
                             // Toggle location sharing off and driver status to off_duty
                             if (currentUser?.id) {
                               const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
@@ -2478,14 +2478,14 @@ export default function StopCard({
                                   driver_status: 'off_duty',
                                   location_tracking_enabled: false
                                 });
-                                
+
                                 // Stop location tracking
                                 try {
                                   locationTracker.stopTracking();
                                 } catch (trackingError) {
                                   console.warn('Could not stop location tracking:', trackingError.message);
                                 }
-                                
+
                                 // Notify parent to refresh UI
                                 if (onDriverStatusChange) {
                                   onDriverStatusChange('off_duty');
@@ -2650,9 +2650,9 @@ export default function StopCard({
                             delivery_date: delivery.delivery_date
                           });
 
-                          const resetPromises = allDriverDeliveriesForDate
-                            .filter((d) => d.isNextDelivery && d.id !== delivery.id)
-                            .map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+                          const resetPromises = allDriverDeliveriesForDate.
+                          filter((d) => d.isNextDelivery && d.id !== delivery.id).
+                          map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
 
                           if (resetPromises.length > 0) {
                             await Promise.all(resetPromises);
@@ -2694,7 +2694,7 @@ export default function StopCard({
                             await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                             // Wait for UI to fully update with new stop orders
-                            await new Promise(resolve => setTimeout(resolve, 500));
+                            await new Promise((resolve) => setTimeout(resolve, 500));
 
                             // CRITICAL: Find and scroll to the card with isNextDelivery=true AFTER optimization
                             const freshDeliveries = await base44.entities.Delivery.filter({
@@ -2702,7 +2702,7 @@ export default function StopCard({
                               delivery_date: delivery.delivery_date
                             });
 
-                            const nextDelivery = freshDeliveries.find(d => d && d.isNextDelivery === true);
+                            const nextDelivery = freshDeliveries.find((d) => d && d.isNextDelivery === true);
                             if (nextDelivery) {
                               const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
                               if (cardElement) {
