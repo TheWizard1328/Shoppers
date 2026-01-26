@@ -3630,6 +3630,8 @@ export default function DeliveriesPage() {
               }}
               onDeleteMonth={async (year, month, driverId) => {
                 try {
+                  if (!confirm(`Delete all deliveries for ${driverId ? 'this driver for ' : ''}this month?`)) return;
+                  
                   const monthStart = new Date(year, month, 1);
                   const monthEnd = new Date(year, month + 1, 0);
                   const startDateStr = format(monthStart, 'yyyy-MM-dd');
@@ -3740,6 +3742,8 @@ export default function DeliveriesPage() {
                 }}
                 onDeleteMonth={async (year, month, driverId) => {
                   try {
+                    if (!confirm(`Delete all deliveries for ${driverId ? 'this driver for ' : ''}this month?`)) return;
+                    
                     const monthStart = new Date(year, month, 1);
                     const monthEnd = new Date(year, month + 1, 0);
                     const startDateStr = format(monthStart, 'yyyy-MM-dd');
