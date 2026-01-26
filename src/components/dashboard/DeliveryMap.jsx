@@ -2469,22 +2469,27 @@ export default function DeliveryMap({
           
           // CRITICAL: For drivers viewing their own route (including driver-dispatchers and driver-admins)
           if (isCurrentUserDriver) {
-            // Get ONLY the next stop (isNextDelivery=true), exclude pending
-            const nextStop = deliveryMarkers.find(d => 
+            // Get ALL active stops (in_transit, en_route), exclude pending and finished
+            const activeDeliveries = deliveryMarkers.filter(d => 
               d && 
               d.driver_id === currentUser?.id &&
-              d.isNextDelivery === true &&
+              (d.status === 'in_transit' || d.status === 'en_route') &&
               !finishedStatuses.includes(d.status) &&
               d.status !== 'pending'
-            ) || pickupMarkers.find(p => 
+            );
+            
+            const activePickups = pickupMarkers.filter(p => 
               p && 
               p.driver_id === currentUser?.id &&
-              p.isNextDelivery === true &&
+              (p.status === 'in_transit' || p.status === 'en_route') &&
               !finishedStatuses.includes(p.status) &&
               p.status !== 'pending'
             );
             
-            if (!nextStop) return null;
+            const allActiveStops = [...activePickups, ...activeDeliveries]
+              .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+            
+            if (allActiveStops.length === 0) return null;
             
             // CRITICAL: Determine the starting point for the blue dashed line
             // Priority: 1) Live driver location, 2) Last completed stop, 3) Driver's home location
