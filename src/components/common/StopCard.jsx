@@ -226,11 +226,11 @@ export default function StopCard({
   };
 
   // Use isSelected prop to control expansion (parent controls state)
-  // CRITICAL: Stripped deliveries cannot be expanded
+  // CRITICAL: Stripped deliveries CAN be expanded to show driver notes
   // CRITICAL: Finished deliveries start collapsed but CAN be expanded when selected
   // CRITICAL: If compact mode is enabled (desktop), never expand the card (details shown in panel)
   const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);
-  const isExpanded = compact ? false : (isSelected && !isStrippedDelivery);
+  const isExpanded = compact ? false : isSelected;
 
   // Sync state with delivery prop changes
   useEffect(() => {
@@ -812,10 +812,8 @@ export default function StopCard({
 
 
       onClick={() => {
-        // Don't trigger click/expand for stripped deliveries
-        if (!isStrippedDelivery) {
-          onClick && onClick(delivery);
-        }
+        // Allow clicking even for stripped deliveries (to show driver notes)
+        onClick && onClick(delivery);
       }}
       style={{
         background: 'var(--bg-white)',
@@ -2037,18 +2035,22 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* Driver Notes - For finished deliveries, show read-only if notes exist */}
+                  {/* Driver Notes - ALWAYS show when expanded (even if empty) */}
                   {isFinishedDelivery && !isPickup ? (
-                    delivery.delivery_notes && (
-                      <div className="space-y-1 mt-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
-                        </div>
+                    <div className="space-y-1 mt-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
+                      </div>
+                      {delivery.delivery_notes ? (
                         <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
                           <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
                         </div>
-                      </div>
-                    )
+                      ) : (
+                        <div className="text-base md:text-xs rounded px-2 py-1.5 italic" style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                          No driver notes
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="space-y-1 mt-2">
                       <div className="flex items-center justify-between">
