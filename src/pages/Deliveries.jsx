@@ -3433,11 +3433,11 @@ export default function DeliveriesPage() {
       <div className={`${isMobile ? 'block' : 'hidden'} px-4 py-3 flex-shrink-0 z-20`} style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
         {isDriverOverviewMode ?
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Overview</h1>
+            <div className="flex items-center gap-3">
               {isLoadingStats && (
-                <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full" />
+                <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full flex-shrink-0" />
               )}
+              <h1 className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Overview</h1>
             </div>
           </div> :
 
@@ -3454,10 +3454,10 @@ export default function DeliveriesPage() {
         {isDriverOverviewMode ?
         <div className="flex items-center gap-3">
           <SmartRefreshIndicator inline={true} />
-          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Overview</h1>
           {isLoadingStats && (
-            <div className="animate-spin w-6 h-6 border-3 border-emerald-500 border-t-transparent rounded-full" />
+            <div className="animate-spin w-6 h-6 border-3 border-emerald-500 border-t-transparent rounded-full flex-shrink-0" />
           )}
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Overview</h1>
         </div> :
 
         <>
