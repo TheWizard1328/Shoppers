@@ -517,15 +517,15 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocatio
   
   // CRITICAL: Blue ring for viewing own location while on break (from other device)
   // Orange ring for stale location, White ring for fresh location
-  let outerRingColor = 'white';
-  let outerRingWidth = 2;
+  let outerRingColor = '#94A3B8'; // Darker grey for white (fresh location)
+  let outerRingWidth = 3; // +1px thicker
   
   if (isOnBreakSelf) {
-    outerRingColor = '#3B82F6'; // Blue for on_break self
-    outerRingWidth = 3;
+    outerRingColor = '#1E40AF'; // Darker blue for on_break self
+    outerRingWidth = 4; // +1px thicker
   } else if (isStaleLocation) {
-    outerRingColor = '#F97316'; // Orange for stale
-    outerRingWidth = 3;
+    outerRingColor = '#EA580C'; // Darker orange for stale
+    outerRingWidth = 4; // +1px thicker
   }
   
   return L.divIcon({
