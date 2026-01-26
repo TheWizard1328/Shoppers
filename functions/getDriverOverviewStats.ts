@@ -48,13 +48,52 @@ Deno.serve(async (req) => {
       };
     }
 
-    // Fetch all deliveries for the year (or all years)
-    const deliveries = await base44.asServiceRole.entities.Delivery.filter(deliveryFilter);
-    console.log(`📊 [getDriverOverviewStats] Fetched ${deliveries?.length || 0} deliveries`);
+    // CRITICAL: Fetch deliveries in chunks to avoid rate limiting
+    // Fetch with sorting by date descending and limit to 1000 per request
+    const deliveries = [];
+    let pageCount = 0;
+    let hasMore = true;
+    
+    while (hasMore && pageCount < 50) { // Max 50 pages = 50,000 deliveries
+      const pageDeliveries = await base44.asServiceRole.entities.Delivery.filter(
+        deliveryFilter, 
+        '-delivery_date', 
+        1000,
+        pageCount * 1000
+      );
+      
+      if (!pageDeliveries || pageDeliveries.length === 0) {
+        hasMore = false;
+      } else {
+        deliveries.push(...pageDeliveries);
+        pageCount++;
+        // Add small delay between requests to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+    
+    console.log(`📊 [getDriverOverviewStats] Fetched ${deliveries.length} deliveries in ${pageCount} requests`);
 
-    // Fetch all patients to check for returns
-    const patients = await base44.asServiceRole.entities.Patient.filter({});
+    // Fetch patients in chunks too
+    const patients = [];
+    pageCount = 0;
+    hasMore = true;
+    
+    while (hasMore && pageCount < 50) {
+      const pagePatients = await base44.asServiceRole.entities.Patient.filter({}, 'full_name', 1000, pageCount * 1000);
+      
+      if (!pagePatients || pagePatients.length === 0) {
+        hasMore = false;
+      } else {
+        patients.push(...pagePatients);
+        pageCount++;
+        // Add small delay between requests
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+    
     const patientMap = new Map((patients || []).map(p => [p.id, p]));
+    console.log(`👥 [getDriverOverviewStats] Fetched ${patients.length} patients in ${pageCount} requests`);
 
     // Helper function to check if delivery is a return
     const isReturn = (delivery) => {
