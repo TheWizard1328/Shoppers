@@ -2772,22 +2772,24 @@ export default function DeliveryMap({
               
               if (!startPoint) return;
               
-              // ONLY draw polyline to next stop
-              polylines.push(
-                <Polyline
-                  key={`driver-to-next-no-marker-${driverId}-${nextStop.id}`}
-                  positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
-                  pathOptions={{
-                    color: driverColor,
-                    weight: 4,
-                    opacity: 0.7,
-                    dashArray: '10, 5',
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                  }}
-                  pane="overlayPane"
-                />
-              );
+              // Draw polylines to ALL active stops
+              allActiveStops.forEach(stop => {
+                polylines.push(
+                  <Polyline
+                    key={`driver-to-stop-no-marker-${driverId}-${stop.id}`}
+                    positions={[startPoint, [stop.latitude, stop.longitude]]}
+                    pathOptions={{
+                      color: driverColor,
+                      weight: 4,
+                      opacity: 0.7,
+                      dashArray: '10, 5',
+                      lineJoin: 'round',
+                      lineCap: 'round'
+                    }}
+                    pane="overlayPane"
+                  />
+                );
+              });
             });
           }
           
