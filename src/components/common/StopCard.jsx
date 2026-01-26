@@ -2028,19 +2028,23 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* Driver Notes - For finished deliveries, show read-only if notes exist OR stripped (always show for easy access) */}
+                  {/* Driver Notes - Always show for finished deliveries (whether stripped or not) */}
                   {!isStrippedDelivery ? (
                     isFinishedDelivery && !isPickup ? (
-                      delivery.delivery_notes && (
-                        <div className="space-y-1 mt-2">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
-                          </div>
+                      <div className="space-y-1 mt-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
+                        </div>
+                        {delivery.delivery_notes ? (
                           <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
                             <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
                           </div>
-                        </div>
-                      )
+                        ) : (
+                          <div className="text-base md:text-xs rounded px-2 py-1.5 italic" style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                            No driver notes
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className="space-y-1 mt-2">
                         <div className="flex items-center justify-between">
