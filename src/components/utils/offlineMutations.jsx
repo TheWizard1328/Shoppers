@@ -577,6 +577,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
 
 /**
  * Delete a Delivery (local-first)
+ * CRITICAL: Ensures both offline DB AND online entity are deleted together with mutations tracked
  */
 export const deleteDeliveryLocal = async (deliveryId) => {
   // CRITICAL: Check if mutations are paused
@@ -592,55 +593,81 @@ export const deleteDeliveryLocal = async (deliveryId) => {
   try {
     console.log('📝 [OfflineMutations] Deleting delivery locally:', deliveryId);
 
-    // CRITICAL: Notify listeners FIRST for instant UI removal
+    // Step 1: CRITICAL - Delete from BOTH offline DB AND backend simultaneously
+    const offlineDeletePromise = (async () => {
+      const db = await offlineDB.openDatabase();
+      const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
+      const store = transaction.objectStore(offlineDB.STORES.DELIVERIES);
+      
+      return new Promise((resolve, reject) => {
+        const request = store.delete(deliveryId);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    })();
+
+    const backendDeletePromise = (async () => {
+      try {
+        const { base44 } = await import('@/api/base44Client');
+        await base44.entities.Delivery.delete(deliveryId);
+        return { success: true };
+      } catch (error) {
+        // CRITICAL: Ignore 404 errors - record doesn't exist on backend (was local-only or already deleted)
+        if (error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('not found')) {
+          console.log('ℹ️ [Sync] Delivery not found on backend (was local-only or already deleted):', deliveryId);
+          return { success: true, was404: true };
+        }
+        // CRITICAL: Return error but don't throw - we need to queue mutation
+        return { success: false, error };
+      }
+    })();
+
+    // Execute both operations in parallel
+    const [, backendResult] = await Promise.all([offlineDeletePromise, backendDeletePromise]);
+
+    console.log('✅ [OfflineMutations] Delivery deleted from offline DB:', deliveryId);
+
+    // Step 2: CRITICAL - Handle backend sync result and queue mutation if needed
+    if (backendResult.success) {
+      console.log('✅ [Sync] Delivery deletion synced to backend immediately:', deliveryId);
+    } else {
+      console.warn('⚠️ [Sync] Backend deletion failed, queuing mutation for retry:', backendResult.error?.message);
+      // CRITICAL: Queue mutation so it retries later
+      await offlineDB.addPendingMutation({
+        operation: 'delete',
+        entity: 'Delivery',
+        recordId: deliveryId
+      });
+    }
+
+    // Step 3: CRITICAL - Notify listeners AFTER both DB operations complete
     notifyMutation({ 
       type: 'delete', 
       entity: 'Delivery', 
       id: deliveryId,
       data: null 
     });
+    console.log('🔔 [OfflineMutations] Listeners notified of deletion');
 
-    // Remove from local IndexedDB
-    const db = await offlineDB.openDatabase();
-    const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
-    const store = transaction.objectStore(offlineDB.STORES.DELIVERIES);
-    
-    await new Promise((resolve, reject) => {
-      const request = store.delete(deliveryId);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-
-    console.log('✅ [OfflineMutations] Delivery deleted locally:', deliveryId);
-    
-    // Try immediate backend sync
-    try {
-      const { base44 } = await import('@/api/base44Client');
-      await base44.entities.Delivery.delete(deliveryId);
-      console.log('✅ [Sync] Delivery deletion synced to backend immediately:', deliveryId);
-    } catch (error) {
-      // CRITICAL: Ignore 404 errors - record doesn't exist on backend (was local-only or already deleted)
-      if (error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('not found')) {
-        console.log('ℹ️ [Sync] Delivery not found on backend (was local-only or already deleted):', deliveryId);
-      } else {
-        console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
-        // Queue for backend sync if immediate sync fails
-        await offlineDB.addPendingMutation({
-          operation: 'delete',
-          entity: 'Delivery',
-          recordId: deliveryId
-        });
-      }
-    }
-
-    // CRITICAL: Restart smart refresh after sync (not resume)
+    // CRITICAL: Restart smart refresh after all operations complete
     smartRefreshManager.restart();
     
     return true;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to delete delivery locally:', error);
+    // CRITICAL: Ensure mutation is queued even on error
+    try {
+      await offlineDB.addPendingMutation({
+        operation: 'delete',
+        entity: 'Delivery',
+        recordId: deliveryId
+      });
+      console.log('⚠️ [OfflineMutations] Queued delete mutation on error');
+    } catch (queueError) {
+      console.error('❌ [OfflineMutations] Failed to queue mutation:', queueError);
+    }
+    
     // CRITICAL: Restart smart refresh on error
-    const { smartRefreshManager } = await import('./smartRefreshManager');
     smartRefreshManager.restart();
     throw error;
   }
