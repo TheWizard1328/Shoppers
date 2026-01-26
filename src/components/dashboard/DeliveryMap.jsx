@@ -2750,6 +2750,7 @@ export default function DeliveryMap({
               
               if (!startPoint) return;
               
+              // ONLY draw polyline to next stop
               polylines.push(
                 <Polyline
                   key={`driver-to-next-no-marker-${driverId}-${nextStop.id}`}
@@ -2765,24 +2766,6 @@ export default function DeliveryMap({
                   pane="overlayPane"
                 />
               );
-              
-              if (driverAllIncomplete.length >= 2) {
-                polylines.push(
-                  <Polyline
-                    key={`driver-route-no-marker-${driverId}`}
-                    positions={driverAllIncomplete.map(stop => [stop.latitude, stop.longitude])}
-                    pathOptions={{
-                      color: driverColor,
-                      weight: 3,
-                      opacity: 0.6,
-                      dashArray: '8, 4',
-                      lineJoin: 'round',
-                      lineCap: 'round'
-                    }}
-                    pane="overlayPane"
-                  />
-                );
-              }
             });
           }
           
