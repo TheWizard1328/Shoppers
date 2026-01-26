@@ -947,28 +947,37 @@ export default function Layout({ children, currentPageName }) {
         return;
       }
 
-      // CRITICAL: Handle 'delete' mutations - remove from UI state immediately
+      // CRITICAL: Handle 'delete' mutations - remove from UI state AND offline DB immediately
       if (mutation.type === 'delete') {
         if (mutation.entity === 'Patient') {
           setPatients((prev) => prev.filter((p) => p?.id !== mutation.id));
+          offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, mutation.id).catch(() => {});
         } else if (mutation.entity === 'Delivery') {
           setDeliveries((prev) => prev.filter((d) => d?.id !== mutation.id));
+          offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, mutation.id).catch(() => {});
         } else if (mutation.entity === 'Store') {
           setStores((prev) => prev.filter((s) => s?.id !== mutation.id));
+          offlineDB.deleteRecord(offlineDB.STORES.STORES, mutation.id).catch(() => {});
         } else if (mutation.entity === 'City') {
           setCities((prev) => prev.filter((c) => c?.id !== mutation.id));
+          offlineDB.deleteRecord(offlineDB.STORES.CITIES, mutation.id).catch(() => {});
         } else if (mutation.entity === 'AppUser') {
           setAppUsers((prev) => prev.filter((a) => a?.id !== mutation.id));
           setUsers((prev) => prev.filter((u) => u?.id !== mutation.id));
+          offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, mutation.id).catch(() => {});
         }
         return;
       }
 
-      // CRITICAL: Handle 'batch_delete' mutations - remove multiple items at once
+      // CRITICAL: Handle 'batch_delete' mutations - remove multiple items at once from UI AND offline DB
       if (mutation.type === 'batch_delete') {
         const idsToDelete = new Set(mutation.ids || []);
         if (mutation.entity === 'Delivery') {
           setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
+          // Remove all from offline DB
+          mutation.ids.forEach(id => {
+            offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
+          });
         }
         return;
       }
@@ -1245,6 +1254,8 @@ export default function Layout({ children, currentPageName }) {
           }
         } else if (update.action === 'delete') {
           setDeliveries((prev) => prev.filter((d) => d?.id !== update.id));
+          // CRITICAL: Remove from offline DB to prevent residual memory on other devices
+          offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, update.id).catch(() => {});
           // Refresh catalog items after deletion
           setTimeout(() => {
             base44.functions.invoke('squareSyncCatalogItems', {}).
@@ -1256,6 +1267,10 @@ export default function Layout({ children, currentPageName }) {
         } else if (update.action === 'batch_delete' && update.ids) {
           const idsToDelete = new Set(update.ids);
           setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
+          // CRITICAL: Remove ALL deleted IDs from offline DB
+          update.ids.forEach(id => {
+            offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {});
+          });
           // Refresh catalog items after batch deletion
           setTimeout(() => {
             base44.functions.invoke('squareSyncCatalogItems', {}).
