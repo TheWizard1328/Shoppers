@@ -13,6 +13,31 @@ Deno.serve(async (req) => {
     
     console.log('📊 [getDriverOverviewStats] Params:', { year, storeIds: storeIds?.length });
 
+    // CRITICAL: Check cache first to avoid recalculating
+    const storeIdsHash = storeIds && storeIds.length > 0 ? storeIds.sort().join(',') : 'all';
+    const cacheFilter = { year: year || 'all', store_ids_hash: storeIdsHash };
+    
+    const cachedStats = await base44.asServiceRole.entities.DriverOverviewStatsCache.filter(cacheFilter);
+    
+    if (cachedStats && cachedStats.length > 0) {
+      const cache = cachedStats[0];
+      const cacheAge = Date.now() - new Date(cache.calculated_at).getTime();
+      
+      // Use cache if less than 1 hour old
+      if (cacheAge < 3600000) {
+        console.log(`✅ [getDriverOverviewStats] Using cached stats (age: ${Math.round(cacheAge / 60000)}min)`);
+        return Response.json({
+          year: cache.year,
+          driverStats: cache.driver_stats,
+          totalDrivers: cache.driver_stats.length,
+          totalDeliveries: cache.driver_stats.reduce((sum, d) => sum + d.totalStops, 0),
+          fromCache: true
+        });
+      }
+    }
+
+    console.log('🔄 [getDriverOverviewStats] Cache miss or expired, calculating fresh stats...');
+
     // Build filter for year
     let deliveryFilter = {};
     if (year && year !== 'all') {
@@ -125,11 +150,33 @@ Deno.serve(async (req) => {
 
     console.log(`📊 [getDriverOverviewStats] Returning stats for ${driverStats.length} drivers`);
 
+    // CRITICAL: Save stats to cache for faster future access
+    try {
+      const cacheData = {
+        year: year || 'all',
+        store_ids_hash: storeIdsHash,
+        driver_stats: driverStats,
+        calculated_at: new Date().toISOString()
+      };
+
+      // Update existing cache or create new one
+      if (cachedStats && cachedStats.length > 0) {
+        await base44.asServiceRole.entities.DriverOverviewStatsCache.update(cachedStats[0].id, cacheData);
+        console.log('💾 [getDriverOverviewStats] Updated cache');
+      } else {
+        await base44.asServiceRole.entities.DriverOverviewStatsCache.create(cacheData);
+        console.log('💾 [getDriverOverviewStats] Created new cache entry');
+      }
+    } catch (cacheError) {
+      console.warn('⚠️ [getDriverOverviewStats] Failed to save cache:', cacheError.message);
+    }
+
     return Response.json({
       year: year || 'all',
       driverStats: driverStats,
       totalDrivers: driverStats.length,
-      totalDeliveries: deliveries?.length || 0
+      totalDeliveries: deliveries?.length || 0,
+      fromCache: false
     });
 
   } catch (error) {
