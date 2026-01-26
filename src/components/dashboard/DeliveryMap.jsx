@@ -2583,25 +2583,21 @@ export default function DeliveryMap({
               if (!driverAppUser) return;
               if (driverAppUser.driver_status !== 'on_duty' && driverAppUser.driver_status !== 'on_break') return;
               
-              // Get next stop for this driver
-              const driverIncompleteDeliveries = deliveryMarkers.filter(d => 
+              // Get ONLY next stop (isNextDelivery=true), exclude pending
+              const nextStop = deliveryMarkers.find(d => 
                 d && 
                 d.driver_id === driverId &&
+                d.isNextDelivery === true &&
                 !finishedStatuses.includes(d.status) &&
                 d.status !== 'pending'
-              ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-              
-              const driverIncompletePickups = pickupMarkers.filter(p => 
+              ) || pickupMarkers.find(p => 
                 p && 
                 p.driver_id === driverId &&
+                p.isNextDelivery === true &&
                 !finishedStatuses.includes(p.status) &&
                 p.status !== 'pending'
-              ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+              );
               
-              const driverAllIncomplete = [...driverIncompletePickups, ...driverIncompleteDeliveries]
-                .sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-              
-              const nextStop = driverAllIncomplete[0];
               if (!nextStop) return;
               
               // Determine start point - use driver's current location or last completed stop
