@@ -2748,32 +2748,30 @@ export default function DeliveryMap({
                 />
               );
 
-              // Get all other active stops (exclude next stop and pending)
-              const otherActiveDeliveries = deliveryMarkers.filter(d => 
+              // Get all active stops (excluding pending) sorted by stop_order
+              const allActiveDeliveries = deliveryMarkers.filter(d => 
                 d && 
                 d.driver_id === driverId &&
-                d.id !== nextStop.id &&
                 (d.status === 'in_transit' || d.status === 'en_route') &&
                 d.status !== 'pending'
               );
 
-              const otherActivePickups = pickupMarkers.filter(p => 
+              const allActivePickups = pickupMarkers.filter(p => 
                 p && 
                 p.driver_id === driverId &&
-                p.id !== nextStop.id &&
                 (p.status === 'in_transit' || p.status === 'en_route') &&
                 p.status !== 'pending'
               );
 
-              const otherActiveStops = [...otherActivePickups, ...otherActiveDeliveries]
+              const allActiveStops = [...allActivePickups, ...allActiveDeliveries]
                 .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-              // Route lines from next stop to all other active stops
-              otherActiveStops.forEach(stop => {
+              // Draw route polyline through all active stops (if more than 1)
+              if (allActiveStops.length > 1) {
                 polylines.push(
                   <Polyline
-                    key={`next-to-stop-${driverId}-${stop.id}`}
-                    positions={[[nextStop.latitude, nextStop.longitude], [stop.latitude, stop.longitude]]}
+                    key={`driver-route-${driverId}`}
+                    positions={allActiveStops.map(stop => [stop.latitude, stop.longitude])}
                     pathOptions={{
                       color: driverColor,
                       weight: 3,
@@ -2784,7 +2782,7 @@ export default function DeliveryMap({
                     pane="overlayPane"
                   />
                 );
-              });
+              }
             });
           } else {
             // No location markers visible - still draw polylines from last completed stop or home location
