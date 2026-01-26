@@ -276,7 +276,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
           <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500'}`} />
           <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>{label}</span>
         </div>
-        <Badge variant="secondary" className="inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 justify-center w-[55px] rounded-[10px]" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>{value}</Badge>
+        <Badge variant="secondary" className="inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 justify-center w-[60px] rounded-[10px]" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>{value}</Badge>
       </div>;
 
   if (!currentUser) return null;
