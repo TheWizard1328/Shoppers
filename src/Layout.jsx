@@ -286,7 +286,9 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   const todayString = format(now, 'yyyy-MM-dd');
   const isToday = format(selectedDate, 'yyyy-MM-dd') === todayString;
 
-  if (isLoading) {
+  // CRITICAL: Only show loading skeleton on FIRST load (no stats yet)
+  // When stats exist, keep displaying them while updating
+  if (isLoading && !stats) {
     return (
       <div className="px-3 py-2">
         <div className="animate-pulse space-y-2">
@@ -298,7 +300,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
 
   }
 
-  if (hasError || !stats) {
+  if (hasError && !stats) {
     return (
       <div className="px-3 py-2 text-sm text-slate-500">
         Unable to load stats
