@@ -3155,7 +3155,7 @@ export default function Layout({ children, currentPageName }) {
                       }}>
                             {item.icon && <item.icon className="w-5 h-5" />}
                             <span className="font-semibold">{item.title}</span>
-                            {item.count !== undefined && <Badge variant="secondary" className="ml-auto justify-center w-[30px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{item.count}</Badge>}
+                            {item.count !== undefined && <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{item.count}</Badge>}
                             </Link>
                     )}
                             </div>
