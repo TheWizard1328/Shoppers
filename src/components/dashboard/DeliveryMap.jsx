@@ -2528,8 +2528,8 @@ export default function DeliveryMap({
             
             const driverColor = getDriverColor(currentUser);
             
-            return [
-              // Blue polyline from current location to next stop ONLY
+            return (
+              // Blue polyline from current location to ONLY next stop
               <Polyline
                 key={`driver-to-next-stop-${nextStop.id}`}
                 positions={[
@@ -2545,25 +2545,8 @@ export default function DeliveryMap({
                   lineCap: 'round'
                 }}
                 pane="overlayPane"
-              />,
-              
-              // Colored polyline through all remaining stops (from next stop onwards)
-              ...(allIncompleteStops.length >= 2 ? [
-                <Polyline
-                  key={`driver-full-route-${currentUser.id}`}
-                  positions={allIncompleteStops.map(stop => [stop.latitude, stop.longitude])}
-                  pathOptions={{
-                    color: driverColor, // Driver-specific color
-                    weight: 3,
-                    opacity: 0.6,
-                    dashArray: '8, 4',
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                  }}
-                  pane="overlayPane"
-                />
-              ] : [])
-            ];
+              />
+            );
           }
           
           // CRITICAL: For pure dispatchers (not drivers) viewing assigned drivers
