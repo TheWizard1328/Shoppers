@@ -2810,8 +2810,8 @@ export default function DeliveriesPage() {
         const storeIdsHash = storeIdsFilter && storeIdsFilter.length > 0 ? storeIdsFilter.sort().join(',') : 'all';
         
         // CRITICAL: ONLY load from offline DB (backend sync happens in background via smart refresh)
-        const { offlineDB } = await import('../components/utils/offlineDatabase');
-        const cachedStatsRecords = await offlineDB.getAll(offlineDB.STORES.DRIVER_OVERVIEW_STATS);
+        const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
+        const cachedStatsRecords = await offlineDBInstance.getAll(offlineDBInstance.STORES.DRIVER_OVERVIEW_STATS);
         const cachedStats = cachedStatsRecords?.find(s => s.year === (selectedOverviewYear || 'all') && s.store_ids_hash === storeIdsHash);
         
         if (cachedStats) {
