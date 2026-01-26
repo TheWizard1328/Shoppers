@@ -5997,15 +5997,17 @@ function Dashboard() {
 
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
-      // CRITICAL: Resume smart refresh immediately - offline DB now has fresh data
+      // CRITICAL: Resume smart refresh after delay to ensure all DB writes complete
+      console.log('⏳ [START] Waiting 1 second before resuming smart refresh...');
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      
       console.log('▶️ [START] Resuming smart refresh, offline sync, and mutations');
       setIsEntityUpdating(false);
       resumeOfflineMutations();
       resumeOfflineSync();
+      resumeSmartRefresh();
 
-      // Don't force immediate smart refresh - let it run on its normal cycle
-      // The offline DB already has fresh data and deliveries are protected from overwrite
-      console.log('✅ [START] Smart refresh will resume on normal cycle');
+      console.log('✅ [START] Smart refresh resumed');
     }
   };
 
