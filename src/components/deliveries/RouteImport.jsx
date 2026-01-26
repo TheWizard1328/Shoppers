@@ -615,15 +615,16 @@ export default function RouteImport({
       // CRITICAL: Auto-generate preview for non-app-owners immediately after file selection
       const isNotAppOwner = currentUser && currentUser.role !== 'App Owner';
       if (isNotAppOwner && selectedFiles.length > 0) {
-        // CRITICAL: Wait for fileDriverMap state to update before calling handlePreview
+        // Verify all files have matched drivers before auto-previewing
+        const hasUnmatchedFiles = selectedFiles.some(f => !newFileDriverMap[f.name]?.driver);
+        if (hasUnmatchedFiles) {
+          console.log('[RouteImport] Auto-preview skipped - some files have no matched driver');
+          return;
+        }
+        
+        // Pass the fresh data directly to avoid stale state
         setTimeout(() => {
-          // Verify all files have matched drivers before auto-previewing
-          const hasUnmatchedFiles = selectedFiles.some(f => !newFileDriverMap[f.name]?.driver);
-          if (hasUnmatchedFiles) {
-            console.log('[RouteImport] Auto-preview skipped - some files have no matched driver');
-            return;
-          }
-          handlePreview();
+          handlePreview(selectedFiles, newFileDriverMap);
         }, 300);
       }
     }
@@ -1123,16 +1124,20 @@ export default function RouteImport({
     };
   };
 
-  const handlePreview = async () => {
-    if (files.length === 0) {
+  const handlePreview = async (filesToUse = null, driverMapToUse = null) => {
+    // Use provided params or fall back to state
+    const activeFiles = filesToUse || files;
+    const activeDriverMap = driverMapToUse || fileDriverMap;
+    
+    if (activeFiles.length === 0) {
       alert('Please select at least one CSV file');
       return;
     }
     
     // Validate all files have matched drivers
-    const unmatchedFiles = files.filter(f => !fileDriverMap[f.name]?.driver);
+    const unmatchedFiles = activeFiles.filter(f => !activeDriverMap[f.name]?.driver);
     if (unmatchedFiles.length > 0) {
-      alert(`Could not match driver for files:\n${unmatchedFiles.map(f => `- ${f.name} (extracted: "${fileDriverMap[f.name]?.extractedName}")`).join('\n')}\n\nPlease ensure filenames match driver names (e.g., "John Smith Route.csv")`);
+      alert(`Could not match driver for files:\n${unmatchedFiles.map(f => `- ${f.name} (extracted: "${activeDriverMap[f.name]?.extractedName}")`).join('\n')}\n\nPlease ensure filenames match driver names (e.g., "John Smith Route.csv")`);
       return;
     }
 
@@ -1209,16 +1214,16 @@ export default function RouteImport({
       let totalSkippedItems = [];
       let totalErrors = [];
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const fileDriver = fileDriverMap[file.name]?.driver;
+      for (let i = 0; i < activeFiles.length; i++) {
+        const file = activeFiles[i];
+        const fileDriver = activeDriverMap[file.name]?.driver;
         
         if (!fileDriver) {
           console.warn(`[RouteImport] Skipping file ${file.name} - no driver matched`);
           continue;
         }
         
-        setProgressMessage(`Processing file ${i + 1} of ${files.length}: ${file.name} (${fileDriver.user_name || fileDriver.full_name})...`);
+        setProgressMessage(`Processing file ${i + 1} of ${activeFiles.length}: ${file.name} (${fileDriver.user_name || fileDriver.full_name})...`);
 
         const text = await file.text();
         // Filter deliveries for this specific driver
@@ -1232,7 +1237,7 @@ export default function RouteImport({
         totalSkippedItems = [...totalSkippedItems, ...result.skippedItems];
         totalErrors = [...totalErrors, ...result.errors];
 
-        const currentParsingProgress = Math.round((i + 1) / files.length * 45);
+        const currentParsingProgress = Math.round((i + 1) / activeFiles.length * 45);
         setProgressPercent(40 + currentParsingProgress);
       }
 
