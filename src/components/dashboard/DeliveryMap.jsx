@@ -2491,7 +2491,7 @@ export default function DeliveryMap({
             
             if (allActiveStops.length === 0) return null;
             
-            // CRITICAL: Determine the starting point for the blue dashed line
+            // CRITICAL: Determine the starting point for the polylines
             // Priority: 1) Live driver location, 2) Last completed stop, 3) Driver's home location
             let startPoint = null;
             
@@ -2528,30 +2528,30 @@ export default function DeliveryMap({
               startPoint = [currentUser.home_latitude, currentUser.home_longitude];
             }
             
-            // If we still don't have a start point, don't draw the line
+            // If we still don't have a start point, don't draw the lines
             if (!startPoint) return null;
             
             const driverColor = getDriverColor(currentUser);
             
-            return (
-              // Blue polyline from current location to ONLY next stop
+            // Draw polyline to each active stop
+            return allActiveStops.map(stop => (
               <Polyline
-                key={`driver-to-next-stop-${nextStop.id}`}
+                key={`driver-to-stop-${stop.id}`}
                 positions={[
                   startPoint,
-                  [nextStop.latitude, nextStop.longitude]
+                  [stop.latitude, stop.longitude]
                 ]}
                 pathOptions={{
-                  color: '#3B82F6', // Blue
+                  color: '#3B82F6',
                   weight: 4,
                   opacity: 0.7,
-                  dashArray: '10, 5', // Dashed line
+                  dashArray: '10, 5',
                   lineJoin: 'round',
                   lineCap: 'round'
                 }}
                 pane="overlayPane"
               />
-            );
+            ));
           }
           
           // CRITICAL: For pure dispatchers (not drivers) viewing assigned drivers
