@@ -1805,19 +1805,19 @@ export default function Layout({ children, currentPageName }) {
       setStores(allStores);
       setAppUsers(allAppUsers);
 
-      // CRITICAL: Force refresh driver locations on initial load
+      // CRITICAL: Force refresh driver locations on initial load IMMEDIATELY
       // This ensures driver location markers show immediately
-      setTimeout(async () => {
-        const locationUpdates = await smartRefreshManager.refreshDriverLocations(allAppUsers, true);
-        if (locationUpdates?.hasChanges) {
-          setAppUsers(locationUpdates.appUsers);
-        }
+      const locationUpdates = await smartRefreshManager.refreshDriverLocations(allAppUsers, true);
+      if (locationUpdates?.hasChanges) {
+        setAppUsers(locationUpdates.appUsers);
+      }
 
-        // Calculate initial COD total from offline catalog items
-        const codTotal = calculateUserCodTotal(currentUser, catalogItems || [], squareLocationConfigs || [], allStores, squareTransactions || []);
-        setTotalCodsDue(codTotal);
+      // Calculate initial COD total from offline catalog items
+      const codTotal = calculateUserCodTotal(currentUser, catalogItems || [], squareLocationConfigs || [], allStores, squareTransactions || []);
+      setTotalCodsDue(codTotal);
 
-        // Refresh COD data from server to ensure it's up-to-date
+      // Refresh COD data from server to ensure it's up-to-date (background)
+      setTimeout(() => {
         base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
           const items = response?.data?.items || response?.items || [];
           setCatalogItems(items);
