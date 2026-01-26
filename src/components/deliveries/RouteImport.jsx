@@ -914,8 +914,15 @@ export default function RouteImport({
       newDeliveryData.delivery_notes = cleanedNotes;
 
       const matchResult = matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
-      const existingDelivery = matchResult?.match || null;
+      let existingDelivery = matchResult?.match || null;
       const matchReason = matchResult?.reason || 'Unknown';
+
+      // CRITICAL: If we already matched this existing delivery in this import pass, don't match it again
+      // This prevents duplicate imports from overwriting each other
+      if (existingDelivery && matchedExistingDeliveryIds.has(existingDelivery.id)) {
+        existingDelivery = null;
+        console.log(`[RouteImport] Existing delivery ${existingDelivery?.id} was already matched earlier in this import - creating new instead`);
+      }
 
       // CRITICAL: Import travel_dist ONLY if existing is 0
       if (existingDelivery) {
