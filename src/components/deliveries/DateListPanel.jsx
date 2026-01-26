@@ -149,16 +149,21 @@ export default function DateListPanel({
           </Select>
         </div>
         
-        {onDeleteMonth && datesWithDeliveries.length > 0 &&
+        {onDeleteMonth && datesWithDeliveries.length > 0 && selectedDriverId && selectedDriverId !== 'all' &&
         <Button
           variant="outline"
           size="sm"
           className="w-full gap-2 text-red-600 hover:bg-red-50"
           onClick={() => {
             const monthName = months[selectedMonth].label;
-            const totalDeliveries = datesWithDeliveries.reduce((sum, d) => sum + d.total, 0);
-            if (window.confirm(`Delete all ${totalDeliveries} stops for ${monthName} ${selectedYear}? This cannot be undone.`)) {
-              onDeleteMonth(selectedYear, selectedMonth);
+            const driverDeliveries = deliveries.filter((d) => d && d.driver_id === selectedDriverId);
+            const monthStart = new Date(selectedYear, selectedMonth, 1);
+            const monthEnd = new Date(selectedYear, selectedMonth + 1, 0);
+            const startDateStr = format(monthStart, 'yyyy-MM-dd');
+            const endDateStr = format(monthEnd, 'yyyy-MM-dd');
+            const totalForMonth = driverDeliveries.filter((d) => d.delivery_date >= startDateStr && d.delivery_date <= endDateStr).length;
+            if (window.confirm(`Delete all ${totalForMonth} stops for ${monthName} ${selectedYear} for this driver? This cannot be undone.`)) {
+              onDeleteMonth(selectedYear, selectedMonth, selectedDriverId);
             }
           }}
         >
