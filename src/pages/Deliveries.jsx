@@ -3060,8 +3060,11 @@ export default function DeliveriesPage() {
       };
     });
 
-    const sortedCards = sortUsers(cards.map((c) => ({ ...c.driver, _cardData: c }))).map((driver) => driver._cardData);
-    console.log(`📋 Final sorted cards: ${sortedCards.length} cards`);
+    // CRITICAL: Filter out drivers with 0 stops before sorting
+    const cardsWithStops = cards.filter((c) => c.stats.totalStops > 0);
+    
+    const sortedCards = sortUsers(cardsWithStops.map((c) => ({ ...c.driver, _cardData: c }))).map((driver) => driver._cardData);
+    console.log(`📋 Final sorted cards: ${sortedCards.length} cards (${cards.length - cardsWithStops.length} drivers hidden with 0 stops)`);
     console.log(`📋 Display names:`, sortedCards.map((c) => c.firstName));
     console.log(`📋 Card stats:`, sortedCards.map((c) => `${c.firstName}: ${c.stats.totalStops} stops`));
 
