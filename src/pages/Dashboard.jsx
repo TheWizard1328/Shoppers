@@ -3651,7 +3651,29 @@ function Dashboard() {
       mapLockExpiresAtRef.current = null;
       setIsMapViewLocked(false);
 
-      const padding = getMapPadding();
+      // CRITICAL: Wait for card expansion animation, then measure actual expanded height on mobile
+      const padding = await new Promise((resolve) => {
+        if (isMobile) {
+          // Wait for card to expand (300ms animation)
+          setTimeout(() => {
+            const container = stopCardsContainerRef.current;
+            const actualHeight = container?.offsetHeight || stopCardsBaseHeight || 0;
+            console.log(`🗺️ [Card Expand] Measured expanded height: ${actualHeight}px (base: ${stopCardsBaseHeight}px)`);
+            
+            const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
+            const topPadding = statsCardCurrHeight + 25;
+            const bottomPadding = actualHeight > 0 ? actualHeight + 10 : 25;
+            
+            resolve({
+              paddingTopLeft: [25, topPadding],
+              paddingBottomRight: [25, bottomPadding]
+            });
+          }, 350);
+        } else {
+          // Desktop: use standard padding immediately
+          resolve(getMapPadding());
+        }
+      });
 
       if (delivery.patient_id) {
         // Patient delivery - center on patient marker only (not store)
