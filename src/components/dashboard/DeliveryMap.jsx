@@ -2675,43 +2675,50 @@ export default function DeliveryMap({
               const driverId = location.driver_id || location.id;
               if (processedDrivers.has(driverId)) return;
               processedDrivers.add(driverId);
-              
-              // Get ONLY next stop (isNextDelivery=true), exclude pending
-              const nextStop = deliveryMarkers.find(d => 
+
+              // Get ALL active stops (in_transit, en_route), exclude pending and finished
+              const activeDeliveries = deliveryMarkers.filter(d => 
                 d && 
                 d.driver_id === driverId &&
-                d.isNextDelivery === true &&
+                (d.status === 'in_transit' || d.status === 'en_route') &&
                 !finishedStatuses.includes(d.status) &&
                 d.status !== 'pending'
-              ) || pickupMarkers.find(p => 
+              );
+
+              const activePickups = pickupMarkers.filter(p => 
                 p && 
                 p.driver_id === driverId &&
-                p.isNextDelivery === true &&
+                (p.status === 'in_transit' || p.status === 'en_route') &&
                 !finishedStatuses.includes(p.status) &&
                 p.status !== 'pending'
               );
-              
-              if (!nextStop) return;
-              
+
+              const allActiveStops = [...activePickups, ...activeDeliveries]
+                .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+              if (allActiveStops.length === 0) return;
+
               const driverObj = safeUsers.find(u => u && u.id === driverId);
               const driverColor = driverObj ? getDriverColor(driverObj) : '#607D8B';
-              
-              // ONLY draw polyline to next stop
-              polylines.push(
-                <Polyline
-                  key={`driver-to-next-${driverId}-${nextStop.id}`}
-                  positions={[[location.latitude, location.longitude], [nextStop.latitude, nextStop.longitude]]}
-                  pathOptions={{
-                    color: driverColor,
-                    weight: 4,
-                    opacity: 0.7,
-                    dashArray: '10, 5',
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                  }}
-                  pane="overlayPane"
-                />
-              );
+
+              // Draw polylines to ALL active stops
+              allActiveStops.forEach(stop => {
+                polylines.push(
+                  <Polyline
+                    key={`driver-to-stop-${driverId}-${stop.id}`}
+                    positions={[[location.latitude, location.longitude], [stop.latitude, stop.longitude]]}
+                    pathOptions={{
+                      color: driverColor,
+                      weight: 4,
+                      opacity: 0.7,
+                      dashArray: '10, 5',
+                      lineJoin: 'round',
+                      lineCap: 'round'
+                    }}
+                    pane="overlayPane"
+                  />
+                );
+              });
             });
           } else {
             // No location markers visible - still draw polylines from last completed stop or home location
