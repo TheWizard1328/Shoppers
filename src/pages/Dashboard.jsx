@@ -5721,11 +5721,16 @@ function Dashboard() {
     console.log('🚀 [START] ========== STARTING DELIVERY ==========');
     console.log('═══════════════════════════════════════════════════');
 
-    // STEP 0: Pause smart refresh to prevent race conditions
-    console.log('⏸️ [START] Step 0: Pausing smart refresh manager...');
+    // STEP 0: Pause ALL updates - smart refresh, mutations, offline sync
+    console.log('⏸️ [START] Step 0: Pausing ALL update systems...');
     setIsEntityUpdating(true);
     pauseOfflineMutations();
     pauseOfflineSync();
+    
+    // CRITICAL: Pause smart refresh directly to prevent bouncing
+    const { pauseSmartRefresh } = smartRefreshManager;
+    pauseSmartRefresh();
+    
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // CRITICAL: Store the ID we clicked on BEFORE any database changes
@@ -5997,17 +6002,21 @@ function Dashboard() {
 
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
-      // CRITICAL: Resume smart refresh after delay to ensure all DB writes complete
-      console.log('⏳ [START] Waiting 1 second before resuming smart refresh...');
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // CRITICAL: Wait for DB writes to complete
+      console.log('⏳ [START] Waiting 1.5s before resuming update systems...');
+      await new Promise((resolve) => setTimeout(resolve, 1500));
       
-      console.log('▶️ [START] Resuming smart refresh, offline sync, and mutations');
-      setIsEntityUpdating(false);
+      // Resume all systems
+      console.log('▶️ [START] Resuming ALL update systems');
       resumeOfflineMutations();
       resumeOfflineSync();
+      
+      // CRITICAL: Resume smart refresh last
+      const { resumeSmartRefresh } = smartRefreshManager;
       resumeSmartRefresh();
-
-      console.log('✅ [START] Smart refresh resumed');
+      
+      setIsEntityUpdating(false);
+      console.log('✅ [START] All systems resumed');
     }
   };
 
