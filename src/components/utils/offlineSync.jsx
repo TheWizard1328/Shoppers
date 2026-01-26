@@ -660,47 +660,96 @@ export const processPendingMutations = async () => {
   
   console.log(`🔄 [OfflineSync] Processing ${batch.length} of ${mutations.length} pending mutations...`);
   
+  // Separate mutations by operation type for batch processing
+  const creates = batch.filter(m => m.operation === 'create');
+  const updates = batch.filter(m => m.operation === 'update');
+  const deletes = batch.filter(m => m.operation === 'delete');
+  
   let successCount = 0;
   let failCount = 0;
+  const failedMutationIds = [];
   
-  for (const mutation of batch) {
+  // CRITICAL: Process deletes in parallel (batch delete)
+  if (deletes.length > 0) {
+    console.log(`🗑️ [OfflineSync] Batch deleting ${deletes.length} records...`);
+    
+    const deletePromises = deletes.map(mutation => {
+      if (mutation.recordId?.startsWith('temp_')) {
+        return Promise.resolve({ success: true, skip: true });
+      }
+      
+      const Entity = mutation.entity === 'Patient' ? Patient : Delivery;
+      return Entity.delete(mutation.recordId)
+        .then(() => ({ success: true, mutationId: mutation.mutationId }))
+        .catch(deleteError => {
+          // Ignore 404 errors - record already deleted on backend
+          if (deleteError.response?.status === 404 || deleteError.message?.includes('404') || deleteError.message?.includes('not found')) {
+            console.log(`ℹ️ [OfflineSync] ${mutation.entity} ${mutation.recordId} already deleted on backend`);
+            return { success: true, mutationId: mutation.mutationId };
+          }
+          return { success: false, mutationId: mutation.mutationId, error: deleteError, retryCount: mutation.retryCount || 0 };
+        });
+    });
+    
+    const deleteResults = await Promise.all(deletePromises);
+    
+    // Remove successful deletes from offline DB and pending queue in parallel
+    const offlineDeletePromises = [];
+    for (const result of deleteResults) {
+      if (result.success && result.mutationId) {
+        const mutation = deletes.find(m => m.mutationId === result.mutationId);
+        if (mutation && !mutation.recordId?.startsWith('temp_')) {
+          offlineDeletePromises.push(
+            offlineDB.deleteRecord(mutation.entity === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES, mutation.recordId),
+            offlineDB.removePendingMutation(result.mutationId)
+          );
+        }
+        successCount++;
+      } else if (result.success && result.skip) {
+        const mutation = deletes.find(m => m.mutationId === result.mutationId || !m.recordId?.startsWith('temp_'));
+        if (mutation?.mutationId) {
+          offlineDeletePromises.push(offlineDB.removePendingMutation(mutation.mutationId));
+        }
+        successCount++;
+      } else {
+        failCount++;
+        failedMutationIds.push(result.mutationId);
+      }
+    }
+    
+    if (offlineDeletePromises.length > 0) {
+      await Promise.all(offlineDeletePromises);
+    }
+    
+    // Handle failed deletes (retry)
+    for (const failedMutationId of failedMutationIds) {
+      const mutation = deletes.find(m => m.mutationId === failedMutationId);
+      if (mutation) {
+        await offlineDB.updateMutationRetry(mutation.mutationId, (mutation.retryCount || 0) + 1);
+      }
+    }
+  }
+  
+  // Process creates and updates sequentially with cooldown (smaller batches typically)
+  for (const mutation of [...creates, ...updates]) {
     if (syncPaused) break;
     
     try {
-      if (mutation.recordId?.startsWith('temp_')) {
-        await offlineDB.removePendingMutation(mutation.mutationId);
-        continue;
-      }
-      
       const Entity = mutation.entity === 'Patient' ? Patient : Delivery;
       
       if (mutation.operation === 'create') {
         await Entity.create(mutation.payload);
       } else if (mutation.operation === 'update') {
         await Entity.update(mutation.recordId, mutation.payload);
-      } else if (mutation.operation === 'delete') {
-        try {
-          await Entity.delete(mutation.recordId);
-        } catch (deleteError) {
-          // CRITICAL: Ignore 404 errors - record already deleted on backend
-          if (deleteError.response?.status === 404 || deleteError.message?.includes('404') || deleteError.message?.includes('not found')) {
-            console.log(`ℹ️ [OfflineSync] ${mutation.entity} ${mutation.recordId} already deleted on backend - removing from queue`);
-          } else {
-            throw deleteError; // Re-throw other errors for retry logic
-          }
-        }
       }
       
       await offlineDB.removePendingMutation(mutation.mutationId);
       successCount++;
-      
-      // CRITICAL: Longer delay between operations to avoid rate limits (2 seconds)
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 500));
     } catch (error) {
       await offlineDB.updateMutationRetry(mutation.mutationId, (mutation.retryCount || 0) + 1);
       failCount++;
       
-      // CRITICAL: If rate limited, wait 30 seconds before continuing
       if (error.response?.status === 429) {
         console.warn(`⚠️ [OfflineSync] Rate limited - waiting 30 seconds...`);
         await new Promise(r => setTimeout(r, 30000));
