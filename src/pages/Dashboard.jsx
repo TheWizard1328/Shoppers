@@ -1793,6 +1793,54 @@ function Dashboard() {
     };
   }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding, appUsers]);
 
+  // CRITICAL: Periodic smart refresh that respects "Show All" checkbox
+  useEffect(() => {
+    if (!isDataLoaded || !currentUser || !isFiltersReady) {
+      return;
+    }
+
+    const runPeriodicSmartRefresh = async () => {
+      if (showDeliveryForm || showPatientForm || showOptimizationSettings) {
+        return; // Skip when forms are open
+      }
+
+      const currentData = { deliveries, patients, appUsers, stores };
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+      
+      const filters = {
+        selectedDate,
+        deliveryFilter: showAllDriverMarkers || selectedDriverId === 'all' ? {} : { driver_id: activeDriverId },
+        patientFilter: {},
+        activeDriverIds: showAllDriverMarkers || selectedDriverId === 'all' ? [] : [activeDriverId]
+      };
+
+      const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
+      if (cityStoreIds.length > 0) {
+        filters.deliveryFilter.store_id = { $in: cityStoreIds };
+        filters.patientFilter.store_id = { $in: cityStoreIds };
+      }
+
+      // CRITICAL: Pass showAllDriverMarkers to smart refresh
+      const updates = await smartRefreshManager.performSmartRefresh(
+        currentData, 
+        filters, 
+        false, 
+        showAllDriverMarkers || selectedDriverId === 'all'
+      );
+
+      if (updates) {
+        console.log('🔄 [Periodic Refresh] Smart refresh completed with updates');
+      }
+    };
+
+    // Run immediately, then every 15 seconds
+    runPeriodicSmartRefresh();
+    const interval = setInterval(runPeriodicSmartRefresh, 15000);
+
+    return () => clearInterval(interval);
+  }, [isDataLoaded, currentUser, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings]);
+
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   // CRITICAL: Initialize poller once on mount
   useEffect(() => {
