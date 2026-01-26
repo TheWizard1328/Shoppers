@@ -988,10 +988,10 @@ export default function StopCard({
             </div>
           </div>
 
-          {/* Hide address/phone section for driver-stripped deliveries OR finished deliveries that aren't expanded */}
-          {!isStrippedForDriver && (!isFinishedDelivery || isExpanded) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
+          {/* Show address/phone for: non-stripped deliveries, OR when expanded, OR for dispatchers */}
+          {((!isStrippedForDriver || isExpanded) && (!isFinishedDelivery || isExpanded)) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
 
-          {!isStrippedForDriver && (!isFinishedDelivery || isExpanded) && <div className="flex flex-col">
+          {((!isStrippedForDriver || isExpanded) && (!isFinishedDelivery || isExpanded)) && <div className="flex flex-col">
             <div className="flex items-start justify-between">
             <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
             {finalDisplayAddress ?
@@ -1028,8 +1028,8 @@ export default function StopCard({
                 }
               </div>
 
-              {/* Navigation and Phone buttons - right justified - Only for assigned driver or app owner */}
-              {isAssignedDriverOrAppOwner &&
+              {/* Navigation and Phone buttons - Hide for driver-stripped (unless expanded), always show for dispatchers */}
+              {isAssignedDriverOrAppOwner && (!isStrippedForDriver || isExpanded) &&
               <div className="mt-1 py-1 flex items-center gap-2 flex-shrink-0 min-h-[50px]">
                   {finalDisplayPhone &&
                 <a
@@ -1454,9 +1454,9 @@ export default function StopCard({
             document.body
           )}
 
-          {/* BODY SECTION - Expandable */}
+          {/* BODY SECTION - Expandable - Always show when expanded (driver stripping only applies to collapsed state) */}
           <AnimatePresence>
-            {isExpanded && !isStrippedForDriver &&
+            {isExpanded &&
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="pt-3 space-y-3 border-t mt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                   {/* Phone number - moved below divider - HIDE for finished patient deliveries */}
@@ -1579,8 +1579,8 @@ export default function StopCard({
                   }
                   </AnimatePresence>
 
-                  {/* Patient Notes - Hide for driver-stripped deliveries */}
-                  {!isStrippedForDriver && isFinishedDelivery && !isPickup && patient?.notes &&
+                  {/* Patient Notes - Always show when expanded */}
+                  {isFinishedDelivery && !isPickup && patient?.notes &&
                 <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
@@ -1592,8 +1592,8 @@ export default function StopCard({
                   </div>
                 }
 
-                  {/* Full Patient Info - Hide for driver-stripped deliveries */}
-                  {!isStrippedForDriver && !isFinishedDelivery && !isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
+                  {/* Full Patient Info - Always show when expanded */}
+                  {!isFinishedDelivery && !isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
                 <div className="flex items-start gap-2">
                 <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
