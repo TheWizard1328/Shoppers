@@ -3651,10 +3651,10 @@ function Dashboard() {
       mapLockExpiresAtRef.current = null;
       setIsMapViewLocked(false);
 
-      // CRITICAL: Wait for card expansion animation, then measure actual expanded height on mobile
-      const padding = await new Promise((resolve) => {
+      // CRITICAL: Wait for card expansion animation, then measure and center on mobile
+      const centerMarkerWithPadding = () => {
         if (isMobile) {
-          // Wait for card to expand (300ms animation)
+          // Measure actual expanded height after animation completes
           setTimeout(() => {
             const container = stopCardsContainerRef.current;
             const actualHeight = container?.offsetHeight || stopCardsBaseHeight || 0;
@@ -3664,50 +3664,83 @@ function Dashboard() {
             const topPadding = statsCardCurrHeight + 25;
             const bottomPadding = actualHeight > 0 ? actualHeight + 10 : 25;
             
-            resolve({
+            const padding = {
               paddingTopLeft: [25, topPadding],
               paddingBottomRight: [25, bottomPadding]
-            });
+            };
+
+            // Center on marker with measured padding
+            if (delivery.patient_id) {
+              const patient = patients.find((p) => p.id === delivery.patient_id);
+              if (patient?.latitude && patient?.longitude) {
+                setShouldFitBounds({
+                  bounds: [[patient.latitude, patient.longitude]],
+                  options: {
+                    ...padding,
+                    maxZoom: 16,
+                    animate: true
+                  }
+                });
+                setMapCenter(null);
+                setMapZoom(null);
+                setIsMapViewLocked(true);
+              }
+            } else if (delivery.store_id) {
+              const store = stores.find((s) => s.id === delivery.store_id);
+              if (store?.latitude && store?.longitude) {
+                setShouldFitBounds({
+                  bounds: [[store.latitude, store.longitude]],
+                  options: {
+                    ...padding,
+                    maxZoom: 16,
+                    animate: true
+                  }
+                });
+                setMapCenter(null);
+                setMapZoom(null);
+                setIsMapViewLocked(true);
+              }
+            }
           }, 350);
         } else {
-          // Desktop: use standard padding immediately
-          resolve(getMapPadding());
+          // Desktop: center immediately with standard padding
+          const padding = getMapPadding();
+          
+          if (delivery.patient_id) {
+            const patient = patients.find((p) => p.id === delivery.patient_id);
+            if (patient?.latitude && patient?.longitude) {
+              setShouldFitBounds({
+                bounds: [[patient.latitude, patient.longitude]],
+                options: {
+                  ...padding,
+                  maxZoom: 16,
+                  animate: true
+                }
+              });
+              setMapCenter(null);
+              setMapZoom(null);
+              setIsMapViewLocked(true);
+            }
+          } else if (delivery.store_id) {
+            const store = stores.find((s) => s.id === delivery.store_id);
+            if (store?.latitude && store?.longitude) {
+              setShouldFitBounds({
+                bounds: [[store.latitude, store.longitude]],
+                options: {
+                  ...padding,
+                  maxZoom: 16,
+                  animate: true
+                }
+              });
+              setMapCenter(null);
+              setMapZoom(null);
+              setIsMapViewLocked(true);
+            }
+          }
         }
-      });
+      };
 
-      if (delivery.patient_id) {
-        // Patient delivery - center on patient marker only (not store)
-        const patient = patients.find((p) => p.id === delivery.patient_id);
-        if (patient?.latitude && patient?.longitude) {
-          setShouldFitBounds({
-            bounds: [[patient.latitude, patient.longitude]],
-            options: {
-              ...padding,
-              maxZoom: 16,
-              animate: true
-            }
-          });
-          setMapCenter(null);
-          setMapZoom(null);
-          setIsMapViewLocked(true);
-        }
-      } else if (delivery.store_id) {
-        // Pickup - center on store marker only
-        const store = stores.find((s) => s.id === delivery.store_id);
-        if (store?.latitude && store?.longitude) {
-          setShouldFitBounds({
-            bounds: [[store.latitude, store.longitude]],
-            options: {
-              ...padding,
-              maxZoom: 16,
-              animate: true
-            }
-          });
-          setMapCenter(null);
-          setMapZoom(null);
-          setIsMapViewLocked(true);
-        }
-      }
+      centerMarkerWithPadding();
 
       // CRITICAL: Auto-center card in horizontal scroll - increased delay for reliability
       setTimeout(() => {
