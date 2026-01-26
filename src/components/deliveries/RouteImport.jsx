@@ -384,21 +384,20 @@ export default function RouteImport({
               }
             }
 
-            d._probScore = score;
-            d._probReasons = reasons;
-            return score >= 20;
-          });
+          d._probScore = score;
+          d._probReasons = reasons;
+          return score >= 20;
+        });
 
-          if (highProbabilityMatches.length === 1) {
-            const match = highProbabilityMatches[0];
-            const reasonText = `Highly Probable: PID + ${match._probReasons.join(' + ')}`;
-            return { match, reason: reasonText };
-          } else if (highProbabilityMatches.length > 1) {
-            highProbabilityMatches.sort((a, b) => (b._probScore || 0) - (a._probScore || 0));
-            const bestMatch = highProbabilityMatches[0];
-            const reasonText = `Highly Probable (Best): PID + ${bestMatch._probReasons.join(' + ')}`;
-            return { match: bestMatch, reason: reasonText };
-          }
+        if (highProbabilityMatches.length === 1) {
+          const match = highProbabilityMatches[0];
+          const reasonText = `Highly Probable: PID + ${match._probReasons.join(' + ')}`;
+          return { match, reason: reasonText };
+        } else if (highProbabilityMatches.length > 1) {
+          highProbabilityMatches.sort((a, b) => (b._probScore || 0) - (a._probScore || 0));
+          const bestMatch = highProbabilityMatches[0];
+          const reasonText = `Highly Probable (Best): PID + ${bestMatch._probReasons.join(' + ')}`;
+          return { match: bestMatch, reason: reasonText };
         }
       }
     }
