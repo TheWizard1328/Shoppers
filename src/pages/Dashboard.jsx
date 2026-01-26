@@ -6247,6 +6247,39 @@ function Dashboard() {
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const [forceRender, setForceRender] = useState(0);
 
+  // CRITICAL: Load deliveries from offline DB on mount/return to Dashboard
+  useEffect(() => {
+    if (!currentUser || !isDataLoaded || !isFiltersReady) return;
+
+    const loadOfflineDeliveriesOnMount = async () => {
+      console.log('📦 [Dashboard Mount] Loading deliveries from offline DB for', selectedDateStr);
+      
+      try {
+        // STEP 1: Load from offline DB first
+        let offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        
+        if (!offlineDeliveries || offlineDeliveries.length === 0) {
+          console.log('📥 [Dashboard Mount] Offline DB empty - fetching from API');
+          offlineDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, offlineDeliveries);
+        } else {
+          console.log(`✅ [Dashboard Mount] Loaded ${offlineDeliveries.length} deliveries from offline DB`);
+        }
+
+        // STEP 2: Update context immediately if we have data
+        if (offlineDeliveries.length > 0 && updateDeliveriesLocally) {
+          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+          updateDeliveriesLocally([...otherDateDeliveries, ...offlineDeliveries], true);
+          console.log('✅ [Dashboard Mount] UI updated with offline deliveries');
+        }
+      } catch (error) {
+        console.error('❌ [Dashboard Mount] Failed to load offline deliveries:', error);
+      }
+    };
+
+    loadOfflineDeliveriesOnMount();
+  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr]);
+
   useEffect(() => {
     if (!isDataLoaded || !deliveries) return;
 
