@@ -2837,7 +2837,9 @@ export default function DeliveryForm({
           puid: dataToSave.puid,
           paid_km_override: dataToSave.paid_km_override,
           actual_delivery_time: dataToSave.actual_delivery_time,
-          status: dataToSave.status
+          status: dataToSave.status,
+          driver_id: formData.driver_id,
+          delivery_date: formData.delivery_date
         });
         
         const updatedDelivery = await updateDeliveryLocal(delivery.id, dataToSave);
