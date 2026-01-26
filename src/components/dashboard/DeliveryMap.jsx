@@ -2469,26 +2469,20 @@ export default function DeliveryMap({
           
           // CRITICAL: For drivers viewing their own route (including driver-dispatchers and driver-admins)
           if (isCurrentUserDriver) {
-            // Get all incomplete deliveries for the current driver, sorted by stop_order
-            const incompleteDeliveries = deliveryMarkers.filter(d => 
+            // Get ONLY the next stop (isNextDelivery=true), exclude pending
+            const nextStop = deliveryMarkers.find(d => 
               d && 
               d.driver_id === currentUser?.id &&
+              d.isNextDelivery === true &&
               !finishedStatuses.includes(d.status) &&
               d.status !== 'pending'
-            ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-            
-            const incompletePickups = pickupMarkers.filter(p => 
+            ) || pickupMarkers.find(p => 
               p && 
               p.driver_id === currentUser?.id &&
+              p.isNextDelivery === true &&
               !finishedStatuses.includes(p.status) &&
               p.status !== 'pending'
-            ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-            
-            // Combine and get the first (next) stop
-            const allIncompleteStops = [...incompletePickups, ...incompleteDeliveries]
-              .sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-            
-            const nextStop = allIncompleteStops[0];
+            );
             
             if (!nextStop) return null;
             
