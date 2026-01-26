@@ -82,12 +82,16 @@ export function getDispatchersForStore(storeId, appUsers) {
 
 /**
  * Get app owners (platform admins with user.role === 'admin')
- * Note: This requires fetching from User entity, not AppUser
+ * CRITICAL: Only return users with role='admin' AND created_by equals their own email
+ * This filters out Base44 staff (Yehonathan Cohen, wizardworxx, etc.)
  */
 export async function getAppOwners() {
   try {
     const users = await base44.entities.User.list();
-    return users.filter(user => user?.role === 'admin');
+    return users.filter(user => 
+      user?.role === 'admin' && 
+      user?.created_by === user?.email // Only actual app owners, not Base44 staff
+    );
   } catch (error) {
     console.error('[deliveryMessaging] Failed to fetch app owners:', error);
     return [];
