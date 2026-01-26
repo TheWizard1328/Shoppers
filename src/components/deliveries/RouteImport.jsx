@@ -320,16 +320,30 @@ export default function RouteImport({
     }
 
     if (importedDeliveryStopId) {
-      const sidMatch = sameDateDeliveries.find((d) => {
+      // CRITICAL: First try exact SID match
+      let sidMatch = sameDateDeliveries.find((d) => {
         const existingSID = (d.stop_id || '').trim();
         const matches = existingSID === importedDeliveryStopId;
         return matches;
       });
+      
       if (sidMatch) {
         return { match: sidMatch, reason: `SID Match (${importedDeliveryStopId})` };
-      } else {
+      }
+      
+      // CRITICAL: If no exact SID match but we have a patient, try PID + update SID
+      if (importedDeliveryPatientId) {
+        const pidMatch = sameDateDeliveries.find((d) => d.patient_id === importedDeliveryPatientId);
+        if (pidMatch && pidMatch.stop_id !== importedDeliveryStopId) {
+          // Found matching patient delivery with different SID - update the SID
+          return { 
+            match: pidMatch, 
+            reason: `PID Match - SID will be updated from "${pidMatch.stop_id || 'none'}" to "${importedDeliveryStopId}"` 
+          };
+        }
+      }
 
-        if (importedDeliveryPatientId) {
+      // Continue with other matching strategies
           const importedStopOrder = importedDelivery.stop_order;
           const importedTime = importedDelivery.actual_delivery_time ? new Date(importedDelivery.actual_delivery_time).getTime() : null;
           const importedTR = importedTrackingNumber ? parseInt(importedTrackingNumber, 10) : null;
