@@ -6055,42 +6055,6 @@ function Dashboard() {
       });
       console.log(`   ✅ ETA set to ${etaString}`);
 
-      // STEP 9: Final UI refresh - fetch fresh data and protect from smart refresh overwrite
-      console.log('🔄 [START] Step 9: Final UI refresh...');
-      invalidateDeliveriesForDate(deliveryDate);
-
-      // Fetch fresh deliveries from backend (has latest isNextDelivery flags)
-      const finalRefreshedDeliveries = await base44.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      });
-
-      // CRITICAL: Save fresh deliveries to offline DB BEFORE resuming smart refresh
-      // This prevents smart refresh from pulling stale data
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalRefreshedDeliveries);
-      console.log('   ✅ Saved fresh deliveries to offline DB');
-
-      // CRITICAL: Protect ALL these deliveries from smart refresh overwrite for 30 seconds
-      finalRefreshedDeliveries.forEach(d => {
-        if (d?.id) {
-          smartRefreshManager.registerPendingUpdate(d.id, driverId, deliveryDate);
-        }
-      });
-      console.log('   ✅ Protected deliveries from smart refresh overwrite');
-
-      // Update context immediately
-      if (updateDeliveriesLocally) {
-        const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== deliveryDate);
-        const mergedDeliveries = [...otherDeliveries, ...finalRefreshedDeliveries];
-        updateDeliveriesLocally(mergedDeliveries, true);
-      }
-      console.log('   ✅ UI manually updated with refreshed deliveries');
-
-      // CRITICAL: Force map to re-render route lines after data refresh
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryFinalRefresh' }
-      }));
-
       console.log('═══════════════════════════════════════════════════');
       console.log('✅ [START] ========== START DELIVERY COMPLETE ==========');
       console.log('═══════════════════════════════════════════════════');
@@ -6149,7 +6113,53 @@ function Dashboard() {
 
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
-      // CRITICAL: Wait for DB writes to complete
+      // STEP 9: Fetch fresh data and save to offline DB BEFORE resuming
+      console.log('🔄 [START] Step 9: Fetching fresh data and saving to offline DB...');
+      try {
+        const finalRefreshedDeliveries = await base44.entities.Delivery.filter({
+          driver_id: deliveriesWithStopOrder.find(d => d?.id === deliveryId)?.driver_id,
+          delivery_date: deliveriesWithStopOrder.find(d => d?.id === deliveryId)?.delivery_date
+        });
+
+        // Save to offline DB
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalRefreshedDeliveries);
+        console.log('   ✅ Saved fresh deliveries to offline DB');
+
+        // Protect from smart refresh overwrite
+        finalRefreshedDeliveries.forEach(d => {
+          if (d?.id) {
+            smartRefreshManager.registerPendingUpdate(
+              d.id, 
+              d.driver_id, 
+              d.delivery_date
+            );
+          }
+        });
+        console.log('   ✅ Protected deliveries from smart refresh');
+
+        // Update UI
+        if (updateDeliveriesLocally) {
+          const otherDeliveries = deliveries.filter((d) => 
+            d && d.delivery_date !== finalRefreshedDeliveries[0]?.delivery_date
+          );
+          updateDeliveriesLocally([...otherDeliveries, ...finalRefreshedDeliveries], true);
+        }
+        console.log('   ✅ UI updated with fresh data');
+
+        // Force map update
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { 
+            driverId: finalRefreshedDeliveries[0]?.driver_id,
+            deliveryDate: finalRefreshedDeliveries[0]?.delivery_date,
+            triggeredBy: 'startDeliveryFinalRefresh' 
+          }
+        }));
+
+      } catch (refreshError) {
+        console.error('❌ [START] Failed to fetch fresh data:', refreshError);
+      }
+
+      // STEP 10: Wait for DB writes to complete
       console.log('⏳ [START] Waiting 1.5s before resuming update systems...');
       await new Promise((resolve) => setTimeout(resolve, 1500));
       
