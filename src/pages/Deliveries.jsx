@@ -3627,6 +3627,34 @@ export default function DeliveriesPage() {
                   alert('Failed to delete route. Please try again.');
                   await loadData(true);
                 }
+              }}
+              onDeleteMonth={async (year, month) => {
+                try {
+                  const monthStart = new Date(year, month, 1);
+                  const monthEnd = new Date(year, month + 1, 0);
+                  const startDateStr = format(monthStart, 'yyyy-MM-dd');
+                  const endDateStr = format(monthEnd, 'yyyy-MM-dd');
+
+                  const deliveriesToDelete = driverFilteredDeliveries.filter(
+                    (d) => d.delivery_date >= startDateStr && d.delivery_date <= endDateStr
+                  );
+                  const deliveryIds = deliveriesToDelete.map((d) => d.id);
+
+                  console.log(`🗑️ [DeleteMonth] Batch deleting ${deliveryIds.length} deliveries for ${format(monthStart, 'MMMM yyyy')}`);
+
+                  await batchDeleteDeliveriesLocal(deliveryIds, {
+                    userId: currentUser?.id,
+                    userName: currentUser?.user_name || currentUser?.full_name
+                  });
+
+                  console.log(`✅ [DeleteMonth] Month deleted successfully`);
+                  invalidate('Delivery');
+                  setRefreshKey((prev) => prev + 1);
+                } catch (error) {
+                  console.error('❌ [DeleteMonth] Error:', error);
+                  alert('Failed to delete month. Please try again.');
+                  await loadData(true);
+                }
               }} />
             </div>
           </div>
@@ -3706,6 +3734,35 @@ export default function DeliveriesPage() {
                   } catch (error) {
                     console.error('❌ [DeleteRoute-Mobile] Error:', error);
                     alert('Failed to delete route. Please try again.');
+                    await loadData(true);
+                  }
+                }}
+                onDeleteMonth={async (year, month) => {
+                  try {
+                    const monthStart = new Date(year, month, 1);
+                    const monthEnd = new Date(year, month + 1, 0);
+                    const startDateStr = format(monthStart, 'yyyy-MM-dd');
+                    const endDateStr = format(monthEnd, 'yyyy-MM-dd');
+
+                    const deliveriesToDelete = driverFilteredDeliveries.filter(
+                      (d) => d.delivery_date >= startDateStr && d.delivery_date <= endDateStr
+                    );
+                    const deliveryIds = deliveriesToDelete.map((d) => d.id);
+
+                    console.log(`🗑️ [DeleteMonth-Mobile] Batch deleting ${deliveryIds.length} deliveries for ${format(monthStart, 'MMMM yyyy')}`);
+
+                    await batchDeleteDeliveriesLocal(deliveryIds, {
+                      userId: currentUser?.id,
+                      userName: currentUser?.user_name || currentUser?.full_name
+                    });
+
+                    console.log(`✅ [DeleteMonth-Mobile] Month deleted successfully`);
+                    invalidate('Delivery');
+                    setRefreshKey((prev) => prev + 1);
+                    setIsMobileMenuOpen(false);
+                  } catch (error) {
+                    console.error('❌ [DeleteMonth-Mobile] Error:', error);
+                    alert('Failed to delete month. Please try again.');
                     await loadData(true);
                   }
                 }} />
