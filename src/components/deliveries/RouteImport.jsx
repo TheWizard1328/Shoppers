@@ -1611,13 +1611,16 @@ export default function RouteImport({
         setProgressPercent(100);
         setProgressMessage('Import complete!');
         
+        // CRITICAL: NO route optimization after import - preserve imported stop order
+        console.log('✅ [RouteImport] Import complete - stop order preserved from CSV');
+        
         // CRITICAL: Trigger immediate backend sync after import
         console.log("📤 [RouteImport] Triggering immediate backend sync...");
         const { processPendingMutations } = await import('../utils/offlineSync');
         processPendingMutations().catch(err => console.warn('Backend sync error:', err));
         
         driverLocationPoller.resume();
-        console.log('✅ [RouteImport] Import operation complete');
+        console.log('✅ [RouteImport] Import operation complete - NO auto-optimization applied');
         
         return true; // Signal success
       }, { restartDelay: 2000 }); // 2 second delay before restarting smart refresh
