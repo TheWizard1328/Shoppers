@@ -197,7 +197,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                         <div className="flex-1">
                           <div className="flex items-center gap-1 mb-1">
                             <span>{getEntityIcon('deliveries')}</span>
-                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries</span>
+                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries/Stats</span>
                           </div>
                           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                             <Clock className="w-3 h-3" />
@@ -391,7 +391,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                         <div className="flex-1">
                           <div className="flex items-center gap-1 mb-1">
                             <span>{getEntityIcon('deliveries')}</span>
-                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries</span>
+                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries/Stats</span>
                           </div>
                           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                             <Clock className="w-3 h-3" />
