@@ -848,7 +848,7 @@ export default function RouteImport({
         driver_id: selectedDriver.id,
         driver_name: selectedDriver.user_name || selectedDriver.full_name,
         tracking_number: trackingNumber,
-        stop_order: stopOrder,
+        stop_order: stopOrder, // CRITICAL: Preserve imported stop order from CSV column 4
         stop_id: stopId || null,
         status: statusFromColumns,
         extra_time: 0,
@@ -865,6 +865,8 @@ export default function RouteImport({
         first_delivery: false,
         puid: importedPuid || null // Use imported PUID from column 13
       };
+      
+      console.log(`✅ [Import CSV Line ${lineNumber}] Imported stop_order: ${stopOrder}`);
 
       const assignedAMPM = ampmValue || determineDeliveryAMPM(newDeliveryData, allDeliveriesData);
       newDeliveryData.ampm_deliveries = assignedAMPM;
