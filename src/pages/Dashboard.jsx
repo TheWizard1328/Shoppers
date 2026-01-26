@@ -5787,9 +5787,36 @@ function Dashboard() {
 
   const handleCODUpdate = async (deliveryId, codPayments, skipAutoCenter = false) => {
     try {
-      await updateDeliveryLocal(deliveryId, {
-        cod_payments: codPayments
-      });
+      // CRITICAL: Get the delivery to check its current state
+      const delivery = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
+      
+      // CRITICAL: If all COD payments were removed (empty array), clear COD completely
+      if (codPayments.length === 0 && delivery?.cod_total_amount_required > 0) {
+        console.log('💳 [COD Update] All payments removed - clearing COD completely');
+        
+        await updateDeliveryLocal(deliveryId, {
+          cod_payments: [],
+          cod_total_amount_required: 0,
+          cod_payment_type: 'No Payment',
+          cod_amount: ''
+        });
+        
+        // Delete Square COD item if it exists
+        try {
+          await base44.functions.invoke('squareDeleteCodItem', {
+            deliveryId: deliveryId,
+            reason: 'cod_cleared'
+          });
+          console.log('✅ [COD Update] Square COD item deleted');
+        } catch (squareError) {
+          console.warn('⚠️ [COD Update] Failed to delete Square COD item:', squareError.message);
+        }
+      } else {
+        // Normal update - just save the payments
+        await updateDeliveryLocal(deliveryId, {
+          cod_payments: codPayments
+        });
+      }
 
       invalidate('Delivery');
       await refreshData();
