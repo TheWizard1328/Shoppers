@@ -2784,10 +2784,19 @@ export default function DeliveriesPage() {
   // Backend-driven driver stats
   const [backendDriverStats, setBackendDriverStats] = useState(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const lastStatsParamsRef = useRef({ year: null, timestamp: 0 });
   
   // Fetch driver stats from backend when year changes
   useEffect(() => {
     if (!isDriverOverviewMode || !currentUser) return;
+    
+    // CRITICAL: Prevent re-fetching with same parameters within 5 seconds
+    const cacheKey = `${selectedOverviewYear}-${currentUser.id}`;
+    const now = Date.now();
+    if (lastStatsParamsRef.current.year === cacheKey && now - lastStatsParamsRef.current.timestamp < 5000) {
+      console.log('⏸️ [Deliveries] Skipping stats fetch - cached params:', cacheKey);
+      return;
+    }
     
     const fetchStats = async () => {
       setIsLoadingStats(true);
@@ -2805,6 +2814,7 @@ export default function DeliveriesPage() {
         
         const data = response?.data || response;
         setBackendDriverStats(data?.driverStats || []);
+        lastStatsParamsRef.current = { year: cacheKey, timestamp: now };
         console.log(`📊 [Deliveries] Loaded backend stats for ${data?.driverStats?.length || 0} drivers`);
       } catch (error) {
         console.error('❌ [Deliveries] Failed to load driver stats:', error);
@@ -2815,7 +2825,7 @@ export default function DeliveriesPage() {
     };
     
     fetchStats();
-  }, [isDriverOverviewMode, selectedOverviewYear, currentUser]);
+  }, [isDriverOverviewMode, selectedOverviewYear, currentUser?.id]);
 
   const driverCards = useMemo(() => {
     if (!isDriverOverviewMode) {
