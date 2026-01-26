@@ -3658,9 +3658,7 @@ function Dashboard() {
     setIsEntityUpdating(true);
     pauseOfflineMutations();
     pauseOfflineSync();
-    
-    const { pauseSmartRefresh } = smartRefreshManager;
-    pauseSmartRefresh();
+    smartRefreshManager.pause();
     
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -4839,9 +4837,7 @@ function Dashboard() {
       console.log('▶️ [SAVE] Resuming ALL update systems');
       resumeOfflineMutations();
       resumeOfflineSync();
-      
-      const { resumeSmartRefresh } = smartRefreshManager;
-      resumeSmartRefresh();
+      smartRefreshManager.resume();
       
       setIsEntityUpdating(false);
     }
@@ -5050,9 +5046,7 @@ function Dashboard() {
     setIsEntityUpdating(true);
     pauseOfflineMutations();
     pauseOfflineSync();
-    
-    const { pauseSmartRefresh } = smartRefreshManager;
-    pauseSmartRefresh();
+    smartRefreshManager.pause();
     
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -5102,9 +5096,7 @@ function Dashboard() {
       console.log('▶️ [PATIENT SAVE] Resuming ALL update systems');
       resumeOfflineMutations();
       resumeOfflineSync();
-      
-      const { resumeSmartRefresh } = smartRefreshManager;
-      resumeSmartRefresh();
+      smartRefreshManager.resume();
       
       setIsEntityUpdating(false);
     }
@@ -5233,9 +5225,7 @@ function Dashboard() {
       setIsEntityUpdating(true);
       pauseOfflineMutations();
       pauseOfflineSync();
-      
-      const { pauseSmartRefresh } = smartRefreshManager;
-      pauseSmartRefresh();
+      smartRefreshManager.pause();
       
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -5306,9 +5296,7 @@ function Dashboard() {
       console.log('▶️ [RESTART] Resuming ALL update systems');
       resumeOfflineMutations();
       resumeOfflineSync();
-      
-      const { resumeSmartRefresh } = smartRefreshManager;
-      resumeSmartRefresh();
+      smartRefreshManager.resume();
       
       setIsEntityUpdating(false);
     }
@@ -5322,9 +5310,7 @@ function Dashboard() {
     setIsEntityUpdating(true);
     pauseOfflineMutations();
     pauseOfflineSync();
-    
-    const { pauseSmartRefresh } = smartRefreshManager;
-    pauseSmartRefresh();
+    smartRefreshManager.pause();
     
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -5722,9 +5708,7 @@ function Dashboard() {
       console.log('▶️ [STATUS] Resuming ALL update systems');
       resumeOfflineMutations();
       resumeOfflineSync();
-      
-      const { resumeSmartRefresh } = smartRefreshManager;
-      resumeSmartRefresh();
+      smartRefreshManager.resume();
       
       setIsEntityUpdating(false);
       
@@ -5770,9 +5754,7 @@ function Dashboard() {
       setIsEntityUpdating(true);
       pauseOfflineMutations();
       pauseOfflineSync();
-      
-      const { pauseSmartRefresh } = smartRefreshManager;
-      pauseSmartRefresh();
+      smartRefreshManager.pause();
       
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -5878,9 +5860,7 @@ function Dashboard() {
       console.log('▶️ [RETURN] Resuming ALL update systems');
       resumeOfflineMutations();
       resumeOfflineSync();
-      
-      const { resumeSmartRefresh } = smartRefreshManager;
-      resumeSmartRefresh();
+      smartRefreshManager.resume();
       
       setIsEntityUpdating(false);
     }
@@ -5896,10 +5876,7 @@ function Dashboard() {
     setIsEntityUpdating(true);
     pauseOfflineMutations();
     pauseOfflineSync();
-    
-    // CRITICAL: Pause smart refresh directly to prevent bouncing
-    const { pauseSmartRefresh } = smartRefreshManager;
-    pauseSmartRefresh();
+    smartRefreshManager.pause();
     
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -6180,10 +6157,7 @@ function Dashboard() {
       console.log('▶️ [START] Resuming ALL update systems');
       resumeOfflineMutations();
       resumeOfflineSync();
-      
-      // CRITICAL: Resume smart refresh last
-      const { resumeSmartRefresh } = smartRefreshManager;
-      resumeSmartRefresh();
+      smartRefreshManager.resume();
       
       setIsEntityUpdating(false);
       console.log('✅ [START] All systems resumed');
