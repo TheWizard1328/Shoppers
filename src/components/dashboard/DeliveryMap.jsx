@@ -2878,6 +2878,7 @@ export default function DeliveryMap({
                       color: '#F97316',
                       weight: 3,
                       opacity: 0.6,
+                      dashArray: '5, 5',
                       lineJoin: 'round',
                       lineCap: 'round'
                     }}
@@ -2885,11 +2886,11 @@ export default function DeliveryMap({
                   />
                 );
               }
-            });
-          }
-          
-          return polylines.length > 0 ? polylines : null;
-        })()}
+              });
+              }
+
+              return polylines.length > 0 ? polylines : null;
+              })()}
 
         {/* Draw Routes - NOW WITH INTERACTIVE HIGHLIGHTING */}
         {showRoutes && driverRoutes.map((route, index) => {
