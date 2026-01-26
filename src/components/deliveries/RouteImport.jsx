@@ -343,13 +343,14 @@ export default function RouteImport({
         }
       }
 
-      // Continue with other matching strategies
-          const importedStopOrder = importedDelivery.stop_order;
-          const importedTime = importedDelivery.actual_delivery_time ? new Date(importedDelivery.actual_delivery_time).getTime() : null;
-          const importedTR = importedTrackingNumber ? parseInt(importedTrackingNumber, 10) : null;
+      // Continue with other matching strategies - try PID + fuzzy scoring
+      if (importedDeliveryPatientId) {
+        const importedStopOrder = importedDelivery.stop_order;
+        const importedTime = importedDelivery.actual_delivery_time ? new Date(importedDelivery.actual_delivery_time).getTime() : null;
+        const importedTR = importedTrackingNumber ? parseInt(importedTrackingNumber, 10) : null;
 
-          const highProbabilityMatches = sameDateDeliveries.filter((d) => {
-            if (d.patient_id !== importedDeliveryPatientId) return false;
+        const highProbabilityMatches = sameDateDeliveries.filter((d) => {
+          if (d.patient_id !== importedDeliveryPatientId) return false;
 
             let score = 0;
             let reasons = [];
