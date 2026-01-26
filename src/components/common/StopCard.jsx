@@ -216,11 +216,11 @@ export default function StopCard({
   };
 
   // Use isSelected prop to control expansion (parent controls state)
-  // CRITICAL: Stripped deliveries cannot be expanded
+  // CRITICAL: Stripped deliveries CAN be expanded if finished (to view driver notes)
   // CRITICAL: Finished deliveries start collapsed but CAN be expanded when selected
   // CRITICAL: If compact mode is enabled (desktop), never expand the card (details shown in panel)
   const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);
-  const isExpanded = compact ? false : (isSelected && !isStrippedDelivery);
+  const isExpanded = compact ? false : (isSelected && (!isStrippedDelivery || isFinishedDelivery));
 
   // Sync state with delivery prop changes
   useEffect(() => {
@@ -802,8 +802,9 @@ export default function StopCard({
 
 
       onClick={() => {
-        // Don't trigger click/expand for stripped deliveries
-        if (!isStrippedDelivery) {
+        // Allow click/expand for stripped finished deliveries (to view driver notes)
+        // Block click only for stripped non-finished deliveries
+        if (!isStrippedDelivery || isFinishedDelivery) {
           onClick && onClick(delivery);
         }
       }}
@@ -1446,19 +1447,19 @@ export default function StopCard({
 
           {/* BODY SECTION - Expandable */}
           <AnimatePresence>
-            {isExpanded && !isStrippedDelivery &&
+            {isExpanded &&
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="pt-3 space-y-3 border-t mt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
-                  {/* Phone number - moved below divider - HIDE for finished patient deliveries */}
-                  {finalDisplayPhone && !(isFinishedDelivery && !isPickup) &&
+                  {/* Phone number - moved below divider - HIDE for finished patient deliveries AND stripped */}
+                  {finalDisplayPhone && !(isFinishedDelivery && !isPickup) && !isStrippedDelivery &&
                 <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
                       <Phone className="w-4 h-4 mr-2 text-slate-500" />
                       <span className="text-xl md:text-base font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
                     </div>
                 }
 
-                  {/* COD Information - For active deliveries with COD required */}
-                  {hasCODRequired && !isPickup && !isFinishedDelivery &&
+                  {/* COD Information - For active deliveries with COD required - HIDE for stripped */}
+                  {hasCODRequired && !isPickup && !isFinishedDelivery && !isStrippedDelivery &&
                 <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
                       <span className="text-lg md:text-xs font-semibold text-amber-800">COD Required: ${codTotalRequired.toFixed(2)}</span>
                       {userHasRole(currentUser, 'driver') &&
@@ -1476,8 +1477,8 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* COD Collected - Show for active deliveries OR for finished deliveries with COD */}
-                  {hasCODRequired && !isPickup && codPayments.length > 0 &&
+                  {/* COD Collected - Show for active deliveries OR for finished deliveries with COD - HIDE for stripped */}
+                  {hasCODRequired && !isPickup && codPayments.length > 0 && !isStrippedDelivery &&
                 <div className={`flex items-center justify-between rounded-md px-2 py-1 ${isCODComplete ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
                       <span className={`text-lg md:text-xs font-semibold ${isCODComplete ? 'text-emerald-800' : 'text-amber-800'}`}>
                         COD Collected: {codPayments.map((payment, index) =>
@@ -1569,8 +1570,8 @@ export default function StopCard({
                   }
                   </AnimatePresence>
 
-                  {/* Patient Notes - Show for finished deliveries (only notes, no preferences/recurring) */}
-                  {isFinishedDelivery && !isPickup && patient?.notes &&
+                  {/* Patient Notes - Show for finished deliveries (only notes, no preferences/recurring) - HIDE for stripped */}
+                  {isFinishedDelivery && !isPickup && patient?.notes && !isStrippedDelivery &&
                 <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
@@ -1582,8 +1583,8 @@ export default function StopCard({
                   </div>
                 }
 
-                  {/* Full Patient Info - Only for non-finished deliveries */}
-                  {!isFinishedDelivery && !isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
+                  {/* Full Patient Info - Only for non-finished deliveries - HIDE for stripped */}
+                  {!isFinishedDelivery && !isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) && !isStrippedDelivery &&
                 <div className="flex items-start gap-2">
                 <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
@@ -1634,8 +1635,8 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* Show pending pickup list for pickups that are en_route (equivalent to in_transit for deliveries) - HIDE for finished */}
-                  {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
+                  {/* Show pending pickup list for pickups that are en_route (equivalent to in_transit for deliveries) - HIDE for finished AND stripped */}
+                  {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 && !isStrippedDelivery &&
                 <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-base md:text-xs font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
