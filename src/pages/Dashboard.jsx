@@ -5903,15 +5903,28 @@ function Dashboard() {
       });
       console.log(`   ✅ ETA set to ${etaString}`);
 
-      // STEP 9: Final UI refresh WITHOUT calling refreshData (which triggers smart refresh)
+      // STEP 9: Final UI refresh - fetch fresh data and protect from smart refresh overwrite
       console.log('🔄 [START] Step 9: Final UI refresh...');
       invalidateDeliveriesForDate(deliveryDate);
 
-      // CRITICAL: Manually update UI state without triggering full refresh
+      // Fetch fresh deliveries from backend (has latest isNextDelivery flags)
       const finalRefreshedDeliveries = await base44.entities.Delivery.filter({
         driver_id: driverId,
         delivery_date: deliveryDate
       });
+
+      // CRITICAL: Save fresh deliveries to offline DB BEFORE resuming smart refresh
+      // This prevents smart refresh from pulling stale data
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalRefreshedDeliveries);
+      console.log('   ✅ Saved fresh deliveries to offline DB');
+
+      // CRITICAL: Protect ALL these deliveries from smart refresh overwrite for 30 seconds
+      finalRefreshedDeliveries.forEach(d => {
+        if (d?.id) {
+          smartRefreshManager.registerPendingUpdate(d.id, driverId, deliveryDate);
+        }
+      });
+      console.log('   ✅ Protected deliveries from smart refresh overwrite');
 
       // Update context immediately
       if (updateDeliveriesLocally) {
@@ -5925,13 +5938,6 @@ function Dashboard() {
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryFinalRefresh' }
       }));
-
-      // CRITICAL: Force smart refresh to update its cache with the delivery we just started
-      console.log('🔄 [START] Forcing smart refresh to update cache with new isNextDelivery...');
-      smartRefreshManager.registerPendingDeliveryUpdate(newNextDeliveryId, {
-        isNextDelivery: true,
-        status: newStatus
-      });
 
       console.log('═══════════════════════════════════════════════════');
       console.log('✅ [START] ========== START DELIVERY COMPLETE ==========');
@@ -5991,25 +5997,15 @@ function Dashboard() {
 
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
-      // CRITICAL: Resume smart refresh AFTER longer delay to ensure database writes complete
-      console.log('⏳ [START] Waiting 2 seconds before resuming smart refresh...');
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
+      // CRITICAL: Resume smart refresh immediately - offline DB now has fresh data
       console.log('▶️ [START] Resuming smart refresh, offline sync, and mutations');
       setIsEntityUpdating(false);
       resumeOfflineMutations();
       resumeOfflineSync();
 
-      // Force immediate smart refresh with fresh data
-      console.log('🔄 [START] Triggering immediate smart refresh with fresh data...');
-      smartRefreshManager.lastRefreshTimes = {
-        driverLocation: 0,
-        activeDeliveries: 0,
-        todayDeliveries: 0,
-        appUsers: 0,
-        patients: 0,
-        stores: 0
-      };
+      // Don't force immediate smart refresh - let it run on its normal cycle
+      // The offline DB already has fresh data and deliveries are protected from overwrite
+      console.log('✅ [START] Smart refresh will resume on normal cycle');
     }
   };
 
