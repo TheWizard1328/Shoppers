@@ -2781,6 +2781,42 @@ export default function DeliveriesPage() {
 
 
 
+  // Backend-driven driver stats
+  const [backendDriverStats, setBackendDriverStats] = useState(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  
+  // Fetch driver stats from backend when year changes
+  useEffect(() => {
+    if (!isDriverOverviewMode || !currentUser) return;
+    
+    const fetchStats = async () => {
+      setIsLoadingStats(true);
+      try {
+        // Build storeIds filter for dispatchers
+        let storeIdsFilter = null;
+        if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+          storeIdsFilter = currentUser.store_ids || [];
+        }
+        
+        const response = await base44.functions.invoke('getDriverOverviewStats', {
+          year: selectedOverviewYear,
+          storeIds: storeIdsFilter
+        });
+        
+        const data = response?.data || response;
+        setBackendDriverStats(data?.driverStats || []);
+        console.log(`📊 [Deliveries] Loaded backend stats for ${data?.driverStats?.length || 0} drivers`);
+      } catch (error) {
+        console.error('❌ [Deliveries] Failed to load driver stats:', error);
+        setBackendDriverStats(null);
+      } finally {
+        setIsLoadingStats(false);
+      }
+    };
+    
+    fetchStats();
+  }, [isDriverOverviewMode, selectedOverviewYear, currentUser]);
+
   const driverCards = useMemo(() => {
     if (!isDriverOverviewMode) {
       return [];
@@ -2793,10 +2829,7 @@ export default function DeliveriesPage() {
     console.log(`📊 Total users in effectiveDrivers:`, effectiveDrivers?.length || 0);
     console.log(`📅 Selected overview year: ${selectedOverviewYear}`);
     console.log(`📍 Selected City ID: ${selectedCityId}`);
-    console.log(`📊 effectiveDeliveries count: ${effectiveDeliveries?.length || 0}`);
-    console.log(`📊 allDeliveries count: ${allDeliveries?.length || 0}`);
-    console.log(`📊 contextDeliveries count: ${contextDeliveries?.length || 0}`);
-    console.log(`📊 allPatients count: ${allPatients?.length || 0}`);
+    console.log(`📊 Backend stats available: ${backendDriverStats ? 'YES' : 'NO'}`);
 
     const deliveriesToUse = allDeliveries?.length > 0 ? allDeliveries : contextDeliveries;
     const patientsToUse = allPatients?.length > 0 ? allPatients : contextPatients;
@@ -2960,7 +2993,31 @@ export default function DeliveriesPage() {
     new Set(currentUser.store_ids || []) :
     null;
 
+    // CRITICAL: Use backend stats if available, otherwise fall back to local calculation
     const cards = driversToShow.map((driver) => {
+      // Try to get stats from backend first
+      const backendStats = backendDriverStats?.find(s => s.driverId === driver.id || s.driverId === driver.appUserId);
+      
+      if (backendStats) {
+        console.log(`✅ Using backend stats for driver: ${driver.user_name || driver.full_name}`);
+        return {
+          driver: driver,
+          firstName: getDriverDisplayName(driver),
+          stats: {
+            totalStops: backendStats.totalStops,
+            pickups: backendStats.pickups,
+            completed: backendStats.completed,
+            failed: backendStats.failed,
+            returned: backendStats.returned,
+            completionRate: backendStats.completionRate
+          },
+          todayStats: backendStats.todayStats
+        };
+      }
+
+      // Fallback to local calculation if backend stats not available
+      console.log(`⚠️ Falling back to local calculation for driver: ${driver.user_name || driver.full_name}`);
+      
       const driverDeliveries = yearFilteredDeliveries.filter((d) => {
         if (!d) return false;
 
@@ -2994,17 +3051,6 @@ export default function DeliveriesPage() {
       });
 
       const totalStops = driverDeliveries.length;
-
-      if (totalStops === 0 && yearFilteredDeliveries.length > 0) {
-        console.log(`🔍 [Driver Debug] ${driver.user_name || driver.full_name}:`, {
-          driverId: driver.id,
-          appUserId: driver.appUserId,
-          full_name: driver.full_name,
-          user_name: driver.user_name
-        });
-      }
-
-      console.log(`🚗 Processing driver: ${driver.user_name || driver.full_name} - Found ${totalStops} deliveries in selected year`);
 
       const pickups = driverDeliveries.filter((d) => {
         const isPickup = !d.patient_id || d.patient_id === '';
@@ -3082,7 +3128,8 @@ export default function DeliveriesPage() {
   contextDeliveries,
   contextPatients,
   contextUsers,
-  refreshKey]
+  refreshKey,
+  backendDriverStats]
   );
 
   const canCreateDeliveries = useMemo(() => {
@@ -3846,10 +3893,10 @@ export default function DeliveriesPage() {
               </Card>
 
               <div className="flex-1 overflow-y-auto px-4 pb-4">
-                {isLoadingData && driverCards.length === 0 ?
+                {(isLoadingData || isLoadingStats) && driverCards.length === 0 ?
               <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
                     <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                    <p className="text-lg font-medium">Loading drivers...</p>
+                    <p className="text-lg font-medium">Loading driver stats...</p>
                   </div> :
               driverCards.length === 0 ?
               <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
