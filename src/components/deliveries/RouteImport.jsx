@@ -995,25 +995,34 @@ export default function RouteImport({
   useEffect(() => {
     const loadAllDrivers = async () => {
       try {
-        const allAppUsers = await base44.entities.AppUser.list();
-        const allAuthUsers = await base44.entities.User.list();
+        // CRITICAL: Only admins can list User entities
+        // Non-admins should use the allUsers prop from Layout
+        const isAdmin = userHasRole(currentUser, 'admin');
+        
+        if (isAdmin) {
+          const allAppUsers = await base44.entities.AppUser.list();
+          const allAuthUsers = await base44.entities.User.list();
 
-        // Merge AppUsers with Auth Users
-        const mergedUsers = allAuthUsers.map((authUser) => {
-          const appUser = allAppUsers.find((au) => au.user_id === authUser.id);
-          if (appUser) {
-            return {
-              ...authUser,
-              ...appUser,
-              id: authUser.id,
-              user_name: appUser.user_name || authUser.full_name,
-              app_roles: appUser.app_roles || []
-            };
-          }
-          return authUser;
-        });
+          // Merge AppUsers with Auth Users
+          const mergedUsers = allAuthUsers.map((authUser) => {
+            const appUser = allAppUsers.find((au) => au.user_id === authUser.id);
+            if (appUser) {
+              return {
+                ...authUser,
+                ...appUser,
+                id: authUser.id,
+                user_name: appUser.user_name || authUser.full_name,
+                app_roles: appUser.app_roles || []
+              };
+            }
+            return authUser;
+          });
 
-        setAllDriverUsers(mergedUsers);
+          setAllDriverUsers(mergedUsers);
+        } else {
+          // Non-admins: use the allUsers prop from Layout (already has merged data)
+          setAllDriverUsers(allUsers || []);
+        }
       } catch (error) {
         console.error('[RouteImport] Error loading all drivers:', error);
         // Fallback to prop allUsers
