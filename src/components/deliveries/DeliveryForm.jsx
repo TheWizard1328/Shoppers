@@ -2817,6 +2817,12 @@ export default function DeliveryForm({
       if (codWasRemoved && delivery?.id) {
         try {
           console.log('💳 [Square] Deleting COD item - COD was removed from delivery:', delivery.id);
+          
+          // CRITICAL: Clear cod_payments array when COD is removed
+          dataToSave.cod_payments = [];
+          dataToSave.cod_payment_type = 'No Payment';
+          dataToSave.cod_amount = '';
+          
           await base44.functions.invoke('squareDeleteCodItem', {
             deliveryId: delivery.id,
             reason: 'cod_removed'
@@ -2903,10 +2909,10 @@ export default function DeliveryForm({
       }
 
       // CRITICAL: Always reorder stops after any delivery update or status change
-      if (delivery && delivery.driver_id && delivery.delivery_date) {
+      if (delivery && formData.driver_id && formData.delivery_date) {
         console.log('🔄 [DeliveryForm] Reordering stops after delivery update...');
         try {
-          await reorderStops(delivery.driver_id, delivery.delivery_date, allDeliveries);
+          await reorderStops(formData.driver_id, formData.delivery_date, allDeliveries);
           console.log('✅ [DeliveryForm] Stop reordering complete');
         } catch (error) {
           console.error('❌ [DeliveryForm] Stop reordering failed:', error);
