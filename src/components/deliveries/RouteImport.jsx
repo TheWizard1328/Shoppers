@@ -997,6 +997,16 @@ export default function RouteImport({
             }
           }
 
+          // CRITICAL: For incomplete stops (pending, in_transit, en_route), preserve COD payment type and collected payments
+          // Only update cod_total_amount_required, NOT cod_payment_type or cod_payments
+          const incompleteStatuses = ['pending', 'in_transit', 'en_route'];
+          if (incompleteStatuses.includes(updatedDeliveryData.status)) {
+            // Preserve existing COD payment fields for incomplete stops
+            updatedDeliveryData.cod_payment_type = existingDelivery.cod_payment_type;
+            updatedDeliveryData.cod_payments = existingDelivery.cod_payments;
+            console.log(`✅ [Import] Incomplete stop - preserving COD payment type: ${existingDelivery.cod_payment_type}`);
+          }
+
           deliveriesToUpdate.push({
             ...updatedDeliveryData,
             _changes: changes,
