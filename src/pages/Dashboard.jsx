@@ -1829,8 +1829,17 @@ function Dashboard() {
         showAllDriverMarkers || selectedDriverId === 'all'
       );
 
-      if (updates) {
-        console.log('🔄 [Periodic Refresh] Smart refresh completed with updates');
+      if (updates?.appUsers) {
+        console.log('🔄 [Periodic Refresh] Reprocessing driver locations with fresh AppUsers');
+        driverLocationPoller.processLocationData(
+          currentUser, 
+          updates.deliveries || deliveries, 
+          drivers, 
+          stores, 
+          updates.appUsers, 
+          selectedDate, 
+          true
+        );
       }
     };
 
@@ -1839,7 +1848,7 @@ function Dashboard() {
     const interval = setInterval(runPeriodicSmartRefresh, 15000);
 
     return () => clearInterval(interval);
-  }, [isDataLoaded, currentUser, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings]);
+  }, [isDataLoaded, currentUser, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, deliveries, drivers, stores, patients, appUsers]);
 
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   // CRITICAL: Initialize poller once on mount
