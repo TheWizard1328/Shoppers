@@ -5787,39 +5787,32 @@ function Dashboard() {
 
   const handleCODUpdate = async (deliveryId, codPayments, skipAutoCenter = false) => {
     try {
-      // CRITICAL: Get the delivery to check its current state
-      const delivery = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
+      console.log('💳 [COD Update] Saving payments:', codPayments);
       
-      // CRITICAL: If all COD payments were removed (empty array), clear COD completely
-      if (codPayments.length === 0 && delivery?.cod_total_amount_required > 0) {
-        console.log('💳 [COD Update] All payments removed - clearing COD completely');
-        
-        await updateDeliveryLocal(deliveryId, {
-          cod_payments: [],
-          cod_total_amount_required: 0,
-          cod_payment_type: 'No Payment',
-          cod_amount: ''
-        });
-        
-        // Delete Square COD item if it exists
-        try {
-          await base44.functions.invoke('squareDeleteCodItem', {
-            deliveryId: deliveryId,
-            reason: 'cod_cleared'
-          });
-          console.log('✅ [COD Update] Square COD item deleted');
-        } catch (squareError) {
-          console.warn('⚠️ [COD Update] Failed to delete Square COD item:', squareError.message);
-        }
-      } else {
-        // Normal update - just save the payments
-        await updateDeliveryLocal(deliveryId, {
-          cod_payments: codPayments
-        });
+      // CRITICAL: Update database directly (bypass offline mutations for COD)
+      await base44.entities.Delivery.update(deliveryId, {
+        cod_payments: codPayments
+      });
+      console.log('✅ [COD Update] Saved to database');
+      
+      // CRITICAL: Protect this update from smart refresh overwrite
+      const delivery = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
+      if (delivery) {
+        smartRefreshManager.registerPendingUpdate(deliveryId, delivery.driver_id, delivery.delivery_date);
+      }
+      
+      // Update offline DB immediately
+      const freshDelivery = await base44.entities.Delivery.filter({ id: deliveryId });
+      if (freshDelivery && freshDelivery.length > 0) {
+        await offlineDB.save(offlineDB.STORES.DELIVERIES, freshDelivery[0]);
+        console.log('✅ [COD Update] Saved to offline DB');
       }
 
+      // Force refresh to show updated COD
       invalidate('Delivery');
       await refreshData();
+      
+      console.log('✅ [COD Update] Complete');
     } catch (error) {
       console.error('Error updating COD payments:', error);
       alert('Failed to update COD payments. Please try again.');
