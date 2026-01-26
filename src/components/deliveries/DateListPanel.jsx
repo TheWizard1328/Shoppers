@@ -17,6 +17,7 @@ export default function DateListPanel({
   patients = [],
   selectedDriverId,
   onDeleteRoute,
+  onDeleteMonth,
   dateListWithStats = null
 }) {
   const months = [
@@ -120,7 +121,7 @@ export default function DateListPanel({
     <div className="flex flex-col h-full">
       {/* Month/Year Selectors */}
       <div className="p-2" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 mb-2">
           <Select value={selectedMonth.toString()} onValueChange={(val) => onMonthChange(parseInt(val))}>
             <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
               <SelectValue />
@@ -147,6 +148,24 @@ export default function DateListPanel({
             </SelectContent>
           </Select>
         </div>
+        
+        {onDeleteMonth && datesWithDeliveries.length > 0 &&
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-2 text-red-600 hover:bg-red-50"
+          onClick={() => {
+            const monthName = months[selectedMonth].label;
+            const totalDeliveries = datesWithDeliveries.reduce((sum, d) => sum + d.total, 0);
+            if (window.confirm(`Delete all ${totalDeliveries} stops for ${monthName} ${selectedYear}? This cannot be undone.`)) {
+              onDeleteMonth(selectedYear, selectedMonth);
+            }
+          }}
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete All
+        </Button>
+        }
       </div>
 
       {/* Date Cards List */}
