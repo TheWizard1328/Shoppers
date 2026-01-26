@@ -575,7 +575,13 @@ export const loadDeliveries = async (
       
       if (offlineDeliveries && offlineDeliveries.length > 0) {
         console.log(`⚡ [DataManager] Instant UI from offline: ${offlineDeliveries.length} deliveries`);
-        onInitialLoadComplete(offlineDeliveries);
+        
+        // CRITICAL: Fire callback IMMEDIATELY to prevent 1-minute delay
+        // Use setTimeout 0 to ensure callback runs on next tick (allows state to settle)
+        setTimeout(() => {
+          onInitialLoadComplete(offlineDeliveries);
+        }, 0);
+        
         usedOfflineData = true;
         
         // CRITICAL: SYNC DISABLED - 100% offline-only mode
@@ -592,8 +598,10 @@ export const loadDeliveries = async (
   const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, forceRefresh);
   console.log(`✅ [DataManager] Loaded ${selectedDateDeliveries.length} deliveries for ${selectedDateStr}`);
   
-  // Fire instant UI callback
-  onInitialLoadComplete(selectedDateDeliveries);
+  // Fire instant UI callback IMMEDIATELY (no delay)
+  setTimeout(() => {
+    onInitialLoadComplete(selectedDateDeliveries);
+  }, 0);
   
   // CRITICAL: Background loading DISABLED to prevent rate limits
   console.log('📴 [DataManager] Background loading disabled - offline-only mode');
