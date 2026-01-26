@@ -682,10 +682,13 @@ export const processPendingMutations = async () => {
       return Entity.delete(mutation.recordId)
         .then(() => ({ success: true, mutationId: mutation.mutationId }))
         .catch(deleteError => {
-          // Ignore 404 errors - record already deleted on backend
+          // Ignore 404 errors - record already deleted on backend (silent)
           if (deleteError.response?.status === 404 || deleteError.message?.includes('404') || deleteError.message?.includes('not found')) {
-            console.log(`ℹ️ [OfflineSync] ${mutation.entity} ${mutation.recordId} already deleted on backend`);
             return { success: true, mutationId: mutation.mutationId };
+          }
+          // Ignore 429 rate limit errors - will retry (silent)
+          if (deleteError.response?.status === 429) {
+            return { success: false, mutationId: mutation.mutationId, error: deleteError, retryCount: mutation.retryCount || 0, isRateLimit: true };
           }
           return { success: false, mutationId: mutation.mutationId, error: deleteError, retryCount: mutation.retryCount || 0 };
         });
