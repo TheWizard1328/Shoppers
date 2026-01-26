@@ -5918,8 +5918,25 @@ function Dashboard() {
       }
       console.log(`   ✅ Updated stop_order for ${sortedIncomplete.length} incomplete stops`);
 
-      // STEP 4: Update UI immediately (DON'T call recalculateStopOrders - it will override our isNextDelivery)
-      console.log('🖥️ [START] Step 4: Updating UI immediately...');
+      // STEP 4: Optimize remaining stops AFTER starting this delivery
+      console.log('🔄 [START] Step 4: Optimizing remaining stops...');
+      try {
+        const now = new Date();
+        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        await base44.functions.invoke('optimizeRemainingStops', {
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocalTime: localTimeString,
+          deviceTime: now.toISOString()
+        });
+        console.log('   ✅ Remaining stops optimized');
+      } catch (optimizeError) {
+        console.warn('   ⚠️ Route optimization failed:', optimizeError.message);
+      }
+
+      // STEP 5: Update UI immediately after optimization
+      console.log('🖥️ [START] Step 5: Updating UI immediately...');
       invalidateDeliveriesForDate(deliveryDate);
       const refreshedDeliveries = await base44.entities.Delivery.filter({
         driver_id: driverId,
@@ -5932,7 +5949,6 @@ function Dashboard() {
 
       console.log(`   🎯 Original clicked ID: ${originalClickedId}`);
       console.log(`   ✨ NEW next delivery ID: ${newNextDeliveryId}`);
-      console.log(`   ⚠️ SKIPPING recalculateStopOrders to preserve isNextDelivery flag`);
 
       // Update context immediately
       if (updateDeliveriesLocally) {
@@ -5947,8 +5963,8 @@ function Dashboard() {
       }));
       console.log(`   ✅ UI updated - new next delivery is: ${newNextDeliveryId}`);
 
-      // STEP 5: Clear and recalculate blue polyline
-      console.log('🔵 [START] Step 5: Updating blue polyline...');
+      // STEP 6: Clear and recalculate blue polyline
+      console.log('🔵 [START] Step 7: Updating blue polyline...');
       setCurrentToNextPolyline(null);
 
       try {
@@ -5975,8 +5991,8 @@ function Dashboard() {
         console.warn('   ⚠️ Blue polyline update failed:', polylineError.message);
       }
 
-      // STEP 6: Update this delivery's ETA to current time + 5 minutes
-      console.log('⏱️ [START] Step 6: Setting delivery ETA...');
+      // STEP 8: Update this delivery's ETA to current time + 5 minutes
+      console.log('⏱️ [START] Step 8: Setting delivery ETA...');
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const etaMinutes = currentMinutes + 5;
@@ -5987,9 +6003,6 @@ function Dashboard() {
         delivery_time_eta: etaString
       });
       console.log(`   ✅ ETA set to ${etaString}`);
-
-      // STEP 7: Route optimization removed - now only runs on 5-minute timer when driver moves 100m+
-      console.log('⏭️ [START] Skipping route optimization (handled by timer)');
 
       // STEP 9: Final UI refresh WITHOUT calling refreshData (which triggers smart refresh)
       console.log('🔄 [START] Step 9: Final UI refresh...');
@@ -6026,37 +6039,19 @@ function Dashboard() {
       console.log('═══════════════════════════════════════════════════');
 
       // STEP 10: Wait for UI to update, then scroll to next delivery card
-      console.log('📍 [START] Step 10: Waiting for UI refresh, then scrolling to next card...');
+      console.log('📍 [START] Step 10: Scrolling to next card after optimization...');
 
-      // Wait for refreshData() and UI to fully update before scrolling
+      // Wait for optimization to complete and UI to update
       setTimeout(async () => {
-        // Refresh deliveries one more time to get latest state after optimization
-        const finalDeliveries = await base44.entities.Delivery.filter({
-          driver_id: driverId,
-          delivery_date: deliveryDate
-        });
-
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const completedCount = finalDeliveries.filter((d) =>
-        d && finishedStatuses.includes(d.status)
-        ).length;
-
-        console.log(`   📊 After optimization: ${completedCount} completed deliveries`);
-        console.log(`   🎯 Scrolling to card at index ${completedCount} (first incomplete)`);
-
-        // Wait a bit more for cards to re-render with new order
-        setTimeout(() => {
-          const container = stopCardsContainerRef.current?.querySelector('.overflow-x-auto');
-          const allCards = container?.querySelectorAll('[id^="stop-card-"]');
-
-          if (allCards && allCards.length > completedCount) {
-            allCards[completedCount].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log(`   ✅ Scrolled to card at index ${completedCount}`);
-          } else {
-            console.warn(`   ⚠️ Card at index ${completedCount} not found (total: ${allCards?.length})`);
+        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+        if (nextCard) {
+          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log('   ✅ Scrolled to next delivery card');
           }
-        }, 300);
-      }, 1500); // Wait longer to ensure optimization completes
+        }
+      }, 800);
 
       // Send notification: Driver started delivery
       try {
