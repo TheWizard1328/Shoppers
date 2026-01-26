@@ -1156,7 +1156,7 @@ export default function RouteImport({
       setProgressMessage('Analyzing import files for date range...');
       setProgressPercent(5);
       
-      const { minDate, maxDate } = await extractDateRangeFromFiles(files);
+      const { minDate, maxDate } = await extractDateRangeFromFiles(activeFiles);
       
       if (!minDate || !maxDate) {
         alert('Could not detect any dates in the import files. Please ensure files contain date metadata lines (e.g., #2024-01-15#,...)');
@@ -1193,7 +1193,7 @@ export default function RouteImport({
       setProgressPercent(25);
 
       // Get all unique driver IDs from the file mapping
-      const allDriverIds = [...new Set(files.map(f => fileDriverMap[f.name]?.driver?.id).filter(Boolean))];
+      const allDriverIds = [...new Set(activeFiles.map(f => activeDriverMap[f.name]?.driver?.id).filter(Boolean))];
       
       // CRITICAL: Fetch deliveries for all drivers at once
       const freshDeliveries = await base44.entities.Delivery.filter(
