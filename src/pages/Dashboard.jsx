@@ -3352,6 +3352,7 @@ function Dashboard() {
       }
 
       // STEP 4: Dispatch event to force map and stop cards to re-render
+      // CRITICAL: NO route optimization on date change
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { deliveryDate: dateStr, triggeredBy: 'dateChange' }
       }));
@@ -3493,6 +3494,7 @@ function Dashboard() {
       // CRITICAL: Wait for React to finish rendering BEFORE dispatching event or triggering map
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
+      // CRITICAL: NO route optimization on driver change - preserve imported stop order
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { driverId, deliveryDate: dateStr, triggeredBy: 'driverChange' }
       }));
