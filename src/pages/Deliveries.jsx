@@ -2781,12 +2781,12 @@ export default function DeliveriesPage() {
 
 
 
-  // Backend-driven driver stats
+  // Backend-driven driver stats with offline DB caching
   const [backendDriverStats, setBackendDriverStats] = useState(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const lastStatsParamsRef = useRef({ year: null, timestamp: 0 });
   
-  // Fetch driver stats from backend when year changes
+  // Fetch driver stats - check offline DB first, then backend
   useEffect(() => {
     if (!isDriverOverviewMode || !currentUser) return;
     
@@ -2807,15 +2807,51 @@ export default function DeliveriesPage() {
           storeIdsFilter = currentUser.store_ids || [];
         }
         
+        const storeIdsHash = storeIdsFilter && storeIdsFilter.length > 0 ? storeIdsFilter.sort().join(',') : 'all';
+        
+        // STEP 1: Check offline DB first
+        const { offlineDB } = await import('../components/utils/offlineDatabase');
+        const cachedStatsRecords = await offlineDB.getAll(offlineDB.STORES.DRIVER_OVERVIEW_STATS);
+        const cachedStats = cachedStatsRecords?.find(s => s.year === (selectedOverviewYear || 'all') && s.store_ids_hash === storeIdsHash);
+        
+        if (cachedStats) {
+          const cacheAge = Date.now() - new Date(cachedStats.calculated_at).getTime();
+          // Use cache if less than 1 hour old
+          if (cacheAge < 3600000) {
+            console.log(`✅ [Deliveries] Using cached driver stats from offline DB (age: ${Math.round(cacheAge / 60000)}min)`);
+            setBackendDriverStats(cachedStats.driver_stats || []);
+            lastStatsParamsRef.current = { year: cacheKey, timestamp: now };
+            setIsLoadingStats(false);
+            return;
+          }
+        }
+        
+        // STEP 2: Fetch from backend if cache miss or expired
+        console.log('🔄 [Deliveries] Cache miss or expired, fetching from backend...');
         const response = await base44.functions.invoke('getDriverOverviewStats', {
           year: selectedOverviewYear,
           storeIds: storeIdsFilter
         });
         
         const data = response?.data || response;
-        setBackendDriverStats(data?.driverStats || []);
+        const driverStats = data?.driverStats || [];
+        setBackendDriverStats(driverStats);
         lastStatsParamsRef.current = { year: cacheKey, timestamp: now };
-        console.log(`📊 [Deliveries] Loaded backend stats for ${data?.driverStats?.length || 0} drivers`);
+        console.log(`📊 [Deliveries] Loaded backend stats for ${driverStats.length} drivers`);
+        
+        // STEP 3: Save to offline DB for future use
+        if (driverStats.length > 0) {
+          const statsRecord = {
+            id: `${selectedOverviewYear || 'all'}-${storeIdsHash}`,
+            year: selectedOverviewYear || 'all',
+            store_ids_hash: storeIdsHash,
+            driver_stats: driverStats,
+            calculated_at: new Date().toISOString(),
+            updated_date: new Date().toISOString()
+          };
+          await offlineDB.bulkSave(offlineDB.STORES.DRIVER_OVERVIEW_STATS, [statsRecord]);
+          console.log(`💾 [Deliveries] Saved driver stats to offline DB`);
+        }
       } catch (error) {
         console.error('❌ [Deliveries] Failed to load driver stats:', error);
         setBackendDriverStats(null);

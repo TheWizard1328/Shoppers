@@ -5,7 +5,7 @@
 
 // CRITICAL: Use stable database name and version to prevent recreation
 const DB_NAME = 'rxdeliver_persistent_offline_v1';
-const DB_VERSION = 3; // CRITICAL: Incremented to add Stores and SquareLocationConfigs
+const DB_VERSION = 4; // CRITICAL: Incremented to add DriverOverviewStatsCache
 
 // Store names
 const STORES = {
@@ -16,6 +16,7 @@ const STORES = {
   STORES: 'stores',
   SQUARE_LOCATION_CONFIGS: 'square_location_configs',
   SQUARE_TRANSACTIONS: 'square_transactions',
+  DRIVER_OVERVIEW_STATS: 'driver_overview_stats',
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations'
 };
@@ -102,6 +103,12 @@ const openDatabase = () => {
         mutationStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
 
+      if (!db.objectStoreNames.contains(STORES.DRIVER_OVERVIEW_STATS)) {
+        const statsStore = db.createObjectStore(STORES.DRIVER_OVERVIEW_STATS, { keyPath: 'id' });
+        statsStore.createIndex('year', 'year', { unique: false });
+        statsStore.createIndex('store_ids_hash', 'store_ids_hash', { unique: false });
+        statsStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
 
     };
   });
@@ -330,13 +337,14 @@ const needsInitialSync = async (entityName) => {
  */
 const getStats = async () => {
   try {
-    const [patients, deliveries, appUsers, cities, stores, squareTx, patientSync, deliverySync, appUserSync, citySync, storeSync, squareTxSync] = await Promise.all([
+    const [patients, deliveries, appUsers, cities, stores, squareTx, driverStats, patientSync, deliverySync, appUserSync, citySync, storeSync, squareTxSync] = await Promise.all([
       getAll(STORES.PATIENTS),
       getAll(STORES.DELIVERIES),
       getAll(STORES.APP_USERS),
       getAll(STORES.CITIES),
       getAll(STORES.STORES),
       getAll(STORES.SQUARE_TRANSACTIONS),
+      getAll(STORES.DRIVER_OVERVIEW_STATS),
       getSyncStatus('Patient'),
       getSyncStatus('Delivery'),
       getSyncStatus('AppUser'),
@@ -369,6 +377,10 @@ const getStats = async () => {
       squareTransactions: {
         count: squareTx.length,
         lastSync: squareTxSync?.lastSyncDate || 'Never'
+      },
+      driverOverviewStats: {
+        count: driverStats.length,
+        lastSync: deliverySync?.lastSyncDate || 'Never' // Use delivery sync time since they're related
       }
     };
   } catch (error) {
