@@ -2042,11 +2042,17 @@ export default function StopCard({
                         <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
                       </div>
                       {delivery.delivery_notes ? (
-                        <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                        <div 
+                          className="text-base md:text-xs rounded px-2 py-1.5 min-h-[60px]" 
+                          style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
+                          onClick={(e) => e.stopPropagation()}>
                           <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
                         </div>
                       ) : (
-                        <div className="text-base md:text-xs rounded px-2 py-1.5 italic" style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                        <div 
+                          className="text-base md:text-xs rounded px-2 py-1.5 italic min-h-[60px]" 
+                          style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
+                          onClick={(e) => e.stopPropagation()}>
                           No driver notes
                         </div>
                       )}
