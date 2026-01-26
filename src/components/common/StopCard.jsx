@@ -694,9 +694,15 @@ export default function StopCard({
   const handleSaveCODPayments = async () => {
     if (onCODUpdate) {
       try {
+        console.log('💾 [COD Save] Saving payments:', codPayments);
         // Pass skipAutoCenter=true to prevent card scrolling after COD save
         await onCODUpdate(delivery.id, codPayments, true);
         setShowCODCollection(false);
+        
+        // CRITICAL: Force local state update to show immediately
+        setTimeout(() => {
+          setCodPayments(codPayments);
+        }, 100);
       } catch (error) {
         console.error('Failed to save COD payments:', error);
       }
