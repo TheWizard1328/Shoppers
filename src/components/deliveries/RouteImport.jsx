@@ -963,6 +963,7 @@ export default function RouteImport({
             _changes: changes,
             _matchReason: matchReason
           });
+          matchedExistingDeliveryIds.add(existingDelivery.id); // Mark this existing delivery as matched
         }
       } else {
         const newDeliveryId = generateDeliveryId(Array.from(existingDeliveryIds));
