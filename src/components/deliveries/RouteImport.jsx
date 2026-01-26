@@ -611,6 +611,15 @@ export default function RouteImport({
       });
       
       setFileDriverMap(newFileDriverMap);
+      
+      // CRITICAL: Auto-generate preview for non-app-owners immediately after file selection
+      const isNotAppOwner = currentUser && currentUser.role !== 'App Owner';
+      if (isNotAppOwner && selectedFiles.length > 0) {
+        // Delay slightly to let file state update
+        setTimeout(() => {
+          handlePreview();
+        }, 300);
+      }
     }
   };
 

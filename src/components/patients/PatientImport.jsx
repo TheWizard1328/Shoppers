@@ -273,6 +273,15 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     }
 
     setFiles(selectedFiles);
+    
+    // CRITICAL: Auto-generate preview for non-app-owners immediately after file selection
+    const isNotAppOwner = currentUser && currentUser.role !== 'App Owner';
+    if (isNotAppOwner && selectedFiles.length > 0) {
+      // Delay slightly to let file state update
+      setTimeout(() => {
+        generatePreview();
+      }, 300);
+    }
 
     const firstFile = selectedFiles[0];
     const reader = new FileReader();
