@@ -2384,7 +2384,7 @@ export default function DeliveryMap({
           )}
 
           {delivery.cod_total_amount_required > 0 && (
-            <div className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded">
+            <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ color: '#059669', background: 'rgba(5, 150, 105, 0.1)' }}>
               <span>💵 COD: ${delivery.cod_total_amount_required.toFixed(2)}</span>
             </div>
           )}
