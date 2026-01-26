@@ -125,26 +125,9 @@ export default function RealTimeRouteOptimizer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDriverId, selectedDate, currentUser, isActive, onRouteOptimized]);
 
-  // CRITICAL: Automatic optimization when page loads (for mobile drivers)
-  useEffect(() => {
-    // Only run once on mount
-    const isMobile = isMobileDevice();
-    const isDriver = currentUser && userHasRole(currentUser, 'driver');
-    const isCurrentDriver = currentUser && currentUser.id === selectedDriverId;
-
-    if (!isMobile || !isDriver || !isCurrentDriver || !isActive) {
-      return;
-    }
-
-    // Wait for data to load, then run optimization once
-    const timer = setTimeout(() => {
-      console.log('🚀 [RealTimeRouteOptimizer] Running initial optimization on page load...');
-      optimizeRoute();
-    }, 3000);
-
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only once on mount
+  // REMOVED: Automatic optimization on page load
+  // This was causing excessive Google Maps API hits on app refresh
+  // Optimization now only runs on manual trigger events
 
   return (
     <AnimatePresence>

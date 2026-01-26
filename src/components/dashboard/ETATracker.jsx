@@ -165,8 +165,8 @@ export default function ETATracker({
     window.addEventListener('routeOptimizationComplete', handleETAUpdateEvent);
     window.addEventListener('pendingToInTransit', handleETAUpdateEvent);
 
-    // Update ETAs immediately on mount
-    updateETAs();
+    // REMOVED: Automatic ETA update on mount/refresh - causing excessive Google Maps API hits
+    // ETAs now only update on specific events (status changes, route optimization)
 
     return () => {
       window.removeEventListener('deliveryStatusChanged', handleETAUpdateEvent);

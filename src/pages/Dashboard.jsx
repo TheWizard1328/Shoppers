@@ -3081,115 +3081,12 @@ function Dashboard() {
     };
   }, []);
 
-  // Periodic route optimizer - runs every 5 minutes for on-duty drivers who have moved 100m+
-  const lastRouteOptimizeLocationRef = useRef(null);
-
-  // Periodic route optimizer - ONLY for mobile drivers viewing their own route
-  useEffect(() => {
-    // CRITICAL: Only run for mobile devices with driver role viewing their own route
-    if (!isMobile || !userHasRole(currentUser, 'driver') || !currentUser) {
-      return;
-    }
-
-    if (!isDataLoaded || selectedDriverId !== currentUser.id || selectedDriverId === 'all') {
-      return;
-    }
-
-    const runRouteOptimizer = async () => {
-      try {
-        const dateStr = format(selectedDate, 'yyyy-MM-dd');
-
-        // CRITICAL: Only run if viewing today's date
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
-        if (dateStr !== todayStr) {
-          console.log('⏭️ [Route Optimizer] Skipping - not viewing today');
-          return;
-        }
-
-        // CRITICAL: Only run if driver is on_duty
-        const appUser = appUsers?.find((au) => au?.user_id === currentUser.id);
-        if (!appUser || appUser.driver_status !== 'on_duty') {
-          console.log('⏭️ [Route Optimizer] Skipping - driver not on_duty');
-          return;
-        }
-
-        // CRITICAL: Don't run optimizer if no deliveries loaded yet
-        if (!filteredDeliveries || filteredDeliveries.length === 0) {
-          return;
-        }
-
-        // Check if route is complete - stop running optimizer if no incomplete stops
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const hasIncompleteStops = filteredDeliveries.some((d) =>
-        d && !finishedStatuses.includes(d.status)
-        );
-
-        if (!hasIncompleteStops) {
-          console.log('⏭️ [Route Optimizer] Skipping - no incomplete stops');
-          return;
-        }
-
-        // CRITICAL: Only update if driver has moved 100m+ since last optimization
-        if (driverLocation?.latitude && driverLocation?.longitude) {
-          if (lastRouteOptimizeLocationRef.current) {
-            const distanceMoved = calculateDistance(
-              lastRouteOptimizeLocationRef.current.lat,
-              lastRouteOptimizeLocationRef.current.lon,
-              driverLocation.latitude,
-              driverLocation.longitude
-            ) * 1000; // Convert km to meters
-
-            if (distanceMoved < 100) {
-              console.log(`⏭️ [Route Optimizer] Skipping - driver moved only ${Math.round(distanceMoved)}m (< 100m)`);
-              return;
-            }
-            console.log(`✅ [Route Optimizer] Driver moved ${Math.round(distanceMoved)}m - optimizing route`);
-          }
-
-          // Store current location for next comparison
-          lastRouteOptimizeLocationRef.current = {
-            lat: driverLocation.latitude,
-            lon: driverLocation.longitude
-          };
-        } else {
-          console.log('⏭️ [Route Optimizer] Skipping - no driver location available');
-          return;
-        }
-
-        // Get current local time in HH:mm format
-        const now = new Date();
-        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-        console.log('📡 [Route Optimizer - 5min] Calling optimizeRouteRealTime...');
-        const response = await base44.functions.invoke('optimizeRouteRealTime', {
-          driverId: currentUser.id,
-          deliveryDate: dateStr,
-          currentLocalTime: localTimeString,
-          deviceTime: now.toISOString(),
-          generatePolyline: false
-        });
-        console.log('✅ [Route Optimizer - 5min] optimizeRouteRealTime completed');
-
-        // Trigger UI refresh
-        invalidateDeliveriesForDate(dateStr);
-        await refreshData();
-
-      } catch (error) {
-        console.warn('⚠️ [Route Optimizer - 5min] Failed:', error);
-      }
-    };
-
-    // Run after initial delay (5 minutes) to avoid competing with data load
-    const initialTimer = setTimeout(runRouteOptimizer, 300000);
-
-    // Then run every 5 minutes
-    const interval = setInterval(runRouteOptimizer, 300000);
-
-    return () => {
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-    };
-  }, [isMobile, isDriver, isDataLoaded, currentUser, selectedDriverId, selectedDate, filteredDeliveries, driverLocation, appUsers]);
+  // REMOVED: Periodic route optimizer that was causing excessive Google Maps API hits
+  // The app already has optimization built in via:
+  // - RealTimeRouteOptimizer (event-based)
+  // - Manual reoptimize FAB button
+  // - Optimization during specific workflows (start delivery, status changes)
+  // This 5-minute polling was redundant and causing rate limits
 
   useEffect(() => {
     // CRITICAL: Skip auto-center if initial FAB phase has been applied
