@@ -654,10 +654,16 @@ export const processPendingMutations = async () => {
   const mutations = await offlineDB.getPendingMutations();
   if (mutations.length === 0) return { success: true, processed: 0 };
   
+  // CRITICAL: Process max 50 mutations per batch to avoid rate limits
+  const BATCH_SIZE = 50;
+  const batch = mutations.slice(0, BATCH_SIZE);
+  
+  console.log(`🔄 [OfflineSync] Processing ${batch.length} of ${mutations.length} pending mutations...`);
+  
   let successCount = 0;
   let failCount = 0;
   
-  for (const mutation of mutations) {
+  for (const mutation of batch) {
     if (syncPaused) break;
     
     try {
@@ -687,18 +693,24 @@ export const processPendingMutations = async () => {
       
       await offlineDB.removePendingMutation(mutation.mutationId);
       successCount++;
-      await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+      
+      // CRITICAL: Longer delay between operations to avoid rate limits (2 seconds)
+      await new Promise(r => setTimeout(r, 2000));
     } catch (error) {
       await offlineDB.updateMutationRetry(mutation.mutationId, (mutation.retryCount || 0) + 1);
       failCount++;
       
+      // CRITICAL: If rate limited, wait 30 seconds before continuing
       if (error.response?.status === 429) {
-        await new Promise(r => setTimeout(r, 10000));
+        console.warn(`⚠️ [OfflineSync] Rate limited - waiting 30 seconds...`);
+        await new Promise(r => setTimeout(r, 30000));
       }
     }
   }
   
-  return { success: failCount === 0, processed: successCount, failed: failCount };
+  console.log(`✅ [OfflineSync] Batch complete: ${successCount} succeeded, ${failCount} failed, ${mutations.length - batch.length} remaining`);
+  
+  return { success: failCount === 0, processed: successCount, failed: failCount, remaining: mutations.length - batch.length };
 };
 
 export const forceSyncAll = async () => {
