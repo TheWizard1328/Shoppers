@@ -791,6 +791,26 @@ export default function DeliveryMap({
   // State to force re-render of driverRoutes when deliveries update
   const [routeRenderKey, setRouteRenderKey] = useState(0);
 
+  // Listen for screen orientation/size changes to update map view based on current FAB phase
+  useEffect(() => {
+    if (!map) return;
+    
+    const handleResize = () => {
+      console.log('🔄 [DeliveryMap] Screen resized - checking FAB phase for map update');
+      
+      // Dispatch event to trigger FAB phase re-application
+      window.dispatchEvent(new CustomEvent('screenResized'));
+    };
+    
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, [map]);
+
   // Listen for real-time driver location updates from SmartRefreshManager
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
