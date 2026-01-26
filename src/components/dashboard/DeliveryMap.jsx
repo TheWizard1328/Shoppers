@@ -2807,21 +2807,27 @@ export default function DeliveryMap({
               
               // CRITICAL: Get ALL stops (pickups + deliveries) sorted by stop_order
               const allRouteStops = [];
-              
+
               // Add pickups
               pickupMarkers.filter(p => p && p.driver_id === route.driverId)
                 .forEach(p => allRouteStops.push({ ...p, type: 'pickup' }));
-              
+
               // Add deliveries
               route.stops.forEach(d => allRouteStops.push({ ...d, type: 'delivery' }));
-              
+
               // Sort by stop_order
               allRouteStops.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-              
+
+              // CRITICAL POLYLINE RULE: For active routes, only draw segments between incomplete stops
+              // For completed routes, draw all segments
+              const visibleStops = isRouteCompleted 
+                ? allRouteStops 
+                : allRouteStops.filter(s => !FINISHED_STATUSES.includes(s.status) && s.status !== 'pending');
+
               // Create segments based on AM/PM rules
-              for (let i = 0; i < allRouteStops.length - 1; i++) {
-                const stop1 = allRouteStops[i];
-                const stop2 = allRouteStops[i + 1];
+              for (let i = 0; i < visibleStops.length - 1; i++) {
+                const stop1 = visibleStops[i];
+                const stop2 = visibleStops[i + 1];
                 
                 const stop1IsPickup = stop1.type === 'pickup';
                 const stop2IsPickup = stop2.type === 'pickup';
