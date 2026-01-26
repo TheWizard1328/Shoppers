@@ -5646,33 +5646,7 @@ function Dashboard() {
         }
       }
 
-      // Background: Recalculate stop orders on backend
-      recalculateStopOrders(driverId, deliveryDate).catch((error) =>
-      console.warn('⚠️ Stop order recalc failed:', error)
-      );
-
-      // Background: Update ETAs (mobile drivers only)
-      if (isMobile && userHasRole(currentUser, 'driver') && ['completed', 'failed', 'cancelled'].includes(newStatus)) {
-        const now = new Date();
-        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-        base44.functions.invoke('calculateRealTimeETA', {
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocalTime: localTimeString
-        }).catch((error) => console.warn('⚠️ ETA update failed:', error));
-      }
-
-      // Background: Fetch all drivers if Show All is enabled
-      if (showAllDriverMarkers) {
-        base44.entities.Delivery.filter({ delivery_date: deliveryDate }).then((allDriversDeliveries) => {
-          window.dispatchEvent(new CustomEvent('deliveriesImported', {
-            detail: { source: 'statusUpdate', deliveries: allDriversDeliveries }
-          }));
-        }).catch((error) => console.warn('⚠️ All drivers fetch failed:', error));
-      }
-
-      // STEP 10: Fetch fresh data and save to offline DB
+      // STEP 9: Fetch fresh data and save to offline DB BEFORE any background tasks
       console.log('🔄 [STATUS] Fetching fresh data...');
       const freshDeliveries = await base44.entities.Delivery.filter({
         driver_id: driverId,
@@ -5689,6 +5663,28 @@ function Dashboard() {
         }
       });
       console.log('   ✅ Protected deliveries from smart refresh');
+
+      // STEP 10: Wait for background tasks to complete
+      console.log('🔄 [STATUS] Waiting for background tasks...');
+      
+      // Background: Recalculate stop orders
+      await recalculateStopOrders(driverId, deliveryDate).catch((error) =>
+        console.warn('⚠️ Stop order recalc failed:', error)
+      );
+
+      // Background: Update ETAs (mobile drivers only)
+      if (isMobile && userHasRole(currentUser, 'driver') && ['completed', 'failed', 'cancelled'].includes(newStatus)) {
+        const now = new Date();
+        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        await base44.functions.invoke('calculateRealTimeETA', {
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocalTime: localTimeString
+        }).catch((error) => console.warn('⚠️ ETA update failed:', error));
+      }
+
+      console.log('✅ [STATUS] Background tasks complete');
 
     } catch (error) {
       console.error('❌ [STATUS] Error:', error.message);
