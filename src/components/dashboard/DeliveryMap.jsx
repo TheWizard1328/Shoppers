@@ -2798,17 +2798,53 @@ export default function DeliveryMap({
               
               if (!startPoint) return;
               
-              // Draw polylines to ALL active stops
-              allActiveStops.forEach(stop => {
+              // Blue polyline from start point to next stop
+              polylines.push(
+                <Polyline
+                  key={`start-to-next-no-marker-${driverId}-${nextStop.id}`}
+                  positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
+                  pathOptions={{
+                    color: '#3B82F6',
+                    weight: 4,
+                    opacity: 0.7,
+                    dashArray: '10, 5',
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                  }}
+                  pane="overlayPane"
+                />
+              );
+              
+              // Get all other active stops (exclude next stop and pending)
+              const otherActiveDeliveries = deliveryMarkers.filter(d => 
+                d && 
+                d.driver_id === driverId &&
+                d.id !== nextStop.id &&
+                (d.status === 'in_transit' || d.status === 'en_route') &&
+                d.status !== 'pending'
+              );
+              
+              const otherActivePickups = pickupMarkers.filter(p => 
+                p && 
+                p.driver_id === driverId &&
+                p.id !== nextStop.id &&
+                (p.status === 'in_transit' || p.status === 'en_route') &&
+                p.status !== 'pending'
+              );
+              
+              const otherActiveStops = [...otherActivePickups, ...otherActiveDeliveries]
+                .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+              
+              // Route lines from next stop to all other active stops
+              otherActiveStops.forEach(stop => {
                 polylines.push(
                   <Polyline
-                    key={`driver-to-stop-no-marker-${driverId}-${stop.id}`}
-                    positions={[startPoint, [stop.latitude, stop.longitude]]}
+                    key={`next-to-stop-no-marker-${driverId}-${stop.id}`}
+                    positions={[[nextStop.latitude, nextStop.longitude], [stop.latitude, stop.longitude]]}
                     pathOptions={{
                       color: driverColor,
-                      weight: 4,
-                      opacity: 0.7,
-                      dashArray: '10, 5',
+                      weight: 3,
+                      opacity: 0.6,
                       lineJoin: 'round',
                       lineCap: 'round'
                     }}
