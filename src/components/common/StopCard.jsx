@@ -2065,12 +2065,23 @@ export default function StopCard({
                       <Textarea
                     value={notesInput}
                     onChange={(e) => setNotesInput(e.target.value)}
+                    onFocus={(e) => {
+                      e.stopPropagation();
+                      if (notesInput === 'No driver notes') {
+                        setNotesInput('');
+                      }
+                    }}
                     onBlur={handleNotesBlur}
                     onKeyDown={handleNotesKeyDown}
                     onClick={(e) => e.stopPropagation()}
-                    placeholder="Add driver notes..."
+                    placeholder=""
                     className="text-base md:text-xs resize-none h-24"
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
+                    style={{ 
+                      background: 'var(--bg-white)', 
+                      borderColor: 'var(--border-slate-200)', 
+                      color: notesInput === 'No driver notes' ? 'var(--text-slate-400)' : 'var(--text-slate-900)',
+                      fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal'
+                    }}
                     disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
                     </div>
                 }
