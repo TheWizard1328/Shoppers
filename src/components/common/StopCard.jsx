@@ -139,7 +139,7 @@ export default function StopCard({
   const isNextDelivery = delivery?.isNextDelivery || false;
   // CRITICAL FIX: ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP
   // Initialize with delivery prop values to maintain consistency
-  const [notesInput, setNotesInput] = useState(delivery?.delivery_notes || "");
+  const [notesInput, setNotesInput] = useState(delivery?.delivery_notes || "No driver notes");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [codPayments, setCodPayments] = useState(delivery?.cod_payments || []);
   const [showCODCollection, setShowCODCollection] = useState(false);
@@ -234,7 +234,7 @@ export default function StopCard({
 
   // Sync state with delivery prop changes
   useEffect(() => {
-    setNotesInput(delivery?.delivery_notes || "");
+    setNotesInput(delivery?.delivery_notes || "No driver notes");
   }, [delivery?.delivery_notes]);
 
   useEffect(() => {
@@ -615,6 +615,16 @@ export default function StopCard({
   if (!delivery) return null;
 
   const handleNotesBlur = () => {
+    // If empty or default text, restore default display
+    if (!notesInput.trim() || notesInput.trim() === 'No driver notes') {
+      setNotesInput('No driver notes');
+      // Only update if there were actual notes before
+      if (delivery?.delivery_notes && delivery.delivery_notes.trim() && onNotesUpdate) {
+        onNotesUpdate(delivery.id, '');
+      }
+      return;
+    }
+    
     if (notesInput !== delivery.delivery_notes && onNotesUpdate) {
       onNotesUpdate(delivery.id, notesInput);
     }
