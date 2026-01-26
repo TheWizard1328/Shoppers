@@ -1257,6 +1257,8 @@ export default function StopCard({
               const status = pendingFailureStatus;
 
               try {
+                console.log('🔴 [FAILURE] Starting failure/cancel with reason:', reason);
+                
                 setShowFailureReasonDialog(false);
                 setPendingFailureStatus(null);
 
@@ -1301,14 +1303,18 @@ export default function StopCard({
                 const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
 
                 if (!onStatusUpdate) {
+                  console.error('❌ [FAILURE] onStatusUpdate is missing!');
                   toast.error('Status update function not available');
+                  fabControlEvents.reactivateFAB(true);
                   return;
                 }
 
+                console.log('📞 [FAILURE] Calling onStatusUpdate with status:', status);
                 await onStatusUpdate(delivery.id, status, {
                   delivery_notes: updatedNotes,
                   actual_delivery_time: localTimeString
                 }, false);
+                console.log('✅ [FAILURE] onStatusUpdate completed');
 
                 // Check if this is the FINAL stop
                 const allDriverDeliveries = allDeliveries.filter((d) =>
