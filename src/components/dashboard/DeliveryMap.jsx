@@ -1880,10 +1880,9 @@ export default function DeliveryMap({
       driverPickups.some((p) => p && FINISHED_STATUSES.includes(p.status));
     const isRouteStarted = hasActiveStops || hasCompletedStops;
 
-      // CRITICAL POLYLINE RULE: Always include all stops to build complete coordinates
-      // But filter which segments get drawn based on route status
-      let deliveriesToRoute = route.stops;
-      let pickupsToRoute = driverPickups;
+      // CRITICAL POLYLINE RULE: For active routes, filter to incomplete stops. For completed routes, show all
+      let deliveriesToRoute = isRouteCompleted ? route.stops : route.stops.filter((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status) && delivery.status !== 'pending');
+      let pickupsToRoute = isRouteCompleted ? driverPickups : driverPickups.filter((p) => p && !FINISHED_STATUSES.includes(p.status) && p.status !== 'pending');
 
       // CRITICAL: Calculate totalDriverStops using Dashboard stats rules
       // Patient deliveries + completed/cancelled after hours pickups
