@@ -856,6 +856,7 @@ export default function Layout({ children, currentPageName }) {
         // Sync catalog items from Square in background (5 seconds after init)
         setTimeout(async () => {
           try {
+            const { offlineDB } = await import('./components/utils/offlineDatabase');
             const response = await base44.functions.invoke('squareSyncCatalogItems', {});
             const items = response?.data?.items || response?.items || [];
             setCatalogItems(items);
@@ -886,6 +887,7 @@ export default function Layout({ children, currentPageName }) {
         const { markOfflineDBLoadComplete } = await import('./components/utils/dataManager');
         markOfflineDBLoadComplete();
 
+        setDataLoaded(true); // CRITICAL: Set data loaded to prevent bg sync re-triggering
         setIsLoadingLayout(false);
 
       } catch (error) {
@@ -922,13 +924,17 @@ export default function Layout({ children, currentPageName }) {
   useEffect(() => {
     if (!currentUser) return;
 
-    // CRITICAL: Offline DB sync DISABLED to prevent rate limit issues
-    // Historical data is fetched on-demand only when needed
-    // const syncTimer = setTimeout(() => {
-    //   const selectedDateStr = globalFilters.getSelectedDate();
-    //   const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
-    //   performInitialSync(selectedDate).catch(() => {});
-    // }, 60000);
+    // CRITICAL: Background sync runs ONCE after 60 seconds
+    const bgSyncTimer = setTimeout(async () => {
+      if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
+
+      const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+      const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
+
+      console.log('🔄 [Layout] Starting background sync for current month...');
+      const { performBackgroundSync } = await import('./components/utils/offlineSync');
+      performBackgroundSync(selectedDateStr, cityStoreIds).catch(() => {});
+    }, 60000);
 
     // Set up periodic mutation processing (every 60 seconds to avoid rate limits)
     const mutationSyncInterval = setInterval(() => {
