@@ -12,7 +12,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
-import * as offlineDB from './offlineDatabase';
+import { offlineDB } from './offlineDatabase';
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data, ids = null) => {
