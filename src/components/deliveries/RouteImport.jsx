@@ -700,6 +700,7 @@ export default function RouteImport({
     });
 
     const existingDeliveryIds = new Set(allDeliveriesData.map((d) => d.delivery_id).filter(Boolean));
+    const matchedExistingDeliveryIds = new Set(); // Track which existing deliveries we've already matched in THIS import
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
