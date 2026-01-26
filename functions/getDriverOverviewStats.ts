@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     console.log(`📊 [getDriverOverviewStats] Fetched ${deliveries?.length || 0} deliveries`);
 
     // Fetch all patients to check for returns
-    const patients = await base44.asServiceRole.entities.Delivery.filter({});
+    const patients = await base44.asServiceRole.entities.Patient.filter({});
     const patientMap = new Map((patients || []).map(p => [p.id, p]));
 
     // Helper function to check if delivery is a return
