@@ -2528,8 +2528,28 @@ export default function DeliveryMap({
             
             const driverColor = getDriverColor(currentUser);
             
+            // Get all active stops (excluding pending) sorted by stop_order
+            const allActiveDeliveries = deliveryMarkers.filter(d => 
+              d && 
+              d.driver_id === currentUser?.id &&
+              (d.status === 'in_transit' || d.status === 'en_route') &&
+              d.status !== 'pending'
+            );
+            
+            const allActivePickups = pickupMarkers.filter(p => 
+              p && 
+              p.driver_id === currentUser?.id &&
+              (p.status === 'in_transit' || p.status === 'en_route') &&
+              p.status !== 'pending'
+            );
+            
+            const allActiveStops = [...allActivePickups, ...allActiveDeliveries]
+              .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+            
+            const polylines = [];
+            
             // Draw blue polyline only to next stop
-            return (
+            polylines.push(
               <Polyline
                 key={`driver-to-next-${nextStop.id}`}
                 positions={[
@@ -2547,6 +2567,26 @@ export default function DeliveryMap({
                 pane="overlayPane"
               />
             );
+            
+            // Draw route polyline through all active stops (if more than 1)
+            if (allActiveStops.length > 1) {
+              polylines.push(
+                <Polyline
+                  key={`driver-route-${currentUser?.id}`}
+                  positions={allActiveStops.map(stop => [stop.latitude, stop.longitude])}
+                  pathOptions={{
+                    color: driverColor,
+                    weight: 3,
+                    opacity: 0.6,
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                  }}
+                  pane="overlayPane"
+                />
+              );
+            }
+            
+            return polylines;
           }
           
           // CRITICAL: For pure dispatchers (not drivers) viewing assigned drivers
