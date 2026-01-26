@@ -1904,46 +1904,47 @@ export default function DeliveryMap({
       let startToFirstStopCoordinates = null; // NEW: Track route from start to first stop
 
       if (pickupsToRoute.length === 0 && deliveriesToRoute.length === 0) {
-        coordinates = [];
-      } else {
-        // Combine pickups and deliveries into a single array with stop order info
-        const allStops = [
-          ...pickupsToRoute.map((pickup) => ({
-            type: 'pickup',
-            stop_order: pickup.display_stop_order || pickup.stop_order || 0,
-            latitude: pickup.latitude,
-            longitude: pickup.longitude,
-            store: pickup.store?.name,
-            time: pickup.delivery_time_start
-          })),
-          ...deliveriesToRoute.map((delivery) => ({
-            type: 'delivery',
-            stop_order: delivery.display_stop_order || delivery.stop_order || 0,
-            latitude: delivery.latitude,
-            longitude: delivery.longitude,
-            patient: delivery.patient?.full_name,
-            time: delivery.delivery_time_start
-          }))];
+          coordinates = [];
+        } else {
+          // Combine pickups and deliveries into a single array with stop order info
+          const allStops = [
+            ...pickupsToRoute.map((pickup) => ({
+              type: 'pickup',
+              stop_order: pickup.display_stop_order || pickup.stop_order || 0,
+              latitude: pickup.latitude,
+              longitude: pickup.longitude,
+              store: pickup.store?.name,
+              time: pickup.delivery_time_start
+            })),
+            ...deliveriesToRoute.map((delivery) => ({
+              type: 'delivery',
+              stop_order: delivery.display_stop_order || delivery.stop_order || 0,
+              latitude: delivery.latitude,
+              longitude: delivery.longitude,
+              patient: delivery.patient?.full_name,
+              time: delivery.delivery_time_start
+            }))];
 
-        allStops.sort((a, b) => a.stop_order - b.stop_order);
-        coordinates = allStops.map((stop) => [stop.latitude, stop.longitude]);
+          allStops.sort((a, b) => a.stop_order - b.stop_order);
+          coordinates = allStops.map((stop) => [stop.latitude, stop.longitude]);
 
-        if (allStops.length > 0) {
-          const firstStop = allStops[0];
-          firstStopCoordinates = [firstStop.latitude, firstStop.longitude];
-        }
+          if (allStops.length > 0) {
+            const firstStop = allStops[0];
+            firstStopCoordinates = [firstStop.latitude, firstStop.longitude];
+          }
 
-        if (allStops.length > 0) {
-          const lastStop = allStops[allStops.length - 1];
-          lastStopCoordinates = [lastStop.latitude, lastStop.longitude];
-          shouldShowHomeRoute = !isRouteCompleted && !isDispatcherNonAdmin;
-        }
+          if (allStops.length > 0) {
+            const lastStop = allStops[allStops.length - 1];
+            lastStopCoordinates = [lastStop.latitude, lastStop.longitude];
+            shouldShowHomeRoute = !isRouteCompleted && !isDispatcherNonAdmin && showLivePolylines;
+          }
 
-        // NEW: Determine starting point for visualization (routeHasActuallyStarted defined above)
-        // CRITICAL: Skip home-to-first-stop lines for other drivers when viewing self today
-        const isOtherDriverRoute = isDriverViewingSelfToday && route.driverId !== currentUser?.id;
-        
-        if (routeHasActuallyStarted && firstStopCoordinates && route.driver && !isOtherDriverRoute) {
+          // NEW: Determine starting point for visualization (routeHasActuallyStarted defined above)
+          // CRITICAL: Skip home-to-first-stop lines for other drivers when viewing self today
+          // CRITICAL: Only show starting lines for live routes (current date)
+          const isOtherDriverRoute = isDriverViewingSelfToday && route.driverId !== currentUser?.id;
+
+          if (routeHasActuallyStarted && firstStopCoordinates && route.driver && !isOtherDriverRoute && showLivePolylines) {
           let startPoint = null;
 
           if (currentUser && route.driver.id === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
