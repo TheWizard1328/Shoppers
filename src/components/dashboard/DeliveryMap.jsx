@@ -2803,7 +2803,7 @@ export default function DeliveryMap({
             // Main route line segments - NOW WITH AM/PM styling
             route.coordinates.length >= 2 && (() => {
               const segments = [];
-              
+
               // CRITICAL: Get ALL stops (pickups + deliveries) sorted by stop_order
               const allRouteStops = [];
 
@@ -2817,6 +2817,9 @@ export default function DeliveryMap({
               // Sort by stop_order
               allRouteStops.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
+              // Determine if route is completed (all stops finished)
+              const routeIsCompleted = route.isCompleted;
+
               // Create segments based on AM/PM rules
               for (let i = 0; i < allRouteStops.length - 1; i++) {
                 const stop1 = allRouteStops[i];
@@ -2824,7 +2827,7 @@ export default function DeliveryMap({
 
                 // CRITICAL POLYLINE RULE FOR ACTIVE ROUTES: Skip segments involving finished stops
                 // Only draw segments BETWEEN incomplete stops
-                if (!isRouteCompleted) {
+                if (!routeIsCompleted) {
                   const stop1Finished = FINISHED_STATUSES.includes(stop1.status) || stop1.status === 'pending';
                   const stop2Finished = FINISHED_STATUSES.includes(stop2.status) || stop2.status === 'pending';
                   if (stop1Finished || stop2Finished) continue; // Skip this segment
