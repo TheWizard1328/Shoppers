@@ -388,26 +388,22 @@ export default function StopCard({
     return false;
   }, [delivery, patient]);
 
-  const shouldRedact = useMemo(() => {
+  // NEW: Driver viewing finished deliveries should see limited info
+  const isDriverViewingFinished = useMemo(() => {
     if (!delivery || !currentUser) return false;
-    // Never redact regular pickups, InterStore deliveries, or InterStore pickups
+    // Never apply to pickups, InterStore deliveries, or InterStore pickups
     if (isPickup || isInterStore || isInterStorePickup) return false;
-    // Redact completed deliveries for drivers (not admins/dispatchers)
-    if (isCompleted &&
-    !userHasRole(currentUser, 'admin') &&
-    !userHasRole(currentUser, 'dispatcher') &&
-    userHasRole(currentUser, 'driver')) {
-      return true;
-    }
-    // Redact when route is complete for drivers
-    if (isRouteCompleted &&
-    !userHasRole(currentUser, 'admin') &&
-    !userHasRole(currentUser, 'dispatcher') &&
-    userHasRole(currentUser, 'driver')) {
-      return true;
-    }
-    return false;
+    // Only for drivers (not admins/dispatchers) viewing finished deliveries
+    if (!userHasRole(currentUser, 'driver')) return false;
+    if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) return false;
+    // Check if finished or route completed
+    return isCompleted || isRouteCompleted;
   }, [isCompleted, isPickup, isInterStore, isInterStorePickup, currentUser, delivery, isRouteCompleted]);
+
+  const shouldRedact = useMemo(() => {
+    // Redact name/address/phone for driver viewing finished deliveries
+    return isDriverViewingFinished;
+  }, [isDriverViewingFinished]);
 
   const shouldShowStoreBadge = useMemo(() => shouldShowStoreBadges(currentUser), [currentUser]);
 
@@ -979,10 +975,10 @@ export default function StopCard({
             </div>
           </div>
 
-          {/* Hide address/phone section for stripped deliveries OR finished deliveries that aren't expanded */}
-          {!isStrippedDelivery && (!isFinishedDelivery || isExpanded) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
+          {/* Hide address/phone section for drivers viewing finished deliveries OR finished deliveries that aren't expanded */}
+          {!isDriverViewingFinished && (!isFinishedDelivery || isExpanded) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
 
-          {!isStrippedDelivery && (!isFinishedDelivery || isExpanded) && <div className="flex flex-col">
+          {!isDriverViewingFinished && (!isFinishedDelivery || isExpanded) && <div className="flex flex-col">
             <div className="flex items-start justify-between">
             <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
             {finalDisplayAddress ?
@@ -1019,8 +1015,8 @@ export default function StopCard({
                 }
               </div>
 
-              {/* Navigation and Phone buttons - right justified - Only for assigned driver or app owner */}
-              {isAssignedDriverOrAppOwner &&
+              {/* Navigation and Phone buttons - right justified - Only for assigned driver or app owner - HIDE for driver viewing finished */}
+              {isAssignedDriverOrAppOwner && !isDriverViewingFinished &&
               <div className="mt-1 py-1 flex items-center gap-2 flex-shrink-0 min-h-[50px]">
                   {finalDisplayPhone &&
                 <a
@@ -1450,16 +1446,16 @@ export default function StopCard({
             {isExpanded &&
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }}>
                 <div className="pt-3 space-y-3 border-t mt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
-                  {/* Phone number - moved below divider - HIDE for finished patient deliveries AND stripped */}
-                  {finalDisplayPhone && !(isFinishedDelivery && !isPickup) && !isStrippedDelivery &&
+                  {/* Phone number - moved below divider - HIDE for drivers viewing finished deliveries */}
+                  {finalDisplayPhone && !isDriverViewingFinished &&
                 <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
                       <Phone className="w-4 h-4 mr-2 text-slate-500" />
                       <span className="text-xl md:text-base font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
                     </div>
                 }
 
-                  {/* COD Information - For active deliveries with COD required - HIDE for stripped */}
-                  {hasCODRequired && !isPickup && !isFinishedDelivery && !isStrippedDelivery &&
+                  {/* COD Information - For active deliveries with COD required - SHOW for drivers on finished */}
+                  {hasCODRequired && !isPickup && !isFinishedDelivery &&
                 <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
                       <span className="text-lg md:text-xs font-semibold text-amber-800">COD Required: ${codTotalRequired.toFixed(2)}</span>
                       {userHasRole(currentUser, 'driver') &&
@@ -1477,8 +1473,8 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* COD Collected - Show for active deliveries OR for finished deliveries with COD - HIDE for stripped */}
-                  {hasCODRequired && !isPickup && codPayments.length > 0 && !isStrippedDelivery &&
+                  {/* COD Collected - Show for active deliveries OR for finished deliveries with COD - Drivers can view but not edit when finished */}
+                  {hasCODRequired && !isPickup && codPayments.length > 0 &&
                 <div className={`flex items-center justify-between rounded-md px-2 py-1 ${isCODComplete ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
                       <span className={`text-lg md:text-xs font-semibold ${isCODComplete ? 'text-emerald-800' : 'text-amber-800'}`}>
                         COD Collected: {codPayments.map((payment, index) =>
@@ -1489,7 +1485,8 @@ export default function StopCard({
                     )}
                       </span>
                       {!isFinishedDelivery && userHasRole(currentUser, 'driver') ||
-                  isFinishedDelivery && userHasRole(currentUser, 'admin') ?
+                  isFinishedDelivery && userHasRole(currentUser, 'admin') ||
+                  isFinishedDelivery && userHasRole(currentUser, 'dispatcher') ?
                   <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs" onClick={(e) => {e.stopPropagation();setShowCODCollection(!showCODCollection);}}>Edit</Button> :
                   null}
                     </div>
@@ -1570,8 +1567,8 @@ export default function StopCard({
                   }
                   </AnimatePresence>
 
-                  {/* Patient Notes - Show for finished deliveries (only notes, no preferences/recurring) - HIDE for stripped */}
-                  {isFinishedDelivery && !isPickup && patient?.notes && !isStrippedDelivery &&
+                  {/* Patient Notes - Show for dispatchers/admins viewing finished deliveries - HIDE for drivers */}
+                  {isFinishedDelivery && !isPickup && patient?.notes && !isDriverViewingFinished &&
                 <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
@@ -1583,8 +1580,8 @@ export default function StopCard({
                   </div>
                 }
 
-                  {/* Full Patient Info - Only for non-finished deliveries - HIDE for stripped */}
-                  {!isFinishedDelivery && !isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) && !isStrippedDelivery &&
+                  {/* Full Patient Info - Only for non-finished deliveries */}
+                  {!isFinishedDelivery && !isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
                 <div className="flex items-start gap-2">
                 <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
@@ -1635,8 +1632,8 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* Show pending pickup list for pickups that are en_route (equivalent to in_transit for deliveries) - HIDE for finished AND stripped */}
-                  {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 && !isStrippedDelivery &&
+                  {/* Show pending pickup list for pickups that are en_route (equivalent to in_transit for deliveries) - HIDE for finished */}
+                  {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
                 <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-base md:text-xs font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
@@ -2028,66 +2025,46 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* Driver Notes - Always show for finished deliveries (whether stripped or not) */}
-                  {!isStrippedDelivery ? (
-                    isFinishedDelivery && !isPickup ? (
-                      <div className="space-y-1 mt-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
-                        </div>
-                        {delivery.delivery_notes ? (
-                          <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
-                            <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
-                          </div>
-                        ) : (
-                          <div className="text-base md:text-xs rounded px-2 py-1.5 italic" style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
-                            No driver notes
-                          </div>
-                        )}
+                  {/* Driver Notes - Always show for finished deliveries */}
+                  {isFinishedDelivery && !isPickup ? (
+                    <div className="space-y-1 mt-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
                       </div>
-                    ) : (
-                      <div className="space-y-1 mt-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
+                      {delivery.delivery_notes ? (
+                        <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                          <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
                         </div>
-                        <Textarea
-                        value={notesInput}
-                        onChange={(e) => setNotesInput(e.target.value)}
-                        onBlur={handleNotesBlur}
-                        onKeyDown={handleNotesKeyDown}
-                        onClick={(e) => e.stopPropagation()}
-                        placeholder="Add driver notes..."
-                        className="text-base md:text-xs resize-none h-16"
-                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
-                        disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
-                      </div>
-                    )
-                  ) : (
-                    /* Stripped finished deliveries - ONLY show driver notes (read-only) */
-                    isFinishedDelivery && (
-                      <div className="space-y-1 mt-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
+                      ) : (
+                        <div className="text-base md:text-xs rounded px-2 py-1.5 italic" style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                          No driver notes
                         </div>
-                        {delivery.delivery_notes ? (
-                          <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
-                            <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
-                          </div>
-                        ) : (
-                          <div className="text-base md:text-xs rounded px-2 py-1.5 italic" style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
-                            No driver notes
-                          </div>
-                        )}
+                      )}
+                    </div>
+                  ) : !isFinishedDelivery && (
+                    <div className="space-y-1 mt-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
                       </div>
-                    )
+                      <Textarea
+                      value={notesInput}
+                      onChange={(e) => setNotesInput(e.target.value)}
+                      onBlur={handleNotesBlur}
+                      onKeyDown={handleNotesKeyDown}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="Add driver notes..."
+                      className="text-base md:text-xs resize-none h-16"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
+                      disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
+                    </div>
                   )}
                 </div>
               </motion.div>
             }
           </AnimatePresence>
 
-          {/* FOOTER SECTION - Only visible to assigned driver or app owner, hidden for finished when not expanded */}
-          {!isStrippedDelivery && isAssignedDriverOrAppOwner && (!isFinishedDelivery || isExpanded) && <div className="space-y-3 mt-2">
+          {/* FOOTER SECTION - Hide for drivers viewing finished deliveries (unless retry/return available), show for dispatchers/admins */}
+          {(!isDriverViewingFinished || delivery.status === 'failed') && isAssignedDriverOrAppOwner && (!isFinishedDelivery || isExpanded) && <div className="space-y-3 mt-2">
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
@@ -2758,7 +2735,7 @@ export default function StopCard({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
-                          {onEditDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                          {onEditDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && !isStrippedDelivery &&
                         <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}} className="text-base md:text-sm py-2.5 md:py-1.5">
                               <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                               {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
@@ -2793,7 +2770,7 @@ export default function StopCard({
 
                           {onDeleteDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
 
-                          {onDeleteDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                          {onDeleteDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && !isStrippedDelivery &&
                         <DropdownMenuItem
                           onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}}
                           className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
