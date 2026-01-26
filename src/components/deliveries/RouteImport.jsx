@@ -702,6 +702,26 @@ export default function RouteImport({
     const existingDeliveryIds = new Set(allDeliveriesData.map((d) => d.delivery_id).filter(Boolean));
     const matchedExistingDeliveryIds = new Set(); // Track which existing deliveries we've already matched in THIS import
 
+    // CRITICAL: Pre-process to identify duplicate PIDs in THIS import
+    const pidCountInImport = new Map(); // PID -> count of how many stops being imported for this PID
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      
+      const dateMetaMatch = line.match(/^#(\d{4}-\d{2}-\d{2})#,(\d+),/);
+      if (dateMetaMatch) continue; // Skip date metadata
+      
+      const values = parseCSVLine(line);
+      if (values.length < 15) continue; // Skip invalid lines
+      
+      const patientPID = values[14]?.replace(/"/g, '').trim();
+      if (patientPID) {
+        pidCountInImport.set(patientPID, (pidCountInImport.get(patientPID) || 0) + 1);
+      }
+    }
+    console.log(`[RouteImport] Import analysis: Found ${pidCountInImport.size} unique PIDs. Duplicates:`, 
+      Array.from(pidCountInImport.entries()).filter(([_, count]) => count > 1).map(([pid, count]) => `${pid}(${count}x)`).join(', '));
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       lineNumber = i + 1;
