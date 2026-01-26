@@ -2575,7 +2575,7 @@ export default function DeliveryMap({
                   key={`driver-route-${currentUser?.id}`}
                   positions={allActiveStops.map(stop => [stop.latitude, stop.longitude])}
                   pathOptions={{
-                    color: driverColor,
+                    color: '#F97316',
                     weight: 3,
                     opacity: 0.6,
                     lineJoin: 'round',
