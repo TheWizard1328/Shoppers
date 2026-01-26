@@ -3653,6 +3653,17 @@ function Dashboard() {
   };
 
   const handleSaveDelivery = async (deliveryData) => {
+    // Pause ALL update systems for any delivery save
+    console.log('⏸️ [SAVE] Pausing ALL update systems...');
+    setIsEntityUpdating(true);
+    pauseOfflineMutations();
+    pauseOfflineSync();
+    
+    const { pauseSmartRefresh } = smartRefreshManager;
+    pauseSmartRefresh();
+    
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     try {
       if (deliveryData._isBatchSave && deliveryData._stagedDeliveries) {
         const stagedDeliveries = deliveryData._stagedDeliveries;
@@ -4820,6 +4831,19 @@ function Dashboard() {
       console.error('');
       alert(`Failed to save delivery: ${error.message}`);
       throw error;
+    } finally {
+      // Resume all systems
+      console.log('⏳ [SAVE] Waiting 1s before resuming...');
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      
+      console.log('▶️ [SAVE] Resuming ALL update systems');
+      resumeOfflineMutations();
+      resumeOfflineSync();
+      
+      const { resumeSmartRefresh } = smartRefreshManager;
+      resumeSmartRefresh();
+      
+      setIsEntityUpdating(false);
     }
   };
 
@@ -5021,6 +5045,17 @@ function Dashboard() {
   };
 
   const handleSavePatient = async (patientData, shouldReturnPatient = false) => {
+    // Pause ALL update systems
+    console.log('⏸️ [PATIENT SAVE] Pausing ALL update systems...');
+    setIsEntityUpdating(true);
+    pauseOfflineMutations();
+    pauseOfflineSync();
+    
+    const { pauseSmartRefresh } = smartRefreshManager;
+    pauseSmartRefresh();
+    
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     try {
       let savedPatient;
 
@@ -5059,6 +5094,19 @@ function Dashboard() {
       console.error('Error saving patient:', error);
       alert(`Failed to save patient: ${error.message || error}`);
       throw error;
+    } finally {
+      // Resume all systems
+      console.log('⏳ [PATIENT SAVE] Waiting 1s before resuming...');
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      
+      console.log('▶️ [PATIENT SAVE] Resuming ALL update systems');
+      resumeOfflineMutations();
+      resumeOfflineSync();
+      
+      const { resumeSmartRefresh } = smartRefreshManager;
+      resumeSmartRefresh();
+      
+      setIsEntityUpdating(false);
     }
   };
 
@@ -5180,6 +5228,16 @@ function Dashboard() {
 
   const handleRestartDelivery = async (deliveryId) => {
     try {
+      // Pause ALL update systems
+      console.log('⏸️ [RESTART] Pausing ALL update systems...');
+      setIsEntityUpdating(true);
+      pauseOfflineMutations();
+      pauseOfflineSync();
+      
+      const { pauseSmartRefresh } = smartRefreshManager;
+      pauseSmartRefresh();
+      
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Get original delivery from state
       const originalDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
@@ -5218,17 +5276,57 @@ function Dashboard() {
       // Recalculate stop orders
       await recalculateStopOrders(driverId, deliveryDate);
 
+      // Fetch fresh data and save to offline DB
+      console.log('🔄 [RESTART] Fetching fresh data...');
       invalidate('Delivery');
+      const freshDeliveries = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+      
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+      
+      // Protect from smart refresh overwrite
+      freshDeliveries.forEach(d => {
+        if (d?.id) {
+          smartRefreshManager.registerPendingUpdate(d.id, driverId, deliveryDate);
+        }
+      });
+
       await refreshData();
 
     } catch (error) {
       console.error('Error restarting delivery:', error);
       alert('Failed to restart delivery. Please try again.');
+    } finally {
+      // Resume all systems
+      console.log('⏳ [RESTART] Waiting 1s before resuming...');
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      
+      console.log('▶️ [RESTART] Resuming ALL update systems');
+      resumeOfflineMutations();
+      resumeOfflineSync();
+      
+      const { resumeSmartRefresh } = smartRefreshManager;
+      resumeSmartRefresh();
+      
+      setIsEntityUpdating(false);
     }
   };
 
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
     console.log('🚀 [STATUS] Starting status update - INSTANT UI mode');
+
+    // STEP 0: Pause ALL update systems
+    console.log('⏸️ [STATUS] Pausing ALL update systems...');
+    setIsEntityUpdating(true);
+    pauseOfflineMutations();
+    pauseOfflineSync();
+    
+    const { pauseSmartRefresh } = smartRefreshManager;
+    pauseSmartRefresh();
+    
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // CRITICAL: Capture current FAB state
     const wasPhase2Locked = mapViewPhase === 2 && isMapViewLocked;
@@ -5587,6 +5685,25 @@ function Dashboard() {
           }));
         }).catch((error) => console.warn('⚠️ All drivers fetch failed:', error));
       }
+
+      // STEP 10: Fetch fresh data and save to offline DB
+      console.log('🔄 [STATUS] Fetching fresh data...');
+      const freshDeliveries = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+      
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+      console.log('   ✅ Saved fresh deliveries to offline DB');
+
+      // Protect deliveries from smart refresh overwrite
+      freshDeliveries.forEach(d => {
+        if (d?.id) {
+          smartRefreshManager.registerPendingUpdate(d.id, driverId, deliveryDate);
+        }
+      });
+      console.log('   ✅ Protected deliveries from smart refresh');
+
     } catch (error) {
       console.error('❌ [STATUS] Error:', error.message);
 
@@ -5598,9 +5715,22 @@ function Dashboard() {
 
       alert('Failed to update delivery status. Please try again.');
     } finally {
-      // CRITICAL: Re-enable theme transitions immediately
+      // CRITICAL: Wait for DB writes then resume all systems
+      console.log('⏳ [STATUS] Waiting 1s before resuming update systems...');
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      
+      console.log('▶️ [STATUS] Resuming ALL update systems');
+      resumeOfflineMutations();
+      resumeOfflineSync();
+      
+      const { resumeSmartRefresh } = smartRefreshManager;
+      resumeSmartRefresh();
+      
+      setIsEntityUpdating(false);
+      
+      // CRITICAL: Re-enable theme transitions
       document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
-      console.log('✅ [STATUS] Status update complete - UI is interactive');
+      console.log('✅ [STATUS] Status update complete - all systems resumed');
     }
   };
 
@@ -5635,6 +5765,17 @@ function Dashboard() {
 
   const handleCreateReturn = async ({ originalDelivery, returnPatient, store }) => {
     try {
+      // Pause ALL update systems
+      console.log('⏸️ [RETURN] Pausing ALL update systems...');
+      setIsEntityUpdating(true);
+      pauseOfflineMutations();
+      pauseOfflineSync();
+      
+      const { pauseSmartRefresh } = smartRefreshManager;
+      pauseSmartRefresh();
+      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       const currentDate = format(new Date(), 'yyyy-MM-dd');
 
       // CRITICAL: Find the patient from the failed delivery
@@ -5704,15 +5845,44 @@ function Dashboard() {
         console.warn('⚠️ [RETURN] Failed to send notification:', notifyError);
       }
 
-      // Invalidate caches for both dates
+      // Fetch fresh data and save to offline DB
+      console.log('🔄 [RETURN] Fetching fresh data...');
       invalidateDeliveriesForDate(originalDelivery.delivery_date);
       invalidateDeliveriesForDate(currentDate);
       invalidate('Delivery');
+      
+      const freshDeliveries = await base44.entities.Delivery.filter({
+        driver_id: originalDelivery.driver_id,
+        delivery_date: currentDate
+      });
+      
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+      
+      // Protect from smart refresh overwrite
+      freshDeliveries.forEach(d => {
+        if (d?.id) {
+          smartRefreshManager.registerPendingUpdate(d.id, originalDelivery.driver_id, currentDate);
+        }
+      });
+
       await refreshData();
 
     } catch (error) {
       console.error('❌ [CREATE RETURN] Error:', error);
       throw error;
+    } finally {
+      // Resume all systems
+      console.log('⏳ [RETURN] Waiting 1s before resuming...');
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      
+      console.log('▶️ [RETURN] Resuming ALL update systems');
+      resumeOfflineMutations();
+      resumeOfflineSync();
+      
+      const { resumeSmartRefresh } = smartRefreshManager;
+      resumeSmartRefresh();
+      
+      setIsEntityUpdating(false);
     }
   };
 
