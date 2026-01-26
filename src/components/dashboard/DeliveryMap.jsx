@@ -2777,6 +2777,7 @@ export default function DeliveryMap({
                       color: '#F97316',
                       weight: 3,
                       opacity: 0.6,
+                      dashArray: '5, 5',
                       lineJoin: 'round',
                       lineCap: 'round'
                     }}
