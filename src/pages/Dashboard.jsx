@@ -5415,15 +5415,17 @@ function Dashboard() {
 
       // STEP 2: Update delivery status LOCALLY (instant)
       await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
-      // STEP 3: Update UI from offline DB immediately
-      console.log('🖥️ [STATUS] Refreshing UI from offline DB...');
-      const refreshedFromOffline = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
-
-      if (updateDeliveriesLocally && refreshedFromOffline) {
-        const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== deliveryDate);
-        updateDeliveriesLocally([...otherDeliveries, ...refreshedFromOffline], true);
+      
+      // STEP 3: Update UI state directly (no offline DB refresh to avoid timing issues)
+      console.log('🖥️ [STATUS] Updating UI state directly...');
+      if (updateDeliveriesLocally) {
+        // CRITICAL: Just update the single delivery that changed, don't wipe and replace all deliveries
+        const updatedDelivery = deliveries.find(d => d?.id === deliveryId);
+        if (updatedDelivery) {
+          updateDeliveriesLocally([{ ...updatedDelivery, ...updateData }], false);
+        }
       }
-      console.log('✅ [STATUS] UI updated from offline DB');
+      console.log('✅ [STATUS] UI state updated directly');
 
       // STEP 4: Update patient's last_delivery_date (background, non-blocking)
       if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
