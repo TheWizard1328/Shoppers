@@ -2028,34 +2028,54 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* Driver Notes - For finished deliveries, show read-only if notes exist */}
-                  {isFinishedDelivery && !isPickup ? (
-                    delivery.delivery_notes && (
+                  {/* Driver Notes - For finished deliveries, show read-only if notes exist OR stripped (always show for easy access) */}
+                  {!isStrippedDelivery ? (
+                    isFinishedDelivery && !isPickup ? (
+                      delivery.delivery_notes && (
+                        <div className="space-y-1 mt-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
+                          </div>
+                          <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                            <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
+                          </div>
+                        </div>
+                      )
+                    ) : (
                       <div className="space-y-1 mt-2">
                         <div className="flex items-center justify-between">
                           <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
                         </div>
-                        <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
-                          <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
-                        </div>
+                        <Textarea
+                        value={notesInput}
+                        onChange={(e) => setNotesInput(e.target.value)}
+                        onBlur={handleNotesBlur}
+                        onKeyDown={handleNotesKeyDown}
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="Add driver notes..."
+                        className="text-base md:text-xs resize-none h-16"
+                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
+                        disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
                       </div>
                     )
                   ) : (
-                    <div className="space-y-1 mt-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
+                    /* Stripped finished deliveries - ONLY show driver notes (read-only) */
+                    isFinishedDelivery && (
+                      <div className="space-y-1 mt-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
+                        </div>
+                        {delivery.delivery_notes ? (
+                          <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                            <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
+                          </div>
+                        ) : (
+                          <div className="text-base md:text-xs rounded px-2 py-1.5 italic" style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                            No driver notes
+                          </div>
+                        )}
                       </div>
-                      <Textarea
-                      value={notesInput}
-                      onChange={(e) => setNotesInput(e.target.value)}
-                      onBlur={handleNotesBlur}
-                      onKeyDown={handleNotesKeyDown}
-                      onClick={(e) => e.stopPropagation()}
-                      placeholder="Add driver notes..."
-                      className="text-base md:text-xs resize-none h-16"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
-                      disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
-                    </div>
+                    )
                   )}
                 </div>
               </motion.div>
