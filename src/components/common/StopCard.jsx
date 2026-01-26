@@ -798,7 +798,7 @@ export default function StopCard({
       style={{ scrollSnapAlign: 'center' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
-      <Card className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[338px] max-w-[338px] border-blue-500"
+      <Card className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[338px] max-w-[338px] border-blue-500 h-auto"
 
 
       onClick={() => {
@@ -814,7 +814,7 @@ export default function StopCard({
         opacity: shouldFade ? 0.4 : 1,
         transition: 'opacity 0.2s ease-in-out'
       }}>
-        <CardContent className="p-6 px-2 py-0 flex flex-col">
+        <CardContent className="p-6 px-2 py-0 flex flex-col h-auto">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
@@ -1448,7 +1448,7 @@ export default function StopCard({
           {/* BODY SECTION - Expandable */}
           <AnimatePresence>
             {isExpanded &&
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }}>
                 <div className="pt-3 space-y-3 border-t mt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                   {/* Phone number - moved below divider - HIDE for finished patient deliveries AND stripped */}
                   {finalDisplayPhone && !(isFinishedDelivery && !isPickup) && !isStrippedDelivery &&
