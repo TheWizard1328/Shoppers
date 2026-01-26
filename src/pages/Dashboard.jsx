@@ -5697,9 +5697,9 @@ function Dashboard() {
 
       alert('Failed to update delivery status. Please try again.');
     } finally {
-      // CRITICAL: Wait for DB writes then resume all systems
-      console.log('⏳ [STATUS] Waiting 1s before resuming update systems...');
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // CRITICAL: Wait longer for all writes and UI updates to complete
+      console.log('⏳ [STATUS] Waiting 3s before resuming update systems...');
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       
       console.log('▶️ [STATUS] Resuming ALL update systems');
       resumeOfflineMutations();
@@ -6152,9 +6152,9 @@ function Dashboard() {
         console.error('❌ [START] Failed to fetch fresh data:', refreshError);
       }
 
-      // STEP 10: Wait for DB writes to complete
-      console.log('⏳ [START] Waiting 1.5s before resuming update systems...');
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // STEP 10: Wait longer for all writes and UI updates to complete
+      console.log('⏳ [START] Waiting 3s before resuming update systems...');
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       
       // Resume all systems
       console.log('▶️ [START] Resuming ALL update systems');
