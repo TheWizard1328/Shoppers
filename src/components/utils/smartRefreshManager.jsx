@@ -38,18 +38,23 @@ class SmartRefreshManager {
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
     // Real-time refresh intervals (milliseconds)
-    // CRITICAL: DISABLED automatic polling - rely ONLY on offline DB + real-time WebSocket + manual refresh
+    // CRITICAL: Focus on active data (today) with 15-second cycle
+    // Historical data syncs opportunistically when rate limits are low
     this.intervals = {
-      driverLocation: 999999999,     // DISABLED - use offline DB + WebSocket only
-      activeDeliveries: 999999999,   // DISABLED - use offline DB + WebSocket only
-      todayDeliveries: 999999999,    // DISABLED - use offline DB + WebSocket only
-      appUsers: 999999999,           // DISABLED - use offline DB + WebSocket only
-      squareTransactions: 999999999, // DISABLED - use offline DB + WebSocket only
-      todayPatients: 999999999,      // DISABLED - use offline DB + WebSocket only
-      patients: 999999999,           // DISABLED - use offline DB + WebSocket only
-      stores: 999999999,             // DISABLED - use offline DB + WebSocket only
-      payroll: 999999999             // DISABLED - use offline DB + WebSocket only
+      activeRoute: 15000,            // 15s - TODAY's deliveries + driver locations (priority)
+      historicalDate: 999999999,     // Opportunistic - checked sequentially when rate limits allow
+      appUsers: 300000,              // 5min - driver status, assignments
+      squareTransactions: 600000,    // 10min - Square transaction updates
+      todayPatients: 600000,         // 10min - patients on today's routes
+      patients: 900000,              // 15min - all other patients
+      stores: 1800000,               // 30min - store data (rarely changes)
+      payroll: 300000                // 5min - payroll records
     };
+    
+    // Track historical date refresh queue
+    this.historicalDatesQueue = [];
+    this.currentHistoricalIndex = 0;
+    this.lastHistoricalCheck = 0;
     
     // Adaptive driver location refresh
     this._lastUserInteraction = Date.now();
@@ -60,9 +65,8 @@ class SmartRefreshManager {
     // Track last refresh time for each entity type
     // Initialize to 0 so the first refresh happens immediately
     this.lastRefreshTimes = {
-      driverLocation: 0,
-      activeDeliveries: 0,
-      todayDeliveries: 0,
+      activeRoute: 0,            // Combined: today's deliveries + driver locations
+      historicalDate: 0,         // Opportunistic historical sync
       appUsers: 0,
       squareTransactions: 0,
       todayPatients: 0,
@@ -269,9 +273,8 @@ class SmartRefreshManager {
       console.log('🔄 [SmartRefresh] Restarting - resetting all refresh timers');
       this._paused = false;
       this.lastRefreshTimes = {
-        driverLocation: 0,
-        activeDeliveries: 0,
-        todayDeliveries: 0,
+        activeRoute: 0,
+        historicalDate: 0,
         appUsers: 0,
         squareTransactions: 0,
         todayPatients: 0,
@@ -1747,14 +1750,135 @@ class SmartRefreshManager {
   }
 
   /**
-   * LIGHTWEIGHT smart refresh - polls for delivery and AppUser changes
-   * CRITICAL: ALWAYS unlocks refresh state in finally block to prevent stuck spinner
-   * @param {boolean} showAllDrivers - If true, fetch all drivers' deliveries
+   * Refresh ACTIVE route data (today's deliveries + driver locations)
+   * CRITICAL: 15-second cycle for real-time updates
+   */
+  async refreshActiveRoute(currentData, filters, showAllDrivers = false) {
+    const updates = {};
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    
+    try {
+      // STEP 1: Refresh driver locations (from API for live data)
+      await this.waitForRateLimit();
+      const locationResult = await this.refreshDriverLocations(currentData.appUsers, true);
+      if (locationResult?.hasChanges) {
+        updates.appUsers = locationResult.appUsers;
+      }
+      
+      // STEP 2: Refresh today's deliveries (from API for cross-device sync)
+      await this.waitForRateLimit();
+      const cityOnlyFilter = { delivery_date: todayStr };
+      
+      if (!showAllDrivers && filters.deliveryFilter?.driver_id) {
+        cityOnlyFilter.driver_id = filters.deliveryFilter.driver_id;
+      }
+      if (filters.deliveryFilter?.store_id) {
+        cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
+      }
+      
+      const fetchedDeliveries = await queueEntityRequest(
+        () => base44.entities.Delivery.filter(cityOnlyFilter),
+        `Delivery filter [active, ${todayStr}]`
+      );
+      
+      if (fetchedDeliveries && fetchedDeliveries.length > 0) {
+        const { offlineDB } = await import('./offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
+        
+        const currentTodayDeliveries = currentData.deliveries.filter(d => d && d.delivery_date === todayStr);
+        const otherDeliveries = currentData.deliveries.filter(d => d && d.delivery_date !== todayStr);
+        
+        const diff = diffEntityArrays(currentTodayDeliveries, fetchedDeliveries);
+        if (diff.toUpdate.length > 0 || diff.toAdd.length > 0 || diff.toRemove.length > 0) {
+          const mergedToday = mergeEntityChanges(currentTodayDeliveries, diff);
+          updates.deliveries = [...otherDeliveries, ...mergedToday];
+        }
+      }
+      
+      this.recordSuccess();
+      return Object.keys(updates).length > 0 ? updates : null;
+      
+    } catch (error) {
+      this.recordError();
+      this.recordConnectionError(error);
+      return null;
+    }
+  }
+  
+  /**
+   * Opportunistically check ONE historical date for updates
+   * Only runs when rate limits are low (no recent errors)
+   */
+  async checkOneHistoricalDate(currentDeliveries, historicalDates) {
+    // Skip if we have any recent errors (rate limits)
+    if (this.consecutiveErrors > 0 || Date.now() < this.errorCooldownUntil) {
+      return null;
+    }
+    
+    // Skip if no historical dates to check
+    if (!historicalDates || historicalDates.length === 0) {
+      return null;
+    }
+    
+    // Get next date to check (round-robin through the queue)
+    const dateToCheck = historicalDates[this.currentHistoricalIndex % historicalDates.length];
+    this.currentHistoricalIndex++;
+    
+    try {
+      await this.waitForRateLimit();
+      
+      const { offlineDB } = await import('./offlineDatabase');
+      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateToCheck);
+      
+      // Check if offline data is stale (> 5 minutes old)
+      const syncStatus = await offlineDB.getSyncStatus('Delivery');
+      const needsUpdate = !syncStatus || !syncStatus.lastSync || 
+        (Date.now() - new Date(syncStatus.lastSync).getTime() > 300000);
+      
+      if (needsUpdate) {
+        const fetchedDeliveries = await queueEntityRequest(
+          () => base44.entities.Delivery.filter({ delivery_date: dateToCheck }),
+          `Delivery filter [historical, ${dateToCheck}]`
+        );
+        
+        if (fetchedDeliveries && fetchedDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
+          
+          const currentDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date === dateToCheck);
+          const diff = diffEntityArrays(currentDateDeliveries, fetchedDeliveries);
+          
+          if (diff.toUpdate.length > 0 || diff.toAdd.length > 0 || diff.toRemove.length > 0) {
+            const otherDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateToCheck);
+            const mergedDate = mergeEntityChanges(currentDateDeliveries, diff);
+            
+            this.recordSuccess();
+            return {
+              hasChanges: true,
+              deliveries: [...otherDeliveries, ...mergedDate],
+              dateChecked: dateToCheck
+            };
+          }
+        }
+        
+        this.recordSuccess();
+      }
+      
+      return null;
+      
+    } catch (error) {
+      this.recordError();
+      console.warn(`⚠️ [SmartRefresh] Historical date ${dateToCheck} check failed:`, error.message);
+      return null;
+    }
+  }
+  
+  /**
+   * NEW: Combined smart refresh - 15s active route, opportunistic historical
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false, showAllDrivers = false) {
     // CRITICAL: When disabled, skip background polling
     if (!this._enabled) {
-      this.isRefreshing = false; // Always ensure unlocked
+      this.isRefreshing = false;
       return null;
     }
     
@@ -1791,61 +1915,35 @@ class SmartRefreshManager {
     const updates = {};
     
     try {
-      // Driver location refresh (fast polling)
-      if (this.shouldRefresh('driverLocation') && currentData.appUsers) {
-        try {
-          const locationResult = await this.refreshDriverLocations(currentData.appUsers);
-          if (locationResult?.hasChanges) {
-            updates.appUsers = locationResult.appUsers;
-          }
-          this.markRefreshed('driverLocation');
-        } catch (e) {
-          console.warn('⚠️ [SmartRefresh] Driver location refresh failed:', e.message);
+      // PRIORITY 1: Active route data (15-second cycle)
+      if (this.shouldRefresh('activeRoute')) {
+        const activeResult = await this.refreshActiveRoute(currentData, filters, showAllDrivers);
+        if (activeResult) {
+          Object.assign(updates, activeResult);
+        }
+        this.markRefreshed('activeRoute');
+      }
+      
+      // PRIORITY 2: Historical date sync (opportunistic, one at a time)
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const historicalDates = [...new Set(
+        currentData.deliveries
+          ?.filter(d => d && d.delivery_date && d.delivery_date !== todayStr)
+          ?.map(d => d.delivery_date)
+          ?.sort((a, b) => b.localeCompare(a)) // Most recent first
+      )];
+      
+      if (historicalDates.length > 0) {
+        const historicalResult = await this.checkOneHistoricalDate(currentData.deliveries, historicalDates);
+        if (historicalResult?.hasChanges) {
+          updates.deliveries = historicalResult.deliveries;
         }
       }
       
-      // CRITICAL: If Show All Drivers is enabled, force refresh of all drivers' deliveries
-      if (showAllDrivers && currentData.deliveries && this.shouldRefresh('activeDeliveries')) {
-        try {
-          const allDeliveriesResult = await this.refreshActiveDeliveryStatuses(
-            currentData.deliveries,
-            new Date(), // Will use current date internally
-            filters,
-            true // showAllDrivers = true
-          );
-          if (allDeliveriesResult?.hasChanges) {
-            updates.deliveries = allDeliveriesResult.deliveries;
-          }
-          this.markRefreshed('activeDeliveries');
-        } catch (e) {
-          console.warn('⚠️ [SmartRefresh] Show All Drivers refresh failed:', e.message);
-        }
-      }
-      
-      // Refresh today's deliveries (if not already updated by Show All)
-      if (!showAllDrivers && this.shouldRefresh('todayDeliveries') && currentData.deliveries && filters.selectedDate) {
-        try {
-          const deliveryResult = await this.refreshCurrentDayDeliveries(
-            currentData.deliveries,
-            filters.selectedDate,
-            filters.deliveryFilter || {},
-            currentData.stores || [],
-            currentData.drivers || []
-          );
-          if (deliveryResult?.hasChanges) {
-            updates.deliveries = deliveryResult.deliveries;
-          }
-          this.markRefreshed('todayDeliveries');
-        } catch (e) {
-          console.warn('⚠️ [SmartRefresh] Delivery refresh failed:', e.message);
-        }
-      }
-      
-      // Refresh today's patients
+      // PRIORITY 3: Background entity refreshes (longer intervals)
       if (this.shouldRefresh('todayPatients') && currentData.patients) {
         try {
           const todayDeliveries = currentData.deliveries?.filter(d => {
-            const todayStr = format(new Date(), 'yyyy-MM-dd');
             return d && d.delivery_date === todayStr;
           }) || [];
           
@@ -1859,7 +1957,7 @@ class SmartRefreshManager {
         }
       }
 
-      // Refresh AppUsers (includes driver status) - loaded from offline DB first
+      // Refresh AppUsers status (includes driver status)
       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
         try {
           const appUserResult = await this.refreshAppUsers(currentData.appUsers);
@@ -1872,7 +1970,7 @@ class SmartRefreshManager {
         }
       }
 
-      // Refresh Square Transactions (low priority, background)
+      // Refresh Square Transactions (low priority)
       if (this.shouldRefresh('squareTransactions')) {
         try {
           const squareTxResult = await this.refreshSquareTransactions(currentData.squareTransactions || []);
@@ -1884,14 +1982,6 @@ class SmartRefreshManager {
           console.warn('⚠️ [SmartRefresh] Square Transaction refresh failed:', e.message);
         }
       }
-
-      // CRITICAL: DISABLE periodic offline sync check - it was causing unnecessary reloads
-      // if (!this._lastOfflineSyncCheck || (Date.now() - this._lastOfflineSyncCheck > 120000)) {
-      //   this._lastOfflineSyncCheck = Date.now();
-      //   this.checkAndRestartOfflineSync().catch(e => {
-      //     console.warn('⚠️ [SmartRefresh] Offline sync check failed:', e.message);
-      //   });
-      // }
 
       const hasAnyUpdates = Object.keys(updates).length > 0;
       return hasAnyUpdates ? updates : null;
@@ -1960,9 +2050,8 @@ class SmartRefreshManager {
     
     switch (entityName) {
       case 'Delivery':
-        // Reset delivery refresh timer to force immediate refresh
-        this.lastRefreshTimes.activeDeliveries = 0;
-        this.lastRefreshTimes.todayDeliveries = 0;
+        // Reset active route timer to force immediate refresh
+        this.lastRefreshTimes.activeRoute = 0;
         break;
         
       case 'Patient':
@@ -1972,9 +2061,9 @@ class SmartRefreshManager {
         break;
         
       case 'AppUser':
-        // Reset AppUser refresh timer
+        // Reset active route timer (includes driver locations)
+        this.lastRefreshTimes.activeRoute = 0;
         this.lastRefreshTimes.appUsers = 0;
-        this.lastRefreshTimes.driverLocation = 0;
         break;
         
       case 'Store':
