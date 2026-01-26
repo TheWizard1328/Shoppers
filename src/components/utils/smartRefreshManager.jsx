@@ -38,17 +38,17 @@ class SmartRefreshManager {
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
     // Real-time refresh intervals (milliseconds)
-    // CRITICAL: MASSIVELY INCREASED to prevent rate limiting - rely on offline DB + real-time WebSocket instead
+    // CRITICAL: DISABLED automatic polling - rely ONLY on offline DB + real-time WebSocket + manual refresh
     this.intervals = {
-      driverLocation: 120000,     // 2min - driver GPS locations (offline DB primary)
-      activeDeliveries: 120000,   // 2min - today's active delivery statuses (offline DB primary)
-      todayDeliveries: 120000,    // 2min - today's delivery changes only (offline DB primary)
-      appUsers: 300000,           // 5min - driver status, assignments (offline DB primary)
-      squareTransactions: 600000, // 10min - Square transaction updates (offline DB primary)
-      todayPatients: 600000,      // 10min - patients on today's routes (offline DB primary)
-      patients: 900000,           // 15min - all other patients (offline DB primary)
-      stores: 1800000,            // 30min - store data (rarely changes, offline DB primary)
-      payroll: 300000             // 5min - payroll records
+      driverLocation: 999999999,     // DISABLED - use offline DB + WebSocket only
+      activeDeliveries: 999999999,   // DISABLED - use offline DB + WebSocket only
+      todayDeliveries: 999999999,    // DISABLED - use offline DB + WebSocket only
+      appUsers: 999999999,           // DISABLED - use offline DB + WebSocket only
+      squareTransactions: 999999999, // DISABLED - use offline DB + WebSocket only
+      todayPatients: 999999999,      // DISABLED - use offline DB + WebSocket only
+      patients: 999999999,           // DISABLED - use offline DB + WebSocket only
+      stores: 999999999,             // DISABLED - use offline DB + WebSocket only
+      payroll: 999999999             // DISABLED - use offline DB + WebSocket only
     };
     
     // Adaptive driver location refresh
