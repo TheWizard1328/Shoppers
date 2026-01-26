@@ -2528,13 +2528,13 @@ export default function DeliveryMap({
             
             const driverColor = getDriverColor(currentUser);
             
-            // Draw polyline to each active stop
-            return allActiveStops.map(stop => (
+            // Draw blue polyline only to next stop
+            return (
               <Polyline
-                key={`driver-to-stop-${stop.id}`}
+                key={`driver-to-next-${nextStop.id}`}
                 positions={[
                   startPoint,
-                  [stop.latitude, stop.longitude]
+                  [nextStop.latitude, nextStop.longitude]
                 ]}
                 pathOptions={{
                   color: '#3B82F6',
@@ -2546,7 +2546,7 @@ export default function DeliveryMap({
                 }}
                 pane="overlayPane"
               />
-            ));
+            );
           }
           
           // CRITICAL: For pure dispatchers (not drivers) viewing assigned drivers
