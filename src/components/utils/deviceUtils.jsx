@@ -4,15 +4,21 @@
  */
 
 /**
- * Detects device type and operating system from user agent
+ * Detects device type and operating system from user agent and screen width
+ * Wide-screen devices (> 525px = 1.75 × statscard width) are treated as desktop even if mobile user agent
  * @returns {Object} - { deviceType: 'Mobile'|'Desktop', os: string }
  */
 export const getUserAgentInfo = () => {
   const ua = navigator.userAgent;
 
-  // Detect device type
-  const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-  const deviceType = isMobileDevice ? 'Mobile' : 'Desktop';
+  // Detect device type from user agent
+  const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  
+  // Override mobile detection for wide screens (1.75 × 300px statscard width = 525px)
+  const screenWidth = window.innerWidth;
+  const MOBILE_THRESHOLD = 525; // 1.75 × statscard width (300px)
+  
+  const deviceType = (isMobileUserAgent && screenWidth <= MOBILE_THRESHOLD) ? 'Mobile' : 'Desktop';
 
   // Detect OS
   let os = 'Unknown OS';
