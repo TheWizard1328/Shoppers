@@ -2676,42 +2676,73 @@ export default function DeliveryMap({
               if (processedDrivers.has(driverId)) return;
               processedDrivers.add(driverId);
 
-              // Get ALL active stops (in_transit, en_route), exclude pending and finished
-              const activeDeliveries = deliveryMarkers.filter(d => 
+              // Get next stop (isNextDelivery=true), exclude pending
+              const nextStop = deliveryMarkers.find(d => 
                 d && 
                 d.driver_id === driverId &&
-                (d.status === 'in_transit' || d.status === 'en_route') &&
+                d.isNextDelivery === true &&
                 !finishedStatuses.includes(d.status) &&
                 d.status !== 'pending'
-              );
-
-              const activePickups = pickupMarkers.filter(p => 
+              ) || pickupMarkers.find(p => 
                 p && 
                 p.driver_id === driverId &&
-                (p.status === 'in_transit' || p.status === 'en_route') &&
+                p.isNextDelivery === true &&
                 !finishedStatuses.includes(p.status) &&
                 p.status !== 'pending'
               );
 
-              const allActiveStops = [...activePickups, ...activeDeliveries]
-                .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-              if (allActiveStops.length === 0) return;
+              if (!nextStop) return;
 
               const driverObj = safeUsers.find(u => u && u.id === driverId);
               const driverColor = driverObj ? getDriverColor(driverObj) : '#607D8B';
 
-              // Draw polylines to ALL active stops
-              allActiveStops.forEach(stop => {
+              // Blue polyline from driver to next stop
+              polylines.push(
+                <Polyline
+                  key={`driver-to-next-${driverId}-${nextStop.id}`}
+                  positions={[[location.latitude, location.longitude], [nextStop.latitude, nextStop.longitude]]}
+                  pathOptions={{
+                    color: '#3B82F6',
+                    weight: 4,
+                    opacity: 0.7,
+                    dashArray: '10, 5',
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                  }}
+                  pane="overlayPane"
+                />
+              );
+
+              // Get all other active stops (exclude next stop and pending)
+              const otherActiveDeliveries = deliveryMarkers.filter(d => 
+                d && 
+                d.driver_id === driverId &&
+                d.id !== nextStop.id &&
+                (d.status === 'in_transit' || d.status === 'en_route') &&
+                d.status !== 'pending'
+              );
+
+              const otherActivePickups = pickupMarkers.filter(p => 
+                p && 
+                p.driver_id === driverId &&
+                p.id !== nextStop.id &&
+                (p.status === 'in_transit' || p.status === 'en_route') &&
+                p.status !== 'pending'
+              );
+
+              const otherActiveStops = [...otherActivePickups, ...otherActiveDeliveries]
+                .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+              // Route lines from next stop to all other active stops
+              otherActiveStops.forEach(stop => {
                 polylines.push(
                   <Polyline
-                    key={`driver-to-stop-${driverId}-${stop.id}`}
-                    positions={[[location.latitude, location.longitude], [stop.latitude, stop.longitude]]}
+                    key={`next-to-stop-${driverId}-${stop.id}`}
+                    positions={[[nextStop.latitude, nextStop.longitude], [stop.latitude, stop.longitude]]}
                     pathOptions={{
                       color: driverColor,
-                      weight: 4,
-                      opacity: 0.7,
-                      dashArray: '10, 5',
+                      weight: 3,
+                      opacity: 0.6,
                       lineJoin: 'round',
                       lineCap: 'round'
                     }}
