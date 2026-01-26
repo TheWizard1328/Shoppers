@@ -2666,23 +2666,27 @@ export default function DeliveryMap({
               if (processedDrivers.has(driverId)) return;
               processedDrivers.add(driverId);
               
-              const driverIncompleteDeliveries = deliveryMarkers.filter(d => 
-                d && d.driver_id === driverId && !finishedStatuses.includes(d.status) && d.status !== 'pending'
-              ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+              // Get ONLY next stop (isNextDelivery=true), exclude pending
+              const nextStop = deliveryMarkers.find(d => 
+                d && 
+                d.driver_id === driverId &&
+                d.isNextDelivery === true &&
+                !finishedStatuses.includes(d.status) &&
+                d.status !== 'pending'
+              ) || pickupMarkers.find(p => 
+                p && 
+                p.driver_id === driverId &&
+                p.isNextDelivery === true &&
+                !finishedStatuses.includes(p.status) &&
+                p.status !== 'pending'
+              );
               
-              const driverIncompletePickups = pickupMarkers.filter(p => 
-                p && p.driver_id === driverId && !finishedStatuses.includes(p.status) && p.status !== 'pending'
-              ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-              
-              const driverAllIncomplete = [...driverIncompletePickups, ...driverIncompleteDeliveries]
-                .sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-              
-              if (driverAllIncomplete.length === 0) return;
+              if (!nextStop) return;
               
               const driverObj = safeUsers.find(u => u && u.id === driverId);
               const driverColor = driverObj ? getDriverColor(driverObj) : '#607D8B';
-              const nextStop = driverAllIncomplete[0];
               
+              // ONLY draw polyline to next stop
               polylines.push(
                 <Polyline
                   key={`driver-to-next-${driverId}-${nextStop.id}`}
@@ -2698,24 +2702,6 @@ export default function DeliveryMap({
                   pane="overlayPane"
                 />
               );
-              
-              if (driverAllIncomplete.length >= 2) {
-                polylines.push(
-                  <Polyline
-                    key={`driver-route-${driverId}`}
-                    positions={driverAllIncomplete.map(stop => [stop.latitude, stop.longitude])}
-                    pathOptions={{
-                      color: driverColor,
-                      weight: 3,
-                      opacity: 0.6,
-                      dashArray: '8, 4',
-                      lineJoin: 'round',
-                      lineCap: 'round'
-                    }}
-                    pane="overlayPane"
-                  />
-                );
-              }
             });
           } else {
             // No location markers visible - still draw polylines from last completed stop or home location
