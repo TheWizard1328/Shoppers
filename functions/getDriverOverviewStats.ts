@@ -9,31 +9,39 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { year, storeIds } = await req.json();
+    const { year, storeIds, forceRefresh = false } = await req.json();
     
     console.log('📊 [getDriverOverviewStats] Params:', { year, storeIds: storeIds?.length });
 
-    // CRITICAL: Check cache first to avoid recalculating
+    // CRITICAL: Check cache first to avoid recalculating (unless force refresh)
     const storeIdsHash = storeIds && storeIds.length > 0 ? storeIds.sort().join(',') : 'all';
     const cacheFilter = { year: year || 'all', store_ids_hash: storeIdsHash };
     
-    const cachedStats = await base44.asServiceRole.entities.DriverOverviewStatsCache.filter(cacheFilter);
-    
-    if (cachedStats && cachedStats.length > 0) {
-      const cache = cachedStats[0];
-      const cacheAge = Date.now() - new Date(cache.calculated_at).getTime();
+    if (!forceRefresh) {
+      const cachedStats = await base44.asServiceRole.entities.DriverOverviewStatsCache.filter(cacheFilter);
       
-      // Use cache if less than 1 hour old
-      if (cacheAge < 3600000) {
-        console.log(`✅ [getDriverOverviewStats] Using cached stats (age: ${Math.round(cacheAge / 60000)}min)`);
-        return Response.json({
-          year: cache.year,
-          driverStats: cache.driver_stats,
-          totalDrivers: cache.driver_stats.length,
-          totalDeliveries: cache.driver_stats.reduce((sum, d) => sum + d.totalStops, 0),
-          fromCache: true
-        });
+      if (cachedStats && cachedStats.length > 0) {
+        const cache = cachedStats[0];
+        const cacheAge = Date.now() - new Date(cache.calculated_at).getTime();
+        
+        // CRITICAL: Extended cache for historical years (24 hours), current year (1 hour)
+        const currentYear = new Date().getFullYear();
+        const isCurrentYear = !year || year === 'all' || parseInt(year) === currentYear;
+        const maxCacheAge = isCurrentYear ? 3600000 : 86400000; // 1hr current, 24hr historical
+        
+        if (cacheAge < maxCacheAge) {
+          console.log(`✅ [getDriverOverviewStats] Using cached stats (age: ${Math.round(cacheAge / 60000)}min)`);
+          return Response.json({
+            year: cache.year,
+            driverStats: cache.driver_stats,
+            totalDrivers: cache.driver_stats.length,
+            totalDeliveries: cache.driver_stats.reduce((sum, d) => sum + d.totalStops, 0),
+            fromCache: true
+          });
+        }
       }
+    } else {
+      console.log('🔄 [getDriverOverviewStats] Force refresh requested, bypassing cache...');
     }
 
     console.log('🔄 [getDriverOverviewStats] Cache miss or expired, calculating fresh stats...');
@@ -198,9 +206,12 @@ Deno.serve(async (req) => {
         calculated_at: new Date().toISOString()
       };
 
+      // Re-fetch cache to avoid race conditions
+      const latestCache = await base44.asServiceRole.entities.DriverOverviewStatsCache.filter(cacheFilter);
+      
       // Update existing cache or create new one
-      if (cachedStats && cachedStats.length > 0) {
-        await base44.asServiceRole.entities.DriverOverviewStatsCache.update(cachedStats[0].id, cacheData);
+      if (latestCache && latestCache.length > 0) {
+        await base44.asServiceRole.entities.DriverOverviewStatsCache.update(latestCache[0].id, cacheData);
         console.log('💾 [getDriverOverviewStats] Updated cache');
       } else {
         await base44.asServiceRole.entities.DriverOverviewStatsCache.create(cacheData);
