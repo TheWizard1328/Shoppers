@@ -6133,14 +6133,11 @@ function Dashboard() {
         });
         console.log('   ✅ Protected deliveries from smart refresh');
 
-        // Update UI
+        // Update UI incrementally to avoid clearing screen
         if (updateDeliveriesLocally) {
-          const otherDeliveries = deliveries.filter((d) => 
-            d && d.delivery_date !== finalRefreshedDeliveries[0]?.delivery_date
-          );
-          updateDeliveriesLocally([...otherDeliveries, ...finalRefreshedDeliveries], true);
+          updateDeliveriesLocally(finalRefreshedDeliveries, false);
         }
-        console.log('   ✅ UI updated with fresh data');
+        console.log('   ✅ UI updated incrementally');
 
         // Force map update
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
