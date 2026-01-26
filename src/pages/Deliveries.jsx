@@ -3628,7 +3628,7 @@ export default function DeliveriesPage() {
                   await loadData(true);
                 }
               }}
-              onDeleteMonth={async (year, month) => {
+              onDeleteMonth={async (year, month, driverId) => {
                 try {
                   const monthStart = new Date(year, month, 1);
                   const monthEnd = new Date(year, month + 1, 0);
@@ -3636,11 +3636,12 @@ export default function DeliveriesPage() {
                   const endDateStr = format(monthEnd, 'yyyy-MM-dd');
 
                   const deliveriesToDelete = driverFilteredDeliveries.filter(
-                    (d) => d.delivery_date >= startDateStr && d.delivery_date <= endDateStr
+                    (d) => d.delivery_date >= startDateStr && d.delivery_date <= endDateStr && 
+                    (driverId ? (d.driver_id === driverId) : true)
                   );
                   const deliveryIds = deliveriesToDelete.map((d) => d.id);
 
-                  console.log(`🗑️ [DeleteMonth] Batch deleting ${deliveryIds.length} deliveries for ${format(monthStart, 'MMMM yyyy')}`);
+                  console.log(`🗑️ [DeleteMonth] Batch deleting ${deliveryIds.length} deliveries for ${format(monthStart, 'MMMM yyyy')}${driverId ? ` (driver: ${driverId})` : ''}`);
 
                   await batchDeleteDeliveriesLocal(deliveryIds, {
                     userId: currentUser?.id,
@@ -3737,7 +3738,7 @@ export default function DeliveriesPage() {
                     await loadData(true);
                   }
                 }}
-                onDeleteMonth={async (year, month) => {
+                onDeleteMonth={async (year, month, driverId) => {
                   try {
                     const monthStart = new Date(year, month, 1);
                     const monthEnd = new Date(year, month + 1, 0);
@@ -3745,11 +3746,12 @@ export default function DeliveriesPage() {
                     const endDateStr = format(monthEnd, 'yyyy-MM-dd');
 
                     const deliveriesToDelete = driverFilteredDeliveries.filter(
-                      (d) => d.delivery_date >= startDateStr && d.delivery_date <= endDateStr
+                      (d) => d.delivery_date >= startDateStr && d.delivery_date <= endDateStr && 
+                      (driverId ? (d.driver_id === driverId) : true)
                     );
                     const deliveryIds = deliveriesToDelete.map((d) => d.id);
 
-                    console.log(`🗑️ [DeleteMonth-Mobile] Batch deleting ${deliveryIds.length} deliveries for ${format(monthStart, 'MMMM yyyy')}`);
+                    console.log(`🗑️ [DeleteMonth-Mobile] Batch deleting ${deliveryIds.length} deliveries for ${format(monthStart, 'MMMM yyyy')}${driverId ? ` (driver: ${driverId})` : ''}`);
 
                     await batchDeleteDeliveriesLocal(deliveryIds, {
                       userId: currentUser?.id,
