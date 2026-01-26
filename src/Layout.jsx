@@ -843,10 +843,10 @@ export default function Layout({ children, currentPageName }) {
         const today = new Date();
 
         // CRITICAL: Load initial COD data from offline DB first to prevent rate limits
-        const { offlineDB } = await import('./components/utils/offlineDatabase');
-        const offlineSquareConfigs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
-        const offlineSquareTx = await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS);
-        const offlineCatalogItems = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
+        const { offlineDB: offlineDBInstance } = await import('./components/utils/offlineDatabase');
+        const offlineSquareConfigs = await offlineDBInstance.getAll(offlineDBInstance.STORES.SQUARE_LOCATION_CONFIGS);
+        const offlineSquareTx = await offlineDBInstance.getAll(offlineDBInstance.STORES.SQUARE_TRANSACTIONS);
+        const offlineCatalogItems = await offlineDBInstance.getAll(offlineDBInstance.STORES.SQUARE_CATALOG_ITEMS);
 
         // Use offline data if available, otherwise empty arrays (load in background later)
         setSquareLocationConfigs(offlineSquareConfigs || []);
