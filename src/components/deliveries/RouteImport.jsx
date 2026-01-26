@@ -332,14 +332,22 @@ export default function RouteImport({
       }
       
       // CRITICAL: If no exact SID match but we have a patient, try PID + update SID
+      // BUT ONLY if there's exactly 1 existing stop for this PID (not multiple)
       if (importedDeliveryPatientId) {
-        const pidMatch = sameDateDeliveries.find((d) => d.patient_id === importedDeliveryPatientId);
-        if (pidMatch && pidMatch.stop_id !== importedDeliveryStopId) {
-          // Found matching patient delivery with different SID - update the SID
-          return { 
-            match: pidMatch, 
-            reason: `PID Match - SID will be updated from "${pidMatch.stop_id || 'none'}" to "${importedDeliveryStopId}"` 
-          };
+        const existingStopsForPID = sameDateDeliveries.filter((d) => d.patient_id === importedDeliveryPatientId);
+        // Only match and update SID if there's exactly 1 existing stop for this PID
+        if (existingStopsForPID.length === 1) {
+          const pidMatch = existingStopsForPID[0];
+          if (pidMatch && pidMatch.stop_id !== importedDeliveryStopId) {
+            // Found SINGLE matching patient delivery with different SID - update the SID
+            return { 
+              match: pidMatch, 
+              reason: `PID Match (single stop) - SID will be updated from "${pidMatch.stop_id || 'none'}" to "${importedDeliveryStopId}"` 
+            };
+          }
+        } else if (existingStopsForPID.length > 1) {
+          // Multiple existing stops for this PID - don't match, create new instead
+          return { match: null, reason: `Multiple stops for PID (${existingStopsForPID.length} existing) - SID mismatch, creating new to avoid overwrite` };
         }
       }
 
