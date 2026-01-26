@@ -1752,6 +1752,7 @@ class SmartRefreshManager {
   /**
    * Refresh ACTIVE route data (today's deliveries + driver locations)
    * CRITICAL: 15-second cycle for real-time updates
+   * @param {boolean} showAllDrivers - If true, refreshes ALL drivers' data regardless of selected driver
    */
   async refreshActiveRoute(currentData, filters, showAllDrivers = false) {
     const updates = {};
@@ -1759,19 +1760,26 @@ class SmartRefreshManager {
     
     try {
       // STEP 1: Refresh driver locations (from API for live data)
+      // CRITICAL: When showAllDrivers=true, MUST refresh ALL AppUsers to update markers
       await this.waitForRateLimit();
       const locationResult = await this.refreshDriverLocations(currentData.appUsers, true);
       if (locationResult?.hasChanges) {
         updates.appUsers = locationResult.appUsers;
+        console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
       }
       
       // STEP 2: Refresh today's deliveries (from API for cross-device sync)
       await this.waitForRateLimit();
       const cityOnlyFilter = { delivery_date: todayStr };
       
+      // CRITICAL: When showAllDrivers=true, fetch ALL drivers' deliveries (no driver_id filter)
       if (!showAllDrivers && filters.deliveryFilter?.driver_id) {
         cityOnlyFilter.driver_id = filters.deliveryFilter.driver_id;
+        console.log(`📦 [ActiveRoute] Filtering by driver: ${filters.deliveryFilter.driver_id}`);
+      } else if (showAllDrivers) {
+        console.log(`📦 [ActiveRoute] Show All mode - fetching ALL drivers for ${todayStr}`);
       }
+      
       if (filters.deliveryFilter?.store_id) {
         cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
       }
