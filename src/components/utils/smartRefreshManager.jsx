@@ -1041,13 +1041,26 @@ class SmartRefreshManager {
    * Fast driver location refresh with adaptive intervals
    * @param currentAppUsers - Current AppUser data
    * @param forceRefresh - If true, bypasses the interval check (for initial load)
+   * @param selectedDate - The date currently being viewed (optional)
    * CRITICAL: Never throws - always returns null on error to prevent stuck refresh
+   * CRITICAL: Skips refresh if viewing past dates (no active deliveries)
    */
-  async refreshDriverLocations(currentAppUsers, forceRefresh = false) {
+  async refreshDriverLocations(currentAppUsers, forceRefresh = false, selectedDate = null) {
     try {
       // Check if disabled or paused - silently skip automatic polling (unless forced)
       if ((!this._enabled || this._paused) && !forceRefresh) {
         return null;
+      }
+      
+      // CRITICAL: Skip driver location refresh if viewing a past date (not today)
+      // Drivers only need location updates for TODAY's deliveries
+      if (selectedDate && !forceRefresh) {
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+        if (selectedDateStr !== todayStr) {
+          console.log(`⏭️ [SmartRefresh] Skipping driver location refresh - viewing past date (${selectedDateStr})`);
+          return null;
+        }
       }
       
       // CRITICAL: Use adaptive interval based on user activity
@@ -1770,15 +1783,20 @@ class SmartRefreshManager {
   async refreshActiveRoute(currentData, filters, showAllDrivers = false) {
     const updates = {};
     const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const selectedDateStr = filters?.selectedDate || todayStr;
     
     try {
-      // STEP 1: Refresh driver locations (from API for live data)
-      // CRITICAL: When showAllDrivers=true, MUST refresh ALL AppUsers to update markers
-      await this.waitForRateLimit();
-      const locationResult = await this.refreshDriverLocations(currentData.appUsers, true);
-      if (locationResult?.hasChanges) {
-        updates.appUsers = locationResult.appUsers;
-        console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
+      // STEP 1: Refresh driver locations (ONLY if viewing today's date)
+      // CRITICAL: Skip for past dates - no active deliveries, so no need for location updates
+      if (selectedDateStr === todayStr) {
+        await this.waitForRateLimit();
+        const locationResult = await this.refreshDriverLocations(currentData.appUsers, true, new Date());
+        if (locationResult?.hasChanges) {
+          updates.appUsers = locationResult.appUsers;
+          console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
+        }
+      } else {
+        console.log(`⏭️ [ActiveRoute] Skipping driver location refresh - viewing past date (${selectedDateStr})`);
       }
       
       // STEP 2: Refresh today's deliveries (from API for cross-device sync)
