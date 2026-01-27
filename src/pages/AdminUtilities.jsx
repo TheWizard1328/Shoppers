@@ -2625,6 +2625,7 @@ export default function AdminUtilities() {
   const [editingDelivery, setEditingDelivery] = useState(null);
   const [editingStatusId, setEditingStatusId] = useState(null);
   const [editingDriverId, setEditingDriverId] = useState(null);
+  const [historicalSyncProgress, setHistoricalSyncProgress] = useState(null);
   
   const refreshIntervalRef = useRef(null);
 
@@ -3713,6 +3714,146 @@ export default function AdminUtilities() {
     });
   }, [performBulkDeleteCities]);
 
+  const handleManualHistoricalSync = useCallback(async () => {
+    try {
+      setHistoricalSyncProgress({
+        running: true,
+        phase: 'analyzing',
+        datesProcessed: 0,
+        totalDates: 0,
+        deliveriesAdded: 0,
+        currentDate: null,
+        error: null
+      });
+
+      // Step 1: Analyze what's missing
+      const { offlineDB } = await import('../components/utils/offlineDatabase');
+      const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      
+      // Get unique dates in offline DB
+      const datesInOfflineDB = new Set(
+        offlineDeliveries
+          .map(d => d?.delivery_date)
+          .filter(Boolean)
+      );
+      
+      console.log(`💾 [Manual Sync] Offline DB has ${datesInOfflineDB.size} unique dates`);
+      
+      setHistoricalSyncProgress(prev => ({
+        ...prev,
+        phase: 'checking_backend',
+      }));
+      
+      // Step 2: Get date range from backend
+      const syncResponse = await base44.functions.invoke('syncHistoricalDeliveries');
+      const syncData = syncResponse?.data || syncResponse;
+      
+      if (!syncData.success) {
+        throw new Error(syncData.message || 'Failed to analyze historical data');
+      }
+      
+      console.log(`📅 [Manual Sync] Backend date range: ${syncData.minDate} to ${syncData.maxDate}`);
+      console.log(`📊 [Manual Sync] Backend has ${syncData.datesWithData} dates with data`);
+      
+      // Step 3: Find dates that are in backend but NOT in offline DB
+      const datesToSync = syncData.datesMissing.filter(date => !datesInOfflineDB.has(date));
+      
+      if (datesToSync.length === 0) {
+        setHistoricalSyncProgress({
+          running: false,
+          phase: 'complete',
+          datesProcessed: 0,
+          totalDates: 0,
+          deliveriesAdded: 0,
+          currentDate: null,
+          error: null,
+          message: 'All historical data is already synced to offline DB!'
+        });
+        return;
+      }
+      
+      console.log(`🔄 [Manual Sync] Will sync ${datesToSync.length} missing dates`);
+      
+      setHistoricalSyncProgress(prev => ({
+        ...prev,
+        phase: 'syncing',
+        totalDates: datesToSync.length,
+        datesProcessed: 0
+      }));
+      
+      // Step 4: Gradually sync each missing date
+      let totalAdded = 0;
+      for (let i = 0; i < datesToSync.length; i++) {
+        const date = datesToSync[i];
+        
+        setHistoricalSyncProgress(prev => ({
+          ...prev,
+          currentDate: date,
+          datesProcessed: i
+        }));
+        
+        try {
+          // Fetch deliveries for this date from backend
+          const deliveriesForDate = await base44.entities.Delivery.filter(
+            { delivery_date: date },
+            '-created_date',
+            1000
+          );
+          
+          if (deliveriesForDate && deliveriesForDate.length > 0) {
+            // Save to offline DB
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesForDate);
+            totalAdded += deliveriesForDate.length;
+            console.log(`✅ [Manual Sync] Synced ${deliveriesForDate.length} deliveries for ${date}`);
+          }
+          
+          setHistoricalSyncProgress(prev => ({
+            ...prev,
+            deliveriesAdded: totalAdded,
+            datesProcessed: i + 1
+          }));
+          
+          // CRITICAL: 3 second delay between dates to avoid rate limits
+          if (i < datesToSync.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          }
+          
+        } catch (dateError) {
+          console.warn(`⚠️ [Manual Sync] Failed to sync ${date}:`, dateError.message);
+          // Continue with next date
+        }
+      }
+      
+      // Update sync status
+      await offlineDB.updateSyncStatus('Delivery', {
+        recordCount: offlineDeliveries.length + totalAdded,
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
+      });
+      
+      setHistoricalSyncProgress({
+        running: false,
+        phase: 'complete',
+        datesProcessed: datesToSync.length,
+        totalDates: datesToSync.length,
+        deliveriesAdded: totalAdded,
+        currentDate: null,
+        error: null,
+        message: `Successfully synced ${totalAdded} deliveries across ${datesToSync.length} dates!`
+      });
+      
+    } catch (error) {
+      console.error('❌ [Manual Sync] Error:', error);
+      setHistoricalSyncProgress(prev => ({
+        ...prev,
+        running: false,
+        phase: 'error',
+        error: error.message
+      }));
+    }
+  }, []);
+
   const handleDeleteDuplicates = useCallback(async (deliveriesToProcess) => {
     const duplicateGroups = new Map();
     
@@ -3996,10 +4137,21 @@ export default function AdminUtilities() {
             <SmartRefreshIndicator inline={true} />
             <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Admin Utilities</h1>
           </div>
-          <Button onClick={handleRefreshAllData} variant="outline" disabled={isRefreshing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Refreshing...' : 'Refresh All Data'}
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleManualHistoricalSync} 
+              variant="outline" 
+              disabled={historicalSyncProgress?.running}
+              className="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+            >
+              <Database className={`w-4 h-4 mr-2 ${historicalSyncProgress?.running ? 'animate-spin' : ''}`} />
+              {historicalSyncProgress?.running ? 'Syncing...' : 'Manual Sync'}
+            </Button>
+            <Button onClick={handleRefreshAllData} variant="outline" disabled={isRefreshing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh All Data'}
+            </Button>
+          </div>
         </div>
 
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
@@ -4285,6 +4437,110 @@ export default function AdminUtilities() {
         confirmText={confirmDialog.confirmText}
         variant={confirmDialog.variant}
       />
+
+      {/* Historical Sync Progress Dialog */}
+      <Dialog open={historicalSyncProgress !== null} onOpenChange={(open) => {
+        if (!open && historicalSyncProgress && !historicalSyncProgress.running) {
+          setHistoricalSyncProgress(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Database className="w-5 h-5 text-blue-600" />
+              Historical Data Sync
+            </DialogTitle>
+            <DialogDescription>
+              {historicalSyncProgress?.running 
+                ? 'Syncing missing historical deliveries to offline database...'
+                : historicalSyncProgress?.phase === 'complete'
+                ? 'Sync complete!'
+                : 'Sync stopped'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {historicalSyncProgress?.phase === 'analyzing' && (
+              <div className="text-center py-4">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600 mb-2" />
+                <p className="text-sm text-slate-600">Analyzing offline database...</p>
+              </div>
+            )}
+
+            {historicalSyncProgress?.phase === 'checking_backend' && (
+              <div className="text-center py-4">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600 mb-2" />
+                <p className="text-sm text-slate-600">Checking backend for missing dates...</p>
+              </div>
+            )}
+
+            {historicalSyncProgress?.phase === 'syncing' && (
+              <>
+                <Progress 
+                  value={historicalSyncProgress.totalDates > 0 
+                    ? (historicalSyncProgress.datesProcessed / historicalSyncProgress.totalDates) * 100 
+                    : 0
+                  } 
+                />
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Dates processed:</span>
+                    <span className="font-semibold text-slate-900">
+                      {historicalSyncProgress.datesProcessed} / {historicalSyncProgress.totalDates}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Deliveries synced:</span>
+                    <span className="font-semibold text-blue-600">{historicalSyncProgress.deliveriesAdded}</span>
+                  </div>
+                  {historicalSyncProgress.currentDate && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Current date:</span>
+                      <span className="font-mono text-xs text-slate-700">{historicalSyncProgress.currentDate}</span>
+                    </div>
+                  )}
+                </div>
+                <Alert className="bg-blue-50 border-blue-200">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800 text-xs">
+                    Syncing slowly (3s per date) to avoid rate limits. Please keep this window open.
+                  </AlertDescription>
+                </Alert>
+              </>
+            )}
+
+            {historicalSyncProgress?.phase === 'complete' && (
+              <div className="text-center py-4">
+                <CheckCircle className="w-12 h-12 mx-auto text-green-600 mb-3" />
+                <p className="font-semibold text-green-800 mb-2">{historicalSyncProgress.message}</p>
+                <div className="space-y-1 text-sm text-slate-600">
+                  <div>Dates synced: {historicalSyncProgress.datesProcessed}</div>
+                  <div>Deliveries added: {historicalSyncProgress.deliveriesAdded}</div>
+                </div>
+              </div>
+            )}
+
+            {historicalSyncProgress?.phase === 'error' && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {historicalSyncProgress.error}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant={historicalSyncProgress?.phase === 'complete' ? 'default' : 'outline'}
+              onClick={() => setHistoricalSyncProgress(null)}
+              disabled={historicalSyncProgress?.running}
+            >
+              {historicalSyncProgress?.running ? 'Syncing...' : 'Close'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
