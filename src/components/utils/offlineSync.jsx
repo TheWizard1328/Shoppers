@@ -394,37 +394,32 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     console.log(`✅ [OfflineSync] Final counts - Deliveries: ${stats?.deliveries?.count || 0}, Patients: ${stats?.patients?.count || 0}, Cities: ${stats?.cities?.count || 0}, AppUsers: ${stats?.appUsers?.count || 0}`);
     
     await Promise.all([
-      offlineDB.updateSyncStatus('City', {
-        recordCount: stats?.cities?.count || 0,
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('AppUser', {
-        recordCount: stats?.appUsers?.count || 0,
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('SquareTransaction', {
-        recordCount: stats?.squareTransactions?.count || 0,
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('Delivery', {
-        recordCount: stats?.deliveries?.count || 0,
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('Patient', {
-        recordCount: stats?.patients?.count || 0,
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      })
-    ]);
+       offlineDB.updateSyncStatus('City', {
+         recordCount: stats?.cities?.count || 0,
+         status: 'synced',
+         lastSync: new Date().toISOString()
+       }),
+       offlineDB.updateSyncStatus('AppUser', {
+         recordCount: stats?.appUsers?.count || 0,
+         status: 'synced',
+         lastSync: new Date().toISOString()
+       }),
+       offlineDB.updateSyncStatus('SquareTransaction', {
+         recordCount: stats?.squareTransactions?.count || 0,
+         status: 'synced',
+         lastSync: new Date().toISOString()
+       }),
+       offlineDB.updateSyncStatus('Delivery', {
+         recordCount: stats?.deliveries?.count || 0,
+         status: 'synced',
+         lastSync: new Date().toISOString()
+       }),
+       offlineDB.updateSyncStatus('Patient', {
+         recordCount: stats?.patients?.count || 0,
+         status: 'synced',
+         lastSync: new Date().toISOString()
+       })
+     ]);
     
     console.log('✅ [OfflineSync] Background sync complete - 90-day history loaded');
     notifySyncStatus({ status: 'complete' });
