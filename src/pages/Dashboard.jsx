@@ -5789,11 +5789,21 @@ function Dashboard() {
     try {
       console.log('💳 [COD Update] Saving payments:', codPayments);
       
-      // CRITICAL: Update database directly (bypass offline mutations for COD)
-      await base44.entities.Delivery.update(deliveryId, {
+      // CRITICAL: If payments array is empty, clear COD completely
+      const updateData = {
         cod_payments: codPayments
-      });
-      console.log('✅ [COD Update] Saved to database');
+      };
+      
+      if (codPayments.length === 0) {
+        console.log('💳 [COD Update] Clearing all COD data');
+        updateData.cod_total_amount_required = 0;
+        updateData.cod_payment_type = 'No Payment';
+        updateData.cod_amount = '';
+      }
+      
+      // CRITICAL: Update database directly (bypass offline mutations for COD)
+      await base44.entities.Delivery.update(deliveryId, updateData);
+      console.log('✅ [COD Update] Saved to database:', updateData);
       
       // CRITICAL: Protect this update from smart refresh overwrite
       const delivery = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);

@@ -1310,11 +1310,23 @@ export default function StopCard({
                 }
 
                 console.log('📞 [FAILURE] Calling onStatusUpdate with status:', status);
-                await onStatusUpdate(delivery.id, status, {
+                console.log('📦 [FAILURE] Extra data:', {
                   delivery_notes: updatedNotes,
                   actual_delivery_time: localTimeString
-                }, false);
-                console.log('✅ [FAILURE] onStatusUpdate completed');
+                });
+                
+                try {
+                  await onStatusUpdate(delivery.id, status, {
+                    delivery_notes: updatedNotes,
+                    actual_delivery_time: localTimeString
+                  }, false);
+                  console.log('✅ [FAILURE] onStatusUpdate completed');
+                } catch (statusError) {
+                  console.error('❌ [FAILURE] onStatusUpdate failed:', statusError);
+                  toast.error(`Failed to update status: ${statusError.message}`);
+                  fabControlEvents.reactivateFAB(true);
+                  return;
+                }
 
                 // Check if this is the FINAL stop
                 const allDriverDeliveries = allDeliveries.filter((d) =>
