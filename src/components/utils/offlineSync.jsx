@@ -19,10 +19,11 @@ import { format, subDays } from 'date-fns';
 
 // Configuration
 const FRESHNESS_THRESHOLD = 10 * 60 * 1000; // 10 minutes
-const DELIVERY_BATCH_DAYS = 7; // Fetch 7 days at a time for historical
 const PATIENT_BATCH_SIZE = 250; // 250 patients at a time
 const BATCH_COOLDOWN = 1000; // 1 second between batches
+const HISTORICAL_COOLDOWN = 5 * 60 * 1000; // 5 minutes between historical date syncs
 const HISTORICAL_DAYS = 90; // Keep 90 days of historical data for offline access
+const FULL_SYNC_INTERVAL = 8 * 60 * 60 * 1000; // 8 hours between full historical syncs
 
 let syncInProgress = false;
 let syncPaused = false;
@@ -311,50 +312,50 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       }
     }
     
-    // ===== STEP 3: Check if past 90 days need sync (incremental approach) =====
+    // ===== STEP 3: Check if past 90 days need sync (1 day at a time, 5 min between dates) =====
     console.log('   📅 Checking if historical data needs sync...');
     
-    // CRITICAL: Only sync historical data if last full sync is > 24 hours old
+    // CRITICAL: Only sync historical data if last full sync is > 8 hours old
     const deliverySyncStatus = await offlineDB.getSyncStatus('Delivery');
     const lastFullSync = deliverySyncStatus?.lastFullSync;
-    const needsFullSync = !lastFullSync || (Date.now() - new Date(lastFullSync).getTime() > 86400000);
+    const needsFullSync = !lastFullSync || (Date.now() - new Date(lastFullSync).getTime() > FULL_SYNC_INTERVAL);
     
     if (needsFullSync) {
-      console.log('   📅 Last full sync > 24h - syncing past 90 days...');
+      console.log('   📅 Last full sync > 8h - syncing past 90 days (1 day at a time, 5 min cooldown)...');
+      console.log(`   ⏱️ This will take ~7.5 hours to complete all 90 days`);
       
-      const chunks = [
-        { start: 1, end: 7 },
-        { start: 8, end: 14 },
-        { start: 15, end: 21 },
-        { start: 22, end: 30 },
-        { start: 31, end: 37 },
-        { start: 38, end: 44 },
-        { start: 45, end: 51 },
-        { start: 52, end: 58 },
-        { start: 59, end: 65 },
-        { start: 66, end: 72 },
-        { start: 73, end: 90 }
-      ];
-      
-      for (const chunk of chunks) {
+      // Sync 1 day at a time with 5-minute cooldown
+      for (let daysAgo = 1; daysAgo <= HISTORICAL_DAYS; daysAgo++) {
         if (syncPaused) break;
         
+        const dateToSync = format(subDays(today, daysAgo), 'yyyy-MM-dd');
+        
+        // Skip the selected date (already synced in Step 1)
+        if (dateToSync === selectedDateStr) continue;
+        
         await syncDeliveryDateRange(
-          format(subDays(today, chunk.end), 'yyyy-MM-dd'),
-          format(subDays(today, chunk.start), 'yyyy-MM-dd'),
+          dateToSync,
+          dateToSync,
           selectedDateStr,
           storeIds
         );
         
-        await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+        // 5-minute cooldown between each date
+        if (daysAgo < HISTORICAL_DAYS) {
+          console.log(`      ⏳ Waiting 5 minutes before next date... (${HISTORICAL_DAYS - daysAgo} days remaining)`);
+          await new Promise(r => setTimeout(r, HISTORICAL_COOLDOWN));
+        }
       }
       
       // Mark full sync complete
       await offlineDB.updateSyncStatus('Delivery', {
         lastFullSync: new Date().toISOString()
       });
+      console.log('   ✅ Historical sync complete - will repeat in 8 hours');
     } else {
-      console.log('   ⏭️ Historical data is fresh - skipping past 90 days sync');
+      const timeSinceLastSync = Date.now() - new Date(lastFullSync).getTime();
+      const hoursRemaining = ((FULL_SYNC_INTERVAL - timeSinceLastSync) / (60 * 60 * 1000)).toFixed(1);
+      console.log(`   ⏭️ Historical data synced recently - next full sync in ${hoursRemaining}h`);
     }
     
     // ===== STEP 3: Sync Cities in background =====
