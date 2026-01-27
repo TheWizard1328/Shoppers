@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { invalidate } from "./dataManager";
 import { touchUserCache } from "./auth";
 import { queueEntityRequest } from "./requestQueue";
+import { changeBroadcastManager } from "./changeBroadcastManager";
 
 // Module-level cache for isOfflineDBLoadComplete (imported dynamically)
 let _isOfflineDBLoadComplete = null;
@@ -108,6 +109,18 @@ class SmartRefreshManager {
     // These should be removed from UI even if smart refresh brings them back from stale offline DB
     this.deletedDeliveryIds = new Set();
     this.deletedPatientIds = new Set();
+    
+    // Store current user and city for broadcast filtering
+    this._currentUser = null;
+    this._currentCityId = null;
+  }
+  
+  /**
+   * Set current user and city for broadcast filtering
+   */
+  setUserContext(user, cityId) {
+    this._currentUser = user;
+    this._currentCityId = cityId;
   }
   
   /**
@@ -1881,6 +1894,79 @@ class SmartRefreshManager {
   }
   
   /**
+   * Check for ChangeBroadcast updates and process them
+   */
+  async checkBroadcasts() {
+    if (!this._currentUser || !this._currentCityId) {
+      return [];
+    }
+    
+    try {
+      const broadcasts = await changeBroadcastManager.checkForBroadcasts(this._currentUser, this._currentCityId);
+      
+      if (broadcasts.length > 0) {
+        console.log(`📥 [SmartRefresh] Processing ${broadcasts.length} broadcasts`);
+        
+        // Process each broadcast
+        for (const broadcast of broadcasts) {
+          await this.processBroadcast(broadcast);
+        }
+      }
+      
+      return broadcasts;
+    } catch (error) {
+      console.warn('[SmartRefresh] Broadcast check failed:', error.message);
+      return [];
+    }
+  }
+  
+  /**
+   * Process a single broadcast and trigger appropriate refresh
+   */
+  async processBroadcast(broadcast) {
+    console.log(`📡 [SmartRefresh] Processing broadcast: ${broadcast.entity_name} ${broadcast.change_type}`);
+    
+    // Handle different broadcast types
+    if (broadcast.change_type === 'full_date_refresh') {
+      // Full date refresh - invalidate all deliveries for this date
+      console.log(`📅 [SmartRefresh] Full date refresh for: ${broadcast.affected_date}`);
+      this.lastRefreshTimes.activeRoute = 0;
+      this._pendingApiFetch = this._pendingApiFetch || new Set();
+      this._pendingApiFetch.add('Delivery');
+    } else if (broadcast.change_type === 'driver_date_refresh') {
+      // Driver-specific date refresh
+      console.log(`🚗 [SmartRefresh] Driver date refresh: ${broadcast.affected_driver_id} on ${broadcast.affected_date}`);
+      this.lastRefreshTimes.activeRoute = 0;
+      this._pendingApiFetch = this._pendingApiFetch || new Set();
+      this._pendingApiFetch.add('Delivery');
+    } else if (broadcast.change_type === 'delete') {
+      // Track deletions
+      if (broadcast.entity_name === 'Delivery' && broadcast.entity_id) {
+        this.deletedDeliveryIds.add(broadcast.entity_id);
+      } else if (broadcast.entity_name === 'Patient' && broadcast.entity_id) {
+        this.deletedPatientIds.add(broadcast.entity_id);
+      }
+      // Force refresh for this entity
+      this.lastRefreshTimes.activeRoute = 0;
+    } else {
+      // Standard create/update - trigger refresh for this entity
+      if (broadcast.entity_name === 'Delivery') {
+        this.lastRefreshTimes.activeRoute = 0;
+        this._pendingApiFetch = this._pendingApiFetch || new Set();
+        this._pendingApiFetch.add('Delivery');
+      } else if (broadcast.entity_name === 'Patient') {
+        this.lastRefreshTimes.todayPatients = 0;
+        this.lastRefreshTimes.patients = 0;
+        this._pendingApiFetch = this._pendingApiFetch || new Set();
+        this._pendingApiFetch.add('Patient');
+      } else if (broadcast.entity_name === 'AppUser') {
+        this.lastRefreshTimes.activeRoute = 0;
+        this.lastRefreshTimes.appUsers = 0;
+      }
+    }
+  }
+  
+  /**
    * NEW: Combined smart refresh - 15s active route, opportunistic historical
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false, showAllDrivers = false) {
@@ -1923,6 +2009,9 @@ class SmartRefreshManager {
     const updates = {};
     
     try {
+      // PRIORITY 0: Check for broadcasts from other devices/users
+      await this.checkBroadcasts();
+      
       // PRIORITY 1: Active route data (15-second cycle)
       if (this.shouldRefresh('activeRoute')) {
         const activeResult = await this.refreshActiveRoute(currentData, filters, showAllDrivers);
