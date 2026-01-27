@@ -7,6 +7,9 @@
 const DB_NAME = 'rxdeliver_persistent_offline_v1';
 const DB_VERSION = 4; // CRITICAL: Incremented to add DriverOverviewStatsCache
 
+// DEBUG: Track version changes
+console.log(`[OfflineDB] Database initialized: ${DB_NAME} v${DB_VERSION}`);
+
 // Store names
 const STORES = {
   PATIENTS: 'patients',
