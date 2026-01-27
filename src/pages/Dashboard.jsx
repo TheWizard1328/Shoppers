@@ -5360,7 +5360,12 @@ function Dashboard() {
   };
 
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
-    console.log('🚀 [STATUS] Starting status update - INSTANT UI mode');
+    console.log('═══════════════════════════════════════════════════');
+    console.log('🚀 [STATUS] Starting status update');
+    console.log('   Delivery ID:', deliveryId);
+    console.log('   New Status:', newStatus);
+    console.log('   Extra Data:', extraData);
+    console.log('═══════════════════════════════════════════════════');
 
     // STEP 0: Pause ALL update systems
     console.log('⏸️ [STATUS] Pausing ALL update systems...');
@@ -5392,8 +5397,13 @@ function Dashboard() {
     try {
       const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
       if (!targetDelivery) {
+        console.error('❌ [STATUS] Delivery not found in deliveriesWithStopOrder');
+        console.error('   Looking for ID:', deliveryId);
+        console.error('   Available IDs:', deliveriesWithStopOrder.map(d => d?.id));
         throw new Error('Delivery not found');
       }
+      
+      console.log('✅ [STATUS] Found target delivery:', targetDelivery.patient_name || 'Pickup');
 
       const currentDate = format(new Date(), 'yyyy-MM-dd');
       const deliveryDate = targetDelivery.delivery_date;
@@ -5554,8 +5564,16 @@ function Dashboard() {
         }
       }
 
+      console.log('📤 [STATUS] Calling updateDeliveryLocal with:', updateData);
+      
       // STEP 2: Update delivery status LOCALLY (instant)
-      await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
+      try {
+        await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
+        console.log('✅ [STATUS] updateDeliveryLocal completed');
+      } catch (updateError) {
+        console.error('❌ [STATUS] updateDeliveryLocal failed:', updateError);
+        throw new Error(`Failed to update delivery: ${updateError.message}`);
+      }
       
       // STEP 3: Update UI state directly (no offline DB refresh to avoid timing issues)
       console.log('🖥️ [STATUS] Updating UI state directly...');
@@ -5564,7 +5582,12 @@ function Dashboard() {
         const updatedDelivery = deliveries.find(d => d?.id === deliveryId);
         if (updatedDelivery) {
           updateDeliveriesLocally([{ ...updatedDelivery, ...updateData }], false);
+          console.log('✅ [STATUS] UI state updated');
+        } else {
+          console.warn('⚠️ [STATUS] Delivery not found in deliveries array for UI update');
         }
+      } else {
+        console.warn('⚠️ [STATUS] updateDeliveriesLocally is not available');
       }
       console.log('✅ [STATUS] UI state updated directly');
 
@@ -5786,47 +5809,66 @@ function Dashboard() {
   };
 
   const handleCODUpdate = async (deliveryId, codPayments, skipAutoCenter = false) => {
+    // CRITICAL: Pause smart refresh to prevent overwrite
+    console.log('⏸️ [COD] Pausing smart refresh...');
+    setIsEntityUpdating(true);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    
     try {
       console.log('💳 [COD Update] Saving payments:', codPayments);
       
-      // CRITICAL: If payments array is empty, clear COD completely
+      const delivery = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
+      if (!delivery) {
+        throw new Error('Delivery not found');
+      }
+      
+      // CRITICAL: Build complete update with ALL COD fields
       const updateData = {
         cod_payments: codPayments
       };
       
+      // If removing all payments, clear everything
       if (codPayments.length === 0) {
-        console.log('💳 [COD Update] Clearing all COD data');
+        console.log('💳 [COD Update] Clearing all COD fields');
         updateData.cod_total_amount_required = 0;
         updateData.cod_payment_type = 'No Payment';
         updateData.cod_amount = '';
       }
       
-      // CRITICAL: Update database directly (bypass offline mutations for COD)
+      console.log('📤 [COD Update] Updating database with:', updateData);
+      
+      // Update database
       await base44.entities.Delivery.update(deliveryId, updateData);
-      console.log('✅ [COD Update] Saved to database:', updateData);
+      console.log('✅ [COD Update] Database updated');
       
-      // CRITICAL: Protect this update from smart refresh overwrite
-      const delivery = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
-      if (delivery) {
-        smartRefreshManager.registerPendingUpdate(deliveryId, delivery.driver_id, delivery.delivery_date);
-      }
-      
-      // Update offline DB immediately
+      // CRITICAL: Fetch fresh data and update offline DB
       const freshDelivery = await base44.entities.Delivery.filter({ id: deliveryId });
       if (freshDelivery && freshDelivery.length > 0) {
+        console.log('📦 [COD Update] Fresh delivery data:', freshDelivery[0].cod_payments);
         await offlineDB.save(offlineDB.STORES.DELIVERIES, freshDelivery[0]);
-        console.log('✅ [COD Update] Saved to offline DB');
+        console.log('✅ [COD Update] Offline DB updated');
+        
+        // Update UI state immediately
+        if (updateDeliveriesLocally) {
+          updateDeliveriesLocally([freshDelivery[0]], false);
+          console.log('✅ [COD Update] UI state updated');
+        }
       }
-
-      // Force refresh to show updated COD
-      invalidate('Delivery');
-      await refreshData();
       
-      console.log('✅ [COD Update] Complete');
+      // Protect from smart refresh overwrite
+      smartRefreshManager.registerPendingUpdate(deliveryId, delivery.driver_id, delivery.delivery_date);
+      console.log('✅ [COD Update] Protected from smart refresh');
+      
     } catch (error) {
-      console.error('Error updating COD payments:', error);
+      console.error('❌ [COD Update] Error:', error);
       alert('Failed to update COD payments. Please try again.');
       throw error;
+    } finally {
+      // Resume smart refresh after 2 seconds
+      console.log('⏳ [COD] Waiting 2s before resuming...');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      console.log('▶️ [COD] Resuming smart refresh');
+      setIsEntityUpdating(false);
     }
   };
 
