@@ -1585,6 +1585,7 @@ export default function Layout({ children, currentPageName }) {
   useEffect(() => {
     const handleResize = () => {
       setScreenWidth(window.innerWidth);
+      setShowDesktopLayout(window.innerWidth >= 768);
 
       if (!isMobile && sidebarOpen) {
         setSidebarOpen(false);
@@ -1593,7 +1594,7 @@ export default function Layout({ children, currentPageName }) {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [sidebarOpen]);
+    }, [sidebarOpen]);
 
 
 
