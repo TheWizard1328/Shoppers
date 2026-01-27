@@ -1419,6 +1419,7 @@ export default function RouteImport({
           
           if (dedupeResponse?.data?.deletedCount > 0 || dedupeResponse?.deletedCount > 0) {
             const deletedCount = dedupeResponse?.data?.deletedCount || dedupeResponse?.deletedCount || 0;
+            setDeletedDuplicatesCount(deletedCount);
             console.log(`✅ [RouteImport] Deleted ${deletedCount} duplicate deliveries before import`);
             setProgressMessage(`Deduplication complete - deleted ${deletedCount} duplicates. Starting import...`);
             await delay(1000);
