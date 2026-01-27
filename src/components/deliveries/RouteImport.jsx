@@ -2154,6 +2154,13 @@ export default function RouteImport({
                 <div className="text-2xl font-bold text-orange-800">{previewStats.skipped}</div>
                 </div>
                 }
+
+            {deletedDuplicatesCount > 0 &&
+                <div className="flex flex-col items-center bg-purple-50 border border-purple-200 rounded-lg p-3">
+                <div className="text-xs text-purple-700 mb-1">Deleted Duplicates</div>
+                <div className="text-2xl font-bold text-purple-800">{deletedDuplicatesCount}</div>
+                </div>
+                }
             </div>  
           </div>
 
