@@ -634,6 +634,7 @@ export default function Layout({ children, currentPageName }) {
   const [sidebarWidth, setSidebarWidth] = useState(240); // Will be loaded from user settings
   const [themePreference, setThemePreference] = useState('auto');
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
+  const [showDesktopLayout, setShowDesktopLayout] = useState(screenWidth >= 768); // Show desktop layout on wider screens (tablets)
 
   // Apply theme class to HTML element (mobile only - desktop always light)
   // CRITICAL: Debounced theme application to prevent blocking UI updates during critical operations
