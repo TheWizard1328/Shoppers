@@ -46,6 +46,7 @@ const openDatabase = () => {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
+      console.warn(`⚠️ [OfflineDB] onupgradeneeded triggered! Old version: ${event.oldVersion}, New version: ${event.newVersion}. This will trigger if DB_VERSION changes!`);
 
       if (!db.objectStoreNames.contains(STORES.PATIENTS)) {
         const patientStore = db.createObjectStore(STORES.PATIENTS, { keyPath: 'id' });
