@@ -452,11 +452,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                             <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                               <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(stats.deliveries.lastSync)}</span>
+                              <span>{formatLastSync(runtimeStats.deliveries !== undefined ? undefined : stats.deliveries.lastSync)}</span>
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveries.count}</div>
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{runtimeStats.deliveries !== undefined ? runtimeStats.deliveries : stats.deliveries.count}</div>
                             {stats.fullSyncStatus?.deliveries?.completed &&
                         <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                         }
