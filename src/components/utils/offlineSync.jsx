@@ -323,54 +323,107 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     });
     console.log(`   ✅ Delivery sync checkpoint updated`);
     
-    // ===== STEP 3: Sync Cities (incremental or full) =====
+    // ===== STEP 3: Timestamp-based Patient sync =====
+    if (!syncPaused) {
+      console.log('   👥 Syncing patients via timestamp...');
+      const patientSyncStatus = await offlineDB.getSyncStatus('Patient');
+      const patientLastSync = patientSyncStatus?.lastSync;
+      
+      const patientFilter = patientLastSync
+        ? { updated_date: { $gte: patientLastSync }, status: 'active' }
+        : { status: 'active' };
+      
+      try {
+        console.log(`   ♻️ Fetching patients updated since ${patientLastSync ? new Date(patientLastSync).toISOString() : 'beginning'}...`);
+        const patients = await Patient.filter(patientFilter, '-updated_date', 5000);
+        
+        if (patients.length > 0) {
+          const cleanPatients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanPatients);
+          console.log(`   ✅ Patient timestamp sync: ${cleanPatients.length} records updated`);
+        } else if (!patientLastSync) {
+          console.log(`   ℹ️ No active patients found on initial sync`);
+        } else {
+          console.log(`   ℹ️ No patient updates since last sync`);
+        }
+      } catch (patientError) {
+        console.warn(`   ⚠️ Patient timestamp sync failed:`, patientError.message);
+      }
+      
+      await offlineDB.updateSyncStatus('Patient', {
+        lastSync: new Date().toISOString()
+      });
+    }
+
+    // ===== STEP 4: Sync Cities (incremental via timestamp) =====
     if (!syncPaused) {
       console.log('   🏙️ Syncing Cities...');
       try {
         const cityLastSync = await getLastSyncTimestamp('City');
-        const cityFilter = buildIncrementalFilter(cityLastSync);
-        const cities = cityFilter.updated_date 
-          ? await City.filter(cityFilter, '-updated_date', 1000)
-          : await City.list();
+        const cityFilter = cityLastSync ? { updated_date: { $gte: cityLastSync } } : {};
+        const cities = await City.filter(cityFilter, '-updated_date', 1000);
         
         if (cities.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
-          console.log(`   ✅ ${cityFilter.updated_date ? '♻️ Incremental' : 'Full'} City sync: ${cities.length} records`);
+          console.log(`   ✅ City sync: ${cities.length} records`);
         }
+        
+        await offlineDB.updateSyncStatus('City', {
+          recordCount: cities.length,
+          lastSync: new Date().toISOString()
+        });
       } catch (cityError) {
         console.warn(`   ⚠️ City sync failed:`, cityError.message);
       }
     }
 
-    // ===== STEP 4: Sync AppUsers (incremental or full) =====
+    // ===== STEP 5: Sync AppUsers (incremental via timestamp) =====
     if (!syncPaused) {
       console.log('   👤 Syncing AppUsers...');
       try {
         const appUserLastSync = await getLastSyncTimestamp('AppUser');
-        const appUserFilter = buildIncrementalFilter(appUserLastSync);
-        const appUsers = appUserFilter.updated_date
-          ? await AppUser.filter(appUserFilter, '-updated_date', 1000)
-          : await AppUser.list();
+        const appUserFilter = appUserLastSync ? { updated_date: { $gte: appUserLastSync } } : {};
+        const appUsers = await AppUser.filter(appUserFilter, '-updated_date', 1000);
         
         if (appUsers.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
-          console.log(`   ✅ ${appUserFilter.updated_date ? '♻️ Incremental' : 'Full'} AppUser sync: ${appUsers.length} records`);
+          console.log(`   ✅ AppUser sync: ${appUsers.length} records`);
         }
+        
+        await offlineDB.updateSyncStatus('AppUser', {
+          recordCount: appUsers.length,
+          lastSync: new Date().toISOString()
+        });
       } catch (appUserError) {
         console.warn(`   ⚠️ AppUser sync failed:`, appUserError.message);
       }
     }
 
-    // ===== STEP 5: Sync Square Transactions in background (gentle batches) =====
+    // ===== STEP 6: Sync Square Transactions via timestamp =====
     if (!syncPaused) {
-      console.log('   💳 Syncing Square Transactions (batched)...');
-      await syncSquareTransactionsGently();
-    }
-
-    // ===== STEP 6: Sync remaining patients (250 at a time) =====
-    if (!syncPaused) {
-      console.log('   👥 Syncing patients...');
-      await syncAllPatients();
+      console.log('   💳 Syncing Square Transactions...');
+      const txSyncStatus = await offlineDB.getSyncStatus('SquareTransaction');
+      const txLastSync = txSyncStatus?.lastSync;
+      
+      const txFilter = txLastSync ? { updated_date: { $gte: txLastSync } } : {};
+      
+      try {
+        const transactions = await SquareTransaction.filter(txFilter, '-updated_date', 500);
+        
+        if (transactions.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, transactions);
+          console.log(`   ✅ Square Transaction sync: ${transactions.length} records`);
+        } else {
+          console.log(`   ℹ️ No Square Transaction updates`);
+        }
+        
+        await offlineDB.updateSyncStatus('SquareTransaction', {
+          recordCount: transactions.length,
+          lastSync: new Date().toISOString()
+        });
+      } catch (error) {
+        console.warn(`   ⚠️ Square Transaction sync failed:`, error.message);
+      }
     }
     
     // Update final sync status with actual counts from DB
