@@ -1338,19 +1338,47 @@ export default function RouteImport({
         totalSkippedItems = [...totalSkippedItems, ...result.skippedItems];
         totalErrors = [...totalErrors, ...result.errors];
 
+        // Track incoming delivery keys for deduplication
+        result.deliveriesToCreate.forEach(d => {
+          if (d.stop_id && d.delivery_address && d.delivery_date) {
+            const key = `${d.stop_id}|${d.delivery_address.toLowerCase().trim()}|${d.delivery_date}`;
+            if (!incomingDeliveryKeys.has(key)) {
+              incomingDeliveryKeys.set(key, []);
+            }
+            incomingDeliveryKeys.get(key).push(d);
+          }
+        });
+
         const currentParsingProgress = Math.round((i + 1) / activeFiles.length * 45);
         setProgressPercent(40 + currentParsingProgress);
+      }
+
+      // Find existing deliveries that match incoming keys (these will be deleted)
+      for (const [key, incomingDeliveries] of incomingDeliveryKeys.entries()) {
+        const [stopId, address, deliveryDate] = key.split('|');
+        const matchingExisting = freshDeliveries.filter(d => 
+          d.stop_id === stopId && 
+          d.delivery_address === address && 
+          d.delivery_date === deliveryDate
+        );
+        duplicatesToDelete.push(...matchingExisting);
       }
 
       setProgressPercent(90);
       setProgressMessage('Parsing complete, generating preview data...');
 
+      // Add delete action to marked duplicates
+      const deletedDeliveries = duplicatesToDelete.map(d => ({ ...d, action: 'delete' }));
+
       setPreviewData({
         deliveriesToCreate: totalToCreate,
         deliveriesToUpdate: totalToUpdate,
         skippedItems: totalSkippedItems,
-        errors: totalErrors
+        errors: totalErrors,
+        deliveriesToDelete: deletedDeliveries
       });
+      
+      setDeletedDuplicatesCount(deletedDeliveries.length);
 
       setProgressPercent(100);
       setProgressMessage('Preview ready!');
