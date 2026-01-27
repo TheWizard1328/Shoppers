@@ -249,68 +249,11 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
   const todayStr = format(today, 'yyyy-MM-dd');
   
   try {
-    // ===== STEP 1: CRITICAL - Sync ENTIRE CURRENT MONTH (all drivers, all dates) =====
-    console.log('   📅 Syncing ENTIRE current month for all drivers...');
+    // ===== STEP 1: SKIP current month sync - it's handled by historical sync cycle =====
+    console.log('   ⏭️ Skipping current month sync - handled by historical sync cycle');
     
-    const currentMonthStart = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
-    const currentMonthEnd = format(new Date(today.getFullYear(), today.getMonth() + 1, 0), 'yyyy-MM-dd');
-    
-    try {
-      // Build filter for current month + store filter if provided
-      const monthFilter = {
-        delivery_date: { $gte: currentMonthStart, $lte: currentMonthEnd }
-      };
-      
-      if (storeIds && storeIds.length > 0) {
-        monthFilter.store_id = { $in: storeIds };
-      }
-      
-      const currentMonthDeliveries = await Delivery.filter(monthFilter);
-      console.log(`   ✅ Loaded ${currentMonthDeliveries.length} deliveries for current month (${currentMonthStart} to ${currentMonthEnd})`);
-      
-      if (currentMonthDeliveries.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, currentMonthDeliveries);
-        console.log(`   ✅ Saved entire current month to offline DB`);
-      }
-      
-      await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-    } catch (monthError) {
-      console.warn(`   ⚠️ Current month sync failed:`, monthError.message);
-      if (monthError.response?.status === 429) {
-        await new Promise(r => setTimeout(r, 5000));
-      }
-    }
-    
-    // ===== STEP 2: Sync future 6 days =====
-    console.log('   📅 Syncing next 6 days...');
-    
-    for (let i = 1; i <= 6; i++) {
-      if (syncPaused) break;
-      
-      const fetchDate = new Date(today);
-      fetchDate.setDate(today.getDate() + i);
-      const fetchDateStr = format(fetchDate, 'yyyy-MM-dd');
-      
-      try {
-        const futureDateFilter = { delivery_date: fetchDateStr };
-        if (storeIds && storeIds.length > 0) {
-          futureDateFilter.store_id = { $in: storeIds };
-        }
-        
-        const dateDeliveries = await Delivery.filter(futureDateFilter);
-        if (dateDeliveries.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, dateDeliveries);
-          console.log(`      ✅ ${fetchDateStr}: ${dateDeliveries.length} deliveries`);
-        }
-        
-        await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-      } catch (error) {
-        console.warn(`      ⚠️ ${fetchDateStr} failed:`, error.message);
-        if (error.response?.status === 429) {
-          await new Promise(r => setTimeout(r, 5000));
-        }
-      }
-    }
+    // ===== STEP 2: Future dates now handled in Step 3 (historical sync cycle) =====
+    console.log('   ⏭️ Future dates sync now part of historical cycle');
     
     // ===== STEP 3: Check if past 90 days need sync (1 day at a time, 5 min between dates) =====
     console.log('   📅 Checking if historical data needs sync...');
@@ -324,25 +267,26 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       console.log('   📅 Last full sync > 8h - syncing past 90 days (1 day at a time, 5 min cooldown)...');
       console.log(`   ⏱️ This will take ~7.5 hours to complete all 90 days`);
       
-      // Sync 1 day at a time with 5-minute cooldown
-      for (let daysAgo = 1; daysAgo <= HISTORICAL_DAYS; daysAgo++) {
+      // Sync 1 day at a time with 5-minute cooldown (including today and future 6 days)
+      // Start from 6 days in the future, go to 90 days in the past
+      for (let daysOffset = 6; daysOffset >= -HISTORICAL_DAYS; daysOffset--) {
         if (syncPaused) break;
         
-        const dateToSync = format(subDays(today, daysAgo), 'yyyy-MM-dd');
+        const dateToSync = format(daysOffset >= 0 ? new Date(today.getTime() + daysOffset * 86400000) : subDays(today, Math.abs(daysOffset)), 'yyyy-MM-dd');
         
-        // Skip the selected date (already synced in Step 1)
-        if (dateToSync === selectedDateStr) continue;
+        console.log(`      📅 Syncing ${dateToSync}...`);
         
         await syncDeliveryDateRange(
           dateToSync,
           dateToSync,
-          selectedDateStr,
+          null, // Don't skip any date
           storeIds
         );
         
         // 5-minute cooldown between each date
-        if (daysAgo < HISTORICAL_DAYS) {
-          console.log(`      ⏳ Waiting 5 minutes before next date... (${HISTORICAL_DAYS - daysAgo} days remaining)`);
+        const remaining = 6 + HISTORICAL_DAYS - (6 - daysOffset);
+        if (daysOffset > -HISTORICAL_DAYS) {
+          console.log(`      ⏳ Waiting 5 minutes before next date... (${remaining} days remaining)`);
           await new Promise(r => setTimeout(r, HISTORICAL_COOLDOWN));
         }
       }
