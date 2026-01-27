@@ -951,21 +951,81 @@ export default function Layout({ children, currentPageName }) {
     // Subscribe to ChangeBroadcast notifications
     let unsubscribeBroadcasts = () => {};
     const initBroadcasts = async () => {
+      const { getDeviceId } = await import('./components/utils/deviceIdManager');
+      const currentDeviceId = getDeviceId();
+      
       unsubscribeBroadcasts = changeBroadcastManager.subscribe(async (broadcasts) => {
         console.log(`📥 [Layout] Received ${broadcasts.length} broadcasts`);
 
         for (const broadcast of broadcasts) {
           console.log(`📡 [Layout] Processing broadcast: ${broadcast.entity_name} ${broadcast.change_type}`);
 
+          // CRITICAL: Skip broadcasts from THIS device to avoid loops
+          if (broadcast.sent_by_device_id === currentDeviceId) {
+            console.log(`⏭️ [Layout] Skipping broadcast from same device`);
+            continue;
+          }
+
           // Handle based on change type
           if (broadcast.change_type === 'batch_create' && broadcast.entity_name === 'Patient') {
-            // Patient batch created - force refresh
+            // Patient batch created - force full refresh
             invalidate('Patient');
             triggerFullDataLoadRef.current(true);
           } else if (broadcast.change_type === 'full_date_refresh' && broadcast.entity_name === 'Delivery') {
-            // Deliveries refreshed for a specific date - force refresh
+            // CRITICAL: Full date refresh from another device - force API fetch for that date
+            console.log(`📅 [Layout] Full date refresh for ${broadcast.affected_date} from another device`);
+            
+            const affectedDate = broadcast.affected_date;
             invalidate('Delivery');
-            triggerFullDataLoadRef.current(true);
+            invalidate('Patient');
+            
+            // Force resync this specific date from API (skip offline DB)
+            try {
+              // Fetch deliveries for this date from API only
+              const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
+              const deliveryFilter = { 
+                delivery_date: affectedDate,
+                ...(cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {})
+              };
+              
+              const freshDeliveries = await base44.entities.Delivery.filter(deliveryFilter);
+              
+              if (freshDeliveries && freshDeliveries.length > 0) {
+                // Save to offline DB
+                const { offlineDB } = await import('./components/utils/offlineDatabase');
+                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+                
+                // Update UI state for this date
+                setDeliveries((prev) => {
+                  const otherDates = prev.filter(d => d?.delivery_date !== affectedDate);
+                  return [...otherDates, ...freshDeliveries];
+                });
+                
+                // Also resync patients for the affected stops
+                const affectedPatientIds = new Set(
+                  freshDeliveries.filter(d => d?.patient_id).map(d => d.patient_id)
+                );
+                
+                if (affectedPatientIds.size > 0) {
+                  const freshPatients = await base44.entities.Patient.filter({
+                    id: { $in: Array.from(affectedPatientIds) }
+                  });
+                  
+                  if (freshPatients && freshPatients.length > 0) {
+                    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+                    setPatients((prev) => {
+                      const map = new Map(prev.map(p => [p?.id, p]));
+                      freshPatients.forEach(p => map.set(p.id, p));
+                      return Array.from(map.values());
+                    });
+                  }
+                }
+                
+                console.log(`✅ [Layout] Resynced ${affectedDate} from API - ${freshDeliveries.length} deliveries`);
+              }
+            } catch (error) {
+              console.warn(`⚠️ [Layout] Failed to resync date ${affectedDate}:`, error.message);
+            }
           } else if (broadcast.entity_name === 'AppUser' && broadcast.last_location_update_time) {
             // Driver location update - refresh driver locations
             const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
