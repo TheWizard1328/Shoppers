@@ -5566,13 +5566,27 @@ function Dashboard() {
 
       console.log('📤 [STATUS] Calling updateDeliveryLocal with:', updateData);
       
-      // STEP 2: Update delivery status LOCALLY (instant)
+      // STEP 2: Update delivery status DIRECTLY to database (bypass offline mutations)
       try {
-        await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
-        console.log('✅ [STATUS] updateDeliveryLocal completed');
+        console.log('💾 [STATUS] Updating database directly...');
+        await base44.entities.Delivery.update(deliveryId, updateData);
+        console.log('✅ [STATUS] Database updated');
+        
+        // Update offline DB
+        const freshDelivery = await base44.entities.Delivery.filter({ id: deliveryId });
+        if (freshDelivery && freshDelivery.length > 0) {
+          await offlineDB.save(offlineDB.STORES.DELIVERIES, freshDelivery[0]);
+          console.log('✅ [STATUS] Offline DB updated');
+        }
+        
       } catch (updateError) {
-        console.error('❌ [STATUS] updateDeliveryLocal failed:', updateError);
-        throw new Error(`Failed to update delivery: ${updateError.message}`);
+        console.error('═══════════════════════════════════════════════════');
+        console.error('❌ [STATUS] Database update FAILED');
+        console.error('   Error:', updateError);
+        console.error('   Error message:', updateError.message);
+        console.error('   Error response:', updateError.response);
+        console.error('═══════════════════════════════════════════════════');
+        throw updateError;
       }
       
       // STEP 3: Update UI state directly (no offline DB refresh to avoid timing issues)
