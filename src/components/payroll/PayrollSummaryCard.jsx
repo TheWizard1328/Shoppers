@@ -846,9 +846,9 @@ export default function PayrollSummaryCard({
               </div>
             )}
 
-            {/* Admin View: Show finalization progress - but NOT if admin-driver is viewing their own payroll */}
+            {/* Admin View: Show finalization progress - but only in multi-driver view, NOT if viewing single driver */}
             {isAdmin && driversWithDeliveriesIds.length > 0 && 
-              !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) && (
+              selectedDriverId === 'all' && (
               <>
                 {!isAdminFinalized && (
                   <div className="flex items-center gap-2">
