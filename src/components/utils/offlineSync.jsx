@@ -279,51 +279,63 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     // ===== STEP 2: Future dates now handled in Step 3 (historical sync cycle) =====
     console.log('   ⏭️ Future dates sync now part of historical cycle');
     
-    // ===== STEP 3: Check if past 90 days need sync (1 day at a time, 5 min between dates) =====
-    console.log('   📅 Checking if historical data needs sync...');
+    // ===== STEP 3: Incremental or full sync of historical deliveries =====
+    console.log('   📅 Checking if delivery data needs sync...');
     
-    // CRITICAL: Only sync historical data if last full sync is > 8 hours old
     const deliverySyncStatus = await offlineDB.getSyncStatus('Delivery');
     const lastFullSync = deliverySyncStatus?.lastFullSync;
+    const lastSyncTime = deliverySyncStatus?.lastSync;
     const needsFullSync = !lastFullSync || (Date.now() - new Date(lastFullSync).getTime() > FULL_SYNC_INTERVAL);
     
     if (needsFullSync) {
-      console.log('   📅 Last full sync > 8h - syncing past 90 days (1 day at a time, 5 min cooldown)...');
-      console.log(`   ⏱️ This will take ~7.5 hours to complete all 90 days`);
+      console.log('   📅 Last full sync > 48h - performing FULL historical sync (1 day at a time)...');
       
-      // Sync 1 day at a time with 5-minute cooldown (including today and future 6 days)
-      // Start from 6 days in the future, go to 90 days in the past
+      // Full sync: fetch all records for past 90 days
       for (let daysOffset = 6; daysOffset >= -HISTORICAL_DAYS; daysOffset--) {
         if (syncPaused) break;
         
         const dateToSync = format(daysOffset >= 0 ? new Date(today.getTime() + daysOffset * 86400000) : subDays(today, Math.abs(daysOffset)), 'yyyy-MM-dd');
         
-        console.log(`      📅 Syncing ${dateToSync}...`);
+        console.log(`      📅 Full sync for ${dateToSync}...`);
         
-        await syncDeliveryDateRange(
-          dateToSync,
-          dateToSync,
-          null, // Don't skip any date
-          storeIds
-        );
+        await syncDeliveryDateRange(dateToSync, dateToSync, null, storeIds);
         
-        // 5-minute cooldown between each date
         const remaining = 6 + HISTORICAL_DAYS - (6 - daysOffset);
         if (daysOffset > -HISTORICAL_DAYS) {
-          console.log(`      ⏳ Waiting 5 minutes before next date... (${remaining} days remaining)`);
+          console.log(`      ⏳ Waiting 5 min before next date... (${remaining} days remaining)`);
           await new Promise(r => setTimeout(r, HISTORICAL_COOLDOWN));
         }
       }
       
-      // Mark full sync complete
       await offlineDB.updateSyncStatus('Delivery', {
-        lastFullSync: new Date().toISOString()
+        lastFullSync: new Date().toISOString(),
+        lastSync: new Date().toISOString()
       });
-      console.log('   ✅ Historical sync complete - will repeat in 8 hours');
+      console.log('   ✅ Full historical sync complete - next in 48h');
     } else {
-      const timeSinceLastSync = Date.now() - new Date(lastFullSync).getTime();
-      const hoursRemaining = ((FULL_SYNC_INTERVAL - timeSinceLastSync) / (60 * 60 * 1000)).toFixed(1);
-      console.log(`   ⏭️ Historical data synced recently - next full sync in ${hoursRemaining}h`);
+      // Incremental sync: only fetch records updated since last sync
+      console.log(`   ♻️ Performing INCREMENTAL sync (fetching only changes since last sync)...`);
+      const incrementalFilter = buildIncrementalFilter(lastSyncTime);
+      
+      try {
+        const changedDeliveries = await Delivery.filter(incrementalFilter, '-updated_date', 1000);
+        if (changedDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries);
+          console.log(`   ✅ Incremental sync: ${changedDeliveries.length} updated deliveries merged`);
+        } else {
+          console.log(`   ℹ️ Incremental sync: No changes since last sync`);
+        }
+      } catch (error) {
+        console.warn(`   ⚠️ Incremental sync failed:`, error.message);
+      }
+      
+      await offlineDB.updateSyncStatus('Delivery', {
+        lastSync: new Date().toISOString()
+      });
+      
+      const timeSinceFullSync = Date.now() - new Date(lastFullSync).getTime();
+      const hoursRemaining = ((FULL_SYNC_INTERVAL - timeSinceFullSync) / (60 * 60 * 1000)).toFixed(1);
+      console.log(`   ⏭️ Next full sync in ${hoursRemaining}h`);
     }
     
     // ===== STEP 3: Sync Cities in background =====
