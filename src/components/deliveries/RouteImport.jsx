@@ -1358,14 +1358,16 @@ export default function RouteImport({
         const driverDeliveries = freshDeliveries.filter(d => d.driver_id === fileDriver.id);
         
         // CRITICAL: Pass freshStoresAll directly to processCSVData to avoid stale closure
-        const result = await processCSVData(text, file.name, fileDriver, driverDeliveries, freshPatients, freshStoresAll);
+         // Filter existing deliveries for this specific driver ONLY
+         const driverDeliveries = allExistingDeliveries.filter(d => d.driver_id === fileDriver.id);
+         const result = await processCSVData(text, file.name, fileDriver, driverDeliveries, freshPatients, freshStoresAll);
 
-        totalToCreate = [...totalToCreate, ...result.deliveriesToCreate];
-        totalToUpdate = [...totalToUpdate, ...result.deliveriesToUpdate];
-        totalSkippedItems = [...totalSkippedItems, ...result.skippedItems];
-        totalErrors = [...totalErrors, ...result.errors];
+         totalToCreate = [...totalToCreate, ...result.deliveriesToCreate];
+         totalToUpdate = [...totalToUpdate, ...result.deliveriesToUpdate];
+         totalSkippedItems = [...totalSkippedItems, ...result.skippedItems];
+         totalErrors = [...totalErrors, ...result.errors];
 
-        // Track incoming delivery keys for deduplication
+         // Track incoming delivery keys for deduplication
          result.deliveriesToCreate.forEach(d => {
            if (d.stop_id && d.delivery_date) {
              const key = `${d.stop_id}|${d.delivery_date}`;
@@ -1383,11 +1385,11 @@ export default function RouteImport({
         // Find existing deliveries that match incoming keys (these will be deleted)
         for (const [key, incomingDeliveries] of incomingDeliveryKeys.entries()) {
          const [stopId, deliveryDate] = key.split('|');
-         const matchingExisting = freshDeliveries.filter(d => 
+         const matchingExisting = allExistingDeliveries.filter(d => 
            d.stop_id === stopId && 
            d.delivery_date === deliveryDate
          );
-         console.log(`[RouteImport] Dedup check for stop_id="${stopId}" date="${deliveryDate}": Found ${matchingExisting.length} matching existing deliveries`);
+         console.log(`[RouteImport] Dedup check for stop_id="${stopId}" date="${deliveryDate}": Found ${matchingExisting.length} matching existing deliveries (offline+online)`);
          duplicatesToDelete.push(...matchingExisting);
         }
 
