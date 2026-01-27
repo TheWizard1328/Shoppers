@@ -2191,8 +2191,8 @@ export default function RouteImport({
                 }
 
             {previewStats.toDelete > 0 &&
-                <div className="flex flex-col items-center bg-purple-50 border border-purple-200 rounded-lg p-3">
-                <div className="text-xs text-purple-700 mb-1">Deleted Duplicates</div>
+                <div className="flex flex-col items-center bg-purple-50 border-2 border-purple-300 rounded-lg p-3">
+                <div className="text-xs text-purple-700 mb-1 font-semibold">Deleted Duplicates</div>
                 <div className="text-2xl font-bold text-purple-800">{previewStats.toDelete}</div>
                 </div>
                 }
@@ -2231,26 +2231,26 @@ export default function RouteImport({
                     // Mobile card view
                     <div className="space-y-2 p-2">
                       {filteredPreviewDeliveries.map((delivery, idx) => {
-                       const store = stores.find((s) => s.id === delivery.store_id);
-                       const newTimeFormatted = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : 'none';
-                       const patient = delivery.patient_id ? patients.find((p) => p.id === delivery.patient_id) : null;
-                       const displayAddress = delivery.patient_id ?
-                         formatAddressWithUnit(patient?.address || delivery.delivery_address || '', patient?.unit_number || '') :
-                         formatAddressWithUnit(delivery.delivery_address || store?.address || '', delivery.unit_number || '');
+                        const store = stores.find((s) => s.id === delivery.store_id);
+                        const newTimeFormatted = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : 'none';
+                        const patient = delivery.patient_id ? patients.find((p) => p.id === delivery.patient_id) : null;
+                        const displayAddress = delivery.patient_id ?
+                          formatAddressWithUnit(patient?.address || delivery.delivery_address || '', patient?.unit_number || '') :
+                          formatAddressWithUnit(delivery.delivery_address || store?.address || '', delivery.unit_number || '');
 
-                       return (
-                         <div key={`${delivery.action}-${idx}`} className="p-3 rounded border text-xs" style={{ 
-                           background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.12)' : delivery.action === 'delete' ? 'rgba(168, 85, 247, 0.12)' : 'rgba(59, 130, 246, 0.12)',
-                           borderColor: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.4)' : delivery.action === 'delete' ? 'rgba(168, 85, 247, 0.4)' : 'rgba(59, 130, 246, 0.4)',
-                           borderWidth: '2px'
-                         }}>
-                           <div className="flex justify-between items-start mb-2 gap-2">
-                             <Badge className="border-0 font-semibold text-xs px-2 py-1 flex-shrink-0" style={{ 
-                               background: delivery.action === 'create' ? '#10b981' : delivery.action === 'delete' ? '#a855f7' : '#3b82f6', 
-                               color: 'white'
-                             }}>
-                               {delivery.action === 'create' ? '✓ NEW' : delivery.action === 'delete' ? '✕ DELETE' : '◇ UPDATE'}
-                             </Badge>
+                        return (
+                          <div key={`${delivery.action}-${idx}`} className="p-3 rounded border text-xs" style={{ 
+                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.12)' : delivery.action === 'delete' ? 'rgba(168, 85, 247, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                            borderColor: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.4)' : delivery.action === 'delete' ? 'rgba(168, 85, 247, 0.4)' : 'rgba(59, 130, 246, 0.4)',
+                            borderWidth: '2px'
+                          }}>
+                            <div className="flex justify-between items-start mb-2 gap-2">
+                              <Badge className="border-0 font-semibold text-xs px-2 py-1 flex-shrink-0" style={{ 
+                                background: delivery.action === 'create' ? '#10b981' : delivery.action === 'delete' ? '#a855f7' : '#3b82f6', 
+                                color: 'white'
+                              }}>
+                                {delivery.action === 'create' ? '✓ NEW' : delivery.action === 'delete' ? '✗ DELETE' : '◇ UPDATE'}
+                              </Badge>
                               <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{delivery.delivery_date} {newTimeFormatted !== 'none' && newTimeFormatted}</span>
                             </div>
                             <div className="space-y-1">
@@ -2282,8 +2282,8 @@ export default function RouteImport({
                         return (
                           <tr key={`${delivery.action}-${idx}`} className="border-b" style={{ 
                             borderColor: 'var(--border-slate-200)', 
-                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.06)' : 'rgba(59, 130, 246, 0.06)',
-                            borderLeft: delivery.action === 'create' ? '4px solid #10b981' : '4px solid #3b82f6'
+                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.06)' : delivery.action === 'delete' ? 'rgba(168, 85, 247, 0.06)' : 'rgba(59, 130, 246, 0.06)',
+                            borderLeft: delivery.action === 'create' ? '4px solid #10b981' : delivery.action === 'delete' ? '4px solid #a855f7' : '4px solid #3b82f6'
                           }}>
                             <td className="p-1 w-30 text-center">
                               <div className="flex flex-col gap-1 items-center">
@@ -2406,7 +2406,7 @@ export default function RouteImport({
                      setIsProcessing(false);
                      setImportResult(null);
                      setShowPreview(false);
-                     setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [], deliveriesToDelete: [] });
+                     setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] });
                      setIsParsing(false);
                      setProgressPercent(0);
                      setProgressMessage('');
