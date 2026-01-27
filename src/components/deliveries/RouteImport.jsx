@@ -1678,8 +1678,18 @@ export default function RouteImport({
         return true; // Signal success
       }, { restartDelay: 2000 }); // 2 second delay before restarting smart refresh
 
+      console.log('▶️ [RouteImport] Resuming sync processes after success...');
+      smartRefreshManager.resume();
+      driverLocationPoller.resume();
+
     } catch (error) {
       console.error("❌ Overall import error:", error);
+      
+      // CRITICAL: Ensure sync processes resume even on error
+      console.log('▶️ [RouteImport] Resuming sync processes after error...');
+      smartRefreshManager.resume();
+      driverLocationPoller.resume();
+      
       overallResults.errors.push(`Overall import process failed: ${error.message}`);
       setImportResult(overallResults);
       setImportProgress((prev) => ({
@@ -1699,8 +1709,6 @@ export default function RouteImport({
         lineNumber: null,
         phase: 'import'
       });
-      
-      driverLocationPoller.resume();
     } finally {
       setIsProcessing(false);
       setTimeout(() => setShowProgress(false), 1000);
