@@ -1287,13 +1287,29 @@ export default function RouteImport({
       }
 
       // STEP 2: Fetch fresh deliveries for ALL drivers in the import and date range
-      setProgressMessage(`Refreshing delivery cache for all drivers (${minDate} to ${maxDate})...`);
+      setProgressMessage(`Loading deliveries from offline & online databases...`);
       setProgressPercent(25);
 
       // Get all unique driver IDs from the file mapping
       const allDriverIds = [...new Set(activeFiles.map(f => activeDriverMap[f.name]?.driver?.id).filter(Boolean))];
       
-      // CRITICAL: Fetch deliveries for all drivers at once
+      // CRITICAL: Load from OFFLINE DB first
+      const { offlineDB: offlineDBInstance } = await import('../utils/offlineDatabase');
+      let offlineDeliveries = [];
+      try {
+        const allOfflineDeliveries = await offlineDBInstance.getAll(offlineDBInstance.STORES.DELIVERIES);
+        // Filter to matching date range and drivers
+        offlineDeliveries = (allOfflineDeliveries || []).filter(d => 
+          allDriverIds.includes(d.driver_id) &&
+          d.delivery_date >= minDate &&
+          d.delivery_date <= maxDate
+        );
+        console.log(`[RouteImport] Loaded ${offlineDeliveries.length} deliveries from offline DB`);
+      } catch (e) {
+        console.warn(`[RouteImport] Could not load offline deliveries:`, e.message);
+      }
+      
+      // CRITICAL: Fetch from API
       const freshDeliveries = await base44.entities.Delivery.filter(
         { 
           driver_id: { $in: allDriverIds },
@@ -1303,9 +1319,19 @@ export default function RouteImport({
         10000
       );
       
+      // CRITICAL: Merge offline + online, preferring API data (more recent)
+      const mergedMap = new Map();
+      offlineDeliveries.forEach(d => {
+        if (d.id) mergedMap.set(d.id, d);
+      });
+      freshDeliveries.forEach(d => {
+        if (d.id) mergedMap.set(d.id, d);
+      });
+      const allExistingDeliveries = Array.from(mergedMap.values());
+      
       setProgressPercent(35);
 
-      console.log(`[RouteImport] Loaded ${freshDeliveries.length} existing deliveries for ${allDriverIds.length} drivers in date range ${minDate} to ${maxDate}`);
+      console.log(`[RouteImport] Total deliveries to check (offline + online): ${allExistingDeliveries.length} (offline: ${offlineDeliveries.length}, api: ${freshDeliveries.length})`);
 
       // CRITICAL: Identify duplicates that will be deleted
       let duplicatesToDelete = [];
