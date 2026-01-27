@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive, Clock, Database, DownloadCloud } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive, Clock, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { subscribeSyncStatus, getSyncStats, forceSyncAll } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
 import { formatDistanceToNow } from 'date-fns';
-import { syncHistoricalData, isHistoricalSyncInProgress, setSyncStatusCallback } from '@/components/utils/historicalDataSync';
 
 export default function OfflineSyncIndicator({ embedded = false, inline = false }) {
   const { currentUser } = useUser();
@@ -14,8 +13,6 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const [stats, setStats] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isHistoricalSyncing, setIsHistoricalSyncing] = useState(false);
-  const [historicalProgress, setHistoricalProgress] = useState(null);
 
   const isVisible = currentUser && isAppOwner(currentUser);
 
@@ -106,37 +103,6 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       console.error('Force sync failed:', error);
     } finally {
       setIsSyncing(false);
-    }
-  };
-
-  const handleHistoricalSync = async () => {
-    try {
-      setIsHistoricalSyncing(true);
-      setHistoricalProgress(null);
-
-      // Set up callback to track progress
-      setSyncStatusCallback((status) => {
-        setHistoricalProgress(status);
-        if (status.type === 'complete' || status.type === 'error') {
-          // Refresh stats when done
-          getSyncStats().then(setStats);
-        }
-      });
-
-      // Start gradual sync of historical data (90 days worth)
-      await syncHistoricalData({
-        delayBetweenDates: 1500, // 1.5 seconds between requests to avoid rate limits
-        maxDates: null // Sync all missing dates
-      });
-
-      // Refresh stats and UI when done
-      const updatedStats = await getSyncStats();
-      setStats(updatedStats);
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-    } catch (error) {
-      console.error('Historical sync failed:', error);
-    } finally {
-      setIsHistoricalSyncing(false);
     }
   };
 
