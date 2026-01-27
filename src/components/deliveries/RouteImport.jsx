@@ -183,6 +183,8 @@ export default function RouteImport({
     totalFiles: 0
   });
 
+  const [deletedDuplicatesCount, setDeletedDuplicatesCount] = useState(0);
+
   const userHasRole = useCallback((user, role) => {
     return user && user.app_roles && user.app_roles.includes(role);
   }, []);
