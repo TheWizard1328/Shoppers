@@ -828,9 +828,9 @@ export default function PayrollSummaryCard({
               <Button 
                 size="sm" 
                 onClick={() => setShowConfirmDialog(true)} 
-                disabled={isFinalizing || isLoadingRecords || !canFinalize}
+                disabled={isFinalizing || isLoadingRecords || !canFinalize || isCurrentDriverFinalized}
                 className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-                title={!canFinalize ? 'Cannot finalize until pay period ends' : ''}
+                title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}
               >
                 <CheckCircle className="w-4 h-4" />
                 {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
