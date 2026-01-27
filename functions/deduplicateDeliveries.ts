@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build filter to find all existing deliveries with matching stop_id + address + delivery_date
+    // Build filter to find all existing deliveries with matching stop_id + address + delivery_date tuples
     const existingDeliveriesToDelete = [];
     
     for (const key of matchingKeys) {
