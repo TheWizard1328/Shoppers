@@ -1306,6 +1306,10 @@ export default function RouteImport({
 
       console.log(`[RouteImport] Loaded ${freshDeliveries.length} existing deliveries for ${allDriverIds.length} drivers in date range ${minDate} to ${maxDate}`);
 
+      // CRITICAL: Identify duplicates that will be deleted
+      let duplicatesToDelete = [];
+      const incomingDeliveryKeys = new Map();
+      
       let totalToCreate = [];
       let totalToUpdate = [];
       let totalSkippedItems = [];
