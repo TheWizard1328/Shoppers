@@ -2190,10 +2190,10 @@ export default function RouteImport({
                 </div>
                 }
 
-            {deletedDuplicatesCount > 0 &&
-                <div className="flex flex-col items-center bg-purple-50 border border-purple-200 rounded-lg p-3">
-                <div className="text-xs text-purple-700 mb-1">Deleted Duplicates</div>
-                <div className="text-2xl font-bold text-purple-800">{deletedDuplicatesCount}</div>
+            {previewStats.toDelete > 0 &&
+                <div className="flex flex-col items-center bg-purple-50 border-2 border-purple-300 rounded-lg p-3">
+                <div className="text-xs text-purple-700 mb-1 font-semibold">Deleted Duplicates</div>
+                <div className="text-2xl font-bold text-purple-800">{previewStats.toDelete}</div>
                 </div>
                 }
             </div>  
@@ -2406,7 +2406,7 @@ export default function RouteImport({
                      setIsProcessing(false);
                      setImportResult(null);
                      setShowPreview(false);
-                     setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [], deliveriesToDelete: [] });
+                     setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] });
                      setIsParsing(false);
                      setProgressPercent(0);
                      setProgressMessage('');
