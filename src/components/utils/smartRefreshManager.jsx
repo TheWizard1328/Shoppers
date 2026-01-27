@@ -1784,16 +1784,26 @@ class SmartRefreshManager {
     const updates = {};
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const selectedDateStr = filters?.selectedDate || todayStr;
-    
+
     try {
-      // STEP 1: Refresh driver locations (ONLY if viewing today's date)
+      // STEP 1: Refresh driver locations (ONLY if viewing today's date AND there are deliveries)
       // CRITICAL: Skip for past dates - no active deliveries, so no need for location updates
+      // CRITICAL: Skip if no deliveries for today - don't waste API calls on location updates
       if (selectedDateStr === todayStr) {
-        await this.waitForRateLimit();
-        const locationResult = await this.refreshDriverLocations(currentData.appUsers, true, new Date());
-        if (locationResult?.hasChanges) {
-          updates.appUsers = locationResult.appUsers;
-          console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
+        const todayDeliveries = currentData.deliveries?.filter(d => d?.delivery_date === todayStr) || [];
+
+        // CRITICAL: Skip location refresh if no deliveries AND no drivers on duty
+        const driversOnDuty = currentData.appUsers?.filter(au => au?.driver_status === 'on_duty') || [];
+
+        if (todayDeliveries.length === 0 && driversOnDuty.length === 0) {
+          console.log(`⏭️ [ActiveRoute] Skipping driver location refresh - no deliveries and no drivers on duty`);
+        } else {
+          await this.waitForRateLimit();
+          const locationResult = await this.refreshDriverLocations(currentData.appUsers, true, new Date());
+          if (locationResult?.hasChanges) {
+            updates.appUsers = locationResult.appUsers;
+            console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
+          }
         }
       } else {
         console.log(`⏭️ [ActiveRoute] Skipping driver location refresh - viewing past date (${selectedDateStr})`);
