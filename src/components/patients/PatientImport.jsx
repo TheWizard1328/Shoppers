@@ -1100,6 +1100,28 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
         console.log("PatientImport: Import complete via data operation manager");
 
+        // CRITICAL: Broadcast patient import to other devices
+        console.log("📡 [PatientImport] Broadcasting patient import to other devices...");
+        const { changeBroadcastManager } = await import('../utils/changeBroadcastManager');
+        const { getDeviceId } = await import('../utils/deviceIdManager');
+        
+        try {
+          await changeBroadcastManager.createBroadcast({
+            entity_name: 'Patient',
+            change_type: 'batch_create',
+            sent_by_user_id: currentUser?.id || 'system',
+            sent_by_device_id: getDeviceId(),
+            metadata: {
+              created: totalCreated,
+              updated: totalUpdated,
+              total: totalCreated + totalUpdated
+            }
+          });
+          console.log("✅ [PatientImport] Broadcast sent successfully");
+        } catch (broadcastError) {
+          console.warn("⚠️ [PatientImport] Failed to broadcast import:", broadcastError);
+        }
+
         // CRITICAL: Trigger immediate backend sync after import
         console.log("📤 [PatientImport] Triggering immediate backend sync...");
         const { processPendingMutations } = await import('../utils/offlineSync');

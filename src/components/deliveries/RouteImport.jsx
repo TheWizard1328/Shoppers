@@ -1665,6 +1665,38 @@ export default function RouteImport({
         // CRITICAL: NO route optimization after import - preserve imported stop order
         console.log('✅ [RouteImport] Import complete - stop order preserved from CSV');
         
+        // CRITICAL: Broadcast delivery import to other devices
+        console.log("📡 [RouteImport] Broadcasting delivery import to other devices...");
+        const { changeBroadcastManager } = await import('../utils/changeBroadcastManager');
+        const { getDeviceId } = await import('../utils/deviceIdManager');
+        
+        try {
+          // Get all affected dates from imported deliveries
+          const affectedDates = [...new Set([
+            ...deliveriesToCreateFiltered.map(d => d.delivery_date),
+            ...deliveriesToUpdateFiltered.map(d => d.delivery_date)
+          ])].filter(Boolean);
+          
+          // Broadcast for each affected date
+          for (const affectedDate of affectedDates) {
+            await changeBroadcastManager.createBroadcast({
+              entity_name: 'Delivery',
+              change_type: 'full_date_refresh',
+              affected_date: affectedDate,
+              sent_by_user_id: currentUser?.id || 'system',
+              sent_by_device_id: getDeviceId(),
+              metadata: {
+                created: overallResults.created,
+                updated: overallResults.updated,
+                total: overallResults.created + overallResults.updated
+              }
+            });
+          }
+          console.log(`✅ [RouteImport] Broadcast sent for ${affectedDates.length} dates`);
+        } catch (broadcastError) {
+          console.warn("⚠️ [RouteImport] Failed to broadcast import:", broadcastError);
+        }
+        
         // CRITICAL: Trigger immediate backend sync after import
         console.log("📤 [RouteImport] Triggering immediate backend sync...");
         const { processPendingMutations } = await import('../utils/offlineSync');
