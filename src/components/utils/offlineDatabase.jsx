@@ -356,31 +356,31 @@ const getStats = async () => {
     return {
       patients: {
         count: patients.length,
-        lastSync: patientSync?.lastSyncDate || 'Never'
+        lastSync: patientSync?.lastSync || patientSync?.lastSyncDate || 'Never'
       },
       deliveries: {
         count: deliveries.length,
-        lastSync: deliverySync?.lastSyncDate || 'Never'
+        lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never'
       },
       appUsers: {
         count: appUsers.length,
-        lastSync: appUserSync?.lastSyncDate || 'Never'
+        lastSync: appUserSync?.lastSync || appUserSync?.lastSyncDate || 'Never'
       },
       cities: {
         count: cities.length,
-        lastSync: citySync?.lastSyncDate || 'Never'
+        lastSync: citySync?.lastSync || citySync?.lastSyncDate || 'Never'
       },
       stores: {
         count: stores.length,
-        lastSync: storeSync?.lastSyncDate || 'Never'
+        lastSync: storeSync?.lastSync || storeSync?.lastSyncDate || 'Never'
       },
       squareTransactions: {
         count: squareTx.length,
-        lastSync: squareTxSync?.lastSyncDate || 'Never'
+        lastSync: squareTxSync?.lastSync || squareTxSync?.lastSyncDate || 'Never'
       },
       driverOverviewStats: {
         count: driverStats.length,
-        lastSync: deliverySync?.lastSyncDate || 'Never' // Use delivery sync time since they're related
+        lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never' // Use delivery sync time since they're related
       }
     };
   } catch (error) {
