@@ -5371,10 +5371,9 @@ function Dashboard() {
     let driverId = null;
     let deliveryDate = null;
 
-    // STEP 0: Pause ALL update systems
-    console.log('⏸️ [STATUS] Pausing ALL update systems...');
+    // STEP 0: Pause smart refresh and offline sync only (NOT mutations - we bypass them)
+    console.log('⏸️ [STATUS] Pausing smart refresh and offline sync...');
     setIsEntityUpdating(true);
-    pauseOfflineMutations();
     pauseOfflineSync();
     smartRefreshManager.pause();
     
@@ -5765,30 +5764,28 @@ function Dashboard() {
       });
       console.log('   ✅ Protected deliveries from smart refresh');
 
-      // STEP 10: Wait for background tasks to complete (only if we have valid IDs)
+      // STEP 10: Background tasks (non-blocking, run after UI updates)
       if (driverId && deliveryDate) {
-        console.log('🔄 [STATUS] Waiting for background tasks...');
+        console.log('🔄 [STATUS] Starting background tasks...');
         
-        // Background: Recalculate stop orders
-        await recalculateStopOrders(driverId, deliveryDate).catch((error) =>
+        // Background: Recalculate stop orders (don't await)
+        recalculateStopOrders(driverId, deliveryDate).catch((error) =>
           console.warn('⚠️ Stop order recalc failed:', error)
         );
 
-        // Background: Update ETAs (mobile drivers only)
+        // Background: Update ETAs (mobile drivers only, don't await)
         if (isMobile && userHasRole(currentUser, 'driver') && ['completed', 'failed', 'cancelled'].includes(newStatus)) {
           const now = new Date();
           const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-          await base44.functions.invoke('calculateRealTimeETA', {
+          base44.functions.invoke('calculateRealTimeETA', {
             driverId: driverId,
             deliveryDate: deliveryDate,
             currentLocalTime: localTimeString
           }).catch((error) => console.warn('⚠️ ETA update failed:', error));
         }
 
-        console.log('✅ [STATUS] Background tasks complete');
-      } else {
-        console.log('⏭️ [STATUS] Skipping background tasks - missing driverId/deliveryDate');
+        console.log('✅ [STATUS] Background tasks started');
       }
 
     } catch (error) {
@@ -5808,12 +5805,8 @@ function Dashboard() {
       alert(`Failed to update status: ${error.message || 'Unknown error - check console'}`);
       throw error;
     } finally {
-      // CRITICAL: Wait longer for all writes and UI updates to complete
-      console.log('⏳ [STATUS] Waiting 3s before resuming update systems...');
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      
-      console.log('▶️ [STATUS] Resuming ALL update systems');
-      resumeOfflineMutations();
+      // CRITICAL: Resume immediately after database update
+      console.log('▶️ [STATUS] Resuming update systems');
       resumeOfflineSync();
       smartRefreshManager.resume();
       
