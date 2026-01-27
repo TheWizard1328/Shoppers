@@ -20,11 +20,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get unique stop_id + address pairs from incoming deliveries
+    // Get unique stop_id + address + delivery_date tuples from incoming deliveries
     const incomingDuplicateKeys = new Map();
     incomingDeliveries.forEach((delivery) => {
-      if (delivery.stop_id && delivery.delivery_address) {
-        const key = `${delivery.stop_id}|${delivery.delivery_address.toLowerCase().trim()}`;
+      if (delivery.stop_id && delivery.delivery_address && delivery.delivery_date) {
+        const key = `${delivery.stop_id}|${delivery.delivery_address.toLowerCase().trim()}|${delivery.delivery_date}`;
         if (!incomingDuplicateKeys.has(key)) {
           incomingDuplicateKeys.set(key, []);
         }
