@@ -2406,7 +2406,7 @@ export default function RouteImport({
                      setIsProcessing(false);
                      setImportResult(null);
                      setShowPreview(false);
-                     setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] });
+                     setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [], deliveriesToDelete: [] });
                      setIsParsing(false);
                      setProgressPercent(0);
                      setProgressMessage('');
