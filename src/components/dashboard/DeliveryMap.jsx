@@ -839,6 +839,20 @@ export default function DeliveryMap({
       setRouteRenderKey(prev => prev + 1);
     };
 
+    // CRITICAL: When driver locations update, also trigger polyline sync to prevent lag
+    const handleDriverLocationUpdate = (event) => {
+      const { appUsers, singleUpdate } = event.detail;
+      
+      // Update realtime app users (this triggers polyline recalculation)
+      if (singleUpdate) {
+        setRealtimeAppUsers(prev => prev.map(u => 
+          u?.id === singleUpdate.user_id ? { ...u, ...singleUpdate } : u
+        ));
+      } else if (appUsers && appUsers.length > 0) {
+        setRealtimeAppUsers(appUsers);
+      }
+    };
+
     // NEW: Listen for route optimization completion to refresh map
     const handleRouteOptimizationComplete = (event) => {
       console.log('🗺️ [DeliveryMap] Route optimization complete - refreshing map');
