@@ -104,7 +104,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
         if (missingDates.length > 0) {
           console.log(`📅 [Manual Sync] Syncing missing dates: ${missingDates.slice(0, 5).join(', ')}${missingDates.length > 5 ? '...' : ''}`);
           
-          // Sync missing dates gradually (one per second to avoid rate limits)
+          // Sync missing dates gradually (3 seconds between requests to avoid rate limits)
           let synced = 0;
           for (const dateStr of missingDates) {
             try {
@@ -115,9 +115,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                 console.log(`✅ [Manual Sync] Synced ${dateDeliveries.length} deliveries for ${dateStr}`);
               }
               
-              // Slow rate limit protection - 1 second between requests
+              // Aggressive rate limit protection - 3 seconds between requests
               if (synced < missingDates.length) {
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(r => setTimeout(r, 3000));
               }
             } catch (dateError) {
               console.warn(`⚠️ [Manual Sync] Error syncing ${dateStr}:`, dateError.message);
