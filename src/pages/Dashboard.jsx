@@ -5367,6 +5367,10 @@ function Dashboard() {
     console.log('   Extra Data:', extraData);
     console.log('═══════════════════════════════════════════════════');
 
+    // CRITICAL: Declare these outside try block so they're accessible in finally
+    let driverId = null;
+    let deliveryDate = null;
+
     // STEP 0: Pause ALL update systems
     console.log('⏸️ [STATUS] Pausing ALL update systems...');
     setIsEntityUpdating(true);
@@ -5405,8 +5409,11 @@ function Dashboard() {
       
       console.log('✅ [STATUS] Found target delivery:', targetDelivery.patient_name || 'Pickup');
 
+      // CRITICAL: Assign to outer scope variables
+      driverId = targetDelivery.driver_id;
+      deliveryDate = targetDelivery.delivery_date;
+      
       const currentDate = format(new Date(), 'yyyy-MM-dd');
-      const deliveryDate = targetDelivery.delivery_date;
       const isPickup = !targetDelivery.patient_id;
       const isRetry = targetDelivery.status === 'failed' && (newStatus === 'in_transit' || newStatus === 'en_route');
 
