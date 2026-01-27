@@ -5682,14 +5682,18 @@ function Dashboard() {
         }
       }
 
-      // STEP 6: Scroll to next card (instant)
+      // STEP 6: Scroll to next card (delayed to ensure UI updates)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         setTimeout(() => {
-          const nextCardElement = document.querySelector('[data-is-next-delivery="true"]');
-          if (nextCardElement) {
-            nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+          if (nextCard) {
+            const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+            if (cardElement) {
+              cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+              console.log('📍 [STATUS] Auto-centered to next delivery card');
+            }
           }
-        }, 100);
+        }, 500);
       }
 
       // STEP 7: Re-lock FAB if needed (instant)
