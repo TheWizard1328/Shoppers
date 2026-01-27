@@ -2012,18 +2012,7 @@ function Dashboard() {
 
     fetchPolyline();
     const interval = setInterval(fetchPolyline, 30000);
-    
-    // CRITICAL: Listen for driver location updates to refresh polyline immediately
-    const handleLocationUpdate = () => {
-      console.log('📍 [Polyline] Driver location updated - refreshing polyline');
-      fetchPolyline();
-    };
-    window.addEventListener('driverLocationsUpdated', handleLocationUpdate);
-    
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('driverLocationsUpdated', handleLocationUpdate);
-    };
+    return () => clearInterval(interval);
   }, [currentUser?.id, selectedDriverId, selectedDate, filteredDeliveries, patients, stores, users]);
 
   useEffect(() => {
