@@ -742,9 +742,9 @@ export default function PayrollSummaryCard({
           
           {/* Row 2: Confirmed Drivers and Finalize Button */}
           <div className="flex items-center justify-between">
-            {/* Admin View: Show finalization progress */}
-            {isAdmin && driversWithDeliveriesIds.length > 0 && 
-              !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) && (
+            {/* Admin View: Show finalization progress - multi-driver view only */}
+              {isAdmin && driversWithDeliveriesIds.length > 0 && 
+                selectedDriverId === 'all' && (
               <>
                 {!isAdminFinalized && (
                   <>
