@@ -486,8 +486,8 @@ const syncDeliveryDateRange = async (startDate, endDate, skipDate = null, storeI
 };
 
 /**
- * Sync Square Transactions - fetch all at once (smaller dataset)
- * CRITICAL: Simpler approach since SquareTransaction is a smaller dataset
+ * Sync Square Transactions - incremental or full fetch
+ * CRITICAL: Uses incremental sync to avoid re-fetching unchanged records
  */
 const syncSquareTransactionsGently = async () => {
   if (syncPaused) return;
@@ -495,20 +495,23 @@ const syncSquareTransactionsGently = async () => {
   console.log('   💳 [OfflineSync] Starting Square Transaction sync...');
   
   try {
-    const allTransactions = await SquareTransaction.list('-updated_date', 500);
+    const txLastSync = await getLastSyncTimestamp('SquareTransaction');
+    const txFilter = buildIncrementalFilter(txLastSync);
+    const transactions = txFilter.updated_date
+      ? await SquareTransaction.filter(txFilter, '-updated_date', 500)
+      : await SquareTransaction.list('-updated_date', 500);
     
-    if (allTransactions.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, allTransactions);
-      console.log(`   ✅ [OfflineSync] Square Transaction sync complete: ${allTransactions.length} total`);
+    if (transactions.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, transactions);
+      console.log(`   ✅ [OfflineSync] ${txFilter.updated_date ? '♻️ Incremental' : 'Full'} Square Transaction sync: ${transactions.length} records`);
     } else {
       console.log(`   ℹ️ [OfflineSync] No Square Transactions found`);
     }
     
     await offlineDB.updateSyncStatus('SquareTransaction', {
-      recordCount: allTransactions.length,
+      recordCount: transactions.length,
       status: 'synced',
-      lastSync: new Date().toISOString(),
-      lastFullSync: new Date().toISOString()
+      lastSync: new Date().toISOString()
     });
   } catch (error) {
     console.error('   ❌ [OfflineSync] Square Transaction sync failed:', error.message);
