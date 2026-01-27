@@ -609,8 +609,9 @@ export default function RouteImport({
   }, []);
 
   const handleFileChange = (e) => {
-    const selectedFiles = Array.from(e.target.files);
-    setFiles(selectedFiles.length > 0 ? selectedFiles : []);
+    try {
+      const selectedFiles = Array.from(e.target.files);
+      setFiles(selectedFiles.length > 0 ? selectedFiles : []);
     
     // Auto-assign drivers based on filenames
     if (selectedFiles.length > 0) {
@@ -649,10 +650,29 @@ export default function RouteImport({
         }
         
         // Pass the fresh data directly to avoid stale state
+        // CRITICAL: Wrap in try-catch to prevent app crashes
         setTimeout(() => {
-          handlePreview(selectedFiles, newFileDriverMap);
+          try {
+            handlePreview(selectedFiles, newFileDriverMap);
+          } catch (error) {
+            console.error('[RouteImport] Auto-preview error:', error);
+            setImportError({
+              message: error.message,
+              record: { files: selectedFiles.map(f => f.name).join(', ') },
+              lineNumber: null,
+              phase: 'file-selection'
+            });
+          }
         }, 300);
       }
+    } catch (error) {
+      console.error('[RouteImport] handleFileChange error:', error);
+      setImportError({
+        message: error.message,
+        record: { files: 'File selection error' },
+        lineNumber: null,
+        phase: 'file-selection'
+      });
     }
   };
 
