@@ -662,16 +662,23 @@ export const processPendingMutations = async () => {
     for (const result of deleteResults) {
       if (result.success && result.mutationId) {
         const mutation = deletes.find(m => m.mutationId === result.mutationId);
-        if (mutation && !mutation.recordId?.startsWith('temp_')) {
+        if (mutation) {
+          // Always remove from pending queue on success
           offlineDeletePromises.push(
-            offlineDB.deleteRecord(mutation.entity === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES, mutation.recordId),
             offlineDB.removePendingMutation(result.mutationId)
           );
+          // Only delete from offline DB if not a temp record
+          if (!mutation.recordId?.startsWith('temp_')) {
+            offlineDeletePromises.push(
+              offlineDB.deleteRecord(mutation.entity === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES, mutation.recordId)
+            );
+          }
         }
         successCount++;
       } else if (result.success && result.skip) {
         const mutation = deletes.find(m => m.mutationId === result.mutationId || !m.recordId?.startsWith('temp_'));
         if (mutation?.mutationId) {
+          // Always remove from pending queue even if skipped
           offlineDeletePromises.push(offlineDB.removePendingMutation(mutation.mutationId));
         }
         successCount++;
