@@ -26,25 +26,24 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       setSyncStatus(status);
       setIsSyncing(status.status === 'syncing' || status.status === 'force_syncing');
 
-      // Refresh stats in real-time during sync AND when complete
-      if (status.status === 'syncing' || status.status === 'force_syncing' || status.status === 'complete' || status.status === 'synced') {
-        getSyncStats().then(setStats);
+      // CRITICAL: Refresh stats on ANY sync status update (including entity-specific ones)
+      // This ensures the indicator updates in real-time as data syncs
+      getSyncStats().then(setStats);
+      
+      // CRITICAL: Update UI in real-time if syncing entities relevant to current screen
+      const relevantEntities = ['Deliveries', 'Patients', 'AppUsers', 'Cities'];
+      if (status.entity && relevantEntities.includes(status.entity)) {
+        console.log(`🔄 [OfflineSyncIndicator] ${status.entity} syncing - updating UI (progress: ${status.progress || 0}%)`);
         
-        // CRITICAL: Update UI in real-time if syncing entities relevant to current screen
-        const relevantEntities = ['Deliveries', 'Patients', 'AppUsers', 'Cities'];
-        if (status.entity && relevantEntities.includes(status.entity)) {
-          console.log(`🔄 [OfflineSyncIndicator] ${status.entity} synced - updating UI`);
-          
-          // Trigger partial UI refresh for relevant data
-          if (status.entity === 'Deliveries' || status.entity === 'Patients') {
-            window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          }
-          
-          if (status.entity === 'AppUsers') {
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: null }
-            }));
-          }
+        // Trigger partial UI refresh for relevant data
+        if (status.entity === 'Deliveries' || status.entity === 'Patients') {
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        }
+        
+        if (status.entity === 'AppUsers') {
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: null }
+          }));
         }
       }
     });
