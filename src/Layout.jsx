@@ -3512,9 +3512,9 @@ export default function Layout({ children, currentPageName }) {
                   }
                   </div>
 
-                  {/* Driver Status Toggle - Centered in Mobile Header - Only on mobile */}
-                  {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                  {/* Driver Status Toggle - Centered in Mobile Header - Only on narrow mobile screens */}
+                  {isMobile && showDesktopLayout === false && currentUser && userHasRole(currentUser, 'driver') &&
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                       <DriverStatusToggle
                     currentUser={currentUser}
                     onStatusChange={async (newStatus) => {
@@ -3526,7 +3526,7 @@ export default function Layout({ children, currentPageName }) {
                     }} />
 
                     </div>
-                }
+                  }
 
                   {currentUser &&
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
