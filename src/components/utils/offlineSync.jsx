@@ -72,6 +72,30 @@ const isOfflineDataFresh = async (entityName) => {
 };
 
 /**
+ * Get the last sync timestamp for incremental fetching
+ */
+const getLastSyncTimestamp = async (entityName) => {
+  const syncStatus = await offlineDB.getSyncStatus(entityName);
+  if (!syncStatus || !syncStatus.lastSync) return null;
+  return syncStatus.lastSync;
+};
+
+/**
+ * Build incremental filter for entity fetching
+ * Returns a filter that only fetches records updated since last sync
+ */
+const buildIncrementalFilter = (lastSyncTimestamp, existingFilter = {}) => {
+  if (!lastSyncTimestamp) {
+    return existingFilter; // No previous sync, fetch all
+  }
+  
+  return {
+    ...existingFilter,
+    updated_date: { $gte: lastSyncTimestamp }
+  };
+};
+
+/**
  * Get all fresh offline data if available
  */
 export const getOfflineDataIfFresh = async () => {
