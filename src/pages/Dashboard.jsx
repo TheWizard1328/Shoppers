@@ -5829,18 +5829,10 @@ function Dashboard() {
       
       console.log('✅ [COD] Found delivery:', delivery.patient_name || 'Pickup');
       
-      // CRITICAL: Build complete update with ALL COD fields
+      // CRITICAL: Only update cod_payments array - don't touch cod_total_amount_required
       const updateData = {
         cod_payments: codPayments
       };
-      
-      // If removing all payments, clear everything
-      if (codPayments.length === 0) {
-        console.log('🗑️ [COD] Clearing ALL COD fields (empty array)');
-        updateData.cod_total_amount_required = 0;
-        updateData.cod_payment_type = 'No Payment';
-        updateData.cod_amount = '';
-      }
       
       console.log('📤 [COD] Update payload:', JSON.stringify(updateData, null, 2));
       
