@@ -1010,15 +1010,16 @@ export default function PayrollSummaryCard({
                   )}
                 </h3>
                 {canShowConfirmButton && (
-                  <Button 
-                    size="sm" 
-                    onClick={() => handleDriverFinalize(data)} 
-                    disabled={isFinalizing || isLoadingRecords}
-                    className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs h-7 px-2"
-                  >
-                    <CheckCircle className="w-3 h-3" />
-                    {isFinalizing ? '...' : 'Confirm My Payroll'}
-                  </Button>
+                   <Button 
+                     size="sm" 
+                     onClick={() => handleDriverFinalize(data)} 
+                     disabled={isFinalizing || isLoadingRecords || driverHasConfirmed}
+                     className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs h-7 px-2"
+                     title={driverHasConfirmed ? 'Already confirmed' : ''}
+                   >
+                     <CheckCircle className="w-3 h-3" />
+                     {isFinalizing ? '...' : 'Confirm My Payroll'}
+                   </Button>
                 )}
               </div>
 
