@@ -357,13 +357,20 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       }
     }
 
-    // ===== STEP 4: Sync AppUsers in background =====
+    // ===== STEP 4: Sync AppUsers (incremental or full) =====
     if (!syncPaused) {
       console.log('   👤 Syncing AppUsers...');
       try {
-        const allAppUsers = await AppUser.list();
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
-        console.log(`   ✅ Cached ${allAppUsers.length} AppUsers`);
+        const appUserLastSync = await getLastSyncTimestamp('AppUser');
+        const appUserFilter = buildIncrementalFilter(appUserLastSync);
+        const appUsers = appUserFilter.updated_date
+          ? await AppUser.filter(appUserFilter, '-updated_date', 1000)
+          : await AppUser.list();
+        
+        if (appUsers.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+          console.log(`   ✅ ${appUserFilter.updated_date ? '♻️ Incremental' : 'Full'} AppUser sync: ${appUsers.length} records`);
+        }
       } catch (appUserError) {
         console.warn(`   ⚠️ AppUser sync failed:`, appUserError.message);
       }
