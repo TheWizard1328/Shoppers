@@ -1172,17 +1172,8 @@ export default function RouteImport({
       return notesReturn || addressReturn || patientNameReturn;
     }).length;
 
-    // CRITICAL: Completed = all deliveries MINUS failed MINUS returned
-    const completed = filteredPreviewDeliveries.filter((d) => {
-      if (d.status === 'failed') return false;
-      
-      const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
-      const addressReturn = (d.delivery_address || '').toLowerCase().includes('rtn');
-      const patientNameReturn = (d.patient_name || '').toLowerCase().includes('return');
-      if (notesReturn || addressReturn || patientNameReturn) return false;
-      
-      return true;
-    }).length;
+    // CRITICAL: Completed = ONLY deliveries with status === 'completed'
+    const completed = filteredPreviewDeliveries.filter((d) => d.status === 'completed').length;
 
     return { creates, updates, completed, failed, returned, skipped: previewData.skippedItems.length };
   }, [filteredPreviewDeliveries, previewData.skippedItems]);
@@ -1446,7 +1437,12 @@ export default function RouteImport({
 
               batch.forEach((cleanData) => {
                 overallResults.created++;
-                overallResults.completed++;
+                if (cleanData.status === 'completed') {
+                  overallResults.completed++;
+                }
+                if (cleanData.status === 'failed') {
+                  overallResults.failed++;
+                }
                 if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
                   overallResults.returned++;
                 }
@@ -1470,7 +1466,12 @@ export default function RouteImport({
                   await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
 
                   overallResults.created++;
-                  overallResults.completed++;
+                  if (cleanData.status === 'completed') {
+                    overallResults.completed++;
+                  }
+                  if (cleanData.status === 'failed') {
+                    overallResults.failed++;
+                  }
                   if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
                     overallResults.returned++;
                   }
@@ -1517,7 +1518,12 @@ export default function RouteImport({
                 await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
 
                 overallResults.updated++;
-                overallResults.completed++;
+                if (cleanPayload.status === 'completed') {
+                  overallResults.completed++;
+                }
+                if (cleanPayload.status === 'failed') {
+                  overallResults.failed++;
+                }
                 if (isReturnDelivery(cleanPayload, freshPatients, freshStores)) {
                   overallResults.returned++;
                 }
@@ -1566,7 +1572,12 @@ export default function RouteImport({
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
             
             overallResults.created++;
-            overallResults.completed++;
+            if (cleanData.status === 'completed') {
+              overallResults.completed++;
+            }
+            if (cleanData.status === 'failed') {
+              overallResults.failed++;
+            }
             if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
               overallResults.returned++;
             }
@@ -1602,7 +1613,12 @@ export default function RouteImport({
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
             
             overallResults.updated++;
-            overallResults.completed++;
+            if (updatePayload.status === 'completed') {
+              overallResults.completed++;
+            }
+            if (updatePayload.status === 'failed') {
+              overallResults.failed++;
+            }
             if (isReturnDelivery(updatePayload, freshPatients, freshStores)) {
               overallResults.returned++;
             }
