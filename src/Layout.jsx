@@ -892,21 +892,6 @@ export default function Layout({ children, currentPageName }) {
         // CRITICAL: Set user context for ChangeBroadcast filtering
         smartRefreshManager.setUserContext(fetchedUser, initialCityId);
 
-        // CRITICAL: Start polling for ChangeBroadcast updates
-        console.log('📡 [Layout] Starting ChangeBroadcast polling...');
-        const { changeBroadcastManager } = await import('./components/utils/changeBroadcastManager');
-
-        const broadcastCheckInterval = setInterval(async () => {
-          try {
-            await changeBroadcastManager.checkForBroadcasts(fetchedUser, initialCityId);
-          } catch (error) {
-            console.warn('[Layout] Broadcast check error:', error);
-          }
-        }, 15000); // Check every 15 seconds
-
-        // Store interval ID for cleanup
-        window._broadcastCheckInterval = broadcastCheckInterval;
-
         setDataLoaded(true); // CRITICAL: Set data loaded to prevent bg sync re-triggering
         setIsLoadingLayout(false);
 
