@@ -1467,26 +1467,25 @@ export default function RouteImport({
       smartRefreshManager.pause();
       driverLocationPoller.pause();
       
-      // CRITICAL: Deduplicate before import to remove existing deliveries with identical stop_id + address
-      console.log('🔄 [RouteImport] Deduplicating deliveries...');
-      setProgressMessage('Deduplicating deliveries with matching stop_id and address...');
-      
-      const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
-      if (deliveriesToCreateFiltered.length > 0) {
+      // CRITICAL: Delete pre-identified duplicates from preview (already merged offline+online)
+      const deliveriesToDelete = filteredPreviewDeliveries.filter((d) => d.action === 'delete');
+      if (deliveriesToDelete.length > 0) {
+        console.log(`🗑️ [RouteImport] Deleting ${deliveriesToDelete.length} pre-identified duplicates...`);
+        setProgressMessage(`Deleting ${deliveriesToDelete.length} duplicate deliveries...`);
+        
         try {
-          const dedupeResponse = await base44.functions.invoke('deduplicateDeliveries', {
-            incomingDeliveries: deliveriesToCreateFiltered
-          });
-          
-          if (dedupeResponse?.data?.deletedCount > 0 || dedupeResponse?.deletedCount > 0) {
-            const deletedCount = dedupeResponse?.data?.deletedCount || dedupeResponse?.deletedCount || 0;
-            setDeletedDuplicatesCount(deletedCount);
-            console.log(`✅ [RouteImport] Deleted ${deletedCount} duplicate deliveries before import`);
-            setProgressMessage(`Deduplication complete - deleted ${deletedCount} duplicates. Starting import...`);
-            await delay(1000);
+          const deleteIds = deliveriesToDelete.map((d) => d.id).filter(Boolean);
+          if (deleteIds.length > 0) {
+            // Delete in batches to avoid rate limits
+            const BATCH_SIZE = 50;
+            for (let i = 0; i < deleteIds.length; i += BATCH_SIZE) {
+              const batch = deleteIds.slice(i, i + BATCH_SIZE);
+              await base44.asServiceRole.entities.Delivery.delete({ id: { $in: batch } });
+              console.log(`✅ Deleted batch of ${batch.length} duplicates`);
+            }
           }
-        } catch (dedupeError) {
-          console.warn('⚠️ [RouteImport] Deduplication warning (continuing anyway):', dedupeError.message);
+        } catch (deleteError) {
+          console.warn('⚠️ [RouteImport] Duplicate deletion warning (continuing anyway):', deleteError.message);
         }
       }
       
