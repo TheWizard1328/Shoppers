@@ -815,7 +815,7 @@ export default function DeliveryMap({
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
       const { appUsers, singleUpdate } = event.detail;
-      
+
       // CRITICAL: Handle single driver updates (from status toggle, etc.)
       if (singleUpdate) {
         setRealtimeAppUsers(prev => prev.map(u => 
@@ -823,7 +823,7 @@ export default function DeliveryMap({
         ));
         return;
       }
-      
+
       // CRITICAL: Handle bulk updates (from smart refresh) - update immediately
       if (appUsers && appUsers.length > 0) {
         setRealtimeAppUsers(appUsers);
@@ -837,20 +837,6 @@ export default function DeliveryMap({
       prevDriverRoutesRef.current = [];
       // Force re-render by incrementing key
       setRouteRenderKey(prev => prev + 1);
-    };
-
-    // CRITICAL: When driver locations update, also trigger polyline sync to prevent lag
-    const handleDriverLocationUpdate = (event) => {
-      const { appUsers, singleUpdate } = event.detail;
-      
-      // Update realtime app users (this triggers polyline recalculation)
-      if (singleUpdate) {
-        setRealtimeAppUsers(prev => prev.map(u => 
-          u?.id === singleUpdate.user_id ? { ...u, ...singleUpdate } : u
-        ));
-      } else if (appUsers && appUsers.length > 0) {
-        setRealtimeAppUsers(appUsers);
-      }
     };
 
     // NEW: Listen for route optimization completion to refresh map
