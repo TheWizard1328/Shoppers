@@ -5809,18 +5809,25 @@ function Dashboard() {
   };
 
   const handleCODUpdate = async (deliveryId, codPayments, skipAutoCenter = false) => {
+    console.log('═══════════════════════════════════════════════════');
+    console.log('💳 [COD Update] Starting');
+    console.log('   Delivery ID:', deliveryId);
+    console.log('   Payments:', codPayments);
+    console.log('═══════════════════════════════════════════════════');
+    
     // CRITICAL: Pause smart refresh to prevent overwrite
     console.log('⏸️ [COD] Pausing smart refresh...');
     setIsEntityUpdating(true);
     await new Promise((resolve) => setTimeout(resolve, 100));
     
     try {
-      console.log('💳 [COD Update] Saving payments:', codPayments);
-      
       const delivery = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
       if (!delivery) {
+        console.error('❌ [COD] Delivery not found in deliveriesWithStopOrder');
         throw new Error('Delivery not found');
       }
+      
+      console.log('✅ [COD] Found delivery:', delivery.patient_name || 'Pickup');
       
       // CRITICAL: Build complete update with ALL COD fields
       const updateData = {
@@ -5829,39 +5836,40 @@ function Dashboard() {
       
       // If removing all payments, clear everything
       if (codPayments.length === 0) {
-        console.log('💳 [COD Update] Clearing all COD fields');
+        console.log('🗑️ [COD] Clearing ALL COD fields (empty array)');
         updateData.cod_total_amount_required = 0;
         updateData.cod_payment_type = 'No Payment';
         updateData.cod_amount = '';
       }
       
-      console.log('📤 [COD Update] Updating database with:', updateData);
+      console.log('📤 [COD] Update payload:', JSON.stringify(updateData, null, 2));
       
-      // Update database
-      await base44.entities.Delivery.update(deliveryId, updateData);
-      console.log('✅ [COD Update] Database updated');
+      // CRITICAL: Use offline-first mutation system
+      console.log('💾 [COD] Updating via offline mutation system...');
+      await updateDeliveryLocal(deliveryId, updateData, { skipSmartRefresh: true });
+      console.log('✅ [COD] Offline mutation complete');
       
-      // CRITICAL: Fetch fresh data and update offline DB
-      const freshDelivery = await base44.entities.Delivery.filter({ id: deliveryId });
-      if (freshDelivery && freshDelivery.length > 0) {
-        console.log('📦 [COD Update] Fresh delivery data:', freshDelivery[0].cod_payments);
-        await offlineDB.save(offlineDB.STORES.DELIVERIES, freshDelivery[0]);
-        console.log('✅ [COD Update] Offline DB updated');
-        
-        // Update UI state immediately
-        if (updateDeliveriesLocally) {
-          updateDeliveriesLocally([freshDelivery[0]], false);
-          console.log('✅ [COD Update] UI state updated');
-        }
+      // CRITICAL: Update UI state immediately with the changes
+      if (updateDeliveriesLocally) {
+        const updatedDelivery = { ...delivery, ...updateData };
+        updateDeliveriesLocally([updatedDelivery], false);
+        console.log('✅ [COD] UI state updated');
       }
       
       // Protect from smart refresh overwrite
       smartRefreshManager.registerPendingUpdate(deliveryId, delivery.driver_id, delivery.delivery_date);
-      console.log('✅ [COD Update] Protected from smart refresh');
+      console.log('✅ [COD] Protected from smart refresh');
+      
+      console.log('✅ [COD Update] Complete');
       
     } catch (error) {
-      console.error('❌ [COD Update] Error:', error);
-      alert('Failed to update COD payments. Please try again.');
+      console.error('═══════════════════════════════════════════════════');
+      console.error('❌ [COD Update] FAILED');
+      console.error('   Error:', error);
+      console.error('   Error message:', error.message);
+      console.error('   Error stack:', error.stack);
+      console.error('═══════════════════════════════════════════════════');
+      alert(`Failed to update COD payments: ${error.message}`);
       throw error;
     } finally {
       // Resume smart refresh after 2 seconds
