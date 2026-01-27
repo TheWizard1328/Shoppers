@@ -868,6 +868,7 @@ export default function DeliveryMap({
       window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdate);
       window.removeEventListener('routeOptimizationComplete', handleRouteOptimizationComplete);
     };
+    // CRITICAL: This listener REPLACES the previous handleDriverLocationUpdate - ensures polyline sync
   }, []);
 
   // CRITICAL: Determine mode BEFORE processing markers - must be defined first
