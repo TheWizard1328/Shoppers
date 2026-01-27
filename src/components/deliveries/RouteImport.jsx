@@ -638,8 +638,31 @@ export default function RouteImport({
       
       setFileDriverMap(newFileDriverMap);
       
-      // DISABLED: Auto-preview was causing app crashes on file selection
-      // Users must manually click "Preview Import" button
+      // CRITICAL: Auto-generate preview for non-app-owners immediately after file selection
+      const isNotAppOwner = currentUser && currentUser.role !== 'App Owner';
+      if (isNotAppOwner && selectedFiles.length > 0) {
+        // Verify all files have matched drivers before auto-previewing
+        const hasUnmatchedFiles = selectedFiles.some(f => !newFileDriverMap[f.name]?.driver);
+        if (hasUnmatchedFiles) {
+          console.log('[RouteImport] Auto-preview skipped - some files have no matched driver');
+          return;
+        }
+        
+        // Pass the fresh data directly to avoid stale state with error handling
+        setTimeout(() => {
+          try {
+            handlePreview(selectedFiles, newFileDriverMap);
+          } catch (error) {
+            console.error('[RouteImport] Auto-preview error:', error);
+            setImportError({
+              message: error.message,
+              record: { files: selectedFiles.map(f => f.name).join(', ') },
+              lineNumber: null,
+              phase: 'auto-preview'
+            });
+          }
+        }, 300);
+      }
     }
   };
 
