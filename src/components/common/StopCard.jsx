@@ -1551,7 +1551,20 @@ export default function StopCard({
                     onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm md:text-xs font-semibold text-slate-700">Collect COD Payments</span>
-                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={(e) => {e.stopPropagation();setShowCODCollection(false);}}>
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={async (e) => {
+                            e.stopPropagation();
+                            console.log('🗑️ [COD Clear] Clearing all COD payments');
+                            setCodPayments([]);
+                            if (onCODUpdate) {
+                              try {
+                                await onCODUpdate(delivery.id, [], true);
+                                console.log('✅ [COD Clear] Database updated');
+                              } catch (error) {
+                                console.error('❌ [COD Clear] Failed:', error);
+                              }
+                            }
+                            setShowCODCollection(false);
+                          }}>
                             <X className="w-3 h-3" />
                           </Button>
                         </div>
