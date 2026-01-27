@@ -1467,25 +1467,24 @@ export default function RouteImport({
       smartRefreshManager.pause();
       driverLocationPoller.pause();
       
-      // CRITICAL: Delete pre-identified duplicates from preview (already merged offline+online)
+      // CRITICAL: Delete pre-identified duplicates from OFFLINE DB only
       const deliveriesToDelete = filteredPreviewDeliveries.filter((d) => d.action === 'delete');
       if (deliveriesToDelete.length > 0) {
-        console.log(`🗑️ [RouteImport] Deleting ${deliveriesToDelete.length} pre-identified duplicates...`);
-        setProgressMessage(`Deleting ${deliveriesToDelete.length} duplicate deliveries...`);
+        console.log(`🗑️ [RouteImport] Deleting ${deliveriesToDelete.length} duplicates from offline DB...`);
+        setProgressMessage(`Deleting ${deliveriesToDelete.length} duplicate deliveries from offline DB...`);
         
         try {
+          const { offlineDB: offlineDBInstance } = await import('../utils/offlineDatabase');
           const deleteIds = deliveriesToDelete.map((d) => d.id).filter(Boolean);
+          
           if (deleteIds.length > 0) {
-            // Delete in batches to avoid rate limits
-            const BATCH_SIZE = 50;
-            for (let i = 0; i < deleteIds.length; i += BATCH_SIZE) {
-              const batch = deleteIds.slice(i, i + BATCH_SIZE);
-              await base44.asServiceRole.entities.Delivery.delete({ id: { $in: batch } });
-              console.log(`✅ Deleted batch of ${batch.length} duplicates`);
+            for (const id of deleteIds) {
+              await offlineDBInstance.deleteRecord(offlineDBInstance.STORES.DELIVERIES, id);
             }
+            console.log(`✅ Deleted ${deleteIds.length} duplicates from offline DB`);
           }
         } catch (deleteError) {
-          console.warn('⚠️ [RouteImport] Duplicate deletion warning (continuing anyway):', deleteError.message);
+          console.warn('⚠️ [RouteImport] Offline DB deletion warning (continuing anyway):', deleteError.message);
         }
       }
       
