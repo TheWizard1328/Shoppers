@@ -372,16 +372,17 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     } finally {
       console.log('▶️ [DRIVER STATUS] Resuming smart refresh');
       
-      // CRITICAL: Add delay before clearing flags to ensure status propagates
+      // CRITICAL: Clear updating flags immediately so UI is responsive
+      // Backend status change is already applied
+      setPendingStatus(null);
+      setIsUpdating(false);
+      setIsEntityUpdating(false);
+      
+      // CRITICAL: Clear the status change flag to allow activity monitor to resume
+      sessionStorage.removeItem('driver_status_change_in_progress');
+      
+      // Resume smart refresh after short delay to let status propagate
       setTimeout(async () => {
-        setPendingStatus(null);
-        setIsUpdating(false);
-        setIsEntityUpdating(false);
-        
-        // CRITICAL: Clear the status change flag to allow activity monitor to resume
-        sessionStorage.removeItem('driver_status_change_in_progress');
-        
-        // CRITICAL: Resume smart refresh after status change completes
         try {
           const { smartRefreshManager } = await import('../utils/smartRefreshManager');
           smartRefreshManager.resume();
@@ -389,9 +390,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         } catch (e) {
           console.warn('⚠️ [DriverStatusToggle] Failed to resume smart refresh:', e);
         }
-        
         console.log('✅ [DRIVER STATUS] Driver status change cycle complete');
-      }, 2000); // Increased to 2 seconds to ensure backend changes propagate
+      }, 500); // Reduced to 500ms since UI is already unblocked
     }
   }, [status, isUpdating, appUserId, currentUser, onStatusChange, setIsEntityUpdating, savedPhaseBeforeBreak, appDataContext]);
 
