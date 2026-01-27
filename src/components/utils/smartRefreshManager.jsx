@@ -2039,21 +2039,9 @@ class SmartRefreshManager {
         this.markRefreshed('activeRoute');
       }
       
-      // PRIORITY 2: Historical date sync (opportunistic, one at a time)
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const historicalDates = [...new Set(
-        currentData.deliveries
-          ?.filter(d => d && d.delivery_date && d.delivery_date !== todayStr)
-          ?.map(d => d.delivery_date)
-          ?.sort((a, b) => b.localeCompare(a)) // Most recent first
-      )];
-      
-      if (historicalDates.length > 0) {
-        const historicalResult = await this.checkOneHistoricalDate(currentData.deliveries, historicalDates);
-        if (historicalResult?.hasChanges) {
-          updates.deliveries = historicalResult.deliveries;
-        }
-      }
+      // PRIORITY 2: Historical date sync DISABLED
+      // Historical data is only synced from offline DB - no API polling to prevent rate limits
+      // Users see historical deliveries from offline cache loaded at startup
       
       // PRIORITY 3: Background entity refreshes (longer intervals)
       if (this.shouldRefresh('todayPatients') && currentData.patients) {
