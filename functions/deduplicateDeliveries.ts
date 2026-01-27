@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build filter to find all existing deliveries with matching stop_id + address + delivery_date tuples
+    // Build filter to find all existing deliveries with matching stop_id + address + delivery_date
     const existingDeliveriesToDelete = [];
     
     for (const key of matchingKeys) {
@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
       try {
         await base44.entities.Delivery.delete(delivery.id);
         deletedIds.push(delivery.id);
-        console.log(`✅ [deduplicateDeliveries] Deleted duplicate delivery: ${delivery.id} (SID: ${delivery.stop_id}, Address: ${delivery.delivery_address})`);
+        console.log(`✅ [deduplicateDeliveries] Deleted duplicate delivery: ${delivery.id} (Date: ${delivery.delivery_date}, SID: ${delivery.stop_id}, Address: ${delivery.delivery_address})`);
       } catch (error) {
         console.warn(`⚠️ [deduplicateDeliveries] Failed to delete delivery ${delivery.id}:`, error.message);
       }
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     return Response.json({
       deletedCount: deletedIds.length,
       deletedIds,
-      message: `Deleted ${deletedIds.length} duplicate deliveries with matching stop_id, address, and delivery_date`
+      message: `Deleted ${deletedIds.length} duplicate deliveries with matching stop_id and address`
     });
   } catch (error) {
     console.error('❌ [deduplicateDeliveries] Error:', error.message);
