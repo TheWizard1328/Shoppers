@@ -1244,6 +1244,7 @@ export default function RouteImport({
     setProgressMessage('Starting preview generation...');
     setPreviewFilterDriver('all');
     setPreviewFilterDate('all');
+    setDeletedDuplicatesCount(0);
 
 
     try {
