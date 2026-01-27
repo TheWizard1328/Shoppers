@@ -1173,6 +1173,7 @@ export default function RouteImport({
   const previewStats = useMemo(() => {
     const creates = filteredPreviewDeliveries.filter((d) => d.action === 'create').length;
     const updates = filteredPreviewDeliveries.filter((d) => d.action === 'update').length;
+    const toDelete = filteredPreviewDeliveries.filter((d) => d.action === 'delete').length;
 
     const failed = filteredPreviewDeliveries.filter((d) => d.status === 'failed').length;
 
@@ -1187,7 +1188,7 @@ export default function RouteImport({
     // CRITICAL: Completed = ONLY deliveries with status === 'completed'
     const completed = filteredPreviewDeliveries.filter((d) => d.status === 'completed').length;
 
-    return { creates, updates, completed, failed, returned, skipped: previewData.skippedItems.length };
+    return { creates, updates, completed, failed, returned, skipped: previewData.skippedItems.length, toDelete };
   }, [filteredPreviewDeliveries, previewData.skippedItems]);
 
 
