@@ -5781,7 +5781,12 @@ function Dashboard() {
       console.log('✅ [STATUS] Background tasks complete');
 
     } catch (error) {
-      console.error('❌ [STATUS] Error:', error.message);
+      console.error('═══════════════════════════════════════════════════');
+      console.error('❌ [STATUS] FINAL ERROR CATCH');
+      console.error('   Error:', error);
+      console.error('   Error message:', error.message);
+      console.error('   Error stack:', error.stack);
+      console.error('═══════════════════════════════════════════════════');
 
       if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
         alert('Your session has expired. The page will now reload.');
@@ -5789,7 +5794,8 @@ function Dashboard() {
         return;
       }
 
-      alert('Failed to update delivery status. Please try again.');
+      alert(`Failed to update status: ${error.message || 'Unknown error - check console'}`);
+      throw error;
     } finally {
       // CRITICAL: Wait longer for all writes and UI updates to complete
       console.log('⏳ [STATUS] Waiting 3s before resuming update systems...');
