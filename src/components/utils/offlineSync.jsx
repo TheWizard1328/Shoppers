@@ -23,7 +23,7 @@ const PATIENT_BATCH_SIZE = 250; // 250 patients at a time
 const BATCH_COOLDOWN = 1000; // 1 second between batches
 const HISTORICAL_COOLDOWN = 5 * 60 * 1000; // 5 minutes between historical date syncs
 const HISTORICAL_DAYS = 90; // Keep 90 days of historical data for offline access
-const FULL_SYNC_INTERVAL = 8 * 60 * 60 * 1000; // 8 hours between full historical syncs
+const FULL_SYNC_INTERVAL = 48 * 60 * 60 * 1000; // 48 hours between full re-syncs (was 8h)
 
 let syncInProgress = false;
 let syncPaused = false;
