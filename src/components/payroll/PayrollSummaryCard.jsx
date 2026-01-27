@@ -859,9 +859,9 @@ export default function PayrollSummaryCard({
                     <Button 
                       size="sm" 
                       onClick={() => setShowConfirmDialog(true)} 
-                      disabled={isFinalizing || isLoadingRecords || !canFinalize}
+                      disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
                       className={`gap-2 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                      title={!canFinalize ? 'Cannot finalize until pay period ends' : ''}
+                      title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}
                     >
                       {allDriversFinalized ? (
                         <>
