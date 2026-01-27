@@ -1434,6 +1434,7 @@ export default function RouteImport({
         const freshPatients = await getData('Patient', '-created_date', null, false);
         const freshStores = await getData('Store', '-created_date', null, false);
 
+        // Re-filter after deduplication (in case deleted deliveries affect counts)
         const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
         const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
 
