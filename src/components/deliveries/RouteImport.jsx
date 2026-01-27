@@ -1450,7 +1450,7 @@ export default function RouteImport({
             total: deliveriesToCreateFiltered.length,
             current: 0
           }));
-          setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries...`);
+          setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries (duplicates removed)...`);
 
           const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
