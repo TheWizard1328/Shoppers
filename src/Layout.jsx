@@ -2423,7 +2423,7 @@ export default function Layout({ children, currentPageName }) {
           }
         }
 
-        @media (max-width: 1023px) {
+        @media (max-width: 767px) {
           .mobile-header {
             display: flex !important;
             position: sticky;
@@ -2470,7 +2470,7 @@ export default function Layout({ children, currentPageName }) {
           }
         }
 
-        @media (min-width: 1024px) {
+        @media (min-width: 768px) {
           .mobile-header {
             display: none !important;
           }
