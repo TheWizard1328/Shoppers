@@ -1354,12 +1354,10 @@ export default function RouteImport({
         setProgressMessage(`Processing file ${i + 1} of ${activeFiles.length}: ${file.name} (${fileDriver.user_name || fileDriver.full_name})...`);
 
         const text = await file.text();
-        // Filter deliveries for this specific driver
-        const driverDeliveries = freshDeliveries.filter(d => d.driver_id === fileDriver.id);
-        
-        // CRITICAL: Pass freshStoresAll directly to processCSVData to avoid stale closure
-         // Filter existing deliveries for this specific driver ONLY
+         // Filter existing deliveries for this specific driver ONLY (offline + online merged)
          const driverDeliveries = allExistingDeliveries.filter(d => d.driver_id === fileDriver.id);
+
+         // CRITICAL: Pass freshStoresAll directly to processCSVData to avoid stale closure
          const result = await processCSVData(text, file.name, fileDriver, driverDeliveries, freshPatients, freshStoresAll);
 
          totalToCreate = [...totalToCreate, ...result.deliveriesToCreate];
