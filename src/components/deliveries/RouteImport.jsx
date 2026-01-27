@@ -183,8 +183,6 @@ export default function RouteImport({
     totalFiles: 0
   });
 
-  const [deletedDuplicatesCount, setDeletedDuplicatesCount] = useState(0);
-
   const userHasRole = useCallback((user, role) => {
     return user && user.app_roles && user.app_roles.includes(role);
   }, []);
@@ -1150,9 +1148,8 @@ export default function RouteImport({
   const allPreviewDeliveries = useMemo(() => {
     const created = previewData.deliveriesToCreate.map((d) => ({ ...d, action: 'create' }));
     const updated = previewData.deliveriesToUpdate.map((d) => ({ ...d, action: 'update' }));
-    const deleted = previewData.deliveriesToDelete?.map((d) => ({ ...d, action: 'delete' })) || [];
-    return [...created, ...updated, ...deleted];
-  }, [previewData.deliveriesToCreate, previewData.deliveriesToUpdate, previewData.deliveriesToDelete]);
+    return [...created, ...updated];
+  }, [previewData.deliveriesToCreate, previewData.deliveriesToUpdate]);
 
   const previewDrivers = useMemo(() => {
     const driverNames = new Set(allPreviewDeliveries.map((d) => d.driver_name));
@@ -1174,7 +1171,6 @@ export default function RouteImport({
   const previewStats = useMemo(() => {
     const creates = filteredPreviewDeliveries.filter((d) => d.action === 'create').length;
     const updates = filteredPreviewDeliveries.filter((d) => d.action === 'update').length;
-    const toDelete = filteredPreviewDeliveries.filter((d) => d.action === 'delete').length;
 
     const failed = filteredPreviewDeliveries.filter((d) => d.status === 'failed').length;
 
@@ -1189,7 +1185,7 @@ export default function RouteImport({
     // CRITICAL: Completed = ONLY deliveries with status === 'completed'
     const completed = filteredPreviewDeliveries.filter((d) => d.status === 'completed').length;
 
-    return { creates, updates, completed, failed, returned, skipped: previewData.skippedItems.length, toDelete };
+    return { creates, updates, completed, failed, returned, skipped: previewData.skippedItems.length };
   }, [filteredPreviewDeliveries, previewData.skippedItems]);
 
 
@@ -1245,7 +1241,6 @@ export default function RouteImport({
     setProgressMessage('Starting preview generation...');
     setPreviewFilterDriver('all');
     setPreviewFilterDate('all');
-    setDeletedDuplicatesCount(0);
 
 
     try {
@@ -1286,38 +1281,27 @@ export default function RouteImport({
         return;
       }
 
-      // STEP 2: Load deliveries from OFFLINE DB ONLY for preview
-      setProgressMessage(`Loading deliveries from offline database...`);
+      // STEP 2: Fetch fresh deliveries for ALL drivers in the import and date range
+      setProgressMessage(`Refreshing delivery cache for all drivers (${minDate} to ${maxDate})...`);
       setProgressPercent(25);
 
       // Get all unique driver IDs from the file mapping
       const allDriverIds = [...new Set(activeFiles.map(f => activeDriverMap[f.name]?.driver?.id).filter(Boolean))];
       
-      // CRITICAL: Load from OFFLINE DB ONLY - NO API CALLS during preview
-      const { offlineDB: offlineDBInstance } = await import('../utils/offlineDatabase');
-      let allExistingDeliveries = [];
-      try {
-        const allOfflineDeliveries = await offlineDBInstance.getAll(offlineDBInstance.STORES.DELIVERIES);
-        // Filter to matching date range and drivers
-        allExistingDeliveries = (allOfflineDeliveries || []).filter(d => 
-          allDriverIds.includes(d.driver_id) &&
-          d.delivery_date >= minDate &&
-          d.delivery_date <= maxDate
-        );
-        console.log(`[RouteImport] Loaded ${allExistingDeliveries.length} deliveries from offline DB`);
-      } catch (e) {
-        console.warn(`[RouteImport] Could not load offline deliveries:`, e.message);
-        allExistingDeliveries = [];
-      }
+      // CRITICAL: Fetch deliveries for all drivers at once
+      const freshDeliveries = await base44.entities.Delivery.filter(
+        { 
+          driver_id: { $in: allDriverIds },
+          delivery_date: { $gte: minDate, $lte: maxDate }
+        },
+        '-delivery_date',
+        10000
+      );
       
       setProgressPercent(35);
 
-      console.log(`[RouteImport] Total deliveries to check: ${allExistingDeliveries.length}`);
+      console.log(`[RouteImport] Loaded ${freshDeliveries.length} existing deliveries for ${allDriverIds.length} drivers in date range ${minDate} to ${maxDate}`);
 
-      // CRITICAL: Identify duplicates that will be deleted
-      let duplicatesToDelete = [];
-      const incomingDeliveryKeys = new Map();
-      
       let totalToCreate = [];
       let totalToUpdate = [];
       let totalSkippedItems = [];
@@ -1335,58 +1319,30 @@ export default function RouteImport({
         setProgressMessage(`Processing file ${i + 1} of ${activeFiles.length}: ${file.name} (${fileDriver.user_name || fileDriver.full_name})...`);
 
         const text = await file.text();
-         // Filter existing deliveries for this specific driver ONLY (offline + online merged)
-         const driverDeliveries = allExistingDeliveries.filter(d => d.driver_id === fileDriver.id);
+        // Filter deliveries for this specific driver
+        const driverDeliveries = freshDeliveries.filter(d => d.driver_id === fileDriver.id);
+        
+        // CRITICAL: Pass freshStoresAll directly to processCSVData to avoid stale closure
+        const result = await processCSVData(text, file.name, fileDriver, driverDeliveries, freshPatients, freshStoresAll);
 
-         // CRITICAL: Pass freshStoresAll directly to processCSVData to avoid stale closure
-         const result = await processCSVData(text, file.name, fileDriver, driverDeliveries, freshPatients, freshStoresAll);
+        totalToCreate = [...totalToCreate, ...result.deliveriesToCreate];
+        totalToUpdate = [...totalToUpdate, ...result.deliveriesToUpdate];
+        totalSkippedItems = [...totalSkippedItems, ...result.skippedItems];
+        totalErrors = [...totalErrors, ...result.errors];
 
-         totalToCreate = [...totalToCreate, ...result.deliveriesToCreate];
-         totalToUpdate = [...totalToUpdate, ...result.deliveriesToUpdate];
-         totalSkippedItems = [...totalSkippedItems, ...result.skippedItems];
-         totalErrors = [...totalErrors, ...result.errors];
-
-         // Track incoming delivery keys for deduplication
-         result.deliveriesToCreate.forEach(d => {
-           if (d.stop_id && d.delivery_date) {
-             const key = `${d.stop_id}|${d.delivery_date}`;
-             if (!incomingDeliveryKeys.has(key)) {
-               incomingDeliveryKeys.set(key, []);
-             }
-             incomingDeliveryKeys.get(key).push(d);
-           }
-         });
-
-         const currentParsingProgress = Math.round((i + 1) / activeFiles.length * 45);
-         setProgressPercent(40 + currentParsingProgress);
-        }
-
-        // Find existing deliveries that match incoming keys (these will be deleted)
-        for (const [key, incomingDeliveries] of incomingDeliveryKeys.entries()) {
-         const [stopId, deliveryDate] = key.split('|');
-         const matchingExisting = allExistingDeliveries.filter(d => 
-           d.stop_id === stopId && 
-           d.delivery_date === deliveryDate
-         );
-         console.log(`[RouteImport] Dedup check for stop_id="${stopId}" date="${deliveryDate}": Found ${matchingExisting.length} matching existing deliveries (offline+online)`);
-         duplicatesToDelete.push(...matchingExisting);
-        }
+        const currentParsingProgress = Math.round((i + 1) / activeFiles.length * 45);
+        setProgressPercent(40 + currentParsingProgress);
+      }
 
       setProgressPercent(90);
       setProgressMessage('Parsing complete, generating preview data...');
-
-      // Add delete action to marked duplicates
-      const deletedDeliveries = duplicatesToDelete.map(d => ({ ...d, action: 'delete' }));
 
       setPreviewData({
         deliveriesToCreate: totalToCreate,
         deliveriesToUpdate: totalToUpdate,
         skippedItems: totalSkippedItems,
-        errors: totalErrors,
-        deliveriesToDelete: deletedDeliveries
+        errors: totalErrors
       });
-      
-      setDeletedDuplicatesCount(deletedDeliveries.length);
 
       setProgressPercent(100);
       setProgressMessage('Preview ready!');
@@ -1448,27 +1404,6 @@ export default function RouteImport({
       smartRefreshManager.pause();
       driverLocationPoller.pause();
       
-      // CRITICAL: Delete pre-identified duplicates from OFFLINE DB only
-      const deliveriesToDelete = filteredPreviewDeliveries.filter((d) => d.action === 'delete');
-      if (deliveriesToDelete.length > 0) {
-        console.log(`🗑️ [RouteImport] Deleting ${deliveriesToDelete.length} duplicates from offline DB...`);
-        setProgressMessage(`Deleting ${deliveriesToDelete.length} duplicate deliveries from offline DB...`);
-        
-        try {
-          const { offlineDB: offlineDBInstance } = await import('../utils/offlineDatabase');
-          const deleteIds = deliveriesToDelete.map((d) => d.id).filter(Boolean);
-          
-          if (deleteIds.length > 0) {
-            for (const id of deleteIds) {
-              await offlineDBInstance.deleteRecord(offlineDBInstance.STORES.DELIVERIES, id);
-            }
-            console.log(`✅ Deleted ${deleteIds.length} duplicates from offline DB`);
-          }
-        } catch (deleteError) {
-          console.warn('⚠️ [RouteImport] Offline DB deletion warning (continuing anyway):', deleteError.message);
-        }
-      }
-      
       // CRITICAL: Use centralized data operation manager
       await executeDataOperation(async () => {
         console.log('📥 [RouteImport] Starting import with data operation manager');
@@ -1493,7 +1428,7 @@ export default function RouteImport({
             total: deliveriesToCreateFiltered.length,
             current: 0
           }));
-          setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries (duplicates removed)...`);
+          setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries...`);
 
           const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
@@ -1799,7 +1734,7 @@ export default function RouteImport({
     setIsProcessing(false);
     setImportResult(null);
     setShowPreview(false);
-    setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [], deliveriesToDelete: [] });
+    setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] });
     setIsParsing(false);
     setProgressPercent(0);
     setProgressMessage('');
@@ -2194,13 +2129,6 @@ export default function RouteImport({
                 <div className="text-2xl font-bold text-orange-800">{previewStats.skipped}</div>
                 </div>
                 }
-
-            {previewStats.toDelete > 0 &&
-                <div className="flex flex-col items-center bg-purple-50 border-2 border-purple-300 rounded-lg p-3">
-                <div className="text-xs text-purple-700 mb-1 font-semibold">Deleted Duplicates</div>
-                <div className="text-2xl font-bold text-purple-800">{previewStats.toDelete}</div>
-                </div>
-                }
             </div>  
           </div>
 
@@ -2245,16 +2173,16 @@ export default function RouteImport({
 
                         return (
                           <div key={`${delivery.action}-${idx}`} className="p-3 rounded border text-xs" style={{ 
-                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.12)' : delivery.action === 'delete' ? 'rgba(168, 85, 247, 0.12)' : 'rgba(59, 130, 246, 0.12)',
-                            borderColor: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.4)' : delivery.action === 'delete' ? 'rgba(168, 85, 247, 0.4)' : 'rgba(59, 130, 246, 0.4)',
+                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                            borderColor: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(59, 130, 246, 0.4)',
                             borderWidth: '2px'
                           }}>
                             <div className="flex justify-between items-start mb-2 gap-2">
                               <Badge className="border-0 font-semibold text-xs px-2 py-1 flex-shrink-0" style={{ 
-                                background: delivery.action === 'create' ? '#10b981' : delivery.action === 'delete' ? '#a855f7' : '#3b82f6', 
+                                background: delivery.action === 'create' ? '#10b981' : '#3b82f6', 
                                 color: 'white'
                               }}>
-                                {delivery.action === 'create' ? '✓ NEW' : delivery.action === 'delete' ? '✗ DELETE' : '◇ UPDATE'}
+                                {delivery.action === 'create' ? '✓ NEW' : '◇ UPDATE'}
                               </Badge>
                               <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{delivery.delivery_date} {newTimeFormatted !== 'none' && newTimeFormatted}</span>
                             </div>
@@ -2287,16 +2215,16 @@ export default function RouteImport({
                         return (
                           <tr key={`${delivery.action}-${idx}`} className="border-b" style={{ 
                             borderColor: 'var(--border-slate-200)', 
-                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.06)' : delivery.action === 'delete' ? 'rgba(168, 85, 247, 0.06)' : 'rgba(59, 130, 246, 0.06)',
-                            borderLeft: delivery.action === 'create' ? '4px solid #10b981' : delivery.action === 'delete' ? '4px solid #a855f7' : '4px solid #3b82f6'
+                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.06)' : 'rgba(59, 130, 246, 0.06)',
+                            borderLeft: delivery.action === 'create' ? '4px solid #10b981' : '4px solid #3b82f6'
                           }}>
                             <td className="p-1 w-30 text-center">
                               <div className="flex flex-col gap-1 items-center">
                                 <Badge className="w-full justify-center border-0 font-semibold text-xs py-1" style={{ 
-                                  background: delivery.action === 'create' ? '#10b981' : delivery.action === 'delete' ? '#a855f7' : '#3b82f6',
+                                  background: delivery.action === 'create' ? '#10b981' : '#3b82f6',
                                   color: 'white'
                                 }}>
-                                  {delivery.action === 'create' ? '✓ NEW' : delivery.action === 'delete' ? '✗ DELETE' : '◇ UPDATE'}
+                                  {delivery.action === 'create' ? '✓ NEW' : '◇ UPDATE'}
                                 </Badge>
                                 <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>
                                   {delivery.driver_name}
