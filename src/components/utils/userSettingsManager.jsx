@@ -49,8 +49,7 @@ const getInitialDefaultSettings = () => {
     notifications_vibration: true,
     sidebar_width: 240,
     right_panel_width: 350,
-    theme_preference: isMobile ? 'auto' : 'light',
-    selected_driver_id: null
+    theme_preference: isMobile ? 'auto' : 'light'
   };
 };
 
@@ -74,8 +73,6 @@ const DEVICE_SPECIFIC_SETTINGS = [
   'sidebar_width',
   'right_panel_width',
   'theme_preference',
-  'selected_driver_id',  // CRITICAL: Driver selection is device-specific
-  'selected_date',       // CRITICAL: Date selection is device-specific
   'admin_utilities_year',
   'admin_utilities_month',
   'admin_utilities_driver'
