@@ -949,35 +949,50 @@ export default function Layout({ children, currentPageName }) {
     }, 60000);
 
     // Subscribe to ChangeBroadcast notifications
-    const { changeBroadcastManager } = await import('./components/utils/changeBroadcastManager');
-    const unsubscribeBroadcasts = changeBroadcastManager.subscribe(async (broadcasts) => {
-      console.log(`📥 [Layout] Received ${broadcasts.length} broadcasts`);
+    let unsubscribeBroadcasts = () => {};
+    const initBroadcasts = async () => {
+      unsubscribeBroadcasts = changeBroadcastManager.subscribe(async (broadcasts) => {
+        console.log(`📥 [Layout] Received ${broadcasts.length} broadcasts`);
 
-      for (const broadcast of broadcasts) {
-        console.log(`📡 [Layout] Processing broadcast: ${broadcast.entity_name} ${broadcast.change_type}`);
+        for (const broadcast of broadcasts) {
+          console.log(`📡 [Layout] Processing broadcast: ${broadcast.entity_name} ${broadcast.change_type}`);
 
-        // Handle based on change type
-        if (broadcast.change_type === 'batch_create' && broadcast.entity_name === 'Patient') {
-          // Patient batch created - force refresh
-          invalidate('Patient');
-          triggerFullDataLoadRef.current(true);
-        } else if (broadcast.change_type === 'full_date_refresh' && broadcast.entity_name === 'Delivery') {
-          // Deliveries refreshed for a specific date - force refresh
-          invalidate('Delivery');
-          triggerFullDataLoadRef.current(true);
-        } else if (broadcast.entity_name === 'AppUser' && broadcast.last_location_update_time) {
-          // Driver location update - refresh driver locations
-          const { refreshDriverLocations } = await import('./components/utils/smartRefreshManager');
-          const locationUpdates = await refreshDriverLocations(appUsers, true);
-          if (locationUpdates?.hasChanges) {
-            setAppUsers(locationUpdates.appUsers);
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: locationUpdates.appUsers }
-            }));
+          // Handle based on change type
+          if (broadcast.change_type === 'batch_create' && broadcast.entity_name === 'Patient') {
+            // Patient batch created - force refresh
+            invalidate('Patient');
+            triggerFullDataLoadRef.current(true);
+          } else if (broadcast.change_type === 'full_date_refresh' && broadcast.entity_name === 'Delivery') {
+            // Deliveries refreshed for a specific date - force refresh
+            invalidate('Delivery');
+            triggerFullDataLoadRef.current(true);
+          } else if (broadcast.entity_name === 'AppUser' && broadcast.last_location_update_time) {
+            // Driver location update - refresh driver locations
+            const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+            if (locationUpdates?.hasChanges) {
+              setAppUsers(locationUpdates.appUsers);
+              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                detail: { appUsers: locationUpdates.appUsers }
+              }));
+            }
           }
         }
+      });
+
+      // Start polling for broadcasts
+      const selectedCityId = globalFilters.getSelectedCityId();
+      if (selectedCityId && selectedCityId !== 'waiting-for-selection') {
+        const broadcastCheckInterval = setInterval(async () => {
+          try {
+            await changeBroadcastManager.checkForBroadcasts(currentUser, selectedCityId);
+          } catch (error) {
+            console.warn('[Layout] Broadcast check error:', error);
+          }
+        }, 15000);
+        window._broadcastCheckInterval = broadcastCheckInterval;
       }
-    });
+    };
+    initBroadcasts();
 
     // Subscribe to ALL entity mutations and refresh UI IMMEDIATELY
     const unsubscribeMutations = subscribeMutations(async (mutation) => {
