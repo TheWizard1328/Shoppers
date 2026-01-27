@@ -727,9 +727,13 @@ export const processPendingMutations = async () => {
 };
 
 export const forceSyncAll = async () => {
-  if (syncInProgress || syncPaused) return { skipped: true };
+  if (syncPaused) return { skipped: true };
   
+  // CRITICAL: Allow manual sync to override background sync
+  const wasInProgress = syncInProgress;
   syncInProgress = true;
+  console.log(`🔄 [forceSyncAll] Starting (was in progress: ${wasInProgress})...`);
+  
   notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
   
   try {
