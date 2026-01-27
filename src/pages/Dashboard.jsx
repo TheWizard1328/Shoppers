@@ -5765,27 +5765,31 @@ function Dashboard() {
       });
       console.log('   ✅ Protected deliveries from smart refresh');
 
-      // STEP 10: Wait for background tasks to complete
-      console.log('🔄 [STATUS] Waiting for background tasks...');
-      
-      // Background: Recalculate stop orders
-      await recalculateStopOrders(driverId, deliveryDate).catch((error) =>
-        console.warn('⚠️ Stop order recalc failed:', error)
-      );
+      // STEP 10: Wait for background tasks to complete (only if we have valid IDs)
+      if (driverId && deliveryDate) {
+        console.log('🔄 [STATUS] Waiting for background tasks...');
+        
+        // Background: Recalculate stop orders
+        await recalculateStopOrders(driverId, deliveryDate).catch((error) =>
+          console.warn('⚠️ Stop order recalc failed:', error)
+        );
 
-      // Background: Update ETAs (mobile drivers only)
-      if (isMobile && userHasRole(currentUser, 'driver') && ['completed', 'failed', 'cancelled'].includes(newStatus)) {
-        const now = new Date();
-        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        // Background: Update ETAs (mobile drivers only)
+        if (isMobile && userHasRole(currentUser, 'driver') && ['completed', 'failed', 'cancelled'].includes(newStatus)) {
+          const now = new Date();
+          const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-        await base44.functions.invoke('calculateRealTimeETA', {
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocalTime: localTimeString
-        }).catch((error) => console.warn('⚠️ ETA update failed:', error));
+          await base44.functions.invoke('calculateRealTimeETA', {
+            driverId: driverId,
+            deliveryDate: deliveryDate,
+            currentLocalTime: localTimeString
+          }).catch((error) => console.warn('⚠️ ETA update failed:', error));
+        }
+
+        console.log('✅ [STATUS] Background tasks complete');
+      } else {
+        console.log('⏭️ [STATUS] Skipping background tasks - missing driverId/deliveryDate');
       }
-
-      console.log('✅ [STATUS] Background tasks complete');
 
     } catch (error) {
       console.error('═══════════════════════════════════════════════════');
