@@ -237,9 +237,13 @@ export default function StopCard({
     setNotesInput(delivery?.delivery_notes || "No driver notes");
   }, [delivery?.delivery_notes]);
 
+  // CRITICAL: Don't sync cod_payments from prop when COD collection panel is open
+  // This prevents smart refresh from overwriting user's edits
   useEffect(() => {
-    setCodPayments(delivery?.cod_payments || []);
-  }, [delivery?.cod_payments]);
+    if (!showCODCollection) {
+      setCodPayments(delivery?.cod_payments || []);
+    }
+  }, [delivery?.cod_payments, showCODCollection]);
 
   // Memoized values - ALWAYS calculated
   const patient = useMemo(() => {
@@ -695,16 +699,16 @@ export default function StopCard({
     if (onCODUpdate) {
       try {
         console.log('💾 [COD Save] Saving payments:', codPayments);
+        console.log('💾 [COD Save] Current delivery cod_payments:', delivery?.cod_payments);
+        
         // Pass skipAutoCenter=true to prevent card scrolling after COD save
         await onCODUpdate(delivery.id, codPayments, true);
-        setShowCODCollection(false);
         
-        // CRITICAL: Force local state update to show immediately
-        setTimeout(() => {
-          setCodPayments(codPayments);
-        }, 100);
+        console.log('✅ [COD Save] onCODUpdate completed');
+        setShowCODCollection(false);
       } catch (error) {
-        console.error('Failed to save COD payments:', error);
+        console.error('❌ [COD Save] Failed:', error);
+        alert(`Failed to save COD: ${error.message}`);
       }
     }
   };
