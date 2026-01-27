@@ -97,7 +97,6 @@ import ConnectionRecoveryBanner from './components/layout/ConnectionRecoveryBann
 import { subscribeMutations } from './components/utils/entityMutations';
 import { realtimeSync, subscribeToRealtime } from './components/utils/realtimeSync';
 import ConflictManager from './components/dashboard/ConflictManager';
-import { changeBroadcastManager } from './components/utils/changeBroadcastManager';
 import PWAInstallPrompt from './components/common/PWAInstallPrompt';
 import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
 import BatteryIndicator from './components/layout/BatteryIndicator';
@@ -889,9 +888,6 @@ export default function Layout({ children, currentPageName }) {
         const { markOfflineDBLoadComplete } = await import('./components/utils/dataManager');
         markOfflineDBLoadComplete();
 
-        // CRITICAL: Set user context for ChangeBroadcast filtering
-        smartRefreshManager.setUserContext(fetchedUser, initialCityId);
-
         setDataLoaded(true); // CRITICAL: Set data loaded to prevent bg sync re-triggering
         setIsLoadingLayout(false);
 
@@ -947,112 +943,6 @@ export default function Layout({ children, currentPageName }) {
     const mutationSyncInterval = setInterval(() => {
       processPendingMutations().catch(() => {});
     }, 60000);
-
-    // Subscribe to ChangeBroadcast notifications
-    let unsubscribeBroadcasts = () => {};
-    const initBroadcasts = async () => {
-      const { getDeviceId } = await import('./components/utils/deviceIdManager');
-      const currentDeviceId = getDeviceId();
-      
-      unsubscribeBroadcasts = changeBroadcastManager.subscribe(async (broadcasts) => {
-        console.log(`📥 [Layout] Received ${broadcasts.length} broadcasts`);
-
-        for (const broadcast of broadcasts) {
-          console.log(`📡 [Layout] Processing broadcast: ${broadcast.entity_name} ${broadcast.change_type}`);
-
-          // CRITICAL: Skip broadcasts from THIS device to avoid loops
-          if (broadcast.sent_by_device_id === currentDeviceId) {
-            console.log(`⏭️ [Layout] Skipping broadcast from same device`);
-            continue;
-          }
-
-          // Handle based on change type
-          if (broadcast.change_type === 'batch_create' && broadcast.entity_name === 'Patient') {
-            // Patient batch created - force full refresh
-            invalidate('Patient');
-            triggerFullDataLoadRef.current(true);
-          } else if (broadcast.change_type === 'full_date_refresh' && broadcast.entity_name === 'Delivery') {
-            // CRITICAL: Full date refresh from another device - force API fetch for that date
-            console.log(`📅 [Layout] Full date refresh for ${broadcast.affected_date} from another device`);
-            
-            const affectedDate = broadcast.affected_date;
-            invalidate('Delivery');
-            invalidate('Patient');
-            
-            // Force resync this specific date from API (skip offline DB)
-            try {
-              // Fetch deliveries for this date from API only
-              const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
-              const deliveryFilter = { 
-                delivery_date: affectedDate,
-                ...(cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {})
-              };
-              
-              const freshDeliveries = await base44.entities.Delivery.filter(deliveryFilter);
-              
-              if (freshDeliveries && freshDeliveries.length > 0) {
-                // Save to offline DB
-                const { offlineDB } = await import('./components/utils/offlineDatabase');
-                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-                
-                // Update UI state for this date
-                setDeliveries((prev) => {
-                  const otherDates = prev.filter(d => d?.delivery_date !== affectedDate);
-                  return [...otherDates, ...freshDeliveries];
-                });
-                
-                // Also resync patients for the affected stops
-                const affectedPatientIds = new Set(
-                  freshDeliveries.filter(d => d?.patient_id).map(d => d.patient_id)
-                );
-                
-                if (affectedPatientIds.size > 0) {
-                  const freshPatients = await base44.entities.Patient.filter({
-                    id: { $in: Array.from(affectedPatientIds) }
-                  });
-                  
-                  if (freshPatients && freshPatients.length > 0) {
-                    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-                    setPatients((prev) => {
-                      const map = new Map(prev.map(p => [p?.id, p]));
-                      freshPatients.forEach(p => map.set(p.id, p));
-                      return Array.from(map.values());
-                    });
-                  }
-                }
-                
-                console.log(`✅ [Layout] Resynced ${affectedDate} from API - ${freshDeliveries.length} deliveries`);
-              }
-            } catch (error) {
-              console.warn(`⚠️ [Layout] Failed to resync date ${affectedDate}:`, error.message);
-            }
-          } else if (broadcast.entity_name === 'AppUser' && broadcast.last_location_update_time) {
-            // Driver location update - refresh driver locations
-            const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
-            if (locationUpdates?.hasChanges) {
-              setAppUsers(locationUpdates.appUsers);
-              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                detail: { appUsers: locationUpdates.appUsers }
-              }));
-            }
-          }
-        }
-      });
-
-      // Start polling for broadcasts
-      const selectedCityId = globalFilters.getSelectedCityId();
-      if (selectedCityId && selectedCityId !== 'waiting-for-selection') {
-        const broadcastCheckInterval = setInterval(async () => {
-          try {
-            await changeBroadcastManager.checkForBroadcasts(currentUser, selectedCityId);
-          } catch (error) {
-            console.warn('[Layout] Broadcast check error:', error);
-          }
-        }, 15000);
-        window._broadcastCheckInterval = broadcastCheckInterval;
-      }
-    };
-    initBroadcasts();
 
     // Subscribe to ALL entity mutations and refresh UI IMMEDIATELY
     const unsubscribeMutations = subscribeMutations(async (mutation) => {
@@ -1454,12 +1344,8 @@ export default function Layout({ children, currentPageName }) {
       clearTimeout(bgSyncTimer);
       clearInterval(mutationSyncInterval);
       unsubscribeMutations();
-      unsubscribeBroadcasts();
       unsubscribeRealtime();
       realtimeSync.disconnect();
-      if (window._broadcastCheckInterval) {
-        clearInterval(window._broadcastCheckInterval);
-      }
       window.removeEventListener('offlineSyncComplete', handleSyncComplete);
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
       window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);

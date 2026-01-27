@@ -7,7 +7,6 @@ import { offlineDB } from './offlineDatabase';
 import { Patient } from '@/entities/Patient';
 import { Delivery } from '@/entities/Delivery';
 import { AppUser } from '@/entities/AppUser';
-import { changeBroadcastManager } from './changeBroadcastManager';
 
 // Listeners for UI updates
 let mutationListeners = [];
@@ -135,15 +134,6 @@ export const createPatientLocal = async (patientData) => {
       const backendPatient = await base44.entities.Patient.create(patientData);
       console.log('✅ [Sync] Patient synced to backend immediately:', tempId, '→', backendPatient.id);
       
-      // Broadcast change to other devices
-      await changeBroadcastManager.createBroadcast({
-        entity_name: 'Patient',
-        change_type: 'create',
-        entity_id: backendPatient.id,
-        affected_city_id: patientData.city_id,
-        affected_store_id: patientData.store_id
-      });
-      
       // CRITICAL: Remove temp record from IndexedDB
       const db = await offlineDB.openDatabase();
       const transaction = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
@@ -252,15 +242,6 @@ export const updatePatientLocal = async (patientId, updates) => {
       await base44.entities.Patient.update(patientId, updates);
       console.log('✅ [Sync] Patient synced to backend immediately:', patientId);
       
-      // Broadcast change to other devices
-      await changeBroadcastManager.createBroadcast({
-        entity_name: 'Patient',
-        change_type: 'update',
-        entity_id: patientId,
-        affected_city_id: updates.city_id || existingPatient.city_id,
-        affected_store_id: updates.store_id || existingPatient.store_id
-      });
-      
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();
     } catch (error) {
@@ -327,22 +308,8 @@ export const deletePatientLocal = async (patientId) => {
     // Try immediate backend sync
     try {
       const { base44 } = await import('@/api/base44Client');
-      // Get patient data BEFORE deletion for broadcast
-      const patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-      const patientToDelete = patients.find(p => p.id === patientId);
       await base44.entities.Patient.delete(patientId);
       console.log('✅ [Sync] Patient deletion synced to backend immediately:', patientId);
-      
-      // Broadcast deletion to other devices
-      if (patientToDelete) {
-        await changeBroadcastManager.createBroadcast({
-          entity_name: 'Patient',
-          change_type: 'delete',
-          entity_id: patientId,
-          affected_city_id: patientToDelete.city_id,
-          affected_store_id: patientToDelete.store_id
-        });
-      }
       
       // CRITICAL: Restart smart refresh after sync (not resume)
       smartRefreshManager.restart();
@@ -419,16 +386,6 @@ export const createDeliveryLocal = async (deliveryData) => {
       const { base44 } = await import('@/api/base44Client');
       const backendDelivery = await base44.entities.Delivery.create(deliveryData);
       console.log('✅ [Sync] Delivery synced to backend immediately:', tempId, '→', backendDelivery.id);
-      
-      // Broadcast change to other devices
-      await changeBroadcastManager.createBroadcast({
-        entity_name: 'Delivery',
-        change_type: 'create',
-        entity_id: backendDelivery.id,
-        affected_date: backendDelivery.delivery_date,
-        affected_driver_id: backendDelivery.driver_id,
-        affected_store_id: backendDelivery.store_id
-      });
       
       // CRITICAL: Remove temp record from IndexedDB
       const db = await offlineDB.openDatabase();
@@ -519,15 +476,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
         console.log('✅ [Sync] Delivery updated on backend:', deliveryId);
         
-        // Broadcast change to other devices
-        await changeBroadcastManager.createBroadcast({
-          entity_name: 'Delivery',
-          change_type: 'update',
-          entity_id: deliveryId,
-          affected_date: backendDelivery.delivery_date,
-          affected_driver_id: backendDelivery.driver_id,
-          affected_store_id: backendDelivery.store_id
-        });
+        // Broadcast removed
 
         // Add to IndexedDB
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
@@ -598,15 +547,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       await base44.entities.Delivery.update(deliveryId, updates);
       console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
       
-      // Broadcast change to other devices
-      await changeBroadcastManager.createBroadcast({
-        entity_name: 'Delivery',
-        change_type: 'update',
-        entity_id: deliveryId,
-        affected_date: updatedDelivery.delivery_date,
-        affected_driver_id: updatedDelivery.driver_id,
-        affected_store_id: updatedDelivery.store_id
-      });
+      // Broadcast removed
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -668,23 +609,7 @@ export const deleteDeliveryLocal = async (deliveryId) => {
     const backendDeletePromise = (async () => {
       try {
         const { base44 } = await import('@/api/base44Client');
-        // Get delivery data BEFORE deletion for broadcast
-        const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-        const deliveryToDelete = deliveries.find(d => d.id === deliveryId);
         await base44.entities.Delivery.delete(deliveryId);
-        
-        // Broadcast deletion to other devices
-        if (deliveryToDelete) {
-          await changeBroadcastManager.createBroadcast({
-            entity_name: 'Delivery',
-            change_type: 'delete',
-            entity_id: deliveryId,
-            affected_date: deliveryToDelete.delivery_date,
-            affected_driver_id: deliveryToDelete.driver_id,
-            affected_store_id: deliveryToDelete.store_id
-          });
-        }
-        
         return { success: true };
       } catch (error) {
         // CRITICAL: Ignore 404 errors - record doesn't exist on backend (was local-only or already deleted)
@@ -793,31 +718,6 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
       const { base44 } = await import('@/api/base44Client');
       const backendDeliveries = await base44.entities.Delivery.bulkCreate(deliveriesData);
       console.log(`✅ [Sync] ${localDeliveries.length} deliveries synced to backend immediately`);
-      
-      // Broadcast batch creation - group by date and driver for efficient broadcasts
-      const dateDriverMap = new Map();
-      backendDeliveries.forEach(d => {
-        const key = `${d.delivery_date}_${d.driver_id || 'unassigned'}`;
-        if (!dateDriverMap.has(key)) {
-          dateDriverMap.set(key, []);
-        }
-        dateDriverMap.get(key).push(d.id);
-      });
-      
-      // Create broadcasts for each date-driver combination
-      for (const [key, deliveryIds] of dateDriverMap.entries()) {
-        const [date, driverId] = key.split('_');
-        const firstDelivery = backendDeliveries.find(d => d.id === deliveryIds[0]);
-        
-        await changeBroadcastManager.createBroadcast({
-          entity_name: 'Delivery',
-          change_type: deliveryIds.length > 5 ? 'driver_date_refresh' : 'batch_create',
-          entity_ids: deliveryIds.length > 5 ? [] : deliveryIds,
-          affected_date: date,
-          affected_driver_id: driverId !== 'unassigned' ? driverId : null,
-          affected_store_id: firstDelivery?.store_id
-        });
-      }
       
       // CRITICAL: Remove all temp records from IndexedDB
       const db = await offlineDB.openDatabase();

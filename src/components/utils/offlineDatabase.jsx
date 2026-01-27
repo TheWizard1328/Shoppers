@@ -7,9 +7,6 @@
 const DB_NAME = 'rxdeliver_persistent_offline_v1';
 const DB_VERSION = 4; // CRITICAL: Incremented to add DriverOverviewStatsCache
 
-// DEBUG: Track version changes
-console.log(`[OfflineDB] Database initialized: ${DB_NAME} v${DB_VERSION}`);
-
 // Store names
 const STORES = {
   PATIENTS: 'patients',
@@ -46,7 +43,6 @@ const openDatabase = () => {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
-      console.warn(`⚠️ [OfflineDB] onupgradeneeded triggered! Old version: ${event.oldVersion}, New version: ${event.newVersion}. This will trigger if DB_VERSION changes!`);
 
       if (!db.objectStoreNames.contains(STORES.PATIENTS)) {
         const patientStore = db.createObjectStore(STORES.PATIENTS, { keyPath: 'id' });
@@ -523,10 +519,8 @@ const deleteRecord = async (storeName, recordId) => {
 
 /**
  * Clear all data from all stores (emergency recovery)
- * CRITICAL: Log caller to track down who's calling this
  */
 const clearAllData = async () => {
-  console.error('🚨 [OfflineDB] clearAllData called! Stack trace:', new Error().stack);
   try {
     const db = await openDatabase();
     const allStores = Object.values(STORES);

@@ -1088,36 +1088,15 @@ export default function RouteImport({
   useEffect(() => {
     const loadAllDrivers = async () => {
       try {
-        // CRITICAL: Load from offline DB first to prevent rate limits
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        
-        if (offlineAppUsers && offlineAppUsers.length > 0) {
-          console.log(`💾 [RouteImport] Loaded ${offlineAppUsers.length} drivers from offline DB`);
-          
-          // Create pseudo users from AppUser data
-          const pseudoUsers = offlineAppUsers.map(appUser => ({
-            id: appUser.user_id,
-            user_id: appUser.user_id,
-            full_name: appUser.user_name || 'Unknown',
-            user_name: appUser.user_name || 'Unknown',
-            app_roles: appUser.app_roles || [],
-            status: appUser.status || 'active',
-            ...appUser
-          }));
-          
-          setAllDriverUsers(pseudoUsers);
-          return; // Don't hit API if offline DB has data
-        }
-        
-        // Fallback to API only if offline DB is empty
-        console.log('📥 [RouteImport] No offline drivers - falling back to API');
+        // CRITICAL: Only admins can list User entities
+        // Non-admins should use the allUsers prop from Layout
         const isAdmin = userHasRole(currentUser, 'admin');
         
         if (isAdmin) {
           const allAppUsers = await base44.entities.AppUser.list();
           const allAuthUsers = await base44.entities.User.list();
 
+          // Merge AppUsers with Auth Users
           const mergedUsers = allAuthUsers.map((authUser) => {
             const appUser = allAppUsers.find((au) => au.user_id === authUser.id);
             if (appUser) {
@@ -1134,10 +1113,12 @@ export default function RouteImport({
 
           setAllDriverUsers(mergedUsers);
         } else {
+          // Non-admins: use the allUsers prop from Layout (already has merged data)
           setAllDriverUsers(allUsers || []);
         }
       } catch (error) {
         console.error('[RouteImport] Error loading all drivers:', error);
+        // Fallback to prop allUsers
         setAllDriverUsers(allUsers || []);
       }
     };
@@ -1307,59 +1288,19 @@ export default function RouteImport({
       // Get all unique driver IDs from the file mapping
       const allDriverIds = [...new Set(activeFiles.map(f => activeDriverMap[f.name]?.driver?.id).filter(Boolean))];
       
-      // CRITICAL: Load deliveries from offline DB first to prevent rate limits
-      setProgressMessage(`Loading existing deliveries from offline cache (${minDate} to ${maxDate})...`);
-      const { offlineDB } = await import('../utils/offlineDatabase');
-      
-      let freshDeliveries = [];
-      try {
-        const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-        
-        if (offlineDeliveries && offlineDeliveries.length > 0) {
-          // Filter to matching drivers and date range
-          freshDeliveries = offlineDeliveries.filter(d => 
-            d && 
-            allDriverIds.includes(d.driver_id) &&
-            d.delivery_date >= minDate &&
-            d.delivery_date <= maxDate
-          );
-          
-          console.log(`💾 [RouteImport] Loaded ${freshDeliveries.length} deliveries from offline DB (${offlineDeliveries.length} total cached)`);
-        }
-        
-        // Only fetch from API if offline DB has no data for this range
-        if (freshDeliveries.length === 0) {
-          console.log('📥 [RouteImport] No offline deliveries - fetching from API');
-          setProgressMessage('Fetching deliveries from server (offline cache empty)...');
-          
-          freshDeliveries = await base44.entities.Delivery.filter(
-            { 
-              driver_id: { $in: allDriverIds },
-              delivery_date: { $gte: minDate, $lte: maxDate }
-            },
-            '-delivery_date',
-            10000
-          );
-          
-          // Save to offline DB for future use
-          if (freshDeliveries && freshDeliveries.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-          }
-        }
-      } catch (offlineError) {
-        console.warn('⚠️ [RouteImport] Offline DB failed, fetching from API:', offlineError.message);
-        freshDeliveries = await base44.entities.Delivery.filter(
-          { 
-            driver_id: { $in: allDriverIds },
-            delivery_date: { $gte: minDate, $lte: maxDate }
-          },
-          '-delivery_date',
-          10000
-        );
-      }
+      // CRITICAL: Fetch deliveries for all drivers at once
+      const freshDeliveries = await base44.entities.Delivery.filter(
+        { 
+          driver_id: { $in: allDriverIds },
+          delivery_date: { $gte: minDate, $lte: maxDate }
+        },
+        '-delivery_date',
+        10000
+      );
       
       setProgressPercent(35);
-      console.log(`[RouteImport] Using ${freshDeliveries.length} existing deliveries for ${allDriverIds.length} drivers in date range ${minDate} to ${maxDate}`);
+
+      console.log(`[RouteImport] Loaded ${freshDeliveries.length} existing deliveries for ${allDriverIds.length} drivers in date range ${minDate} to ${maxDate}`);
 
       let totalToCreate = [];
       let totalToUpdate = [];
@@ -1723,53 +1664,6 @@ export default function RouteImport({
         
         // CRITICAL: NO route optimization after import - preserve imported stop order
         console.log('✅ [RouteImport] Import complete - stop order preserved from CSV');
-        
-        // CRITICAL: Broadcast delivery import to other devices
-        console.log("📡 [RouteImport] Broadcasting delivery import to other devices...");
-        const { changeBroadcastManager } = await import('../utils/changeBroadcastManager');
-        const { getDeviceId } = await import('../utils/deviceIdManager');
-        
-        try {
-          // Get all affected dates from imported deliveries
-          const affectedDates = [...new Set([
-            ...deliveriesToCreateFiltered.map(d => d.delivery_date),
-            ...deliveriesToUpdateFiltered.map(d => d.delivery_date)
-          ])].filter(Boolean);
-          
-          // Broadcast for each affected date
-          for (const affectedDate of affectedDates) {
-            await changeBroadcastManager.createBroadcast({
-              entity_name: 'Delivery',
-              change_type: 'full_date_refresh',
-              affected_date: affectedDate,
-              sent_by_user_id: currentUser?.id || 'system',
-              sent_by_device_id: getDeviceId(),
-              metadata: {
-                created: overallResults.created,
-                updated: overallResults.updated,
-                total: overallResults.created + overallResults.updated
-              }
-            });
-          }
-          console.log(`✅ [RouteImport] Broadcast sent for ${affectedDates.length} dates`);
-        } catch (broadcastError) {
-          console.warn("⚠️ [RouteImport] Failed to broadcast import:", broadcastError);
-        }
-
-        // CRITICAL: Dispatch local events to refresh THIS device's UI immediately
-        console.log("🔄 [RouteImport] Dispatching local refresh events...");
-        window.dispatchEvent(new CustomEvent('deliveriesImported', {
-          detail: { 
-            source: 'routeImport', 
-            deliveries: [], 
-            created: overallResults.created, 
-            updated: overallResults.updated 
-          }
-        }));
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { triggeredBy: 'routeImportComplete' }
-        }));
         
         // CRITICAL: Trigger immediate backend sync after import
         console.log("📤 [RouteImport] Triggering immediate backend sync...");

@@ -566,62 +566,47 @@ export const loadDeliveries = async (
   
   console.log(`📥 [DataManager] Loading deliveries - selected: ${selectedDateStr}`);
   
-  // STEP 1: ALWAYS check offline DB first (even on forceRefresh)
-  try {
-    const offlineDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr);
-    
-    if (offlineDeliveries && offlineDeliveries.length > 0) {
-      console.log(`⚡ [DataManager] Instant UI from offline: ${offlineDeliveries.length} deliveries for ${selectedDateStr}`);
+  // STEP 1: Check if offline DB has data for selected date (use as instant UI)
+  let usedOfflineData = false;
+  
+  if (!forceRefresh) {
+    try {
+      const offlineDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr);
       
-      // Fire callback IMMEDIATELY
-      setTimeout(() => {
-        onInitialLoadComplete(offlineDeliveries);
-      }, 0);
-      
-      // CRITICAL: Return offline data - rely on ChangeBroadcast + SmartRefresh for updates
-      console.log(`📴 [DataManager] Using offline data - ChangeBroadcast will handle updates`);
-      return offlineDeliveries;
-    } else {
-      console.log(`📥 [DataManager] No offline data for ${selectedDateStr} - fetching from API`);
+      if (offlineDeliveries && offlineDeliveries.length > 0) {
+        console.log(`⚡ [DataManager] Instant UI from offline: ${offlineDeliveries.length} deliveries`);
+        
+        // CRITICAL: Fire callback IMMEDIATELY to prevent 1-minute delay
+        // Use setTimeout 0 to ensure callback runs on next tick (allows state to settle)
+        setTimeout(() => {
+          onInitialLoadComplete(offlineDeliveries);
+        }, 0);
+        
+        usedOfflineData = true;
+        
+        // CRITICAL: SYNC DISABLED - 100% offline-only mode
+        console.log(`📴 [DataManager] API sync disabled - using offline data only`);
+        
+        return offlineDeliveries;
+      }
+    } catch (err) {
+      console.warn('⚠️ [DataManager] Offline check failed:', err.message);
     }
-  } catch (err) {
-    console.warn('⚠️ [DataManager] Offline check failed:', err.message);
   }
   
-  // STEP 2: No offline data - fetch from API as fallback
-  try {
-    const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, false);
-    console.log(`✅ [DataManager] Loaded ${selectedDateDeliveries.length} deliveries from API for ${selectedDateStr}`);
-    
-    // Fire callback
-    setTimeout(() => {
-      onInitialLoadComplete(selectedDateDeliveries);
-    }, 0);
-    
-    return selectedDateDeliveries;
-  } catch (apiError) {
-    // API failed - check if we have ANY offline data as fallback
-    console.error(`❌ [DataManager] API failed for ${selectedDateStr}:`, apiError.message);
-    
-    try {
-      const fallbackData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr);
-      if (fallbackData && fallbackData.length > 0) {
-        console.log(`⚡ [DataManager] Using stale offline data as fallback: ${fallbackData.length} deliveries`);
-        setTimeout(() => {
-          onInitialLoadComplete(fallbackData);
-        }, 0);
-        return fallbackData;
-      }
-    } catch (offlineErr) {
-      console.warn('⚠️ [DataManager] Offline fallback failed:', offlineErr.message);
-    }
-    
-    // Return empty array if all else fails
-    setTimeout(() => {
-      onInitialLoadComplete([]);
-    }, 0);
-    return [];
-  }
+  // STEP 2: Fetch selected date from online (not fresh or forced)
+  const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, forceRefresh);
+  console.log(`✅ [DataManager] Loaded ${selectedDateDeliveries.length} deliveries for ${selectedDateStr}`);
+  
+  // Fire instant UI callback IMMEDIATELY (no delay)
+  setTimeout(() => {
+    onInitialLoadComplete(selectedDateDeliveries);
+  }, 0);
+  
+  // CRITICAL: Background loading DISABLED to prevent rate limits
+  console.log('📴 [DataManager] Background loading disabled - offline-only mode');
+
+  return selectedDateDeliveries;
 };
 
 /**

@@ -6,7 +6,6 @@ import { format } from "date-fns";
 import { invalidate } from "./dataManager";
 import { touchUserCache } from "./auth";
 import { queueEntityRequest } from "./requestQueue";
-import { changeBroadcastManager } from "./changeBroadcastManager";
 
 // Module-level cache for isOfflineDBLoadComplete (imported dynamically)
 let _isOfflineDBLoadComplete = null;
@@ -109,18 +108,6 @@ class SmartRefreshManager {
     // These should be removed from UI even if smart refresh brings them back from stale offline DB
     this.deletedDeliveryIds = new Set();
     this.deletedPatientIds = new Set();
-    
-    // Store current user and city for broadcast filtering
-    this._currentUser = null;
-    this._currentCityId = null;
-  }
-  
-  /**
-   * Set current user and city for broadcast filtering
-   */
-  setUserContext(user, cityId) {
-    this._currentUser = user;
-    this._currentCityId = cityId;
   }
   
   /**
@@ -1041,26 +1028,13 @@ class SmartRefreshManager {
    * Fast driver location refresh with adaptive intervals
    * @param currentAppUsers - Current AppUser data
    * @param forceRefresh - If true, bypasses the interval check (for initial load)
-   * @param selectedDate - The date currently being viewed (optional)
    * CRITICAL: Never throws - always returns null on error to prevent stuck refresh
-   * CRITICAL: Skips refresh if viewing past dates (no active deliveries)
    */
-  async refreshDriverLocations(currentAppUsers, forceRefresh = false, selectedDate = null) {
+  async refreshDriverLocations(currentAppUsers, forceRefresh = false) {
     try {
       // Check if disabled or paused - silently skip automatic polling (unless forced)
       if ((!this._enabled || this._paused) && !forceRefresh) {
         return null;
-      }
-      
-      // CRITICAL: Skip driver location refresh if viewing a past date (not today)
-      // Drivers only need location updates for TODAY's deliveries
-      if (selectedDate && !forceRefresh) {
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        if (selectedDateStr !== todayStr) {
-          console.log(`⏭️ [SmartRefresh] Skipping driver location refresh - viewing past date (${selectedDateStr})`);
-          return null;
-        }
       }
       
       // CRITICAL: Use adaptive interval based on user activity
@@ -1783,30 +1757,15 @@ class SmartRefreshManager {
   async refreshActiveRoute(currentData, filters, showAllDrivers = false) {
     const updates = {};
     const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const selectedDateStr = filters?.selectedDate || todayStr;
-
+    
     try {
-      // STEP 1: Refresh driver locations (ONLY if viewing today's date AND there are deliveries)
-      // CRITICAL: Skip for past dates - no active deliveries, so no need for location updates
-      // CRITICAL: Skip if no deliveries for today - don't waste API calls on location updates
-      if (selectedDateStr === todayStr) {
-        const todayDeliveries = currentData.deliveries?.filter(d => d?.delivery_date === todayStr) || [];
-
-        // CRITICAL: Skip location refresh if no deliveries AND no drivers on duty
-        const driversOnDuty = currentData.appUsers?.filter(au => au?.driver_status === 'on_duty') || [];
-
-        if (todayDeliveries.length === 0 && driversOnDuty.length === 0) {
-          console.log(`⏭️ [ActiveRoute] Skipping driver location refresh - no deliveries and no drivers on duty`);
-        } else {
-          await this.waitForRateLimit();
-          const locationResult = await this.refreshDriverLocations(currentData.appUsers, true, new Date());
-          if (locationResult?.hasChanges) {
-            updates.appUsers = locationResult.appUsers;
-            console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
-          }
-        }
-      } else {
-        console.log(`⏭️ [ActiveRoute] Skipping driver location refresh - viewing past date (${selectedDateStr})`);
+      // STEP 1: Refresh driver locations (from API for live data)
+      // CRITICAL: When showAllDrivers=true, MUST refresh ALL AppUsers to update markers
+      await this.waitForRateLimit();
+      const locationResult = await this.refreshDriverLocations(currentData.appUsers, true);
+      if (locationResult?.hasChanges) {
+        updates.appUsers = locationResult.appUsers;
+        console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
       }
       
       // STEP 2: Refresh today's deliveries (from API for cross-device sync)
@@ -1922,79 +1881,6 @@ class SmartRefreshManager {
   }
   
   /**
-   * Check for ChangeBroadcast updates and process them
-   */
-  async checkBroadcasts() {
-    if (!this._currentUser || !this._currentCityId) {
-      return [];
-    }
-    
-    try {
-      const broadcasts = await changeBroadcastManager.checkForBroadcasts(this._currentUser, this._currentCityId);
-      
-      if (broadcasts.length > 0) {
-        console.log(`📥 [SmartRefresh] Processing ${broadcasts.length} broadcasts`);
-        
-        // Process each broadcast
-        for (const broadcast of broadcasts) {
-          await this.processBroadcast(broadcast);
-        }
-      }
-      
-      return broadcasts;
-    } catch (error) {
-      console.warn('[SmartRefresh] Broadcast check failed:', error.message);
-      return [];
-    }
-  }
-  
-  /**
-   * Process a single broadcast and trigger appropriate refresh
-   */
-  async processBroadcast(broadcast) {
-    console.log(`📡 [SmartRefresh] Processing broadcast: ${broadcast.entity_name} ${broadcast.change_type}`);
-    
-    // Handle different broadcast types
-    if (broadcast.change_type === 'full_date_refresh') {
-      // Full date refresh - invalidate all deliveries for this date
-      console.log(`📅 [SmartRefresh] Full date refresh for: ${broadcast.affected_date}`);
-      this.lastRefreshTimes.activeRoute = 0;
-      this._pendingApiFetch = this._pendingApiFetch || new Set();
-      this._pendingApiFetch.add('Delivery');
-    } else if (broadcast.change_type === 'driver_date_refresh') {
-      // Driver-specific date refresh
-      console.log(`🚗 [SmartRefresh] Driver date refresh: ${broadcast.affected_driver_id} on ${broadcast.affected_date}`);
-      this.lastRefreshTimes.activeRoute = 0;
-      this._pendingApiFetch = this._pendingApiFetch || new Set();
-      this._pendingApiFetch.add('Delivery');
-    } else if (broadcast.change_type === 'delete') {
-      // Track deletions
-      if (broadcast.entity_name === 'Delivery' && broadcast.entity_id) {
-        this.deletedDeliveryIds.add(broadcast.entity_id);
-      } else if (broadcast.entity_name === 'Patient' && broadcast.entity_id) {
-        this.deletedPatientIds.add(broadcast.entity_id);
-      }
-      // Force refresh for this entity
-      this.lastRefreshTimes.activeRoute = 0;
-    } else {
-      // Standard create/update - trigger refresh for this entity
-      if (broadcast.entity_name === 'Delivery') {
-        this.lastRefreshTimes.activeRoute = 0;
-        this._pendingApiFetch = this._pendingApiFetch || new Set();
-        this._pendingApiFetch.add('Delivery');
-      } else if (broadcast.entity_name === 'Patient') {
-        this.lastRefreshTimes.todayPatients = 0;
-        this.lastRefreshTimes.patients = 0;
-        this._pendingApiFetch = this._pendingApiFetch || new Set();
-        this._pendingApiFetch.add('Patient');
-      } else if (broadcast.entity_name === 'AppUser') {
-        this.lastRefreshTimes.activeRoute = 0;
-        this.lastRefreshTimes.appUsers = 0;
-      }
-    }
-  }
-  
-  /**
    * NEW: Combined smart refresh - 15s active route, opportunistic historical
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false, showAllDrivers = false) {
@@ -2037,9 +1923,6 @@ class SmartRefreshManager {
     const updates = {};
     
     try {
-      // PRIORITY 0: Check for broadcasts from other devices/users
-      await this.checkBroadcasts();
-      
       // PRIORITY 1: Active route data (15-second cycle)
       if (this.shouldRefresh('activeRoute')) {
         const activeResult = await this.refreshActiveRoute(currentData, filters, showAllDrivers);
@@ -2049,14 +1932,25 @@ class SmartRefreshManager {
         this.markRefreshed('activeRoute');
       }
       
-      // PRIORITY 2: Historical date sync DISABLED
-      // Historical data is only synced from offline DB - no API polling to prevent rate limits
-      // Users see historical deliveries from offline cache loaded at startup
+      // PRIORITY 2: Historical date sync (opportunistic, one at a time)
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const historicalDates = [...new Set(
+        currentData.deliveries
+          ?.filter(d => d && d.delivery_date && d.delivery_date !== todayStr)
+          ?.map(d => d.delivery_date)
+          ?.sort((a, b) => b.localeCompare(a)) // Most recent first
+      )];
+      
+      if (historicalDates.length > 0) {
+        const historicalResult = await this.checkOneHistoricalDate(currentData.deliveries, historicalDates);
+        if (historicalResult?.hasChanges) {
+          updates.deliveries = historicalResult.deliveries;
+        }
+      }
       
       // PRIORITY 3: Background entity refreshes (longer intervals)
       if (this.shouldRefresh('todayPatients') && currentData.patients) {
         try {
-          const todayStr = format(new Date(), 'yyyy-MM-dd');
           const todayDeliveries = currentData.deliveries?.filter(d => {
             return d && d.delivery_date === todayStr;
           }) || [];

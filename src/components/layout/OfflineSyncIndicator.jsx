@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
 import { formatDistanceToNow } from 'date-fns';
-import { base44 } from '@/api/base44Client';
 
 export default function OfflineSyncIndicator({ embedded = false, inline = false }) {
   const { currentUser } = useUser();
@@ -61,102 +60,31 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const handleForceSync = async () => {
     try {
       setIsSyncing(true);
-      const { offlineDB } = await import('../utils/offlineDatabase');
 
-      // CRITICAL: Check which dates are missing from offline DB
-      console.log('📋 [Manual Sync] Analyzing offline DB for missing dates...');
-      
-      // Get all deliveries from API (last 90 days) and compare with offline DB
-      const today = new Date();
-      const ninetyDaysAgo = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
-      
-      // Get offline deliveries to check what we have
-      const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
-      const offlineDates = new Set(offlineDeliveries.map(d => d?.delivery_date).filter(Boolean));
-      
-      console.log(`💾 [Manual Sync] Offline DB has ${offlineDates.size} unique delivery dates`);
-      
-      // Fetch metadata from API to find which dates have deliveries
-      // We'll fetch ALL deliveries for the range to find what's missing
-      let allApiDeliveries = [];
-      try {
-        allApiDeliveries = await base44.entities.Delivery.filter(
-          {
-            delivery_date: {
-              $gte: ninetyDaysAgo.toISOString().split('T')[0],
-              $lte: today.toISOString().split('T')[0]
-            }
-          },
-          '-delivery_date',
-          10000
-        );
-        
-        console.log(`📥 [Manual Sync] API has ${allApiDeliveries.length} total deliveries in last 90 days`);
-        
-        // Find unique dates on API
-        const apiDates = new Set(allApiDeliveries.map(d => d?.delivery_date).filter(Boolean));
-        
-        // Find missing dates
-        const missingDates = Array.from(apiDates).filter(date => !offlineDates.has(date)).sort();
-        
-        console.log(`🔍 [Manual Sync] Found ${missingDates.length} dates with missing deliveries`);
-        
-        if (missingDates.length > 0) {
-          console.log(`📅 [Manual Sync] Syncing missing dates: ${missingDates.slice(0, 5).join(', ')}${missingDates.length > 5 ? '...' : ''}`);
-          
-          // Sync missing dates gradually (3 seconds between requests to avoid rate limits)
-          let synced = 0;
-          for (const dateStr of missingDates) {
-            try {
-              const dateDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr }, '-delivery_date', 1000);
-              if (dateDeliveries && dateDeliveries.length > 0) {
-                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, dateDeliveries);
-                synced++;
-                console.log(`✅ [Manual Sync] Synced ${dateDeliveries.length} deliveries for ${dateStr}`);
-              }
-              
-              // Aggressive rate limit protection - 3 seconds between requests
-              if (synced < missingDates.length) {
-                await new Promise(r => setTimeout(r, 3000));
-              }
-            } catch (dateError) {
-              console.warn(`⚠️ [Manual Sync] Error syncing ${dateStr}:`, dateError.message);
-              // If rate limited, wait longer
-              if (dateError.response?.status === 429 || dateError.message?.includes('429')) {
-                console.log('⏰ [Manual Sync] Rate limited - waiting 30 seconds before retry');
-                await new Promise(r => setTimeout(r, 30000));
-              }
-            }
-          }
-          
-          console.log(`✅ [Manual Sync] Complete - synced ${synced} dates with missing deliveries`);
-        } else {
-          console.log('✅ [Manual Sync] All dates already synced - offline DB is up to date');
-        }
-        
-      } catch (apiError) {
-        console.warn('⚠️ [Manual Sync] Error checking API deliveries:', apiError.message);
-        // Fall back to standard sync
-        await forceSyncAll();
-      }
-      
-      // Get updated stats
+      // DON'T clear the offline DB - just force a fresh sync from API
+      // Clearing causes data loss if the sync fails
+      await forceSyncAll();
       const updatedStats = await getSyncStats();
       setStats(updatedStats);
 
+      // CRITICAL: Trigger UI refresh for current screen after sync completes
       console.log('✅ [OfflineSyncIndicator] Manual sync complete - refreshing UI');
       
-      // Wait for offline DB to update
+      // CRITICAL: Wait for offline DB to update before triggering events
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Refresh delivery stats
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      
+      // Force data refresh on Dashboard/current screen
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       
-      // Load fresh deliveries for current date
+      // CRITICAL: Load fresh deliveries and trigger delivery update event
       const selectedDateStr = sessionStorage.getItem('rxdeliver_selected_date') || 
                              new Date().toISOString().split('T')[0];
       
+      // CRITICAL: Import offlineDB and check for fresh deliveries
+      const { offlineDB } = await import('../utils/offlineDatabase');
       const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
       
       if (freshDeliveries && freshDeliveries.length > 0) {
@@ -166,6 +94,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
         }));
       }
       
+      // CRITICAL: Trigger driver locations update to refresh map markers
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
         detail: { appUsers: null }
       }));

@@ -23,8 +23,7 @@ const PATIENT_BATCH_SIZE = 250; // 250 patients at a time
 const BATCH_COOLDOWN = 1000; // 1 second between batches
 const HISTORICAL_COOLDOWN = 5 * 60 * 1000; // 5 minutes between historical date syncs
 const HISTORICAL_DAYS = 90; // Keep 90 days of historical data for offline access
-const FULL_SYNC_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours between full historical syncs (reduced frequency)
-const DATA_EXISTS_THRESHOLD = 50; // Minimum record count to consider data as "exists"
+const FULL_SYNC_INTERVAL = 8 * 60 * 60 * 1000; // 8 hours between full historical syncs
 
 let syncInProgress = false;
 let syncPaused = false;
@@ -233,36 +232,8 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
 // ==================== BACKGROUND SYNC ====================
 
 /**
- * Check if we already have sufficient offline data
- * Returns true if we have 90 days of deliveries AND all patients
- */
-const hasCompleteOfflineData = async () => {
-  try {
-    const stats = await offlineDB.getStats();
-    const deliverySyncStatus = await offlineDB.getSyncStatus('Delivery');
-    const patientSyncStatus = await offlineDB.getSyncStatus('Patient');
-    
-    // Check if we have enough data
-    const hasDeliveries = stats?.deliveries?.count > DATA_EXISTS_THRESHOLD;
-    const hasPatients = stats?.patients?.count > DATA_EXISTS_THRESHOLD;
-    
-    // Check if last full sync was within 24 hours
-    const deliveryLastSync = deliverySyncStatus?.lastFullSync;
-    const patientLastSync = patientSyncStatus?.lastFullSync;
-    
-    const deliverySyncRecent = deliveryLastSync && (Date.now() - new Date(deliveryLastSync).getTime() < FULL_SYNC_INTERVAL);
-    const patientSyncRecent = patientLastSync && (Date.now() - new Date(patientLastSync).getTime() < FULL_SYNC_INTERVAL);
-    
-    return hasDeliveries && hasPatients && deliverySyncRecent && patientSyncRecent;
-  } catch (error) {
-    console.warn('[OfflineSync] Failed to check data completeness:', error.message);
-    return false;
-  }
-};
-
-/**
- * Background sync: Only runs if data is missing or stale (>24h)
- * Relies on ChangeBroadcast for incremental updates
+ * Background sync: Current month + 6 future days, then past 30 days
+ * CRITICAL: Loads ENTIRE current month for all drivers to support Route Management
  */
 export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
   if (syncInProgress || syncPaused) {
@@ -270,110 +241,99 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     return { skipped: true };
   }
   
-  // CRITICAL: Check if we already have complete data
-  const hasCompleteData = await hasCompleteOfflineData();
-  if (hasCompleteData) {
-    console.log('✅ [OfflineSync] Complete 90-day data already exists - relying on ChangeBroadcast for updates');
-    return { skipped: true, reason: 'data_complete' };
-  }
-  
   syncInProgress = true;
-  console.log('📥 [OfflineSync] Data incomplete or stale - starting background sync...');
+  console.log('📥 [OfflineSync] Starting background sync...');
   notifySyncStatus({ status: 'background_syncing' });
   
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
   
   try {
-    // ===== STEP 1: Check if past 90 days need sync (1 day at a time, 5 min between dates) =====
-    console.log('   📅 Syncing past 90 days (gentle, 5 min cooldown between dates)...');
+    // ===== STEP 1: SKIP current month sync - it's handled by historical sync cycle =====
+    console.log('   ⏭️ Skipping current month sync - handled by historical sync cycle');
     
+    // ===== STEP 2: Future dates now handled in Step 3 (historical sync cycle) =====
+    console.log('   ⏭️ Future dates sync now part of historical cycle');
+    
+    // ===== STEP 3: Check if past 90 days need sync (1 day at a time, 5 min between dates) =====
+    console.log('   📅 Checking if historical data needs sync...');
+    
+    // CRITICAL: Only sync historical data if last full sync is > 8 hours old
     const deliverySyncStatus = await offlineDB.getSyncStatus('Delivery');
     const lastFullSync = deliverySyncStatus?.lastFullSync;
+    const needsFullSync = !lastFullSync || (Date.now() - new Date(lastFullSync).getTime() > FULL_SYNC_INTERVAL);
     
-    console.log('   📅 Starting 90-day historical sync (1 day at a time, 5 min cooldown)...');
-    console.log(`   ⏱️ This will take ~7.5 hours to complete all 90 days`);
-    
-    // Sync 1 day at a time with 5-minute cooldown (including today and future 6 days)
-    // Start from 6 days in the future, go to 90 days in the past
-    for (let daysOffset = 6; daysOffset >= -HISTORICAL_DAYS; daysOffset--) {
-      if (syncPaused) break;
+    if (needsFullSync) {
+      console.log('   📅 Last full sync > 8h - syncing past 90 days (1 day at a time, 5 min cooldown)...');
+      console.log(`   ⏱️ This will take ~7.5 hours to complete all 90 days`);
       
-      const dateToSync = format(daysOffset >= 0 ? new Date(today.getTime() + daysOffset * 86400000) : subDays(today, Math.abs(daysOffset)), 'yyyy-MM-dd');
-      
-      console.log(`      📅 Syncing ${dateToSync}...`);
-      
-      await syncDeliveryDateRange(
-        dateToSync,
-        dateToSync,
-        null,
-        storeIds
-      );
-      
-      // 5-minute cooldown between each date
-      const remaining = 6 + HISTORICAL_DAYS - (6 - daysOffset);
-      if (daysOffset > -HISTORICAL_DAYS) {
-        console.log(`      ⏳ Waiting 5 minutes before next date... (${remaining} days remaining)`);
-        await new Promise(r => setTimeout(r, HISTORICAL_COOLDOWN));
+      // Sync 1 day at a time with 5-minute cooldown (including today and future 6 days)
+      // Start from 6 days in the future, go to 90 days in the past
+      for (let daysOffset = 6; daysOffset >= -HISTORICAL_DAYS; daysOffset--) {
+        if (syncPaused) break;
+        
+        const dateToSync = format(daysOffset >= 0 ? new Date(today.getTime() + daysOffset * 86400000) : subDays(today, Math.abs(daysOffset)), 'yyyy-MM-dd');
+        
+        console.log(`      📅 Syncing ${dateToSync}...`);
+        
+        await syncDeliveryDateRange(
+          dateToSync,
+          dateToSync,
+          null, // Don't skip any date
+          storeIds
+        );
+        
+        // 5-minute cooldown between each date
+        const remaining = 6 + HISTORICAL_DAYS - (6 - daysOffset);
+        if (daysOffset > -HISTORICAL_DAYS) {
+          console.log(`      ⏳ Waiting 5 minutes before next date... (${remaining} days remaining)`);
+          await new Promise(r => setTimeout(r, HISTORICAL_COOLDOWN));
+        }
       }
+      
+      // Mark full sync complete
+      await offlineDB.updateSyncStatus('Delivery', {
+        lastFullSync: new Date().toISOString()
+      });
+      console.log('   ✅ Historical sync complete - will repeat in 8 hours');
+    } else {
+      const timeSinceLastSync = Date.now() - new Date(lastFullSync).getTime();
+      const hoursRemaining = ((FULL_SYNC_INTERVAL - timeSinceLastSync) / (60 * 60 * 1000)).toFixed(1);
+      console.log(`   ⏭️ Historical data synced recently - next full sync in ${hoursRemaining}h`);
     }
     
-    // Mark full sync complete
-    await offlineDB.updateSyncStatus('Delivery', {
-      lastFullSync: new Date().toISOString()
-    });
-    console.log('   ✅ Historical sync complete - will repeat in 24 hours');
-    
-    // ===== STEP 2: Sync Cities (only if missing) =====
-    const cityStats = await offlineDB.getStats();
-    if (!cityStats?.cities?.count || cityStats.cities.count < 2) {
+    // ===== STEP 3: Sync Cities in background =====
+    if (!syncPaused) {
       console.log('   🏙️ Syncing Cities...');
       try {
         const allCities = await City.list();
         await offlineDB.bulkSave(offlineDB.STORES.CITIES, allCities);
         console.log(`   ✅ Cached ${allCities.length} Cities`);
-        
-        await offlineDB.updateSyncStatus('City', {
-          recordCount: allCities.length,
-          status: 'synced',
-          lastSync: new Date().toISOString(),
-          lastFullSync: new Date().toISOString()
-        });
       } catch (cityError) {
         console.warn(`   ⚠️ City sync failed:`, cityError.message);
       }
     }
 
-    // ===== STEP 3: Sync AppUsers (only if missing) =====
-    const appUserStats = await offlineDB.getStats();
-    if (!appUserStats?.appUsers?.count || appUserStats.appUsers.count < 5) {
+    // ===== STEP 4: Sync AppUsers in background =====
+    if (!syncPaused) {
       console.log('   👤 Syncing AppUsers...');
       try {
         const allAppUsers = await AppUser.list();
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
         console.log(`   ✅ Cached ${allAppUsers.length} AppUsers`);
-        
-        await offlineDB.updateSyncStatus('AppUser', {
-          recordCount: allAppUsers.length,
-          status: 'synced',
-          lastSync: new Date().toISOString(),
-          lastFullSync: new Date().toISOString()
-        });
       } catch (appUserError) {
         console.warn(`   ⚠️ AppUser sync failed:`, appUserError.message);
       }
     }
 
-    // ===== STEP 4: Sync Square Transactions (only if missing) =====
-    const squareStats = await offlineDB.getStats();
-    if (!squareStats?.squareTransactions?.count || squareStats.squareTransactions.count < 10) {
-      console.log('   💳 Syncing Square Transactions...');
+    // ===== STEP 5: Sync Square Transactions in background (gentle batches) =====
+    if (!syncPaused) {
+      console.log('   💳 Syncing Square Transactions (batched)...');
       await syncSquareTransactionsGently();
     }
 
-    // ===== STEP 5: Sync patients (only if missing) =====
-    const patientStats = await offlineDB.getStats();
-    if (!patientStats?.patients?.count || patientStats.patients.count < DATA_EXISTS_THRESHOLD) {
+    // ===== STEP 6: Sync remaining patients (250 at a time) =====
+    if (!syncPaused) {
       console.log('   👥 Syncing patients...');
       await syncAllPatients();
     }
@@ -383,7 +343,40 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     
     console.log(`✅ [OfflineSync] Final counts - Deliveries: ${stats?.deliveries?.count || 0}, Patients: ${stats?.patients?.count || 0}, Cities: ${stats?.cities?.count || 0}, AppUsers: ${stats?.appUsers?.count || 0}`);
     
-    console.log('✅ [OfflineSync] Background sync complete - relying on ChangeBroadcast for updates');
+    await Promise.all([
+      offlineDB.updateSyncStatus('City', {
+        recordCount: stats?.cities?.count || 0,
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
+      }),
+      offlineDB.updateSyncStatus('AppUser', {
+        recordCount: stats?.appUsers?.count || 0,
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
+      }),
+      offlineDB.updateSyncStatus('SquareTransaction', {
+        recordCount: stats?.squareTransactions?.count || 0,
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
+      }),
+      offlineDB.updateSyncStatus('Delivery', {
+        recordCount: stats?.deliveries?.count || 0,
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
+      }),
+      offlineDB.updateSyncStatus('Patient', {
+        recordCount: stats?.patients?.count || 0,
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
+      })
+    ]);
+    
+    console.log('✅ [OfflineSync] Background sync complete - 90-day history loaded');
     notifySyncStatus({ status: 'complete' });
     window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
     
