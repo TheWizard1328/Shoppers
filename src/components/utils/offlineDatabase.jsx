@@ -519,8 +519,10 @@ const deleteRecord = async (storeName, recordId) => {
 
 /**
  * Clear all data from all stores (emergency recovery)
+ * CRITICAL: Log caller to track down who's calling this
  */
 const clearAllData = async () => {
+  console.error('🚨 [OfflineDB] clearAllData called! Stack trace:', new Error().stack);
   try {
     const db = await openDatabase();
     const allStores = Object.values(STORES);
