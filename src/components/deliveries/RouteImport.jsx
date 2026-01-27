@@ -1404,6 +1404,28 @@ export default function RouteImport({
       smartRefreshManager.pause();
       driverLocationPoller.pause();
       
+      // CRITICAL: Deduplicate before import to remove existing deliveries with identical stop_id + address
+      console.log('🔄 [RouteImport] Deduplicating deliveries...');
+      setProgressMessage('Deduplicating deliveries with matching stop_id and address...');
+      
+      const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
+      if (deliveriesToCreateFiltered.length > 0) {
+        try {
+          const dedupeResponse = await base44.functions.invoke('deduplicateDeliveries', {
+            incomingDeliveries: deliveriesToCreateFiltered
+          });
+          
+          if (dedupeResponse?.data?.deletedCount > 0 || dedupeResponse?.deletedCount > 0) {
+            const deletedCount = dedupeResponse?.data?.deletedCount || dedupeResponse?.deletedCount || 0;
+            console.log(`✅ [RouteImport] Deleted ${deletedCount} duplicate deliveries before import`);
+            setProgressMessage(`Deduplication complete - deleted ${deletedCount} duplicates. Starting import...`);
+            await delay(1000);
+          }
+        } catch (dedupeError) {
+          console.warn('⚠️ [RouteImport] Deduplication warning (continuing anyway):', dedupeError.message);
+        }
+      }
+      
       // CRITICAL: Use centralized data operation manager
       await executeDataOperation(async () => {
         console.log('📥 [RouteImport] Starting import with data operation manager');
@@ -1414,26 +1436,7 @@ export default function RouteImport({
         const freshPatients = await getData('Patient', '-created_date', null, false);
         const freshStores = await getData('Store', '-created_date', null, false);
 
-        // CRITICAL: Deduplicate before importing - delete existing deliveries with matching stop_id + address
-        setProgressMessage('Deduplicating: removing existing deliveries with matching stop IDs and addresses...');
         const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
-        
-        if (deliveriesToCreateFiltered.length > 0) {
-          try {
-            const dedupeResponse = await base44.functions.invoke('deduplicateDeliveries', {
-              incomingDeliveries: deliveriesToCreateFiltered
-            });
-            
-            if (dedupeResponse?.data?.deletedCount > 0) {
-              console.log(`✅ [RouteImport] Deleted ${dedupeResponse.data.deletedCount} duplicate deliveries`);
-              setProgressMessage(`Deleted ${dedupeResponse.data.deletedCount} duplicate deliveries. Continuing with import...`);
-              await delay(1000);
-            }
-          } catch (error) {
-            console.warn(`⚠️ [RouteImport] Deduplication error (continuing anyway):`, error.message);
-          }
-        }
-
         const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
 
         batchUpdateAMPM(deliveriesToCreateFiltered);
