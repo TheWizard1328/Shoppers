@@ -473,50 +473,7 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
   }
 };
 
-/**
- * Sync deliveries for a date range (used for historical batches)
- */
-const syncDeliveryDateRange = async (startDate, endDate, skipDate = null, storeIds = null) => {
-  if (syncPaused) return;
-  
-  console.log(`      📅 Fetching ${startDate} to ${endDate}...`);
-  
-  try {
-    const rangeFilter = {
-      delivery_date: { $gte: startDate, $lte: endDate }
-    };
-    
-    if (storeIds && storeIds.length > 0) {
-      rangeFilter.store_id = { $in: storeIds };
-    }
-    
-    const deliveries = await Delivery.filter(rangeFilter);
-    
-    // Filter out the skip date if provided
-    const filteredDeliveries = skipDate 
-      ? deliveries.filter(d => d.delivery_date !== skipDate)
-      : deliveries;
-    
-    if (filteredDeliveries.length > 0) {
-      // CRITICAL: bulkSave should MERGE, not replace - verify it's not clearing existing data
-      const existingCount = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES))?.length || 0;
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, filteredDeliveries);
-      const newCount = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES))?.length || 0;
-      
-      console.log(`      ✅ Saved ${filteredDeliveries.length} deliveries (DB: ${existingCount} → ${newCount})`);
-      
-      // CRITICAL: Warn if data mysteriously disappeared
-      if (newCount < existingCount) {
-        console.error(`      ❌ WARNING: Data loss detected! Before: ${existingCount}, After: ${newCount}`);
-      }
-    }
-  } catch (error) {
-    console.warn(`      ⚠️ Date range sync failed:`, error.message);
-    if (error.response?.status === 429) {
-      await new Promise(r => setTimeout(r, 5000));
-    }
-  }
-};
+
 
 /**
  * Sync Square Transactions - incremental or full fetch
