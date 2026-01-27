@@ -5578,10 +5578,10 @@ function Dashboard() {
         await base44.entities.Delivery.update(deliveryId, updateData);
         console.log('✅ [STATUS] Database updated');
         
-        // Update offline DB
+        // Update offline DB using bulkSave (save method may not exist)
         const freshDelivery = await base44.entities.Delivery.filter({ id: deliveryId });
         if (freshDelivery && freshDelivery.length > 0) {
-          await offlineDB.save(offlineDB.STORES.DELIVERIES, freshDelivery[0]);
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery[0]]);
           console.log('✅ [STATUS] Offline DB updated');
         }
         
@@ -5809,7 +5809,6 @@ function Dashboard() {
       console.log('▶️ [STATUS] Resuming update systems');
       resumeOfflineSync();
       smartRefreshManager.resume();
-      
       setIsEntityUpdating(false);
       
       // CRITICAL: Re-enable theme transitions
