@@ -1150,8 +1150,9 @@ export default function RouteImport({
   const allPreviewDeliveries = useMemo(() => {
     const created = previewData.deliveriesToCreate.map((d) => ({ ...d, action: 'create' }));
     const updated = previewData.deliveriesToUpdate.map((d) => ({ ...d, action: 'update' }));
-    return [...created, ...updated];
-  }, [previewData.deliveriesToCreate, previewData.deliveriesToUpdate]);
+    const deleted = previewData.deliveriesToDelete?.map((d) => ({ ...d, action: 'delete' })) || [];
+    return [...created, ...updated, ...deleted];
+  }, [previewData.deliveriesToCreate, previewData.deliveriesToUpdate, previewData.deliveriesToDelete]);
 
   const previewDrivers = useMemo(() => {
     const driverNames = new Set(allPreviewDeliveries.map((d) => d.driver_name));
