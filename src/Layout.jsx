@@ -97,6 +97,7 @@ import ConnectionRecoveryBanner from './components/layout/ConnectionRecoveryBann
 import { subscribeMutations } from './components/utils/entityMutations';
 import { realtimeSync, subscribeToRealtime } from './components/utils/realtimeSync';
 import ConflictManager from './components/dashboard/ConflictManager';
+import { changeBroadcastManager } from './components/utils/changeBroadcastManager';
 import PWAInstallPrompt from './components/common/PWAInstallPrompt';
 import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
 import BatteryIndicator from './components/layout/BatteryIndicator';
@@ -887,6 +888,9 @@ export default function Layout({ children, currentPageName }) {
         // CRITICAL: Mark offline DB load as complete to allow smart refresh to start
         const { markOfflineDBLoadComplete } = await import('./components/utils/dataManager');
         markOfflineDBLoadComplete();
+
+        // CRITICAL: Set user context for ChangeBroadcast filtering
+        smartRefreshManager.setUserContext(fetchedUser, initialCityId);
 
         setDataLoaded(true); // CRITICAL: Set data loaded to prevent bg sync re-triggering
         setIsLoadingLayout(false);
