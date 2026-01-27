@@ -1,3 +1,4 @@
+import AdminUtilities from './pages/AdminUtilities';
 import AppUsers from './pages/AppUsers';
 import Cities from './pages/Cities';
 import Dashboard from './pages/Dashboard';
@@ -12,11 +13,11 @@ import SquareLocationConfigs from './pages/SquareLocationConfigs';
 import SquareManagement from './pages/SquareManagement';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
-import AdminUtilities from './pages/AdminUtilities';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "AdminUtilities": AdminUtilities,
     "AppUsers": AppUsers,
     "Cities": Cities,
     "Dashboard": Dashboard,
@@ -31,7 +32,6 @@ export const PAGES = {
     "SquareManagement": SquareManagement,
     "Stores": Stores,
     "Users": Users,
-    "AdminUtilities": AdminUtilities,
 }
 
 export const pagesConfig = {

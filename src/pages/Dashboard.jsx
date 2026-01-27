@@ -359,6 +359,46 @@ function Dashboard() {
   const [showEndOfDayStats, setShowEndOfDayStats] = useState(false);
   const [endOfDayDriver, setEndOfDayDriver] = useState(null);
 
+  // Listen for deliveries imported event to refresh map immediately
+  useEffect(() => {
+    const handleDeliveriesImported = async (event) => {
+      const { deliveries: importedDeliveries, source } = event.detail || {};
+      console.log('📥 [Dashboard] Deliveries imported - refreshing map and data');
+      
+      // Skip if source is Dashboard itself to prevent loops
+      if (source === 'dashboard') return;
+      
+      try {
+        // Invalidate cache and refresh data
+        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+        invalidateDeliveriesForDate(selectedDateStr);
+        await refreshData();
+        
+        // Force map markers and routes to update
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { deliveryDate: selectedDateStr, triggeredBy: 'deliveriesImported' }
+        }));
+        
+        // Trigger FAB to re-center map (Phase 1 for 500ms)
+        setMapViewPhase(1);
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+        
+        // Auto-unlock after 500ms
+        setTimeout(() => setIsMapViewLocked(false), 500);
+        
+        console.log('✅ [Dashboard] Map updated after import');
+      } catch (error) {
+        console.error('❌ [Dashboard] Failed to refresh after import:', error);
+      }
+    };
+    
+    window.addEventListener('deliveriesImported', handleDeliveriesImported);
+    return () => window.removeEventListener('deliveriesImported', handleDeliveriesImported);
+  }, [selectedDate, refreshData]);
+
   // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
     const handlePerformanceStatsUpdate = (event) => {
