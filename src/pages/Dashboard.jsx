@@ -6477,6 +6477,9 @@ function Dashboard() {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...offlineDeliveries], true);
           console.log('✅ [Dashboard Mount] UI updated with offline deliveries');
+          
+          // CRITICAL: Force a re-render to trigger stats calculation and map rendering
+          setForceRender((prev) => prev + 1);
         }
       } catch (error) {
         console.error('❌ [Dashboard Mount] Failed to load offline deliveries:', error);

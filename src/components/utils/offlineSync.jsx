@@ -311,34 +311,50 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       }
     }
     
-    // ===== STEP 3: Sync past 90 days (7 days at a time with 1s cooldown) =====
-    console.log('   📅 Syncing past 90 days...');
+    // ===== STEP 3: Check if past 90 days need sync (incremental approach) =====
+    console.log('   📅 Checking if historical data needs sync...');
     
-    const chunks = [
-      { start: 1, end: 7 },
-      { start: 8, end: 14 },
-      { start: 15, end: 21 },
-      { start: 22, end: 30 },
-      { start: 31, end: 37 },
-      { start: 38, end: 44 },
-      { start: 45, end: 51 },
-      { start: 52, end: 58 },
-      { start: 59, end: 65 },
-      { start: 66, end: 72 },
-      { start: 73, end: 90 }
-    ];
+    // CRITICAL: Only sync historical data if last full sync is > 24 hours old
+    const deliverySyncStatus = await offlineDB.getSyncStatus('Delivery');
+    const lastFullSync = deliverySyncStatus?.lastFullSync;
+    const needsFullSync = !lastFullSync || (Date.now() - new Date(lastFullSync).getTime() > 86400000);
     
-    for (const chunk of chunks) {
-      if (syncPaused) break;
+    if (needsFullSync) {
+      console.log('   📅 Last full sync > 24h - syncing past 90 days...');
       
-      await syncDeliveryDateRange(
-        format(subDays(today, chunk.end), 'yyyy-MM-dd'),
-        format(subDays(today, chunk.start), 'yyyy-MM-dd'),
-        selectedDateStr,
-        storeIds
-      );
+      const chunks = [
+        { start: 1, end: 7 },
+        { start: 8, end: 14 },
+        { start: 15, end: 21 },
+        { start: 22, end: 30 },
+        { start: 31, end: 37 },
+        { start: 38, end: 44 },
+        { start: 45, end: 51 },
+        { start: 52, end: 58 },
+        { start: 59, end: 65 },
+        { start: 66, end: 72 },
+        { start: 73, end: 90 }
+      ];
       
-      await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+      for (const chunk of chunks) {
+        if (syncPaused) break;
+        
+        await syncDeliveryDateRange(
+          format(subDays(today, chunk.end), 'yyyy-MM-dd'),
+          format(subDays(today, chunk.start), 'yyyy-MM-dd'),
+          selectedDateStr,
+          storeIds
+        );
+        
+        await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+      }
+      
+      // Mark full sync complete
+      await offlineDB.updateSyncStatus('Delivery', {
+        lastFullSync: new Date().toISOString()
+      });
+    } else {
+      console.log('   ⏭️ Historical data is fresh - skipping past 90 days sync');
     }
     
     // ===== STEP 3: Sync Cities in background =====

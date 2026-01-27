@@ -1685,10 +1685,7 @@ export default function RouteImport({
     } catch (error) {
       console.error("❌ Overall import error:", error);
       
-      // CRITICAL: Ensure sync processes resume even on error
-      console.log('▶️ [RouteImport] Resuming sync processes after error...');
-      smartRefreshManager.resume();
-      driverLocationPoller.resume();
+      // Sync managers auto-resumed by executeDataOperation
       
       overallResults.errors.push(`Overall import process failed: ${error.message}`);
       setImportResult(overallResults);
