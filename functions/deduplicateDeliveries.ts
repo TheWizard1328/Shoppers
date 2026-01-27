@@ -42,16 +42,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build filter to find all existing deliveries with matching stop_id + address pairs
+    // Build filter to find all existing deliveries with matching stop_id + address + delivery_date
     const existingDeliveriesToDelete = [];
     
     for (const key of matchingKeys) {
-      const [stopId, address] = key.split('|');
+      const [stopId, address, deliveryDate] = key.split('|');
       
       try {
         const matches = await base44.entities.Delivery.filter({
           stop_id: stopId,
-          delivery_address: address
+          delivery_address: address,
+          delivery_date: deliveryDate
         }, '-created_date', 1000);
 
         // Only delete existing deliveries, not the ones being imported
