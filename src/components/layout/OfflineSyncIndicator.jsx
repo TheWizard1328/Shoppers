@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
 import { formatDistanceToNow } from 'date-fns';
+import { base44 } from '@/api/base44Client';
 
 export default function OfflineSyncIndicator({ embedded = false, inline = false }) {
   const { currentUser } = useUser();
