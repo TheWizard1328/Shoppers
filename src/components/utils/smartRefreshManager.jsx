@@ -2056,6 +2056,7 @@ class SmartRefreshManager {
       // PRIORITY 3: Background entity refreshes (longer intervals)
       if (this.shouldRefresh('todayPatients') && currentData.patients) {
         try {
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
           const todayDeliveries = currentData.deliveries?.filter(d => {
             return d && d.delivery_date === todayStr;
           }) || [];
