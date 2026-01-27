@@ -787,16 +787,16 @@ export default function PayrollSummaryCard({
               (isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)) && (
               <>
                 {!isCurrentDriverFinalized && (
-                  <Button 
-                    size="sm" 
-                    onClick={() => setShowConfirmDialog(true)} 
-                    disabled={isFinalizing || isLoadingRecords || !canFinalize}
-                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8 ml-auto"
-                    title={!canFinalize ? 'Cannot finalize until pay period ends' : ''}
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
-                  </Button>
+                   <Button 
+                     size="sm" 
+                     onClick={() => setShowConfirmDialog(true)} 
+                     disabled={isFinalizing || isLoadingRecords || !canFinalize || isCurrentDriverFinalized}
+                     className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8 ml-auto"
+                     title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}
+                   >
+                     <CheckCircle className="w-4 h-4" />
+                     {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
+                   </Button>
                 )}
                 {isCurrentDriverFinalized && (
                   <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2 ml-auto">
