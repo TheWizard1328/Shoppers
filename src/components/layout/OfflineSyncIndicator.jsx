@@ -13,6 +13,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const [stats, setStats] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [runtimeStats, setRuntimeStats] = useState({});
 
   const isVisible = currentUser && isAppOwner(currentUser);
 
@@ -26,15 +27,26 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       setSyncStatus(status);
       setIsSyncing(status.status === 'syncing' || status.status === 'force_syncing');
 
-      // CRITICAL: Refresh stats on ANY sync status update (including entity-specific ones)
-      // This ensures the indicator updates in real-time as data syncs
-      getSyncStats().then(setStats);
+      // CRITICAL: Update runtime stats with entity count during sync
+      if (status.entity && status.count !== undefined) {
+        setRuntimeStats(prev => ({
+          ...prev,
+          [status.entity.toLowerCase()]: status.count
+        }));
+        console.log(`🔄 [OfflineSyncIndicator] ${status.entity} syncing - count: ${status.count} (progress: ${status.progress || 0}%)`);
+      }
+      
+      // CRITICAL: Refresh stats on sync complete
+      if (status.status === 'complete' || status.status === 'synced') {
+        getSyncStats().then(newStats => {
+          setStats(newStats);
+          setRuntimeStats({}); // Clear runtime stats when sync completes
+        });
+      }
       
       // CRITICAL: Update UI in real-time if syncing entities relevant to current screen
       const relevantEntities = ['Deliveries', 'Patients', 'AppUsers', 'Cities'];
       if (status.entity && relevantEntities.includes(status.entity)) {
-        console.log(`🔄 [OfflineSyncIndicator] ${status.entity} syncing - updating UI (progress: ${status.progress || 0}%)`);
-        
         // Trigger partial UI refresh for relevant data
         if (status.entity === 'Deliveries' || status.entity === 'Patients') {
           window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
