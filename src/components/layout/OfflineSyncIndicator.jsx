@@ -109,6 +109,37 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     }
   };
 
+  const handleHistoricalSync = async () => {
+    try {
+      setIsHistoricalSyncing(true);
+      setHistoricalProgress(null);
+
+      // Set up callback to track progress
+      setSyncStatusCallback((status) => {
+        setHistoricalProgress(status);
+        if (status.type === 'complete' || status.type === 'error') {
+          // Refresh stats when done
+          getSyncStats().then(setStats);
+        }
+      });
+
+      // Start gradual sync of historical data (90 days worth)
+      await syncHistoricalData({
+        delayBetweenDates: 1500, // 1.5 seconds between requests to avoid rate limits
+        maxDates: null // Sync all missing dates
+      });
+
+      // Refresh stats and UI when done
+      const updatedStats = await getSyncStats();
+      setStats(updatedStats);
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    } catch (error) {
+      console.error('Historical sync failed:', error);
+    } finally {
+      setIsHistoricalSyncing(false);
+    }
+  };
+
   const getStatusColor = () => {
     if (isSyncing) return 'text-blue-500';
     if (syncStatus.status === 'error') return 'text-red-500';
