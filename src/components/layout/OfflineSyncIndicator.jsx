@@ -60,17 +60,21 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const handleForceSync = async () => {
     try {
       setIsSyncing(true);
+      console.log('🔄 [OfflineSyncIndicator] Starting manual sync...');
 
       // DON'T clear the offline DB - just force a fresh sync from API
       // Clearing causes data loss if the sync fails
-      await forceSyncAll();
+      const syncResult = await forceSyncAll();
+      console.log('✅ [OfflineSyncIndicator] forceSyncAll complete:', syncResult);
+      
+      // Wait for DB to settle
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       const updatedStats = await getSyncStats();
+      console.log('📊 [OfflineSyncIndicator] Updated stats:', updatedStats);
       setStats(updatedStats);
 
-      // CRITICAL: Trigger UI refresh for current screen after sync completes
-      console.log('✅ [OfflineSyncIndicator] Manual sync complete - refreshing UI');
-      
-      // CRITICAL: Wait for offline DB to update before triggering events
+      // Wait for UI to update before dispatching events
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Refresh delivery stats
@@ -79,28 +83,31 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // Force data refresh on Dashboard/current screen
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       
-      // CRITICAL: Load fresh deliveries and trigger delivery update event
+      // Load fresh deliveries and trigger delivery update event
       const selectedDateStr = sessionStorage.getItem('rxdeliver_selected_date') || 
                              new Date().toISOString().split('T')[0];
       
-      // CRITICAL: Import offlineDB and check for fresh deliveries
       const { offlineDB } = await import('../utils/offlineDatabase');
       const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
       
       if (freshDeliveries && freshDeliveries.length > 0) {
-        console.log(`📦 [Manual Sync] Triggering deliveriesImported event with ${freshDeliveries.length} deliveries`);
+        console.log(`📦 [OfflineSyncIndicator] Triggering deliveriesImported with ${freshDeliveries.length} deliveries`);
         window.dispatchEvent(new CustomEvent('deliveriesImported', {
           detail: { source: 'manual_sync', deliveries: freshDeliveries }
         }));
       }
       
-      // CRITICAL: Trigger driver locations update to refresh map markers
+      // Trigger driver locations update to refresh map markers
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
         detail: { appUsers: null }
       }));
       
+      console.log('✅ [OfflineSyncIndicator] Manual sync complete - all events dispatched');
+      
     } catch (error) {
-      console.error('Force sync failed:', error);
+      console.error('❌ [OfflineSyncIndicator] Force sync failed:', error);
+      console.error('   Error message:', error.message);
+      console.error('   Stack:', error.stack);
     } finally {
       setIsSyncing(false);
     }
