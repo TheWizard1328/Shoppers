@@ -1410,6 +1410,10 @@ export default function RouteImport({
         
         const { offlineDB } = await import('../utils/offlineDatabase');
 
+        setProgressMessage('Loading latest patient and store data from cache...');
+        const freshPatients = await getData('Patient', '-created_date', null, false);
+        const freshStores = await getData('Store', '-created_date', null, false);
+
         // CRITICAL: Deduplicate before importing - delete existing deliveries with matching stop_id + address
         setProgressMessage('Deduplicating: removing existing deliveries with matching stop IDs and addresses...');
         const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
@@ -1430,12 +1434,6 @@ export default function RouteImport({
           }
         }
 
-        setProgressMessage('Loading latest patient and store data from cache...');
-        const freshPatients = await getData('Patient', '-created_date', null, false);
-        const freshStores = await getData('Store', '-created_date', null, false);
-
-        // Re-filter after deduplication (in case deleted deliveries affect counts)
-        const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
         const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
 
         batchUpdateAMPM(deliveriesToCreateFiltered);
