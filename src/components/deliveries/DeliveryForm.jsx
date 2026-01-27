@@ -3055,10 +3055,10 @@ export default function DeliveryForm({
   }, [handleCancelClick, showCameraOverlay, stopCamera]);
 
   useEffect(() => {
-    if (!delivery) {
+    if (!delivery && !isMobileDevice) {
       setTimeout(() => patientSearchInputRef.current?.focus(), 100);
     }
-  }, [delivery]);
+  }, [delivery, isMobileDevice]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
