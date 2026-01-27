@@ -1399,9 +1399,13 @@ export default function RouteImport({
     const failedUpdates = [];
 
     try {
+      // CRITICAL: Pause ALL sync processes before import
+      console.log('⏸️ [RouteImport] Pausing all sync processes...');
+      smartRefreshManager.pause();
+      driverLocationPoller.pause();
+      
       // CRITICAL: Use centralized data operation manager
       await executeDataOperation(async () => {
-        driverLocationPoller.pause();
         console.log('📥 [RouteImport] Starting import with data operation manager');
         
         const { offlineDB } = await import('../utils/offlineDatabase');
@@ -1666,7 +1670,9 @@ export default function RouteImport({
         const { processPendingMutations } = await import('../utils/offlineSync');
         processPendingMutations().catch(err => console.warn('Backend sync error:', err));
         
+        console.log('▶️ [RouteImport] Resuming all sync processes...');
         driverLocationPoller.resume();
+        smartRefreshManager.resume();
         console.log('✅ [RouteImport] Import operation complete - NO auto-optimization applied');
         
         return true; // Signal success
