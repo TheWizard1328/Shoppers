@@ -1122,6 +1122,13 @@ export default function PatientImport({ onImportComplete, onImportStart, current
           console.warn("⚠️ [PatientImport] Failed to broadcast import:", broadcastError);
         }
 
+        // CRITICAL: Dispatch local events to refresh THIS device's UI immediately
+        console.log("🔄 [PatientImport] Dispatching local refresh events...");
+        window.dispatchEvent(new CustomEvent('patientsUpdated', {
+          detail: { triggeredBy: 'patientImport', created: totalCreated, updated: totalUpdated }
+        }));
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
         // CRITICAL: Trigger immediate backend sync after import
         console.log("📤 [PatientImport] Triggering immediate backend sync...");
         const { processPendingMutations } = await import('../utils/offlineSync');

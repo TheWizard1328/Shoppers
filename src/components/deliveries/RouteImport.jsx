@@ -1696,6 +1696,21 @@ export default function RouteImport({
         } catch (broadcastError) {
           console.warn("⚠️ [RouteImport] Failed to broadcast import:", broadcastError);
         }
+
+        // CRITICAL: Dispatch local events to refresh THIS device's UI immediately
+        console.log("🔄 [RouteImport] Dispatching local refresh events...");
+        window.dispatchEvent(new CustomEvent('deliveriesImported', {
+          detail: { 
+            source: 'routeImport', 
+            deliveries: [], 
+            created: overallResults.created, 
+            updated: overallResults.updated 
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { triggeredBy: 'routeImportComplete' }
+        }));
         
         // CRITICAL: Trigger immediate backend sync after import
         console.log("📤 [RouteImport] Triggering immediate backend sync...");

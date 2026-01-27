@@ -892,6 +892,21 @@ export default function Layout({ children, currentPageName }) {
         // CRITICAL: Set user context for ChangeBroadcast filtering
         smartRefreshManager.setUserContext(fetchedUser, initialCityId);
 
+        // CRITICAL: Start polling for ChangeBroadcast updates
+        console.log('📡 [Layout] Starting ChangeBroadcast polling...');
+        const { changeBroadcastManager } = await import('./components/utils/changeBroadcastManager');
+
+        const broadcastCheckInterval = setInterval(async () => {
+          try {
+            await changeBroadcastManager.checkForBroadcasts(fetchedUser, initialCityId);
+          } catch (error) {
+            console.warn('[Layout] Broadcast check error:', error);
+          }
+        }, 15000); // Check every 15 seconds
+
+        // Store interval ID for cleanup
+        window._broadcastCheckInterval = broadcastCheckInterval;
+
         setDataLoaded(true); // CRITICAL: Set data loaded to prevent bg sync re-triggering
         setIsLoadingLayout(false);
 
@@ -947,6 +962,37 @@ export default function Layout({ children, currentPageName }) {
     const mutationSyncInterval = setInterval(() => {
       processPendingMutations().catch(() => {});
     }, 60000);
+
+    // Subscribe to ChangeBroadcast notifications
+    const { changeBroadcastManager } = await import('./components/utils/changeBroadcastManager');
+    const unsubscribeBroadcasts = changeBroadcastManager.subscribe(async (broadcasts) => {
+      console.log(`📥 [Layout] Received ${broadcasts.length} broadcasts`);
+
+      for (const broadcast of broadcasts) {
+        console.log(`📡 [Layout] Processing broadcast: ${broadcast.entity_name} ${broadcast.change_type}`);
+
+        // Handle based on change type
+        if (broadcast.change_type === 'batch_create' && broadcast.entity_name === 'Patient') {
+          // Patient batch created - force refresh
+          invalidate('Patient');
+          triggerFullDataLoadRef.current(true);
+        } else if (broadcast.change_type === 'full_date_refresh' && broadcast.entity_name === 'Delivery') {
+          // Deliveries refreshed for a specific date - force refresh
+          invalidate('Delivery');
+          triggerFullDataLoadRef.current(true);
+        } else if (broadcast.entity_name === 'AppUser' && broadcast.last_location_update_time) {
+          // Driver location update - refresh driver locations
+          const { refreshDriverLocations } = await import('./components/utils/smartRefreshManager');
+          const locationUpdates = await refreshDriverLocations(appUsers, true);
+          if (locationUpdates?.hasChanges) {
+            setAppUsers(locationUpdates.appUsers);
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: locationUpdates.appUsers }
+            }));
+          }
+        }
+      }
+    });
 
     // Subscribe to ALL entity mutations and refresh UI IMMEDIATELY
     const unsubscribeMutations = subscribeMutations(async (mutation) => {
@@ -1348,8 +1394,12 @@ export default function Layout({ children, currentPageName }) {
       clearTimeout(bgSyncTimer);
       clearInterval(mutationSyncInterval);
       unsubscribeMutations();
+      unsubscribeBroadcasts();
       unsubscribeRealtime();
       realtimeSync.disconnect();
+      if (window._broadcastCheckInterval) {
+        clearInterval(window._broadcastCheckInterval);
+      }
       window.removeEventListener('offlineSyncComplete', handleSyncComplete);
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
       window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
