@@ -1410,6 +1410,26 @@ export default function RouteImport({
         
         const { offlineDB } = await import('../utils/offlineDatabase');
 
+        // CRITICAL: Deduplicate before importing - delete existing deliveries with matching stop_id + address
+        setProgressMessage('Deduplicating: removing existing deliveries with matching stop IDs and addresses...');
+        const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
+        
+        if (deliveriesToCreateFiltered.length > 0) {
+          try {
+            const dedupeResponse = await base44.functions.invoke('deduplicateDeliveries', {
+              incomingDeliveries: deliveriesToCreateFiltered
+            });
+            
+            if (dedupeResponse?.data?.deletedCount > 0) {
+              console.log(`✅ [RouteImport] Deleted ${dedupeResponse.data.deletedCount} duplicate deliveries`);
+              setProgressMessage(`Deleted ${dedupeResponse.data.deletedCount} duplicate deliveries. Continuing with import...`);
+              await delay(1000);
+            }
+          } catch (error) {
+            console.warn(`⚠️ [RouteImport] Deduplication error (continuing anyway):`, error.message);
+          }
+        }
+
         setProgressMessage('Loading latest patient and store data from cache...');
         const freshPatients = await getData('Patient', '-created_date', null, false);
         const freshStores = await getData('Store', '-created_date', null, false);
