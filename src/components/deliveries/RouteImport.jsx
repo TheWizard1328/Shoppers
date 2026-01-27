@@ -1341,8 +1341,8 @@ export default function RouteImport({
 
         // Track incoming delivery keys for deduplication
          result.deliveriesToCreate.forEach(d => {
-           if (d.stop_id && d.delivery_address && d.delivery_date) {
-             const key = `${d.stop_id}|${d.delivery_address.toLowerCase().trim()}|${d.delivery_date}`;
+           if (d.stop_id && d.delivery_date) {
+             const key = `${d.stop_id}|${d.delivery_date}`;
              if (!incomingDeliveryKeys.has(key)) {
                incomingDeliveryKeys.set(key, []);
              }
@@ -1356,13 +1356,12 @@ export default function RouteImport({
 
         // Find existing deliveries that match incoming keys (these will be deleted)
         for (const [key, incomingDeliveries] of incomingDeliveryKeys.entries()) {
-         const [stopId, address, deliveryDate] = key.split('|');
+         const [stopId, deliveryDate] = key.split('|');
          const matchingExisting = freshDeliveries.filter(d => 
            d.stop_id === stopId && 
-           (d.delivery_address || '').toLowerCase().trim() === address && 
            d.delivery_date === deliveryDate
          );
-         console.log(`[RouteImport] Dedup check for key "${key}": Found ${matchingExisting.length} matching existing deliveries`);
+         console.log(`[RouteImport] Dedup check for stop_id="${stopId}" date="${deliveryDate}": Found ${matchingExisting.length} matching existing deliveries`);
          duplicatesToDelete.push(...matchingExisting);
         }
 
