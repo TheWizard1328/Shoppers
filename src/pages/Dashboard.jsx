@@ -4916,6 +4916,9 @@ function Dashboard() {
       invalidate('Delivery');
       await refreshData();
 
+      // CRITICAL: Force stats refresh after save
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
       hasAutoSelectedRef.current = false; // Reset to allow auto-selection after saving
 
     } catch (error) {
