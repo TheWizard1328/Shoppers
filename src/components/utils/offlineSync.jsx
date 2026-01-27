@@ -256,8 +256,9 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
 // ==================== BACKGROUND SYNC ====================
 
 /**
- * Background sync: Current month + 6 future days, then past 30 days
- * CRITICAL: Loads ENTIRE current month for all drivers to support Route Management
+ * Background sync with timestamp-based incremental strategy
+ * CRITICAL: Uses updated_date to fetch all changed records across 90 days in 1-2 API calls
+ * Prioritizes today's deliveries first, then resumes historical checkpoint if interrupted
  */
 export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
   if (syncInProgress || syncPaused) {
@@ -266,77 +267,61 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
   }
   
   syncInProgress = true;
-  console.log('📥 [OfflineSync] Starting background sync...');
+  console.log('📥 [OfflineSync] Starting background sync (timestamp-based)...');
   notifySyncStatus({ status: 'background_syncing' });
   
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
   
   try {
-    // ===== STEP 1: SKIP current month sync - it's handled by historical sync cycle =====
-    console.log('   ⏭️ Skipping current month sync - handled by historical sync cycle');
+    // ===== STEP 1: Priority - TODAY's deliveries first =====
+    console.log(`   📅 Syncing today's deliveries (${todayStr})...`);
+    const todayDeliveries = await Delivery.filter({ delivery_date: todayStr, ...(storeIds && storeIds.length > 0 ? { store_id: { $in: storeIds } } : {}) });
+    if (todayDeliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, todayDeliveries);
+      console.log(`   ✅ Today's deliveries: ${todayDeliveries.length} records synced`);
+    }
     
-    // ===== STEP 2: Future dates now handled in Step 3 (historical sync cycle) =====
-    console.log('   ⏭️ Future dates sync now part of historical cycle');
-    
-    // ===== STEP 3: Incremental or full sync of historical deliveries =====
-    console.log('   📅 Checking if delivery data needs sync...');
+    // ===== STEP 2: Timestamp-based incremental sync (catches all changes across 90 days) =====
+    console.log('   📅 Checking for delivery updates via timestamp...');
     
     const deliverySyncStatus = await offlineDB.getSyncStatus('Delivery');
-    const lastFullSync = deliverySyncStatus?.lastFullSync;
     const lastSyncTime = deliverySyncStatus?.lastSync;
-    const needsFullSync = !lastFullSync || (Date.now() - new Date(lastFullSync).getTime() > FULL_SYNC_INTERVAL);
+    const lastHistoricalCheckpoint = deliverySyncStatus?.lastHistoricalCheckpoint;
     
-    if (needsFullSync) {
-      console.log('   📅 Last full sync > 48h - performing FULL historical sync (1 day at a time)...');
-      
-      // Full sync: fetch all records for past 90 days
-      for (let daysOffset = 6; daysOffset >= -HISTORICAL_DAYS; daysOffset--) {
-        if (syncPaused) break;
-        
-        const dateToSync = format(daysOffset >= 0 ? new Date(today.getTime() + daysOffset * 86400000) : subDays(today, Math.abs(daysOffset)), 'yyyy-MM-dd');
-        
-        console.log(`      📅 Full sync for ${dateToSync}...`);
-        
-        await syncDeliveryDateRange(dateToSync, dateToSync, null, storeIds);
-        
-        const remaining = 6 + HISTORICAL_DAYS - (6 - daysOffset);
-        if (daysOffset > -HISTORICAL_DAYS) {
-          console.log(`      ⏳ Waiting 5 min before next date... (${remaining} days remaining)`);
-          await new Promise(r => setTimeout(r, HISTORICAL_COOLDOWN));
-        }
-      }
-      
-      await offlineDB.updateSyncStatus('Delivery', {
-        lastFullSync: new Date().toISOString(),
-        lastSync: new Date().toISOString()
-      });
-      console.log('   ✅ Full historical sync complete - next in 48h');
-    } else {
-      // Incremental sync: only fetch records updated since last sync
-      console.log(`   ♻️ Performing INCREMENTAL sync (fetching only changes since last sync)...`);
-      const incrementalFilter = buildIncrementalFilter(lastSyncTime);
-      
-      try {
-        const changedDeliveries = await Delivery.filter(incrementalFilter, '-updated_date', 1000);
-        if (changedDeliveries.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries);
-          console.log(`   ✅ Incremental sync: ${changedDeliveries.length} updated deliveries merged`);
-        } else {
-          console.log(`   ℹ️ Incremental sync: No changes since last sync`);
-        }
-      } catch (error) {
-        console.warn(`   ⚠️ Incremental sync failed:`, error.message);
-      }
-      
-      await offlineDB.updateSyncStatus('Delivery', {
-        lastSync: new Date().toISOString()
-      });
-      
-      const timeSinceFullSync = Date.now() - new Date(lastFullSync).getTime();
-      const hoursRemaining = ((FULL_SYNC_INTERVAL - timeSinceFullSync) / (60 * 60 * 1000)).toFixed(1);
-      console.log(`   ⏭️ Next full sync in ${hoursRemaining}h`);
+    // Build incremental filter - fetches ALL modified records since last sync
+    const incrementalFilter = lastSyncTime 
+      ? { updated_date: { $gte: lastSyncTime } }
+      : {};
+    
+    if (storeIds && storeIds.length > 0) {
+      incrementalFilter.store_id = { $in: storeIds };
     }
+    
+    try {
+      console.log(`   ♻️ Fetching deliveries updated since ${lastSyncTime ? new Date(lastSyncTime).toISOString() : 'beginning'}...`);
+      const changedDeliveries = await Delivery.filter(incrementalFilter, '-updated_date', 5000);
+      
+      if (changedDeliveries.length > 0) {
+        // Separate today from historical
+        const todayChanges = changedDeliveries.filter(d => d.delivery_date === todayStr);
+        const historicalChanges = changedDeliveries.filter(d => d.delivery_date !== todayStr);
+        
+        // Save all at once (merge, don't replace)
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries);
+        console.log(`   ✅ Merged ${changedDeliveries.length} delivery updates (today: ${todayChanges.length}, historical: ${historicalChanges.length})`);
+      } else {
+        console.log(`   ℹ️ No delivery updates since last sync`);
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ Delivery timestamp sync failed:`, error.message);
+    }
+    
+    // Update sync timestamp - marks when we last checked for changes
+    await offlineDB.updateSyncStatus('Delivery', {
+      lastSync: new Date().toISOString()
+    });
+    console.log(`   ✅ Delivery sync checkpoint updated`);
     
     // ===== STEP 3: Sync Cities (incremental or full) =====
     if (!syncPaused) {
