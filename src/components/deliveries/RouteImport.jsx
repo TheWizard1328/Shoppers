@@ -1286,52 +1286,33 @@ export default function RouteImport({
         return;
       }
 
-      // STEP 2: Fetch fresh deliveries for ALL drivers in the import and date range
-      setProgressMessage(`Loading deliveries from offline & online databases...`);
+      // STEP 2: Load deliveries from OFFLINE DB ONLY for preview
+      setProgressMessage(`Loading deliveries from offline database...`);
       setProgressPercent(25);
 
       // Get all unique driver IDs from the file mapping
       const allDriverIds = [...new Set(activeFiles.map(f => activeDriverMap[f.name]?.driver?.id).filter(Boolean))];
       
-      // CRITICAL: Load from OFFLINE DB first
+      // CRITICAL: Load from OFFLINE DB ONLY - NO API CALLS during preview
       const { offlineDB: offlineDBInstance } = await import('../utils/offlineDatabase');
-      let offlineDeliveries = [];
+      let allExistingDeliveries = [];
       try {
         const allOfflineDeliveries = await offlineDBInstance.getAll(offlineDBInstance.STORES.DELIVERIES);
         // Filter to matching date range and drivers
-        offlineDeliveries = (allOfflineDeliveries || []).filter(d => 
+        allExistingDeliveries = (allOfflineDeliveries || []).filter(d => 
           allDriverIds.includes(d.driver_id) &&
           d.delivery_date >= minDate &&
           d.delivery_date <= maxDate
         );
-        console.log(`[RouteImport] Loaded ${offlineDeliveries.length} deliveries from offline DB`);
+        console.log(`[RouteImport] Loaded ${allExistingDeliveries.length} deliveries from offline DB`);
       } catch (e) {
         console.warn(`[RouteImport] Could not load offline deliveries:`, e.message);
+        allExistingDeliveries = [];
       }
-      
-      // CRITICAL: Fetch from API
-      const freshDeliveries = await base44.entities.Delivery.filter(
-        { 
-          driver_id: { $in: allDriverIds },
-          delivery_date: { $gte: minDate, $lte: maxDate }
-        },
-        '-delivery_date',
-        10000
-      );
-      
-      // CRITICAL: Merge offline + online, preferring API data (more recent)
-      const mergedMap = new Map();
-      offlineDeliveries.forEach(d => {
-        if (d.id) mergedMap.set(d.id, d);
-      });
-      freshDeliveries.forEach(d => {
-        if (d.id) mergedMap.set(d.id, d);
-      });
-      const allExistingDeliveries = Array.from(mergedMap.values());
       
       setProgressPercent(35);
 
-      console.log(`[RouteImport] Total deliveries to check (offline + online): ${allExistingDeliveries.length} (offline: ${offlineDeliveries.length}, api: ${freshDeliveries.length})`);
+      console.log(`[RouteImport] Total deliveries to check: ${allExistingDeliveries.length}`);
 
       // CRITICAL: Identify duplicates that will be deleted
       let duplicatesToDelete = [];
