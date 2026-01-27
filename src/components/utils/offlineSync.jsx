@@ -338,13 +338,20 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       console.log(`   ⏭️ Next full sync in ${hoursRemaining}h`);
     }
     
-    // ===== STEP 3: Sync Cities in background =====
+    // ===== STEP 3: Sync Cities (incremental or full) =====
     if (!syncPaused) {
       console.log('   🏙️ Syncing Cities...');
       try {
-        const allCities = await City.list();
-        await offlineDB.bulkSave(offlineDB.STORES.CITIES, allCities);
-        console.log(`   ✅ Cached ${allCities.length} Cities`);
+        const cityLastSync = await getLastSyncTimestamp('City');
+        const cityFilter = buildIncrementalFilter(cityLastSync);
+        const cities = cityFilter.updated_date 
+          ? await City.filter(cityFilter, '-updated_date', 1000)
+          : await City.list();
+        
+        if (cities.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+          console.log(`   ✅ ${cityFilter.updated_date ? '♻️ Incremental' : 'Full'} City sync: ${cities.length} records`);
+        }
       } catch (cityError) {
         console.warn(`   ⚠️ City sync failed:`, cityError.message);
       }
