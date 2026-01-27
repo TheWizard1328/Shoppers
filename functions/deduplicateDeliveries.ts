@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     return Response.json({
       deletedCount: deletedIds.length,
       deletedIds,
-      message: `Deleted ${deletedIds.length} duplicate deliveries with matching stop_id and address`
+      message: `Deleted ${deletedIds.length} duplicate deliveries with matching stop_id, address, and delivery_date`
     });
   } catch (error) {
     console.error('❌ [deduplicateDeliveries] Error:', error.message);
