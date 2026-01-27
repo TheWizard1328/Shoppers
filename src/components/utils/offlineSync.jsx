@@ -519,8 +519,8 @@ const syncSquareTransactionsGently = async () => {
 };
 
 /**
- * Sync all patients in batches of 250
- * CRITICAL: Uses filter() instead of list() to ensure proper pagination
+ * Sync all patients - incremental or full
+ * CRITICAL: Uses updated_date filter to fetch only changed records
  */
 const syncAllPatients = async () => {
   if (syncPaused) return;
@@ -528,14 +528,21 @@ const syncAllPatients = async () => {
   console.log('   👥 [OfflineSync] Starting patient sync...');
   
   try {
-    // First, get total count to track progress
-    const allPatients = await Patient.filter({ status: 'active' }, '-created_date', 5000);
-    console.log(`   👥 [OfflineSync] Found ${allPatients.length} active patients to sync`);
+    const patientLastSync = await getLastSyncTimestamp('Patient');
     
-    if (allPatients.length === 0) {
-      // Try without status filter as fallback
+    // Build filter for incremental sync
+    let patientFilter = { status: 'active' };
+    if (patientLastSync) {
+      patientFilter = buildIncrementalFilter(patientLastSync, patientFilter);
+    }
+    
+    const patients = await Patient.filter(patientFilter, '-updated_date', 5000);
+    console.log(`   👥 [OfflineSync] Found ${patients.length} ${patientLastSync ? 'changed' : 'active'} patients`);
+    
+    if (patients.length === 0 && !patientLastSync) {
+      // Only fallback on initial sync (no lastSync)
       console.log('   👥 [OfflineSync] No active patients found, trying without status filter...');
-      const allPatientsNoFilter = await Patient.list('-created_date', 5000);
+      const allPatientsNoFilter = await Patient.list('-updated_date', 5000);
       console.log(`   👥 [OfflineSync] Found ${allPatientsNoFilter.length} patients (no filter)`);
       
       if (allPatientsNoFilter.length > 0) {
@@ -545,27 +552,32 @@ const syncAllPatients = async () => {
         await offlineDB.updateSyncStatus('Patient', {
           recordCount: cleanBatch.length,
           status: 'synced',
-          lastSync: new Date().toISOString(),
-          lastFullSync: new Date().toISOString()
+          lastSync: new Date().toISOString()
         });
         
-        console.log(`   ✅ [OfflineSync] Patient sync complete: ${cleanBatch.length} total`);
+        console.log(`   ✅ [OfflineSync] Initial patient sync complete: ${cleanBatch.length} total`);
       }
       return;
     }
     
-    // Filter out temp IDs and save
-    const cleanBatch = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
-    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanBatch);
-    
-    await offlineDB.updateSyncStatus('Patient', {
-      recordCount: cleanBatch.length,
-      status: 'synced',
-      lastSync: new Date().toISOString(),
-      lastFullSync: new Date().toISOString()
-    });
-    
-    console.log(`   ✅ [OfflineSync] Patient sync complete: ${cleanBatch.length} total`);
+    if (patients.length > 0) {
+      const cleanBatch = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanBatch);
+      
+      await offlineDB.updateSyncStatus('Patient', {
+        recordCount: cleanBatch.length,
+        status: 'synced',
+        lastSync: new Date().toISOString()
+      });
+      
+      console.log(`   ✅ [OfflineSync] ${patientLastSync ? '♻️ Incremental' : 'Full'} patient sync: ${cleanBatch.length} records`);
+    } else if (patientLastSync) {
+      console.log(`   ℹ️ [OfflineSync] No patient changes since last sync`);
+      // Update lastSync to now even if no changes
+      await offlineDB.updateSyncStatus('Patient', {
+        lastSync: new Date().toISOString()
+      });
+    }
   } catch (error) {
     console.error('   ❌ [OfflineSync] Patient sync failed:', error.message, error);
   }
