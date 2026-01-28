@@ -1718,11 +1718,18 @@ export default function DeliveryMap({
 
     // Check if current user is app owner (Base44 platform admin)
     const isCurrentUserDriver = userHasRole(currentUser, 'driver');
+    const isCurrentUserAdmin = userHasRole(currentUser, 'admin');
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
     const driversWithActiveStops = new Set();
 
-    safeDeliveries.forEach((delivery) => {
+    // CRITICAL: For admins/app owners, check ALL deliveries for the date (not just current driver's)
+    // This includes other drivers when "Show All" is enabled
+    const deliveriesToCheck = (isCurrentUserAdmin && showOtherDriverDeliveries && otherDriverDeliveries.length > 0)
+      ? [...safeDeliveries, ...otherDriverDeliveries]
+      : safeDeliveries;
+
+    deliveriesToCheck.forEach((delivery) => {
       if (!delivery) return;
       if (!finishedStatuses.includes(delivery.status) && delivery.driver_id) {
         driversWithActiveStops.add(delivery.driver_id);
@@ -1739,17 +1746,25 @@ export default function DeliveryMap({
     driversWithActiveStops.forEach((driverId) => {
       if (isDriverViewingSelfToday && driverId !== currentUser.id) return;
 
-      // FIXED: Find driver by ID only, don't require user_name in find condition
+      // CRITICAL: Find driver in safeUsers (contains merged AppUser data with home coords)
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
 
-      if (!driver?.home_latitude || !driver?.home_longitude) {
-        return; // Skip drivers without home coordinates
+      // CRITICAL: Validate home coordinates exist and are valid numbers
+      if (!driver?.home_latitude || !driver?.home_longitude ||
+          typeof driver.home_latitude !== 'number' || typeof driver.home_longitude !== 'number' ||
+          isNaN(driver.home_latitude) || isNaN(driver.home_longitude)) {
+        console.warn(`[DeliveryMap] Driver ${driverId} has invalid home coordinates:`, { 
+          home_lat: driver?.home_latitude, 
+          home_lon: driver?.home_longitude 
+        });
+        return; // Skip drivers without valid home coordinates
       }
 
-      // CRITICAL: ALWAYS show home marker for the current driver (regardless of shared location)
-      // Home marker and shared location marker are INDEPENDENT
+      // CRITICAL: Admins see ALL home markers (for all drivers with active stops)
+      // Drivers ALWAYS see their own home marker
       const shouldRenderHome =
         isAppOwner(currentUser) || // App owner sees all home markers
+        isCurrentUserAdmin || // Admins see all home markers
         (isCurrentUserDriver && driver.id === currentUser.id); // Driver ALWAYS sees their own home
       
       const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
@@ -1791,8 +1806,10 @@ export default function DeliveryMap({
     currentUser?.id,
     isViewingCurrentDate,
     isDriverViewingSelfToday,
+    showOtherDriverDeliveries,
     // Only track essential data with stable JSON stringify
     JSON.stringify(safeDeliveries.map(d => ({ id: d?.driver_id, status: d?.status }))),
+    JSON.stringify(otherDriverDeliveries.map(d => ({ id: d?.driver_id, status: d?.status }))),
     JSON.stringify(safeUsers.map(u => ({ id: u?.id, hLat: u?.home_latitude, hLon: u?.home_longitude })))
   ]);
 
@@ -3099,7 +3116,8 @@ export default function DeliveryMap({
           }
           
           return [
-            currentZoom >= ZOOM_LEVELS.HIDE_CIRCLES && !isFanned &&
+            // CRITICAL: Store zone circles ALWAYS visible (removed zoom check)
+            !isFanned &&
             <Circle
               key={`pickup-circle-${pickup.id}`}
               center={[pickup.latitude, pickup.longitude]}
