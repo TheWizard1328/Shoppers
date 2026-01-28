@@ -2023,18 +2023,8 @@ class SmartRefreshManager {
         }
       }
 
-      // Refresh Square Transactions (low priority)
-      if (this.shouldRefresh('squareTransactions')) {
-        try {
-          const squareTxResult = await this.refreshSquareTransactions(currentData.squareTransactions || []);
-          if (squareTxResult?.hasChanges) {
-            updates.squareTransactions = squareTxResult.squareTransactions;
-          }
-          this.markRefreshed('squareTransactions');
-        } catch (e) {
-          console.warn('⚠️ [SmartRefresh] Square Transaction refresh failed:', e.message);
-        }
-      }
+      // DISABLED: Square Transactions now sync via real-time events only
+      // They update when COD items are created/edited/deleted, not on every refresh cycle
 
       const hasAnyUpdates = Object.keys(updates).length > 0;
       return hasAnyUpdates ? updates : null;
