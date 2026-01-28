@@ -1732,6 +1732,7 @@ export default function DeliveryMap({
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
     const driversToShowHome = new Set();
+    const driversToExcludeFromBounds = new Set(); // CRITICAL: Track home markers to exclude from centering
 
     // CRITICAL: For admins/app owners, check ALL deliveries for the date (not just current driver's)
     // This includes other drivers when "Show All" is enabled
@@ -1767,12 +1768,20 @@ export default function DeliveryMap({
         return;
       }
       
+      // CRITICAL: After first stop is completed, EXCLUDE home marker from bounds calculation
+      // But still show the marker visually
+      if (hasCompletedAnyStop) {
+        driversToExcludeFromBounds.add(driverId);
+      }
+      
       // If stops have been completed, check if there are incomplete pickups remaining
       const hasIncompletePickups = stops.pickups.some(p => !finishedStatuses.includes(p.status) && p.status !== 'pending');
       
       // If NO incomplete pickups remain, SHOW home marker (route is heading home)
+      // CRITICAL: And INCLUDE it in bounds calculation (remove from exclude list)
       if (!hasIncompletePickups) {
         driversToShowHome.add(driverId);
+        driversToExcludeFromBounds.delete(driverId); // Re-include in bounds when heading home
       }
       // Otherwise, HIDE home marker (still working on pickups)
     });
@@ -1820,7 +1829,8 @@ export default function DeliveryMap({
           latitude: driver.home_latitude,
           longitude: driver.home_longitude,
           driverColor,
-          driverName
+          driverName,
+          excludeFromBounds: driversToExcludeFromBounds.has(driverId) // CRITICAL: Flag to exclude from centering
         });
       }
     });
