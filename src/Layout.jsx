@@ -675,6 +675,7 @@ export default function Layout({ children, currentPageName }) {
   const [initialConversation, setInitialConversation] = useState(null);
   const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
+  const [isSnapshotModeActive, setIsSnapshotModeActive] = useState(false);
 
   // Poll for adminImportEnabled changes (for Kyle J to see updates when toggle changes)
   useEffect(() => {
@@ -2785,7 +2786,9 @@ export default function Layout({ children, currentPageName }) {
           setSmartRefreshActivity: setSmartRefreshActivity,
           setOnSmartRefreshComplete: (callback) => {onSmartRefreshCompleteRef.current = callback;},
           // Data is already loaded from last 30 days - Dashboard filters locally
-          dataReadyForSelectedDate: dataLoaded
+          dataReadyForSelectedDate: dataLoaded,
+          isSnapshotModeActive: isSnapshotModeActive,
+          setIsSnapshotModeActive: setIsSnapshotModeActive
         }}>
             <div className="app-container">
               {isMobile && sidebarOpen &&
@@ -3042,7 +3045,7 @@ export default function Layout({ children, currentPageName }) {
                   }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                  <Link
+                    <Link
                     to={getRouteNavigationUrl('Deliveries')}
                     onClick={() => setSidebarOpen(false)}
                     className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
@@ -3060,7 +3063,30 @@ export default function Layout({ children, currentPageName }) {
                           <span className="font-semibold">Routes</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
                           </Link>
-                  }
+                    }
+
+                    {/* Snapshot Mode - App Owner Only */}
+                    {isAppOwner(currentUser) && currentPageName === 'Dashboard' &&
+                    <button
+                    onClick={() => {
+                      setIsSnapshotModeActive(!isSnapshotModeActive);
+                      setSidebarOpen(false);
+                    }}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    isSnapshotModeActive ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
+                    style={isSnapshotModeActive ? {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)'
+                    } : {
+                      color: 'var(--text-slate-600)'
+                    }}>
+                          <Clock className="w-5 h-5" />
+                          <span className="font-semibold">Snapshot Mode</span>
+                          </button>
+                    }
 
                     {(isAppOwner(currentUser) || userHasRole(currentUser, 'driver')) &&
                   <Link

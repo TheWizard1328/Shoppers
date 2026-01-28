@@ -16,6 +16,7 @@ import { getData, invalidate, invalidateDeliveriesForDate } from "@/components/u
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { offlineFirstManager } from "@/components/utils/offlineFirstManager";
 import DeliveryMap from "@/components/dashboard/DeliveryMap";
+import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import { getDriverColor } from "@/components/dashboard/DeliveryMap";
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
 import DeliveryForm from "@/components/deliveries/DeliveryForm";
@@ -251,7 +252,9 @@ function Dashboard() {
     setIsFormOverlayOpen,
     setIsEntityUpdating,
     setOnSmartRefreshComplete,
-    dataReadyForSelectedDate
+    dataReadyForSelectedDate,
+    isSnapshotModeActive,
+    setIsSnapshotModeActive
   } = useAppData();
 
   const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
@@ -358,6 +361,7 @@ function Dashboard() {
   const [liveTimeOnDuty, setLiveTimeOnDuty] = useState(null); // Live time on duty (null = use backend value)
   const [showEndOfDayStats, setShowEndOfDayStats] = useState(false);
   const [endOfDayDriver, setEndOfDayDriver] = useState(null);
+  const [snapshotData, setSnapshotData] = useState(null);
 
   // Listen for deliveries imported event to refresh map immediately
   useEffect(() => {
@@ -688,6 +692,19 @@ function Dashboard() {
   const isAllDriversMode = selectedDriverId === 'all';
 
   const filteredDeliveries = useMemo(() => {
+    // SNAPSHOT MODE: Use snapshot data instead of live data
+    if (isSnapshotModeActive && snapshotData?.deliveries) {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      let result = snapshotData.deliveries.filter(d => d && d.delivery_date === dateStr);
+      
+      // Filter by selected driver
+      if (selectedDriverId && selectedDriverId !== 'all') {
+        result = result.filter(d => d.driver_id === selectedDriverId);
+      }
+      
+      return result;
+    }
+    
     if (!deliveries || !Array.isArray(deliveries)) return [];
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -6557,8 +6574,32 @@ function Dashboard() {
 
   }
 
+  // Handle snapshot selection
+  const handleSnapshotSelect = (snapshot) => {
+    if (!snapshot) return;
+    
+    setSnapshotData({
+      deliveries: snapshot.snapshot_data?.deliveries || [],
+      driverLocations: snapshot.snapshot_data?.driverLocations || []
+    });
+  };
+
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
+      {/* Snapshot Timeline - Only visible when snapshot mode is active */}
+      {isSnapshotModeActive && isAppOwner(currentUser) &&
+        <div className="absolute left-0 top-0 bottom-0 z-[250]">
+          <SnapshotTimeline
+            selectedDate={selectedDate}
+            selectedDriverId={selectedDriverId}
+            onSnapshotSelect={handleSnapshotSelect}
+            onClose={() => {
+              setIsSnapshotModeActive(false);
+              setSnapshotData(null);
+            }}
+          />
+        </div>
+      }
 
 
       <div className={statsCardPositioning} style={{ zIndex: 600 }}>
