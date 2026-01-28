@@ -156,7 +156,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     console.log(`   ✅ Loaded ${appUsers.length} AppUsers`);
     await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
     
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    await new Promise(r => setTimeout(r, 3000)); // Increased from 1s to 3s
     
     // Step 3: Deliveries for selected date
     const deliveryFilter = { delivery_date: selectedDateStr, ...filters };
@@ -166,7 +166,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     // Save to offline DB immediately (merge, don't clear)
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    await new Promise(r => setTimeout(r, 3000)); // Increased from 1s to 3s
     
     // Step 4: CRITICAL - Load ALL patients (not just delivery-linked ones)
     // This ensures map markers work for new users who don't have patient data yet
@@ -351,6 +351,9 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       });
     }
 
+    // CRITICAL: Add 3-second delays between entity syncs to prevent rate limits
+    await new Promise(r => setTimeout(r, 3000));
+    
     // ===== STEP 4: Sync Cities (incremental via timestamp) =====
     if (!syncPaused) {
       console.log('   🏙️ Syncing Cities...');
@@ -372,6 +375,8 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
         console.warn(`   ⚠️ City sync failed:`, cityError.message);
       }
     }
+
+    await new Promise(r => setTimeout(r, 3000));
 
     // ===== STEP 5: Sync AppUsers (incremental via timestamp) =====
     if (!syncPaused) {

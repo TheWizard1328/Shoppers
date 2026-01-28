@@ -1037,9 +1037,11 @@ export default function Layout({ children, currentPageName }) {
 
     // Listen for offline sync completion to refresh UI
     const handleSyncComplete = () => {
+      // CRITICAL: Just invalidate caches, DON'T trigger full reload
+      // performBackgroundSync already loaded fresh data into offline DB
       invalidate('Patient');
       invalidate('Delivery');
-      triggerFullDataLoadRef.current(true);
+      // Skip triggerFullDataLoad to prevent duplicate API calls
     };
     window.addEventListener('offlineSyncComplete', handleSyncComplete);
 
