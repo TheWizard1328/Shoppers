@@ -2575,6 +2575,13 @@ export default function AdminUtilities() {
     variant: 'destructive'
   });
 
+  const [duplicatesDialog, setDuplicatesDialog] = useState({
+    open: false,
+    found: false,
+    message: '',
+    duplicateIds: []
+  });
+
   const [bulkDelete, setBulkDelete] = useState({
     open: false,
     running: false,
@@ -3769,17 +3776,29 @@ export default function AdminUtilities() {
           count: group.length,
           ids: group.map(d => d.id)
         });
-        group.forEach(d => duplicateIds.push(d.id));
+        // Keep all duplicates EXCEPT the oldest (which is first after sorting)
+        const sorted = [...group].sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+        sorted.slice(1).forEach(d => duplicateIds.push(d.id));
       }
     });
     
     if (duplicateIds.length === 0) {
-      alert('No duplicates found in the current filtered list.\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n• Driver');
+      setDuplicatesDialog({
+        open: true,
+        found: false,
+        message: 'No duplicates found in the current filtered list.\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n• Driver',
+        duplicateIds: []
+      });
       return;
     }
     
     const summary = duplicateDetails.map(d => `SID: ${d.sid}, Date: ${d.date} → ${d.count} deliveries`).join('\n');
-    alert(`Found ${duplicateIds.length} duplicate deliveries:\n\n${summary}\n\nThese deliveries are now highlighted. You can manually select them to delete.`);
+    setDuplicatesDialog({
+      open: true,
+      found: true,
+      message: `Found ${duplicateIds.length} duplicate deliveries (keeping oldest of each group):\n\n${summary}\n\nAll duplicates except the oldest have been automatically selected.`,
+      duplicateIds
+    });
     
   }, []);
 
