@@ -1026,8 +1026,9 @@ class SmartRefreshManager {
   
   /**
    * Fast driver location refresh with adaptive intervals
+   * OFFLINE-FIRST: Loads from offline DB, only fetches API when stale or missing
    * @param currentAppUsers - Current AppUser data
-   * @param forceRefresh - If true, bypasses the interval check (for initial load)
+   * @param forceRefresh - If true, bypasses offline DB and forces API fetch
    * CRITICAL: Never throws - always returns null on error to prevent stuck refresh
    */
   async refreshDriverLocations(currentAppUsers, forceRefresh = false) {
@@ -1047,10 +1048,55 @@ class SmartRefreshManager {
       }
       
       this.lastRefreshTimes.driverLocation = now;
-      await this.waitForRateLimit();
       
-      // CRITICAL: Fetch ALL AppUsers with driver role (regardless of status)
-      // We need off_duty drivers too so current user can see their own marker on desktop
+      // OFFLINE-FIRST: Load from offline DB first unless forceRefresh
+      if (!forceRefresh) {
+        try {
+          const { offlineDB } = await import('./offlineDatabase');
+          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+          
+          if (offlineAppUsers && offlineAppUsers.length > 0) {
+            console.log(`💾 [SmartRefresh] Loaded ${offlineAppUsers.length} AppUsers from offline DB for driver locations`);
+            
+            // Check if offline data is fresh enough (< 2 minutes)
+            const syncStatus = await offlineDB.getSyncStatus('AppUser');
+            const isFresh = syncStatus?.lastSync && 
+              (Date.now() - new Date(syncStatus.lastSync).getTime() < 120000);
+            
+            if (isFresh) {
+              // Offline data is fresh - use it directly
+              const diff = diffEntityArrays(currentAppUsers, offlineAppUsers);
+              
+              if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+                const mergedAppUsers = mergeEntityChanges(currentAppUsers, diff);
+                
+                // Dispatch location update event
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                    detail: { appUsers: mergedAppUsers }
+                  }));
+                }
+                
+                return {
+                  hasChanges: true,
+                  appUsers: mergedAppUsers
+                };
+              }
+              
+              // No changes - return null
+              return null;
+            }
+            
+            // Offline data is stale - fetch from API in background and return offline immediately
+            console.log(`⏰ [SmartRefresh] Offline AppUser data is stale - refreshing from API`);
+          }
+        } catch (offlineError) {
+          console.warn('⚠️ [SmartRefresh] Failed to load AppUsers from offline DB:', offlineError.message);
+        }
+      }
+      
+      // Fetch from API (either forceRefresh or offline data is stale/missing)
+      await this.waitForRateLimit();
       const allAppUsers = await queueEntityRequest(
         () => base44.entities.AppUser.filter({
           app_roles: { $in: ['driver'] }
@@ -1058,15 +1104,13 @@ class SmartRefreshManager {
         'AppUser list [drivers]'
       );
       
-      // Record success
       this.recordSuccess();
       
       if (!allAppUsers || allAppUsers.length === 0) {
         return null;
       }
       
-      // CRITICAL: Merge ALL server AppUsers into current state
-      // ALWAYS take server's location data, but respect local timestamps for other fields
+      // Merge server data with current state
       const updatedAppUsers = currentAppUsers.map(au => {
         const serverVersion = allAppUsers.find(ad => ad.user_id === au.user_id);
         if (serverVersion) {
@@ -1093,42 +1137,43 @@ class SmartRefreshManager {
         return au;
       });
       
-      // Add any new AppUsers from server that weren't in current list
+      // Add any new AppUsers from server
       allAppUsers.forEach(serverAu => {
         if (!updatedAppUsers.find(au => au.user_id === serverAu.user_id)) {
           updatedAppUsers.push(serverAu);
         }
       });
       
-      // CRITICAL: Sync updated driver locations to offline DB
+      // CRITICAL: Sync to offline DB and update sync status
       try {
         const { offlineDB } = await import('./offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updatedAppUsers);
+        await offlineDB.updateSyncStatus('AppUser', {
+          recordCount: updatedAppUsers.length,
+          status: 'synced',
+          lastSync: new Date().toISOString()
+        });
+        console.log(`✅ [SmartRefresh] Synced ${updatedAppUsers.length} AppUsers to offline DB`);
       } catch (offlineError) {
         console.warn('⚠️ [SmartRefresh] Failed to sync driver locations to offline DB:', offlineError);
       }
       
-      // CRITICAL: Always dispatch event immediately with fresh data
+      // Dispatch location update event
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
           detail: { appUsers: updatedAppUsers }
         }));
       }
       
-      // CRITICAL: Always return changes to trigger UI update
       return {
         hasChanges: true,
         appUsers: updatedAppUsers
       };
       
     } catch (error) {
-      // CRITICAL: Record error for exponential backoff
       this.recordError();
-      
-      // AUTO-RECOVERY: Track connection errors
       this.recordConnectionError(error);
       
-      // CRITICAL: Catch ALL errors and return null - never throw
       if (error.response?.status === 429 || error.message?.includes('429')) {
         console.warn('⏰ [SmartRefresh] Rate limit on driver locations - skipping cycle');
         this.notifyRateLimit(true);
