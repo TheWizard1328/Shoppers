@@ -4071,8 +4071,24 @@ export default function AdminUtilities() {
                             </>
                             )}
                             </div>
+                            <div className="flex gap-2 justify-end">
+                            <Button
+                              variant={dataViewMode.deliveries === 'offline' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'offline' }))}
+                            >
+                              Offline
+                            </Button>
+                            <Button
+                              variant={dataViewMode.deliveries !== 'offline' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'online' }))}
+                            >
+                              Online
+                            </Button>
+                            </div>
                             {manualLoadTriggered && (
-                        <div className="text-sm text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div className="text-sm text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
                           <strong>PUID Backfill:</strong> Use the "Backfill PUIDs" button in the table header to automatically link deliveries to their pickups. Works on all filtered deliveries or just selected ones.
                         </div>
                       )}
