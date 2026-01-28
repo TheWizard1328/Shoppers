@@ -146,8 +146,21 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   
   try {
     // Step 1: AppUsers (fast, small dataset) - save to offline DB
-    const appUsers = await AppUser.list();
-    console.log(`   ✅ Loaded ${appUsers.length} AppUsers`);
+    const appUsersRaw = await AppUser.list();
+    
+    // CRITICAL: De-duplicate by user_id to prevent duplicate markers
+    const appUsersByUserId = new Map();
+    appUsersRaw.forEach(au => {
+      if (!au || !au.user_id) return;
+      const existing = appUsersByUserId.get(au.user_id);
+      // Keep record with better sort_order or first occurrence
+      if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+        appUsersByUserId.set(au.user_id, au);
+      }
+    });
+    const appUsers = Array.from(appUsersByUserId.values());
+    
+    console.log(`   ✅ Loaded ${appUsers.length} AppUsers (de-duplicated from ${appUsersRaw.length})`);
     await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
@@ -414,11 +427,22 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       try {
         const appUserLastSync = await getLastSyncTimestamp('AppUser');
         const appUserFilter = appUserLastSync ? { updated_date: { $gte: appUserLastSync } } : {};
-        const appUsers = await AppUser.filter(appUserFilter, '-updated_date', 1000);
+        const appUsersRaw = await AppUser.filter(appUserFilter, '-updated_date', 1000);
+        
+        // CRITICAL: De-duplicate by user_id before saving
+        const appUsersByUserId = new Map();
+        appUsersRaw.forEach(au => {
+          if (!au || !au.user_id) return;
+          const existing = appUsersByUserId.get(au.user_id);
+          if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+            appUsersByUserId.set(au.user_id, au);
+          }
+        });
+        const appUsers = Array.from(appUsersByUserId.values());
         
         if (appUsers.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
-          console.log(`   ✅ AppUser sync: ${appUsers.length} records`);
+          console.log(`   ✅ AppUser sync: ${appUsers.length} records (de-duplicated from ${appUsersRaw.length})`);
         }
         
         await offlineDB.updateSyncStatus('AppUser', {
@@ -714,7 +738,19 @@ export const forceSyncAll = async () => {
 
     // Step 1: Sync AppUsers
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 5 });
-    const appUsers = await AppUser.list();
+    const appUsersRaw = await AppUser.list();
+    
+    // CRITICAL: De-duplicate by user_id
+    const appUsersByUserId = new Map();
+    appUsersRaw.forEach(au => {
+      if (!au || !au.user_id) return;
+      const existing = appUsersByUserId.get(au.user_id);
+      if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+        appUsersByUserId.set(au.user_id, au);
+      }
+    });
+    const appUsers = Array.from(appUsersByUserId.values());
+    
     await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10, count: appUsers.length });
 
