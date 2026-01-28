@@ -833,7 +833,7 @@ const DeliveryDataTable = ({
                 </Button>
               </>
             )}
-            {(deliveries || []).length > 0 && selectedDeliveries.size === 0 && (
+            {(deliveries || []).length > 0 && (
                <>
                  <Button
                    variant="outline"
@@ -855,14 +855,16 @@ const DeliveryDataTable = ({
                      Clear Filter
                    </Button>
                  )}
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={onDeleteAll}
-                  disabled={isLoadingData}
-                >
-                  Delete All Filtered ({(displayDeliveries || []).length})
-                </Button>
+                {selectedDeliveries.size === 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={onDeleteAll}
+                    disabled={isLoadingData}
+                  >
+                    Delete All Filtered ({(displayDeliveries || []).length})
+                  </Button>
+                )}
               </>
             )}
           </div>
