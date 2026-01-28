@@ -144,17 +144,17 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   notifySyncStatus({ status: 'loading_priority', date: selectedDateStr });
   
   try {
-    // Step 1: Cities (fast, small dataset) - save to offline DB
-    const cities = await City.list();
-    console.log(`   ✅ Loaded ${cities.length} Cities`);
-    await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
-    
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-    
-    // Step 2: AppUsers (fast, small dataset) - save to offline DB
+    // Step 1: AppUsers (fast, small dataset) - save to offline DB
     const appUsers = await AppUser.list();
     console.log(`   ✅ Loaded ${appUsers.length} AppUsers`);
     await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+    
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    // Step 2: Cities (fast, small dataset) - save to offline DB
+    const cities = await City.list();
+    console.log(`   ✅ Loaded ${cities.length} Cities`);
+    await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
     
     await new Promise(r => setTimeout(r, 3000)); // Increased from 1s to 3s
     
@@ -669,27 +669,36 @@ export const forceSyncAll = async () => {
   try {
     const selectedDateStr = format(new Date(), 'yyyy-MM-dd');
 
-    // Step 1: Sync cities
-    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 5 });
-    const cities = await City.list();
-    await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
-    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 10, count: cities.length });
-
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-
-    // Step 2: Sync deliveries
-    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 15 });
-    const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 30, count: deliveries.length });
-
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-
-    // Step 3: Sync AppUsers
-    notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 25 });
+    // Step 1: Sync AppUsers
+    notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 5 });
     const appUsers = await AppUser.list();
     await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
-    notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 35, count: appUsers.length });
+    notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10, count: appUsers.length });
+
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    
+    // Step 2: Sync cities
+    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 15 });
+    const cities = await City.list();
+    await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 20, count: cities.length });
+
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    // Step 3: Sync patients (all active patients)
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 25 });
+    const patients = await Patient.filter({ status: 'active' }, '-created_date', 5000);
+    const cleanPatients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanPatients);
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 35, count: cleanPatients.length });
+
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    // Step 4: Sync deliveries
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
+    const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 50, count: deliveries.length });
 
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
