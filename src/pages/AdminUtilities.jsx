@@ -533,7 +533,6 @@ const DeliveryDataTable = ({
   selectedYear, onYearChange, availableYears,
   selectedMonth, onMonthChange,
   selectedDriver, onDriverChange,
-  onBackfillPUIDs,
   onDeleteDuplicates
 }) => {
   const { visibleColumns, toggleColumn, config } = useColumnVisibility('deliveries');
@@ -762,19 +761,8 @@ const DeliveryDataTable = ({
               onToggle={toggleColumn}
             />
             {selectedDeliveries.size > 0 && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const selected = (deliveries || []).filter(d => selectedDeliveries.has(d.id));
-                    onBackfillPUIDs(selected);
-                  }}
-                  disabled={isLoadingData}
-                >
-                  Backfill PUIDs (Selected {selectedDeliveries.size})
-                </Button>
-                <Button
+               <>
+                 <Button
                   variant="destructive"
                   size="sm"
                   onClick={handleDeleteSelected}
@@ -785,16 +773,8 @@ const DeliveryDataTable = ({
               </>
             )}
             {(deliveries || []).length > 0 && selectedDeliveries.size === 0 && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onBackfillPUIDs(deliveries)}
-                  disabled={isLoadingData}
-                >
-                  Backfill PUIDs (All {(deliveries || []).length})
-                </Button>
-                <Button
+               <>
+                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => onDeleteDuplicates(deliveries)}
@@ -3806,84 +3786,7 @@ export default function AdminUtilities() {
     });
   }, [patients, performBulkDeleteDeliveriesBatch]);
 
-  const handleBackfillPUIDs = useCallback(async (deliveriesToProcess) => {
-    const count = deliveriesToProcess.length;
-    const scope = deliveriesToProcess === filteredAndSortedDeliveries ? 'all filtered' : 'selected';
-    
-    setConfirmDialog({
-      open: true,
-      title: `Backfill Missing PUIDs for ${count} ${scope} deliveries?`,
-      description: `This will analyze ${count} ${scope} deliveries and automatically assign PUIDs. Pickups get their own SID as PUID. Patient deliveries are matched to pickups (checks driver transfers too).`,
-      confirmText: 'Yes, Backfill',
-      variant: 'default',
-      onConfirm: async () => {
-        setIsBackfilling(true);
-        let updated = 0;
-        let failed = 0;
-        let skipped = 0;
 
-        try {
-          const deliveriesNeedingPUID = deliveriesToProcess.filter(d => d && !d.puid);
-          console.log(`🔄 [AdminUtilities] Backfilling PUIDs for ${deliveriesNeedingPUID.length} deliveries...`);
-
-          for (const delivery of deliveriesNeedingPUID) {
-            try {
-              let puidToSet = null;
-
-              if (!delivery.patient_id && delivery.stop_id) {
-                puidToSet = delivery.stop_id;
-              } else if (delivery.patient_id) {
-                let pickup = (allDeliveries || []).find(p => 
-                  p && !p.patient_id && p.store_id === delivery.store_id &&
-                  p.delivery_date === delivery.delivery_date &&
-                  p.driver_id === delivery.driver_id &&
-                  p.ampm_deliveries === delivery.ampm_deliveries &&
-                  p.stop_id
-                );
-
-                if (!pickup) {
-                  pickup = (allDeliveries || []).find(p => 
-                    p && !p.patient_id && p.store_id === delivery.store_id &&
-                    p.delivery_date === delivery.delivery_date &&
-                    p.ampm_deliveries === delivery.ampm_deliveries &&
-                    p.stop_id
-                  );
-                }
-
-                if (pickup && pickup.stop_id) {
-                  puidToSet = pickup.stop_id;
-                }
-              }
-
-              const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
-              if (puidToSet) {
-                await updateDeliveryLocal(delivery.id, { puid: puidToSet });
-                updated++;
-              } else {
-                skipped++;
-              }
-            } catch (error) {
-              console.error(`❌ [AdminUtilities] Failed to update delivery ${delivery.id}:`, error);
-              failed++;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-
-          alert(`PUID Backfill complete!\n\nUpdated: ${updated} deliveries.\nFailed: ${failed} deliveries.\nSkipped: ${skipped} deliveries (no matching pickup found).`);
-          queryClient.invalidateQueries(['deliveries']);
-          await refetchDeliveries();
-          await refreshData();
-
-        } catch (error) {
-          console.error('❌ [AdminUtilities] PUID Backfill error:', error);
-          alert(`PUID Backfill failed: ${error.message}`);
-        } finally {
-          setIsBackfilling(false);
-        }
-      }
-    });
-  }, [allDeliveries, queryClient, refetchDeliveries, refreshData]);
 
   const handleStatusChange = useCallback(async (delivery, newStatus) => {
     try {
@@ -4132,11 +4035,7 @@ export default function AdminUtilities() {
                               Online
                             </Button>
                             </div>
-                            {manualLoadTriggered && (
-                            <div className="text-sm text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                          <strong>PUID Backfill:</strong> Use the "Backfill PUIDs" button in the table header to automatically link deliveries to their pickups. Works on all filtered deliveries or just selected ones.
-                        </div>
-                      )}
+
                       {manualLoadTriggered && <DeliveryDataTable
                         deliveries={filteredAndSortedDeliveries}
                         patients={patients || []}
@@ -4146,7 +4045,6 @@ export default function AdminUtilities() {
                         onDelete={handleDeleteEntity}
                         onDeleteAll={_confirmDeleteAllDeliveries}
                         onDeleteSelected={_confirmDeleteSelectedDeliveries}
-                        onBackfillPUIDs={handleBackfillPUIDs}
                         onDeleteDuplicates={handleDeleteDuplicates}
                         filterText={deliveryFilterText}
                         onFilterChange={setDeliveryFilterText}
