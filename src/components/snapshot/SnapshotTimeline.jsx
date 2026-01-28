@@ -63,7 +63,7 @@ export default function SnapshotTimeline({
 
   if (isLoading) {
     return (
-      <div className="h-full w-16 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm">
+      <div className="h-full w-20 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm">
         <div className="animate-spin w-6 h-6 border-2 border-white border-t-transparent rounded-full" />
       </div>
     );
@@ -71,21 +71,20 @@ export default function SnapshotTimeline({
 
   if (snapshots.length === 0) {
     return (
-      <div className="h-full w-64 bg-slate-900/90 backdrop-blur-sm text-white p-4 flex flex-col">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold">No Snapshots</h3>
+      <div className="h-full w-20 bg-slate-900/90 backdrop-blur-sm text-white p-2 flex flex-col items-center">
+        <div className="flex flex-col items-center">
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={onClose}
-            className="text-white hover:bg-white/20 h-8 w-8 p-0"
+            className="text-white hover:bg-white/20 h-8 w-8 p-0 mb-2"
           >
             <X className="w-4 h-4" />
           </Button>
+          <p className="text-xs text-slate-300 text-center">
+            No snapshots
+          </p>
         </div>
-        <p className="text-sm text-slate-300">
-          No snapshots available for {format(selectedDate, 'MMM dd, yyyy')}
-        </p>
       </div>
     );
   }
@@ -93,46 +92,38 @@ export default function SnapshotTimeline({
   const currentSnapshot = snapshots[selectedIndex];
 
   return (
-    <div className="h-full w-64 bg-slate-900/90 backdrop-blur-sm text-white p-4 flex flex-col">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold flex items-center gap-2">
-          <Clock className="w-4 h-4" />
-          Timeline
-        </h3>
+    <div className="h-full w-20 bg-slate-900/90 backdrop-blur-sm text-white p-2 flex flex-col">
+      <div className="flex flex-col items-center mb-2">
         <Button 
           variant="ghost" 
           size="sm" 
           onClick={onClose}
-          className="text-white hover:bg-white/20 h-8 w-8 p-0"
+          className="text-white hover:bg-white/20 h-8 w-8 p-0 mb-2"
         >
           <X className="w-4 h-4" />
         </Button>
+        <Clock className="w-5 h-5 mb-1" />
       </div>
 
-      <div className="flex-1 flex flex-col justify-center py-4">
+      <div className="flex-1 flex flex-col justify-center items-center">
         {/* Vertical slider */}
-        <div className="flex justify-center mb-6">
-          <Slider
-            value={[selectedIndex]}
-            min={0}
-            max={snapshots.length - 1}
-            step={1}
-            orientation="vertical"
-            onValueChange={handleSliderChange}
-            className="h-[60vh]"
-          />
-        </div>
+        <Slider
+          value={[selectedIndex]}
+          min={0}
+          max={snapshots.length - 1}
+          step={1}
+          orientation="vertical"
+          onValueChange={handleSliderChange}
+          className="h-[50vh] mb-4"
+        />
 
         {/* Time display */}
-        <div className="text-center space-y-2">
-          <div className="text-2xl font-bold">
-            {format(new Date(currentSnapshot.timestamp), 'h:mm a')}
-          </div>
-          <div className="text-sm text-slate-300">
-            {format(new Date(currentSnapshot.timestamp), 'MMM dd, yyyy')}
+        <div className="text-center space-y-1">
+          <div className="text-sm font-bold">
+            {format(new Date(currentSnapshot.timestamp), 'h:mm')}
           </div>
           <div className="text-xs text-slate-400">
-            Snapshot {selectedIndex + 1} of {snapshots.length}
+            {selectedIndex + 1}/{snapshots.length}
           </div>
         </div>
       </div>

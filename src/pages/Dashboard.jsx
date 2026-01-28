@@ -1187,14 +1187,16 @@ function Dashboard() {
   }, [nextStop, patients, stores]);
 
   const statsCardPositioning = useMemo(() => {
+    // Add left offset when snapshot mode is active
+    const snapshotOffset = isSnapshotModeActive ? 'left-24' : 'left-2';
     const ratio = screenWidth / cardWidth;
 
     if (ratio < 2) {
       return 'absolute top-2 left-1/2 -translate-x-1/2';
     } else {
-      return 'absolute top-2 left-2';
+      return `absolute top-2 ${snapshotOffset}`;
     }
-  }, [screenWidth, cardWidth]);
+  }, [screenWidth, cardWidth, isSnapshotModeActive]);
 
   const optimizationMessagePositioning = useMemo(() => {
     // Always center below stats card
@@ -7240,7 +7242,8 @@ function Dashboard() {
 
         <div
           ref={stopCardsContainerRef}
-          className="horizontal-cards-container absolute bottom-0 left-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end min-h-[145px] max-h-[80vh]"
+          className="horizontal-cards-container absolute bottom-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end min-h-[145px] max-h-[80vh]"
+          style={{ left: isSnapshotModeActive ? '5rem' : '0' }}
           onClick={() => {
             if (retractClustersRef.current) {
               retractClustersRef.current();
