@@ -115,7 +115,7 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
       let skipped = 0;
       let errors = 0;
 
-      for (let i = 1; i < lines.length; i++) {
+      for (let i = 1; i < lines.length; i++) { // i=1 skips header automatically, don't count it
         const row = lines[i].split(',').map(cell => cell.trim());
         
         if (row.length < 2) {
@@ -199,16 +199,16 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
           }
           
           // STEP 3: No match found - Skip
-          console.warn(`⚠️ NO MATCH: No suitable match for identifier ${identifier}`);
-          skipped++;
-          
-        } catch (error) {
-          console.error(`Error processing row ${i}:`, error);
-          errors++;
-        }
-      }
+           console.warn(`⚠️ NO MATCH: No suitable match for identifier ${identifier}`);
+           skipped++;
 
-      setStatus(`✅ Import complete! Exact: ${exactMatched}, Fuzzy: ${fuzzyMatched}, Skipped: ${skipped}, Errors: ${errors}`);
+          } catch (error) {
+           console.error(`Error processing row ${i}:`, error);
+           errors++;
+          }
+          }
+
+          setStatus(`✅ Import complete! Exact: ${exactMatched}, Fuzzy: ${fuzzyMatched}, Skipped: ${skipped}, Errors: ${errors}`);
       setLoading(false);
       
       setTimeout(() => {
