@@ -811,9 +811,26 @@ const DeliveryDataTable = ({
                 >
                   Delete All Filtered ({(deliveries || []).length})
                 </Button>
-              </>
-            )}
-          </div>
+                </>
+                )}
+                </div>
+                <div className="flex gap-2">
+                <Button
+                variant={dataViewMode.deliveries === 'offline' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'offline' }))}
+                >
+                Offline
+                </Button>
+                <Button
+                variant={dataViewMode.deliveries !== 'offline' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'online' }))}
+                >
+                Online
+                </Button>
+                </div>
+                </div>
         </CardTitle>
         <CardDescription style={{ color: 'var(--text-slate-500)' }}>Filtered and sorted list of deliveries by year, month, and driver.</CardDescription>
       </CardHeader>
@@ -2580,6 +2597,7 @@ export default function AdminUtilities() {
 
   const [activeDataTab, setActiveDataTab] = useState('deliveries');
   const [activeUtilityTab, setActiveUtilityTab] = useState('data');
+  const [dataViewMode, setDataViewMode] = useState({}); // { tab: 'online' | 'offline' }
 
   const [isBackfilling, setIsBackfilling] = useState(false);
 
@@ -4032,7 +4050,8 @@ export default function AdminUtilities() {
 
                   <TabsContent value="deliveries" className="mt-6">
                     <div className="space-y-4">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 items-center justify-between">
+                        <div className="flex gap-2">
                         {!manualLoadTriggered ? (
                           <Alert className="flex-1">
                             <AlertCircle className="h-4 w-4" />
@@ -4119,6 +4138,22 @@ export default function AdminUtilities() {
                   </TabsContent>
 
                   <TabsContent value="patients" className="mt-6">
+                    <div className="mb-4 flex justify-end gap-2">
+                      <Button
+                        variant={dataViewMode.patients === 'offline' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDataViewMode(prev => ({ ...prev, patients: 'offline' }))}
+                      >
+                        Offline
+                      </Button>
+                      <Button
+                        variant={dataViewMode.patients !== 'offline' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDataViewMode(prev => ({ ...prev, patients: 'online' }))}
+                      >
+                        Online
+                      </Button>
+                    </div>
                     <PatientDataTable
                       patients={filteredPatientsForDetectDuplicates || []}
                       stores={stores || []}
@@ -4136,6 +4171,22 @@ export default function AdminUtilities() {
                   </TabsContent>
 
                   <TabsContent value="stores" className="mt-6">
+                    <div className="mb-4 flex justify-end gap-2">
+                      <Button
+                        variant={dataViewMode.stores === 'offline' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDataViewMode(prev => ({ ...prev, stores: 'offline' }))}
+                      >
+                        Offline
+                      </Button>
+                      <Button
+                        variant={dataViewMode.stores !== 'offline' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDataViewMode(prev => ({ ...prev, stores: 'online' }))}
+                      >
+                        Online
+                      </Button>
+                    </div>
                     <StoreDataTable
                       stores={stores || []}
                       onEdit={handleEditEntity}
@@ -4146,6 +4197,22 @@ export default function AdminUtilities() {
                   </TabsContent>
 
                   <TabsContent value="users" className="mt-6">
+                    <div className="mb-4 flex justify-end gap-2">
+                      <Button
+                        variant={dataViewMode.users === 'offline' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDataViewMode(prev => ({ ...prev, users: 'offline' }))}
+                      >
+                        Offline
+                      </Button>
+                      <Button
+                        variant={dataViewMode.users !== 'offline' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDataViewMode(prev => ({ ...prev, users: 'online' }))}
+                      >
+                        Online
+                      </Button>
+                    </div>
                     <UserDataTable
                       users={appUsers || []}
                       onEdit={handleEditEntity}
@@ -4156,6 +4223,22 @@ export default function AdminUtilities() {
                   </TabsContent>
 
                   <TabsContent value="cities" className="mt-6">
+                    <div className="mb-4 flex justify-end gap-2">
+                      <Button
+                        variant={dataViewMode.cities === 'offline' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDataViewMode(prev => ({ ...prev, cities: 'offline' }))}
+                      >
+                        Offline
+                      </Button>
+                      <Button
+                        variant={dataViewMode.cities !== 'offline' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setDataViewMode(prev => ({ ...prev, cities: 'online' }))}
+                      >
+                        Online
+                      </Button>
+                    </div>
                     <CityDataTable
                       cities={cities || []}
                       onEdit={handleEditEntity}
