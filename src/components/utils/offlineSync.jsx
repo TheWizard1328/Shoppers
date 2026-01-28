@@ -158,19 +158,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     await new Promise(r => setTimeout(r, 3000)); // Increased from 1s to 3s
     
-    // Step 3: Deliveries for selected date
-    const deliveryFilter = { delivery_date: selectedDateStr, ...filters };
-    const deliveries = await Delivery.filter(deliveryFilter);
-    console.log(`   ✅ Loaded ${deliveries.length} deliveries for ${selectedDateStr}`);
-    
-    // Save to offline DB immediately (merge, don't clear)
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-    
-    await new Promise(r => setTimeout(r, 3000)); // Increased from 1s to 3s
-    
-    // Step 4: CRITICAL - Load ALL patients (not just delivery-linked ones)
-    // This ensures map markers work for new users who don't have patient data yet
-    console.log(`   👥 Loading ALL patients for offline access...`);
+    console.log(`   👥 Loading ALL patients FIRST...`);
     let patients = [];
     
     try {
@@ -188,25 +176,21 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
       
       if (patients.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patients);
+        console.log(`   💾 Saved ${patients.length} patients to offline DB`);
       }
     } catch (patientError) {
-      console.warn(`   ⚠️ Patient bulk load failed, falling back to delivery-linked:`, patientError.message);
-      
-      // Fallback: Just load patients for current deliveries
-      const patientIds = [...new Set(deliveries.map(d => d.patient_id).filter(Boolean))];
-      if (patientIds.length > 0) {
-        for (let i = 0; i < patientIds.length; i += PATIENT_BATCH_SIZE) {
-          if (syncPaused) break;
-          const batchIds = patientIds.slice(i, i + PATIENT_BATCH_SIZE);
-          const batchPatients = await Patient.filter({ id: { $in: batchIds } });
-          patients.push(...batchPatients);
-          if (i + PATIENT_BATCH_SIZE < patientIds.length) {
-            await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-          }
-        }
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patients);
-      }
+      console.warn(`   ⚠️ Patient bulk load failed:`, patientError.message);
     }
+    
+    await new Promise(r => setTimeout(r, 3000)); // Wait before loading deliveries
+    
+    // Step 4: Deliveries for selected date (AFTER patients loaded)
+    const deliveryFilter = { delivery_date: selectedDateStr, ...filters };
+    const deliveries = await Delivery.filter(deliveryFilter);
+    console.log(`   ✅ Loaded ${deliveries.length} deliveries for ${selectedDateStr}`);
+    
+    // Save to offline DB immediately (merge, don't clear)
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     
     // Update sync timestamps - CRITICAL: Mark ALL as full sync after priority load
     // Don't mark SquareTransaction as synced here - it gets synced in background
