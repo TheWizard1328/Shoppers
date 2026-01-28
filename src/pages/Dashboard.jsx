@@ -2628,23 +2628,49 @@ function Dashboard() {
         window._lastProgrammaticMapMove = Date.now();
 
         if (nextStopCoordinates) {
-          const bounds = [
-          [driverLocation.latitude, driverLocation.longitude],
-          [nextStopCoordinates.lat, nextStopCoordinates.lon]];
-
-          const padding = getMapPadding();
-
-          setShouldFitBounds({
-            bounds,
-            options: {
-              ...padding,
-              maxZoom: 17.5,
-              animate: true
+          // CRITICAL: Use actual driver location (blue dot or shared marker), not polyline endpoints
+          let driverLat, driverLon;
+          
+          // Priority 1: Use live GPS location (mobile blue dot)
+          if (driverLocation?.latitude && driverLocation?.longitude) {
+            driverLat = driverLocation.latitude;
+            driverLon = driverLocation.longitude;
+          }
+          // Priority 2: Use shared location marker (green marker from AppUser)
+          else {
+            const sharedDriverLocation = allDriverLocations.find(loc => loc.driver_id === currentUser?.id);
+            if (sharedDriverLocation?.latitude && sharedDriverLocation?.longitude) {
+              driverLat = sharedDriverLocation.latitude;
+              driverLon = sharedDriverLocation.longitude;
             }
-          });
-          setMapCenter(null);
-          setMapZoom(null);
-        } else {
+            // Priority 3: Fall back to current user's location from appUsers
+            else if (currentUser?.current_latitude && currentUser?.current_longitude) {
+              driverLat = currentUser.current_latitude;
+              driverLon = currentUser.current_longitude;
+            }
+          }
+          
+          // Only center if we have valid driver coordinates
+          if (driverLat && driverLon) {
+            const bounds = [
+              [driverLat, driverLon],
+              [nextStopCoordinates.lat, nextStopCoordinates.lon]
+            ];
+
+            const padding = getMapPadding();
+
+            setShouldFitBounds({
+              bounds,
+              options: {
+                ...padding,
+                maxZoom: 17.5,
+                animate: true
+              }
+            });
+            setMapCenter(null);
+            setMapZoom(null);
+          }
+        } else if (driverLocation?.latitude && driverLocation?.longitude) {
           // If no next stop, just center on driver with padding
           const padding = getMapPadding();
 
