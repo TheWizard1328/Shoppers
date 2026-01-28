@@ -855,19 +855,7 @@ export default function Layout({ children, currentPageName }) {
         setCatalogItems(offlineCatalogItems || []); // Load from offline DB
         setSquareTransactions(offlineSquareTx || []);
 
-        // Sync catalog items from Square in background (5 seconds after init)
-        setTimeout(async () => {
-          try {
-            const { offlineDB } = await import('./components/utils/offlineDatabase');
-            const response = await base44.functions.invoke('squareSyncCatalogItems', {});
-            const items = response?.data?.items || response?.items || [];
-            setCatalogItems(items);
-            // Save to offline DB for next load
-            await offlineDB.bulkSave(offlineDB.STORES.SQUARE_CATALOG_ITEMS, items);
-          } catch (error) {
-            console.warn('⚠️ [Layout] Failed to sync catalog items:', error.message);
-          }
-        }, 5000);
+        // Square catalog items will sync via real-time events and delivery updates only
 
         const savedDate = globalFilters.getSelectedDate();
         let effectiveDateForDriverAssignment;
@@ -1129,13 +1117,7 @@ export default function Layout({ children, currentPageName }) {
         detail: { appUsers }
       }));
 
-      // Refresh COD data after delivery updates
-      setTimeout(() => {
-        base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
-          const items = response?.data?.items || response?.items || [];
-          setCatalogItems(items);
-        }).catch(() => {});
-      }, 1000);
+      // COD data will refresh via real-time sync events only
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
