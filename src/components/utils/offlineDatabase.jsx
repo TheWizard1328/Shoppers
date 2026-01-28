@@ -739,5 +739,6 @@ export const offlineDB = {
   updateMutationRetry,
   deleteRecord,
   deduplicateAppUsers,
-  deduplicateDeliveries
+  deduplicateDeliveries,
+  deleteDeliveriesByDate
 };
