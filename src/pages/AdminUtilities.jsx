@@ -782,13 +782,13 @@ const DeliveryDataTable = ({
   }, [deliveries, duplicateFilterMode, autoSelectIds]);
 
   const handleDeleteSelected = () => {
-    const selectedDeliveriesArray = (deliveries || []).filter(d => selectedDeliveries.has(d.id));
+    const selectedDeliveriesArray = (displayDeliveries || []).filter(d => selectedDeliveries.has(d.id));
     onDeleteSelected(selectedDeliveriesArray);
     setSelectedDeliveries(new Set());
   };
 
-  const isAllSelected = (deliveries || []).length > 0 && selectedDeliveries.size === (deliveries || []).length;
-  const isSomeSelected = selectedDeliveries.size > 0 && selectedDeliveries.size < (deliveries || []).length;
+  const isAllSelected = (displayDeliveries || []).length > 0 && selectedDeliveries.size === (displayDeliveries || []).length;
+  const isSomeSelected = selectedDeliveries.size > 0 && selectedDeliveries.size < (displayDeliveries || []).length;
 
   return (
     <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
