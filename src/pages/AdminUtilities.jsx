@@ -3747,15 +3747,37 @@ export default function AdminUtilities() {
   }, [performBulkDeleteCities]);
 
   const handleFindDuplicates = useCallback(async (deliveriesToProcess) => {
-    console.log(`🔍 Finding duplicates in ${deliveriesToProcess.length} deliveries...`);
+    console.log(`🔍 Finding duplicates in ${deliveriesToProcess?.length || 0} deliveries...`);
+    console.log('📊 Data source:', dataViewMode.deliveries === 'offline' ? 'OFFLINE' : 'ONLINE');
+    console.log('📊 Sample deliveries:', deliveriesToProcess?.slice(0, 3).map(d => ({ sid: d.stop_id, date: d.delivery_date, driver_id: d.driver_id })));
+    
+    if (!deliveriesToProcess || deliveriesToProcess.length === 0) {
+      console.warn('⚠️ No deliveries to process');
+      setDuplicatesDialog({
+        open: true,
+        found: false,
+        message: 'No deliveries to search. Please load data first.',
+        duplicateIds: []
+      });
+      return;
+    }
+    
     const duplicateGroups = new Map();
     
     deliveriesToProcess.forEach(d => {
-      if (!d || !d.stop_id) return;
+      if (!d) {
+        console.warn('⚠️ Null delivery');
+        return;
+      }
       
-      const sid = d.stop_id.toString();
+      const sid = d.stop_id?.toString() || '';
       const date = d.delivery_date || '';
       const driverId = d.driver_id || '';
+      
+      // Skip if no SID
+      if (!sid || !date) {
+        return;
+      }
       
       const key = `${sid}|${date}|${driverId}`;
       if (!duplicateGroups.has(key)) {
@@ -3764,10 +3786,13 @@ export default function AdminUtilities() {
       duplicateGroups.get(key).push(d);
     });
     
+    console.log(`📊 Found ${duplicateGroups.size} unique SID+Date+Driver combinations`);
+    
     const duplicateIds = [];
     const duplicateDetails = [];
     
     duplicateGroups.forEach((group, key) => {
+      console.log(`📊 Group "${key}": ${group.length} deliveries`);
       if (group.length > 1) {
         const [sid, date, driverId] = key.split('|');
         duplicateDetails.push({
@@ -3781,6 +3806,8 @@ export default function AdminUtilities() {
         sorted.slice(1).forEach(d => duplicateIds.push(d.id));
       }
     });
+    
+    console.log(`✅ Found ${duplicateIds.length} duplicates to mark`);
     
     if (duplicateIds.length === 0) {
       setDuplicatesDialog({
@@ -3800,7 +3827,7 @@ export default function AdminUtilities() {
       duplicateIds
     });
     
-  }, []);
+  }, [dataViewMode.deliveries]);
 
 
 
