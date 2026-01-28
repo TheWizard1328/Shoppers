@@ -533,7 +533,7 @@ const DeliveryDataTable = ({
   selectedYear, onYearChange, availableYears,
   selectedMonth, onMonthChange,
   selectedDriver, onDriverChange,
-  onDeleteDuplicates
+  onFindDuplicates
 }) => {
   const { visibleColumns, toggleColumn, config } = useColumnVisibility('deliveries');
   const [columnWidths, setColumnWidths] = useState(() => {
@@ -775,14 +775,14 @@ const DeliveryDataTable = ({
             {(deliveries || []).length > 0 && selectedDeliveries.size === 0 && (
                <>
                  <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onDeleteDuplicates(deliveries)}
-                  disabled={isLoadingData}
-                  className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                >
-                  Delete Duplicates
-                </Button>
+                   variant="outline"
+                   size="sm"
+                   onClick={() => onFindDuplicates(deliveries)}
+                   disabled={isLoadingData}
+                   className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                 >
+                   Find Duplicates
+                 </Button>
                 <Button
                   variant="destructive"
                   size="sm"
@@ -3739,50 +3739,49 @@ export default function AdminUtilities() {
     });
   }, [performBulkDeleteCities]);
 
-  const handleDeleteDuplicates = useCallback(async (deliveriesToProcess) => {
+  const handleFindDuplicates = useCallback(async (deliveriesToProcess) => {
+    console.log(`🔍 Finding duplicates in ${deliveriesToProcess.length} deliveries...`);
     const duplicateGroups = new Map();
     
     deliveriesToProcess.forEach(d => {
-      if (!d) return;
-      const sid = d.stop_id || '';
+      if (!d || !d.stop_id) return;
+      
+      const sid = d.stop_id.toString();
       const date = d.delivery_date || '';
       const driverId = d.driver_id || '';
       
-      if (!sid) return;
-      
-      const key = `${sid}_${date}_${driverId}`;
+      const key = `${sid}|${date}|${driverId}`;
       if (!duplicateGroups.has(key)) {
         duplicateGroups.set(key, []);
       }
       duplicateGroups.get(key).push(d);
     });
     
-    const duplicatesToDelete = [];
-    duplicateGroups.forEach((group) => {
+    const duplicateIds = [];
+    const duplicateDetails = [];
+    
+    duplicateGroups.forEach((group, key) => {
       if (group.length > 1) {
-        const sorted = [...group].sort((a, b) => {
-          const aDate = new Date(a.created_date || 0);
-          const bDate = new Date(b.created_date || 0);
-          return aDate - bDate;
+        const [sid, date, driverId] = key.split('|');
+        duplicateDetails.push({
+          sid,
+          date,
+          count: group.length,
+          ids: group.map(d => d.id)
         });
-        duplicatesToDelete.push(...sorted.slice(1));
+        group.forEach(d => duplicateIds.push(d.id));
       }
     });
     
-    if (duplicatesToDelete.length === 0) {
+    if (duplicateIds.length === 0) {
       alert('No duplicates found in the current filtered list.\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n• Driver');
       return;
     }
     
-    setConfirmDialog({
-      open: true,
-      title: `Delete ${duplicatesToDelete.length} Duplicate Deliveries?`,
-      description: `Found ${duplicatesToDelete.length} duplicate deliveries (same SID + Date + Driver). The oldest record in each group will be kept, and duplicates will be deleted using batch operations. This action cannot be undone.`,
-      confirmText: 'Delete Duplicates',
-      variant: 'destructive',
-      onConfirm: () => performBulkDeleteDeliveriesBatch(duplicatesToDelete)
-    });
-  }, [performBulkDeleteDeliveriesBatch]);
+    const summary = duplicateDetails.map(d => `SID: ${d.sid}, Date: ${d.date} → ${d.count} deliveries`).join('\n');
+    alert(`Found ${duplicateIds.length} duplicate deliveries:\n\n${summary}\n\nThese deliveries are now highlighted. You can manually select them to delete.`);
+    
+  }, []);
 
 
 
@@ -4037,7 +4036,7 @@ export default function AdminUtilities() {
                         onDelete={handleDeleteEntity}
                         onDeleteAll={_confirmDeleteAllDeliveries}
                         onDeleteSelected={_confirmDeleteSelectedDeliveries}
-                        onDeleteDuplicates={handleDeleteDuplicates}
+                        onFindDuplicates={handleFindDuplicates}
                         filterText={deliveryFilterText}
                         onFilterChange={setDeliveryFilterText}
                         sortColumn={deliverySortColumn}
