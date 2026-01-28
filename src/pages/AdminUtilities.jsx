@@ -3981,7 +3981,7 @@ export default function AdminUtilities() {
 
                   <TabsContent value="deliveries" className="mt-6">
                     <div className="space-y-4">
-                      <div className="flex gap-2 flex-wrap">
+                      <div className="flex gap-2 flex-wrap items-center justify-between">
                         {!manualLoadTriggered ? (
                           <Alert className="flex-1">
                             <AlertCircle className="h-4 w-4" />
@@ -3998,28 +3998,20 @@ export default function AdminUtilities() {
                             </AlertDescription>
                           </Alert>
                         ) : (
-                          <>
-                            <Button
-                              onClick={() => {
-                                setManualLoadTriggered(false);
-                                setTimeout(() => setManualLoadTriggered(true), 100);
-                              }}
-                              disabled={deliveriesLoading}
-                              variant="outline"
-                            >
-                              <RefreshCw className={`w-4 h-4 mr-2 ${deliveriesLoading ? 'animate-spin' : ''}`} />
-                              Reload Data
-                            </Button>
-                            <Button
-                              onClick={() => setShowRouteImport(true)}
-                              className="hidden md:inline-flex"
-                            >
-                              Import Routes
-                            </Button>
-                            </>
-                            )}
-                            </div>
-                            <div className="flex gap-2 justify-end">
+                          <Button
+                            onClick={() => {
+                              setManualLoadTriggered(false);
+                              setTimeout(() => setManualLoadTriggered(true), 100);
+                            }}
+                            disabled={deliveriesLoading}
+                            variant="outline"
+                          >
+                            <RefreshCw className={`w-4 h-4 mr-2 ${deliveriesLoading ? 'animate-spin' : ''}`} />
+                            Reload Data
+                          </Button>
+                        )}
+                        {manualLoadTriggered && (
+                          <div className="flex gap-2">
                             <Button
                               variant={dataViewMode.deliveries === 'offline' ? 'default' : 'outline'}
                               size="sm"
@@ -4034,7 +4026,9 @@ export default function AdminUtilities() {
                             >
                               Online
                             </Button>
-                            </div>
+                          </div>
+                        )}
+                      </div>
 
                       {manualLoadTriggered && <DeliveryDataTable
                         deliveries={filteredAndSortedDeliveries}
