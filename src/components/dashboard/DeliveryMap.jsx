@@ -1627,17 +1627,11 @@ export default function DeliveryMap({
       };
     }).filter(Boolean);
 
-    // CRITICAL: Only update if markers actually changed to prevent blinking
-    const newKey = markers.map(m => `${m.id}:${m.latitude?.toFixed(5)}:${m.longitude?.toFixed(5)}:${m.driver_status}:${m.isStaleLocation}`).join('|');
-    const prevKey = prevDriverLocationMarkersRef.current.map(m => `${m.id}:${m.latitude?.toFixed(5)}:${m.longitude?.toFixed(5)}:${m.driver_status}:${m.isStaleLocation}`).join('|');
-    
-    if (newKey === prevKey && prevDriverLocationMarkersRef.current.length > 0) {
-      return prevDriverLocationMarkersRef.current;
-    }
-    
+    // CRITICAL: Always return fresh array to ensure polyline positions update
+    // The slight performance hit is worth it for accurate real-time tracking
     prevDriverLocationMarkersRef.current = markers;
     return markers;
-  // CRITICAL: Use stable references - minimize dependencies to prevent blinking
+  // CRITICAL: Include polylineRenderKey to force refresh when locations update
   }, [
     isViewingCurrentDate,
     currentUser?.id,
@@ -1645,7 +1639,8 @@ export default function DeliveryMap({
     // Track user location data with stable key - round coordinates to prevent micro-changes
     safeUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.driver_status}:${u?.location_tracking_enabled}`).join('|'),
     // Include deliveries for filtering idle drivers
-    deliveriesForLocationFilter.map(d => `${d?.id}:${d?.driver_id}:${d?.delivery_date}:${d?.status}`).join('|')
+    deliveriesForLocationFilter.map(d => `${d?.id}:${d?.driver_id}:${d?.delivery_date}:${d?.status}`).join('|'),
+    polylineRenderKey // CRITICAL: Force recalculation when driver locations update
   ]);
 
   // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY OR FUTURE
