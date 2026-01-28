@@ -974,8 +974,8 @@ const DeliveryDataTable = ({
               <tbody>
                 {isLoadingData ? (
                   <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading deliveries...</td></tr>
-                ) : (deliveries || []).length > 0 ? (
-                  (deliveries || []).map(delivery => {
+                ) : (displayDeliveries || []).length > 0 ? (
+                  (displayDeliveries || []).map(delivery => {
                     const info = getDeliveryInfo(delivery);
                     const dateTime = getDeliveryDateTime(delivery);
                     const driverName = getDriverName(delivery);
