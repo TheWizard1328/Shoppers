@@ -107,18 +107,35 @@ export async function performDailyMessageCleanup() {
 
     console.log(`🗑️ [messageCleaner] Deleting ${oldMessages.length} messages older than 7 days...`);
 
-    // Delete old messages with minimal delay
+    // CRITICAL: Delete in small batches with long delays to prevent rate limits
     let deleted = 0;
     let failed = 0;
+    const BATCH_SIZE = 5; // Delete only 5 messages at a time
+    const BATCH_DELAY = 5000; // Wait 5 seconds between batches
 
-    for (const message of oldMessages) {
-      try {
-        await base44.entities.Message.delete(message.id);
-        deleted++;
-        await new Promise(resolve => setTimeout(resolve, 100)); // Delay to prevent rate limits
-      } catch (error) {
-        console.warn(`Failed to delete message ${message.id}:`, error.message);
-        failed++;
+    for (let i = 0; i < oldMessages.length; i += BATCH_SIZE) {
+      const batch = oldMessages.slice(i, i + BATCH_SIZE);
+      
+      for (const message of batch) {
+        try {
+          await base44.entities.Message.delete(message.id);
+          deleted++;
+          await new Promise(resolve => setTimeout(resolve, 500)); // 500ms between individual deletes
+        } catch (error) {
+          console.warn(`Failed to delete message ${message.id}:`, error.message);
+          failed++;
+          // If rate limited, wait longer before continuing
+          if (error.message?.includes('Rate limit') || error.response?.status === 429) {
+            console.log('⏸️ [messageCleaner] Rate limited - pausing cleanup for 30 seconds...');
+            await new Promise(resolve => setTimeout(resolve, 30000));
+          }
+        }
+      }
+      
+      // Wait between batches if there are more messages
+      if (i + BATCH_SIZE < oldMessages.length) {
+        console.log(`⏸️ [messageCleaner] Batch ${Math.ceil((i + BATCH_SIZE) / BATCH_SIZE)} complete - waiting ${BATCH_DELAY}ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
       }
     }
 
@@ -134,13 +151,13 @@ export async function performDailyMessageCleanup() {
  * Initialize daily cleanup - call this once during app startup
  */
 export function initializeDailyCleanup() {
-  // Run initial check after 30 seconds (delayed to allow app to fully load)
+  // CRITICAL: Delay initial cleanup to 5 minutes after app load to prevent rate limits during init
   setTimeout(() => {
     performDailyMessageCleanup();
-  }, 30000);
+  }, 300000); // 5 minutes
 
-  // Check every 6 hours if cleanup is needed (much less frequent)
+  // Check every 12 hours if cleanup is needed (reduced frequency)
   setInterval(() => {
     performDailyMessageCleanup();
-  }, 21600000); // 6 hours
+  }, 43200000); // 12 hours
 }
