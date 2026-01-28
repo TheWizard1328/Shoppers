@@ -726,7 +726,7 @@ const DeliveryDataTable = ({
 
   const handleSelectAll = (checked) => {
     if (checked) {
-      setSelectedDeliveries(new Set((deliveries || []).map(d => d.id)));
+      setSelectedDeliveries(new Set((displayDeliveries || []).map(d => d.id)));
     } else {
       setSelectedDeliveries(new Set());
     }
@@ -761,7 +761,27 @@ const DeliveryDataTable = ({
     
     // Filter to only show duplicates when in duplicate filter mode
     if (duplicateFilterMode && autoSelectIds.length > 0) {
-      result = result.filter(d => autoSelectIds.includes(d.id));
+      // Get all delivery IDs that are part of duplicate groups (includes the ones we auto-selected AND the ones we kept)
+      const duplicateGroups = new Map();
+      deliveries.forEach(d => {
+        if (!d || !d.stop_id || !d.delivery_date || !d.driver_id) return;
+        const key = `${d.stop_id}|${d.delivery_date}|${d.driver_id}`;
+        if (!duplicateGroups.has(key)) {
+          duplicateGroups.set(key, []);
+        }
+        duplicateGroups.get(key).push(d);
+      });
+      
+      // Get all IDs from groups that have duplicates (size > 1)
+      const allDuplicateIds = [];
+      duplicateGroups.forEach((group, key) => {
+        if (group.length > 1) {
+          group.forEach(d => allDuplicateIds.push(d.id));
+        }
+      });
+      
+      // Show ALL deliveries that are part of duplicate groups (not just the auto-selected ones)
+      result = result.filter(d => allDuplicateIds.includes(d.id));
       
       // Sort by delivery_date, then driver_id, then stop_id
       result = result.sort((a, b) => {
@@ -824,13 +844,24 @@ const DeliveryDataTable = ({
                  >
                    Find Duplicates
                  </Button>
+                 {duplicateFilterMode && (
+                   <Button
+                     variant="outline"
+                     size="sm"
+                     onClick={onClearDuplicateFilter}
+                     disabled={isLoadingData}
+                     className="bg-blue-50 border-blue-300"
+                   >
+                     Clear Filter
+                   </Button>
+                 )}
                 <Button
                   variant="destructive"
                   size="sm"
                   onClick={onDeleteAll}
                   disabled={isLoadingData}
                 >
-                  Delete All Filtered ({(deliveries || []).length})
+                  Delete All Filtered ({(displayDeliveries || []).length})
                 </Button>
               </>
             )}
