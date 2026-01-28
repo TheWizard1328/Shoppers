@@ -2797,7 +2797,8 @@ export default function Layout({ children, currentPageName }) {
               onClick={() => setSidebarOpen(false)} />
             }
 
-              {/* Sidebar */}
+              {/* Sidebar - Hidden in snapshot mode */}
+              {!isSnapshotModeActive &&
               <div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200]`} style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
                 <div className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
                   <div className="flex items-center justify-between gap-3">
@@ -3339,10 +3340,11 @@ export default function Layout({ children, currentPageName }) {
                     </div>
                 }
                 </div>
-              </div>
+                </div>
+                }
 
-              {/* Resizable Divider for Sidebar - Only on desktop */}
-              {!isMobile &&
+                {/* Resizable Divider for Sidebar - Only on desktop */}
+                {!isMobile && !isSnapshotModeActive &&
             <ResizableDivider
               storageKey="rxdeliver_sidebar_width"
               defaultWidth={240}
@@ -3359,8 +3361,10 @@ export default function Layout({ children, currentPageName }) {
             }
 
               {/* Main Content Area */}
-              <div className="main-content-area">
+              <div className="main-content-area" style={isSnapshotModeActive ? { width: '100vw' } : {}}>
 
+                {/* Mobile Header - Hidden in snapshot mode */}
+                {!isSnapshotModeActive &&
                 <header
                 className="mobile-header border-b px-4 py-3 sticky top-0"
                 style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
@@ -3593,10 +3597,11 @@ export default function Layout({ children, currentPageName }) {
                         </span>
                       </div>
                     </div>
-                }
-                </header>
+                    }
+                    </header>
+                    }
 
-                <main className="flex-1 overflow-y-auto relative" style={{ background: 'var(--bg-slate-50)' }}>
+                    <main className="flex-1 overflow-y-auto relative" style={{ background: 'var(--bg-slate-50)' }}>
                   {children}
                 </main>
               </div>
