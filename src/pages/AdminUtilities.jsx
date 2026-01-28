@@ -906,6 +906,13 @@ const DeliveryDataTable = ({
         </div>
 
         <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+          {duplicateFilterMode && (
+            <div className="px-4 py-2 bg-blue-50 border-b" style={{ borderColor: 'var(--border-slate-200)' }}>
+              <p className="text-sm font-medium text-blue-900">
+                📍 Duplicate Filter Active: Showing {displayDeliveries.length} duplicates sorted by Date → Driver → Stop ID
+              </p>
+            </div>
+          )}
           <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
             <table className="w-full text-sm table-fixed">
               <thead className="border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
