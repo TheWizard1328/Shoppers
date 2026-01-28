@@ -3744,15 +3744,13 @@ export default function AdminUtilities() {
     
     deliveriesToProcess.forEach(d => {
       if (!d) return;
-      const patient = (patients || []).find(p => p.id === d.patient_id);
-      const pid = patient?.patient_id || '';
       const sid = d.stop_id || '';
       const date = d.delivery_date || '';
       const driverId = d.driver_id || '';
       
-      if (!pid && !sid) return;
+      if (!sid) return;
       
-      const key = `${pid}_${sid}_${date}_${driverId}`;
+      const key = `${sid}_${date}_${driverId}`;
       if (!duplicateGroups.has(key)) {
         duplicateGroups.set(key, []);
       }
@@ -3772,19 +3770,19 @@ export default function AdminUtilities() {
     });
     
     if (duplicatesToDelete.length === 0) {
-      alert('No duplicates found in the current filtered list.\n\nDuplicates are identified by matching:\n• Patient ID (PID)\n• Stop ID (SID)\n• Delivery Date\n• Driver');
+      alert('No duplicates found in the current filtered list.\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n• Driver');
       return;
     }
     
     setConfirmDialog({
       open: true,
       title: `Delete ${duplicatesToDelete.length} Duplicate Deliveries?`,
-      description: `Found ${duplicatesToDelete.length} duplicate deliveries (same PID + SID + Date + Driver). The oldest record in each group will be kept, and duplicates will be deleted using batch operations. This action cannot be undone.`,
+      description: `Found ${duplicatesToDelete.length} duplicate deliveries (same SID + Date + Driver). The oldest record in each group will be kept, and duplicates will be deleted using batch operations. This action cannot be undone.`,
       confirmText: 'Delete Duplicates',
       variant: 'destructive',
       onConfirm: () => performBulkDeleteDeliveriesBatch(duplicatesToDelete)
     });
-  }, [patients, performBulkDeleteDeliveriesBatch]);
+  }, [performBulkDeleteDeliveriesBatch]);
 
 
 
