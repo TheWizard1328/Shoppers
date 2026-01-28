@@ -1072,12 +1072,25 @@ export default function Layout({ children, currentPageName }) {
     window.addEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
 
     // Listen for import completion to update UI immediately
-    const handleDeliveriesImported = (event) => {
+    const handleDeliveriesImported = async (event) => {
       const { deliveries, source } = event.detail || {};
       // CRITICAL: Only process if deliveries array is provided and non-empty
       // Skip if source is 'layout' to prevent infinite loops
       if (deliveries && deliveries.length > 0 && source !== 'layout') {
-        console.log(`📥 [Layout] Received ${deliveries.length} imported deliveries - updating UI immediately`);
+        console.log(`📥 [Layout] Received ${deliveries.length} imported deliveries - syncing patients FIRST`);
+
+        // CRITICAL: Sync patient data FIRST before updating deliveries
+        // This ensures all patient references are available when markers render
+        try {
+          invalidate('Patient');
+          const freshPatients = await getData('Patient', null, null, true);
+          setPatients(freshPatients);
+          console.log(`✅ [Layout] Patient data synced: ${freshPatients.length} patients`);
+        } catch (error) {
+          console.error('❌ [Layout] Failed to sync patients after import:', error);
+        }
+
+        // Now update deliveries
         setDeliveries((prevDeliveries) => {
           const map = new Map(prevDeliveries.map((d) => [d.id, d]));
           deliveries.forEach((d) => map.set(d.id, d));
@@ -1316,12 +1329,18 @@ export default function Layout({ children, currentPageName }) {
             if (prev.some((p) => p?.id === update.id)) return prev;
             return [...prev, update.data];
           });
+          // Save to offline DB immediately
+          offlineDB.save(offlineDB.STORES.PATIENTS, update.data).catch(() => {});
         } else if (update.action === 'update') {
           setPatients((prev) => prev.map((p) =>
-          p?.id === update.id ? { ...p, ...update.data } : p
+            p?.id === update.id ? { ...p, ...update.data } : p
           ));
+          // Update offline DB immediately
+          offlineDB.save(offlineDB.STORES.PATIENTS, update.data).catch(() => {});
         } else if (update.action === 'delete') {
           setPatients((prev) => prev.filter((p) => p?.id !== update.id));
+          // Remove from offline DB immediately
+          offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, update.id).catch(() => {});
         }
       }
     });
