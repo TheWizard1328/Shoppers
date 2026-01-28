@@ -811,6 +811,9 @@ export default function DeliveryMap({
     };
   }, [map]);
 
+  // State to force re-render of polylines when driver locations change
+  const [polylineRenderKey, setPolylineRenderKey] = useState(0);
+  
   // Listen for real-time driver location updates from SmartRefreshManager
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
@@ -821,12 +824,16 @@ export default function DeliveryMap({
         setRealtimeAppUsers(prev => prev.map(u => 
           u?.id === singleUpdate.user_id ? { ...u, ...singleUpdate } : u
         ));
+        // CRITICAL: Force polyline re-render when driver location changes
+        setPolylineRenderKey(prev => prev + 1);
         return;
       }
 
       // CRITICAL: Handle bulk updates (from smart refresh) - update immediately
       if (appUsers && appUsers.length > 0) {
         setRealtimeAppUsers(appUsers);
+        // CRITICAL: Force polyline re-render when driver locations change
+        setPolylineRenderKey(prev => prev + 1);
       }
     };
 
@@ -2679,6 +2686,7 @@ export default function DeliveryMap({
         })()}
 
         {/* Polylines for shared driver routes (with or without visible location markers) */}
+        {/* CRITICAL: Re-render when polylineRenderKey changes to update positions */}
         {isViewingCurrentDate && (isAllDriversMode || showOtherDriverDeliveries) && (() => {
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           const polylines = [];
@@ -2714,9 +2722,10 @@ export default function DeliveryMap({
               const driverColor = driverObj ? getDriverColor(driverObj) : '#607D8B';
 
               // Blue polyline from driver to next stop
+              // CRITICAL: Add polylineRenderKey to force re-render when driver moves
               polylines.push(
                 <Polyline
-                  key={`driver-to-next-${driverId}-${nextStop.id}`}
+                  key={`driver-to-next-${driverId}-${nextStop.id}-${polylineRenderKey}`}
                   positions={[[location.latitude, location.longitude], [nextStop.latitude, nextStop.longitude]]}
                   pathOptions={{
                     color: '#3B82F6',
@@ -2780,9 +2789,10 @@ export default function DeliveryMap({
               if (!startPoint) return;
               
               // Blue polyline from start point to next stop
+              // CRITICAL: Add polylineRenderKey to force re-render when positions change
               polylines.push(
                 <Polyline
-                  key={`start-to-next-no-marker-${driverId}-${nextStop.id}`}
+                  key={`start-to-next-no-marker-${driverId}-${nextStop.id}-${polylineRenderKey}`}
                   positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
                   pathOptions={{
                     color: '#3B82F6',
