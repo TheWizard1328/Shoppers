@@ -1314,10 +1314,21 @@ export default function Layout({ children, currentPageName }) {
           u?.id === update.data?.user_id ? { ...u, ...update.data } : u
           ));
 
-          // Dispatch event to update map markers immediately
+          // CRITICAL: Dispatch event to update map markers AND polylines immediately
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
             detail: { appUsers: null, singleUpdate: update.data }
           }));
+
+          // CRITICAL: If location changed, also refresh delivery markers (for polyline origins)
+          if (update.data?.current_latitude || update.data?.current_longitude) {
+            console.log(`📍 [Layout] Driver ${update.data.user_id} location updated - forcing map refresh`);
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { 
+                triggeredBy: 'driver_location_update',
+                driverId: update.data.user_id 
+              }
+            }));
+          }
         }
       }
 
