@@ -3981,28 +3981,28 @@ export default function AdminUtilities() {
   }
 
   return (
-    <div className="min-h-screen p-3" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="max-w-full mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+    <div className="min-h-screen p-2 md:p-3" style={{ background: 'var(--bg-slate-50)' }}>
+      <div className="max-w-full mx-auto space-y-4 md:space-y-6">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0">
+          <div className="flex items-center gap-2 md:gap-3">
             <SmartRefreshIndicator inline={true} />
-            <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Admin Utilities</h1>
+            <h1 className="text-xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Admin Utilities</h1>
           </div>
-          <Button onClick={handleRefreshAllData} variant="outline" disabled={isRefreshing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+          <Button onClick={handleRefreshAllData} variant="outline" disabled={isRefreshing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }} className="w-full md:w-auto">
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Refreshing...' : 'Refresh All Data'}
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
         </div>
 
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="data">Data Management</TabsTrigger>
-            <TabsTrigger value="store-metrics">Store Metrics</TabsTrigger>
-            <TabsTrigger value="user-settings">User Settings</TabsTrigger>
-            <TabsTrigger value="app-settings">App Settings</TabsTrigger>
-            <TabsTrigger value="message-rules">Message Rules</TabsTrigger>
-            <TabsTrigger value="polylines">Polylines</TabsTrigger>
-            <TabsTrigger value="api-logs">API Logs</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-1 md:gap-0 h-auto md:h-10">
+            <TabsTrigger value="data" className="text-xs md:text-sm px-2 md:px-4 py-2">Data</TabsTrigger>
+            <TabsTrigger value="store-metrics" className="text-xs md:text-sm px-2 md:px-4 py-2">Metrics</TabsTrigger>
+            <TabsTrigger value="user-settings" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden md:block">Settings</TabsTrigger>
+            <TabsTrigger value="app-settings" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden md:block">App</TabsTrigger>
+            <TabsTrigger value="message-rules" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden lg:block">Messages</TabsTrigger>
+            <TabsTrigger value="polylines" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden lg:block">Routes</TabsTrigger>
+            <TabsTrigger value="api-logs" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden lg:block">Logs</TabsTrigger>
           </TabsList>
 
           <TabsContent value="data">
@@ -4014,17 +4014,17 @@ export default function AdminUtilities() {
             ) : (
               <div className="space-y-6">
                 <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-5">
-                    <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
-                    <TabsTrigger value="patients">Patients</TabsTrigger>
-                    <TabsTrigger value="stores">Stores</TabsTrigger>
-                    <TabsTrigger value="users">App Users</TabsTrigger>
-                    <TabsTrigger value="cities">Cities</TabsTrigger>
+                   <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 gap-1 md:gap-0 h-auto md:h-10">
+                    <TabsTrigger value="deliveries" className="text-xs md:text-sm px-2 md:px-4 py-2">Deliveries</TabsTrigger>
+                    <TabsTrigger value="patients" className="text-xs md:text-sm px-2 md:px-4 py-2">Patients</TabsTrigger>
+                    <TabsTrigger value="stores" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden md:block">Stores</TabsTrigger>
+                    <TabsTrigger value="users" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden md:block">Users</TabsTrigger>
+                    <TabsTrigger value="cities" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden md:block">Cities</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="deliveries" className="mt-6">
                     <div className="space-y-4">
-                      <div className="flex gap-2 flex-wrap items-center justify-between">
+                      <div className="flex flex-col md:flex-row gap-2 flex-wrap items-stretch md:items-center justify-between">
                         {!manualLoadTriggered ? (
                           <Alert className="flex-1">
                             <AlertCircle className="h-4 w-4" />
@@ -4054,23 +4054,25 @@ export default function AdminUtilities() {
                           </Button>
                         )}
                         {manualLoadTriggered && (
-                          <div className="flex gap-2">
-                            <Button
-                              variant={dataViewMode.deliveries === 'offline' ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'offline' }))}
-                            >
-                              Offline
-                            </Button>
-                            <Button
-                              variant={dataViewMode.deliveries !== 'offline' ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'online' }))}
-                            >
-                              Online
-                            </Button>
-                          </div>
-                        )}
+                           <div className="flex gap-2 w-full md:w-auto">
+                             <Button
+                               variant={dataViewMode.deliveries === 'offline' ? 'default' : 'outline'}
+                               size="sm"
+                               onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'offline' }))}
+                               className="flex-1 md:flex-none min-h-10"
+                             >
+                               Offline
+                             </Button>
+                             <Button
+                               variant={dataViewMode.deliveries !== 'offline' ? 'default' : 'outline'}
+                               size="sm"
+                               onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'online' }))}
+                               className="flex-1 md:flex-none min-h-10"
+                             >
+                               Online
+                             </Button>
+                           </div>
+                         )}
                       </div>
 
                       {manualLoadTriggered && <DeliveryDataTable
@@ -4116,11 +4118,12 @@ export default function AdminUtilities() {
                   </TabsContent>
 
                   <TabsContent value="patients" className="mt-6">
-                    <div className="mb-4 flex justify-end gap-2">
+                    <div className="mb-4 flex justify-start md:justify-end gap-2">
                       <Button
                         variant={dataViewMode.patients === 'offline' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setDataViewMode(prev => ({ ...prev, patients: 'offline' }))}
+                        className="flex-1 md:flex-none min-h-10"
                       >
                         Offline
                       </Button>
@@ -4128,6 +4131,7 @@ export default function AdminUtilities() {
                         variant={dataViewMode.patients !== 'offline' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setDataViewMode(prev => ({ ...prev, patients: 'online' }))}
+                        className="flex-1 md:flex-none min-h-10"
                       >
                         Online
                       </Button>
@@ -4149,11 +4153,12 @@ export default function AdminUtilities() {
                   </TabsContent>
 
                   <TabsContent value="stores" className="mt-6">
-                    <div className="mb-4 flex justify-end gap-2">
+                    <div className="mb-4 flex justify-start md:justify-end gap-2">
                       <Button
                         variant={dataViewMode.stores === 'offline' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setDataViewMode(prev => ({ ...prev, stores: 'offline' }))}
+                        className="flex-1 md:flex-none min-h-10"
                       >
                         Offline
                       </Button>
@@ -4161,6 +4166,7 @@ export default function AdminUtilities() {
                         variant={dataViewMode.stores !== 'offline' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setDataViewMode(prev => ({ ...prev, stores: 'online' }))}
+                        className="flex-1 md:flex-none min-h-10"
                       >
                         Online
                       </Button>
@@ -4175,11 +4181,12 @@ export default function AdminUtilities() {
                   </TabsContent>
 
                   <TabsContent value="users" className="mt-6">
-                    <div className="mb-4 flex justify-end gap-2">
+                    <div className="mb-4 flex justify-start md:justify-end gap-2">
                       <Button
                         variant={dataViewMode.users === 'offline' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setDataViewMode(prev => ({ ...prev, users: 'offline' }))}
+                        className="flex-1 md:flex-none min-h-10"
                       >
                         Offline
                       </Button>
@@ -4187,6 +4194,7 @@ export default function AdminUtilities() {
                         variant={dataViewMode.users !== 'offline' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setDataViewMode(prev => ({ ...prev, users: 'online' }))}
+                        className="flex-1 md:flex-none min-h-10"
                       >
                         Online
                       </Button>
@@ -4201,11 +4209,12 @@ export default function AdminUtilities() {
                   </TabsContent>
 
                   <TabsContent value="cities" className="mt-6">
-                    <div className="mb-4 flex justify-end gap-2">
+                    <div className="mb-4 flex justify-start md:justify-end gap-2">
                       <Button
                         variant={dataViewMode.cities === 'offline' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setDataViewMode(prev => ({ ...prev, cities: 'offline' }))}
+                        className="flex-1 md:flex-none min-h-10"
                       >
                         Offline
                       </Button>
@@ -4213,6 +4222,7 @@ export default function AdminUtilities() {
                         variant={dataViewMode.cities !== 'offline' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setDataViewMode(prev => ({ ...prev, cities: 'online' }))}
+                        className="flex-1 md:flex-none min-h-10"
                       >
                         Online
                       </Button>
