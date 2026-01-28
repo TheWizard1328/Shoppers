@@ -99,24 +99,22 @@ const buildIncrementalFilter = (lastSyncTimestamp, existingFilter = {}) => {
  * Get all fresh offline data if available
  */
 export const getOfflineDataIfFresh = async () => {
-  const [deliveryFresh, patientFresh, appUserFresh, cityFresh, squareTxFresh] = await Promise.all([
+  const [deliveryFresh, patientFresh, appUserFresh, cityFresh] = await Promise.all([
     isOfflineDataFresh('Delivery'),
     isOfflineDataFresh('Patient'),
     isOfflineDataFresh('AppUser'),
-    isOfflineDataFresh('City'),
-    isOfflineDataFresh('SquareTransaction')
+    isOfflineDataFresh('City')
   ]);
   
-  if (!deliveryFresh && !patientFresh && !appUserFresh && !cityFresh && !squareTxFresh) {
+  if (!deliveryFresh && !patientFresh && !appUserFresh && !cityFresh) {
     return null; // Not fresh, need to fetch from online
   }
   
-  const [deliveries, patients, appUsers, cities, squareTransactions] = await Promise.all([
+  const [deliveries, patients, appUsers, cities] = await Promise.all([
     deliveryFresh ? offlineDB.getAll(offlineDB.STORES.DELIVERIES) : [],
     patientFresh ? offlineDB.getAll(offlineDB.STORES.PATIENTS) : [],
     appUserFresh ? offlineDB.getAll(offlineDB.STORES.APP_USERS) : [],
-    cityFresh ? offlineDB.getAll(offlineDB.STORES.CITIES) : [],
-    squareTxFresh ? offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS) : []
+    cityFresh ? offlineDB.getAll(offlineDB.STORES.CITIES) : []
   ]);
   
   return {
@@ -124,12 +122,10 @@ export const getOfflineDataIfFresh = async () => {
     patients: patientFresh ? patients : null,
     appUsers: appUserFresh ? appUsers : null,
     cities: cityFresh ? cities : null,
-    squareTransactions: squareTxFresh ? squareTransactions : null,
     deliveryFresh,
     patientFresh,
     appUserFresh,
-    cityFresh,
-    squareTxFresh
+    cityFresh
   };
 };
 
@@ -399,32 +395,8 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       }
     }
 
-    // ===== STEP 6: Sync Square Transactions via timestamp =====
-    if (!syncPaused) {
-      console.log('   💳 Syncing Square Transactions...');
-      const txSyncStatus = await offlineDB.getSyncStatus('SquareTransaction');
-      const txLastSync = txSyncStatus?.lastSync;
-      
-      const txFilter = txLastSync ? { updated_date: { $gte: txLastSync } } : {};
-      
-      try {
-        const transactions = await SquareTransaction.filter(txFilter, '-updated_date', 500);
-        
-        if (transactions.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, transactions);
-          console.log(`   ✅ Square Transaction sync: ${transactions.length} records`);
-        } else {
-          console.log(`   ℹ️ No Square Transaction updates`);
-        }
-        
-        await offlineDB.updateSyncStatus('SquareTransaction', {
-          recordCount: transactions.length,
-          lastSync: new Date().toISOString()
-        });
-      } catch (error) {
-        console.warn(`   ⚠️ Square Transaction sync failed:`, error.message);
-      }
-    }
+    // DISABLED: Square Transactions now sync via real-time events only
+    // They update when COD items are created/edited/deleted, not on background sync
     
     // Update final sync status with actual counts from DB
     const stats = await offlineDB.getStats();
@@ -442,11 +414,7 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
          status: 'synced',
          lastSync: new Date().toISOString()
        }),
-       offlineDB.updateSyncStatus('SquareTransaction', {
-         recordCount: stats?.squareTransactions?.count || 0,
-         status: 'synced',
-         lastSync: new Date().toISOString()
-       }),
+
        offlineDB.updateSyncStatus('Delivery', {
          recordCount: stats?.deliveries?.count || 0,
          status: 'synced',
@@ -528,7 +496,7 @@ export const performInitialSync = async (selectedDate = null) => {
   const freshData = await getOfflineDataIfFresh();
 
   // CRITICAL: Even if delivery data is fresh, if patient data is missing/sparse, reload it
-  if (freshData && freshData.deliveryFresh && freshData.patientFresh && freshData.appUserFresh && freshData.cityFresh && freshData.squareTxFresh && hasPatientData) {
+  if (freshData && freshData.deliveryFresh && freshData.patientFresh && freshData.appUserFresh && freshData.cityFresh && hasPatientData) {
     console.log('⏭️ [OfflineSync] Offline data is fresh (< 10 min), using cached data');
     
     // Schedule background refresh after 30 seconds
@@ -541,8 +509,7 @@ export const performInitialSync = async (selectedDate = null) => {
       deliveries: freshData.deliveries?.length || 0,
       patients: freshData.patients?.length || 0,
       appUsers: freshData.appUsers?.length || 0,
-      cities: freshData.cities?.length || 0,
-      squareTransactions: freshData.squareTransactions?.length || 0
+      cities: freshData.cities?.length || 0
     };
   }
   
@@ -739,11 +706,7 @@ export const forceSyncAll = async () => {
 
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Step 5: Sync Square Transactions
-    notifySyncStatus({ status: 'syncing', entity: 'SquareTransactions', progress: 70 });
-    const squareTx = await SquareTransaction.list('-updated_date', 100);
-    await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, squareTx);
-    notifySyncStatus({ status: 'syncing', entity: 'SquareTransactions', progress: 85, count: squareTx.length });
+    // DISABLED: Square Transactions now sync via real-time events only
 
     // Update sync timestamps - MARK ALL as full sync
     await Promise.all([
@@ -771,12 +734,7 @@ export const forceSyncAll = async () => {
         lastSync: new Date().toISOString(),
         lastFullSync: new Date().toISOString()
       }),
-      offlineDB.updateSyncStatus('SquareTransaction', { 
-        recordCount: squareTx.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      })
+
     ]);
 
     notifySyncStatus({ status: 'syncing', entity: 'Finalizing', progress: 90 });
