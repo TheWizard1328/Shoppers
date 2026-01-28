@@ -1058,10 +1058,10 @@ class SmartRefreshManager {
           if (offlineAppUsers && offlineAppUsers.length > 0) {
             console.log(`💾 [SmartRefresh] Loaded ${offlineAppUsers.length} AppUsers from offline DB for driver locations`);
             
-            // Check if offline data is fresh enough (< 2 minutes)
+            // Check if offline data is fresh enough (< 15 seconds for real-time tracking)
             const syncStatus = await offlineDB.getSyncStatus('AppUser');
             const isFresh = syncStatus?.lastSync && 
-              (Date.now() - new Date(syncStatus.lastSync).getTime() < 120000);
+              (Date.now() - new Date(syncStatus.lastSync).getTime() < 15000);
             
             if (isFresh) {
               // Offline data is fresh - use it directly
