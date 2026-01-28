@@ -4086,13 +4086,13 @@ export default function AdminUtilities() {
             ) : (
               <div className="space-y-6">
                 <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full">
-                   <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 gap-1 md:gap-0 h-auto md:h-10">
-                    <TabsTrigger value="deliveries" className="text-xs md:text-sm px-2 md:px-4 py-2">Deliveries</TabsTrigger>
-                    <TabsTrigger value="patients" className="text-xs md:text-sm px-2 md:px-4 py-2">Patients</TabsTrigger>
-                    <TabsTrigger value="stores" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden md:block">Stores</TabsTrigger>
-                    <TabsTrigger value="users" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden md:block">Users</TabsTrigger>
-                    <TabsTrigger value="cities" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden md:block">Cities</TabsTrigger>
-                  </TabsList>
+                   <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 gap-1 md:gap-0 h-auto md:h-10">
+                     <TabsTrigger value="deliveries" className="text-xs md:text-sm px-2 md:px-4 py-2">Deliveries</TabsTrigger>
+                     <TabsTrigger value="patients" className="text-xs md:text-sm px-2 md:px-4 py-2">Patients</TabsTrigger>
+                     <TabsTrigger value="stores" className="text-xs md:text-sm px-2 md:px-4 py-2">Stores</TabsTrigger>
+                     <TabsTrigger value="users" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden sm:block">Users</TabsTrigger>
+                     <TabsTrigger value="cities" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden sm:block">Cities</TabsTrigger>
+                   </TabsList>
 
                   <TabsContent value="deliveries" className="mt-6">
                     <div className="space-y-4">
