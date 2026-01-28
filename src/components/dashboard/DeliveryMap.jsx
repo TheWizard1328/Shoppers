@@ -966,7 +966,26 @@ export default function DeliveryMap({
     // Works for ANY user viewing a specific driver (admin, driver, etc.)
     if (showOtherDriverDeliveries && otherDriverDeliveries.length > 0) {
       console.log(`📍 [DeliveryMap] Including ${otherDriverDeliveries.length} other driver deliveries`);
-      deliveriesToShow = [...safeDeliveries, ...otherDriverDeliveries];
+      
+      // CRITICAL: De-duplicate by delivery ID to prevent duplicate markers
+      const deliveriesById = new Map();
+      
+      // First, add all main deliveries
+      safeDeliveries.forEach(d => {
+        if (d && d.id) {
+          deliveriesById.set(d.id, d);
+        }
+      });
+      
+      // Then, add other drivers' deliveries (won't override existing)
+      otherDriverDeliveries.forEach(d => {
+        if (d && d.id && !deliveriesById.has(d.id)) {
+          deliveriesById.set(d.id, d);
+        }
+      });
+      
+      deliveriesToShow = Array.from(deliveriesById.values());
+      console.log(`📍 [DeliveryMap] De-duplicated to ${deliveriesToShow.length} total deliveries`);
     }
     
     const pickups = deliveriesToShow.filter((d) => d && !d.patient_id && d.store_id);
