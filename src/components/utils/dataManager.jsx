@@ -143,9 +143,29 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
         cache.set(cacheKey, offlineData);
         cacheTimestamps.set(cacheKey, Date.now());
         
-        // CRITICAL: Background refresh DISABLED - app is offline-only now
-        if (forceRefresh) {
-          console.log(`📴 [dataManager] Background refresh disabled - offline-only mode`);
+        // Check staleness: refresh in background if stale or forceRefresh
+        const isStale = (Date.now() - (cacheTimestamps.get(cacheKey) || 0)) > CACHE_DURATION;
+        if (forceRefresh || isStale) {
+          (async () => {
+            try {
+              await waitForRateLimit();
+              const Entity = entities[entityName];
+              let freshData;
+              if (query) {
+                freshData = await Entity.filter(query, sortKey, limit);
+              } else {
+                freshData = await Entity.list(sortKey, limit);
+              }
+              if (freshData && freshData.length > 0) {
+                await offlineDB.bulkSave(storeName, freshData);
+                console.log(`✅ [dataManager] Background: Updated ${entityName} (${freshData.length} records)`);
+                cache.set(cacheKey, freshData);
+                cacheTimestamps.set(cacheKey, Date.now());
+              }
+            } catch (bgError) {
+              console.warn(`⚠️ [dataManager] Background refresh failed for ${entityName}:`, bgError.message);
+            }
+          })();
         }
         
         return offlineData;
@@ -405,21 +425,23 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
         deliveryRangeCache.set(cacheKey, offlineData);
         deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
         
-        // CRITICAL: If forceRefresh, update from API in background WITHOUT waiting
-        if (forceRefresh) {
+        // Check staleness: refresh in background if stale or forceRefresh
+        const isStale = (Date.now() - (deliveryRangeCacheTimestamps.get(cacheKey) || 0)) > DELIVERY_RANGE_CACHE_DURATION;
+        if (forceRefresh || isStale) {
           (async () => {
             try {
               await waitForRateLimit();
-              // CRITICAL: Remove driver_id - fetch ALL drivers
               const dateFilters = { ...filtersWithoutDriver, delivery_date: dateStr };
               const freshDeliveries = await Delivery.filter(dateFilters, '-updated_date');
               
               if (freshDeliveries && freshDeliveries.length > 0) {
                 await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
                 console.log(`✅ [dataManager] Background: Updated ${freshDeliveries.length} deliveries for ${dateStr}`);
+                deliveryRangeCache.set(cacheKey, freshDeliveries);
+                deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
               }
             } catch (bgError) {
-              console.warn(`⚠️ [dataManager] Background refresh failed (non-critical):`, bgError.message);
+              console.warn(`⚠️ [dataManager] Background refresh failed:`, bgError.message);
             }
           })();
         }
@@ -584,9 +606,6 @@ export const loadDeliveries = async (
         
         usedOfflineData = true;
         
-        // CRITICAL: SYNC DISABLED - 100% offline-only mode
-        console.log(`📴 [DataManager] API sync disabled - using offline data only`);
-        
         return offlineDeliveries;
       }
     } catch (err) {
@@ -603,8 +622,10 @@ export const loadDeliveries = async (
     onInitialLoadComplete(selectedDateDeliveries);
   }, 0);
   
-  // CRITICAL: Background loading DISABLED to prevent rate limits
-  console.log('📴 [DataManager] Background loading disabled - offline-only mode');
+  // STEP 3: Background load historical data (checks offline DB first for each day)
+  loadFullMonthDeliveries(backgroundFilters, false)
+    .then(onFullMonthLoadComplete)
+    .catch(err => console.warn('⚠️ [DataManager] Background load failed:', err.message));
 
   return selectedDateDeliveries;
 };
