@@ -4319,6 +4319,24 @@ export default function AdminUtilities() {
         confirmText={confirmDialog.confirmText}
         variant={confirmDialog.variant}
       />
+
+      <Dialog open={duplicatesDialog.open} onOpenChange={(open) => setDuplicatesDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {duplicatesDialog.found ? '✅ Duplicates Found' : '⚠️ No Duplicates Found'}
+            </DialogTitle>
+          </DialogHeader>
+          <DialogDescription className="whitespace-pre-wrap text-base pt-4">
+            {duplicatesDialog.message}
+          </DialogDescription>
+          <DialogFooter>
+            <Button onClick={() => setDuplicatesDialog(prev => ({ ...prev, open: false }))}>
+              {duplicatesDialog.found ? 'OK' : 'Close'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
