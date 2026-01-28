@@ -730,6 +730,10 @@ class SmartRefreshManager {
       try {
         const { offlineDB } = await import('./offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries);
+
+        // CRITICAL: Deduplicate deliveries based on status rules
+        await offlineDB.deduplicateDeliveries();
+
         console.log(`✅ [SmartRefresh] Synced ${finalDeliveries.length} deliveries to offline DB`);
       } catch (offlineError) {
         console.warn('⚠️ [SmartRefresh] Failed to sync deliveries to offline DB:', offlineError);

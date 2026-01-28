@@ -592,6 +592,101 @@ const deduplicateAppUsers = async () => {
   }
 };
 
+/**
+ * Deduplicate Delivery records - keeps most recent based on status priority
+ * CRITICAL: Groups by delivery_date, driver_id, and stop_id
+ * Rules:
+ * - If all have same status → keep most recent
+ * - If mixed statuses → keep the completed one (prioritized)
+ * - If no completed but mixed in_transit/en_route → keep most recent
+ */
+const deduplicateDeliveries = async () => {
+  try {
+    const allDeliveries = await getAll(STORES.DELIVERIES);
+    
+    if (!allDeliveries || allDeliveries.length === 0) {
+      console.log('✅ [OfflineDB] No Deliveries to deduplicate');
+      return { success: true, removed: 0 };
+    }
+
+    // Group by delivery_date + driver_id + stop_id composite key
+    const groupKey = (d) => `${d.delivery_date}|${d.driver_id}|${d.stop_id}`;
+    const deliveryGroups = new Map();
+    
+    allDeliveries.forEach(delivery => {
+      if (!delivery?.delivery_date || !delivery?.driver_id || !delivery?.stop_id) return;
+      
+      const key = groupKey(delivery);
+      if (!deliveryGroups.has(key)) {
+        deliveryGroups.set(key, []);
+      }
+      deliveryGroups.get(key).push(delivery);
+    });
+
+    const deduplicated = [];
+    let removedCount = 0;
+
+    // Process each group
+    for (const [key, group] of deliveryGroups) {
+      if (group.length === 1) {
+        deduplicated.push(group[0]);
+        continue;
+      }
+
+      // Multiple deliveries with same date/driver/stop
+      const statusCounts = {};
+      group.forEach(d => {
+        statusCounts[d.status] = (statusCounts[d.status] || 0) + 1;
+      });
+
+      const uniqueStatuses = Object.keys(statusCounts);
+      let selectedDelivery;
+
+      if (uniqueStatuses.length === 1) {
+        // All same status - keep most recent
+        selectedDelivery = group.reduce((latest, current) => {
+          const latestTime = new Date(latest.updated_date || 0).getTime();
+          const currentTime = new Date(current.updated_date || 0).getTime();
+          return currentTime > latestTime ? current : latest;
+        });
+      } else {
+        // Mixed statuses - prioritize completed
+        const completed = group.find(d => d.status === 'completed');
+        if (completed) {
+          selectedDelivery = completed;
+        } else {
+          // No completed - keep most recent
+          selectedDelivery = group.reduce((latest, current) => {
+            const latestTime = new Date(latest.updated_date || 0).getTime();
+            const currentTime = new Date(current.updated_date || 0).getTime();
+            return currentTime > latestTime ? current : latest;
+          });
+        }
+      }
+
+      deduplicated.push(selectedDelivery);
+      removedCount += group.length - 1;
+    }
+
+    if (removedCount > 0) {
+      console.log(`🔧 [OfflineDB] Deduplicating: ${allDeliveries.length} → ${deduplicated.length} Deliveries (removed ${removedCount} duplicates)`);
+      
+      // Clear and re-save deduplicated data
+      await clearStore(STORES.DELIVERIES);
+      await bulkSave(STORES.DELIVERIES, deduplicated);
+      
+      console.log('✅ [OfflineDB] Deliveries deduplicated successfully');
+      return { success: true, removed: removedCount };
+    }
+
+    console.log('✅ [OfflineDB] No duplicate Deliveries found');
+    return { success: true, removed: 0 };
+  } catch (error) {
+    console.error('❌ [OfflineDB] deduplicateDeliveries error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 export const offlineDB = {
   STORES,
   openDatabase,
@@ -613,5 +708,6 @@ export const offlineDB = {
   removePendingMutation,
   updateMutationRetry,
   deleteRecord,
-  deduplicateAppUsers
+  deduplicateAppUsers,
+  deduplicateDeliveries
 };
