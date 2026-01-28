@@ -2622,6 +2622,12 @@ export default function AdminUtilities() {
   const [patientSortColumn, setPatientSortColumn] = useState('full_name');
   const [patientSortDirection, setPatientSortDirection] = useState('asc');
 
+  const [offlineDeliveries, setOfflineDeliveries] = useState([]);
+  const [offlinePatients, setOfflinePatients] = useState([]);
+  const [offlineStores, setOfflineStores] = useState([]);
+  const [offlineAppUsers, setOfflineAppUsers] = useState([]);
+  const [offlineCities, setOfflineCities] = useState([]);
+
   const [showRouteImport, setShowRouteImport] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
   const [editingStatusId, setEditingStatusId] = useState(null);
@@ -2657,8 +2663,8 @@ export default function AdminUtilities() {
     initialData: contextPatients?.length > 0 ? contextPatients : undefined,
     ...queryOptions
   });
-  // Use context patients for real-time updates
-  const patients = contextPatients?.length > 0 ? contextPatients : (fetchedPatients || []);
+  // Use context patients for real-time updates, or offline data if selected
+  const patients = dataViewMode.patients === 'offline' ? offlinePatients : (contextPatients?.length > 0 ? contextPatients : (fetchedPatients || []));
 
   const { data: fetchedStores, isLoading: storesLoading, refetch: refetchStores } = useQuery({
     queryKey: ['stores'],
@@ -2666,7 +2672,7 @@ export default function AdminUtilities() {
     initialData: contextStores?.length > 0 ? contextStores : undefined,
     ...queryOptions
   });
-  const stores = contextStores?.length > 0 ? contextStores : (fetchedStores || []);
+  const stores = dataViewMode.stores === 'offline' ? offlineStores : (contextStores?.length > 0 ? contextStores : (fetchedStores || []));
 
   const { data: authUsers, isLoading: authUsersLoading, refetch: refetchAuthUsers } = useQuery({
     queryKey: ['authUsers'],
@@ -2681,7 +2687,7 @@ export default function AdminUtilities() {
     initialData: contextAppUsers?.length > 0 ? contextAppUsers : undefined,
     ...queryOptions
   });
-  const appUsers = contextAppUsers?.length > 0 ? contextAppUsers : (fetchedAppUsers || []);
+  const appUsers = dataViewMode.users === 'offline' ? offlineAppUsers : (contextAppUsers?.length > 0 ? contextAppUsers : (fetchedAppUsers || []));
 
   const { data: fetchedCities, isLoading: citiesLoading, refetch: refetchCities } = useQuery({
     queryKey: ['cities'],
@@ -2689,7 +2695,7 @@ export default function AdminUtilities() {
     initialData: contextCities?.length > 0 ? contextCities : undefined,
     ...queryOptions
   });
-  const cities = contextCities?.length > 0 ? contextCities : (fetchedCities || []);
+  const cities = dataViewMode.cities === 'offline' ? offlineCities : (contextCities?.length > 0 ? contextCities : (fetchedCities || []));
 
   // CRITICAL: Disable automatic delivery loading - only load on explicit "Load Data" button click
   const [manualLoadTriggered, setManualLoadTriggered] = useState(false);
@@ -2743,8 +2749,8 @@ export default function AdminUtilities() {
   
   // Use ONLY fetched deliveries (not context) for admin view
   const allDeliveries = useMemo(() => {
-    return fetchedDeliveries || [];
-  }, [fetchedDeliveries]);
+    return dataViewMode.deliveries === 'offline' ? offlineDeliveries : (fetchedDeliveries || []);
+  }, [fetchedDeliveries, dataViewMode.deliveries, offlineDeliveries]);
 
 
   const dataLoading = patientsLoading || storesLoading || authUsersLoading || appUsersLoading || citiesLoading || deliveriesLoading;
@@ -2854,6 +2860,45 @@ export default function AdminUtilities() {
     }
   };
 
+
+  // Load offline data when mode changes
+  useEffect(() => {
+    const loadOfflineData = async () => {
+      try {
+        const { offlineDB } = await import('../components/utils/offlineDatabase');
+        
+        if (dataViewMode.deliveries === 'offline') {
+          const data = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+          setOfflineDeliveries(data || []);
+          console.log(`📦 Loaded ${data?.length || 0} offline deliveries`);
+        }
+        if (dataViewMode.patients === 'offline') {
+          const data = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+          setOfflinePatients(data || []);
+          console.log(`📦 Loaded ${data?.length || 0} offline patients`);
+        }
+        if (dataViewMode.stores === 'offline') {
+          const data = await offlineDB.getAll(offlineDB.STORES.STORES);
+          setOfflineStores(data || []);
+          console.log(`📦 Loaded ${data?.length || 0} offline stores`);
+        }
+        if (dataViewMode.users === 'offline') {
+          const data = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+          setOfflineAppUsers(data || []);
+          console.log(`📦 Loaded ${data?.length || 0} offline app users`);
+        }
+        if (dataViewMode.cities === 'offline') {
+          const data = await offlineDB.getAll(offlineDB.STORES.CITIES);
+          setOfflineCities(data || []);
+          console.log(`📦 Loaded ${data?.length || 0} offline cities`);
+        }
+      } catch (error) {
+        console.error('❌ Failed to load offline data:', error);
+      }
+    };
+    
+    loadOfflineData();
+  }, [dataViewMode]);
 
   useEffect(() => {
     const checkAccess = async () => {
