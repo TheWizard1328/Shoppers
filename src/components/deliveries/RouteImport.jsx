@@ -1148,8 +1148,16 @@ export default function RouteImport({
   const allPreviewDeliveries = useMemo(() => {
     const created = previewData.deliveriesToCreate.map((d) => ({ ...d, action: 'create' }));
     const updated = previewData.deliveriesToUpdate.map((d) => ({ ...d, action: 'update' }));
-    return [...created, ...updated];
-  }, [previewData.deliveriesToCreate, previewData.deliveriesToUpdate]);
+    const skipped = previewData.skippedItems.map((item) => ({ 
+      action: 'skipped', 
+      reason: item.reason,
+      lineNumber: item.lineNumber,
+      rawData: item.rawData,
+      patient_name: item.rawData || 'Unknown',
+      status: 'skipped'
+    }));
+    return [...created, ...updated, ...skipped];
+  }, [previewData.deliveriesToCreate, previewData.deliveriesToUpdate, previewData.skippedItems]);
 
   const previewDrivers = useMemo(() => {
     const driverNames = new Set(allPreviewDeliveries.map((d) => d.driver_name));
@@ -1721,7 +1729,8 @@ export default function RouteImport({
       'en_route': { bg: '#3b82f6', text: '#ffffff' }, // Blue
       'pending': { bg: '#f59e0b', text: '#ffffff' }, // Amber
       'Ready For Pickup': { bg: '#8b5cf6', text: '#ffffff' }, // Purple
-      'picked_up': { bg: '#6366f1', text: '#ffffff' } // Indigo
+      'picked_up': { bg: '#6366f1', text: '#ffffff' }, // Indigo
+      'skipped': { bg: '#f97316', text: '#ffffff' } // Orange
     };
     const color = statusColorMap[status] || { bg: '#94a3b8', text: '#ffffff' };
     return <Badge className="border-0 font-semibold" style={{ background: color.bg, color: color.text }}>{status}</Badge>;
@@ -2164,6 +2173,30 @@ export default function RouteImport({
                     // Mobile card view
                     <div className="space-y-2 p-2">
                       {filteredPreviewDeliveries.map((delivery, idx) => {
+                        if (delivery.action === 'skipped') {
+                          return (
+                            <div key={`skipped-${idx}`} className="p-3 rounded border text-xs" style={{ 
+                              background: 'rgba(249, 115, 22, 0.12)',
+                              borderColor: 'rgba(249, 115, 22, 0.4)',
+                              borderWidth: '2px'
+                            }}>
+                              <div className="flex justify-between items-start mb-2 gap-2">
+                                <Badge className="border-0 font-semibold text-xs px-2 py-1 flex-shrink-0" style={{ 
+                                  background: '#f97316', 
+                                  color: 'white'
+                                }}>
+                                  ⚠ SKIPPED
+                                </Badge>
+                                <span className="text-xs text-slate-500">Line {delivery.lineNumber}</span>
+                              </div>
+                              <div className="space-y-1">
+                                <div><span style={{ color: 'var(--text-slate-600)' }}>Reason:</span> <span className="font-medium text-orange-700">{delivery.reason}</span></div>
+                                <div className="font-mono text-[10px] text-slate-500 truncate">{delivery.rawData}</div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        
                         const store = stores.find((s) => s.id === delivery.store_id);
                         const newTimeFormatted = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : 'none';
                         const patient = delivery.patient_id ? patients.find((p) => p.id === delivery.patient_id) : null;
@@ -2204,6 +2237,34 @@ export default function RouteImport({
                     <table className="w-full text-sm table-fixed">
                       <tbody>
                         {filteredPreviewDeliveries.map((delivery, idx) => {
+                        if (delivery.action === 'skipped') {
+                          return (
+                            <tr key={`skipped-${idx}`} className="border-b" style={{ 
+                              borderColor: 'var(--border-slate-200)', 
+                              background: 'rgba(249, 115, 22, 0.06)',
+                              borderLeft: '4px solid #f97316'
+                            }}>
+                              <td className="p-1 w-30 text-center">
+                                <Badge className="w-full justify-center border-0 font-semibold text-xs py-1" style={{ 
+                                  background: '#f97316',
+                                  color: 'white'
+                                }}>
+                                  ⚠ SKIPPED
+                                </Badge>
+                              </td>
+                              <td className="p-1 w-24">
+                                <span className="text-xs text-slate-500">Line {delivery.lineNumber}</span>
+                              </td>
+                              <td colSpan="9" className="p-1">
+                                <div className="flex flex-col gap-1">
+                                  <span className="font-medium text-orange-700">{delivery.reason}</span>
+                                  <span className="font-mono text-[10px] text-slate-500">{delivery.rawData}</span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        
                         const store = stores.find((s) => s.id === delivery.store_id);
                         const newTimeFormatted = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : 'none';
                         const patient = delivery.patient_id ? patients.find((p) => p.id === delivery.patient_id) : null;
