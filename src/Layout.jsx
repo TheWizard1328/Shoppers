@@ -2923,9 +2923,41 @@ export default function Layout({ children, currentPageName }) {
                               </>
                         }
 
+                            {/* Snapshot Mode - App Owner Only */}
+                            {isAppOwner(realUser) && currentPageName === 'Dashboard' &&
+                            <>
+                              <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
+                                View Mode
+                              </DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => {
+                                setIsSnapshotModeActive(!isSnapshotModeActive);
+                              }} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
+                                <Clock className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                                {isSnapshotModeActive ? 'Exit Snapshot Mode' : 'Snapshot Mode'}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                            </>
+                            }
+
+                            {/* Snapshot Mode - App Owner Only */}
+                            {isAppOwner(realUser) && currentPageName === 'Dashboard' &&
+                            <>
+                              <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
+                                View Mode
+                              </DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => {
+                                setIsSnapshotModeActive(!isSnapshotModeActive);
+                              }} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
+                                <Clock className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                                {isSnapshotModeActive ? 'Exit Snapshot Mode' : 'Snapshot Mode'}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                            </>
+                            }
+
                             {/* Import Buttons - Always visible for app owners on any device, available to others when admin toggle is enabled */}
                             {realUser && isAppOwner(realUser) || adminImportEnabled ?
-                        <>
+                            <>
                               <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
                                 Deliveries
                               </DropdownMenuLabel>
