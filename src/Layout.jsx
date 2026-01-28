@@ -1257,6 +1257,11 @@ export default function Layout({ children, currentPageName }) {
           if (update.data?.driver_id && update.data?.delivery_date) {
             updatePolylineOnRefresh(update.data.driver_id, update.data.delivery_date);
           }
+          console.log(`📥 [Layout] Real-time delivery update: ${update.id}, status: ${update.data?.status}`);
+          // CRITICAL: Force polyline update when delivery status changes
+          if (update.data?.driver_id && update.data?.delivery_date) {
+            updatePolylineOnRefresh(update.data.driver_id, update.data.delivery_date);
+          }
           // Refresh catalog items if COD amount changed
           if (update.data?.cod_total_amount_required) {
             setTimeout(() => {
