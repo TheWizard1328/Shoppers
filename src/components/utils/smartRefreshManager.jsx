@@ -1148,6 +1148,10 @@ class SmartRefreshManager {
       try {
         const { offlineDB } = await import('./offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updatedAppUsers);
+
+        // CRITICAL: Deduplicate after saving to ensure uniqueness
+        await offlineDB.deduplicateAppUsers();
+
         await offlineDB.updateSyncStatus('AppUser', {
           recordCount: updatedAppUsers.length,
           status: 'synced',

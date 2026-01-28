@@ -537,6 +537,61 @@ const clearAllData = async () => {
   }
 };
 
+/**
+ * Deduplicate AppUser records - keep only the most recent per user_id
+ * CRITICAL: Removes duplicate driver entries from offline database
+ */
+const deduplicateAppUsers = async () => {
+  try {
+    const allAppUsers = await getAll(STORES.APP_USERS);
+    
+    if (!allAppUsers || allAppUsers.length === 0) {
+      console.log('✅ [OfflineDB] No AppUsers to deduplicate');
+      return { success: true, removed: 0 };
+    }
+
+    // Group by user_id
+    const userIdMap = new Map();
+    allAppUsers.forEach(appUser => {
+      if (!appUser?.user_id) return;
+      
+      const existing = userIdMap.get(appUser.user_id);
+      
+      if (!existing) {
+        userIdMap.set(appUser.user_id, appUser);
+      } else {
+        // Keep the one with the most recent updated_date
+        const existingTime = new Date(existing.updated_date || 0).getTime();
+        const newTime = new Date(appUser.updated_date || 0).getTime();
+        
+        if (newTime > existingTime) {
+          userIdMap.set(appUser.user_id, appUser);
+        }
+      }
+    });
+
+    const deduplicated = Array.from(userIdMap.values());
+    const removedCount = allAppUsers.length - deduplicated.length;
+
+    if (removedCount > 0) {
+      console.log(`🔧 [OfflineDB] Deduplicating: ${allAppUsers.length} → ${deduplicated.length} AppUsers (removed ${removedCount} duplicates)`);
+      
+      // Clear and re-save deduplicated data
+      await clearStore(STORES.APP_USERS);
+      await bulkSave(STORES.APP_USERS, deduplicated);
+      
+      console.log('✅ [OfflineDB] AppUsers deduplicated successfully');
+      return { success: true, removed: removedCount };
+    }
+
+    console.log('✅ [OfflineDB] No duplicate AppUsers found');
+    return { success: true, removed: 0 };
+  } catch (error) {
+    console.error('❌ [OfflineDB] deduplicateAppUsers error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 export const offlineDB = {
   STORES,
   openDatabase,
@@ -557,5 +612,6 @@ export const offlineDB = {
   getPendingMutations,
   removePendingMutation,
   updateMutationRetry,
-  deleteRecord
+  deleteRecord,
+  deduplicateAppUsers
 };
