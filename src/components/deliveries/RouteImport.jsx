@@ -887,8 +887,30 @@ export default function RouteImport({
       
       console.log(`✅ [Import CSV Line ${lineNumber}] Final stop_order: ${finalStopOrder} (imported: ${stopOrder}, status: ${statusFromColumns})`);
 
+      // CRITICAL: Use the imported AMPM value (column 2) to determine the correct time slot
+      // Column 2: 1 = AM, 2 = PM
+      // This MUST be set BEFORE assigning PUID to ensure correct pickup linkage
       const assignedAMPM = ampmValue || determineDeliveryAMPM(newDeliveryData, allDeliveriesData);
       newDeliveryData.ampm_deliveries = assignedAMPM;
+      
+      console.log(`✅ [Import CSV Line ${lineNumber}] AMPM assignment: ${ampmRawValue} (raw) → ${assignedAMPM} (final)`);
+      
+      // CRITICAL: Verify store has matching time slot configured
+      const dateObj = new Date(currentDate + 'T00:00:00');
+      const dayOfWeek = dateObj.getDay();
+      const isSaturday = dayOfWeek === 6;
+      const isSunday = dayOfWeek === 0;
+      
+      const timeSlotPrefix = isSaturday 
+        ? (assignedAMPM === 'AM' ? 'saturday_am' : 'saturday_pm')
+        : isSunday 
+        ? (assignedAMPM === 'AM' ? 'sunday_am' : 'sunday_pm')
+        : (assignedAMPM === 'AM' ? 'weekday_am' : 'weekday_pm');
+      
+      const slotEnabled = store[`${timeSlotPrefix}_enabled`];
+      if (!slotEnabled) {
+        console.warn(`⚠️ Row ${lineNumber}: Store ${store.name} does not have ${timeSlotPrefix} slot enabled`);
+      }
 
       // PUID assignment will be done after all rows are parsed (see below)
 
