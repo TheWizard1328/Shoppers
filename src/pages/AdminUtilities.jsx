@@ -533,7 +533,9 @@ const DeliveryDataTable = ({
   selectedYear, onYearChange, availableYears,
   selectedMonth, onMonthChange,
   selectedDriver, onDriverChange,
-  onFindDuplicates
+  onFindDuplicates,
+  autoSelectIds = [],
+  onAutoSelectProcessed
 }) => {
   const { visibleColumns, toggleColumn, config } = useColumnVisibility('deliveries');
   const [columnWidths, setColumnWidths] = useState(() => {
@@ -739,6 +741,17 @@ const DeliveryDataTable = ({
       return newSet;
     });
   };
+
+  // Auto-select duplicates when they're identified
+  useEffect(() => {
+    if (autoSelectIds && autoSelectIds.length > 0) {
+      const newSet = new Set(autoSelectIds);
+      setSelectedDeliveries(newSet);
+      if (onAutoSelectProcessed) {
+        onAutoSelectProcessed();
+      }
+    }
+  }, [autoSelectIds, onAutoSelectProcessed]);
 
   const handleDeleteSelected = () => {
     const selectedDeliveriesArray = (deliveries || []).filter(d => selectedDeliveries.has(d.id));
@@ -2575,12 +2588,7 @@ export default function AdminUtilities() {
     variant: 'destructive'
   });
 
-  const [duplicatesDialog, setDuplicatesDialog] = useState({
-    open: false,
-    found: false,
-    message: '',
-    duplicateIds: []
-  });
+  const [autoSelectDuplicateIds, setAutoSelectDuplicateIds] = useState([]);
 
   const [bulkDelete, setBulkDelete] = useState({
     open: false,
@@ -3746,18 +3754,20 @@ export default function AdminUtilities() {
     });
   }, [performBulkDeleteCities]);
 
-  const handleFindDuplicates = useCallback(async (deliveriesToProcess) => {
+  const handleFindDuplicates = useCallback(async (deliveriesToProcess, onAutoSelect) => {
     console.log(`🔍 Finding duplicates in ${deliveriesToProcess?.length || 0} deliveries...`);
     console.log('📊 Data source:', dataViewMode.deliveries === 'offline' ? 'OFFLINE' : 'ONLINE');
     console.log('📊 Sample deliveries:', deliveriesToProcess?.slice(0, 3).map(d => ({ sid: d.stop_id, date: d.delivery_date, driver_id: d.driver_id })));
     
     if (!deliveriesToProcess || deliveriesToProcess.length === 0) {
       console.warn('⚠️ No deliveries to process');
-      setDuplicatesDialog({
+      setConfirmDialog({
         open: true,
-        found: false,
-        message: 'No deliveries to search. Please load data first.',
-        duplicateIds: []
+        title: '⚠️ No Data',
+        description: 'No deliveries to search. Please load data first.',
+        confirmText: 'OK',
+        variant: 'destructive',
+        onConfirm: () => {}
       });
       return;
     }
@@ -3789,18 +3799,10 @@ export default function AdminUtilities() {
     console.log(`📊 Found ${duplicateGroups.size} unique SID+Date+Driver combinations`);
     
     const duplicateIds = [];
-    const duplicateDetails = [];
     
     duplicateGroups.forEach((group, key) => {
       console.log(`📊 Group "${key}": ${group.length} deliveries`);
       if (group.length > 1) {
-        const [sid, date, driverId] = key.split('|');
-        duplicateDetails.push({
-          sid,
-          date,
-          count: group.length,
-          ids: group.map(d => d.id)
-        });
         // Keep all duplicates EXCEPT the oldest (which is first after sorting)
         const sorted = [...group].sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
         sorted.slice(1).forEach(d => duplicateIds.push(d.id));
@@ -3810,22 +3812,22 @@ export default function AdminUtilities() {
     console.log(`✅ Found ${duplicateIds.length} duplicates to mark`);
     
     if (duplicateIds.length === 0) {
-      setDuplicatesDialog({
+      setConfirmDialog({
         open: true,
-        found: false,
-        message: 'No duplicates found in the current filtered list.\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n• Driver',
-        duplicateIds: []
+        title: '⚠️ No Duplicates Found',
+        description: 'No duplicates found in the current filtered list.\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n• Driver',
+        confirmText: 'OK',
+        variant: 'destructive',
+        onConfirm: () => {}
       });
       return;
     }
     
-    const summary = duplicateDetails.map(d => `SID: ${d.sid}, Date: ${d.date} → ${d.count} deliveries`).join('\n');
-    setDuplicatesDialog({
-      open: true,
-      found: true,
-      message: `Found ${duplicateIds.length} duplicate deliveries (keeping oldest of each group):\n\n${summary}\n\nAll duplicates except the oldest have been automatically selected.`,
-      duplicateIds
-    });
+    // Auto-select the duplicate checkboxes
+    console.log(`✅ Auto-selecting ${duplicateIds.length} duplicate deliveries`);
+    if (onAutoSelect) {
+      onAutoSelect(duplicateIds);
+    }
     
   }, [dataViewMode.deliveries]);
 
@@ -4076,44 +4078,46 @@ export default function AdminUtilities() {
                       </div>
 
                       {manualLoadTriggered && <DeliveryDataTable
-                        deliveries={filteredAndSortedDeliveries}
-                        patients={patients || []}
-                        stores={stores || []}
-                        drivers={driversForDropdown}
-                        onEdit={handleEditEntity}
-                        onDelete={handleDeleteEntity}
-                        onDeleteAll={_confirmDeleteAllDeliveries}
-                        onDeleteSelected={_confirmDeleteSelectedDeliveries}
-                        onFindDuplicates={handleFindDuplicates}
-                        filterText={deliveryFilterText}
-                        onFilterChange={setDeliveryFilterText}
-                        sortColumn={deliverySortColumn}
-                        sortDirection={deliverySortDirection}
-                        onSortChange={handleDeliverySort}
-                        isLoadingData={deliveriesLoading}
-                        selectedYear={selectedDeliveryYear}
-                        onYearChange={(year) => {
-                          setSelectedDeliveryYear(year);
-                          if (currentUser?.id) {
-                            saveSetting(currentUser.id, 'admin_utilities_year', year);
-                          }
-                        }}
-                        availableYears={availableDeliveryYears}
-                        selectedMonth={selectedDeliveryMonth}
-                        onMonthChange={(month) => {
-                          setSelectedDeliveryMonth(month);
-                          if (currentUser?.id) {
-                            saveSetting(currentUser.id, 'admin_utilities_month', month);
-                          }
-                        }}
-                        selectedDriver={selectedDriver}
-                        onDriverChange={(driver) => {
-                          setSelectedDriver(driver);
-                          if (currentUser?.id) {
-                            saveSetting(currentUser.id, 'admin_utilities_driver', driver);
-                          }
-                        }}
-                      />}
+                         deliveries={filteredAndSortedDeliveries}
+                         patients={patients || []}
+                         stores={stores || []}
+                         drivers={driversForDropdown}
+                         onEdit={handleEditEntity}
+                         onDelete={handleDeleteEntity}
+                         onDeleteAll={_confirmDeleteAllDeliveries}
+                         onDeleteSelected={_confirmDeleteSelectedDeliveries}
+                         onFindDuplicates={(deliveries) => handleFindDuplicates(deliveries, setAutoSelectDuplicateIds)}
+                         autoSelectIds={autoSelectDuplicateIds}
+                         onAutoSelectProcessed={() => setAutoSelectDuplicateIds([])}
+                         filterText={deliveryFilterText}
+                         onFilterChange={setDeliveryFilterText}
+                         sortColumn={deliverySortColumn}
+                         sortDirection={deliverySortDirection}
+                         onSortChange={handleDeliverySort}
+                         isLoadingData={deliveriesLoading}
+                         selectedYear={selectedDeliveryYear}
+                         onYearChange={(year) => {
+                           setSelectedDeliveryYear(year);
+                           if (currentUser?.id) {
+                             saveSetting(currentUser.id, 'admin_utilities_year', year);
+                           }
+                         }}
+                         availableYears={availableDeliveryYears}
+                         selectedMonth={selectedDeliveryMonth}
+                         onMonthChange={(month) => {
+                           setSelectedDeliveryMonth(month);
+                           if (currentUser?.id) {
+                             saveSetting(currentUser.id, 'admin_utilities_month', month);
+                           }
+                         }}
+                         selectedDriver={selectedDriver}
+                         onDriverChange={(driver) => {
+                           setSelectedDriver(driver);
+                           if (currentUser?.id) {
+                             saveSetting(currentUser.id, 'admin_utilities_driver', driver);
+                           }
+                         }}
+                       />}
                     </div>
                   </TabsContent>
 
@@ -4356,24 +4360,6 @@ export default function AdminUtilities() {
         confirmText={confirmDialog.confirmText}
         variant={confirmDialog.variant}
       />
-
-      <Dialog open={duplicatesDialog.open} onOpenChange={(open) => setDuplicatesDialog(prev => ({ ...prev, open }))}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {duplicatesDialog.found ? '✅ Duplicates Found' : '⚠️ No Duplicates Found'}
-            </DialogTitle>
-          </DialogHeader>
-          <DialogDescription className="whitespace-pre-wrap text-base pt-4">
-            {duplicatesDialog.message}
-          </DialogDescription>
-          <DialogFooter>
-            <Button onClick={() => setDuplicatesDialog(prev => ({ ...prev, open: false }))}>
-              {duplicatesDialog.found ? 'OK' : 'Close'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
