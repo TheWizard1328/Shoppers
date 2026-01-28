@@ -6452,8 +6452,8 @@ function Dashboard() {
       }
 
       // STEP 10: Wait longer for all writes and UI updates to complete
-      console.log('⏳ [START] Waiting 3s before resuming update systems...');
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      console.log('⏳ [START] Waiting 5s before resuming update systems...');
+      await new Promise((resolve) => setTimeout(resolve, 5000));
       
       // Resume all systems
       console.log('▶️ [START] Resuming ALL update systems');
