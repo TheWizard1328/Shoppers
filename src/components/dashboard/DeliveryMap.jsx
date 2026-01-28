@@ -826,6 +826,9 @@ export default function DeliveryMap({
         ));
         // CRITICAL: Force polyline re-render when driver location changes
         setPolylineRenderKey(prev => prev + 1);
+        // CRITICAL: Force delivery marker refresh to update status colors
+        setRouteRenderKey(prev => prev + 1);
+        console.log('🗺️ [DeliveryMap] Driver location updated - refreshing map markers and polylines');
         return;
       }
 
@@ -834,6 +837,9 @@ export default function DeliveryMap({
         setRealtimeAppUsers(appUsers);
         // CRITICAL: Force polyline re-render when driver locations change
         setPolylineRenderKey(prev => prev + 1);
+        // CRITICAL: Force delivery marker refresh to update status colors
+        setRouteRenderKey(prev => prev + 1);
+        console.log('🗺️ [DeliveryMap] Bulk driver locations updated - refreshing map markers and polylines');
       }
     };
 
@@ -842,8 +848,9 @@ export default function DeliveryMap({
       console.log('🗺️ [DeliveryMap] Deliveries updated - forcing route line recalculation');
       // CRITICAL: Clear cached routes to force full recalculation
       prevDriverRoutesRef.current = [];
-      // Force re-render by incrementing key
+      // Force re-render by incrementing BOTH keys
       setRouteRenderKey(prev => prev + 1);
+      setPolylineRenderKey(prev => prev + 1);
     };
 
     // NEW: Listen for route optimization completion to refresh map
@@ -851,6 +858,7 @@ export default function DeliveryMap({
       console.log('🗺️ [DeliveryMap] Route optimization complete - refreshing map');
       prevDriverRoutesRef.current = [];
       setRouteRenderKey(prev => prev + 1);
+      setPolylineRenderKey(prev => prev + 1);
     };
 
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
