@@ -1850,10 +1850,13 @@ class SmartRefreshManager {
       if (fetchedDeliveries && fetchedDeliveries.length > 0) {
         const { offlineDB } = await import('./offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
-        
+
+        // CRITICAL: Deduplicate deliveries based on status rules
+        await offlineDB.deduplicateDeliveries();
+
         const currentTodayDeliveries = currentData.deliveries.filter(d => d && d.delivery_date === todayStr);
         const otherDeliveries = currentData.deliveries.filter(d => d && d.delivery_date !== todayStr);
-        
+
         const diff = diffEntityArrays(currentTodayDeliveries, fetchedDeliveries);
         if (diff.toUpdate.length > 0 || diff.toAdd.length > 0 || diff.toRemove.length > 0) {
           const mergedToday = mergeEntityChanges(currentTodayDeliveries, diff);
