@@ -970,67 +970,62 @@ function Dashboard() {
 
   // Filter drivers based on role and deliveries
   const driversList = useMemo(() => {
-    // CRITICAL: De-duplicate AppUser records by user_id FIRST
-    const appUsersByUserId = new Map();
-    (appUsers || []).
-    filter((au) => au && au.app_roles && au.app_roles.includes('driver') && au.status === 'active').
-    forEach((au) => {
-      // Keep the first occurrence or the one with the highest sort_order
-      const existing = appUsersByUserId.get(au.user_id);
-      if (!existing || (au.sort_order || 0) < (existing.sort_order || 0)) {
-        appUsersByUserId.set(au.user_id, au);
-      }
-    });
-
-    const driversFromAppUsers = Array.from(appUsersByUserId.values()).map((au) => ({
-      id: au.user_id,
-      user_id: au.user_id,
-      user_name: au.user_name,
-      full_name: au.user_name,
-      app_roles: au.app_roles,
-      status: au.status,
-      sort_order: au.sort_order
-    }));
-
-    // Also extract from deliveries to catch any missing drivers
-    const driverIdsFromDeliveries = new Set();
-    const driverNamesMap = new Map();
+    // CRITICAL: UNIFIED de-duplication - build final map from ALL sources at once
+    const finalDriversMap = new Map();
+    
+    // SOURCE 1: AppUsers (most reliable, has all metadata)
+    (appUsers || [])
+      .filter((au) => au && au.user_id && au.app_roles?.includes('driver') && au.status === 'active')
+      .forEach((au) => {
+        const userId = au.user_id;
+        const existing = finalDriversMap.get(userId);
+        
+        // Keep first occurrence or the one with better sort_order
+        if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+          finalDriversMap.set(userId, {
+            id: userId,
+            user_id: userId,
+            user_name: au.user_name,
+            full_name: au.user_name,
+            app_roles: au.app_roles,
+            status: au.status,
+            sort_order: au.sort_order,
+            _source: 'appUsers'
+          });
+        }
+      });
+    
+    // SOURCE 2: Drivers prop (full user data for admins) - ONLY add if not already in map
+    if (drivers && Array.isArray(drivers)) {
+      drivers.forEach((d) => {
+        if (!d || !d.id) return;
+        if (!finalDriversMap.has(d.id)) {
+          finalDriversMap.set(d.id, {
+            ...d,
+            _source: 'drivers_prop'
+          });
+        }
+      });
+    }
+    
+    // SOURCE 3: Deliveries (fallback for missing drivers) - ONLY add if not already in map
     (deliveries || []).forEach((d) => {
-      if (d && d.driver_id && d.driver_name) {
-        driverIdsFromDeliveries.add(d.driver_id);
-        driverNamesMap.set(d.driver_id, d.driver_name);
-      }
-    });
-
-    // Merge both sources - using user_id as the key to prevent duplicates
-    const mergedDriversMap = new Map();
-    driversFromAppUsers.forEach((d) => mergedDriversMap.set(d.user_id, d));
-
-    // Add missing drivers from deliveries
-    driverIdsFromDeliveries.forEach((id) => {
-      if (!mergedDriversMap.has(id)) {
-        mergedDriversMap.set(id, {
-          id,
-          user_id: id,
-          user_name: driverNamesMap.get(id),
-          full_name: driverNamesMap.get(id),
+      if (!d || !d.driver_id || !d.driver_name) return;
+      if (!finalDriversMap.has(d.driver_id)) {
+        finalDriversMap.set(d.driver_id, {
+          id: d.driver_id,
+          user_id: d.driver_id,
+          user_name: d.driver_name,
+          full_name: d.driver_name,
           app_roles: ['driver'],
-          status: 'active'
+          status: 'active',
+          _source: 'deliveries'
         });
       }
     });
 
-    // Merge with drivers prop (for admins who have full user data)
-    if (drivers && Array.isArray(drivers) && drivers.length > 0) {
-      drivers.forEach((d) => {
-        if (d && d.id) {
-          mergedDriversMap.set(d.id, d);
-        }
-      });
-    }
-
     // CRITICAL: Sort drivers by sort_order, then by user_name
-    const driversSource = Array.from(mergedDriversMap.values()).sort((a, b) => {
+    const driversSource = Array.from(finalDriversMap.values()).sort((a, b) => {
       const sortOrderA = a.sort_order ?? Infinity;
       const sortOrderB = b.sort_order ?? Infinity;
 
@@ -1044,7 +1039,7 @@ function Dashboard() {
       return nameA.localeCompare(nameB);
     });
 
-    console.log(`✅ [Dashboard] Built driver list: ${driversSource.length} drivers (${driversFromAppUsers.length} from appUsers, ${driverIdsFromDeliveries.size} from deliveries, ${drivers?.length || 0} from drivers prop)`);
+    console.log(`✅ [Dashboard] Built driver list: ${driversSource.length} unique drivers (${finalDriversMap.size} total)`);
 
     // ADMIN: Get all drivers
     if (userHasRole(currentUser, 'admin')) {
