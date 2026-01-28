@@ -1137,6 +1137,59 @@ export default function Layout({ children, currentPageName }) {
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
+    // CRITICAL: Listen for driver location updates and refresh ALL UI data from offline DB
+    const handleDriverLocationUpdated = async (event) => {
+      console.log('📍 [Layout] Driver location updated - refreshing ALL UI data from offline DB');
+      
+      // Load fresh data from offline DB (instant, no API calls)
+      try {
+        const { offlineDB } = await import('./components/utils/offlineDatabase');
+        const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+        
+        // Load deliveries for selected date from offline DB
+        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        if (freshDeliveries && freshDeliveries.length > 0) {
+          setDeliveries(freshDeliveries);
+        }
+        
+        // Load patients from offline DB
+        const freshPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+        if (freshPatients && freshPatients.length > 0) {
+          setPatients(freshPatients);
+        }
+        
+        // Load AppUsers from offline DB
+        const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        if (freshAppUsers && freshAppUsers.length > 0) {
+          setAppUsers(freshAppUsers);
+          
+          // Update merged users
+          setUsers(prev => {
+            const mergedMap = new Map();
+            prev.forEach(u => mergedMap.set(u.id, u));
+            freshAppUsers.forEach(au => {
+              const existing = mergedMap.get(au.user_id);
+              if (existing) {
+                mergedMap.set(au.user_id, { ...existing, ...au });
+              } else {
+                const pseudoUser = createMergedUser(null, au);
+                if (pseudoUser) mergedMap.set(pseudoUser.id, pseudoUser);
+              }
+            });
+            return Array.from(mergedMap.values());
+          });
+        }
+        
+        // Refresh stats
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        
+        console.log('✅ [Layout] UI data refreshed from offline DB');
+      } catch (error) {
+        console.error('❌ [Layout] Failed to refresh from offline DB:', error);
+      }
+    };
+    window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
+
     // AUTO-RECOVERY: Listen for force refresh after connection recovery
     const handleForceDataRefresh = async () => {
       console.log('🔄 [Layout] Force data refresh after connection recovery - COMPREHENSIVE MODE');
@@ -1376,6 +1429,7 @@ export default function Layout({ children, currentPageName }) {
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
       window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
       window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+      window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
       window.removeEventListener('dataConflictsDetected', handleConflict);
       window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
     };
