@@ -1723,7 +1723,7 @@ export default function DeliveryMap({
     const isCurrentUserAdmin = userHasRole(currentUser, 'admin');
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
-    const driversWithActiveStops = new Set();
+    const driversToShowHome = new Set();
 
     // CRITICAL: For admins/app owners, check ALL deliveries for the date (not just current driver's)
     // This includes other drivers when "Show All" is enabled
@@ -1731,21 +1731,52 @@ export default function DeliveryMap({
       ? [...safeDeliveries, ...otherDriverDeliveries]
       : safeDeliveries;
 
+    // Group all stops (deliveries + pickups) by driver
+    const stopsByDriver = new Map();
+    
     deliveriesToCheck.forEach((delivery) => {
-      if (!delivery) return;
-      if (!finishedStatuses.includes(delivery.status) && delivery.driver_id) {
-        driversWithActiveStops.add(delivery.driver_id);
+      if (!delivery || !delivery.driver_id) return;
+      if (!stopsByDriver.has(delivery.driver_id)) {
+        stopsByDriver.set(delivery.driver_id, { deliveries: [], pickups: [] });
+      }
+      if (delivery.patient_id) {
+        stopsByDriver.get(delivery.driver_id).deliveries.push(delivery);
+      } else {
+        stopsByDriver.get(delivery.driver_id).pickups.push(delivery);
       }
     });
 
-    // CRITICAL: If no active stops found but we have cached markers, preserve them during refresh
+    // For each driver, determine if home marker should show
+    stopsByDriver.forEach((stops, driverId) => {
+      const allStops = [...stops.deliveries, ...stops.pickups];
+      
+      // Check if ANY stop has been completed
+      const hasCompletedAnyStop = allStops.some(s => finishedStatuses.includes(s.status));
+      
+      // If no stops completed yet, SHOW home marker
+      if (!hasCompletedAnyStop) {
+        driversToShowHome.add(driverId);
+        return;
+      }
+      
+      // If stops have been completed, check if there are incomplete pickups remaining
+      const hasIncompletePickups = stops.pickups.some(p => !finishedStatuses.includes(p.status) && p.status !== 'pending');
+      
+      // If NO incomplete pickups remain, SHOW home marker (route is heading home)
+      if (!hasIncompletePickups) {
+        driversToShowHome.add(driverId);
+      }
+      // Otherwise, HIDE home marker (still working on pickups)
+    });
+
+    // CRITICAL: If no drivers found but we have cached markers, preserve them during refresh
     // This prevents flickering when deliveries array briefly becomes empty during smart refresh
-    if (driversWithActiveStops.size === 0 && prevDriverHomeMarkersRef.current.length > 0) {
+    if (driversToShowHome.size === 0 && prevDriverHomeMarkersRef.current.length > 0) {
       return prevDriverHomeMarkersRef.current;
     }
 
     const homeMarkers = [];
-    driversWithActiveStops.forEach((driverId) => {
+    driversToShowHome.forEach((driverId) => {
       if (isDriverViewingSelfToday && driverId !== currentUser.id) return;
 
       // CRITICAL: Find driver in safeUsers (contains merged AppUser data with home coords)
