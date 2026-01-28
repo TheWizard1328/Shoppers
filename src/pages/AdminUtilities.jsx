@@ -108,7 +108,44 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
 
       setStatus(`Processing ${lines.length - 1} rows...`);
       
+      const { offlineDB } = await import('../components/utils/offlineDatabase');
       const allPatients = await Patient.list();
+      
+      // CRITICAL: Extract unique delivery dates from CSV for purge/resync
+      const uniqueDeliveryDates = new Set();
+      for (let i = 1; i < lines.length; i++) {
+        const row = lines[i].split(',').map(cell => cell.trim());
+        const deliveryDateStr = row[6]; // Assuming delivery_date is in column 7 (index 6)
+        if (deliveryDateStr) {
+          const parsedDate = parseFlexibleDate(deliveryDateStr);
+          if (parsedDate) {
+            uniqueDeliveryDates.add(format(parsedDate, 'yyyy-MM-dd'));
+          }
+        }
+      }
+
+      console.log(`🔍 [RouteImport] Unique delivery dates in CSV:`, Array.from(uniqueDeliveryDates));
+
+      // CRITICAL: Daily Purge and Resync for affected dates
+      for (const dateStr of Array.from(uniqueDeliveryDates)) {
+        setStatus(`Checking data integrity for ${dateStr}...`);
+        const onlineDeliveriesForDate = await Delivery.filter({ delivery_date: dateStr });
+        const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+
+        if (onlineDeliveriesForDate.length !== offlineDeliveriesForDate.length) {
+          console.warn(`⚠️ [RouteImport] Mismatch found for ${dateStr}. Online: ${onlineDeliveriesForDate.length}, Offline: ${offlineDeliveriesForDate.length}. Purging and resyncing.`);
+          setStatus(`Resyncing ${dateStr} due to count mismatch...`);
+
+          // Purge offline data for this date
+          await offlineDB.deleteDeliveriesByDate(dateStr);
+
+          // Resync from online
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, onlineDeliveriesForDate);
+          console.log(`✅ [RouteImport] Resynced ${onlineDeliveriesForDate.length} deliveries for ${dateStr}.`);
+        } else {
+          console.log(`✅ [RouteImport] Counts match for ${dateStr}. Online: ${onlineDeliveriesForDate.length}, Offline: ${offlineDeliveriesForDate.length}.`);
+        }
+      }
       
       let exactMatched = 0;
       let fuzzyMatched = 0;
@@ -142,8 +179,9 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
             continue;
           }
           
-          // STEP 1: Try EXACT MATCH
-          const exactMatch = (allDeliveries || []).find(d => 
+          // STEP 1: Try EXACT MATCH (use refreshed data from offline DB after purge/resync)
+          const currentOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+          const exactMatch = (currentOfflineDeliveries || []).find(d => 
             (d.stop_id && normalizeText(d.stop_id) === normalizeText(identifier)) || 
             (d.tracking_number && normalizeText(d.tracking_number) === normalizeText(identifier))
           );
@@ -170,7 +208,7 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
             driver_name: row[10] || null
           };
           
-          let candidateDeliveries = allDeliveries || [];
+          let candidateDeliveries = currentOfflineDeliveries || [];
           if (importedData.delivery_date) {
             const parsedImportDate = parseFlexibleDate(importedData.delivery_date);
             if (parsedImportDate) {
@@ -208,7 +246,17 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
           }
           }
 
-          setStatus(`✅ Import complete! Exact: ${exactMatched}, Fuzzy: ${fuzzyMatched}, Skipped: ${skipped}, Errors: ${errors}`);
+      // Final deduplication after all imports are processed
+      setStatus(`Running final deduplication...`);
+      const deduplicateResult = await offlineDB.deduplicateDeliveries();
+      if (deduplicateResult.success) {
+        console.log(`✅ [RouteImport] Deduplication complete. Removed ${deduplicateResult.removed} duplicates.`);
+        setStatus(`✅ Import complete! Exact: ${exactMatched}, Fuzzy: ${fuzzyMatched}, Skipped: ${skipped}, Errors: ${errors}. Deduplicated: ${deduplicateResult.removed}.`);
+      } else {
+        console.error('❌ [RouteImport] Deduplication failed:', deduplicateResult.error);
+        setStatus(`✅ Import complete! Exact: ${exactMatched}, Fuzzy: ${fuzzyMatched}, Skipped: ${skipped}, Errors: ${errors}. Deduplication failed.`);
+      }
+
       setLoading(false);
       
       setTimeout(() => {
