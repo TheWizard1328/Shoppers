@@ -695,6 +695,7 @@ export default function RouteImport({
     let currentDate = null;
     let expectedDeliveries = 0;
     let lineNumber = 0;
+    let inTransitStopCounter = 0; // Track sequential order for in_transit/en_route stops
 
     const patientsByPID = new Map();
     let patientsWithoutPID = 0;
@@ -851,6 +852,14 @@ export default function RouteImport({
         statusFromColumns = isPickup ? 'en_route' : 'in_transit';
       }
 
+      // CRITICAL: For in_transit/en_route stops with stopOrder === 0, assign sequential order based on import position
+      let finalStopOrder = stopOrder;
+      if (stopOrder === 0 && (statusFromColumns === 'in_transit' || statusFromColumns === 'en_route')) {
+        inTransitStopCounter++;
+        finalStopOrder = inTransitStopCounter;
+        console.log(`✅ [Import CSV Line ${lineNumber}] Assigned sequential stop_order ${finalStopOrder} to ${statusFromColumns} stop`);
+      }
+
       const newDeliveryData = {
         delivery_date: currentDate,
         store_id: store.id,
@@ -858,7 +867,7 @@ export default function RouteImport({
         driver_id: selectedDriver.id,
         driver_name: selectedDriver.user_name || selectedDriver.full_name,
         tracking_number: trackingNumber,
-        stop_order: stopOrder, // CRITICAL: Preserve imported stop order from CSV column 4
+        stop_order: finalStopOrder, // CRITICAL: Use sequential order for in_transit/en_route, else preserve imported
         stop_id: stopId || null,
         status: statusFromColumns,
         extra_time: 0,
@@ -876,7 +885,7 @@ export default function RouteImport({
         puid: importedPuid || null // Use imported PUID from column 13
       };
       
-      console.log(`✅ [Import CSV Line ${lineNumber}] Imported stop_order: ${stopOrder}`);
+      console.log(`✅ [Import CSV Line ${lineNumber}] Final stop_order: ${finalStopOrder} (imported: ${stopOrder}, status: ${statusFromColumns})`);
 
       const assignedAMPM = ampmValue || determineDeliveryAMPM(newDeliveryData, allDeliveriesData);
       newDeliveryData.ampm_deliveries = assignedAMPM;

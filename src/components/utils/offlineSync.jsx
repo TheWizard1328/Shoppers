@@ -296,6 +296,10 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     
     try {
       console.log(`   ♻️ Fetching deliveries updated since ${lastSyncTime ? new Date(lastSyncTime).toISOString() : 'beginning'}...`);
+      
+      // CRITICAL: Add 2-second delay before timestamp sync to prevent rate limits
+      await new Promise(r => setTimeout(r, 2000));
+      
       const changedDeliveries = await Delivery.filter(incrementalFilter, '-updated_date', 5000);
       
       if (changedDeliveries.length > 0) {
@@ -322,6 +326,10 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     // ===== STEP 3: Timestamp-based Patient sync =====
     if (!syncPaused) {
       console.log('   👥 Syncing patients via timestamp...');
+      
+      // CRITICAL: Add 2-second delay before patient sync
+      await new Promise(r => setTimeout(r, 2000));
+      
       const patientSyncStatus = await offlineDB.getSyncStatus('Patient');
       const patientLastSync = patientSyncStatus?.lastSync;
       
