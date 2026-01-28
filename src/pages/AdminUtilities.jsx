@@ -126,25 +126,26 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
 
       console.log(`🔍 [RouteImport] Unique delivery dates in CSV:`, Array.from(uniqueDeliveryDates));
 
-      // CRITICAL: Daily Purge and Resync for affected dates
+      // CRITICAL: Daily Purge and Resync for ALL imported dates (not just mismatches)
       for (const dateStr of Array.from(uniqueDeliveryDates)) {
-        setStatus(`Checking data integrity for ${dateStr}...`);
+        setStatus(`Purging and resyncing ${dateStr}...`);
+        
+        // CRITICAL: Always purge and resync to ensure consistency, regardless of count match
+        // This prevents stale/duplicate data from the importer from accumulating
+        const deleteResult = await offlineDB.deleteDeliveriesByDate(dateStr);
+        console.log(`[RouteImport] Delete result for ${dateStr}:`, deleteResult);
+
+        // Fetch fresh data from online DB
         const onlineDeliveriesForDate = await Delivery.filter({ delivery_date: dateStr });
-        const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+        console.log(`[RouteImport] Fetched ${onlineDeliveriesForDate.length} deliveries from online for ${dateStr}`);
 
-        if (onlineDeliveriesForDate.length !== offlineDeliveriesForDate.length) {
-          console.warn(`⚠️ [RouteImport] Mismatch found for ${dateStr}. Online: ${onlineDeliveriesForDate.length}, Offline: ${offlineDeliveriesForDate.length}. Purging and resyncing.`);
-          setStatus(`Resyncing ${dateStr} due to count mismatch...`);
-
-          // Purge offline data for this date
-          await offlineDB.deleteDeliveriesByDate(dateStr);
-
-          // Resync from online
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, onlineDeliveriesForDate);
-          console.log(`✅ [RouteImport] Resynced ${onlineDeliveriesForDate.length} deliveries for ${dateStr}.`);
-        } else {
-          console.log(`✅ [RouteImport] Counts match for ${dateStr}. Online: ${onlineDeliveriesForDate.length}, Offline: ${offlineDeliveriesForDate.length}.`);
-        }
+        // Resync to offline DB
+        const saveResult = await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, onlineDeliveriesForDate);
+        console.log(`[RouteImport] Save result for ${dateStr}:`, saveResult);
+        
+        // Verify the resync worked
+        const verifyOfflineCount = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+        console.log(`✅ [RouteImport] Verified ${verifyOfflineCount.length} deliveries in offline DB for ${dateStr}`);
       }
       
       let exactMatched = 0;
