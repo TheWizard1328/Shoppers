@@ -535,7 +535,9 @@ const DeliveryDataTable = ({
   selectedDriver, onDriverChange,
   onFindDuplicates,
   autoSelectIds = [],
-  onAutoSelectProcessed
+  duplicateFilterMode = false,
+  onAutoSelectProcessed,
+  onClearDuplicateFilter
 }) => {
   const { visibleColumns, toggleColumn, config } = useColumnVisibility('deliveries');
   const [columnWidths, setColumnWidths] = useState(() => {
@@ -752,6 +754,32 @@ const DeliveryDataTable = ({
       }
     }
   }, [autoSelectIds, onAutoSelectProcessed]);
+
+  // Filter and sort deliveries when in duplicate filter mode
+  const displayDeliveries = useMemo(() => {
+    let result = deliveries;
+    
+    // Filter to only show duplicates when in duplicate filter mode
+    if (duplicateFilterMode && autoSelectIds.length > 0) {
+      result = result.filter(d => autoSelectIds.includes(d.id));
+      
+      // Sort by delivery_date, then driver_id, then stop_id
+      result = result.sort((a, b) => {
+        // First sort by delivery_date
+        if (a.delivery_date !== b.delivery_date) {
+          return a.delivery_date.localeCompare(b.delivery_date);
+        }
+        // Then sort by driver_id
+        if ((a.driver_id || '') !== (b.driver_id || '')) {
+          return (a.driver_id || '').localeCompare(b.driver_id || '');
+        }
+        // Finally sort by stop_id
+        return (a.stop_id || '').localeCompare(b.stop_id || '');
+      });
+    }
+    
+    return result;
+  }, [deliveries, duplicateFilterMode, autoSelectIds]);
 
   const handleDeleteSelected = () => {
     const selectedDeliveriesArray = (deliveries || []).filter(d => selectedDeliveries.has(d.id));
@@ -2589,6 +2617,7 @@ export default function AdminUtilities() {
   });
 
   const [autoSelectDuplicateIds, setAutoSelectDuplicateIds] = useState([]);
+  const [duplicateFilterMode, setDuplicateFilterMode] = useState(false);
 
   const [bulkDelete, setBulkDelete] = useState({
     open: false,
@@ -3823,8 +3852,9 @@ export default function AdminUtilities() {
       return;
     }
     
-    // Auto-select the duplicate checkboxes
+    // Auto-select the duplicate checkboxes and activate duplicate filter mode
     console.log(`✅ Auto-selecting ${duplicateIds.length} duplicate deliveries`);
+    setDuplicateFilterMode(true);
     if (onAutoSelect) {
       onAutoSelect(duplicateIds);
     }
@@ -4088,7 +4118,9 @@ export default function AdminUtilities() {
                          onDeleteSelected={_confirmDeleteSelectedDeliveries}
                          onFindDuplicates={(deliveries) => handleFindDuplicates(deliveries, setAutoSelectDuplicateIds)}
                          autoSelectIds={autoSelectDuplicateIds}
+                         duplicateFilterMode={duplicateFilterMode}
                          onAutoSelectProcessed={() => setAutoSelectDuplicateIds([])}
+                         onClearDuplicateFilter={() => setDuplicateFilterMode(false)}
                          filterText={deliveryFilterText}
                          onFilterChange={setDeliveryFilterText}
                          sortColumn={deliverySortColumn}
