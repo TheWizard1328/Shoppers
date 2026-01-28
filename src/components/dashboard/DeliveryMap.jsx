@@ -1817,33 +1817,22 @@ export default function DeliveryMap({
       }
     });
 
-    // CRITICAL: Only update if home markers actually changed to prevent blinking
-    const newKey = homeMarkers.map(m => `${m.id}:${m.latitude}:${m.longitude}`).join('|');
-    const prevKey = prevDriverHomeMarkersRef.current.map(m => `${m.id}:${m.latitude}:${m.longitude}`).join('|');
-    
-    if (newKey === prevKey && prevDriverHomeMarkersRef.current.length > 0) {
-      return prevDriverHomeMarkersRef.current;
-    }
-    
-    // CRITICAL: If new markers are empty but we had markers before, preserve them
-    // This handles the case where deliveries briefly become empty during refresh
-    if (homeMarkers.length === 0 && prevDriverHomeMarkersRef.current.length > 0) {
-      return prevDriverHomeMarkersRef.current;
-    }
-    
+    // CRITICAL: Always return fresh array to ensure visibility updates based on route progress
+    // Caching prevents home markers from appearing/disappearing correctly
     prevDriverHomeMarkersRef.current = homeMarkers;
     return homeMarkers;
-  // CRITICAL: Use minimal, stable dependencies to prevent blinking
+  // CRITICAL: Include polylineRenderKey and detailed stop status to update home markers correctly
   }, [
     showRoutes,
     currentUser?.id,
     isViewingCurrentDate,
     isDriverViewingSelfToday,
     showOtherDriverDeliveries,
-    // Only track essential data with stable JSON stringify
-    JSON.stringify(safeDeliveries.map(d => ({ id: d?.driver_id, status: d?.status }))),
-    JSON.stringify(otherDriverDeliveries.map(d => ({ id: d?.driver_id, status: d?.status }))),
-    JSON.stringify(safeUsers.map(u => ({ id: u?.id, hLat: u?.home_latitude, hLon: u?.home_longitude })))
+    // Track delivery AND pickup status changes for home marker visibility
+    safeDeliveries.map(d => `${d?.id}:${d?.driver_id}:${d?.status}:${d?.patient_id ? 'del' : 'pickup'}`).join('|'),
+    otherDriverDeliveries.map(d => `${d?.id}:${d?.driver_id}:${d?.status}:${d?.patient_id ? 'del' : 'pickup'}`).join('|'),
+    safeUsers.map(u => `${u?.id}:${u?.home_latitude}:${u?.home_longitude}`).join('|'),
+    polylineRenderKey // CRITICAL: Update when driver locations change
   ]);
 
   // CRITICAL: Store previous driverRoutes to prevent unnecessary recalculations
