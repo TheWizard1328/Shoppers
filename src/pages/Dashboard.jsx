@@ -2026,12 +2026,24 @@ function Dashboard() {
     );
 
     if (!hasActiveDeliveries) {
+      setCurrentToNextPolyline(null);
       return; // Don't fetch polylines if no active deliveries
     }
 
     fetchPolyline();
     const interval = setInterval(fetchPolyline, 30000);
-    return () => clearInterval(interval);
+    
+    // CRITICAL: Listen for driver location changes to refresh polyline immediately
+    const handleLocationChange = () => {
+      console.log('📍 [Polyline] Driver location changed - refreshing polyline');
+      fetchPolyline();
+    };
+    window.addEventListener('driverLocationChanged', handleLocationChange);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('driverLocationChanged', handleLocationChange);
+    };
   }, [currentUser?.id, selectedDriverId, selectedDate, filteredDeliveries, patients, stores, users]);
 
   useEffect(() => {

@@ -1163,6 +1163,11 @@ class SmartRefreshManager {
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
           detail: { appUsers: updatedAppUsers }
         }));
+        
+        // CRITICAL: Trigger polyline refresh for drivers with updated locations
+        window.dispatchEvent(new CustomEvent('driverLocationChanged', {
+          detail: { appUsers: updatedAppUsers }
+        }));
       }
       
       return {
