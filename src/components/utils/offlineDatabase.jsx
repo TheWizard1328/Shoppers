@@ -606,6 +606,10 @@ const deduplicateAppUsers = async () => {
  */
 const deleteDeliveriesByDate = async (dateStr) => {
   try {
+    // First, count how many we're deleting
+    const beforeDelete = await getByDate(STORES.DELIVERIES, dateStr);
+    console.log(`🗑️ [OfflineDB] Deleting ${beforeDelete.length} deliveries for ${dateStr}...`);
+
     const db = await openDatabase();
     const transaction = db.transaction([STORES.DELIVERIES], 'readwrite');
     const store = transaction.objectStore(STORES.DELIVERIES);
@@ -613,20 +617,31 @@ const deleteDeliveriesByDate = async (dateStr) => {
 
     return new Promise((resolve, reject) => {
       const request = index.openCursor(IDBKeyRange.only(dateStr));
+      let deleteCount = 0;
+      
       request.onsuccess = (event) => {
         const cursor = event.target.result;
         if (cursor) {
           cursor.delete();
+          deleteCount++;
           cursor.continue();
         } else {
-          resolve();
+          // Cursor is done, wait for transaction to complete
+          transaction.oncomplete = () => {
+            console.log(`✅ [OfflineDB] Successfully deleted ${deleteCount} deliveries for ${dateStr}`);
+            resolve({ success: true, deleted: deleteCount });
+          };
+          transaction.onerror = () => {
+            reject(new Error(`Transaction failed: ${transaction.error}`));
+          };
         }
       };
+      
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
     console.error('❌ [OfflineDB] deleteDeliveriesByDate error:', error);
-    return { success: false, error: error.message };
+    throw error;
   }
 };
 
