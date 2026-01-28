@@ -811,26 +811,9 @@ const DeliveryDataTable = ({
                 >
                   Delete All Filtered ({(deliveries || []).length})
                 </Button>
-                </>
-                )}
-                </div>
-                <div className="flex gap-2">
-                <Button
-                variant={dataViewMode.deliveries === 'offline' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'offline' }))}
-                >
-                Offline
-                </Button>
-                <Button
-                variant={dataViewMode.deliveries !== 'offline' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setDataViewMode(prev => ({ ...prev, deliveries: 'online' }))}
-                >
-                Online
-                </Button>
-                </div>
-                </div>
+              </>
+            )}
+          </div>
         </CardTitle>
         <CardDescription style={{ color: 'var(--text-slate-500)' }}>Filtered and sorted list of deliveries by year, month, and driver.</CardDescription>
       </CardHeader>
@@ -4050,8 +4033,7 @@ export default function AdminUtilities() {
 
                   <TabsContent value="deliveries" className="mt-6">
                     <div className="space-y-4">
-                      <div className="flex gap-2 items-center justify-between">
-                        <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         {!manualLoadTriggered ? (
                           <Alert className="flex-1">
                             <AlertCircle className="h-4 w-4" />
@@ -4086,10 +4068,10 @@ export default function AdminUtilities() {
                             >
                               Import Routes
                             </Button>
-                          </>
-                        )}
-                      </div>
-                      {manualLoadTriggered && (
+                            </>
+                            )}
+                            </div>
+                            {manualLoadTriggered && (
                         <div className="text-sm text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
                           <strong>PUID Backfill:</strong> Use the "Backfill PUIDs" button in the table header to automatically link deliveries to their pickups. Works on all filtered deliveries or just selected ones.
                         </div>
