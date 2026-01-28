@@ -687,8 +687,8 @@ export const forceSyncAll = async () => {
 
     // Step 3: Sync patients (all active patients)
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 25 });
-    const patients = await Patient.filter({ status: 'active' }, '-created_date', 5000);
-    const cleanPatients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+    const allPatients = await Patient.filter({ status: 'active' }, '-created_date', 5000);
+    const cleanPatients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
     await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanPatients);
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 35, count: cleanPatients.length });
 
@@ -699,16 +699,6 @@ export const forceSyncAll = async () => {
     const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 50, count: deliveries.length });
-
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-
-    // Step 4: Sync all patients
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 40 });
-    const patients = await Patient.filter({ status: 'active' }, '-created_date', 5000);
-    const cleanPatients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
-
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 60, count: cleanPatients.length });
-    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanPatients);
 
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
