@@ -1193,14 +1193,17 @@ export default function RouteImport({
   const allPreviewDeliveries = useMemo(() => {
     const created = previewData.deliveriesToCreate.map((d) => ({ ...d, action: 'create' }));
     const updated = previewData.deliveriesToUpdate.map((d) => ({ ...d, action: 'update' }));
-    const skipped = previewData.skippedItems.map((item) => ({ 
-      action: 'skipped', 
-      reason: item.reason,
-      lineNumber: item.lineNumber,
-      rawData: item.rawData,
-      patient_name: item.rawData || 'Unknown',
-      status: 'skipped'
-    }));
+    // CRITICAL: Exclude line 1 skipped items from display
+    const skipped = previewData.skippedItems
+      .filter((item) => item.lineNumber !== 1)
+      .map((item) => ({ 
+        action: 'skipped', 
+        reason: item.reason,
+        lineNumber: item.lineNumber,
+        rawData: item.rawData,
+        patient_name: item.rawData || 'Unknown',
+        status: 'skipped'
+      }));
     return [...created, ...updated, ...skipped];
   }, [previewData.deliveriesToCreate, previewData.deliveriesToUpdate, previewData.skippedItems]);
 
