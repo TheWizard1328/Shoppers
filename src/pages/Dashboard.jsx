@@ -3190,10 +3190,8 @@ function Dashboard() {
     };
   }, [setOnSmartRefreshComplete, isDispatcher, selectedCardId, deliveriesWithStopOrder]);
 
-  // CRITICAL: Listen for smartRefreshComplete event to reactivate FAB for dispatchers
+  // CRITICAL: Listen for smartRefreshComplete and smartRefreshRestarted events to reactivate FAB
   useEffect(() => {
-    if (!isDispatcher) return;
-
     const handleSmartRefreshCompleteEvent = (event) => {
       const { updates } = event.detail || {};
 
@@ -3202,7 +3200,7 @@ function Dashboard() {
         return;
       }
 
-      console.log('🔄 [Smart Refresh - Dispatcher] Data updated - reactivating FAB');
+      console.log('🔄 [Smart Refresh Complete] Data updated - reactivating FAB');
 
       // Auto-center to next delivery card
       setTimeout(() => {
@@ -3211,14 +3209,14 @@ function Dashboard() {
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log('📍 [Smart Refresh - Dispatcher] Auto-centered to next delivery card');
+            console.log('📍 [Smart Refresh Complete] Auto-centered to next delivery card');
           }
         }
       }, 300);
 
-      // CRITICAL: Reactivate FAB if on Phase 1 or 3 for 500ms
-      if (mapViewPhase === 1 || mapViewPhase === 3) {
-        console.log(`🔵 [Smart Refresh - Dispatcher] Reactivating FAB Phase ${mapViewPhase} for 500ms`);
+      // CRITICAL: Reactivate FAB if on Phase 1 for 500ms (for all users, not just dispatchers)
+      if (mapViewPhase === 1) {
+        console.log(`🔵 [Smart Refresh Complete] Reactivating FAB Phase 1 for 500ms`);
 
         // Clear any existing timers
         if (mapLockTimeoutRef.current) {
@@ -3243,18 +3241,68 @@ function Dashboard() {
             setIsMapViewLocked(false);
             mapLockExpiresAtRef.current = null;
             mapLockTimeoutRef.current = null;
-            console.log(`⏰ [Smart Refresh - Dispatcher] FAB auto-unlocked after 500ms`);
+            console.log(`⏰ [Smart Refresh Complete] FAB auto-unlocked after 500ms`);
+          }
+        }, lockDuration);
+      }
+    };
+    
+    const handleSmartRefreshRestartedEvent = () => {
+      console.log('🔄 [Smart Refresh Restarted] Reactivating FAB after import');
+
+      // Auto-center to next delivery card
+      setTimeout(() => {
+        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+        if (nextCard) {
+          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log('📍 [Smart Refresh Restarted] Auto-centered to next delivery card');
+          }
+        }
+      }, 300);
+
+      // CRITICAL: Reactivate FAB if on Phase 1 for 500ms
+      if (mapViewPhase === 1) {
+        console.log(`🔵 [Smart Refresh Restarted] Reactivating FAB Phase 1 for 500ms`);
+
+        // Clear any existing timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+
+        // Lock and trigger map view
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+
+        // Auto-unlock after 500ms
+        const lockDuration = 500;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+            console.log(`⏰ [Smart Refresh Restarted] FAB auto-unlocked after 500ms`);
           }
         }, lockDuration);
       }
     };
 
     window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
+    window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);
 
     return () => {
       window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
+      window.removeEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);
     };
-  }, [isDispatcher, mapViewPhase, deliveriesWithStopOrder, selectedCardId]);
+  }, [mapViewPhase, deliveriesWithStopOrder, selectedCardId]);
 
   // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);

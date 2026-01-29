@@ -287,6 +287,11 @@ class SmartRefreshManager {
       if (this._pendingApiFetch) {
         this._pendingApiFetch.clear();
       }
+      
+      // CRITICAL: Dispatch event to trigger UI updates (e.g., FAB reactivation)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('smartRefreshRestarted'));
+      }
     }
   }
   
