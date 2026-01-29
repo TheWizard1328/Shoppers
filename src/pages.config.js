@@ -62,6 +62,7 @@ import SquareLocationConfigs from './pages/SquareLocationConfigs';
 import SquareManagement from './pages/SquareManagement';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
+import AdminMetrics from './pages/AdminMetrics';
 import __Layout from './Layout.jsx';
 
 
@@ -81,6 +82,7 @@ export const PAGES = {
     "SquareManagement": SquareManagement,
     "Stores": Stores,
     "Users": Users,
+    "AdminMetrics": AdminMetrics,
 }
 
 export const pagesConfig = {
