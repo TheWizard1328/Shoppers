@@ -859,7 +859,7 @@ const DeliveryDataTable = ({
     }
     
     return result;
-  }, [deliveries, duplicateFilterMode, autoSelectIds]);
+  }, [deliveries, duplicateFilterMode, autoSelectIds, showMostRecentOnly]);
 
   const handleDeleteSelected = () => {
     const selectedDeliveriesArray = (displayDeliveries || []).filter(d => selectedDeliveries.has(d.id));
