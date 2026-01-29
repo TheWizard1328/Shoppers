@@ -1,9 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 75 }) {
+  const [isFlashing, setIsFlashing] = useState(false);
+
+  // Expose flash method for external triggers
+  React.useImperativeHandle = function() {
+    return { flashOnUpdate: () => flashUpdate() };
+  };
+
+  const flashUpdate = () => {
+    if (currentPhase !== 1) return;
+    setIsFlashing(true);
+    setTimeout(() => setIsFlashing(false), 500);
+  };
+
+  // Make flash method available globally
+  React.useEffect(() => {
+    window.__fabFlashUpdate = flashUpdate;
+    return () => delete window.__fabFlashUpdate;
+  }, [currentPhase]);
+
   // CRITICAL: Fixed position - never moves with card expansion
   const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + 15;
 
