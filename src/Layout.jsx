@@ -2930,21 +2930,21 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Driver Status Toggle - Show in sidebar on wider mobile screens (when mobile header is hidden) */}
-                      {isMobile && !showDesktopLayout && currentUser && userHasRole(currentUser, 'driver') &&
-                      <div className="hidden lg:flex">
-                            <DriverStatusToggle
-                          currentUser={currentUser}
-                          vertical={true}
-                          onStatusChange={async (newStatus) => {
-                            clearUserCache();
-                            const refreshedUser = await getEffectiveUser();
-                            if (refreshedUser) {
-                              setCurrentUser(refreshedUser);
-                            }
-                          }} />
+                      {/* Driver Status Toggle - Show in sidebar on mobile devices */}
+                      {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
+                        <div className="flex">
+                              <DriverStatusToggle
+                            currentUser={currentUser}
+                            vertical={true}
+                            onStatusChange={async (newStatus) => {
+                              clearUserCache();
+                              const refreshedUser = await getEffectiveUser();
+                              if (refreshedUser) {
+                                setCurrentUser(refreshedUser);
+                              }
+                            }} />
 
-                          </div>
+                            </div>
                       }
 
                       {!sidebarOpen && (userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
@@ -3626,8 +3626,8 @@ export default function Layout({ children, currentPageName }) {
                   }
                   </div>
 
-                  {/* Driver Status Toggle - Centered in Mobile Header - Only on narrow mobile screens */}
-                  {isMobile && showDesktopLayout === false && currentUser && userHasRole(currentUser, 'driver') &&
+                  {/* Driver Status Toggle - Centered in Mobile Header */}
+                  {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
                   <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                       <DriverStatusToggle
                     currentUser={currentUser}
