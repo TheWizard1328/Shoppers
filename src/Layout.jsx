@@ -2960,8 +2960,8 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Mobile device controls - ALWAYS show when isMobile = true, regardless of screen width */}
-                      {isMobile &&
+                      {/* Mobile device controls - ALWAYS show when isMobile = true */}
+                      {isMobile ?
                         <>
                           {/* Location Tracking Toggle - for drivers */}
                           {currentUser && userHasRole(currentUser, 'driver') &&
@@ -2992,7 +2992,7 @@ export default function Layout({ children, currentPageName }) {
                             />
                           }
 
-                          {/* Settings Menu */}
+                          {/* Settings Menu - Mobile */}
                           {(userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -3031,7 +3031,45 @@ export default function Layout({ children, currentPageName }) {
                               />
                             </DropdownMenu>
                           }
-                        </>
+                        </> :
+                        /* Desktop controls */
+                        (userHasRole(currentUser, 'admin') && cities && cities.length > 0) &&
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <MoreVertical className="w-4 h-4 text-slate-500" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <SettingsMenu
+                              currentUser={currentUser}
+                              realUser={realUser}
+                              isAppOwner={isAppOwner(currentUser)}
+                              adminImportEnabled={adminImportEnabled}
+                              onAdminImportToggle={async (checked) => {
+                                if (currentUser?._isImpersonating) return;
+                                setAdminImportEnabled(checked);
+                                try {
+                                  const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                  if (settings && settings.length > 0) {
+                                    await base44.entities.AppSettings.update(settings[0].id, {
+                                      setting_value: {
+                                        ...settings[0].setting_value,
+                                        adminImportEnabled: checked
+                                      }
+                                    });
+                                  }
+                                } catch (error) {
+                                  console.error('Failed to save admin import setting:', error);
+                                }
+                              }}
+                              themePreference={themePreference}
+                              onThemeChange={handleThemeChange}
+                              cities={cities}
+                              onPatientImportClick={() => setShowPatientImport(true)}
+                              onDeliveryImportClick={() => setShowDeliveryImport(true)}
+                              isMobile={false}
+                            />
+                          </DropdownMenu>
                       }
                     </div>
                   </div>
