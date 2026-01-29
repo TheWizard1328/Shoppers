@@ -3555,11 +3555,21 @@ export default function DeliveriesPage() {
                   <SelectValue placeholder="Select driver" />
                 </SelectTrigger>
                 <SelectContent>
-                  {sortUsers((effectiveDrivers || []).filter(d => userHasRole(d, 'driver'))).map((driver) =>
-                <SelectItem key={driver.id} value={driver.id}>
-                      {getDriverDisplayName(driver)}
-                    </SelectItem>
-                )}
+                  {sortUsers((effectiveDrivers || []).filter(d => userHasRole(d, 'driver'))).map((driver) => {
+                    // Check if there are duplicate names
+                    const duplicateNames = (effectiveDrivers || []).filter(d => 
+                      getDriverDisplayName(d) === getDriverDisplayName(driver)
+                    );
+                    const displayName = duplicateNames.length > 1 
+                      ? `${getDriverDisplayName(driver)} (${driver.id.slice(-4)})`
+                      : getDriverDisplayName(driver);
+                    
+                    return (
+                      <SelectItem key={driver.id} value={driver.id}>
+                        {displayName}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
 
@@ -4098,11 +4108,20 @@ export default function DeliveriesPage() {
                                 <SelectValue placeholder="Driver" />
                               </SelectTrigger>
                               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                                {sortUsers((effectiveDrivers || []).filter(d => userHasRole(d, 'driver'))).map((driver) =>
-                                  <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
-                                    {getDriverDisplayName(driver)}
-                                  </SelectItem>
-                                )}
+                                {sortUsers((effectiveDrivers || []).filter(d => userHasRole(d, 'driver'))).map((driver) => {
+                                  const duplicateNames = (effectiveDrivers || []).filter(d => 
+                                    getDriverDisplayName(d) === getDriverDisplayName(driver)
+                                  );
+                                  const displayName = duplicateNames.length > 1 
+                                    ? `${getDriverDisplayName(driver)} (${driver.id.slice(-4)})`
+                                    : getDriverDisplayName(driver);
+                                  
+                                  return (
+                                    <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
+                                      {displayName}
+                                    </SelectItem>
+                                  );
+                                })}
                               </SelectContent>
                             </Select>
                           </div>
