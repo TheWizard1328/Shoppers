@@ -2873,6 +2873,36 @@ export default function AdminUtilities() {
     console.log('🔄 [AdminUtilities] Starting manual data refresh...');
     
     try {
+      // CRITICAL: Check if we're viewing offline data - reload from IndexedDB
+      const { offlineDB } = await import('../components/utils/offlineDatabase');
+      
+      if (dataViewMode.deliveries === 'offline') {
+        const data = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        setOfflineDeliveries(data || []);
+        console.log(`📦 Reloaded ${data?.length || 0} offline deliveries`);
+      }
+      if (dataViewMode.patients === 'offline') {
+        const data = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+        setOfflinePatients(data || []);
+        console.log(`📦 Reloaded ${data?.length || 0} offline patients`);
+      }
+      if (dataViewMode.stores === 'offline') {
+        const data = await offlineDB.getAll(offlineDB.STORES.STORES);
+        setOfflineStores(data || []);
+        console.log(`📦 Reloaded ${data?.length || 0} offline stores`);
+      }
+      if (dataViewMode.users === 'offline') {
+        const data = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        setOfflineAppUsers(data || []);
+        console.log(`📦 Reloaded ${data?.length || 0} offline app users`);
+      }
+      if (dataViewMode.cities === 'offline') {
+        const data = await offlineDB.getAll(offlineDB.STORES.CITIES);
+        setOfflineCities(data || []);
+        console.log(`📦 Reloaded ${data?.length || 0} offline cities`);
+      }
+      
+      // Also invalidate and refetch online data
       await queryClient.invalidateQueries(['patients']);
       await queryClient.invalidateQueries(['stores']);
       await queryClient.invalidateQueries(['authUsers']);
@@ -3540,6 +3570,15 @@ export default function AdminUtilities() {
       }
 
       setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
+      
+      // Reload offline data if in offline mode
+      if (dataViewMode.deliveries === 'offline') {
+        const { offlineDB } = await import('../components/utils/offlineDatabase');
+        const data = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        setOfflineDeliveries(data || []);
+        console.log(`📦 Reloaded ${data?.length || 0} offline deliveries after delete`);
+      }
+      
       queryClient.invalidateQueries(['deliveries']);
       await refetchDeliveries();
       
@@ -3608,6 +3647,12 @@ export default function AdminUtilities() {
           await Delivery.delete(delivery.id);
           const { offlineDB } = await import('../components/utils/offlineDatabase');
           await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);
+          
+          // Update offline state if viewing offline data
+          if (dataViewMode.deliveries === 'offline') {
+            setOfflineDeliveries(prev => prev.filter(d => d.id !== delivery.id));
+          }
+          
           successCount++;
         } catch (error) {
           console.error(`Failed to delete delivery ${delivery.id}:`, error);
@@ -3663,6 +3708,12 @@ export default function AdminUtilities() {
             await Delivery.delete(d.id);
             const { offlineDB } = await import('../components/utils/offlineDatabase');
             await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
+            
+            // Update offline state if viewing offline data
+            if (dataViewMode.deliveries === 'offline') {
+              setOfflineDeliveries(prev => prev.filter(del => del.id !== d.id));
+            }
+            
             setBulkDelete(prev => ({
               ...prev,
               processed: prev.processed + 1,
@@ -3688,6 +3739,15 @@ export default function AdminUtilities() {
       }
 
       setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
+      
+      // Reload offline data if in offline mode
+      if (dataViewMode.deliveries === 'offline') {
+        const { offlineDB } = await import('../components/utils/offlineDatabase');
+        const data = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        setOfflineDeliveries(data || []);
+        console.log(`📦 Reloaded ${data?.length || 0} offline deliveries after delete`);
+      }
+      
       queryClient.invalidateQueries(['deliveries']);
       await refetchDeliveries();
       
@@ -4039,16 +4099,41 @@ export default function AdminUtilities() {
       onConfirm: async () => {
         try {
           console.log(`Deleting ${entityType}:`, entity.id);
-          // Use local-first delete for Patient and Delivery entities
+          const { offlineDB } = await import('../components/utils/offlineDatabase');
+          
+          // Delete from backend AND offline DB
           if (entityType === 'patients') {
-            const { deletePatientLocal } = await import('../components/utils/offlineMutations');
-            await deletePatientLocal(entity.id);
+            await Patient.delete(entity.id);
+            await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, entity.id);
+            if (dataViewMode.patients === 'offline') {
+              setOfflinePatients(prev => prev.filter(p => p.id !== entity.id));
+            }
           } else if (entityType === 'deliveries') {
-            const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
-            await deleteDeliveryLocal(entity.id);
-          } else {
-            await EntityClass.delete(entity.id);
+            await Delivery.delete(entity.id);
+            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id);
+            if (dataViewMode.deliveries === 'offline') {
+              setOfflineDeliveries(prev => prev.filter(d => d.id !== entity.id));
+            }
+          } else if (entityType === 'stores') {
+            await Store.delete(entity.id);
+            await offlineDB.deleteRecord(offlineDB.STORES.STORES, entity.id);
+            if (dataViewMode.stores === 'offline') {
+              setOfflineStores(prev => prev.filter(s => s.id !== entity.id));
+            }
+          } else if (entityType === 'users') {
+            await AppUser.delete(entity.id);
+            await offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, entity.id);
+            if (dataViewMode.users === 'offline') {
+              setOfflineAppUsers(prev => prev.filter(u => u.id !== entity.id));
+            }
+          } else if (entityType === 'cities') {
+            await City.delete(entity.id);
+            await offlineDB.deleteRecord(offlineDB.STORES.CITIES, entity.id);
+            if (dataViewMode.cities === 'offline') {
+              setOfflineCities(prev => prev.filter(c => c.id !== entity.id));
+            }
           }
+          
           console.log(`✅ Successfully deleted ${entityName}`);
 
           await invalidate(EntityClass.name);
@@ -4081,7 +4166,7 @@ export default function AdminUtilities() {
         }
       }
     });
-  }, [activeDataTab, invalidate, refetchPatients, refetchDeliveries, refetchStores, refetchAppUsers, refetchCities, refreshData]);
+  }, [activeDataTab, dataViewMode, invalidate, refetchPatients, refetchDeliveries, refetchStores, refetchAppUsers, refetchCities, refreshData]);
 
 
   if (initialLoading) {
