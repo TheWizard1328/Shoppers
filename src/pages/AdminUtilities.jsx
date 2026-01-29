@@ -806,9 +806,18 @@ const DeliveryDataTable = ({
     }
   }, [autoSelectIds, onAutoSelectProcessed]);
 
-  // Filter and sort deliveries when in duplicate filter mode
+  // Filter and sort deliveries when in duplicate filter mode or most recent date filter
   const displayDeliveries = useMemo(() => {
     let result = deliveries;
+    
+    // CRITICAL: Filter to most recent date if checkbox is checked
+    if (showMostRecentOnly && result && result.length > 0) {
+      const allDates = [...new Set(result.map(d => d.delivery_date).filter(Boolean))];
+      if (allDates.length > 0) {
+        const mostRecentDate = allDates.sort((a, b) => b.localeCompare(a))[0];
+        result = result.filter(d => d.delivery_date === mostRecentDate);
+      }
+    }
     
     // Filter to only show duplicates when in duplicate filter mode
     if (duplicateFilterMode && autoSelectIds.length > 0) {
