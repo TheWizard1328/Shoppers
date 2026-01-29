@@ -3515,7 +3515,7 @@ export default function Layout({ children, currentPageName }) {
                                 cities={cities}
                                 onPatientImportClick={() => setShowPatientImport(true)}
                                 onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                                isMobile={isMobile}
+                                isMobile={isMobileDeviceForUI}
                               />
                             </DropdownMenu>
                         }
