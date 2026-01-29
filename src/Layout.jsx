@@ -84,6 +84,7 @@ import { getUserAgentInfo } from './components/utils/deviceUtils';
 import PatientImport from './components/patients/PatientImport';
 import RouteImport from './components/deliveries/RouteImport';
 import DriverStatusToggle from './components/layout/DriverStatusToggle';
+import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
 import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
 import MessagingPanel from './components/messaging/MessagingPanel';
 import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
@@ -2959,9 +2960,23 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Mobile device controls - show when wide screen */}
-                      {isMobile && screenWidth >= 768 &&
+                      {/* Mobile device controls - ALWAYS show when isMobile = true, regardless of screen width */}
+                      {isMobile &&
                         <>
+                          {/* Location Tracking Toggle - for drivers */}
+                          {currentUser && userHasRole(currentUser, 'driver') &&
+                            <LocationTrackingToggle
+                              currentUser={currentUser}
+                              onUpdate={async () => {
+                                clearUserCache();
+                                const refreshedUser = await getEffectiveUser();
+                                if (refreshedUser) {
+                                  setCurrentUser(refreshedUser);
+                                }
+                              }}
+                            />
+                          }
+
                           {/* Driver Status Toggle */}
                           {currentUser && userHasRole(currentUser, 'driver') &&
                             <DriverStatusToggle
@@ -3220,8 +3235,8 @@ export default function Layout({ children, currentPageName }) {
                       currentUser={currentUser}
                       storeIds={stores.map((s) => s?.id).filter(Boolean)} />
 
-                        {/* Offline Sync Indicator for mobile devices */}
-                        {isMobile && screenWidth >= 768 &&
+                        {/* Offline Sync Indicator for mobile devices on wide screens */}
+                        {isMobile &&
                           <div className="px-3 py-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                             <OfflineSyncIndicator mode="embedded" />
                           </div>
