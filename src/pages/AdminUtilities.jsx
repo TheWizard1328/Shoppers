@@ -384,6 +384,7 @@ const COLUMN_CONFIGS = {
     { id: 'device_type', label: 'Device Type', defaultVisible: true },
     { id: 'selected_driver', label: 'Selected Driver', defaultVisible: true },
     { id: 'selected_date', label: 'Selected Date', defaultVisible: true },
+    { id: 'show_all_markers', label: 'Show All Markers', defaultVisible: true },
     { id: 'sidebar_width', label: 'Sidebar Width', defaultVisible: true },
     { id: 'theme', label: 'Theme', defaultVisible: true },
     { id: 'created', label: 'Created', defaultVisible: false },
@@ -2174,6 +2175,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
       device_type: 120,
       selected_driver: 150,
       selected_date: 120,
+      show_all_markers: 130,
       sidebar_width: 120,
       theme: 100,
       created: 160,
@@ -2400,6 +2402,11 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
                         <span className="font-semibold">Selected Date</span>
                       </ResizableColumnHeader>
                     )}
+                    {visibleColumns.includes('show_all_markers') && (
+                      <ResizableColumnHeader width={columnWidths.show_all_markers} onResize={(w) => updateColumnWidth('show_all_markers', w)}>
+                        <span className="font-semibold">Show All Markers</span>
+                      </ResizableColumnHeader>
+                    )}
                     {visibleColumns.includes('sidebar_width') && (
                       <ResizableColumnHeader width={columnWidths.sidebar_width} onResize={(w) => updateColumnWidth('sidebar_width', w)}>
                         <span className="font-semibold">Sidebar Width</span>
@@ -2463,6 +2470,13 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
                        )}
                        {visibleColumns.includes('selected_date') && (
                          <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.selected_date || '-'}</td>
+                       )}
+                       {visibleColumns.includes('show_all_markers') && (
+                         <td className="p-3">
+                           <Badge variant={setting.show_all_driver_markers ? 'default' : 'secondary'}>
+                             {setting.show_all_driver_markers ? '✓ Enabled' : 'Disabled'}
+                           </Badge>
+                         </td>
                        )}
                        {visibleColumns.includes('sidebar_width') && (
                          <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.sidebar_width || 240}px</td>
