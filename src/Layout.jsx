@@ -3559,30 +3559,36 @@ export default function Layout({ children, currentPageName }) {
 
 
                   {currentUser &&
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
-                      <BatteryIndicator vertical={true} />
-                      <div className="flex flex-col items-center gap-1">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
-                    userHasRole(currentUser, 'admin') ?
-                    'bg-gradient-to-br from-blue-500 to-blue-600' :
-                    userHasRole(currentUser, 'dispatcher') ?
-                    'bg-gradient-to-br from-red-500 to-red-600' :
-                    userHasRole(currentUser, 'driver') ?
-                    'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-                    'bg-gradient-to-br from-gray-400 to-gray-500'}`
+                              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
+                                    <button
+                                      onClick={() => setShowInviteQRModal(true)}
+                                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                                      title="Generate Invite QR Code">
+                                      <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
+                                    </button>
+                                    <BatteryIndicator vertical={true} />
+                                    <div className="flex flex-col items-center gap-1">
+                                      <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
+                                  userHasRole(currentUser, 'admin') ?
+                                  'bg-gradient-to-br from-blue-500 to-blue-600' :
+                                  userHasRole(currentUser, 'dispatcher') ?
+                                  'bg-gradient-to-br from-red-500 to-red-600' :
+                                  userHasRole(currentUser, 'driver') ?
+                                  'bg-gradient-to-br from-emerald-500 to-emerald-600' :
+                                  'bg-gradient-to-br from-gray-400 to-gray-500'}`
 
-                    }>
-                          <span className="text-white font-bold text-sm">
-                            {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
-                          </span>
-                        </div>
-                        <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
-                          {getDriverDisplayName(currentUser)}
-                        </span>
-                      </div>
-                    </div>
-                    }
-                    </header>
+                                  }>
+                                        <span className="text-white font-bold text-sm">
+                                          {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
+                                        </span>
+                                      </div>
+                                      <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
+                                        {getDriverDisplayName(currentUser)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  }
+                                  </header>
                     }
 
                     <main className="flex-1 overflow-y-auto relative" style={{ background: 'var(--bg-slate-50)' }}>
