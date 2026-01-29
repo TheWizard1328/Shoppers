@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { isMobileDevice } from '../utils/deviceUtils';
 import { globalFilters } from '../utils/globalFilters';
-import { clearUserCache, clearSettingsCache } from '../utils/auth';
+import { clearUserCache } from '../utils/auth';
+import { clearSettingsCache } from '../utils/userSettingsManager';
 
 export default function SettingsMenu({
   currentUser,
