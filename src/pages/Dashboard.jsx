@@ -1895,7 +1895,7 @@ function Dashboard() {
     };
   }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding, appUsers]);
 
-  // CRITICAL: Periodic smart refresh that respects "Show All" checkbox
+  // CRITICAL: Periodic smart refresh - ALWAYS loads ALL drivers for selected date
   useEffect(() => {
     if (!isDataLoaded || !currentUser || !isFiltersReady) {
       return;
@@ -1906,43 +1906,56 @@ function Dashboard() {
         return; // Skip when forms are open
       }
 
-      const currentData = { deliveries, patients, appUsers, stores };
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
       
-      const filters = {
-        selectedDate,
-        deliveryFilter: showAllDriverMarkers || selectedDriverId === 'all' ? {} : { driver_id: activeDriverId },
-        patientFilter: {},
-        activeDriverIds: showAllDriverMarkers || selectedDriverId === 'all' ? [] : [activeDriverId]
-      };
-
-      const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
-      if (cityStoreIds.length > 0) {
-        filters.deliveryFilter.store_id = { $in: cityStoreIds };
-        filters.patientFilter.store_id = { $in: cityStoreIds };
+      // CRITICAL: ALWAYS fetch ALL drivers' deliveries for the selected date
+      console.log(`🔄 [Periodic Refresh] Loading ALL drivers for ${selectedDateStr} (source: ${dataSource})`);
+      
+      let allDriversDeliveries;
+      
+      if (dataSource === 'online') {
+        console.log('🌐 [Periodic Refresh - ONLINE] Fetching from API');
+        allDriversDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDriversDeliveries).catch(() => {});
+      } else {
+        allDriversDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        
+        if (!allDriversDeliveries || allDriversDeliveries.length === 0) {
+          console.log('📥 [Periodic Refresh] Offline DB empty - fetching from API');
+          allDriversDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDriversDeliveries);
+        }
       }
-
-      // CRITICAL: Pass showAllDriverMarkers to smart refresh
-      const updates = await smartRefreshManager.performSmartRefresh(
-        currentData, 
-        filters, 
-        false, 
-        showAllDriverMarkers || selectedDriverId === 'all'
-      );
-
-      if (updates?.appUsers) {
-        console.log('🔄 [Periodic Refresh] Reprocessing driver locations with fresh AppUsers');
+      
+      // Update context with ALL deliveries
+      if (updateDeliveriesLocally && allDriversDeliveries.length > 0) {
+        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+        updateDeliveriesLocally([...otherDateDeliveries, ...allDriversDeliveries], true);
+        console.log(`✅ [Periodic Refresh] Updated UI with ${allDriversDeliveries.length} deliveries`);
+      }
+      
+      // Refresh driver locations
+      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, false);
+      if (locationUpdates?.hasChanges) {
         driverLocationPoller.processLocationData(
           currentUser, 
-          updates.deliveries || deliveries, 
+          allDriversDeliveries, 
           drivers, 
           stores, 
-          updates.appUsers, 
+          locationUpdates.appUsers, 
           selectedDate, 
           true
         );
       }
+      
+      // Dispatch update events
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+        detail: { appUsers: locationUpdates?.appUsers || appUsers }
+      }));
+      
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { deliveryDate: selectedDateStr, triggeredBy: 'periodicRefresh' }
+      }));
     };
 
     // Run immediately, then every 15 seconds
@@ -1950,7 +1963,7 @@ function Dashboard() {
     const interval = setInterval(runPeriodicSmartRefresh, 15000);
 
     return () => clearInterval(interval);
-  }, [isDataLoaded, currentUser, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, deliveries, drivers, stores, patients, appUsers]);
+  }, [isDataLoaded, currentUser, isFiltersReady, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, deliveries, drivers, stores, patients, appUsers, dataSource, updateDeliveriesLocally]);
 
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   // CRITICAL: Initialize poller once on mount
