@@ -685,20 +685,10 @@ export default function Layout({ children, currentPageName }) {
     if (currentUser?.id) {
       saveSetting(currentUser.id, 'data_source', newSource);
     }
-    
-    // Force full data refresh when changing data source
-    console.log(`🔄 [Data Source] Switching to ${newSource} - forcing full refresh`);
-    invalidate('Delivery');
-    invalidate('Patient');
-    invalidate('AppUser');
-    
-    if (triggerFullDataLoadRef.current) {
-      await triggerFullDataLoadRef.current(true);
-    }
-    
-    // Dispatch event to notify Dashboard
+
+    // Dispatch event for Dashboard to re-load data from selected source
     window.dispatchEvent(new CustomEvent('dataSourceChanged', {
-      detail: { dataSource: newSource }
+      detail: { source: newSource }
     }));
   };
   const [showMessaging, setShowMessaging] = useState(false);
@@ -2962,9 +2952,8 @@ export default function Layout({ children, currentPageName }) {
           // Data is already loaded from last 30 days - Dashboard filters locally
           dataReadyForSelectedDate: dataLoaded,
           isSnapshotModeActive: isSnapshotModeActive,
-          setIsSnapshotModeActive: setIsSnapshotModeActive,
-          dataSource: dataSource
-          }}>
+          setIsSnapshotModeActive: setIsSnapshotModeActive
+        }}>
             <div className={`app-container ${isMobile ? 'mobile-device' : 'desktop-device'}`}>
               {isMobile && sidebarOpen &&
             <div
@@ -3070,13 +3059,13 @@ export default function Layout({ children, currentPageName }) {
                               }}
                               themePreference={themePreference}
                               onThemeChange={handleThemeChange}
+                              dataSource={dataSource}
+                              onDataSourceChange={handleDataSourceChange}
                               cities={cities}
                               onPatientImportClick={() => setShowPatientImport(true)}
                               onDeliveryImportClick={() => setShowDeliveryImport(true)}
                               isMobile={isMobile}
-                              dataSource={dataSource}
-                              onDataSourceChange={handleDataSourceChange}
-                              />
+                            />
                           </DropdownMenu>
                         </> : null
                       }
@@ -3539,13 +3528,13 @@ export default function Layout({ children, currentPageName }) {
                                   }}
                                   themePreference={themePreference}
                                   onThemeChange={handleThemeChange}
+                                  dataSource={dataSource}
+                                  onDataSourceChange={handleDataSourceChange}
                                   cities={cities}
                                   onPatientImportClick={() => setShowPatientImport(true)}
                                   onDeliveryImportClick={() => setShowDeliveryImport(true)}
                                   isMobile={true}
-                                  dataSource={dataSource}
-                                  onDataSourceChange={handleDataSourceChange}
-                                  />
+                                />
                               </DropdownMenu>
                             }
                           </>
