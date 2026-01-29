@@ -1972,8 +1972,7 @@ function Dashboard() {
       }));
     };
 
-    // Run immediately, then every 15 seconds
-    runPeriodicSmartRefresh();
+    // CRITICAL: Only run on interval, NOT immediately when driver selection changes
     const interval = setInterval(runPeriodicSmartRefresh, 15000);
 
     return () => clearInterval(interval);
