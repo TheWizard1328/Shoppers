@@ -23,9 +23,10 @@ export default function SettingsMenu({
   onThemeChange,
   cities,
   onPatientImportClick,
-  onDeliveryImportClick
+  onDeliveryImportClick,
+  isMobile
 }) {
-  const isMobileDeviceForUI = isMobileDevice();
+  const isMobileDeviceForUI = isMobile !== undefined ? isMobile : isMobileDevice();
   
   return (
     <DropdownMenuContent 
