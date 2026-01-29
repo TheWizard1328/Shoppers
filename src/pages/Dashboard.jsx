@@ -82,6 +82,7 @@ import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor'
 import SmartPrioritizationPanel from '../components/dashboard/SmartPrioritizationPanel';
 import DualStatsMarquee from '../components/dashboard/DualStatsMarquee';
 import EndOfDayStatsDialog from '../components/dashboard/EndOfDayStatsDialog';
+import { toast } from 'sonner';
 
 // FIXED: StatBadge - simple component without hooks to avoid violations
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
@@ -6762,8 +6763,16 @@ function Dashboard() {
           detail: { deliveryDate: selectedDateStr, triggeredBy: 'dataSourceChange' }
         }));
         
+        // Show success notification
+        toast.success(`Data loaded from ${source === 'online' ? 'online' : 'offline'} source`, {
+          description: `${freshDeliveries.length} deliveries for ${format(selectedDate, 'MMM dd, yyyy')}`
+        });
+        
       } catch (error) {
         console.error('❌ [Data Source Change] Failed:', error);
+        toast.error('Failed to reload data', {
+          description: error.message
+        });
       } finally {
         setIsEntityUpdating(false);
       }
