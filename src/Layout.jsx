@@ -2997,7 +2997,7 @@ export default function Layout({ children, currentPageName }) {
                         }
 
                             {/* Theme Toggle - Mobile Devices Only (for all users including drivers) */}
-                            {deviceType === 'Mobile' &&
+                            {isMobileDeviceForUI &&
                         <>
                                 <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}>
                                       Display
