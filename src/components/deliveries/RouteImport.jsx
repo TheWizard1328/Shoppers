@@ -271,6 +271,20 @@ export default function RouteImport({
     // regardless of which city they were created in
     const importedDriverId = importedDelivery.driver_id;
 
+    // CRITICAL: PRIMARY DEDUPLICATION KEY - SID + Date + Driver ID
+    // This is the MOST RELIABLE way to identify duplicates and prevent data conflicts
+    if (importedDeliveryStopId && importedDeliveryDate && importedDriverId) {
+      const exactMatch = existingDeliveries.find((d) => 
+        d.stop_id === importedDeliveryStopId &&
+        d.delivery_date === importedDeliveryDate &&
+        d.driver_id === importedDriverId
+      );
+      
+      if (exactMatch) {
+        return { match: exactMatch, reason: `EXACT MATCH: SID(${importedDeliveryStopId}) + Date + Driver` };
+      }
+    }
+
     // CRITICAL: Filter existing deliveries by date AND driver_id (not city-dependent)
     // This ensures we find matches regardless of which city the delivery was created in
     const sameDateDeliveries = existingDeliveries.filter((d) => {
