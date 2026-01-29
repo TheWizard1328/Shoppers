@@ -1,15 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 75 }) {
   const [isFlashing, setIsFlashing] = useState(false);
-
-  // Expose flash method for external triggers
-  React.useImperativeHandle = function() {
-    return { flashOnUpdate: () => flashUpdate() };
-  };
 
   const flashUpdate = () => {
     if (currentPhase !== 1) return;
@@ -18,7 +13,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
   };
 
   // Make flash method available globally
-  React.useEffect(() => {
+  useEffect(() => {
     window.__fabFlashUpdate = flashUpdate;
     return () => delete window.__fabFlashUpdate;
   }, [currentPhase]);
