@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, RefreshCw } from 'lucide-react';
+import { FileText, RefreshCw, Database, Cloud } from 'lucide-react';
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -78,16 +78,16 @@ export default function SettingsMenu({
         </>
       )}
 
-      {/* Display Settings Section */}
-      <>
-        <DropdownMenuLabel 
-          className="px-2 font-semibold uppercase tracking-wider text-slate-500" 
-          style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}
-        >
-          Display
-        </DropdownMenuLabel>
-        
-        {/* Data Source Toggle - All Users */}
+      {/* Display Settings */}
+      <DropdownMenuLabel 
+        className="px-2 font-semibold uppercase tracking-wider text-slate-500" 
+        style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}
+      >
+        Display
+      </DropdownMenuLabel>
+      
+      {/* Theme Toggle - Mobile Devices Only */}
+      {isMobileDeviceForUI && (
         <div className="px-2 py-2">
           <label 
             className="font-medium mb-1.5 block" 
@@ -96,9 +96,9 @@ export default function SettingsMenu({
               fontSize: isMobileDeviceForUI ? '15px' : '14px' 
             }}
           >
-            Data Source
+            Theme
           </label>
-          <Select value={dataSource} onValueChange={onDataSourceChange}>
+          <Select value={themePreference} onValueChange={onThemeChange}>
             <SelectTrigger 
               className="w-full h-9" 
               style={{ 
@@ -118,53 +118,64 @@ export default function SettingsMenu({
                 fontSize: isMobileDeviceForUI ? '16px' : '15px' 
               }}
             >
-              <SelectItem value="offline" style={{ color: 'var(--text-slate-900)' }}>Offline Database</SelectItem>
-              <SelectItem value="online" style={{ color: 'var(--text-slate-900)' }}>Online Database</SelectItem>
+              <SelectItem value="auto" style={{ color: 'var(--text-slate-900)' }}>Auto (System)</SelectItem>
+              <SelectItem value="light" style={{ color: 'var(--text-slate-900)' }}>Light</SelectItem>
+              <SelectItem value="dark" style={{ color: 'var(--text-slate-900)' }}>Dark</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        
-        {/* Theme Toggle - Mobile Devices Only */}
-        {isMobileDeviceForUI && (
-          <div className="px-2 py-2">
-            <label 
-              className="font-medium mb-1.5 block" 
-              style={{ 
-                color: 'var(--text-slate-700)', 
-                fontSize: isMobileDeviceForUI ? '15px' : '14px' 
-              }}
-            >
-              Theme
-            </label>
-            <Select value={themePreference} onValueChange={onThemeChange}>
-              <SelectTrigger 
-                className="w-full h-9" 
-                style={{ 
-                  background: 'var(--bg-white)', 
-                  borderColor: 'var(--border-slate-300)', 
-                  color: 'var(--text-slate-900)', 
-                  fontSize: isMobileDeviceForUI ? '16px' : '15px' 
-                }}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent 
-                className="z-[10003]" 
-                style={{ 
-                  background: 'var(--bg-white)', 
-                  borderColor: '#ffffff', 
-                  fontSize: isMobileDeviceForUI ? '16px' : '15px' 
-                }}
-              >
-                <SelectItem value="auto" style={{ color: 'var(--text-slate-900)' }}>Auto (System)</SelectItem>
-                <SelectItem value="light" style={{ color: 'var(--text-slate-900)' }}>Light</SelectItem>
-                <SelectItem value="dark" style={{ color: 'var(--text-slate-900)' }}>Dark</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-      </>
+      )}
+
+      {/* Data Source Toggle */}
+      <div className="px-2 py-2">
+        <label 
+          className="font-medium mb-1.5 block" 
+          style={{ 
+            color: 'var(--text-slate-700)', 
+            fontSize: isMobileDeviceForUI ? '15px' : '14px' 
+          }}
+        >
+          Data Source
+        </label>
+        <Select value={dataSource || 'offline'} onValueChange={onDataSourceChange}>
+          <SelectTrigger 
+            className="w-full h-9" 
+            style={{ 
+              background: 'var(--bg-white)', 
+              borderColor: 'var(--border-slate-300)', 
+              color: 'var(--text-slate-900)', 
+              fontSize: isMobileDeviceForUI ? '16px' : '15px' 
+            }}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent 
+            className="z-[10003]" 
+            style={{ 
+              background: 'var(--bg-white)', 
+              borderColor: '#ffffff', 
+              fontSize: isMobileDeviceForUI ? '16px' : '15px' 
+            }}
+          >
+            <SelectItem value="offline" style={{ color: 'var(--text-slate-900)' }}>
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4" />
+                Offline DB (Default)
+              </div>
+            </SelectItem>
+            <SelectItem value="online" style={{ color: 'var(--text-slate-900)' }}>
+              <div className="flex items-center gap-2">
+                <Cloud className="w-4 h-4" />
+                Online DB Only
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs mt-1.5" style={{ color: 'var(--text-slate-500)' }}>
+          {dataSource === 'online' ? 'Loading from server (slower, always fresh)' : 'Loading from local cache (faster, may have sync issues)'}
+        </p>
+      </div>
+      <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
 
       {/* Import Buttons */}
       {(realUser && isAppOwner || adminImportEnabled) && (

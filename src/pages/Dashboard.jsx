@@ -254,7 +254,8 @@ function Dashboard() {
     setOnSmartRefreshComplete,
     dataReadyForSelectedDate,
     isSnapshotModeActive,
-    setIsSnapshotModeActive
+    setIsSnapshotModeActive,
+    dataSource
   } = useAppData();
 
   const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
@@ -333,7 +334,6 @@ function Dashboard() {
   const [summaryDriver, setSummaryDriver] = useState(null); // Store which driver's summary to show
   const stopCardsContainerRef = useRef(null);
   const horizontalStopCardsRef = useRef(null); // Direct ref to HorizontalStopCards component
-  const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
 
   const mapLockTimeoutRef = useRef(null);
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
@@ -660,11 +660,6 @@ function Dashboard() {
         // CRITICAL: Load "Show All Markers" setting
         if (settings.show_all_driver_markers !== undefined) {
           setShowAllDriverMarkers(settings.show_all_driver_markers);
-        }
-        
-        // Load data source preference
-        if (settings.data_source) {
-          setDataSource(settings.data_source);
         }
 
         // CRITICAL: Store FAB phase from settings but DON'T apply until deliveries are loaded
@@ -3514,25 +3509,39 @@ function Dashboard() {
       // STEP 1: Clear pending updates for clean slate
       smartRefreshManager.clearPendingUpdates();
 
-      // STEP 2: Load from offline DB first, fallback to API
+      // STEP 2: Load based on data source preference
       const shouldLoadAllDeliveries = showAllDriverMarkers || selectedDriverId === 'all';
+      let priorityDeliveries;
 
-      let priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-
-      if (!priorityDeliveries || priorityDeliveries.length === 0) {
+      if (dataSource === 'online') {
+        // ONLINE MODE: Always fetch from API, skip offline DB
+        console.log(`🌐 [Date Change - ONLINE MODE] Fetching from API`);
         if (shouldLoadAllDeliveries) {
-          console.log('📥 [Date Change] Offline DB empty - fetching ALL from API');
           priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
         } else {
-          console.log(`📥 [Date Change] Offline DB empty - fetching driver ${selectedDriverId} from API`);
           priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr, driver_id: selectedDriverId });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
         }
+        // Update offline DB in background (don't wait)
+        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries).catch(() => {});
       } else {
-        console.log(`📦 [Date Change] Using ${priorityDeliveries.length} deliveries from offline DB`);
-        if (!shouldLoadAllDeliveries) {
-          priorityDeliveries = priorityDeliveries.filter((d) => d.driver_id === selectedDriverId);
+        // OFFLINE MODE: Try offline DB first, fallback to API
+        priorityDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+
+        if (!priorityDeliveries || priorityDeliveries.length === 0) {
+          if (shouldLoadAllDeliveries) {
+            console.log('📥 [Date Change] Offline DB empty - fetching ALL from API');
+            priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
+          } else {
+            console.log(`📥 [Date Change] Offline DB empty - fetching driver ${selectedDriverId} from API`);
+            priorityDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr, driver_id: selectedDriverId });
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, priorityDeliveries);
+          }
+        } else {
+          console.log(`📦 [Date Change] Using ${priorityDeliveries.length} deliveries from offline DB`);
+          if (!shouldLoadAllDeliveries) {
+            priorityDeliveries = priorityDeliveries.filter((d) => d.driver_id === selectedDriverId);
+          }
         }
       }
 
@@ -3652,20 +3661,33 @@ function Dashboard() {
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // CRITICAL: Try offline DB FIRST to avoid API rate limits
-      let freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      // Load based on data source preference
+      let freshDeliveries;
       const shouldLoadAllDeliveries = showAllDriverMarkers || driverId === 'all';
 
-      if (!freshDeliveries || freshDeliveries.length === 0) {
-        console.log(`📥 [Driver Change] Offline DB empty - fetching from API`);
+      if (dataSource === 'online') {
+        // ONLINE MODE: Always fetch from API
+        console.log(`🌐 [Driver Change - ONLINE MODE] Fetching from API`);
         freshDeliveries = shouldLoadAllDeliveries ?
-        await base44.entities.Delivery.filter({ delivery_date: dateStr }) :
-        await base44.entities.Delivery.filter({ delivery_date: dateStr, driver_id: driverId });
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+          await base44.entities.Delivery.filter({ delivery_date: dateStr }) :
+          await base44.entities.Delivery.filter({ delivery_date: dateStr, driver_id: driverId });
+        // Update offline DB in background
+        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
       } else {
-        console.log(`📦 [Driver Change] Using ${freshDeliveries.length} deliveries from offline DB`);
-        if (!shouldLoadAllDeliveries && driverId !== 'all') {
-          freshDeliveries = freshDeliveries.filter((d) => d.driver_id === driverId);
+        // OFFLINE MODE: Try offline DB first
+        freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+
+        if (!freshDeliveries || freshDeliveries.length === 0) {
+          console.log(`📥 [Driver Change] Offline DB empty - fetching from API`);
+          freshDeliveries = shouldLoadAllDeliveries ?
+          await base44.entities.Delivery.filter({ delivery_date: dateStr }) :
+          await base44.entities.Delivery.filter({ delivery_date: dateStr, driver_id: driverId });
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        } else {
+          console.log(`📦 [Driver Change] Using ${freshDeliveries.length} deliveries from offline DB`);
+          if (!shouldLoadAllDeliveries && driverId !== 'all') {
+            freshDeliveries = freshDeliveries.filter((d) => d.driver_id === driverId);
+          }
         }
       }
 
@@ -6698,73 +6720,47 @@ function Dashboard() {
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const [forceRender, setForceRender] = useState(0);
 
-  // Listen for data source changes
-  useEffect(() => {
-    const handleDataSourceChanged = async (event) => {
-      const { source } = event.detail;
-      console.log(`🔄 [Dashboard] Data source changed to: ${source}`);
-      setDataSource(source);
-      
-      // Force reload data from selected source
-      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-      await loadDataFromSource(source, selectedDateStr);
-    };
-    
-    window.addEventListener('dataSourceChanged', handleDataSourceChanged);
-    return () => window.removeEventListener('dataSourceChanged', handleDataSourceChanged);
-  }, [selectedDate, deliveries, updateDeliveriesLocally]);
-  
-  // Helper function to load data from specified source
-  const loadDataFromSource = async (source, dateStr) => {
-    try {
-      console.log(`📥 [Dashboard] Loading from ${source} database for ${dateStr}`);
-      
-      let freshDeliveries;
-      
-      if (source === 'online') {
-        // Load directly from online database
-        console.log('🌐 [Online Mode] Fetching from API...');
-        freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        console.log(`✅ [Online Mode] Loaded ${freshDeliveries.length} deliveries from online DB`);
-      } else {
-        // Load from offline database
-        console.log('📦 [Offline Mode] Loading from offline DB...');
-        freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-        
-        if (!freshDeliveries || freshDeliveries.length === 0) {
-          console.log('📥 [Offline Mode] Offline DB empty - fetching from API as fallback');
-          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        }
-        
-        console.log(`✅ [Offline Mode] Loaded ${freshDeliveries.length} deliveries`);
-      }
-      
-      // Update UI immediately
-      if (freshDeliveries.length > 0 && updateDeliveriesLocally) {
-        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
-        updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-        console.log(`✅ [Data Source] UI updated with ${source} deliveries`);
-        
-        // Force re-render
-        setForceRender((prev) => prev + 1);
-        
-        // Trigger map update
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { deliveryDate: dateStr, triggeredBy: 'dataSourceChange' }
-        }));
-      }
-    } catch (error) {
-      console.error(`❌ [Dashboard] Failed to load from ${source} database:`, error);
-    }
-  };
-
-  // CRITICAL: Load deliveries from selected data source on mount/return to Dashboard
+  // CRITICAL: Load deliveries based on data source preference
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
 
     const loadDeliveriesOnMount = async () => {
-      await loadDataFromSource(dataSource, selectedDateStr);
+      console.log(`📦 [Dashboard Mount] Loading deliveries for ${selectedDateStr} (mode: ${dataSource})`);
+      
+      try {
+        let mountDeliveries;
+        
+        if (dataSource === 'online') {
+          // ONLINE MODE: Always fetch from API
+          console.log('🌐 [Dashboard Mount - ONLINE MODE] Fetching from API');
+          mountDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+          // Update offline DB in background
+          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mountDeliveries).catch(() => {});
+        } else {
+          // OFFLINE MODE: Try offline DB first
+          mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+          
+          if (!mountDeliveries || mountDeliveries.length === 0) {
+            console.log('📥 [Dashboard Mount] Offline DB empty - fetching from API');
+            mountDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mountDeliveries);
+          } else {
+            console.log(`✅ [Dashboard Mount] Loaded ${mountDeliveries.length} deliveries from offline DB`);
+          }
+        }
+
+        // Update context immediately if we have data
+        if (mountDeliveries.length > 0 && updateDeliveriesLocally) {
+          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+          updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
+          console.log(`✅ [Dashboard Mount] UI updated with ${mountDeliveries.length} deliveries (${dataSource} mode)`);
+          
+          // Force a re-render to trigger stats calculation and map rendering
+          setForceRender((prev) => prev + 1);
+        }
+      } catch (error) {
+        console.error('❌ [Dashboard Mount] Failed to load deliveries:', error);
+      }
     };
 
     loadDeliveriesOnMount();
