@@ -3542,7 +3542,7 @@ export default function Layout({ children, currentPageName }) {
 
                     {/* Driver Status Toggle - CENTERED in Mobile Header (narrow screen only) */}
                     {isMobile && screenWidth < 768 && currentUser && userHasRole(currentUser, 'driver') &&
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2">
                       <DriverStatusToggle
                         currentUser={currentUser}
                         onStatusChange={async (newStatus) => {
@@ -3553,6 +3553,12 @@ export default function Layout({ children, currentPageName }) {
                           }
                         }}
                       />
+                      <button
+                        onClick={() => setShowInviteQRModal(true)}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                        title="Generate Invite QR Code">
+                        <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
+                      </button>
                     </div>
                     }
 
@@ -3560,12 +3566,6 @@ export default function Layout({ children, currentPageName }) {
 
                   {currentUser &&
                               <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
-                                    <button
-                                      onClick={() => setShowInviteQRModal(true)}
-                                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                                      title="Generate Invite QR Code">
-                                      <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
-                                    </button>
                                     <BatteryIndicator vertical={true} />
                                     <div className="flex flex-col items-center gap-1">
                                       <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
