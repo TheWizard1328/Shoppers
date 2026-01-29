@@ -2280,12 +2280,12 @@ export default function RouteImport({
                 </div>
             </div>
 
-            {previewData.skippedItems.length > 0 &&
-                <div className="flex flex-col items-center bg-orange-50 border border-orange-200 rounded-lg p-3">
-                <div className="text-xs text-orange-700 mb-1">Skipped Items</div>
-                <div className="text-2xl font-bold text-orange-800">{previewStats.skipped}</div>
-                </div>
-                }
+            {previewStats.skipped > 0 &&
+              <div className="flex flex-col items-center bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <div className="text-xs text-orange-700 mb-1">Skipped Items</div>
+              <div className="text-2xl font-bold text-orange-800">{previewStats.skipped}</div>
+              </div>
+              }
             </div>  
           </div>
 
