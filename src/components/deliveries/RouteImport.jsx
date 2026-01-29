@@ -1238,7 +1238,10 @@ export default function RouteImport({
     // CRITICAL: Completed = ONLY deliveries with status === 'completed'
     const completed = filteredPreviewDeliveries.filter((d) => d.status === 'completed').length;
 
-    return { creates, updates, completed, failed, returned, skipped: previewData.skippedItems.length };
+    // CRITICAL: Exclude line 1 skipped items from display
+    const skippedItemsToShow = previewData.skippedItems.filter((item) => item.lineNumber !== 1);
+
+    return { creates, updates, completed, failed, returned, skipped: skippedItemsToShow.length };
   }, [filteredPreviewDeliveries, previewData.skippedItems]);
 
 
