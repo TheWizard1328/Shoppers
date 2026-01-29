@@ -370,28 +370,25 @@ function Dashboard() {
       if (source === 'dashboard') return;
       
       try {
-        // CRITICAL: Check "Show All" state to load correct deliveries
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        const shouldLoadAllDrivers = showAllDriverMarkers || selectedDriverId === 'all';
         
-        console.log(`📥 [Import] Loading deliveries - Show All: ${showAllDriverMarkers}, Mode: ${shouldLoadAllDrivers ? 'ALL DRIVERS' : 'Single Driver'}`);
-        
-        // Load deliveries based on checkbox state
+        // CRITICAL: Always load ALL drivers' deliveries to detect if import is for other drivers
         invalidateDeliveriesForDate(selectedDateStr);
-        let freshDeliveries;
+        const freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+        console.log(`✅ [Import] Loaded ${freshDeliveries.length} deliveries for ALL drivers`);
         
-        if (shouldLoadAllDrivers) {
-          // Show All enabled - load ALL drivers' deliveries
-          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-          console.log(`✅ [Import] Loaded ${freshDeliveries.length} deliveries for ALL drivers`);
-        } else {
-          // Show All disabled - load only selected driver's deliveries
-          const driverToLoad = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-          freshDeliveries = await base44.entities.Delivery.filter({ 
-            delivery_date: selectedDateStr,
-            driver_id: driverToLoad
-          });
-          console.log(`✅ [Import] Loaded ${freshDeliveries.length} deliveries for driver ${driverToLoad}`);
+        // CRITICAL: Check if imported deliveries are for a different driver
+        const importedDriverIds = new Set(freshDeliveries.map(d => d?.driver_id).filter(Boolean));
+        const isViewingSingleDriver = selectedDriverId !== 'all' && !showAllDriverMarkers;
+        const isForOtherDriver = isViewingSingleDriver && !importedDriverIds.has(selectedDriverId);
+        
+        // Auto-enable "Show All" if importing for other drivers (admin/dispatcher only)
+        if (isForOtherDriver && (isAdmin || isDispatcher)) {
+          console.log('📍 [Import] Imported for other driver(s) - auto-enabling Show All to display markers');
+          setShowAllDriverMarkers(true);
+          if (currentUser?.id) {
+            saveSetting(currentUser.id, 'show_all_driver_markers', true);
+          }
         }
         
         // Update offline DB
