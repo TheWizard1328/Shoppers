@@ -2831,6 +2831,15 @@ export default function Layout({ children, currentPageName }) {
 
       }
 
+      {showInviteQRModal &&
+      <InviteQRCodeModal
+        isOpen={showInviteQRModal}
+        onClose={() => setShowInviteQRModal(false)}
+        currentUser={currentUser}
+        stores={stores} />
+
+      }
+
                   {/* Global Conflict Manager */}
                   <ConflictManager />
                   
