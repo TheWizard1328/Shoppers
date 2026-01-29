@@ -641,16 +641,18 @@ export default function Layout({ children, currentPageName }) {
   useEffect(() => {
     // CRITICAL: Delay theme changes to avoid interfering with form submissions or status updates
     const themeUpdateTimer = setTimeout(() => {
-      // CRITICAL: Use device type (user agent), not layout mode
+      // CRITICAL: Use isMobileDevice() for reliable mobile/tablet detection (not layout mode)
       // This allows tablets/mobile devices to use dark mode even when showing desktop layout
-      if (deviceType !== 'Mobile') {
-        // Force light mode on actual desktop computers
+      const isMobileOrTablet = isMobileDevice();
+      
+      if (!isMobileOrTablet) {
+        // Force light mode on actual desktop computers only
         document.documentElement.classList.remove('auto-theme', 'dark-theme');
         document.documentElement.classList.add('light-theme');
         return;
       }
 
-      // Mobile device theme switching (works regardless of layout)
+      // Mobile/tablet theme switching (works regardless of screen width or layout)
       if (themePreference === 'dark') {
         document.documentElement.classList.remove('auto-theme', 'light-theme');
         document.documentElement.classList.add('dark-theme');
@@ -664,7 +666,7 @@ export default function Layout({ children, currentPageName }) {
     }, 300); // 300ms delay to avoid blocking critical operations
 
     return () => clearTimeout(themeUpdateTimer);
-  }, [themePreference, deviceType]);
+  }, [themePreference]);
 
   const handleThemeChange = async (newTheme) => {
     setThemePreference(newTheme);
