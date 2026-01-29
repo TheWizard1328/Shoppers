@@ -2959,62 +2959,65 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Driver Status Toggle - Show in sidebar when using sidebar layout (wide screen) for mobile devices */}
-                      {isMobile && screenWidth >= 768 && currentUser && userHasRole(currentUser, 'driver') &&
-                        <div className="flex">
-                              <DriverStatusToggle
-                            currentUser={currentUser}
-                            vertical={true}
-                            onStatusChange={async (newStatus) => {
-                              clearUserCache();
-                              const refreshedUser = await getEffectiveUser();
-                              if (refreshedUser) {
-                                setCurrentUser(refreshedUser);
-                              }
-                            }} />
-
-                            </div>
-                      }
-
-                      {/* Settings menu - show for mobile devices (wide screen) */}
-                      {isMobile && screenWidth >= 768 && (userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
-                    <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreVertical className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2 text-slate-500`} />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <SettingsMenu
-                            currentUser={currentUser}
-                            realUser={realUser}
-                            isAppOwner={isAppOwner(currentUser)}
-                            adminImportEnabled={adminImportEnabled}
-                            onAdminImportToggle={async (checked) => {
-                              if (currentUser?._isImpersonating) return;
-                              setAdminImportEnabled(checked);
-                              try {
-                                const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                                if (settings && settings.length > 0) {
-                                  await base44.entities.AppSettings.update(settings[0].id, {
-                                    setting_value: {
-                                      ...settings[0].setting_value,
-                                      adminImportEnabled: checked
-                                    }
-                                  });
+                      {/* Mobile device controls - show when wide screen */}
+                      {isMobile && screenWidth >= 768 &&
+                        <>
+                          {/* Driver Status Toggle */}
+                          {currentUser && userHasRole(currentUser, 'driver') &&
+                            <DriverStatusToggle
+                              currentUser={currentUser}
+                              vertical={true}
+                              onStatusChange={async (newStatus) => {
+                                clearUserCache();
+                                const refreshedUser = await getEffectiveUser();
+                                if (refreshedUser) {
+                                  setCurrentUser(refreshedUser);
                                 }
-                              } catch (error) {
-                                console.error('Failed to save admin import setting:', error);
-                              }
-                            }}
-                            themePreference={themePreference}
-                            onThemeChange={handleThemeChange}
-                            cities={cities}
-                            onPatientImportClick={() => setShowPatientImport(true)}
-                            onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                            isMobile={true}
-                          />
-                        </DropdownMenu>
-                    }
+                              }}
+                            />
+                          }
+
+                          {/* Settings Menu */}
+                          {(userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreVertical className="w-5 h-5 text-slate-500" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <SettingsMenu
+                                currentUser={currentUser}
+                                realUser={realUser}
+                                isAppOwner={isAppOwner(currentUser)}
+                                adminImportEnabled={adminImportEnabled}
+                                onAdminImportToggle={async (checked) => {
+                                  if (currentUser?._isImpersonating) return;
+                                  setAdminImportEnabled(checked);
+                                  try {
+                                    const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                    if (settings && settings.length > 0) {
+                                      await base44.entities.AppSettings.update(settings[0].id, {
+                                        setting_value: {
+                                          ...settings[0].setting_value,
+                                          adminImportEnabled: checked
+                                        }
+                                      });
+                                    }
+                                  } catch (error) {
+                                    console.error('Failed to save admin import setting:', error);
+                                  }
+                                }}
+                                themePreference={themePreference}
+                                onThemeChange={handleThemeChange}
+                                cities={cities}
+                                onPatientImportClick={() => setShowPatientImport(true)}
+                                onDeliveryImportClick={() => setShowDeliveryImport(true)}
+                                isMobile={true}
+                              />
+                            </DropdownMenu>
+                          }
+                        </>
+                      }
                     </div>
                   </div>
                 </div>
@@ -3208,17 +3211,23 @@ export default function Layout({ children, currentPageName }) {
                 }
 
                   {currentPageName === 'Dashboard' &&
-                <div className="mt-2">
-                      <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
-                      <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
-                        Quick Stats
-                      </div>
-                      <QuickStats
-                    currentUser={currentUser}
-                    storeIds={stores.map((s) => s?.id).filter(Boolean)} />
+                  <div className="mt-2">
+                        <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+                        <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
+                          Quick Stats
+                        </div>
+                        <QuickStats
+                      currentUser={currentUser}
+                      storeIds={stores.map((s) => s?.id).filter(Boolean)} />
 
-                    </div>
-                }
+                        {/* Offline Sync Indicator for mobile devices */}
+                        {isMobile && screenWidth >= 768 &&
+                          <div className="px-3 py-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                            <OfflineSyncIndicator mode="embedded" />
+                          </div>
+                        }
+                      </div>
+                  }
                 </div>
 
                 <div className="border-t p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
