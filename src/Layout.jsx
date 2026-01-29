@@ -3471,71 +3471,28 @@ export default function Layout({ children, currentPageName }) {
                     <div className="flex-1"></div>
 
                     <div className="flex items-center gap-2">
-                        {/* Mobile Header Controls - narrow screen only */}
-                        {isMobile && screenWidth < 768 &&
-                          <>
-                            {/* QR Code Invite Button */}
-                            <button
-                              onClick={() => setShowInviteQRModal(true)}
-                              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                              title="Generate Invite QR Code">
-                              <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
-                            </button>
-
-                            {/* Location Tracking Toggle - for drivers */}
-                            {currentUser && userHasRole(currentUser, 'driver') &&
-                              <LocationTrackingToggle
-                                currentUser={currentUser}
-                                onUpdate={async () => {
-                                  clearUserCache();
-                                  const refreshedUser = await getEffectiveUser();
-                                  if (refreshedUser) {
-                                    setCurrentUser(refreshedUser);
-                                  }
-                                }}
-                              />
-                            }
-
-                            {/* Settings Menu - Always show for all users */}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
-                                  <MoreVertical className="w-5 h-5 text-slate-500" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <SettingsMenu
-                                currentUser={currentUser}
-                                realUser={realUser}
-                                isAppOwner={isAppOwner(currentUser)}
-                                adminImportEnabled={adminImportEnabled}
-                                onAdminImportToggle={async (checked) => {
-                                  if (currentUser?._isImpersonating) return;
-                                  setAdminImportEnabled(checked);
-                                  try {
-                                    const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                                    if (settings && settings.length > 0) {
-                                      await base44.entities.AppSettings.update(settings[0].id, {
-                                        setting_value: {
-                                          ...settings[0].setting_value,
-                                          adminImportEnabled: checked
-                                        }
-                                      });
-                                    }
-                                  } catch (error) {
-                                    console.error('Failed to save admin import setting:', error);
-                                  }
-                                }}
-                                themePreference={themePreference}
-                                onThemeChange={handleThemeChange}
-                                dataSource={dataSource}
-                                onDataSourceChange={handleDataSourceChange}
-                                cities={cities}
-                                onPatientImportClick={() => setShowPatientImport(true)}
-                                onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                                isMobile={true}
-                              />
-                            </DropdownMenu>
-                          </>
+                        {/* Battery Indicator - always visible */}
+                        {isMobile && screenWidth < 768 && <BatteryIndicator vertical={true} />}
+                        
+                        {/* User Avatar - always visible on narrow mobile */}
+                        {isMobile && screenWidth < 768 && currentUser &&
+                          <div className="flex flex-col items-center gap-0.5">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              userHasRole(currentUser, 'admin') ?
+                              'bg-gradient-to-br from-blue-500 to-blue-600' :
+                              userHasRole(currentUser, 'dispatcher') ?
+                              'bg-gradient-to-br from-red-500 to-red-600' :
+                              userHasRole(currentUser, 'driver') ?
+                              'bg-gradient-to-br from-emerald-500 to-emerald-600' :
+                              'bg-gradient-to-br from-gray-400 to-gray-500'}`}>
+                              <span className="text-white font-bold text-xs">
+                                {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
+                              </span>
+                            </div>
+                            <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
+                              {getDriverDisplayName(currentUser)?.split(' ')[0]}
+                            </span>
+                          </div>
                         }
                     </div>
                     </div>
