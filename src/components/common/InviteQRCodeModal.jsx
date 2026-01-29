@@ -5,7 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { MultiSelect } from '@/components/ui/multi-select';
 import { base44 } from '@/api/base44Client';
 import { Copy, Download } from 'lucide-react';
-import QRCode from 'qrcode.react';
 import { userHasRole } from '@/components/utils/userRoles';
 import { toast } from 'sonner';
 
