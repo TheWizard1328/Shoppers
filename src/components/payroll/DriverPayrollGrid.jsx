@@ -620,6 +620,96 @@ export default function DriverPayrollGrid({
                   <span className="hidden md:inline">{viewMode === 'extraKm' ? grandTotal.toFixed(2) : grandTotal}</span>
                 </td>
               </tr>
+              {/* Average Per Active Day Row */}
+              <tr className="font-medium" style={{ background: 'var(--bg-slate-50)' }}>
+                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-50)' }}>AVG</td>
+                {sortedStores.map((store) => {
+                  const storeTotal = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
+                  const activeDays = periodDays.filter(day => {
+                    const dateKey = format(day, 'yyyy-MM-dd');
+                    const dayValue = viewMode === 'extraKm' ? (extraKmMap[dateKey]?.[store.id] || 0) : (dataMap[dateKey]?.[store.id] || 0);
+                    return dayValue > 0;
+                  }).length;
+                  const average = activeDays > 0 ? storeTotal / activeDays : 0;
+                  const displayValueMobile = viewMode === 'extraKm' 
+                    ? (average > 0 ? average.toFixed(1) : '')
+                    : (average > 0 ? average.toFixed(1) : '');
+                  const displayValueDesktop = viewMode === 'extraKm' 
+                    ? (average > 0 ? average.toFixed(2) : '')
+                    : (average > 0 ? average.toFixed(2) : '');
+                  return (
+                    <td
+                      key={store.id}
+                      className="text-center px-1 md:px-2 py-1 tabular-nums"
+                      style={{ color: getStoreColor(store) }}
+                    >
+                      <span className="md:hidden">{displayValueMobile}</span>
+                      <span className="hidden md:inline">{displayValueDesktop}</span>
+                    </td>
+                  );
+                })}
+                <td className="text-center px-1 md:px-2 py-1 font-semibold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
+                  {(() => {
+                    const activeDays = periodDays.filter(day => {
+                      const dateKey = format(day, 'yyyy-MM-dd');
+                      return getDayTotal(dateKey) > 0;
+                    }).length;
+                    const average = activeDays > 0 ? grandTotal / activeDays : 0;
+                    return (
+                      <>
+                        <span className="md:hidden">{viewMode === 'extraKm' ? (average > 0 ? average.toFixed(1) : '') : (average > 0 ? average.toFixed(1) : '')}</span>
+                        <span className="hidden md:inline">{viewMode === 'extraKm' ? (average > 0 ? average.toFixed(2) : '') : (average > 0 ? average.toFixed(2) : '')}</span>
+                      </>
+                    );
+                  })()}
+                </td>
+              </tr>
+              {/* Projected Total Row */}
+              <tr className="font-medium" style={{ background: 'var(--bg-slate-50)' }}>
+                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-50)' }}>Proj</td>
+                {sortedStores.map((store) => {
+                  const storeTotal = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
+                  const activeDays = periodDays.filter(day => {
+                    const dateKey = format(day, 'yyyy-MM-dd');
+                    const dayValue = viewMode === 'extraKm' ? (extraKmMap[dateKey]?.[store.id] || 0) : (dataMap[dateKey]?.[store.id] || 0);
+                    return dayValue > 0;
+                  }).length;
+                  const average = activeDays > 0 ? storeTotal / activeDays : 0;
+                  const projected = average * periodDays.length;
+                  const displayValueMobile = viewMode === 'extraKm' 
+                    ? (projected > 0 ? projected.toFixed(1) : '')
+                    : (projected > 0 ? Math.round(projected) : '');
+                  const displayValueDesktop = viewMode === 'extraKm' 
+                    ? (projected > 0 ? projected.toFixed(2) : '')
+                    : (projected > 0 ? Math.round(projected) : '');
+                  return (
+                    <td
+                      key={store.id}
+                      className="text-center px-1 md:px-2 py-1 tabular-nums"
+                      style={{ color: getStoreColor(store) }}
+                    >
+                      <span className="md:hidden">{displayValueMobile}</span>
+                      <span className="hidden md:inline">{displayValueDesktop}</span>
+                    </td>
+                  );
+                })}
+                <td className="text-center px-1 md:px-2 py-1 font-semibold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
+                  {(() => {
+                    const activeDays = periodDays.filter(day => {
+                      const dateKey = format(day, 'yyyy-MM-dd');
+                      return getDayTotal(dateKey) > 0;
+                    }).length;
+                    const average = activeDays > 0 ? grandTotal / activeDays : 0;
+                    const projected = average * periodDays.length;
+                    return (
+                      <>
+                        <span className="md:hidden">{viewMode === 'extraKm' ? (projected > 0 ? projected.toFixed(1) : '') : (projected > 0 ? Math.round(projected) : '')}</span>
+                        <span className="hidden md:inline">{viewMode === 'extraKm' ? (projected > 0 ? projected.toFixed(2) : '') : (projected > 0 ? Math.round(projected) : '')}</span>
+                      </>
+                    );
+                  })()}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
