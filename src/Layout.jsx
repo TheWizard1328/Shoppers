@@ -2959,8 +2959,8 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Driver Status Toggle - Show in sidebar on mobile devices in PORTRAIT mode only */}
-                      {isMobile && screenWidth < 768 && currentUser && userHasRole(currentUser, 'driver') &&
+                      {/* Driver Status Toggle - Show in sidebar when using sidebar layout (wide screen) for mobile devices */}
+                      {isMobile && screenWidth >= 768 && currentUser && userHasRole(currentUser, 'driver') &&
                         <div className="flex">
                               <DriverStatusToggle
                             currentUser={currentUser}
@@ -2976,7 +2976,8 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                       }
 
-                      {(userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
+                      {/* Settings menu - show for mobile devices (wide screen) OR admins/drivers (desktop) */}
+                      {(isMobile && screenWidth >= 768) || (!isMobile && (userHasRole(currentUser, 'admin') && cities && cities.length > 0)) ?
                     <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -3012,7 +3013,7 @@ export default function Layout({ children, currentPageName }) {
                             onDeliveryImportClick={() => setShowDeliveryImport(true)}
                             isMobile={isMobileDeviceForUI}
                           />
-                        </DropdownMenu>
+                        </DropdownMenu> : null
                     }
                     </div>
                   </div>
@@ -3397,9 +3398,8 @@ export default function Layout({ children, currentPageName }) {
 
                     <div className="flex-1"></div>
 
-                        {/* --- PHASE 4: SUBTLE SETTINGS MENU (MOBILE) --- */}
-                        {/* Show for admins (with cities) OR drivers (for Active Stops import and theme) */}
-                        {(userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
+                        {/* Settings Menu - Mobile Header (narrow screen only) */}
+                        {isMobile && screenWidth < 768 && (userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
                         <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
@@ -3439,8 +3439,8 @@ export default function Layout({ children, currentPageName }) {
                         }
                   </div>
 
-                  {/* Driver Status Toggle - Centered in Mobile Header */}
-                  {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
+                  {/* Driver Status Toggle - Centered in Mobile Header (narrow screen only) */}
+                  {isMobile && screenWidth < 768 && currentUser && userHasRole(currentUser, 'driver') &&
                   <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                       <DriverStatusToggle
                     currentUser={currentUser}
