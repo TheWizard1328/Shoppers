@@ -3557,13 +3557,12 @@ export default function Layout({ children, currentPageName }) {
                     </div>
                     }
 
-                    {/* User Avatar Display (only non-driver) */}
-                    {!(isMobile && screenWidth < 768 && currentUser && userHasRole(currentUser, 'driver')) &&
-                    currentUser &&
+                    {/* Battery + User Avatar on far right (all users, narrow mobile) */}
+                    {isMobile && screenWidth < 768 && currentUser &&
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
                       <BatteryIndicator vertical={true} />
                       <div className="flex flex-col items-center gap-1">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                             userHasRole(currentUser, 'admin') ?
                             'bg-gradient-to-br from-blue-500 to-blue-600' :
                             userHasRole(currentUser, 'dispatcher') ?
@@ -3571,12 +3570,12 @@ export default function Layout({ children, currentPageName }) {
                             userHasRole(currentUser, 'driver') ?
                             'bg-gradient-to-br from-emerald-500 to-emerald-600' :
                             'bg-gradient-to-br from-gray-400 to-gray-500'}`}>
-                          <span className="text-white font-bold text-sm">
+                          <span className="text-white font-bold text-xs">
                             {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
                           </span>
                         </div>
                         <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
-                          {getDriverDisplayName(currentUser)}
+                          {getDriverDisplayName(currentUser)?.split(' ')[0]}
                         </span>
                       </div>
                     </div>
