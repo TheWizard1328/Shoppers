@@ -1117,10 +1117,11 @@ function Dashboard() {
     return driversSource;
   }, [drivers, appUsers, deliveries, currentUser, selectedDate]);
 
-  const shouldShowLocationToggle = useMemo(() =>
-  isMobile && isDriver && !userHasRole(currentUser, 'dispatcher'),
-  [isMobile, isDriver, currentUser]
-  );
+  // CRITICAL: Show location toggle on mobile devices regardless of layout mode
+  const shouldShowLocationToggle = useMemo(() => {
+    const isMobileDevice = isMobile; // Already uses isMobileDevice() - detects by user agent
+    return isMobileDevice && isDriver && !userHasRole(currentUser, 'dispatcher');
+  }, [isMobile, isDriver, currentUser]);
 
   const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), []);
 
