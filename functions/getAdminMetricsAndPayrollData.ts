@@ -282,14 +282,21 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     };
     
     if (isBillableDelivery(delivery)) {
-      if (store?.pays_app_fees) {
-        metrics.monthlyData[monthIndex].billable++;
-        metrics.yearTotals.billable++;
-      } else {
-        metrics.monthlyData[monthIndex].nonBillable++;
-        metrics.yearTotals.nonBillable++;
-      }
       metrics.monthlyData[monthIndex].total++;
+      metrics.yearTotals.billable++;
+      
+      // Daily delivery data (for Monthly Deliveries chart when month is selected)
+      if (!metrics.dailyDeliveryData[monthIndex + 1]) metrics.dailyDeliveryData[monthIndex + 1] = [];
+      const dailyEntry = metrics.dailyDeliveryData[monthIndex + 1].find(d => d.day === dayOfMonth);
+      if (dailyEntry) {
+        dailyEntry.billable++;
+      } else {
+        metrics.dailyDeliveryData[monthIndex + 1].push({
+          day: dayOfMonth,
+          billable: 1,
+          nonBillable: 0,
+        });
+      }
 
       // Daily delivery data (for Monthly Deliveries chart when month is selected)
       if (!metrics.dailyDeliveryData[monthIndex + 1]) metrics.dailyDeliveryData[monthIndex + 1] = [];
