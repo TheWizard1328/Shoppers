@@ -6720,6 +6720,59 @@ function Dashboard() {
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const [forceRender, setForceRender] = useState(0);
 
+  // Listen for data source changes and reload
+  useEffect(() => {
+    const handleDataSourceChange = async (event) => {
+      const { source } = event.detail || {};
+      console.log(`🔄 [Dashboard] Data source changed to: ${source}`);
+      
+      setIsEntityUpdating(true);
+      
+      try {
+        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+        let freshDeliveries;
+        
+        if (source === 'online') {
+          console.log('🌐 [Data Source Change] Fetching from API');
+          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
+        } else {
+          console.log('📦 [Data Source Change] Loading from offline DB');
+          freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+          
+          if (!freshDeliveries || freshDeliveries.length === 0) {
+            console.log('📥 [Data Source Change] Offline DB empty - fetching from API');
+            freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+          }
+        }
+        
+        // Update UI with fresh data
+        if (updateDeliveriesLocally) {
+          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+          updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+          console.log(`✅ [Data Source Change] UI updated with ${freshDeliveries.length} deliveries`);
+        }
+        
+        // Force stats refresh
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        
+        // Force map update
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { deliveryDate: selectedDateStr, triggeredBy: 'dataSourceChange' }
+        }));
+        
+      } catch (error) {
+        console.error('❌ [Data Source Change] Failed:', error);
+      } finally {
+        setIsEntityUpdating(false);
+      }
+    };
+    
+    window.addEventListener('dataSourceChanged', handleDataSourceChange);
+    return () => window.removeEventListener('dataSourceChanged', handleDataSourceChange);
+  }, [selectedDate, updateDeliveriesLocally, deliveries]);
+
   // CRITICAL: Load deliveries based on data source preference
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
