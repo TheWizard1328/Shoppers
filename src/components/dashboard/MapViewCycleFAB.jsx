@@ -66,20 +66,24 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
       className="fixed right-4 z-[140]"
       style={{ bottom: `${bottomPixels}px` }}>
       
-      <Button
-        onClick={onClick}
-        title={getTooltip()}
-        className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
-          isLocked 
-            ? 'bg-blue-600 hover:bg-blue-700' 
-            : 'bg-gray-400 hover:bg-gray-500'
-        }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
-        {/* Mode number in top-left corner */}
-        <span className="absolute top-1 left-1 text-white font-bold text-[10px]">
-          {currentPhase}
-        </span>
-        {getIcon()}
-      </Button>
+      <motion.div
+        animate={isFlashing ? { scale: [1, 1.2, 1], opacity: [1, 0.6, 1] } : { scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5 }}>
+        <Button
+          onClick={onClick}
+          title={getTooltip()}
+          className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
+            isLocked 
+              ? 'bg-blue-600 hover:bg-blue-700' 
+              : 'bg-gray-400 hover:bg-gray-500'
+          }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
+          {/* Mode number in top-left corner */}
+          <span className="absolute top-1 left-1 text-white font-bold text-[10px]">
+            {currentPhase}
+          </span>
+          {getIcon()}
+        </Button>
+      </motion.div>
     </motion.div>
   );
 }
