@@ -980,6 +980,17 @@ const DeliveryDataTable = ({
             className="flex-1 min-w-[200px]"
             disabled={isLoadingData}
           />
+          
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+            <Checkbox
+              id="show-most-recent"
+              checked={showMostRecentOnly}
+              onCheckedChange={setShowMostRecentOnly}
+            />
+            <label htmlFor="show-most-recent" className="text-sm font-medium cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
+              Most Recent Date Only
+            </label>
+          </div>
         </div>
 
         <div className="mb-2 text-sm" style={{ color: 'var(--text-slate-600)' }}>
