@@ -1,86 +1,76 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { base44 } from '@/api/base44Client';
-import { BarChart3, Package, Truck, DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BarChart3, DollarSign, Store, Package, RefreshCw, Loader2, Settings, MapPin, FileText, Activity } from 'lucide-react';
 import { useAppData } from '@/components/utils/AppDataContext';
+import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
+import MonthlyStoreMetricsGrid from '../components/admin/MonthlyStoreMetricsGrid';
+import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
+import AppSettingsPanel from '../components/admin/AppSettingsPanel';
+import PolylineViewer from '../components/admin/PolylineViewer';
+import DeliveryDataTable from '../components/admin/DeliveryDataTable';
+import PatientDataTable from '../components/admin/PatientDataTable';
 
 export default function AdminMetrics() {
-  const { stores, deliveries, drivers } = useAppData();
+  const { deliveries, patients, stores, users, drivers } = useAppData();
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
-  const [selectedMonth, setSelectedMonth] = useState((new Date().getMonth() + 1).toString());
-  const [metrics, setMetrics] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState(null); // null = show yearly grid
+  const [selectedStoreMonth, setSelectedStoreMonth] = useState(null); // {month, storeId, storeName, storeAbbr}
+  const [metricsData, setMetricsData] = useState(null);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
+  const [metricsViewMode, setMetricsViewMode] = useState('deliveries'); // 'deliveries' or 'fees'
+  const [showEnvelopeAdjustedTotals, setShowEnvelopeAdjustedTotals] = useState(false);
 
-  const years = ['2024', '2025', '2026'];
-  const months = [
-    { value: '1', label: 'January' },
-    { value: '2', label: 'February' },
-    { value: '3', label: 'March' },
-    { value: '4', label: 'April' },
-    { value: '5', label: 'May' },
-    { value: '6', label: 'June' },
-    { value: '7', label: 'July' },
-    { value: '8', label: 'August' },
-    { value: '9', label: 'September' },
-    { value: '10', label: 'October' },
-    { value: '11', label: 'November' },
-    { value: '12', label: 'December' }
-  ];
+  const availableYears = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return [currentYear, currentYear - 1, currentYear - 2].map(y => y.toString());
+  }, []);
 
-  useEffect(() => {
-    fetchMetrics();
-  }, [selectedYear, selectedMonth]);
-
-  const fetchMetrics = async () => {
+  // Load metrics for the grid
+  const loadMetrics = async () => {
+    setIsLoadingMetrics(true);
     try {
-      setIsLoading(true);
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
-        year: parseInt(selectedYear),
-        month: parseInt(selectedMonth)
+        year: parseInt(selectedYear)
       });
-      setMetrics(response.data || response);
+      setMetricsData(response?.data || response);
     } catch (error) {
-      console.error('Failed to fetch metrics:', error);
+      console.error('Failed to load admin metrics:', error);
+      setMetricsData(null);
     } finally {
-      setIsLoading(false);
+      setIsLoadingMetrics(false);
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen p-6" style={{ background: 'var(--bg-slate-50)' }}>
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    loadMetrics();
+  }, [selectedYear]);
 
-  const MetricCard = ({ title, value, icon: Icon, trend, color = 'slate' }) => (
-    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-600)' }}>
-          {title}
-        </CardTitle>
-        <Icon className={`w-4 h-4 text-${color}-600`} />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-          {value}
-        </div>
-        {trend && (
-          <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-            <TrendingUp className="w-3 h-3" />
-            {trend}
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
+  const handleMonthClick = (month) => {
+    if (selectedMonth === month) {
+      setSelectedMonth(null);
+      setSelectedStoreMonth(null);
+    } else {
+      setSelectedMonth(month);
+      setSelectedStoreMonth(null);
+    }
+  };
+
+  const handleStoreMonthClick = (month, storeId, storeAbbr, storeName) => {
+    if (selectedStoreMonth?.month === month && selectedStoreMonth?.storeId === storeId) {
+      setSelectedStoreMonth(null);
+    } else {
+      setSelectedStoreMonth({ month, storeId, storeAbbr, storeName });
+    }
+  };
+
+  const handleResetView = () => {
+    setSelectedMonth(null);
+    setSelectedStoreMonth(null);
+  };
 
   return (
     <div className="min-h-screen p-6" style={{ background: 'var(--bg-slate-50)' }}>
@@ -89,31 +79,23 @@ export default function AdminMetrics() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-3">
             <BarChart3 className="w-8 h-8 text-slate-700" />
-            <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-              Admin Metrics
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                Admin Metrics
+              </h1>
+              <p className="text-sm text-slate-600">
+                System-wide analytics, metrics, and data management
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-32">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((month) => (
-                  <SelectItem key={month.value} value={month.value}>
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-24">
-                <SelectValue placeholder="Year" />
+              <SelectTrigger className="w-28">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {years.map((year) => (
+                {availableYears.map((year) => (
                   <SelectItem key={year} value={year}>
                     {year}
                   </SelectItem>
@@ -121,72 +103,125 @@ export default function AdminMetrics() {
               </SelectContent>
             </Select>
 
-            <Button onClick={fetchMetrics} variant="outline" size="icon">
-              <RefreshCw className="w-4 h-4" />
+            <Button onClick={loadMetrics} variant="outline" size="icon">
+              <RefreshCw className={`w-4 h-4 ${isLoadingMetrics ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </div>
 
-        {/* Metrics Grid */}
-        {metrics && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <MetricCard
-              title="Total Deliveries"
-              value={metrics.totalDeliveries || 0}
-              icon={Package}
-              color="emerald"
-            />
-            <MetricCard
-              title="Active Drivers"
-              value={metrics.activeDrivers || 0}
-              icon={Truck}
-              color="blue"
-            />
-            <MetricCard
-              title="Total Revenue"
-              value={`$${(metrics.totalRevenue || 0).toFixed(2)}`}
-              icon={DollarSign}
-              color="purple"
-            />
-            <MetricCard
-              title="Avg per Delivery"
-              value={`$${(metrics.avgPerDelivery || 0).toFixed(2)}`}
-              icon={TrendingUp}
-              color="slate"
-            />
-          </div>
-        )}
+        {/* Tabs for different admin sections */}
+        <Tabs defaultValue="deliveries" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6">
+            <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
+            <TabsTrigger value="store-fees">Store Fees</TabsTrigger>
+            <TabsTrigger value="api-logs">API Logs</TabsTrigger>
+            <TabsTrigger value="polylines">Polylines</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+            <TabsTrigger value="data">Data Tables</TabsTrigger>
+          </TabsList>
 
-        {/* Additional Metrics */}
-        {metrics && (
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <CardHeader>
-              <CardTitle style={{ color: 'var(--text-slate-900)' }}>Monthly Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: 'var(--text-slate-600)' }}>
-                      Completed Deliveries
-                    </div>
-                    <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                      {metrics.completedDeliveries || 0}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: 'var(--text-slate-600)' }}>
-                      Failed Deliveries
-                    </div>
-                    <div className="text-2xl font-bold text-red-600">
-                      {metrics.failedDeliveries || 0}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+          {/* Deliveries Grid */}
+          <TabsContent value="deliveries" className="space-y-6">
+            {isLoadingMetrics ? (
+              <Card>
+                <CardContent className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2" />
+                  <span className="text-slate-600">Loading metrics...</span>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <MonthlyStoreMetricsGrid
+                  metricsData={metricsData}
+                  selectedYear={selectedYear}
+                  onMonthClick={handleMonthClick}
+                  onStoreMonthClick={handleStoreMonthClick}
+                  selectedMonth={selectedMonth}
+                  selectedStoreMonth={selectedStoreMonth}
+                  onResetView={handleResetView}
+                  onViewModeChange={setMetricsViewMode}
+                  metricsViewMode={metricsViewMode}
+                  showEnvelopeAdjustedTotals={showEnvelopeAdjustedTotals}
+                  onEnvelopeToggleChange={setShowEnvelopeAdjustedTotals}
+                />
+
+                {/* Month-specific delivery table */}
+                {selectedMonth && !selectedStoreMonth && (
+                  <DeliveryDataTable
+                    deliveries={deliveries}
+                    patients={patients}
+                    stores={stores}
+                    users={users}
+                    selectedYear={selectedYear}
+                    selectedMonth={selectedMonth}
+                  />
+                )}
+
+                {/* Store-month specific delivery table */}
+                {selectedStoreMonth && (
+                  <DeliveryDataTable
+                    deliveries={deliveries}
+                    patients={patients}
+                    stores={stores}
+                    users={users}
+                    selectedYear={selectedYear}
+                    selectedMonth={selectedStoreMonth.month}
+                    selectedStoreId={selectedStoreMonth.storeId}
+                    storeFilterLabel={`${selectedStoreMonth.storeAbbr} - ${selectedStoreMonth.storeName}`}
+                  />
+                )}
+              </>
+            )}
+          </TabsContent>
+
+          {/* Store App Fees */}
+          <TabsContent value="store-fees" className="space-y-6">
+            <StoreMetricsPanel />
+          </TabsContent>
+
+          {/* Google API Logs */}
+          <TabsContent value="api-logs" className="space-y-6">
+            <GoogleAPILogViewer />
+          </TabsContent>
+
+          {/* Polylines Viewer */}
+          <TabsContent value="polylines" className="space-y-6">
+            <PolylineViewer users={users} />
+          </TabsContent>
+
+          {/* App Settings */}
+          <TabsContent value="settings" className="space-y-6">
+            <AppSettingsPanel />
+          </TabsContent>
+
+          {/* Data Tables */}
+          <TabsContent value="data" className="space-y-6">
+            <Tabs defaultValue="deliveries" className="w-full">
+              <TabsList>
+                <TabsTrigger value="deliveries">All Deliveries</TabsTrigger>
+                <TabsTrigger value="patients">All Patients</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="deliveries">
+                <DeliveryDataTable
+                  deliveries={deliveries}
+                  patients={patients}
+                  stores={stores}
+                  users={users}
+                  selectedYear={selectedYear}
+                  showAllData={true}
+                />
+              </TabsContent>
+              
+              <TabsContent value="patients">
+                <PatientDataTable
+                  patients={patients}
+                  stores={stores}
+                />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
