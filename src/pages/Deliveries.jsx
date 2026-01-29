@@ -3551,10 +3551,11 @@ export default function DeliveriesPage() {
               </div>
 
               <Select value={driverFilter} onValueChange={handleDriverChange}>
-                <SelectTrigger className="w-[115px] bg-white border-slate-300">
+                <SelectTrigger className="w-[140px] bg-white border-slate-300">
                   <SelectValue placeholder="Select driver" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All Drivers</SelectItem>
                   {sortUsers((effectiveDrivers || []).filter(d => userHasRole(d, 'driver'))).map((driver) => {
                     // Check if there are duplicate names
                     const duplicateNames = (effectiveDrivers || []).filter(d => 
