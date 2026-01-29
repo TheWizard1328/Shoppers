@@ -620,6 +620,7 @@ export default function Layout({ children, currentPageName }) {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isMobile = deviceType === 'Mobile'; // CRITICAL: Use deviceType directly, not screen width
+  const isMobileDeviceForUI = isMobileDevice(); // CRITICAL: For UI controls - always true for mobile devices
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
   const [cardWidth, setCardWidth] = useState(300);
 
@@ -2951,19 +2952,19 @@ export default function Layout({ children, currentPageName }) {
                     <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreVertical className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2 text-slate-500`} />
+                              <MoreVertical className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2 text-slate-500`} />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-60 z-[10000]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
+                          <DropdownMenuContent align="end" className="w-60 z-[10000]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
                             {/* Settings header and Admin Import toggle - only for admins/app owners */}
                             {(userHasRole(currentUser, 'admin') || isAppOwner(currentUser)) &&
                         <>
                                 <div className="px-2 py-2">
                                   <div className="flex items-center justify-between">
-                                    <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>Settings</DropdownMenuLabel>
+                                  <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>Settings</DropdownMenuLabel>
                                     {isAppOwner(currentUser) &&
                               <label className="flex items-center gap-2 cursor-pointer">
-                                        <span className="font-medium" style={{ color: 'var(--text-slate-600)', fontSize: isMobile ? '14px' : '13px' }}>Admin Import</span>
+                                        <span className="font-medium" style={{ color: 'var(--text-slate-600)', fontSize: isMobileDeviceForUI ? '14px' : '13px' }}>Admin Import</span>
                                         <Switch
                                   checked={adminImportEnabled}
                                   onCheckedChange={async (checked) => {
@@ -2997,21 +2998,21 @@ export default function Layout({ children, currentPageName }) {
                             {/* Theme Toggle - Mobile Devices Only (for all users including drivers) */}
                             {deviceType === 'Mobile' &&
                         <>
-                                <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
+                                <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}>
                                       Display
                                     </DropdownMenuLabel>
                                     <div className="px-2 py-2">
-                                      <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobile ? '15px' : '14px' }}>
+                                      <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobileDeviceForUI ? '15px' : '14px' }}>
                                         Theme
                                       </label>
                                       <Select
-                              value={themePreference}
-                              onValueChange={handleThemeChange}>
+                                value={themePreference}
+                                onValueChange={handleThemeChange}>
 
-                                        <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
+                                        <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
                                           <SelectValue />
                                         </SelectTrigger>
-                                        <SelectContent className="z-[10003]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobile ? '16px' : '15px' }}>
+                                        <SelectContent className="z-[10003]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
                                       <SelectItem value="auto" style={{ color: 'var(--text-slate-900)' }}>Auto (System)</SelectItem>
                                       <SelectItem value="light" style={{ color: 'var(--text-slate-900)' }}>Light</SelectItem>
                                       <SelectItem value="dark" style={{ color: 'var(--text-slate-900)' }}>Dark</SelectItem>
@@ -3027,17 +3028,17 @@ export default function Layout({ children, currentPageName }) {
                             {/* Import Buttons - Always visible for app owners on any device, available to others when admin toggle is enabled */}
                             {realUser && isAppOwner(realUser) || adminImportEnabled ?
                             <>
-                              <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
+                              <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}>
                                 Deliveries
                               </DropdownMenuLabel>
                               {realUser && isAppOwner(realUser) || adminImportEnabled ?
-                          <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
-                                  <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                              <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
+                                  <FileText className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                                   Patient Data
                                 </DropdownMenuItem> :
-                          null}
-                              <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
-                                <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                              null}
+                              <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
+                                <FileText className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                                 Deliveries
                               </DropdownMenuItem>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
@@ -3049,19 +3050,19 @@ export default function Layout({ children, currentPageName }) {
                             {/* City Filter - Admin Only */}
                             {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
                         <div className="px-2 py-2">
-                                <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobile ? '14px' : '13px' }}>
-                                  City Filter
-                                </label>
-                                <Select
-                            value={globalFilters.getSelectedCityId()}
-                            onValueChange={(cityId) => {
-                              globalFilters.setSelectedCityId(cityId);
-                            }}>
+                              <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobileDeviceForUI ? '14px' : '13px' }}>
+                                City Filter
+                              </label>
+                              <Select
+                          value={globalFilters.getSelectedCityId()}
+                          onValueChange={(cityId) => {
+                            globalFilters.setSelectedCityId(cityId);
+                          }}>
 
-                                  <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
-                                    <SelectValue placeholder="City" />
-                                  </SelectTrigger>
-                                  <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobile ? '16px' : '15px' }}>
+                                <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
+                                  <SelectValue placeholder="City" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
                                     {cities.map((city) =>
                               <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
                                         {city.name}
@@ -3085,9 +3086,9 @@ export default function Layout({ children, currentPageName }) {
                               // Silent fail
                             }}}
                           className="cursor-pointer text-blue-600"
-                          style={{ fontSize: isMobile ? '16px' : '15px' }}>
+                          style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
 
-                              <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                              <RefreshCw className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                               Force Full App Refresh
                             </DropdownMenuItem>
 
@@ -3481,21 +3482,21 @@ export default function Layout({ children, currentPageName }) {
                         {/* Show for admins (with cities) OR drivers (for Active Stops import and theme) */}
                         {(userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
                   <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
-                            <MoreVertical className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'} text-slate-500`} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-60 z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                        <MoreVertical className={`${isMobileDeviceForUI ? 'w-6 h-6' : 'w-5 h-5'} text-slate-500`} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-60 z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
                           {/* Settings header and Admin Import toggle - only for admins/app owners */}
                           {(userHasRole(currentUser, 'admin') || isAppOwner(currentUser)) &&
                       <>
                               <div className="px-2 py-2">
                                 <div className="flex items-center justify-between">
-                                  <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>Settings</DropdownMenuLabel>
+                                  <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>Settings</DropdownMenuLabel>
                                   {isAppOwner(currentUser) &&
                             <label className="flex items-center gap-2 cursor-pointer">
-                                      <span className="font-medium" style={{ color: 'var(--text-slate-600)', fontSize: isMobile ? '14px' : '13px' }}>Admin Import</span>
+                                      <span className="font-medium" style={{ color: 'var(--text-slate-600)', fontSize: isMobileDeviceForUI ? '14px' : '13px' }}>Admin Import</span>
                                       <Switch
                                 checked={adminImportEnabled}
                                 onCheckedChange={async (checked) => {
@@ -3530,21 +3531,21 @@ export default function Layout({ children, currentPageName }) {
                           {/* Theme Toggle - Mobile Devices Only (for all users including drivers) */}
                           {deviceType === 'Mobile' &&
                       <>
-                              <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
+                              <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}>
                                 Display
                               </DropdownMenuLabel>
                               <div className="px-2 py-2">
-                                <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobile ? '15px' : '14px' }}>
+                                <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobileDeviceForUI ? '15px' : '14px' }}>
                                   Theme
                                 </label>
                                 <Select
-                            value={themePreference}
-                            onValueChange={handleThemeChange}>
+                              value={themePreference}
+                              onValueChange={handleThemeChange}>
 
-                                  <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
+                                  <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
                                     <SelectValue />
                                   </SelectTrigger>
-                                  <SelectContent className="z-[10003]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobile ? '16px' : '15px' }}>
+                                  <SelectContent className="z-[10003]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
                                     <SelectItem value="auto" style={{ color: 'var(--text-slate-900)' }}>Auto (System)</SelectItem>
                                     <SelectItem value="light" style={{ color: 'var(--text-slate-900)' }}>Light</SelectItem>
                                     <SelectItem value="dark" style={{ color: 'var(--text-slate-900)' }}>Dark</SelectItem>
@@ -3558,17 +3559,17 @@ export default function Layout({ children, currentPageName }) {
                           {/* Import Buttons - Always visible for app owners on any device, available to others when admin toggle is enabled */}
                           {realUser && isAppOwner(realUser) || adminImportEnabled ?
                       <>
-                            <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
+                            <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}>
                               Deliveries
                             </DropdownMenuLabel>
                             {realUser && isAppOwner(realUser) || adminImportEnabled ?
-                        <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
-                                <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                            <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
+                                <FileText className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                                 Patient Data
                               </DropdownMenuItem> :
-                        null}
-                            <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobile ? '16px' : '15px' }}>
-                              <FileText className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                            null}
+                            <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
+                              <FileText className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                               Deliveries
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -3578,7 +3579,7 @@ export default function Layout({ children, currentPageName }) {
                           {/* City Filter - Admin Only */}
                           {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
                       <div className="px-2 py-2">
-                              <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobile ? '14px' : '13px' }}>
+                              <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobileDeviceForUI ? '14px' : '13px' }}>
                                 City Filter
                               </label>
                               <Select
@@ -3587,10 +3588,10 @@ export default function Layout({ children, currentPageName }) {
                             globalFilters.setSelectedCityId(cityId);
                           }}>
 
-                                <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobile ? '16px' : '15px' }}>
+                                <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
                                   <SelectValue placeholder="City" />
                                 </SelectTrigger>
-                                <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobile ? '16px' : '15px' }}>
+                                <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
                                   {cities.map((city) =>
                             <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
                                       {city.name}
@@ -3615,9 +3616,9 @@ export default function Layout({ children, currentPageName }) {
                             // Silent fail
                           }}}
                         className="cursor-pointer text-blue-600"
-                        style={{ fontSize: isMobile ? '16px' : '15px' }}>
+                        style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
 
-                            <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+                            <RefreshCw className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
                             Force Full App Refresh
                           </DropdownMenuItem>
 
