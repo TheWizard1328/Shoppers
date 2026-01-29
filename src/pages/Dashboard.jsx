@@ -350,10 +350,7 @@ function Dashboard() {
   const [isReoptimizing, setIsReoptimizing] = useState(false);
   const [showQuickAdjustments, setShowQuickAdjustments] = useState(false);
   const cardExpandedAtRef = useRef(null);
-  const [showAllDriverMarkers, setShowAllDriverMarkers] = useState(() => {
-    const saved = localStorage.getItem('rxdeliver_show_all_driver_markers');
-    return saved !== null ? saved === 'true' : false;
-  });
+  const [showAllDriverMarkers, setShowAllDriverMarkers] = useState(false);
   const [showSmartPrioritization, setShowSmartPrioritization] = useState(false);
   const [performanceStats, setPerformanceStats] = useState(null);
   const [deliveryStats, setDeliveryStats] = useState(null);
@@ -660,6 +657,11 @@ function Dashboard() {
           setSelectedDate(savedDate);
           globalFilters.setSelectedDate(savedDate);
           setCalendarMonth(savedDate);
+        }
+
+        // CRITICAL: Load "Show All Markers" setting
+        if (settings.show_all_driver_markers !== undefined) {
+          setShowAllDriverMarkers(settings.show_all_driver_markers);
         }
 
         // CRITICAL: Store FAB phase from settings but DON'T apply until deliveries are loaded
@@ -3635,7 +3637,9 @@ function Dashboard() {
       if (driverId === 'all' && showAllDriverMarkers) {
         console.log('📍 [Driver Change] Switching to All Drivers - unchecking Show All to prevent duplicate markers');
         setShowAllDriverMarkers(false);
-        localStorage.setItem('rxdeliver_show_all_driver_markers', 'false');
+        if (currentUser?.id) {
+          saveSetting(currentUser.id, 'show_all_driver_markers', false);
+        }
       }
 
       if (currentUser?.id) {
@@ -7106,7 +7110,9 @@ function Dashboard() {
                       checked={showAllDriverMarkers}
                       onCheckedChange={async (checked) => {
                         setShowAllDriverMarkers(checked);
-                        localStorage.setItem('rxdeliver_show_all_driver_markers', String(checked));
+                        if (currentUser?.id) {
+                          saveSetting(currentUser.id, 'show_all_driver_markers', checked);
+                        }
 
                         // CRITICAL: Close stats card when checkbox is toggled
                         setIsExpanded(false);
