@@ -382,10 +382,10 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
         if (isAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
 
         // --- APP FEES ---
-        // Fees apply only for stores with pays_app_fees and only for completed deliveries + after hours pickups
+        // Fees apply only for stores with pays_app_fees and only for completed + failed + returns (patient/after-hours)
         if (store.pays_app_fees && appFeeRate > 0) {
           storesPayingFeesSet.add(store.id);
-          if (isCompletedDelivery(delivery) || isAfterHoursPickup(delivery)) {
+          if (isBillableDelivery(delivery)) {
             if (!storeMonthlyFees.has(store.id)) storeMonthlyFees.set(store.id, Array(12).fill(0));
             const feesByMonth = storeMonthlyFees.get(store.id);
             feesByMonth[monthIndex] += appFeeRate;
