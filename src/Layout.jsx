@@ -3265,20 +3265,20 @@ export default function Layout({ children, currentPageName }) {
                     {currentUser ?
                 <div>
                       <div className={`flex items-center gap-3 mb-3 p-3 rounded-lg ${
-                  impersonatingUser ? 'bg-yellow-50 border-2 border-yellow-300' : ''}`
-                  }>
+                      impersonatingUser ? 'bg-yellow-50 border-2 border-yellow-300' : ''}`
+                      }>
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
-                    impersonatingUser ?
-                    'bg-gradient-to-br from-yellow-500 to-yellow-600' :
-                    userHasRole(currentUser, 'admin') ?
-                    'bg-gradient-to-br from-blue-500 to-blue-600' :
-                    userHasRole(currentUser, 'dispatcher') ?
-                    'bg-gradient-to-br from-red-500 to-red-600' :
-                    userHasRole(currentUser, 'driver') ?
-                    'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-                    'bg-gradient-to-br from-gray-400 to-gray-500' // Added fallback gradient for roles not specifically colored
-                    }`
-                    }>
+                      impersonatingUser ?
+                      'bg-gradient-to-br from-yellow-500 to-yellow-600' :
+                      userHasRole(currentUser, 'admin') ?
+                      'bg-gradient-to-br from-blue-500 to-blue-600' :
+                      userHasRole(currentUser, 'dispatcher') ?
+                      'bg-gradient-to-br from-red-500 to-red-600' :
+                      userHasRole(currentUser, 'driver') ?
+                      'bg-gradient-to-br from-emerald-500 to-emerald-600' :
+                      'bg-gradient-to-br from-gray-400 to-gray-500' // Added fallback gradient for roles not specifically colored
+                      }`
+                      }>
                           <span className="text-white font-bold text-sm">
                             {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
                           </span>
@@ -3307,22 +3307,34 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                       }
                         </div>
-                        <button
-                      onClick={() => {
-                        setShowMessaging(true);
-                        setUnreadMessageCount(0);
-                        setSidebarOpen(false); // Close sidebar when opening messages
-                      }}
-                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
-                      title="Messages">
+                        <div className="flex items-center gap-2">
+                          <button
+                        onClick={() => {
+                          setShowInviteQRModal(true);
+                          setSidebarOpen(false);
+                        }}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
+                        title="Generate Invite QR Code">
 
-                              <MessageCircle className="w-5 h-5 text-slate-500 hover:text-slate-700" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
-                              {unreadMessageCount > 0 &&
-                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
-                                      {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
-                                    </span>
-                      }
-                            </button>
+                                <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
+                              </button>
+                          <button
+                        onClick={() => {
+                          setShowMessaging(true);
+                          setUnreadMessageCount(0);
+                          setSidebarOpen(false); // Close sidebar when opening messages
+                        }}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
+                        title="Messages">
+
+                                <MessageCircle className="w-5 h-5 text-slate-500 hover:text-slate-700" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
+                                {unreadMessageCount > 0 &&
+                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
+                                        {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                                      </span>
+                        }
+                              </button>
+                        </div>
                       </div>
 
                       {impersonatingUser &&
