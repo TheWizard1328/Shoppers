@@ -2208,6 +2208,12 @@ export default function Layout({ children, currentPageName }) {
         url: createPageUrl("AdminMetrics"),
         icon: BarChart3
       });
+      items.push({
+        title: "Store Invoices",
+        pageName: 'StoreInvoices',
+        url: createPageUrl("StoreInvoices"),
+        icon: FileText
+      });
     }
 
     if (realUser && canAccessImports(realUser, adminImportEnabled)) {
