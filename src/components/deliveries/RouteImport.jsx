@@ -1470,6 +1470,55 @@ export default function RouteImport({
         const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
         const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
 
+        // CRITICAL: PRE-IMPORT DELETION - Delete all existing deliveries for affected drivers and dates
+        setProgressMessage('Purging existing deliveries for affected drivers and dates...');
+        const affectedDriversAndDates = new Set();
+        
+        // Collect all unique driver/date combinations being imported
+        deliveriesToCreateFiltered.forEach(d => {
+          affectedDriversAndDates.add(`${d.driver_id}|${d.delivery_date}`);
+        });
+        deliveriesToUpdateFiltered.forEach(d => {
+          affectedDriversAndDates.add(`${d.driver_id}|${d.delivery_date}`);
+        });
+
+        const driverDatePairs = Array.from(affectedDriversAndDates).map(pair => {
+          const [driverId, date] = pair.split('|');
+          return { driverId, date };
+        });
+
+        console.log(`🗑️ [RouteImport] Deleting existing deliveries for ${driverDatePairs.length} driver/date combinations`);
+
+        // Delete from online database
+        for (const { driverId, date } of driverDatePairs) {
+          try {
+            const existingDeliveries = await base44.entities.Delivery.filter({
+              driver_id: driverId,
+              delivery_date: date
+            });
+            
+            if (existingDeliveries && existingDeliveries.length > 0) {
+              const idsToDelete = existingDeliveries.map(d => d.id);
+              await base44.entities.Delivery.bulkDelete(idsToDelete);
+              console.log(`✅ [RouteImport] Deleted ${idsToDelete.length} online deliveries for ${driverId} on ${date}`);
+            }
+          } catch (deleteError) {
+            console.warn(`⚠️ [RouteImport] Failed to delete online deliveries for ${driverId}/${date}:`, deleteError.message);
+          }
+        }
+
+        // Delete from offline database
+        const uniqueDates = [...new Set(driverDatePairs.map(p => p.date))];
+        for (const date of uniqueDates) {
+          try {
+            await offlineDB.deleteDeliveriesByDate(date);
+          } catch (offlineDeleteError) {
+            console.warn(`⚠️ [RouteImport] Failed to delete offline deliveries for ${date}:`, offlineDeleteError.message);
+          }
+        }
+
+        setProgressPercent(15);
+
         batchUpdateAMPM(deliveriesToCreateFiltered);
         batchUpdateAMPM(deliveriesToUpdateFiltered);
 
