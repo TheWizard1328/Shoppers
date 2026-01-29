@@ -230,21 +230,23 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   };
   
   // Check if delivery is a completed delivery (status=completed, not a return)
-  // INCLUDES store pickups (deliveries without patient_id)
+  // INCLUDES after-hours pickups only (not regular store pickups)
   const isCompletedDelivery = (d) => {
     if (!d) return false;
     if (d.status !== 'completed') return false;
     if (isReturn(d)) return false;
-    return true;
+    // Must be a patient delivery OR after-hours pickup
+    return d.patient_id || d.after_hours_pickup;
   };
   
   // Check if delivery is a failed delivery (status=failed, not a return)
-  // INCLUDES store pickups (deliveries without patient_id)
+  // INCLUDES after-hours pickups only (not regular store pickups)
   const isFailedDelivery = (d) => {
     if (!d) return false;
     if (isReturn(d)) return false;
-    if (d.status === 'failed') return true;
-    return false;
+    if (d.status !== 'failed') return false;
+    // Must be a patient delivery OR after-hours pickup
+    return d.patient_id || d.after_hours_pickup;
   };
   
   // Check if it's a completed or cancelled after-hours pickup
