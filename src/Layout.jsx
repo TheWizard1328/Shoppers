@@ -3496,47 +3496,45 @@ export default function Layout({ children, currentPageName }) {
                               />
                             }
 
-                            {/* Settings Menu */}
-                            {(userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
-                                    <MoreVertical className="w-5 h-5 text-slate-500" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <SettingsMenu
-                                  currentUser={currentUser}
-                                  realUser={realUser}
-                                  isAppOwner={isAppOwner(currentUser)}
-                                  adminImportEnabled={adminImportEnabled}
-                                  onAdminImportToggle={async (checked) => {
-                                    if (currentUser?._isImpersonating) return;
-                                    setAdminImportEnabled(checked);
-                                    try {
-                                      const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                                      if (settings && settings.length > 0) {
-                                        await base44.entities.AppSettings.update(settings[0].id, {
-                                          setting_value: {
-                                            ...settings[0].setting_value,
-                                            adminImportEnabled: checked
-                                          }
-                                        });
-                                      }
-                                    } catch (error) {
-                                      console.error('Failed to save admin import setting:', error);
+                            {/* Settings Menu - Always show for all users */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                                  <MoreVertical className="w-5 h-5 text-slate-500" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <SettingsMenu
+                                currentUser={currentUser}
+                                realUser={realUser}
+                                isAppOwner={isAppOwner(currentUser)}
+                                adminImportEnabled={adminImportEnabled}
+                                onAdminImportToggle={async (checked) => {
+                                  if (currentUser?._isImpersonating) return;
+                                  setAdminImportEnabled(checked);
+                                  try {
+                                    const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                    if (settings && settings.length > 0) {
+                                      await base44.entities.AppSettings.update(settings[0].id, {
+                                        setting_value: {
+                                          ...settings[0].setting_value,
+                                          adminImportEnabled: checked
+                                        }
+                                      });
                                     }
-                                  }}
-                                  themePreference={themePreference}
-                                  onThemeChange={handleThemeChange}
-                                  dataSource={dataSource}
-                                  onDataSourceChange={handleDataSourceChange}
-                                  cities={cities}
-                                  onPatientImportClick={() => setShowPatientImport(true)}
-                                  onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                                  isMobile={true}
-                                />
-                              </DropdownMenu>
-                            }
+                                  } catch (error) {
+                                    console.error('Failed to save admin import setting:', error);
+                                  }
+                                }}
+                                themePreference={themePreference}
+                                onThemeChange={handleThemeChange}
+                                dataSource={dataSource}
+                                onDataSourceChange={handleDataSourceChange}
+                                cities={cities}
+                                onPatientImportClick={() => setShowPatientImport(true)}
+                                onDeliveryImportClick={() => setShowDeliveryImport(true)}
+                                isMobile={true}
+                              />
+                            </DropdownMenu>
                           </>
                         }
                     </div>
