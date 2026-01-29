@@ -632,12 +632,17 @@ class SmartRefreshManager {
    */
   notifySubscribers(updates) {
     this.refreshCallbacks.forEach(callback => callback(updates));
-    
+
     // CRITICAL: Notify dispatchers with UI updates
     if (typeof window !== 'undefined' && updates) {
       window.dispatchEvent(new CustomEvent('smartRefreshComplete', {
         detail: { updates }
       }));
+
+      // Flash map FAB on phase 1 when new data updates
+      if (window.__fabFlashUpdate) {
+        window.__fabFlashUpdate();
+      }
     }
   }
 
