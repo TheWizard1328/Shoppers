@@ -55,6 +55,12 @@ export default function AutoRouteOptimizer({
     try {
       setIsOptimizing(true);
       
+      // CRITICAL: Pause all sync managers before optimization
+      console.log('🔒 [Auto-Optimize] Pausing smart refresh and sync managers...');
+      const { smartRefreshManager } = await import('@/components/utils/smartRefreshManager');
+      const wasSmartRefreshEnabled = smartRefreshManager._enabled;
+      smartRefreshManager._enabled = false;
+      
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       
@@ -70,6 +76,7 @@ export default function AutoRouteOptimizer({
       );
 
       if (!hasIncompleteStops) {
+        smartRefreshManager._enabled = wasSmartRefreshEnabled;
         return;
       }
 
@@ -97,9 +104,25 @@ export default function AutoRouteOptimizer({
         }
 
         console.log('✅ [Auto-Optimize] Route optimized successfully');
+        
+        // CRITICAL: Wait for UI to update, then resume smart refresh and force immediate sync
+        console.log('🔓 [Auto-Optimize] Resuming smart refresh and forcing immediate sync...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        smartRefreshManager._enabled = wasSmartRefreshEnabled;
+        smartRefreshManager.lastRefreshTimes = {
+          driverLocation: 0,
+          activeDeliveries: 0,
+          todayDeliveries: 0,
+          appUsers: 0,
+          patients: 0,
+          stores: 0
+        };
       }
     } catch (error) {
       console.warn('⚠️ [Auto-Optimize] Failed:', error.message);
+      // Resume smart refresh on error
+      const { smartRefreshManager } = await import('@/components/utils/smartRefreshManager');
+      smartRefreshManager._enabled = true;
     } finally {
       setIsOptimizing(false);
     }
