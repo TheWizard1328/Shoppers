@@ -639,6 +639,7 @@ export default function Layout({ children, currentPageName }) {
   const [sidebarWidth, setSidebarWidth] = useState(240); // Will be loaded from user settings
   const [themePreference, setThemePreference] = useState('auto');
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
+  const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
 
   // Apply theme class - mobile devices (by user agent) can use dark mode even with desktop layout
   // CRITICAL: Debounced theme application to prevent blocking UI updates during critical operations
@@ -677,6 +678,18 @@ export default function Layout({ children, currentPageName }) {
     if (currentUser?.id) {
       saveSetting(currentUser.id, 'theme_preference', newTheme);
     }
+  };
+
+  const handleDataSourceChange = async (newSource) => {
+    setDataSource(newSource);
+    if (currentUser?.id) {
+      saveSetting(currentUser.id, 'data_source', newSource);
+    }
+
+    // Dispatch event for Dashboard to re-load data from selected source
+    window.dispatchEvent(new CustomEvent('dataSourceChanged', {
+      detail: { source: newSource }
+    }));
   };
   const [showMessaging, setShowMessaging] = useState(false);
           const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -3041,6 +3054,8 @@ export default function Layout({ children, currentPageName }) {
                               }}
                               themePreference={themePreference}
                               onThemeChange={handleThemeChange}
+                              dataSource={dataSource}
+                              onDataSourceChange={handleDataSourceChange}
                               cities={cities}
                               onPatientImportClick={() => setShowPatientImport(true)}
                               onDeliveryImportClick={() => setShowDeliveryImport(true)}
@@ -3508,6 +3523,8 @@ export default function Layout({ children, currentPageName }) {
                                   }}
                                   themePreference={themePreference}
                                   onThemeChange={handleThemeChange}
+                                  dataSource={dataSource}
+                                  onDataSourceChange={handleDataSourceChange}
                                   cities={cities}
                                   onPatientImportClick={() => setShowPatientImport(true)}
                                   onDeliveryImportClick={() => setShowDeliveryImport(true)}

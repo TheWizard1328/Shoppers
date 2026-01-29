@@ -333,6 +333,7 @@ function Dashboard() {
   const [summaryDriver, setSummaryDriver] = useState(null); // Store which driver's summary to show
   const stopCardsContainerRef = useRef(null);
   const horizontalStopCardsRef = useRef(null); // Direct ref to HorizontalStopCards component
+  const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
 
   const mapLockTimeoutRef = useRef(null);
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
@@ -659,6 +660,11 @@ function Dashboard() {
         // CRITICAL: Load "Show All Markers" setting
         if (settings.show_all_driver_markers !== undefined) {
           setShowAllDriverMarkers(settings.show_all_driver_markers);
+        }
+        
+        // Load data source preference
+        if (settings.data_source) {
+          setDataSource(settings.data_source);
         }
 
         // CRITICAL: Store FAB phase from settings but DON'T apply until deliveries are loaded
@@ -6692,41 +6698,77 @@ function Dashboard() {
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const [forceRender, setForceRender] = useState(0);
 
-  // CRITICAL: Load deliveries from offline DB on mount/return to Dashboard
+  // Listen for data source changes
+  useEffect(() => {
+    const handleDataSourceChanged = async (event) => {
+      const { source } = event.detail;
+      console.log(`🔄 [Dashboard] Data source changed to: ${source}`);
+      setDataSource(source);
+      
+      // Force reload data from selected source
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      await loadDataFromSource(source, selectedDateStr);
+    };
+    
+    window.addEventListener('dataSourceChanged', handleDataSourceChanged);
+    return () => window.removeEventListener('dataSourceChanged', handleDataSourceChanged);
+  }, [selectedDate, deliveries, updateDeliveriesLocally]);
+  
+  // Helper function to load data from specified source
+  const loadDataFromSource = async (source, dateStr) => {
+    try {
+      console.log(`📥 [Dashboard] Loading from ${source} database for ${dateStr}`);
+      
+      let freshDeliveries;
+      
+      if (source === 'online') {
+        // Load directly from online database
+        console.log('🌐 [Online Mode] Fetching from API...');
+        freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+        console.log(`✅ [Online Mode] Loaded ${freshDeliveries.length} deliveries from online DB`);
+      } else {
+        // Load from offline database
+        console.log('📦 [Offline Mode] Loading from offline DB...');
+        freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+        
+        if (!freshDeliveries || freshDeliveries.length === 0) {
+          console.log('📥 [Offline Mode] Offline DB empty - fetching from API as fallback');
+          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        }
+        
+        console.log(`✅ [Offline Mode] Loaded ${freshDeliveries.length} deliveries`);
+      }
+      
+      // Update UI immediately
+      if (freshDeliveries.length > 0 && updateDeliveriesLocally) {
+        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
+        updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+        console.log(`✅ [Data Source] UI updated with ${source} deliveries`);
+        
+        // Force re-render
+        setForceRender((prev) => prev + 1);
+        
+        // Trigger map update
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { deliveryDate: dateStr, triggeredBy: 'dataSourceChange' }
+        }));
+      }
+    } catch (error) {
+      console.error(`❌ [Dashboard] Failed to load from ${source} database:`, error);
+    }
+  };
+
+  // CRITICAL: Load deliveries from selected data source on mount/return to Dashboard
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
 
-    const loadOfflineDeliveriesOnMount = async () => {
-      console.log('📦 [Dashboard Mount] Loading deliveries from offline DB for', selectedDateStr);
-      
-      try {
-        // STEP 1: Load from offline DB first
-        let offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        
-        if (!offlineDeliveries || offlineDeliveries.length === 0) {
-          console.log('📥 [Dashboard Mount] Offline DB empty - fetching from API');
-          offlineDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, offlineDeliveries);
-        } else {
-          console.log(`✅ [Dashboard Mount] Loaded ${offlineDeliveries.length} deliveries from offline DB`);
-        }
-
-        // STEP 2: Update context immediately if we have data
-        if (offlineDeliveries.length > 0 && updateDeliveriesLocally) {
-          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-          updateDeliveriesLocally([...otherDateDeliveries, ...offlineDeliveries], true);
-          console.log('✅ [Dashboard Mount] UI updated with offline deliveries');
-          
-          // CRITICAL: Force a re-render to trigger stats calculation and map rendering
-          setForceRender((prev) => prev + 1);
-        }
-      } catch (error) {
-        console.error('❌ [Dashboard Mount] Failed to load offline deliveries:', error);
-      }
+    const loadDeliveriesOnMount = async () => {
+      await loadDataFromSource(dataSource, selectedDateStr);
     };
 
-    loadOfflineDeliveriesOnMount();
-  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr]);
+    loadDeliveriesOnMount();
+  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, dataSource]);
 
   useEffect(() => {
     if (!isDataLoaded || !deliveries) return;

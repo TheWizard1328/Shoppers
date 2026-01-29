@@ -24,7 +24,9 @@ export default function SettingsMenu({
   cities,
   onPatientImportClick,
   onDeliveryImportClick,
-  isMobile
+  isMobile,
+  dataSource,
+  onDataSourceChange
 }) {
   const isMobileDeviceForUI = isMobile !== undefined ? isMobile : isMobileDevice();
   
@@ -76,15 +78,54 @@ export default function SettingsMenu({
         </>
       )}
 
-      {/* Theme Toggle - Mobile Devices Only */}
-      {isMobileDeviceForUI && (
-        <>
-          <DropdownMenuLabel 
-            className="px-2 font-semibold uppercase tracking-wider text-slate-500" 
-            style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}
+      {/* Display Settings Section */}
+      <>
+        <DropdownMenuLabel 
+          className="px-2 font-semibold uppercase tracking-wider text-slate-500" 
+          style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}
+        >
+          Display
+        </DropdownMenuLabel>
+        
+        {/* Data Source Toggle - All Users */}
+        <div className="px-2 py-2">
+          <label 
+            className="font-medium mb-1.5 block" 
+            style={{ 
+              color: 'var(--text-slate-700)', 
+              fontSize: isMobileDeviceForUI ? '15px' : '14px' 
+            }}
           >
-            Display
-          </DropdownMenuLabel>
+            Data Source
+          </label>
+          <Select value={dataSource} onValueChange={onDataSourceChange}>
+            <SelectTrigger 
+              className="w-full h-9" 
+              style={{ 
+                background: 'var(--bg-white)', 
+                borderColor: 'var(--border-slate-300)', 
+                color: 'var(--text-slate-900)', 
+                fontSize: isMobileDeviceForUI ? '16px' : '15px' 
+              }}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent 
+              className="z-[10003]" 
+              style={{ 
+                background: 'var(--bg-white)', 
+                borderColor: '#ffffff', 
+                fontSize: isMobileDeviceForUI ? '16px' : '15px' 
+              }}
+            >
+              <SelectItem value="offline" style={{ color: 'var(--text-slate-900)' }}>Offline Database</SelectItem>
+              <SelectItem value="online" style={{ color: 'var(--text-slate-900)' }}>Online Database</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {/* Theme Toggle - Mobile Devices Only */}
+        {isMobileDeviceForUI && (
           <div className="px-2 py-2">
             <label 
               className="font-medium mb-1.5 block" 
@@ -121,9 +162,9 @@ export default function SettingsMenu({
               </SelectContent>
             </Select>
           </div>
-          <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-        </>
-      )}
+        )}
+        <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+      </>
 
       {/* Import Buttons */}
       {(realUser && isAppOwner || adminImportEnabled) && (
