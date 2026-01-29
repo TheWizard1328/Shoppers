@@ -229,19 +229,19 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     return returnRegex.test(notes) || returnRegex.test(patientName);
   };
   
-  // Check if delivery is a completed delivery (has patient_id, status=completed, not a return)
+  // Check if delivery is a completed delivery (status=completed, not a return)
+  // INCLUDES store pickups (deliveries without patient_id)
   const isCompletedDelivery = (d) => {
     if (!d) return false;
-    if (!d.patient_id) return false; // Must be a delivery, not a pickup
     if (d.status !== 'completed') return false;
     if (isReturn(d)) return false;
     return true;
   };
   
-  // Check if delivery is a failed delivery (has patient_id, status=failed, not a return)
+  // Check if delivery is a failed delivery (status=failed, not a return)
+  // INCLUDES store pickups (deliveries without patient_id)
   const isFailedDelivery = (d) => {
     if (!d) return false;
-    if (!d.patient_id) return false; // Must be a delivery, not a pickup
     if (isReturn(d)) return false;
     if (d.status === 'failed') return true;
     return false;
