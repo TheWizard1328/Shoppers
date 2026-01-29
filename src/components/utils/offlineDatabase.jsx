@@ -654,12 +654,17 @@ const deduplicateDeliveries = async () => {
        return { success: true, removed: 0 };
      }
 
-     // Group by delivery_date + driver_id + stop_id composite key
-     const groupKey = (d) => `${d.delivery_date}|${d.driver_id}|${d.stop_id}`;
+     // Group by delivery_date + stop_id (CRITICAL: SID + date are the unique identifier)
+     // Secondary key: driver_id (to distinguish if same stop assigned to different drivers)
+     const groupKey = (d) => `${d.delivery_date}|${d.stop_id}`;
      const deliveryGroups = new Map();
 
      allDeliveries.forEach(delivery => {
-       if (!delivery?.delivery_date || !delivery?.driver_id || !delivery?.stop_id) return;
+       // CRITICAL: Only group deliveries that have both date and stop_id
+       if (!delivery?.delivery_date || !delivery?.stop_id) {
+         // Deliveries without stop_id are pickups - keep them as-is
+         return;
+       }
 
        const key = groupKey(delivery);
        if (!deliveryGroups.has(key)) {
@@ -678,7 +683,12 @@ const deduplicateDeliveries = async () => {
          continue;
        }
 
-       // Multiple deliveries with same date/driver/stop
+       // Multiple deliveries with same date + stop_id (logically identical delivery)
+       // This indicates a data integrity issue - likely from duplicate imports with inconsistent driver_id
+       console.warn(`⚠️ [OfflineDB] Found ${group.length} deliveries with same date+SID:`, key);
+       console.warn(`   Driver IDs: ${group.map(d => d.driver_id).join(', ')}`);
+       console.warn(`   Statuses: ${group.map(d => d.status).join(', ')}`);
+
        const statusCounts = {};
        group.forEach(d => {
          statusCounts[d.status] = (statusCounts[d.status] || 0) + 1;
@@ -709,9 +719,14 @@ const deduplicateDeliveries = async () => {
          }
        }
 
+       console.log(`   Keeping: driver_id=${selectedDelivery.driver_id}, status=${selectedDelivery.status}, updated=${selectedDelivery.updated_date}`);
        deduplicated.push(selectedDelivery);
        removedCount += group.length - 1;
      }
+
+     // Add back all deliveries without stop_id (pickups)
+     const pickupDeliveries = allDeliveries.filter(d => !d?.stop_id);
+     deduplicated.push(...pickupDeliveries);
 
      if (removedCount > 0) {
        console.log(`🔧 [OfflineDB] Deduplicating: ${allDeliveries.length} → ${deduplicated.length} Deliveries (removed ${removedCount} duplicates)`);
