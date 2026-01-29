@@ -34,9 +34,11 @@ export default function AdminMetrics() {
     setIsLoadingMetrics(true);
     try {
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
-        year: parseInt(selectedYear)
+        adminMetricsYear: parseInt(selectedYear),
+        adminMetricsCityId: 'all'
       });
-      setMetricsData(response?.data || response);
+      const data = response?.data || response;
+      setMetricsData(data?.adminMetrics || null);
     } catch (error) {
       console.error('Failed to load admin metrics:', error);
       setMetricsData(null);
