@@ -636,7 +636,6 @@ export default function Layout({ children, currentPageName }) {
   const [sidebarWidth, setSidebarWidth] = useState(240); // Will be loaded from user settings
   const [themePreference, setThemePreference] = useState('auto');
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
-  const [showDesktopLayout, setShowDesktopLayout] = useState(screenWidth >= 768); // Show desktop layout on wider screens (tablets)
 
   // Apply theme class - mobile devices (by user agent) can use dark mode even with desktop layout
   // CRITICAL: Debounced theme application to prevent blocking UI updates during critical operations
@@ -1670,7 +1669,6 @@ export default function Layout({ children, currentPageName }) {
   useEffect(() => {
     const handleResize = () => {
       setScreenWidth(window.innerWidth);
-      setShowDesktopLayout(window.innerWidth >= 768);
 
       if (!isMobile && sidebarOpen) {
         setSidebarOpen(false);
@@ -1679,7 +1677,7 @@ export default function Layout({ children, currentPageName }) {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-    }, [sidebarOpen]);
+    }, [sidebarOpen, isMobile]);
 
 
 
@@ -2508,79 +2506,77 @@ export default function Layout({ children, currentPageName }) {
           }
         }
 
-        @media (max-width: 767px) {
-          .mobile-header {
-            display: flex !important;
-            position: sticky;
-            top: 0;
-            z-index: 10001 !important;
-            background: var(--bg-white);
-            border-bottom: 1px solid var(--border-slate-200);
-          }
-
-          main {
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            flex: 1;
-          }
-
-          .app-sidebar {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
-            bottom: 0 !important;
-            width: 280px !important;
-            max-width: 80vw !important;
-            z-index: 50000 !important;
-            transform: translateX(-100%) !important;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-            background: var(--bg-white) !important;
-            box-shadow: 4px 0 12px var(--shadow-color) !important;
-            flex-shrink: 0 !important;
-          }
-
-          .app-sidebar.sidebar-open {
-            transform: translateX(0) !important;
-            box-shadow: 4px 0 12px var(--shadow-color) !important;
-          }
-
-          .main-content-area {
-            width: 100vw !important;
-            flex: 1 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            overflow: hidden !important;
-            max-height: 100vh !important;
-            max-height: 100dvh !important;
-          }
+        /* Mobile layout - controlled by device type, not screen width */
+        .app-container.mobile-device .mobile-header {
+          display: flex !important;
+          position: sticky;
+          top: 0;
+          z-index: 10001 !important;
+          background: var(--bg-white);
+          border-bottom: 1px solid var(--border-slate-200);
         }
 
-        @media (min-width: 768px) {
-          .mobile-header {
-            display: none !important;
-          }
+        .app-container.mobile-device main {
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          flex: 1;
+        }
 
-          .app-sidebar {
-            position: relative !important;
-            transform: none !important;
-            box-shadow: none !important;
-            width: var(--sidebar-width) !important;
-            min-width: 200px !important;
-            max-width: 400px !important;
-            flex: 0 0 var(--sidebar-width) !important;
-            transition: none !important;
-          }
+        .app-container.mobile-device .app-sidebar {
+          position: fixed !important;
+          left: 0 !important;
+          top: 0 !important;
+          bottom: 0 !important;
+          width: 280px !important;
+          max-width: 80vw !important;
+          z-index: 50000 !important;
+          transform: translateX(-100%) !important;
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          background: var(--bg-white) !important;
+          box-shadow: 4px 0 12px var(--shadow-color) !important;
+          flex-shrink: 0 !important;
+        }
 
-          .main-content-area {
-            flex: 1 1 auto !important;
-            width: calc(100vw - var(--sidebar-width) - 1px) !important;
-            min-width: 400px !important;
-            display: flex !important;
-            flex-direction: column !important;
-            overflow: hidden !important;
-            max-height: 100vh !important;
-            max-height: 100dvh !important;
-          }
+        .app-container.mobile-device .app-sidebar.sidebar-open {
+          transform: translateX(0) !important;
+          box-shadow: 4px 0 12px var(--shadow-color) !important;
+        }
+
+        .app-container.mobile-device .main-content-area {
+          width: 100vw !important;
+          flex: 1 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          overflow: hidden !important;
+          max-height: 100vh !important;
+          max-height: 100dvh !important;
+        }
+
+        /* Desktop layout - controlled by device type */
+        .app-container.desktop-device .mobile-header {
+          display: none !important;
+        }
+
+        .app-container.desktop-device .app-sidebar {
+          position: relative !important;
+          transform: none !important;
+          box-shadow: none !important;
+          width: var(--sidebar-width) !important;
+          min-width: 200px !important;
+          max-width: 400px !important;
+          flex: 0 0 var(--sidebar-width) !important;
+          transition: none !important;
+        }
+
+        .app-container.desktop-device .main-content-area {
+          flex: 1 1 auto !important;
+          width: calc(100vw - var(--sidebar-width) - 1px) !important;
+          min-width: 400px !important;
+          display: flex !important;
+          flex-direction: column !important;
+          overflow: hidden !important;
+          max-height: 100vh !important;
+          max-height: 100dvh !important;
         }
 
         .sidebar-overlay {
@@ -2890,7 +2886,7 @@ export default function Layout({ children, currentPageName }) {
           isSnapshotModeActive: isSnapshotModeActive,
           setIsSnapshotModeActive: setIsSnapshotModeActive
         }}>
-            <div className="app-container">
+            <div className={`app-container ${isMobile ? 'mobile-device' : 'desktop-device'}`}>
               {isMobile && sidebarOpen &&
             <div
               className="sidebar-overlay"
