@@ -3478,20 +3478,6 @@ export default function Layout({ children, currentPageName }) {
                               />
                             }
 
-                            {/* Driver Status Toggle */}
-                            {currentUser && userHasRole(currentUser, 'driver') &&
-                              <DriverStatusToggle
-                                currentUser={currentUser}
-                                onStatusChange={async (newStatus) => {
-                                  clearUserCache();
-                                  const refreshedUser = await getEffectiveUser();
-                                  if (refreshedUser) {
-                                    setCurrentUser(refreshedUser);
-                                  }
-                                }}
-                              />
-                            }
-
                             {/* Settings Menu */}
                             {(userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
                               <DropdownMenu>
@@ -3535,6 +3521,22 @@ export default function Layout({ children, currentPageName }) {
                         }
                     </div>
                     </div>
+
+                    {/* Driver Status Toggle - CENTERED in Mobile Header (narrow screen only) */}
+                    {isMobile && screenWidth < 768 && currentUser && userHasRole(currentUser, 'driver') &&
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                      <DriverStatusToggle
+                        currentUser={currentUser}
+                        onStatusChange={async (newStatus) => {
+                          clearUserCache();
+                          const refreshedUser = await getEffectiveUser();
+                          if (refreshedUser) {
+                            setCurrentUser(refreshedUser);
+                          }
+                        }}
+                      />
+                    </div>
+                    }
 
 
 
