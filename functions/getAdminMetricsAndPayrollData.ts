@@ -272,11 +272,16 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const store = delivery.store_id ? storeMap.get(delivery.store_id) : null;
 
     // --- MONTHLY DELIVERIES & DRIVER BREAKDOWN ---
-    // Billable = Completed Deliveries + After Hours Pickups from stores that pay fees
-    // Non-Billable = Completed Deliveries + After Hours Pickups from stores that DON'T pay fees
-    const isCompletedOrAfterHours = isCompletedDelivery(delivery) || isAfterHoursPickup(delivery);
+    // Billable = Completed + Failed + Returns (all patient deliveries or after-hours) from stores that pay fees
+    // Non-Billable = Completed + Failed + Returns (all patient deliveries or after-hours) from stores that DON'T pay fees
+    const isBillableDelivery = (d) => {
+      if (!d) return false;
+      const isPatientOrAfterHours = d.patient_id || d.after_hours_pickup;
+      if (!isPatientOrAfterHours) return false;
+      return (d.status === 'completed' || d.status === 'failed' || isReturn(d));
+    };
     
-    if (isCompletedOrAfterHours) {
+    if (isBillableDelivery(delivery)) {
       if (store?.pays_app_fees) {
         metrics.monthlyData[monthIndex].billable++;
         metrics.yearTotals.billable++;
