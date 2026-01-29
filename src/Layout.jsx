@@ -2964,7 +2964,7 @@ export default function Layout({ children, currentPageName }) {
                       {(isMobile && screenWidth >= 768) || (!isMobile && userHasRole(currentUser, 'admin') && cities && cities.length > 0) ?
                         <>
                           {/* Location Tracking Toggle - mobile wide only, drivers only */}
-                          {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
+                          {isMobile && screenWidth >= 768 && currentUser && userHasRole(currentUser, 'driver') &&
                             <LocationTrackingToggle
                               currentUser={currentUser}
                               onUpdate={async () => {
@@ -2978,7 +2978,7 @@ export default function Layout({ children, currentPageName }) {
                           }
 
                           {/* Driver Status Toggle - mobile wide only, drivers only */}
-                          {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
+                          {isMobile && screenWidth >= 768 && currentUser && userHasRole(currentUser, 'driver') &&
                             <DriverStatusToggle
                               currentUser={currentUser}
                               vertical={true}
