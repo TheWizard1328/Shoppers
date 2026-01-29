@@ -2976,8 +2976,8 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                       }
 
-                      {/* Settings menu - show for mobile devices (wide screen) OR admins/drivers (desktop) */}
-                      {(isMobile && screenWidth >= 768) || (!isMobile && (userHasRole(currentUser, 'admin') && cities && cities.length > 0)) ?
+                      {/* Settings menu - show for mobile devices (wide screen) */}
+                      {isMobile && screenWidth >= 768 && (userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
                     <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -3011,9 +3011,9 @@ export default function Layout({ children, currentPageName }) {
                             cities={cities}
                             onPatientImportClick={() => setShowPatientImport(true)}
                             onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                            isMobile={isMobileDeviceForUI}
+                            isMobile={true}
                           />
-                        </DropdownMenu> : null
+                        </DropdownMenu>
                     }
                     </div>
                   </div>
