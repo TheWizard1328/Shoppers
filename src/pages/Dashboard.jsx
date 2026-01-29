@@ -6947,12 +6947,31 @@ function Dashboard() {
 
                       const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false, showAllDriverMarkers);
 
-                      // STEP 2: Force reload deliveries for active page - ALL drivers if "Show All" enabled
-                      console.log(`📥 [Manual Refresh] Fetching deliveries for selected date: ${selectedDateStr}...`);
+                      // STEP 2: Force reload deliveries - respect data source preference
+                      console.log(`📥 [Manual Refresh] Fetching deliveries for ${selectedDateStr} (mode: ${dataSource})...`);
                       invalidateDeliveriesForDate(selectedDateStr);
-                      const finalDeliveries = shouldFetchAllDrivers ?
-                      await base44.entities.Delivery.filter({ delivery_date: selectedDateStr }) :
-                      await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
+                      
+                      let finalDeliveries;
+                      if (dataSource === 'online') {
+                        console.log('🌐 [Manual Refresh - ONLINE MODE] Fetching from API');
+                        finalDeliveries = shouldFetchAllDrivers ?
+                          await base44.entities.Delivery.filter({ delivery_date: selectedDateStr }) :
+                          await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
+                        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries).catch(() => {});
+                      } else {
+                        finalDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+                        if (!finalDeliveries || finalDeliveries.length === 0) {
+                          console.log('📥 [Manual Refresh] Offline DB empty - fetching from API');
+                          finalDeliveries = shouldFetchAllDrivers ?
+                            await base44.entities.Delivery.filter({ delivery_date: selectedDateStr }) :
+                            await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
+                          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries);
+                        } else {
+                          if (!shouldFetchAllDrivers) {
+                            finalDeliveries = finalDeliveries.filter((d) => d.driver_id === activeDriverId);
+                          }
+                        }
+                      }
                       
                       console.log(`✅ [Manual Refresh] Loaded ${finalDeliveries.length} deliveries for ${selectedDateStr}`);
 
@@ -7206,21 +7225,29 @@ function Dashboard() {
                         // CRITICAL: Close stats card when checkbox is toggled
                         setIsExpanded(false);
 
-                        // CRITICAL: Load from offline DB first when checking "Show All"
+                        // CRITICAL: Respect data source preference when checking "Show All"
                         if (checked) {
-                          console.log('📥 [Show All] Loading deliveries...');
+                          console.log(`📥 [Show All] Loading deliveries (mode: ${dataSource})...`);
                           setIsEntityUpdating(true);
 
                           try {
                             const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                            let allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-
-                            if (!allDateDeliveries || allDateDeliveries.length === 0) {
-                              console.log('📥 [Show All] Offline DB empty - fetching from API');
+                            let allDateDeliveries;
+                            
+                            if (dataSource === 'online') {
+                              console.log('🌐 [Show All - ONLINE MODE] Fetching from API');
                               allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-                              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
+                              offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
                             } else {
-                              console.log(`📦 [Show All] Using ${allDateDeliveries.length} from offline DB`);
+                              allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+                              
+                              if (!allDateDeliveries || allDateDeliveries.length === 0) {
+                                console.log('📥 [Show All] Offline DB empty - fetching from API');
+                                allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+                                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
+                              } else {
+                                console.log(`📦 [Show All] Using ${allDateDeliveries.length} from offline DB`);
+                              }
                             }
 
                             console.log(`✅ [Show All] Loaded ${allDateDeliveries.length} total deliveries`);
