@@ -1769,6 +1769,11 @@ export default function RouteImport({
         console.log('▶️ [RouteImport] Resuming all sync processes...');
         driverLocationPoller.resume();
         smartRefreshManager.resume();
+        
+        // CRITICAL: Force immediate smart refresh to sync UI with imported data
+        console.log('🔄 [RouteImport] Triggering immediate smart refresh...');
+        smartRefreshManager.restart(); // Reset all timers to force immediate refresh
+        
         console.log('✅ [RouteImport] Import operation complete - NO auto-optimization applied');
         
         return true; // Signal success

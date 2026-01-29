@@ -1104,6 +1104,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         console.log("📤 [PatientImport] Triggering immediate backend sync...");
         const { processPendingMutations } = await import('../utils/offlineSync');
         processPendingMutations().catch((err) => console.warn('Backend sync error:', err));
+        
+        // CRITICAL: Force immediate smart refresh to sync UI with imported data
+        console.log('🔄 [PatientImport] Triggering immediate smart refresh...');
+        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+        smartRefreshManager.restart(); // Reset all timers to force immediate refresh
 
         if (onImportComplete) {
           onImportComplete(aggregatedResults);
