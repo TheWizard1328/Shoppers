@@ -3603,9 +3603,11 @@ export default function AdminUtilities() {
 
         const label = delivery.tracking_number || delivery.id;
 
-        const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
         try {
-          await deleteDeliveryLocal(delivery.id);
+          // CRITICAL: Delete from backend AND offline DB
+          await Delivery.delete(delivery.id);
+          const { offlineDB } = await import('../components/utils/offlineDatabase');
+          await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);
           successCount++;
         } catch (error) {
           console.error(`Failed to delete delivery ${delivery.id}:`, error);
@@ -3656,9 +3658,11 @@ export default function AdminUtilities() {
 
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
 
-          const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
           try {
-            await deleteDeliveryLocal(d.id);
+            // CRITICAL: Delete from backend AND offline DB
+            await Delivery.delete(d.id);
+            const { offlineDB } = await import('../components/utils/offlineDatabase');
+            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
             setBulkDelete(prev => ({
               ...prev,
               processed: prev.processed + 1,
@@ -4106,13 +4110,9 @@ export default function AdminUtilities() {
       <div className="max-w-full mx-auto space-y-4 md:space-y-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0">
           <div className="flex items-center gap-2 md:gap-3">
-            <SmartRefreshIndicator inline={true} />
             <h1 className="text-xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Admin Utilities</h1>
           </div>
-          <Button onClick={handleRefreshAllData} variant="outline" disabled={isRefreshing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }} className="w-full md:w-auto">
-            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-          </Button>
+          <SmartRefreshIndicator inline={true} onManualRefresh={handleRefreshAllData} />
         </div>
 
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
