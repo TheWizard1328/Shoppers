@@ -647,104 +647,55 @@ class SmartRefreshManager {
       try {
           const dateStr = format(selectedDate, 'yyyy-MM-dd');
           const currentDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date === dateStr);
-          
-          // CRITICAL: Check offline DB first - only fetch from API if offline data is stale
-          const { offlineDB } = await import('./offlineDatabase');
-          const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-          
-          // If we have recent offline data (< 30 seconds old), use it instead of API
-          if (offlineDeliveries && offlineDeliveries.length > 0) {
-            const diff = diffEntityArrays(currentDateDeliveries, offlineDeliveries);
-            
-            if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
-              return null;
-            }
-            
-            const mergedDeliveries = mergeEntityChanges(currentDateDeliveries, diff);
-            const otherDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
-            
-            return {
-              hasChanges: true,
-              deliveries: [...otherDateDeliveries, ...mergedDeliveries]
-            };
-          }
-          
-          // Fallback to API if no offline data
-          const lastTimestamp = getLatestUpdateTimestamp(currentDateDeliveries);
 
-          if (!lastTimestamp && currentDateDeliveries.length > 0) return null;
-
+          // PURGE AND RESYNC: Fetch ALL deliveries for this date from API
           const dateFilter = { ...filters, delivery_date: dateStr };
-          if (lastTimestamp) {
-              dateFilter.updated_date = { $gte: lastTimestamp.toISOString() };
-          }
 
           await this.waitForRateLimit();
-          const updatedDeliveries = await queueEntityRequest(
-          () => base44.entities.Delivery.filter(dateFilter),
-          `Delivery filter [${dateStr}]`
+          const fetchedDeliveries = await queueEntityRequest(
+            () => base44.entities.Delivery.filter(dateFilter),
+            `Delivery filter [${dateStr}]`
           );
 
-      if (lastTimestamp) {
-          if (!updatedDeliveries || updatedDeliveries.length === 0) {
+          if (!fetchedDeliveries || fetchedDeliveries.length === 0) {
               this.notifyRateLimit(false);
               return null;
           }
-      } else {
-          if (!updatedDeliveries || updatedDeliveries.length === 0) {
-              this.notifyRateLimit(false);
-              return null;
+
+          // Filter out deliveries with pending local updates
+          const protectedDeliveryIds = [];
+          const filteredDeliveries = fetchedDeliveries.filter(d => {
+            if (this.hasPendingUpdate(d.id)) {
+              protectedDeliveryIds.push(d.id);
+              return false;
+            }
+            return true;
+          });
+
+          // PURGE: Delete all offline deliveries for this date
+          try {
+            const { offlineDB } = await import('./offlineDatabase');
+            await offlineDB.deleteDeliveriesByDate(dateStr);
+            console.log(`🗑️ [SmartRefresh] Purged offline deliveries for ${dateStr}`);
+
+            // RESYNC: Save fresh deliveries from API
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, filteredDeliveries);
+            console.log(`✅ [SmartRefresh] Resynced ${filteredDeliveries.length} deliveries for ${dateStr}`);
+          } catch (offlineError) {
+            console.warn('⚠️ [SmartRefresh] Failed to purge/resync deliveries to offline DB:', offlineError);
           }
-      }
 
-      const protectedDeliveryIds = [];
-      const filteredUpdatedDeliveries = updatedDeliveries.filter(d => {
-        if (this.hasPendingUpdate(d.id)) {
-          protectedDeliveryIds.push(d.id);
-          return false;
-        }
-        return true;
-      });
+          // Merge with other dates and protected deliveries
+          const otherDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
+          const protectedDeliveries = currentDateDeliveries.filter(d => this.hasPendingUpdate(d.id));
+          const finalDeliveries = [...otherDateDeliveries, ...filteredDeliveries, ...protectedDeliveries];
 
-      const diff = diffEntityArrays(currentDateDeliveries, filteredUpdatedDeliveries);
-
-      if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
           this.notifyRateLimit(false);
-          return null;
-      }
+          return {
+            hasChanges: true,
+            deliveries: finalDeliveries
+          };
 
-      const mergedDateDeliveries = mergeEntityChanges(currentDateDeliveries, diff);
-      
-      const finalMergedDeliveries = mergedDateDeliveries.map(d => {
-        if (this.hasPendingUpdate(d.id)) {
-          const currentVersion = currentDateDeliveries.find(cd => cd.id === d.id);
-          if (currentVersion) return currentVersion;
-        }
-        return d;
-      });
-      
-      const otherDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
-      const finalDeliveries = [...otherDateDeliveries, ...finalMergedDeliveries];
-
-      // CRITICAL: Sync to offline database after changes
-      try {
-        const { offlineDB } = await import('./offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries);
-
-        // CRITICAL: Deduplicate deliveries based on status rules
-        await offlineDB.deduplicateDeliveries();
-
-        console.log(`✅ [SmartRefresh] Synced ${finalDeliveries.length} deliveries to offline DB`);
-      } catch (offlineError) {
-        console.warn('⚠️ [SmartRefresh] Failed to sync deliveries to offline DB:', offlineError);
-      }
-
-      this.notifyRateLimit(false);
-      return {
-        hasChanges: true,
-        deliveries: finalDeliveries
-      };
-      
     } catch (error) {
       if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
         this.notifyRateLimit(false);
@@ -1849,10 +1800,14 @@ class SmartRefreshManager {
       
       if (fetchedDeliveries && fetchedDeliveries.length > 0) {
         const { offlineDB } = await import('./offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
 
-        // CRITICAL: Deduplicate deliveries based on status rules
-        await offlineDB.deduplicateDeliveries();
+        // PURGE: Delete all offline deliveries for today
+        await offlineDB.deleteDeliveriesByDate(todayStr);
+        console.log(`🗑️ [SmartRefresh] Purged offline deliveries for ${todayStr}`);
+
+        // RESYNC: Save fresh deliveries from API
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
+        console.log(`✅ [SmartRefresh] Resynced ${fetchedDeliveries.length} deliveries for ${todayStr}`);
 
         const currentTodayDeliveries = currentData.deliveries.filter(d => d && d.delivery_date === todayStr);
         const otherDeliveries = currentData.deliveries.filter(d => d && d.delivery_date !== todayStr);
