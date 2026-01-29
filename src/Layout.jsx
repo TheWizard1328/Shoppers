@@ -2506,50 +2506,81 @@ export default function Layout({ children, currentPageName }) {
           }
         }
 
-        /* Mobile layout - controlled by device type, not screen width */
-        .app-container.mobile-device .mobile-header {
-          display: flex !important;
-          position: sticky;
-          top: 0;
-          z-index: 10001 !important;
-          background: var(--bg-white);
-          border-bottom: 1px solid var(--border-slate-200);
+        /* Mobile layout - portrait mode (narrow screen) */
+        @media (max-width: 767px) {
+          .app-container.mobile-device .mobile-header {
+            display: flex !important;
+            position: sticky;
+            top: 0;
+            z-index: 10001 !important;
+            background: var(--bg-white);
+            border-bottom: 1px solid var(--border-slate-200);
+          }
+
+          .app-container.mobile-device main {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            flex: 1;
+          }
+
+          .app-container.mobile-device .app-sidebar {
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            bottom: 0 !important;
+            width: 280px !important;
+            max-width: 80vw !important;
+            z-index: 50000 !important;
+            transform: translateX(-100%) !important;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            background: var(--bg-white) !important;
+            box-shadow: 4px 0 12px var(--shadow-color) !important;
+            flex-shrink: 0 !important;
+          }
+
+          .app-container.mobile-device .app-sidebar.sidebar-open {
+            transform: translateX(0) !important;
+            box-shadow: 4px 0 12px var(--shadow-color) !important;
+          }
+
+          .app-container.mobile-device .main-content-area {
+            width: 100vw !important;
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            max-height: 100vh !important;
+            max-height: 100dvh !important;
+          }
         }
 
-        .app-container.mobile-device main {
-          overflow-y: auto !important;
-          overflow-x: hidden !important;
-          flex: 1;
-        }
+        /* Mobile layout - landscape mode (wide screen) - use desktop layout */
+        @media (min-width: 768px) {
+          .app-container.mobile-device .mobile-header {
+            display: none !important;
+          }
 
-        .app-container.mobile-device .app-sidebar {
-          position: fixed !important;
-          left: 0 !important;
-          top: 0 !important;
-          bottom: 0 !important;
-          width: 280px !important;
-          max-width: 80vw !important;
-          z-index: 50000 !important;
-          transform: translateX(-100%) !important;
-          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-          background: var(--bg-white) !important;
-          box-shadow: 4px 0 12px var(--shadow-color) !important;
-          flex-shrink: 0 !important;
-        }
+          .app-container.mobile-device .app-sidebar {
+            position: relative !important;
+            transform: none !important;
+            box-shadow: none !important;
+            width: var(--sidebar-width) !important;
+            min-width: 200px !important;
+            max-width: 400px !important;
+            flex: 0 0 var(--sidebar-width) !important;
+            transition: none !important;
+          }
 
-        .app-container.mobile-device .app-sidebar.sidebar-open {
-          transform: translateX(0) !important;
-          box-shadow: 4px 0 12px var(--shadow-color) !important;
-        }
-
-        .app-container.mobile-device .main-content-area {
-          width: 100vw !important;
-          flex: 1 !important;
-          display: flex !important;
-          flex-direction: column !important;
-          overflow: hidden !important;
-          max-height: 100vh !important;
-          max-height: 100dvh !important;
+          .app-container.mobile-device .main-content-area {
+            flex: 1 1 auto !important;
+            width: calc(100vw - var(--sidebar-width) - 1px) !important;
+            min-width: 400px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            max-height: 100vh !important;
+            max-height: 100dvh !important;
+          }
         }
 
         /* Desktop layout - controlled by device type */
@@ -2928,8 +2959,8 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Driver Status Toggle - Show in sidebar on mobile devices */}
-                      {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
+                      {/* Driver Status Toggle - Show in sidebar on mobile devices in PORTRAIT mode only */}
+                      {isMobile && screenWidth < 768 && currentUser && userHasRole(currentUser, 'driver') &&
                         <div className="flex">
                               <DriverStatusToggle
                             currentUser={currentUser}
@@ -2945,151 +2976,42 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                       }
 
-                      {!sidebarOpen && (userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
+                      {(userHasRole(currentUser, 'admin') && cities && cities.length > 0 || userHasRole(currentUser, 'driver')) &&
                     <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                               <MoreVertical className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2 text-slate-500`} />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-60 z-[10000]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
-                            {/* Settings header and Admin Import toggle - only for admins/app owners */}
-                            {(userHasRole(currentUser, 'admin') || isAppOwner(currentUser)) &&
-                        <>
-                                <div className="px-2 py-2">
-                                  <div className="flex items-center justify-between">
-                                  <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>Settings</DropdownMenuLabel>
-                                    {isAppOwner(currentUser) &&
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                        <span className="font-medium" style={{ color: 'var(--text-slate-600)', fontSize: isMobileDeviceForUI ? '14px' : '13px' }}>Admin Import</span>
-                                        <Switch
-                                  checked={adminImportEnabled}
-                                  onCheckedChange={async (checked) => {
-                                    if (currentUser?._isImpersonating) return;
-
-                                    setAdminImportEnabled(checked);
-
-                                    try {
-                                      const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                                      if (settings && settings.length > 0) {
-                                        await base44.entities.AppSettings.update(settings[0].id, {
-                                          setting_value: {
-                                            ...settings[0].setting_value,
-                                            adminImportEnabled: checked
-                                          }
-                                        });
-                                      }
-                                    } catch (error) {
-                                      console.error('Failed to save admin import setting:', error);
+                          <SettingsMenu
+                            currentUser={currentUser}
+                            realUser={realUser}
+                            isAppOwner={isAppOwner(currentUser)}
+                            adminImportEnabled={adminImportEnabled}
+                            onAdminImportToggle={async (checked) => {
+                              if (currentUser?._isImpersonating) return;
+                              setAdminImportEnabled(checked);
+                              try {
+                                const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                if (settings && settings.length > 0) {
+                                  await base44.entities.AppSettings.update(settings[0].id, {
+                                    setting_value: {
+                                      ...settings[0].setting_value,
+                                      adminImportEnabled: checked
                                     }
-                                  }} />
-
-                                      </label>
+                                  });
+                                }
+                              } catch (error) {
+                                console.error('Failed to save admin import setting:', error);
                               }
-                                  </div>
-                                </div>
-                                <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                              </>
-                        }
-
-                            {/* Theme Toggle - Mobile Devices Only (for all users including drivers) */}
-                            {isMobileDeviceForUI &&
-                        <>
-                                <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}>
-                                      Display
-                                    </DropdownMenuLabel>
-                                    <div className="px-2 py-2">
-                                      <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobileDeviceForUI ? '15px' : '14px' }}>
-                                        Theme
-                                      </label>
-                                      <Select
-                                value={themePreference}
-                                onValueChange={handleThemeChange}>
-
-                                        <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent className="z-[10003]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
-                                      <SelectItem value="auto" style={{ color: 'var(--text-slate-900)' }}>Auto (System)</SelectItem>
-                                      <SelectItem value="light" style={{ color: 'var(--text-slate-900)' }}>Light</SelectItem>
-                                      <SelectItem value="dark" style={{ color: 'var(--text-slate-900)' }}>Dark</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                              </>
-                        }
-
-
-
-                            {/* Import Buttons - Always visible for app owners on any device, available to others when admin toggle is enabled */}
-                            {realUser && isAppOwner(realUser) || adminImportEnabled ?
-                            <>
-                              <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}>
-                                Deliveries
-                              </DropdownMenuLabel>
-                              {realUser && isAppOwner(realUser) || adminImportEnabled ?
-                              <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer" style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
-                                  <FileText className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-                                  Patient Data
-                                </DropdownMenuItem> :
-                              null}
-                              <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer" style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
-                                <FileText className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-                                Deliveries
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                            </> :
-                        null}
-
-
-
-                            {/* City Filter - Admin Only */}
-                            {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
-                        <div className="px-2 py-2">
-                              <label className="font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)', fontSize: isMobileDeviceForUI ? '14px' : '13px' }}>
-                                City Filter
-                              </label>
-                              <Select
-                          value={globalFilters.getSelectedCityId()}
-                          onValueChange={(cityId) => {
-                            globalFilters.setSelectedCityId(cityId);
-                          }}>
-
-                                <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
-                                  <SelectValue placeholder="City" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: '#ffffff', fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
-                                    {cities.map((city) =>
-                              <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
-                                        {city.name}
-                                      </SelectItem>
-                              )}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                        }
-                            
-                            {/* Force Full App Refresh */}
-                            <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                            <DropdownMenuItem
-                          onClick={async () => {
-                            try {
-                              localStorage.clear();
-
-                              window.location.reload(true);
-                            } catch (error) {
-
-                              // Silent fail
-                            }}}
-                          className="cursor-pointer text-blue-600"
-                          style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}>
-
-                              <RefreshCw className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-                              Force Full App Refresh
-                            </DropdownMenuItem>
-
-                          </DropdownMenuContent>
+                            }}
+                            themePreference={themePreference}
+                            onThemeChange={handleThemeChange}
+                            cities={cities}
+                            onPatientImportClick={() => setShowPatientImport(true)}
+                            onDeliveryImportClick={() => setShowDeliveryImport(true)}
+                            isMobile={isMobileDeviceForUI}
+                          />
                         </DropdownMenu>
                     }
                     </div>
