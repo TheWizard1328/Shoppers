@@ -608,6 +608,7 @@ const DeliveryDataTable = ({
   const [selectedDeliveries, setSelectedDeliveries] = useState(new Set());
   const [editingDriverId, setEditingDriverId] = useState(null);
   const [editingStatusId, setEditingStatusId] = useState(null);
+  const [showMostRecentOnly, setShowMostRecentOnly] = useState(false);
 
   const updateColumnWidth = useCallback((columnId, width) => {
     setColumnWidths(prev => {
