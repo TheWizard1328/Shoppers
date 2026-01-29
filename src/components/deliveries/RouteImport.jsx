@@ -1691,6 +1691,49 @@ export default function RouteImport({
 
         setImportProgress((prev) => ({
           ...prev,
+          phase: 'syncing',
+          current: 0,
+          total: 0,
+          filesCompleted: prev.totalFiles,
+          currentFile: ''
+        }));
+        
+        // CRITICAL: PURGE AND RESYNC - Extract all unique dates from imported data
+        const importedDates = new Set();
+        deliveriesToCreateFiltered.forEach(d => importedDates.add(d.delivery_date));
+        deliveriesToUpdateFiltered.forEach(d => importedDates.add(d.delivery_date));
+        
+        const uniqueDates = Array.from(importedDates);
+        console.log(`🔄 [RouteImport] Purge and resync for ${uniqueDates.length} dates:`, uniqueDates);
+        
+        setProgressMessage(`Syncing offline database (${uniqueDates.length} dates)...`);
+        
+        // PURGE AND RESYNC: For each date, delete offline deliveries and resync from online
+        for (let i = 0; i < uniqueDates.length; i++) {
+          const dateStr = uniqueDates[i];
+          
+          try {
+            // PURGE: Delete all offline deliveries for this date
+            await offlineDB.deleteDeliveriesByDate(dateStr);
+            console.log(`🗑️ [RouteImport] Purged offline deliveries for ${dateStr}`);
+            
+            // RESYNC: Fetch fresh deliveries from online DB for this date
+            const freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+            
+            // Save to offline DB
+            if (freshDeliveries && freshDeliveries.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+              console.log(`✅ [RouteImport] Resynced ${freshDeliveries.length} deliveries for ${dateStr}`);
+            }
+          } catch (syncError) {
+            console.warn(`⚠️ [RouteImport] Sync failed for ${dateStr}:`, syncError.message);
+          }
+          
+          setProgressMessage(`Syncing offline database (${i + 1}/${uniqueDates.length} dates)...`);
+        }
+
+        setImportProgress((prev) => ({
+          ...prev,
           phase: 'complete',
           current: prev.total,
           filesCompleted: prev.totalFiles,
