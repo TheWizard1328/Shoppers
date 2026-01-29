@@ -373,10 +373,38 @@ function Dashboard() {
       if (source === 'dashboard') return;
       
       try {
-        // Invalidate cache and refresh data
+        // CRITICAL: Check "Show All" state to load correct deliveries
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+        const shouldLoadAllDrivers = showAllDriverMarkers || selectedDriverId === 'all';
+        
+        console.log(`📥 [Import] Loading deliveries - Show All: ${showAllDriverMarkers}, Mode: ${shouldLoadAllDrivers ? 'ALL DRIVERS' : 'Single Driver'}`);
+        
+        // Load deliveries based on checkbox state
         invalidateDeliveriesForDate(selectedDateStr);
-        await refreshData();
+        let freshDeliveries;
+        
+        if (shouldLoadAllDrivers) {
+          // Show All enabled - load ALL drivers' deliveries
+          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+          console.log(`✅ [Import] Loaded ${freshDeliveries.length} deliveries for ALL drivers`);
+        } else {
+          // Show All disabled - load only selected driver's deliveries
+          const driverToLoad = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+          freshDeliveries = await base44.entities.Delivery.filter({ 
+            delivery_date: selectedDateStr,
+            driver_id: driverToLoad
+          });
+          console.log(`✅ [Import] Loaded ${freshDeliveries.length} deliveries for driver ${driverToLoad}`);
+        }
+        
+        // Update offline DB
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        
+        // Update UI with fresh data
+        if (updateDeliveriesLocally) {
+          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+          updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+        }
         
         // Force map markers and routes to update
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -384,14 +412,32 @@ function Dashboard() {
         }));
         
         // Trigger FAB to re-center map (Phase 1 for 500ms)
-        setMapViewPhase(1);
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-        
-        // Auto-unlock after 500ms
-        setTimeout(() => setIsMapViewLocked(false), 500);
+        if (mapViewPhase === 1) {
+          // Clear any existing timers
+          if (mapLockTimeoutRef.current) {
+            clearTimeout(mapLockTimeoutRef.current);
+            mapLockTimeoutRef.current = null;
+          }
+          mapLockExpiresAtRef.current = null;
+          
+          setIsMapViewLocked(true);
+          lastProgrammaticMapMoveRef.current = Date.now();
+          window._lastProgrammaticMapMove = Date.now();
+          setMapViewTrigger((prev) => prev + 1);
+          
+          // Auto-unlock after 500ms
+          const lockDuration = 500;
+          const expiresAt = Date.now() + lockDuration;
+          mapLockExpiresAtRef.current = expiresAt;
+          
+          mapLockTimeoutRef.current = setTimeout(() => {
+            if (mapLockExpiresAtRef.current === expiresAt) {
+              setIsMapViewLocked(false);
+              mapLockExpiresAtRef.current = null;
+              mapLockTimeoutRef.current = null;
+            }
+          }, lockDuration);
+        }
         
         console.log('✅ [Dashboard] Map updated after import');
       } catch (error) {
@@ -401,7 +447,7 @@ function Dashboard() {
     
     window.addEventListener('deliveriesImported', handleDeliveriesImported);
     return () => window.removeEventListener('deliveriesImported', handleDeliveriesImported);
-  }, [selectedDate, refreshData]);
+  }, [selectedDate, refreshData, showAllDriverMarkers, selectedDriverId, currentUser, deliveries, updateDeliveriesLocally, mapViewPhase]);
 
   // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
