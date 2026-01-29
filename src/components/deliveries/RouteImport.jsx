@@ -1508,8 +1508,8 @@ export default function RouteImport({
         }
 
         // Delete from offline database
-        const uniqueDates = [...new Set(driverDatePairs.map(p => p.date))];
-        for (const date of uniqueDates) {
+        const datesToPurge = [...new Set(driverDatePairs.map(p => p.date))];
+        for (const date of datesToPurge) {
           try {
             await offlineDB.deleteDeliveriesByDate(date);
           } catch (offlineDeleteError) {
