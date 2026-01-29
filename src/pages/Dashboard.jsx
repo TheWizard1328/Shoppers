@@ -7164,8 +7164,8 @@ function Dashboard() {
                           }
                         }
 
-                        // CRITICAL: Activate Phase 1 for 500ms when checkbox is toggled
-                        console.log('🗺️ [Show All Checkbox] Activating Phase 1 for 500ms');
+                        // CRITICAL: Activate Phase 1 immediately when checkbox is toggled
+                        console.log('🗺️ [Show All Checkbox] Activating Phase 1');
                         
                         // Clear any existing timers
                         if (mapLockTimeoutRef.current) {
@@ -7180,23 +7180,21 @@ function Dashboard() {
                         lastProgrammaticMapMoveRef.current = Date.now();
                         window._lastProgrammaticMapMove = Date.now();
 
-                        // Delay FAB activation to allow markers to render
-                        setTimeout(() => {
-                          setMapViewTrigger((prev) => prev + 1);
+                        // Trigger immediately
+                        setMapViewTrigger((prev) => prev + 1);
 
-                          // Auto-unlock after 500ms
-                          const lockDuration = 500;
-                          const expiresAt = Date.now() + lockDuration;
-                          mapLockExpiresAtRef.current = expiresAt;
-                          mapLockTimeoutRef.current = setTimeout(() => {
-                            if (mapLockExpiresAtRef.current === expiresAt) {
-                              setIsMapViewLocked(false);
-                              mapLockExpiresAtRef.current = null;
-                              mapLockTimeoutRef.current = null;
-                              console.log('⏰ [Show All Checkbox] Phase 1 auto-unlocked after 500ms');
-                            }
-                          }, lockDuration);
-                        }, 600);
+                        // Auto-unlock after 500ms
+                        const lockDuration = 500;
+                        const expiresAt = Date.now() + lockDuration;
+                        mapLockExpiresAtRef.current = expiresAt;
+                        mapLockTimeoutRef.current = setTimeout(() => {
+                          if (mapLockExpiresAtRef.current === expiresAt) {
+                            setIsMapViewLocked(false);
+                            mapLockExpiresAtRef.current = null;
+                            mapLockTimeoutRef.current = null;
+                            console.log('⏰ [Show All Checkbox] Phase 1 auto-unlocked after 500ms');
+                          }
+                        }, lockDuration);
                       }}
                       className="h-4 w-4" />
 
