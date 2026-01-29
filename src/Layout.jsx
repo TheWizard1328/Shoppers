@@ -3454,6 +3454,14 @@ export default function Layout({ children, currentPageName }) {
                         {/* Mobile Header Controls - narrow screen only */}
                         {isMobile && screenWidth < 768 &&
                           <>
+                            {/* QR Code Invite Button */}
+                            <button
+                              onClick={() => setShowInviteQRModal(true)}
+                              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                              title="Generate Invite QR Code">
+                              <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
+                            </button>
+
                             {/* Location Tracking Toggle - for drivers */}
                             {currentUser && userHasRole(currentUser, 'driver') &&
                               <LocationTrackingToggle
