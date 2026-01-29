@@ -82,14 +82,16 @@ import { getActiveDriversForCity, getAvailableDrivers } from './components/utils
 // Removed: getCitiesWithinRadius - no longer using geographic filtering
 import { getUserAgentInfo } from './components/utils/deviceUtils';
 import PatientImport from './components/patients/PatientImport';
-import RouteImport from './components/deliveries/RouteImport';
-import DriverStatusToggle from './components/layout/DriverStatusToggle';
-import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
-import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
-import MessagingPanel from './components/messaging/MessagingPanel';
-import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
-import { isMobileDevice } from './components/utils/deviceUtils';
-import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
+  import RouteImport from './components/deliveries/RouteImport';
+  import DriverStatusToggle from './components/layout/DriverStatusToggle';
+  import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
+  import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
+  import MessagingPanel from './components/messaging/MessagingPanel';
+  import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
+  import { isMobileDevice } from './components/utils/deviceUtils';
+  import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
+  import InviteQRCodeModal from './components/common/InviteQRCodeModal';
+  import { QrCode } from 'lucide-react';
 import { initializeDailyCleanup } from './components/utils/messageCleaner';
 import { toast } from 'sonner';
 import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';

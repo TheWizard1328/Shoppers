@@ -61,9 +61,9 @@ import Home from './pages/Home';
 import Patients from './pages/Patients';
 import SquareLocationConfigs from './pages/SquareLocationConfigs';
 import SquareManagement from './pages/SquareManagement';
+import StoreInvoices from './pages/StoreInvoices';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
-import StoreInvoices from './pages/StoreInvoices';
 import __Layout from './Layout.jsx';
 
 
@@ -82,9 +82,9 @@ export const PAGES = {
     "Patients": Patients,
     "SquareLocationConfigs": SquareLocationConfigs,
     "SquareManagement": SquareManagement,
+    "StoreInvoices": StoreInvoices,
     "Stores": Stores,
     "Users": Users,
-    "StoreInvoices": StoreInvoices,
 }
 
 export const pagesConfig = {
