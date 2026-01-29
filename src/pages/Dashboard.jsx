@@ -6721,7 +6721,7 @@ function Dashboard() {
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const [forceRender, setForceRender] = useState(0);
 
-  // Listen for data source changes and reload
+  // Listen for data source changes and reload deliveries for ALL drivers
   useEffect(() => {
     const handleDataSourceChange = async (event) => {
       const { source } = event.detail || {};
@@ -6731,41 +6731,50 @@ function Dashboard() {
       
       try {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        let freshDeliveries;
+        let freshDeliveries = [];
         
         if (source === 'online') {
-          console.log('🌐 [Data Source Change] Fetching from API');
+          console.log(`🌐 [Data Source Change - ONLINE] Fetching ALL drivers for ${selectedDateStr}`);
           freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+          // Update offline DB in background
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
         } else {
-          console.log('📦 [Data Source Change] Loading from offline DB');
+          console.log(`📦 [Data Source Change - OFFLINE] Loading ALL drivers for ${selectedDateStr}`);
           freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
           
           if (!freshDeliveries || freshDeliveries.length === 0) {
-            console.log('📥 [Data Source Change] Offline DB empty - fetching from API');
+            console.log('📥 [Data Source Change] Offline DB empty - fetching from API as fallback');
             freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+          } else {
+            console.log(`✅ [Data Source Change - OFFLINE] Loaded ${freshDeliveries.length} from offline DB`);
           }
         }
         
-        // Update UI with fresh data
-        if (updateDeliveriesLocally) {
-          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-          updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-          console.log(`✅ [Data Source Change] UI updated with ${freshDeliveries.length} deliveries`);
-        }
+        // Update context with fresh data
+        console.log(`📋 [Data Source Change] Updating dashboard UI with ${freshDeliveries.length} deliveries`);
+        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+        const allDeliveries = [...otherDateDeliveries, ...freshDeliveries];
+        updateDeliveriesLocally(allDeliveries, true);
         
-        // Force stats refresh
+        // Force immediate UI refresh
+        setForceRender((prev) => prev + 1);
+        
+        // Force stats refresh with new data
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         
-        // Force map update
+        // Force map update with new data
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { deliveryDate: selectedDateStr, triggeredBy: 'dataSourceChange' }
+          detail: { 
+            deliveryDate: selectedDateStr, 
+            triggeredBy: 'dataSourceChange',
+            deliveryCount: freshDeliveries.length 
+          }
         }));
         
         // Show success notification
-        toast.success(`Data loaded from ${source === 'online' ? 'online' : 'offline'} source`, {
-          description: `${freshDeliveries.length} deliveries for ${format(selectedDate, 'MMM dd, yyyy')}`
+        toast.success(`Loaded from ${source === 'online' ? 'Online' : 'Offline'} source`, {
+          description: `${freshDeliveries.length} deliveries for ${format(selectedDate, 'MMM dd')}`
         });
         
       } catch (error) {
@@ -6780,7 +6789,7 @@ function Dashboard() {
     
     window.addEventListener('dataSourceChanged', handleDataSourceChange);
     return () => window.removeEventListener('dataSourceChanged', handleDataSourceChange);
-  }, [selectedDate, updateDeliveriesLocally, deliveries]);
+  }, [selectedDate, updateDeliveriesLocally, deliveries, setForceRender]);
 
   // CRITICAL: Load deliveries based on data source preference
   useEffect(() => {
