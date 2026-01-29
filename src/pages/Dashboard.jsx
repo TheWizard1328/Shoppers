@@ -1895,7 +1895,7 @@ function Dashboard() {
     };
   }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding, appUsers]);
 
-  // CRITICAL: Periodic smart refresh - ALWAYS loads ALL drivers for selected date
+  // CRITICAL: Periodic smart refresh - loads deliveries based on "Show All" checkbox and driver selection
   useEffect(() => {
     if (!isDataLoaded || !currentUser || !isFiltersReady) {
       return;
@@ -1908,38 +1908,52 @@ function Dashboard() {
 
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      // CRITICAL: ALWAYS fetch ALL drivers' deliveries for the selected date
-      console.log(`🔄 [Periodic Refresh] Loading ALL drivers for ${selectedDateStr} (source: ${dataSource})`);
+      // CRITICAL: Load ALL drivers when "Show All" is checked OR "All Drivers" is selected
+      // Otherwise, load only the selected driver
+      const shouldLoadAllDrivers = showAllDriverMarkers || selectedDriverId === 'all';
+      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
       
-      let allDriversDeliveries;
+      console.log(`🔄 [Periodic Refresh] Loading ${shouldLoadAllDrivers ? 'ALL drivers' : 'driver ' + activeDriverId} for ${selectedDateStr}`);
+      
+      let freshDeliveries;
       
       if (dataSource === 'online') {
         console.log('🌐 [Periodic Refresh - ONLINE] Fetching from API');
-        allDriversDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDriversDeliveries).catch(() => {});
+        freshDeliveries = shouldLoadAllDrivers 
+          ? await base44.entities.Delivery.filter({ delivery_date: selectedDateStr })
+          : await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
+        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
       } else {
-        allDriversDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
         
-        if (!allDriversDeliveries || allDriversDeliveries.length === 0) {
+        if (!freshDeliveries || freshDeliveries.length === 0) {
           console.log('📥 [Periodic Refresh] Offline DB empty - fetching from API');
-          allDriversDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDriversDeliveries);
+          freshDeliveries = shouldLoadAllDrivers
+            ? await base44.entities.Delivery.filter({ delivery_date: selectedDateStr })
+            : await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        } else {
+          console.log(`📦 [Periodic Refresh] Loaded ${freshDeliveries.length} from offline DB`);
+          // Filter to selected driver if not loading all
+          if (!shouldLoadAllDrivers && activeDriverId) {
+            freshDeliveries = freshDeliveries.filter((d) => d.driver_id === activeDriverId);
+          }
         }
       }
       
-      // Update context with ALL deliveries
-      if (updateDeliveriesLocally && allDriversDeliveries.length > 0) {
+      // Update context with fresh deliveries
+      if (updateDeliveriesLocally && freshDeliveries.length > 0) {
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-        updateDeliveriesLocally([...otherDateDeliveries, ...allDriversDeliveries], true);
-        console.log(`✅ [Periodic Refresh] Updated UI with ${allDriversDeliveries.length} deliveries`);
+        updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+        console.log(`✅ [Periodic Refresh] Updated UI with ${freshDeliveries.length} deliveries`);
       }
       
-      // Refresh driver locations
+      // Refresh driver locations and dispatch update events
       const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, false);
       if (locationUpdates?.hasChanges) {
         driverLocationPoller.processLocationData(
           currentUser, 
-          allDriversDeliveries, 
+          freshDeliveries, 
           drivers, 
           stores, 
           locationUpdates.appUsers, 
@@ -1948,7 +1962,7 @@ function Dashboard() {
         );
       }
       
-      // Dispatch update events
+      // CRITICAL: Dispatch events to update map markers for ALL drivers (not just active driver)
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
         detail: { appUsers: locationUpdates?.appUsers || appUsers }
       }));
@@ -1963,7 +1977,7 @@ function Dashboard() {
     const interval = setInterval(runPeriodicSmartRefresh, 15000);
 
     return () => clearInterval(interval);
-  }, [isDataLoaded, currentUser, isFiltersReady, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, deliveries, drivers, stores, patients, appUsers, dataSource, updateDeliveriesLocally]);
+  }, [isDataLoaded, currentUser, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, deliveries, drivers, stores, patients, appUsers, dataSource, updateDeliveriesLocally]);
 
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   // CRITICAL: Initialize poller once on mount
