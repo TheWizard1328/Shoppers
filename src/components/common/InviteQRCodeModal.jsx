@@ -162,7 +162,11 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
         ) : (
           <div className="space-y-4 flex flex-col items-center">
             <div className="p-4 bg-white rounded-lg border">
-              <QRCode value={qrUrl} size={256} level="H" includeMargin={true} />
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(qrUrl)}`}
+                alt="Invite QR Code"
+                className="w-64 h-64"
+              />
             </div>
 
             <p className="text-xs text-slate-500 text-center">
@@ -179,7 +183,12 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
                 Copy URL
               </Button>
               <Button
-                onClick={handleDownloadQR}
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(qrUrl)}`;
+                  link.download = 'invite-qr-code.png';
+                  link.click();
+                }}
                 variant="outline"
                 className="w-full gap-2"
               >
