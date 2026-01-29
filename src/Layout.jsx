@@ -679,11 +679,12 @@ export default function Layout({ children, currentPageName }) {
     }
   };
   const [showMessaging, setShowMessaging] = useState(false);
-  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-  const [initialConversation, setInitialConversation] = useState(null);
-  const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
-  const [adminImportEnabled, setAdminImportEnabled] = useState(false);
-  const [isSnapshotModeActive, setIsSnapshotModeActive] = useState(false);
+          const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+          const [initialConversation, setInitialConversation] = useState(null);
+          const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
+          const [adminImportEnabled, setAdminImportEnabled] = useState(false);
+          const [isSnapshotModeActive, setIsSnapshotModeActive] = useState(false);
+          const [showInviteQRModal, setShowInviteQRModal] = useState(false);
 
   // Poll for adminImportEnabled changes (for Kyle J to see updates when toggle changes)
   useEffect(() => {
