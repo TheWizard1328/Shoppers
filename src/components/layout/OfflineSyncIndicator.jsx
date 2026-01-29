@@ -71,19 +71,25 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const handleForceSync = async () => {
     try {
       setIsSyncing(true);
-      console.log('🔄 [OfflineSyncIndicator] Starting manual sync...');
+      console.log('🔄 [OfflineSyncIndicator] Starting COMPLETE offline DB refresh...');
 
-      // DON'T clear the offline DB - just force a fresh sync from API
-      // Clearing causes data loss if the sync fails
+      // CRITICAL: Clear ALL offline DB stores first to force fresh sync
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      console.log('🗑️ [OfflineSyncIndicator] Clearing offline DB...');
+      await offlineDB.clearAllData();
+      console.log('✅ [OfflineSyncIndicator] Offline DB cleared');
+
+      // Force fresh sync from server
       const syncResult = await forceSyncAll();
       console.log('✅ [OfflineSyncIndicator] forceSyncAll complete:', syncResult);
       
       // Wait for DB to settle
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       const updatedStats = await getSyncStats();
       console.log('📊 [OfflineSyncIndicator] Updated stats:', updatedStats);
       setStats(updatedStats);
+      setRuntimeStats({}); // Clear runtime stats
 
       // Wait for UI to update before dispatching events
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -98,7 +104,6 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       const selectedDateStr = sessionStorage.getItem('rxdeliver_selected_date') || 
                              new Date().toISOString().split('T')[0];
       
-      const { offlineDB } = await import('../utils/offlineDatabase');
       const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
       
       if (freshDeliveries && freshDeliveries.length > 0) {
@@ -113,7 +118,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
         detail: { appUsers: null }
       }));
       
-      console.log('✅ [OfflineSyncIndicator] Manual sync complete - all events dispatched');
+      console.log('✅ [OfflineSyncIndicator] Complete offline DB refresh finished');
       
     } catch (error) {
       console.error('❌ [OfflineSyncIndicator] Force sync failed:', error);
