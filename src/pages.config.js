@@ -47,6 +47,7 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import AdminMetrics from './pages/AdminMetrics';
 import AdminUtilities from './pages/AdminUtilities';
 import AppUsers from './pages/AppUsers';
 import Cities from './pages/Cities';
@@ -62,11 +63,12 @@ import SquareLocationConfigs from './pages/SquareLocationConfigs';
 import SquareManagement from './pages/SquareManagement';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
-import AdminMetrics from './pages/AdminMetrics';
+import StoreInvoices from './pages/StoreInvoices';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "AdminMetrics": AdminMetrics,
     "AdminUtilities": AdminUtilities,
     "AppUsers": AppUsers,
     "Cities": Cities,
@@ -82,7 +84,7 @@ export const PAGES = {
     "SquareManagement": SquareManagement,
     "Stores": Stores,
     "Users": Users,
-    "AdminMetrics": AdminMetrics,
+    "StoreInvoices": StoreInvoices,
 }
 
 export const pagesConfig = {
