@@ -3471,29 +3471,6 @@ export default function Layout({ children, currentPageName }) {
                     <div className="flex-1"></div>
 
                     <div className="flex items-center gap-2">
-                        {/* Battery Indicator - always visible */}
-                        {isMobile && screenWidth < 768 && <BatteryIndicator vertical={true} />}
-                        
-                        {/* User Avatar - always visible on narrow mobile */}
-                        {isMobile && screenWidth < 768 && currentUser &&
-                          <div className="flex flex-col items-center gap-0.5">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              userHasRole(currentUser, 'admin') ?
-                              'bg-gradient-to-br from-blue-500 to-blue-600' :
-                              userHasRole(currentUser, 'dispatcher') ?
-                              'bg-gradient-to-br from-red-500 to-red-600' :
-                              userHasRole(currentUser, 'driver') ?
-                              'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-                              'bg-gradient-to-br from-gray-400 to-gray-500'}`}>
-                              <span className="text-white font-bold text-xs">
-                                {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
-                              </span>
-                            </div>
-                            <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
-                              {getDriverDisplayName(currentUser)?.split(' ')[0]}
-                            </span>
-                          </div>
-                        }
                     </div>
                     </div>
 
