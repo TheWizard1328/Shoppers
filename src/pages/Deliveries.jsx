@@ -1040,13 +1040,15 @@ export default function DeliveriesPage() {
     console.log('📊 [Deliveries] After role filtering:', driversOnly.length, 'drivers remaining');
 
     if (userHasRole(currentUser, 'admin')) {
-      const filtered = driversOnly.filter((u) => u && (u.status === 'active' || isDriverOverviewMode));
+      // CRITICAL: Include specific driver from URL even if inactive (for duplicate driver cleanup)
+      const filtered = driversOnly.filter((u) => u && (u.status === 'active' || isDriverOverviewMode || u.id === driverFilter));
       console.log('👑 [Deliveries] Admin view - filtered drivers:', filtered.length);
       return filtered;
     }
 
     if (userHasRole(currentUser, 'dispatcher')) {
-      let filteredDrivers = driversOnly.filter((u) => u && (u.status === 'active' || isDriverOverviewMode));
+      // CRITICAL: Include specific driver from URL even if inactive (for duplicate driver cleanup)
+      let filteredDrivers = driversOnly.filter((u) => u && (u.status === 'active' || isDriverOverviewMode || u.id === driverFilter));
       if (currentUser.city_id) {
         const beforeCityFilter = filteredDrivers.length;
         filteredDrivers = filteredDrivers.filter((d) => d && d.city_id === currentUser.city_id);
