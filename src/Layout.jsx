@@ -636,19 +636,21 @@ export default function Layout({ children, currentPageName }) {
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
   const [showDesktopLayout, setShowDesktopLayout] = useState(screenWidth >= 768); // Show desktop layout on wider screens (tablets)
 
-  // Apply theme class to HTML element (mobile only - desktop always light)
+  // Apply theme class - mobile devices (by user agent) can use dark mode even with desktop layout
   // CRITICAL: Debounced theme application to prevent blocking UI updates during critical operations
   useEffect(() => {
     // CRITICAL: Delay theme changes to avoid interfering with form submissions or status updates
     const themeUpdateTimer = setTimeout(() => {
-      if (!isMobile) {
-        // Force light mode on desktop
+      // CRITICAL: Use device type (user agent), not layout mode
+      // This allows tablets/mobile devices to use dark mode even when showing desktop layout
+      if (deviceType !== 'Mobile') {
+        // Force light mode on actual desktop computers
         document.documentElement.classList.remove('auto-theme', 'dark-theme');
         document.documentElement.classList.add('light-theme');
         return;
       }
 
-      // Mobile theme switching
+      // Mobile device theme switching (works regardless of layout)
       if (themePreference === 'dark') {
         document.documentElement.classList.remove('auto-theme', 'light-theme');
         document.documentElement.classList.add('dark-theme');
@@ -662,12 +664,12 @@ export default function Layout({ children, currentPageName }) {
     }, 300); // 300ms delay to avoid blocking critical operations
 
     return () => clearTimeout(themeUpdateTimer);
-  }, [themePreference, isMobile]);
+  }, [themePreference, deviceType]);
 
   const handleThemeChange = async (newTheme) => {
     setThemePreference(newTheme);
     if (currentUser?.id) {
-      await saveSetting(currentUser.id, 'theme_preference', newTheme);
+      saveSetting(currentUser.id, 'theme_preference', newTheme);
     }
   };
   const [showMessaging, setShowMessaging] = useState(false);
@@ -733,8 +735,8 @@ export default function Layout({ children, currentPageName }) {
             setSidebarWidth(settings.sidebar_width);
           }
 
-          // Apply theme preference (mobile only - desktop always light)
-          if (settings.theme_preference && isMobile) {
+          // Apply theme preference (mobile devices only - desktop computers always light)
+          if (settings.theme_preference && deviceType === 'Mobile') {
             setThemePreference(settings.theme_preference);
           } else {
             setThemePreference('light');
@@ -2990,8 +2992,8 @@ export default function Layout({ children, currentPageName }) {
                               </>
                         }
 
-                            {/* Theme Toggle - Mobile Only (for all users including drivers) */}
-                            {isMobile &&
+                            {/* Theme Toggle - Mobile Devices Only (for all users including drivers) */}
+                            {deviceType === 'Mobile' &&
                         <>
                                 <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
                                       Display
@@ -3523,8 +3525,8 @@ export default function Layout({ children, currentPageName }) {
                             </>
                       }
 
-                          {/* Theme Toggle - Mobile Only (for all users including drivers) */}
-                          {isMobile &&
+                          {/* Theme Toggle - Mobile Devices Only (for all users including drivers) */}
+                          {deviceType === 'Mobile' &&
                       <>
                               <DropdownMenuLabel className="px-2 font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: isMobile ? '13px' : '12px' }}>
                                 Display
