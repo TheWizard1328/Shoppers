@@ -921,7 +921,11 @@ export default function DeliveryMap({
       // CRITICAL: Fetch when showOtherDriverDeliveries is true (checkbox checked)
       // Works for ANY user viewing a specific driver (not just drivers viewing self)
       if (!selectedDate || !showOtherDriverDeliveries || !selectedDriverId || selectedDriverId === 'all') {
-        // CRITICAL: Don't immediately clear - preserve markers during transition
+        // CRITICAL: Clear markers when checkbox is unchecked
+        if (!showOtherDriverDeliveries && otherDriverDeliveries.length > 0) {
+          console.log('📍 [DeliveryMap] Clearing other driver markers (checkbox unchecked)');
+          setOtherDriverDeliveries([]);
+        }
         return;
       }
 
@@ -937,6 +941,8 @@ export default function DeliveryMap({
           allDeliveries = await base44.entities.Delivery.filter({
             delivery_date: selectedDate
           });
+          // Save to offline DB for future
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDeliveries);
         } else {
           console.log(`💾 [DeliveryMap] Loaded ${allDeliveries.length} deliveries from offline DB`);
         }
@@ -945,12 +951,8 @@ export default function DeliveryMap({
         const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== selectedDriverId);
         console.log(`📍 [DeliveryMap] Setting ${others.length} other driver deliveries (excluding ${selectedDriverId})`);
         
-        // CRITICAL: Only update if data actually changed
-        setOtherDriverDeliveries(prev => {
-          const prevKey = prev.map(d => d?.id).sort().join('|');
-          const newKey = others.map(d => d?.id).sort().join('|');
-          return prevKey === newKey ? prev : others;
-        });
+        // CRITICAL: ALWAYS update to force React re-render - use new array reference
+        setOtherDriverDeliveries([...others]);
       } catch (error) {
         console.error('❌ [DeliveryMap] Failed to load other drivers:', error);
       }
