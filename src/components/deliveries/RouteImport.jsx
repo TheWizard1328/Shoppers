@@ -1003,6 +1003,8 @@ export default function RouteImport({
       // This prevents stop 13 from overwriting stop 10's data
       const pidHasDuplicatesInImport = patientPID && pidCountInImport.get(patientPID) > 1;
       
+      // CRITICAL: Always use selectedDriver.id to ensure consistent driver assignment
+      // This prevents creating deliveries with incorrect/duplicate driver_id values
       const matchResult = pidHasDuplicatesInImport && stopId
         ? { match: allDeliveriesData.find(d => d.stop_id === stopId && d.delivery_date === currentDate && d.driver_id === selectedDriver.id), reason: 'SID Match (PID has duplicates)' }
         : matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
