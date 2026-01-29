@@ -2963,8 +2963,8 @@ export default function Layout({ children, currentPageName }) {
                       {/* Show controls in navigation panel when mobile wide screen OR desktop admin */}
                       {(isMobile && screenWidth >= 768) || (!isMobile && userHasRole(currentUser, 'admin') && cities && cities.length > 0) ?
                         <>
-                          {/* Location Tracking Toggle - mobile wide only, drivers only */}
-                          {isMobile && screenWidth >= 768 && currentUser && userHasRole(currentUser, 'driver') &&
+                          {/* Location Tracking Toggle - mobile wide screen only, drivers only */}
+                          {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
                             <LocationTrackingToggle
                               currentUser={currentUser}
                               onUpdate={async () => {
@@ -2977,8 +2977,8 @@ export default function Layout({ children, currentPageName }) {
                             />
                           }
 
-                          {/* Driver Status Toggle - mobile wide only, drivers only */}
-                          {isMobile && screenWidth >= 768 && currentUser && userHasRole(currentUser, 'driver') &&
+                          {/* Driver Status Toggle - mobile wide screen only, drivers only */}
+                          {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
                             <DriverStatusToggle
                               currentUser={currentUser}
                               vertical={true}
