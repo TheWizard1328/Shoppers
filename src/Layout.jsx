@@ -3271,12 +3271,7 @@ export default function Layout({ children, currentPageName }) {
                       currentUser={currentUser}
                       storeIds={stores.map((s) => s?.id).filter(Boolean)} />
 
-                        {/* Offline Sync Indicator - always for mobile devices */}
-                        {isMobile &&
-                          <div className="px-3 py-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-                            <OfflineSyncIndicator mode="embedded" />
-                          </div>
-                        }
+
                       </div>
                   }
                 </div>
