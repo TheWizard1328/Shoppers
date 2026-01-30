@@ -1523,8 +1523,8 @@ export default function PayrollSummaryCard({
                        </div>
                        )}
                        </div>
-                                               );
-                                })}
+                       );
+                       })}
           
           {/* Grand Total for All Drivers */}
           {payrollData.length > 1 && (
