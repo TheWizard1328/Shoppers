@@ -800,6 +800,7 @@ const deduplicateDeliveries = async () => {
 export const offlineDB = {
   STORES,
   openDatabase,
+  save,
   bulkSave,
   getAll,
   getById,
