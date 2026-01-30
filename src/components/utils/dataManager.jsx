@@ -67,17 +67,10 @@ const waitForRateLimit = async () => {
   lastApiCallTime = Date.now();
 };
 
-/**
- * Mark offline DB load as complete - allows smart refresh to start
- */
 export const markOfflineDBLoadComplete = () => {
   offlineDBLoadComplete = true;
-  console.log('✅ [dataManager] Offline DB load complete - smart refresh can now start');
 };
 
-/**
- * Check if offline DB load is complete
- */
 export const isOfflineDBLoadComplete = () => {
   return offlineDBLoadComplete;
 };
@@ -91,7 +84,6 @@ export const getFrequentCache = (entityName) => {
   if (frequentEntityCache.has(cacheKey)) {
     const timestamp = frequentEntityTimestamps.get(cacheKey);
     if (timestamp && Date.now() - timestamp < FREQUENT_ENTITY_TTL) {
-      console.log(`⚡ [dataManager] Using frequent cache for ${entityName}`);
       return frequentEntityCache.get(cacheKey);
     }
   }
@@ -139,7 +131,6 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       let offlineData = await offlineDB.getAll(storeName);
       
       if (offlineData && offlineData.length > 0) {
-        console.log(`⚡ [dataManager] Using offline ${entityName}: ${offlineData.length} records`);
         cache.set(cacheKey, offlineData);
         cacheTimestamps.set(cacheKey, Date.now());
         
@@ -158,28 +149,21 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
               }
               if (freshData && freshData.length > 0) {
                 await offlineDB.bulkSave(storeName, freshData);
-                console.log(`✅ [dataManager] Background: Updated ${entityName} (${freshData.length} records)`);
                 cache.set(cacheKey, freshData);
                 cacheTimestamps.set(cacheKey, Date.now());
               }
-            } catch (bgError) {
-              console.warn(`⚠️ [dataManager] Background refresh failed for ${entityName}:`, bgError.message);
-            }
+            } catch (bgError) {}
           })();
         }
         
         return offlineData;
       }
-    } catch (offlineError) {
-      console.warn(`⚠️ [dataManager] Offline ${entityName} fetch failed, falling back to network:`, offlineError);
-    }
+    } catch (offlineError) {}
   }
   
-  // Check in-memory cache before network call (skip on forceRefresh since we handled it above)
   if (cache.has(cacheKey)) {
     const timestamp = cacheTimestamps.get(cacheKey);
     if (timestamp && Date.now() - timestamp < CACHE_DURATION) {
-      console.log(`⚡ [dataManager] Using cached ${entityName}: ${cache.get(cacheKey)?.length || 0} records`);
       return cache.get(cacheKey);
     }
   }
@@ -404,24 +388,18 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
  * @returns {Promise<Array>} - Deliveries for that date
  */
 export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh = false) => {
-  // CRITICAL: Remove driver_id from filters - we ALWAYS load ALL drivers
   const { driver_id, ...filtersWithoutDriver } = filters;
   const cacheKey = `Delivery_date_${dateStr}_${JSON.stringify(filtersWithoutDriver)}`;
   
-  // OFFLINE-FIRST: Try IndexedDB ALWAYS
-  // CRITICAL: This prevents rate limits by using local data
-  // Even on forceRefresh, return offline data immediately and update in background
     try {
       let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
       
-      // CRITICAL: Only apply store filter - NEVER filter by driver_id
       if (filtersWithoutDriver.store_id) {
         const storeIds = filtersWithoutDriver.store_id.$in || [filtersWithoutDriver.store_id];
         offlineData = offlineData.filter(d => storeIds.includes(d.store_id));
       }
       
       if (offlineData && offlineData.length > 0) {
-        console.log(`⚡ [dataManager] Using offline deliveries for ${dateStr}: ${offlineData.length} records`);
         deliveryRangeCache.set(cacheKey, offlineData);
         deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
         
@@ -436,40 +414,30 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
               
               if (freshDeliveries && freshDeliveries.length > 0) {
                 await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-                console.log(`✅ [dataManager] Background: Updated ${freshDeliveries.length} deliveries for ${dateStr}`);
                 deliveryRangeCache.set(cacheKey, freshDeliveries);
                 deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
               }
-            } catch (bgError) {
-              console.warn(`⚠️ [dataManager] Background refresh failed:`, bgError.message);
-            }
+            } catch (bgError) {}
           })();
         }
         
         return offlineData;
       }
-    } catch (offlineError) {
-      console.warn(`⚠️ [dataManager] Offline delivery fetch failed, falling back to network:`, offlineError);
-    }
+    } catch (offlineError) {}
   
-  // Check in-memory cache next (before network)
   if (!forceRefresh) {
     const cachedData = deliveryRangeCache.get(cacheKey);
     const cachedTimestamp = deliveryRangeCacheTimestamps.get(cacheKey);
     
     if (cachedData && cachedTimestamp && (Date.now() - cachedTimestamp < DELIVERY_RANGE_CACHE_DURATION)) {
-      console.log(`⚡ [dataManager] Using cached deliveries for ${dateStr}: ${cachedData.length} records`);
       return cachedData;
     }
   }
   
-  // CRITICAL: Remove driver_id from filters - ALWAYS fetch ALL drivers
   const dateFilters = {
     ...filtersWithoutDriver,
     delivery_date: dateStr
   };
-  
-  console.log(`🌐 [dataManager] Fetching ALL drivers' deliveries from network for ${dateStr}...`);
   
   try {
     await waitForRateLimit();
@@ -477,40 +445,29 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
     const Entity = entities.Delivery;
     const deliveries = await Entity.filter(dateFilters, '-updated_date');
     
-    // Cache the result
     deliveryRangeCache.set(cacheKey, deliveries);
     deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
 
-    // BACKGROUND: Save to IndexedDB for future offline use
-    offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries).catch(err => {
-    });
+    offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries).catch(err => {});
 
     return deliveries;
   } catch (error) {
-    // On ANY error, try to return cached/offline data
     if (deliveryRangeCache.has(cacheKey)) {
-      console.warn(`⚠️ [dataManager] Network error, using cached data for ${dateStr}`);
       return deliveryRangeCache.get(cacheKey);
     }
     
-    // Try offline DB as last resort
     try {
       let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
       if (offlineData && offlineData.length > 0) {
-        console.warn(`⚠️ [dataManager] Network error, using offline data for ${dateStr}`);
         return offlineData;
       }
-    } catch (e) {
-      // Ignore offline error
-    }
+    } catch (e) {}
     
     if (error.message?.includes('WebSocket') || error.message?.includes('closed without opened') || 
         error.response?.status === 429 || error.message?.includes('429')) {
-      console.warn(`⚠️ [dataManager] Rate limit or WebSocket error for ${dateStr}, returning empty`);
       return [];
     }
     
-    console.error(`❌ [dataManager] Error fetching deliveries for ${dateStr}:`, error);
     throw error;
   }
 };
@@ -583,49 +540,30 @@ export const loadDeliveries = async (
   onInitialLoadComplete = () => {},
   onFullMonthLoadComplete = () => {}
 ) => {
-  const today = new Date();
-  const todayStr = format(today, 'yyyy-MM-dd');
-  
-  console.log(`📥 [DataManager] Loading deliveries - selected: ${selectedDateStr}`);
-  
-  // STEP 1: Check if offline DB has data for selected date (use as instant UI)
-  let usedOfflineData = false;
   
   if (!forceRefresh) {
     try {
       const offlineDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr);
       
       if (offlineDeliveries && offlineDeliveries.length > 0) {
-        console.log(`⚡ [DataManager] Instant UI from offline: ${offlineDeliveries.length} deliveries`);
-        
-        // CRITICAL: Fire callback IMMEDIATELY to prevent 1-minute delay
-        // Use setTimeout 0 to ensure callback runs on next tick (allows state to settle)
         setTimeout(() => {
           onInitialLoadComplete(offlineDeliveries);
         }, 0);
         
-        usedOfflineData = true;
-        
         return offlineDeliveries;
       }
-    } catch (err) {
-      console.warn('⚠️ [DataManager] Offline check failed:', err.message);
-    }
+    } catch (err) {}
   }
   
-  // STEP 2: Fetch selected date from online (not fresh or forced)
   const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, forceRefresh);
-  console.log(`✅ [DataManager] Loaded ${selectedDateDeliveries.length} deliveries for ${selectedDateStr}`);
   
-  // Fire instant UI callback IMMEDIATELY (no delay)
   setTimeout(() => {
     onInitialLoadComplete(selectedDateDeliveries);
   }, 0);
   
-  // STEP 3: Background load historical data (checks offline DB first for each day)
   loadFullMonthDeliveries(backgroundFilters, false)
     .then(onFullMonthLoadComplete)
-    .catch(err => console.warn('⚠️ [DataManager] Background load failed:', err.message));
+    .catch(err => {});
 
   return selectedDateDeliveries;
 };
@@ -637,12 +575,8 @@ const loadBackgroundDeliveries = async (selectedDateStr, filters, onComplete, in
   const today = new Date();
   const deliveryMap = new Map();
   
-  // Add initial deliveries
   initialDeliveries.forEach(d => deliveryMap.set(d.id, d));
   
-  console.log(`📡 [DataManager] Background: loading today + 6 future days...`);
-  
-  // Load today + 6 future days
   for (let i = 0; i <= 6; i++) {
     const fetchDate = new Date(today);
     fetchDate.setDate(today.getDate() + i);
@@ -657,24 +591,17 @@ const loadBackgroundDeliveries = async (selectedDateStr, filters, onComplete, in
       if (i < 6) {
         await new Promise(r => setTimeout(r, 1000));
       }
-    } catch (error) {
-      console.warn(`   ⚠️ ${fetchDateStr} failed:`, error.message);
-    }
+    } catch (error) {}
   }
   
-  // Update UI with future data
   onComplete(Array.from(deliveryMap.values()));
-  
-  // Wait before loading historical
   await new Promise(r => setTimeout(r, 2000));
   
-  console.log(`📡 [DataManager] Background: loading past 30 days (7 days at a time)...`);
-  
   const chunks = [
-    { start: 1, end: 7, label: 'Days 1-7' },
-    { start: 8, end: 14, label: 'Days 8-14' },
-    { start: 15, end: 21, label: 'Days 15-21' },
-    { start: 22, end: 30, label: 'Days 22-30' }
+    { start: 1, end: 7 },
+    { start: 8, end: 14 },
+    { start: 15, end: 21 },
+    { start: 22, end: 30 }
   ];
   
   for (const chunk of chunks) {
@@ -687,16 +614,10 @@ const loadBackgroundDeliveries = async (selectedDateStr, filters, onComplete, in
       );
       chunkDeliveries.forEach(d => deliveryMap.set(d.id, d));
       onComplete(Array.from(deliveryMap.values()));
-      console.log(`   ✅ ${chunk.label}: ${chunkDeliveries.length} deliveries`);
       
-      // 1 second cooldown between chunks
       await new Promise(r => setTimeout(r, 1000));
-    } catch (e) {
-      console.warn(`   ⚠️ ${chunk.label} failed:`, e.message);
-    }
+    } catch (e) {}
   }
-  
-  console.log(`✅ [DataManager] Background complete: ${deliveryMap.size} total deliveries`);
 };
 
 /**
@@ -704,16 +625,13 @@ const loadBackgroundDeliveries = async (selectedDateStr, filters, onComplete, in
  */
 export const invalidateDeliveryRangeCache = (specificDate = null) => {
   if (specificDate) {
-    // Only invalidate cache for this specific date, not everything
     for (const key of deliveryRangeCache.keys()) {
       if (key.includes(specificDate)) {
         deliveryRangeCache.delete(key);
         deliveryRangeCacheTimestamps.delete(key);
       }
     }
-    console.log(`🎯 [dataManager] Invalidated delivery cache for ${specificDate} only`);
   } else {
-    // Full cache clear (fallback)
     deliveryRangeCache.clear();
     deliveryRangeCacheTimestamps.clear();
   }
@@ -724,7 +642,6 @@ export const invalidateDeliveryRangeCache = (specificDate = null) => {
  * This prevents UI flickering by updating the cache immediately
  */
 export const updateCache = (entityName, id, newData) => {
-  // Update main cache
   for (const key of cache.keys()) {
     if (key.startsWith(`${entityName}_`)) {
       const cachedArray = cache.get(key);
@@ -735,7 +652,6 @@ export const updateCache = (entityName, id, newData) => {
     }
   }
   
-  // Update delivery range cache if it's a Delivery entity
   if (entityName === 'Delivery') {
     for (const key of deliveryRangeCache.keys()) {
       const cachedArray = deliveryRangeCache.get(key);
@@ -744,11 +660,7 @@ export const updateCache = (entityName, id, newData) => {
         cachedArray[index] = newData;
       }
     }
-  } else if (entityName === 'AppUser' || entityName === 'SquareTransaction') {
-    // No specific range cache for these, main cache update is sufficient
   }
-  
-  console.log(`⚡ [dataManager] Cache updated for ${entityName} ID: ${id}`);
 };
 
 /**

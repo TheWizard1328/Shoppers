@@ -18,7 +18,8 @@ const STORES = {
   SQUARE_TRANSACTIONS: 'square_transactions',
   DRIVER_OVERVIEW_STATS: 'driver_overview_stats',
   SYNC_STATUS: 'sync_status',
-  PENDING_MUTATIONS: 'pending_mutations'
+  PENDING_MUTATIONS: 'pending_mutations',
+  SYNC_METADATA: 'sync_metadata' // Timestamp tracking per entity
 };
 
 let dbInstance = null;
@@ -108,6 +109,10 @@ const openDatabase = () => {
         statsStore.createIndex('year', 'year', { unique: false });
         statsStore.createIndex('store_ids_hash', 'store_ids_hash', { unique: false });
         statsStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.SYNC_METADATA)) {
+        db.createObjectStore(STORES.SYNC_METADATA, { keyPath: 'entity_name' });
       }
 
     };
@@ -518,6 +523,51 @@ const deleteRecord = async (storeName, recordId) => {
 };
 
 /**
+ * Get sync metadata for an entity (latest server timestamp)
+ */
+const getSyncMetadata = async (entityName) => {
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([STORES.SYNC_METADATA], 'readonly');
+    const store = transaction.objectStore(STORES.SYNC_METADATA);
+
+    return new Promise((resolve, reject) => {
+      const request = store.get(entityName);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    return null;
+  }
+};
+
+/**
+ * Update sync metadata for an entity
+ * Stores the last synced timestamp (updated_date from server's newest record)
+ */
+const updateSyncMetadata = async (entityName, latestServerTimestamp) => {
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([STORES.SYNC_METADATA], 'readwrite');
+    const store = transaction.objectStore(STORES.SYNC_METADATA);
+
+    const metadata = {
+      entity_name: entityName,
+      last_synced_timestamp: latestServerTimestamp,
+      last_sync_date: new Date().toISOString()
+    };
+
+    return new Promise((resolve, reject) => {
+      const request = store.put(metadata);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('❌ [OfflineDB] updateSyncMetadata error:', error);
+  }
+};
+
+/**
  * Clear all data from all stores (emergency recovery)
  */
 const clearAllData = async () => {
@@ -529,10 +579,8 @@ const clearAllData = async () => {
       await clearStore(storeName);
     }
     
-    console.log('✅ [OfflineDB] All data cleared');
     return { success: true };
   } catch (error) {
-    console.error('❌ [OfflineDB] clearAllData error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -574,20 +622,13 @@ const deduplicateAppUsers = async () => {
     const removedCount = allAppUsers.length - deduplicated.length;
 
     if (removedCount > 0) {
-      console.log(`🔧 [OfflineDB] Deduplicating: ${allAppUsers.length} → ${deduplicated.length} AppUsers (removed ${removedCount} duplicates)`);
-      
-      // Clear and re-save deduplicated data
       await clearStore(STORES.APP_USERS);
       await bulkSave(STORES.APP_USERS, deduplicated);
-      
-      console.log('✅ [OfflineDB] AppUsers deduplicated successfully');
       return { success: true, removed: removedCount };
     }
 
-    console.log('✅ [OfflineDB] No duplicate AppUsers found');
     return { success: true, removed: 0 };
   } catch (error) {
-    console.error('❌ [OfflineDB] deduplicateAppUsers error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -606,10 +647,6 @@ const deduplicateAppUsers = async () => {
  */
 const deleteDeliveriesByDate = async (dateStr) => {
   try {
-    // First, count how many we're deleting
-    const beforeDelete = await getByDate(STORES.DELIVERIES, dateStr);
-    console.log(`🗑️ [OfflineDB] Deleting ${beforeDelete.length} deliveries for ${dateStr}...`);
-
     const db = await openDatabase();
     const transaction = db.transaction([STORES.DELIVERIES], 'readwrite');
     const store = transaction.objectStore(STORES.DELIVERIES);
@@ -626,9 +663,7 @@ const deleteDeliveriesByDate = async (dateStr) => {
           deleteCount++;
           cursor.continue();
         } else {
-          // Cursor is done, wait for transaction to complete
           transaction.oncomplete = () => {
-            console.log(`✅ [OfflineDB] Successfully deleted ${deleteCount} deliveries for ${dateStr}`);
             resolve({ success: true, deleted: deleteCount });
           };
           transaction.onerror = () => {
@@ -640,7 +675,6 @@ const deleteDeliveriesByDate = async (dateStr) => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('❌ [OfflineDB] deleteDeliveriesByDate error:', error);
     throw error;
   }
 };
@@ -650,19 +684,14 @@ const deduplicateDeliveries = async () => {
      const allDeliveries = await getAll(STORES.DELIVERIES);
 
      if (!allDeliveries || allDeliveries.length === 0) {
-       console.log('✅ [OfflineDB] No Deliveries to deduplicate');
        return { success: true, removed: 0 };
      }
 
-     // Group by delivery_date + stop_id (CRITICAL: SID + date are the unique identifier)
-     // Secondary key: driver_id (to distinguish if same stop assigned to different drivers)
      const groupKey = (d) => `${d.delivery_date}|${d.stop_id}`;
      const deliveryGroups = new Map();
 
      allDeliveries.forEach(delivery => {
-       // CRITICAL: Only group deliveries that have both date and stop_id
        if (!delivery?.delivery_date || !delivery?.stop_id) {
-         // Deliveries without stop_id are pickups - keep them as-is
          return;
        }
 
@@ -676,18 +705,11 @@ const deduplicateDeliveries = async () => {
      const deduplicated = [];
      let removedCount = 0;
 
-     // Process each group
      for (const [key, group] of deliveryGroups) {
        if (group.length === 1) {
          deduplicated.push(group[0]);
          continue;
        }
-
-       // Multiple deliveries with same date + stop_id (logically identical delivery)
-       // This indicates a data integrity issue - likely from duplicate imports with inconsistent driver_id
-       console.warn(`⚠️ [OfflineDB] Found ${group.length} deliveries with same date+SID:`, key);
-       console.warn(`   Driver IDs: ${group.map(d => d.driver_id).join(', ')}`);
-       console.warn(`   Statuses: ${group.map(d => d.status).join(', ')}`);
 
        const statusCounts = {};
        group.forEach(d => {
@@ -698,19 +720,16 @@ const deduplicateDeliveries = async () => {
        let selectedDelivery;
 
        if (uniqueStatuses.length === 1) {
-         // All same status - keep most recent
          selectedDelivery = group.reduce((latest, current) => {
            const latestTime = new Date(latest.updated_date || 0).getTime();
            const currentTime = new Date(current.updated_date || 0).getTime();
            return currentTime > latestTime ? current : latest;
          });
        } else {
-         // Mixed statuses - prioritize completed
          const completed = group.find(d => d.status === 'completed');
          if (completed) {
            selectedDelivery = completed;
          } else {
-           // No completed - keep most recent
            selectedDelivery = group.reduce((latest, current) => {
              const latestTime = new Date(latest.updated_date || 0).getTime();
              const currentTime = new Date(current.updated_date || 0).getTime();
@@ -719,30 +738,21 @@ const deduplicateDeliveries = async () => {
          }
        }
 
-       console.log(`   Keeping: driver_id=${selectedDelivery.driver_id}, status=${selectedDelivery.status}, updated=${selectedDelivery.updated_date}`);
        deduplicated.push(selectedDelivery);
        removedCount += group.length - 1;
      }
 
-     // Add back all deliveries without stop_id (pickups)
      const pickupDeliveries = allDeliveries.filter(d => !d?.stop_id);
      deduplicated.push(...pickupDeliveries);
 
      if (removedCount > 0) {
-       console.log(`🔧 [OfflineDB] Deduplicating: ${allDeliveries.length} → ${deduplicated.length} Deliveries (removed ${removedCount} duplicates)`);
-
-       // Clear and re-save deduplicated data
        await clearStore(STORES.DELIVERIES);
        await bulkSave(STORES.DELIVERIES, deduplicated);
-
-       console.log('✅ [OfflineDB] Deliveries deduplicated successfully');
        return { success: true, removed: removedCount };
      }
 
-     console.log('✅ [OfflineDB] No duplicate Deliveries found');
      return { success: true, removed: 0 };
    } catch (error) {
-     console.error('❌ [OfflineDB] deduplicateDeliveries error:', error);
      return { success: false, error: error.message };
    }
 };
@@ -770,5 +780,7 @@ export const offlineDB = {
   deleteRecord,
   deduplicateAppUsers,
   deduplicateDeliveries,
-  deleteDeliveriesByDate
+  deleteDeliveriesByDate,
+  getSyncMetadata,
+  updateSyncMetadata
 };

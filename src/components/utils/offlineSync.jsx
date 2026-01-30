@@ -1,12 +1,11 @@
 /**
- * Offline Sync Manager v2
+ * Offline Sync Manager v3 - Timestamp-Based Sync
  * 
  * STRATEGY:
- * 1. If offline DB is fresh (< 10 min), load from there FIRST then refresh from online
- * 2. Priority order: AppUsers → Deliveries (selected date) → Patients (for those deliveries)
- * 3. Background sync: Today + 6 future days, then past 14 days (7 days at a time)
- * 4. Patient sync: 250 at a time with 1 sec cooldown
- * 5. NEVER clear the entire DB - only merge/update records
+ * 1. Timestamp-based: Only fetch entities if updated_date > last_synced_timestamp
+ * 2. Cities/Stores sync only when server has changes (saves rate limits)
+ * 3. Deliveries/Patients/AppUsers: incremental sync with updated_date filter
+ * 4. NEVER clear the entire DB - only merge/update records
  */
 
 import { offlineDB } from './offlineDatabase';
@@ -19,12 +18,8 @@ import { SquareTransaction } from '@/entities/SquareTransaction';
 import { format, subDays } from 'date-fns';
 
 // Configuration
-const FRESHNESS_THRESHOLD = 10 * 60 * 1000; // 10 minutes
-const PATIENT_BATCH_SIZE = 250; // 250 patients at a time
-const BATCH_COOLDOWN = 1000; // 1 second between batches
-const HISTORICAL_COOLDOWN = 5 * 60 * 1000; // 5 minutes between historical date syncs
-const HISTORICAL_DAYS = 90; // Keep 90 days of historical data for offline access
-const FULL_SYNC_INTERVAL = 48 * 60 * 60 * 1000; // 48 hours between full re-syncs (was 8h)
+const PATIENT_BATCH_SIZE = 250;
+const BATCH_COOLDOWN = 1000;
 
 let syncInProgress = false;
 let syncPaused = false;
@@ -33,12 +28,10 @@ let syncListeners = [];
 // ==================== SYNC CONTROL ====================
 
 export const pauseOfflineSync = () => {
-  console.log('⏸️ [OfflineSync] Paused');
   syncPaused = true;
 };
 
 export const resumeOfflineSync = () => {
-  console.log('▶️ [OfflineSync] Resumed');
   syncPaused = false;
 };
 
@@ -57,77 +50,76 @@ const notifySyncStatus = (status) => {
   });
 };
 
-// ==================== FRESHNESS CHECK ====================
+// ==================== TIMESTAMP-BASED SYNC HELPERS ====================
 
 /**
- * Check if offline data is fresh (synced within last 10 minutes)
+ * Check if entity needs syncing by comparing server's latest timestamp with client's last sync
+ * @returns {Promise<{needsSync: boolean, lastClientTimestamp: string|null}>}
  */
-const isOfflineDataFresh = async (entityName) => {
-  const syncStatus = await offlineDB.getSyncStatus(entityName);
-  if (!syncStatus || !syncStatus.lastSync) return false;
-  
-  const lastSyncTime = new Date(syncStatus.lastSync).getTime();
-  const age = Date.now() - lastSyncTime;
-  
-  return age < FRESHNESS_THRESHOLD;
-};
-
-/**
- * Get the last sync timestamp for incremental fetching
- */
-const getLastSyncTimestamp = async (entityName) => {
-  const syncStatus = await offlineDB.getSyncStatus(entityName);
-  if (!syncStatus || !syncStatus.lastSync) return null;
-  return syncStatus.lastSync;
-};
-
-/**
- * Build incremental filter for entity fetching
- * Returns a filter that only fetches records updated since last sync
- */
-const buildIncrementalFilter = (lastSyncTimestamp, existingFilter = {}) => {
-  if (!lastSyncTimestamp) {
-    return existingFilter; // No previous sync, fetch all
+const checkIfEntityNeedsSync = async (entityName, Entity) => {
+  try {
+    const metadata = await offlineDB.getSyncMetadata(entityName);
+    const lastClientTimestamp = metadata?.last_synced_timestamp || null;
+    
+    // Fetch ONE record sorted by updated_date descending to get server's latest timestamp
+    const latestRecords = await Entity.list('-updated_date', 1);
+    if (!latestRecords || latestRecords.length === 0) {
+      return { needsSync: false, lastClientTimestamp };
+    }
+    
+    const latestServerTimestamp = latestRecords[0].updated_date;
+    
+    // Compare timestamps
+    if (!lastClientTimestamp) {
+      return { needsSync: true, lastClientTimestamp: null, latestServerTimestamp };
+    }
+    
+    const clientTime = new Date(lastClientTimestamp).getTime();
+    const serverTime = new Date(latestServerTimestamp).getTime();
+    
+    return { 
+      needsSync: serverTime > clientTime, 
+      lastClientTimestamp,
+      latestServerTimestamp 
+    };
+  } catch (error) {
+    return { needsSync: true, lastClientTimestamp: null };
   }
-  
-  return {
-    ...existingFilter,
-    updated_date: { $gte: lastSyncTimestamp }
-  };
 };
 
 /**
- * Get all fresh offline data if available
+ * Sync a single entity with timestamp checking
+ * Only fetches if server has newer data than client
  */
-export const getOfflineDataIfFresh = async () => {
-  const [deliveryFresh, patientFresh, appUserFresh, cityFresh] = await Promise.all([
-    isOfflineDataFresh('Delivery'),
-    isOfflineDataFresh('Patient'),
-    isOfflineDataFresh('AppUser'),
-    isOfflineDataFresh('City')
-  ]);
-  
-  if (!deliveryFresh && !patientFresh && !appUserFresh && !cityFresh) {
-    return null; // Not fresh, need to fetch from online
+const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter = {}) => {
+  try {
+    const checkResult = await checkIfEntityNeedsSync(entityName, Entity);
+    
+    if (!checkResult.needsSync) {
+      return { skipped: true, reason: 'no_updates' };
+    }
+    
+    const filter = checkResult.lastClientTimestamp 
+      ? { ...additionalFilter, updated_date: { $gte: checkResult.lastClientTimestamp } }
+      : additionalFilter;
+    
+    const records = await Entity.filter(filter, '-updated_date', 5000);
+    
+    if (records.length > 0) {
+      const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
+                        entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
+                        entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
+                        entityName === 'City' ? offlineDB.STORES.CITIES :
+                        offlineDB.STORES.STORES;
+      
+      await offlineDB.bulkSave(storeName, records);
+      await offlineDB.updateSyncMetadata(entityName, checkResult.latestServerTimestamp);
+    }
+    
+    return { success: true, recordCount: records.length };
+  } catch (error) {
+    return { error: error.message };
   }
-  
-  const [deliveries, patients, appUsers, cities] = await Promise.all([
-    deliveryFresh ? offlineDB.getAll(offlineDB.STORES.DELIVERIES) : [],
-    patientFresh ? offlineDB.getAll(offlineDB.STORES.PATIENTS) : [],
-    appUserFresh ? offlineDB.getAll(offlineDB.STORES.APP_USERS) : [],
-    cityFresh ? offlineDB.getAll(offlineDB.STORES.CITIES) : []
-  ]);
-  
-  return {
-    deliveries: deliveryFresh ? deliveries : null,
-    patients: patientFresh ? patients : null,
-    appUsers: appUserFresh ? appUsers : null,
-    cities: cityFresh ? cities : null,
-    deliveryFresh,
-    patientFresh,
-    appUserFresh,
-    cityFresh
-  };
 };
 
 // ==================== PRIORITY DATA LOADING ====================
@@ -141,111 +133,48 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   if (syncInProgress) return { skipped: true, reason: 'sync_in_progress' };
   
   syncInProgress = true;
-  console.log(`📥 [OfflineSync] Loading priority data for ${selectedDateStr}...`);
   notifySyncStatus({ status: 'loading_priority', date: selectedDateStr });
   
   try {
-    // Step 1: AppUsers (fast, small dataset) - save to offline DB
-    const appUsersRaw = await AppUser.list();
-    
-    // CRITICAL: De-duplicate by user_id to prevent duplicate markers
-    const appUsersByUserId = new Map();
-    appUsersRaw.forEach(au => {
-      if (!au || !au.user_id) return;
-      const existing = appUsersByUserId.get(au.user_id);
-      // Keep record with better sort_order or first occurrence
-      if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
-        appUsersByUserId.set(au.user_id, au);
-      }
-    });
-    const appUsers = Array.from(appUsersByUserId.values());
-    
-    console.log(`   ✅ Loaded ${appUsers.length} AppUsers (de-duplicated from ${appUsersRaw.length})`);
-    await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+    // Step 1: AppUsers with timestamp check
+    const appUserResult = await syncEntityWithTimestampCheck('AppUser', AppUser);
+    const appUsers = appUserResult.skipped ? await offlineDB.getAll(offlineDB.STORES.APP_USERS) : await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Step 2: Cities (fast, small dataset) - save to offline DB
-    const cities = await City.list();
-    console.log(`   ✅ Loaded ${cities.length} Cities`);
-    await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+    // Step 2: Cities with timestamp check
+    const cityResult = await syncEntityWithTimestampCheck('City', City);
+    const cities = await offlineDB.getAll(offlineDB.STORES.CITIES);
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Step 2.5: Stores (CRITICAL - needed for delivery display) - save to offline DB
-    const stores = await Store.list();
-    console.log(`   ✅ Loaded ${stores.length} Stores`);
-    await offlineDB.bulkSave(offlineDB.STORES.STORES, stores);
+    // Step 3: Stores with timestamp check
+    const storeResult = await syncEntityWithTimestampCheck('Store', Store);
+    const stores = await offlineDB.getAll(offlineDB.STORES.STORES);
     
-    await new Promise(r => setTimeout(r, 3000)); // Increased from 1s to 3s
+    await new Promise(r => setTimeout(r, 3000));
     
-    console.log(`   👥 Loading ALL patients FIRST...`);
+    // Step 4: Patients with timestamp check
     let patients = [];
-    
     try {
-      // First try active patients
-      const allPatients = await Patient.filter({ status: 'active' }, '-created_date', 5000);
-      patients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
-      console.log(`   ✅ Loaded ${patients.length} active patients`);
-      
-      // If no active patients found, try without filter
-      if (patients.length === 0) {
-        const allPatientsNoFilter = await Patient.list('-created_date', 5000);
-        patients = allPatientsNoFilter.filter(p => p && p.id && !p.id.startsWith('temp_'));
-        console.log(`   ✅ Loaded ${patients.length} patients (no filter)`);
-      }
-      
-      if (patients.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patients);
-        console.log(`   💾 Saved ${patients.length} patients to offline DB`);
-      }
-    } catch (patientError) {
-      console.warn(`   ⚠️ Patient bulk load failed:`, patientError.message);
-    }
+      const patientResult = await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' });
+      patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      patients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+    } catch (patientError) {}
     
-    await new Promise(r => setTimeout(r, 3000)); // Wait before loading deliveries
+    await new Promise(r => setTimeout(r, 3000));
     
-    // Step 4: Deliveries for selected date (AFTER patients loaded)
+    // Step 5: Deliveries for selected date
     const deliveryFilter = { delivery_date: selectedDateStr, ...filters };
     const deliveries = await Delivery.filter(deliveryFilter);
-    console.log(`   ✅ Loaded ${deliveries.length} deliveries for ${selectedDateStr}`);
-    
-    // Save to offline DB immediately (merge, don't clear)
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     
-    // Update sync timestamps - CRITICAL: Mark ALL as full sync after priority load
-    // Don't mark SquareTransaction as synced here - it gets synced in background
     await Promise.all([
-      offlineDB.updateSyncStatus('City', { 
-        recordCount: cities.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('Store', { 
-        recordCount: stores.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('AppUser', { 
-        recordCount: appUsers.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('Delivery', { 
-        recordCount: deliveries.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('Patient', { 
-        recordCount: patients.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      })
+      offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Patient', { recordCount: patients.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() })
     ]);
 
     notifySyncStatus({ status: 'priority_loaded', cities: cities.length, stores: stores.length, appUsers: appUsers.length, deliveries: deliveries.length, patients: patients.length });
@@ -253,7 +182,6 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     syncInProgress = false;
     return { cities, stores, appUsers, deliveries, patients };
   } catch (error) {
-    console.error('❌ [OfflineSync] Priority load failed:', error);
     notifySyncStatus({ status: 'error', error: error.message });
     syncInProgress = false;
     return { error: error.message };
@@ -264,244 +192,24 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
 
 /**
  * Background sync with timestamp-based incremental strategy
- * CRITICAL: Uses updated_date to fetch all changed records across 90 days in 1-2 API calls
- * Prioritizes today's deliveries first, then resumes historical checkpoint if interrupted
+ * Only syncs entities when server has newer data (compares updated_date timestamps)
  */
-export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
-  if (syncInProgress || syncPaused) {
-    console.log(`⏸️ [OfflineSync] Background sync skipped - ${syncInProgress ? 'in progress' : 'paused'}`);
-    return { skipped: true };
-  }
-  
-  syncInProgress = true;
-  console.log('📥 [OfflineSync] Starting background sync (timestamp-based)...');
-  notifySyncStatus({ status: 'background_syncing' });
-  
-  const today = new Date();
-  const todayStr = format(today, 'yyyy-MM-dd');
-  
-  try {
-    // ===== STEP 1: Priority - TODAY's deliveries first =====
-    console.log(`   📅 Syncing today's deliveries (${todayStr})...`);
-    const todayDeliveries = await Delivery.filter({ delivery_date: todayStr, ...(storeIds && storeIds.length > 0 ? { store_id: { $in: storeIds } } : {}) });
-    if (todayDeliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, todayDeliveries);
-      console.log(`   ✅ Today's deliveries: ${todayDeliveries.length} records synced`);
-    }
-    
-    // ===== STEP 2: Timestamp-based incremental sync (catches all changes across 90 days) =====
-    console.log('   📅 Checking for delivery updates via timestamp...');
-    
-    const deliverySyncStatus = await offlineDB.getSyncStatus('Delivery');
-    const lastSyncTime = deliverySyncStatus?.lastSync;
-    const lastHistoricalCheckpoint = deliverySyncStatus?.lastHistoricalCheckpoint;
-    
-    // Build incremental filter - fetches ALL modified records since last sync
-    const incrementalFilter = lastSyncTime 
-      ? { updated_date: { $gte: lastSyncTime } }
-      : {};
-    
-    if (storeIds && storeIds.length > 0) {
-      incrementalFilter.store_id = { $in: storeIds };
-    }
-    
-    try {
-      console.log(`   ♻️ Fetching deliveries updated since ${lastSyncTime ? new Date(lastSyncTime).toISOString() : 'beginning'}...`);
-      
-      // CRITICAL: Add 2-second delay before timestamp sync to prevent rate limits
-      await new Promise(r => setTimeout(r, 2000));
-      
-      const changedDeliveries = await Delivery.filter(incrementalFilter, '-updated_date', 5000);
-      
-      if (changedDeliveries.length > 0) {
-        // Separate today from historical
-        const todayChanges = changedDeliveries.filter(d => d.delivery_date === todayStr);
-        const historicalChanges = changedDeliveries.filter(d => d.delivery_date !== todayStr);
-        
-        // Save all at once (merge, don't replace)
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries);
-        console.log(`   ✅ Merged ${changedDeliveries.length} delivery updates (today: ${todayChanges.length}, historical: ${historicalChanges.length})`);
-      } else {
-        console.log(`   ℹ️ No delivery updates since last sync`);
-      }
-    } catch (error) {
-      console.warn(`   ⚠️ Delivery timestamp sync failed:`, error.message);
-    }
-    
-    // Update sync timestamp - marks when we last checked for changes
-    await offlineDB.updateSyncStatus('Delivery', {
-      lastSync: new Date().toISOString()
-    });
-    console.log(`   ✅ Delivery sync checkpoint updated`);
-    
-    // ===== STEP 3: Timestamp-based Patient sync =====
-    if (!syncPaused) {
-      console.log('   👥 Syncing patients via timestamp...');
-      
-      // CRITICAL: Add 2-second delay before patient sync
-      await new Promise(r => setTimeout(r, 2000));
-      
-      const patientSyncStatus = await offlineDB.getSyncStatus('Patient');
-      const patientLastSync = patientSyncStatus?.lastSync;
-      
-      const patientFilter = patientLastSync
-        ? { updated_date: { $gte: patientLastSync }, status: 'active' }
-        : { status: 'active' };
-      
-      try {
-        console.log(`   ♻️ Fetching patients updated since ${patientLastSync ? new Date(patientLastSync).toISOString() : 'beginning'}...`);
-        const patients = await Patient.filter(patientFilter, '-updated_date', 5000);
-        
-        if (patients.length > 0) {
-          const cleanPatients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
-          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanPatients);
-          console.log(`   ✅ Patient timestamp sync: ${cleanPatients.length} records updated`);
-        } else if (!patientLastSync) {
-          console.log(`   ℹ️ No active patients found on initial sync`);
-        } else {
-          console.log(`   ℹ️ No patient updates since last sync`);
-        }
-      } catch (patientError) {
-        console.warn(`   ⚠️ Patient timestamp sync failed:`, patientError.message);
-      }
-      
-      await offlineDB.updateSyncStatus('Patient', {
-        lastSync: new Date().toISOString()
-      });
-    }
-
-    // CRITICAL: Add 3-second delays between entity syncs to prevent rate limits
-    await new Promise(r => setTimeout(r, 3000));
-    
-    // ===== STEP 4: Sync Cities (incremental via timestamp) =====
-    if (!syncPaused) {
-      console.log('   🏙️ Syncing Cities...');
-      try {
-        const cityLastSync = await getLastSyncTimestamp('City');
-        const cityFilter = cityLastSync ? { updated_date: { $gte: cityLastSync } } : {};
-        const cities = await City.filter(cityFilter, '-updated_date', 1000);
-        
-        if (cities.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
-          console.log(`   ✅ City sync: ${cities.length} records`);
-        }
-        
-        await offlineDB.updateSyncStatus('City', {
-          recordCount: cities.length,
-          lastSync: new Date().toISOString()
-        });
-      } catch (cityError) {
-        console.warn(`   ⚠️ City sync failed:`, cityError.message);
-      }
-    }
-
-    await new Promise(r => setTimeout(r, 3000));
-
-    // ===== STEP 5: Sync Stores (incremental via timestamp) =====
-    if (!syncPaused) {
-      console.log('   🏪 Syncing Stores...');
-      try {
-        const storeLastSync = await getLastSyncTimestamp('Store');
-        const storeFilter = storeLastSync ? { updated_date: { $gte: storeLastSync } } : {};
-        const stores = await Store.filter(storeFilter, '-updated_date', 1000);
-        
-        if (stores.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.STORES, stores);
-          console.log(`   ✅ Store sync: ${stores.length} records`);
-        }
-        
-        await offlineDB.updateSyncStatus('Store', {
-          recordCount: stores.length,
-          lastSync: new Date().toISOString()
-        });
-      } catch (storeError) {
-        console.warn(`   ⚠️ Store sync failed:`, storeError.message);
-      }
-    }
-
-    await new Promise(r => setTimeout(r, 3000));
-
-    // ===== STEP 6: Sync AppUsers (incremental via timestamp) =====
-    if (!syncPaused) {
-      console.log('   👤 Syncing AppUsers...');
-      try {
-        const appUserLastSync = await getLastSyncTimestamp('AppUser');
-        const appUserFilter = appUserLastSync ? { updated_date: { $gte: appUserLastSync } } : {};
-        const appUsersRaw = await AppUser.filter(appUserFilter, '-updated_date', 1000);
-        
-        // CRITICAL: De-duplicate by user_id before saving
-        const appUsersByUserId = new Map();
-        appUsersRaw.forEach(au => {
-          if (!au || !au.user_id) return;
-          const existing = appUsersByUserId.get(au.user_id);
-          if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
-            appUsersByUserId.set(au.user_id, au);
-          }
-        });
-        const appUsers = Array.from(appUsersByUserId.values());
-        
-        if (appUsers.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
-          console.log(`   ✅ AppUser sync: ${appUsers.length} records (de-duplicated from ${appUsersRaw.length})`);
-        }
-        
-        await offlineDB.updateSyncStatus('AppUser', {
-          recordCount: appUsers.length,
-          lastSync: new Date().toISOString()
-        });
-      } catch (appUserError) {
-        console.warn(`   ⚠️ AppUser sync failed:`, appUserError.message);
-      }
-    }
-
-    // DISABLED: Square Transactions now sync via real-time events only
-    // They update when COD items are created/edited/deleted, not on background sync
-    
-    // Update final sync status with actual counts from DB
-    const stats = await offlineDB.getStats();
-    
-    console.log(`✅ [OfflineSync] Final counts - Deliveries: ${stats?.deliveries?.count || 0}, Patients: ${stats?.patients?.count || 0}, Cities: ${stats?.cities?.count || 0}, Stores: ${stats?.stores?.count || 0}, AppUsers: ${stats?.appUsers?.count || 0}`);
-    
     await Promise.all([
-       offlineDB.updateSyncStatus('City', {
-         recordCount: stats?.cities?.count || 0,
-         status: 'synced',
-         lastSync: new Date().toISOString()
-       }),
-       offlineDB.updateSyncStatus('Store', {
-         recordCount: stats?.stores?.count || 0,
-         status: 'synced',
-         lastSync: new Date().toISOString()
-       }),
-       offlineDB.updateSyncStatus('AppUser', {
-         recordCount: stats?.appUsers?.count || 0,
-         status: 'synced',
-         lastSync: new Date().toISOString()
-       }),
+      offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Patient', { recordCount: patients.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() })
+    ]);
 
-       offlineDB.updateSyncStatus('Delivery', {
-         recordCount: stats?.deliveries?.count || 0,
-         status: 'synced',
-         lastSync: new Date().toISOString()
-       }),
-       offlineDB.updateSyncStatus('Patient', {
-         recordCount: stats?.patients?.count || 0,
-         status: 'synced',
-         lastSync: new Date().toISOString()
-       })
-     ]);
-    
-    console.log('✅ [OfflineSync] Background sync complete - 90-day history loaded');
-    notifySyncStatus({ status: 'complete' });
-    window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-    
-    return { success: true };
-  } catch (error) {
-    console.error('❌ [OfflineSync] Background sync failed:', error);
-    notifySyncStatus({ status: 'error', error: error.message });
-    return { error: error.message };
-  } finally {
+    notifySyncStatus({ status: 'priority_loaded', cities: cities.length, stores: stores.length, appUsers: appUsers.length, deliveries: deliveries.length, patients: patients.length });
+
     syncInProgress = false;
+    return { cities, stores, appUsers, deliveries, patients };
+  } catch (error) {
+    notifySyncStatus({ status: 'error', error: error.message });
+    syncInProgress = false;
+    return { error: error.message };
   }
 };
 
@@ -518,20 +226,15 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
 export const loadAndCacheDeliveriesForDate = async (dateStr) => {
   if (syncPaused) return [];
   
-  console.log(`📥 [OfflineSync] Loading deliveries for ${dateStr} (on-demand)...`);
-  
   try {
     const deliveries = await Delivery.filter({ delivery_date: dateStr });
     
     if (deliveries.length > 0) {
-      // Add to offline DB (merge, don't replace)
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-      console.log(`   ✅ Cached ${deliveries.length} deliveries for ${dateStr}`);
     }
     
     return deliveries;
   } catch (error) {
-    console.warn(`   ⚠️ Failed to load ${dateStr}:`, error.message);
     return [];
   }
 };
@@ -544,7 +247,6 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
  */
 export const performInitialSync = async (selectedDate = null) => {
   if (syncInProgress || syncPaused) {
-    console.log(`⏸️ [OfflineSync] performInitialSync skipped`);
     return { skipped: true };
   }
   
@@ -552,44 +254,15 @@ export const performInitialSync = async (selectedDate = null) => {
     ? format(selectedDate, 'yyyy-MM-dd') 
     : format(new Date(), 'yyyy-MM-dd');
   
-  // Check if patient data exists in offline DB (for new user detection)
   const existingPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-  const hasPatientData = existingPatients && existingPatients.length > 50; // Threshold for "has data"
-
-  // Check if offline data is fresh
-  const freshData = await getOfflineDataIfFresh();
-
-  // CRITICAL: Even if delivery data is fresh, if patient data is missing/sparse, reload it
-  if (freshData && freshData.deliveryFresh && freshData.patientFresh && freshData.appUserFresh && freshData.cityFresh && hasPatientData) {
-    console.log('⏭️ [OfflineSync] Offline data is fresh (< 10 min), using cached data');
-    
-    // Schedule background refresh after 30 seconds
-    setTimeout(() => {
-      performBackgroundSync(selectedDateStr).catch(() => {});
-    }, 30000);
-    
-    return { 
-      fromCache: true, 
-      deliveries: freshData.deliveries?.length || 0,
-      patients: freshData.patients?.length || 0,
-      appUsers: freshData.appUsers?.length || 0,
-      cities: freshData.cities?.length || 0
-    };
-  }
+  const hasPatientData = existingPatients && existingPatients.length > 50;
   
-  // CRITICAL: If patient data is sparse (new user scenario), force full patient sync
-  if (!hasPatientData) {
-    console.log('🆕 [OfflineSync] New user detected - patient data sparse, forcing full sync');
-  }
-  
-  // Data not fresh OR patient data missing - load priority data first (includes ALL patients)
   const priorityResult = await loadPriorityData(selectedDateStr);
   
   if (priorityResult.error) {
     return priorityResult;
   }
   
-  // Schedule background sync after 10 seconds
   setTimeout(() => {
     performBackgroundSync(selectedDateStr).catch(() => {});
   }, 10000);
@@ -620,10 +293,7 @@ export const processPendingMutations = async () => {
   let failCount = 0;
   const failedMutationIds = [];
   
-  // CRITICAL: Process deletes in parallel (batch delete)
   if (deletes.length > 0) {
-    console.log(`🗑️ [OfflineSync] Batch deleting ${deletes.length} records...`);
-    
     const deletePromises = deletes.map(mutation => {
       if (mutation.recordId?.startsWith('temp_')) {
         return Promise.resolve({ success: true, skip: true });
@@ -712,13 +382,10 @@ export const processPendingMutations = async () => {
       failCount++;
       
       if (error.response?.status === 429) {
-        console.warn(`⚠️ [OfflineSync] Rate limited - waiting 30 seconds...`);
         await new Promise(r => setTimeout(r, 30000));
       }
     }
   }
-  
-  console.log(`✅ [OfflineSync] Batch complete: ${successCount} succeeded, ${failCount} failed, ${mutations.length - batch.length} remaining`);
   
   return { success: failCount === 0, processed: successCount, failed: failCount, remaining: mutations.length - batch.length };
 };
@@ -726,21 +393,14 @@ export const processPendingMutations = async () => {
 export const forceSyncAll = async () => {
   if (syncPaused) return { skipped: true };
   
-  // CRITICAL: Allow manual sync to override background sync
-  const wasInProgress = syncInProgress;
   syncInProgress = true;
-  console.log(`🔄 [forceSyncAll] Starting (was in progress: ${wasInProgress})...`);
-  
   notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
   
   try {
     const selectedDateStr = format(new Date(), 'yyyy-MM-dd');
 
-    // Step 1: Sync AppUsers
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 5 });
     const appUsersRaw = await AppUser.list();
-    
-    // CRITICAL: De-duplicate by user_id
     const appUsersByUserId = new Map();
     appUsersRaw.forEach(au => {
       if (!au || !au.user_id) return;
@@ -750,86 +410,45 @@ export const forceSyncAll = async () => {
       }
     });
     const appUsers = Array.from(appUsersByUserId.values());
-    
     await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10, count: appUsers.length });
-
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
-    // Step 2: Sync cities
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 15 });
     const cities = await City.list();
     await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 20, count: cities.length });
-
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Step 2.5: Sync stores (CRITICAL - needed for delivery display)
     notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 22 });
     const stores = await Store.list();
     await offlineDB.bulkSave(offlineDB.STORES.STORES, stores);
     notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 24, count: stores.length });
-
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Step 3: Sync patients (all active patients)
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 25 });
     const allPatients = await Patient.filter({ status: 'active' }, '-created_date', 5000);
     const cleanPatients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
     await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanPatients);
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 35, count: cleanPatients.length });
-
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Step 4: Sync deliveries
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
     const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 50, count: deliveries.length });
-
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // DISABLED: Square Transactions now sync via real-time events only
-
-    // Update sync timestamps - MARK ALL as full sync
     await Promise.all([
-      offlineDB.updateSyncStatus('City', { 
-        recordCount: cities.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('Store', { 
-        recordCount: stores.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('AppUser', { 
-        recordCount: appUsers.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('Delivery', { 
-        recordCount: deliveries.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      }),
-      offlineDB.updateSyncStatus('Patient', { 
-        recordCount: cleanPatients.length, 
-        status: 'synced',
-        lastSync: new Date().toISOString(),
-        lastFullSync: new Date().toISOString()
-      })
+      offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Patient', { recordCount: cleanPatients.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() })
     ]);
 
     notifySyncStatus({ status: 'syncing', entity: 'Finalizing', progress: 90 });
-    
-    // Sync historical deliveries in background
     await performBackgroundSync(selectedDateStr);
-    
     notifySyncStatus({ status: 'complete', progress: 100 });
     return { success: true };
   } catch (error) {
@@ -848,7 +467,6 @@ export const handleDeleteBroadcast = async (entityName, recordId) => {
   try {
     const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
     await offlineDB.deleteRecord(storeName, recordId);
-    console.log(`🗑️ [OfflineSync] Deleted ${entityName} ${recordId} from offline DB`);
     return true;
   } catch (error) {
     return false;
