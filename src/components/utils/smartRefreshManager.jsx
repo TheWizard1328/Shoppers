@@ -1771,7 +1771,7 @@ class SmartRefreshManager {
   /**
    * Refresh ACTIVE route data (today's deliveries + driver locations)
    * CRITICAL: 15-second cycle for real-time updates
-   * CRITICAL: ALWAYS fetches from API for today, then syncs to offline DB
+   * CRITICAL: ALWAYS fetches from API for today for cross-device sync
    * @param {boolean} showAllDrivers - If true, refreshes ALL drivers' data regardless of selected driver
    */
   async refreshActiveRoute(currentData, filters, showAllDrivers = false) {
@@ -1787,12 +1787,15 @@ class SmartRefreshManager {
         console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
       }
       
-      // STEP 2: Refresh today's deliveries - ALWAYS from API for cross-device sync
+      // STEP 2: ALWAYS fetch today's deliveries from API (not offline DB)
       await this.waitForRateLimit();
       const cityOnlyFilter = { delivery_date: todayStr };
       
       if (!showAllDrivers && filters.deliveryFilter?.driver_id) {
         cityOnlyFilter.driver_id = filters.deliveryFilter.driver_id;
+        console.log(`📦 [ActiveRoute] Fetching driver ${filters.deliveryFilter.driver_id} from API`);
+      } else if (showAllDrivers) {
+        console.log(`📦 [ActiveRoute] Fetching ALL drivers from API for ${todayStr}`);
       }
       
       if (filters.deliveryFilter?.store_id) {
@@ -1807,19 +1810,19 @@ class SmartRefreshManager {
       if (fetchedDeliveries && fetchedDeliveries.length > 0) {
         const { offlineDB } = await import('./offlineDatabase');
 
-        // Sync fresh API data to offline DB (for other devices to pick up)
+        // Sync to offline DB for this device
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
-        console.log(`✅ [ActiveRoute] Synced ${fetchedDeliveries.length} deliveries to offline DB for ${todayStr}`);
+        console.log(`✅ [ActiveRoute] Synced ${fetchedDeliveries.length} deliveries from API to offline DB`);
 
         const currentTodayDeliveries = currentData.deliveries.filter(d => d && d.delivery_date === todayStr);
         const otherDeliveries = currentData.deliveries.filter(d => d && d.delivery_date !== todayStr);
 
-        // Merge with current, preserving local mutations
+        // Merge API data with current state
         const diff = diffEntityArrays(currentTodayDeliveries, fetchedDeliveries);
         if (diff.toUpdate.length > 0 || diff.toAdd.length > 0 || diff.toRemove.length > 0) {
           const mergedToday = mergeEntityChanges(currentTodayDeliveries, diff);
           
-          // Filter out items with pending local updates
+          // Preserve items with pending local updates (just created/edited)
           const filteredMerged = mergedToday.map(d => {
             if (this.hasPendingUpdate(d.id)) {
               const localVersion = currentTodayDeliveries.find(cd => cd.id === d.id);
@@ -1829,7 +1832,7 @@ class SmartRefreshManager {
           });
           
           updates.deliveries = [...otherDeliveries, ...filteredMerged];
-          console.log(`✨ [ActiveRoute] Delivery changes: +${diff.toAdd.length} ~${diff.toUpdate.length} -${diff.toRemove.length}`);
+          console.log(`✨ [ActiveRoute] Delivery updates from API: +${diff.toAdd.length} ~${diff.toUpdate.length} -${diff.toRemove.length}`);
         }
       }
       
@@ -1839,6 +1842,7 @@ class SmartRefreshManager {
     } catch (error) {
       this.recordError();
       this.recordConnectionError(error);
+      console.warn(`⚠️ [ActiveRoute] Error (will retry): ${error.message}`);
       return null;
     }
   }
