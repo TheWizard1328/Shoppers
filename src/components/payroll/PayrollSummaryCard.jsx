@@ -105,7 +105,7 @@ export default function PayrollSummaryCard({
 
   // Auto-create missing Payroll records when payroll data is calculated
   useEffect(() => {
-    if (!periodStartStr || !periodEndStr || payrollRecords.length > 0 || payrollData.length === 0) return;
+    if (!periodStartStr || !periodEndStr || payrollRecords.length > 0 || !payrollData || payrollData.length === 0) return;
     
     const autoCreateMissingRecords = async () => {
       const driversData = payrollData;
