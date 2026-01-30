@@ -2849,21 +2849,16 @@ export default function AdminUtilities() {
   const [manualLoadTriggered, setManualLoadTriggered] = useState(false);
   
   const { data: fetchedDeliveries, isLoading: deliveriesLoading, refetch: refetchDeliveries } = useQuery({
-    queryKey: ['deliveries'],
+    queryKey: ['deliveries', selectedDeliveryYear, selectedDeliveryMonth, selectedDriver],
     queryFn: async () => {
-      console.log('📊 [AdminUtilities] Fetching deliveries with filters...');
-      
-      // Build server-side filter to reduce data transfer
       const filter = {};
       
-      // Year filter
       if (selectedDeliveryYear && selectedDeliveryYear !== 'all') {
         const year = parseInt(selectedDeliveryYear);
         const startDate = `${year}-01-01`;
         const endDate = `${year}-12-31`;
         filter.delivery_date = { $gte: startDate, $lte: endDate };
         
-        // Month filter (only if year is selected)
         if (selectedDeliveryMonth !== 'all') {
           const month = parseInt(selectedDeliveryMonth);
           const monthStartDate = `${year}-${month.toString().padStart(2, '0')}-01`;
@@ -2873,25 +2868,21 @@ export default function AdminUtilities() {
         }
       }
       
-      // Driver filter
-      if (selectedDriver && selectedDriver !== 'all') {
+      if (selectedDriver && selectedDriver !== 'all' && driversForDropdown.length > 0) {
         const targetDriver = driversForDropdown.find(d => d.user_name === selectedDriver);
         if (targetDriver) {
           filter.driver_id = targetDriver.id;
         }
       }
       
-      console.log('📊 [AdminUtilities] Server-side filter:', filter);
-      
       const deliveries = Object.keys(filter).length > 0 
         ? await Delivery.filter(filter, '-created_date', 5000)
         : await Delivery.list('-created_date', 5000);
         
-      console.log(`✅ [AdminUtilities] Fetched ${deliveries?.length || 0} deliveries`);
       return deliveries;
     },
-    enabled: filtersReady && manualLoadTriggered,
-    initialData: undefined, // Never use context - admin needs fresh filtered data
+    enabled: filtersReady && manualLoadTriggered && driversForDropdown.length > 0,
+    initialData: undefined,
     ...queryOptions
   });
   
