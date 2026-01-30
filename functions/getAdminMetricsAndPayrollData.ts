@@ -125,13 +125,17 @@ Deno.serve(async (req) => {
       const payrollStores = await base44.asServiceRole.entities.Store.list();
       const payrollCities = await base44.asServiceRole.entities.City.list();
 
+      // Calculate return deliveries count for each driver in the pay period
+      const returnDeliveriesByDriver = calculateReturnDeliveriesByDriver(payrollDeliveries, payrollStores);
+
       const payrollData = {
         deliveries: payrollDeliveries,
         patients: payrollPatients,
         appUsers: payrollAppUsers,
         drivers: payrollDrivers,
         stores: payrollStores,
-        cities: payrollCities
+        cities: payrollCities,
+        returnDeliveriesByDriver
       };
 
       statsCache.payrollData = { data: payrollData, cacheDate, key: payrollKey };
@@ -523,4 +527,33 @@ function calculateEnvelopeMetrics(deliveries, stores) {
     envelopeMetrics.yearTotals.totalEnvelopeValue;
 
   return envelopeMetrics;
+}
+
+// Calculate return deliveries for each driver (store name + "Return" in patient_name or notes)
+function calculateReturnDeliveriesByDriver(deliveries, stores) {
+  const returnsByDriver = {};
+  const storeNames = stores.map(s => s.name?.toLowerCase()).filter(Boolean);
+
+  deliveries.forEach(delivery => {
+    if (!delivery || !delivery.driver_id) return;
+    
+    const patientName = (delivery.patient_name || '').toLowerCase();
+    const notes = (delivery.delivery_notes || '').toLowerCase();
+    const combinedText = `${patientName} ${notes}`;
+
+    // Check if contains "return" or "(rtn)"
+    const hasReturnKeyword = combinedText.includes('return') || combinedText.includes('(rtn)');
+    
+    // Check if contains any store name
+    const hasStoreName = storeNames.some(storeName => combinedText.includes(storeName));
+
+    if (hasReturnKeyword && hasStoreName) {
+      if (!returnsByDriver[delivery.driver_id]) {
+        returnsByDriver[delivery.driver_id] = 0;
+      }
+      returnsByDriver[delivery.driver_id]++;
+    }
+  });
+
+  return returnsByDriver;
 }
