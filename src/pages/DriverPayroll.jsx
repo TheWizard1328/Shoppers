@@ -161,9 +161,15 @@ export default function DriverPayroll() {
 
   // Fetch payroll data - only refetch when year or city changes, NOT when driver changes
   useEffect(() => {
-    const fetchPayroll = async () => {
+    const fetchPayroll = async (isAutoRefresh = false) => {
       if (!currentUser) return;
-      setIsLoadingPayroll(true);
+      if (!isAutoRefresh) setIsLoadingPayroll(true);
+
+      // Show refresh spinner during fetch
+      if (isAutoRefresh && setSmartRefreshActivity) {
+        setSmartRefreshActivity({ active: true, updatedEntities: ['Payroll', 'Delivery'] });
+      }
+
       try {
         console.log(`📥 [DriverPayroll] Fetching payroll data - Year: ${selectedYear}, City: ${selectedCityId}`);
         const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
@@ -183,14 +189,18 @@ export default function DriverPayroll() {
       } catch (error) {
         console.error('Failed to fetch payroll data:', error);
       } finally {
-        setIsLoadingPayroll(false);
+        if (!isAutoRefresh) setIsLoadingPayroll(false);
+        // Hide refresh spinner after fetch
+        if (isAutoRefresh && setSmartRefreshActivity) {
+          setSmartRefreshActivity({ active: false, updatedEntities: [] });
+        }
       }
     };
 
     if (hasInitialized) {
-      fetchPayroll();
+      fetchPayroll(false);
     }
-  }, [selectedYear, selectedCityId, currentUser, hasInitialized]);
+  }, [selectedYear, selectedCityId, currentUser, hasInitialized, setSmartRefreshActivity]);
 
   // Initialize defaults based on user role - runs ONCE on mount
   useEffect(() => {
