@@ -2330,8 +2330,21 @@ export default function RouteImport({
                   <span className="text-xs text-red-600 font-medium">⚠️ Import will PURGE all existing deliveries for these drivers before saving</span>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0 w-full md:w-auto">
-                  
-                  <Select value={previewFilterDate} onValueChange={setPreviewFilterDate}>
+                   <div className="flex items-center gap-2">
+                     <input
+                       type="checkbox"
+                       id="purge-checkbox"
+                       checked={purgeBeforeImport}
+                       onChange={(e) => setPurgeBeforeImport(e.target.checked)}
+                       className="w-4 h-4 rounded"
+                       disabled={isProcessing || showProgress}
+                     />
+                     <label htmlFor="purge-checkbox" className="text-xs md:text-sm cursor-pointer" style={{ color: 'var(--text-slate-700)' }}>
+                       Purge existing deliveries
+                     </label>
+                   </div>
+
+                   <Select value={previewFilterDate} onValueChange={setPreviewFilterDate}>
                     <SelectTrigger className="w-full md:w-40 text-xs md:text-sm">
                       <SelectValue placeholder="Filter date" />
                     </SelectTrigger>
