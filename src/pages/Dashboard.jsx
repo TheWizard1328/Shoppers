@@ -2448,105 +2448,26 @@ function Dashboard() {
           console.log(`⏭️ [Phase 1] Not showing shared locations - conditions not met`);
         }
 
-        // 3. HOME LOCATIONS: Include when showing all markers
-        // CRITICAL: Exclude home markers that have excludeFromBounds flag (after first stop completed)
-        const isDispatcherNonAdmin = isDispatcher && !isAdmin;
-        if (isViewingToday && !isDispatcherNonAdmin && shouldShowAllMarkersForBounds) {
-          // Include drivers' home markers when showing all - CRITICAL: Apply same dispatcher filtering
-          if (users && Array.isArray(users)) {
-            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-
-            // For dispatchers, only include home markers for drivers with stops in dispatcher's stores
-            let driversToIncludeHomes = new Set();
-
-            if (isDispatcher && !isAdmin) {
-              const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
-              const allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
-
-              // Get drivers who have deliveries in dispatcher's stores
-              driversToIncludeHomes = new Set(
-                allDateDeliveries.
-                filter((d) => d && dispatcherStoreIds.has(d.store_id)).
-                map((d) => d.driver_id).
-                filter(Boolean)
-              );
-            } else {
-              // For admins/drivers, include all drivers with active stops
-              deliveries.forEach((d) => {
-                if (!d || d.delivery_date !== selectedDateStr) return;
-                if (!finishedStatuses.includes(d.status)) {
-                  driversToIncludeHomes.add(d.driver_id);
-                }
-              });
+        // 3. HOME LOCATIONS: Use markers from DeliveryMap (already filtered and validated)
+        // CRITICAL: These are the actual home markers rendered on the map
+        const mapHomeMarkers = window.__mapHomeMarkers || [];
+        
+        if (mapHomeMarkers.length > 0) {
+          console.log(`🏠 [Phase 1] Including ${mapHomeMarkers.length} home markers from map`);
+          mapHomeMarkers.forEach((home) => {
+            // CRITICAL: Skip markers flagged to exclude from bounds (after first stop completed)
+            if (home.excludeFromBounds) {
+              console.log(`⏭️ [Phase 1] Skipping home marker ${home.id} from bounds (excludeFromBounds flag)`);
+              return;
             }
-
-            // CRITICAL: Check which drivers should be excluded from bounds (first stop completed)
-            const driversToExcludeFromBounds = new Set();
-            const stopsByDriver = new Map();
             
-            deliveries.forEach((d) => {
-              if (!d || d.delivery_date !== selectedDateStr) return;
-              if (!stopsByDriver.has(d.driver_id)) {
-                stopsByDriver.set(d.driver_id, []);
-              }
-              stopsByDriver.get(d.driver_id).push(d);
-            });
-            
-            stopsByDriver.forEach((stops, driverId) => {
-              const hasCompletedAnyStop = stops.some(s => finishedStatuses.includes(s.status));
-              const allPickups = stops.filter(s => !s.patient_id);
-              const hasIncompletePickups = allPickups.some(p => !finishedStatuses.includes(p.status) && p.status !== 'pending');
-              
-              // Exclude from bounds if first stop completed AND still has incomplete pickups
-              if (hasCompletedAnyStop && hasIncompletePickups) {
-                driversToExcludeFromBounds.add(driverId);
-              }
-            });
-
-            // Add home markers for the filtered drivers (excluding those flagged)
-            driversToIncludeHomes.forEach((driverId) => {
-              // Skip if driver should be excluded from bounds
-              if (driversToExcludeFromBounds.has(driverId)) {
-                console.log(`⏭️ [Phase 1] Skipping home marker for driver ${driverId} from bounds (first stop completed)`);
-                return;
-              }
-              
-              const driver = users.find((u) => u && u.id === driverId);
-              if (driver?.home_latitude && driver?.home_longitude) {
-                allCoordinates.push([driver.home_latitude, driver.home_longitude]);
-              }
-            });
-          }
-        } else if (isViewingToday && !isDispatcherNonAdmin && !shouldShowAllMarkersForBounds) {
-          // Single driver mode - only current driver's home
-          if (currentUser?.home_latitude && currentUser?.home_longitude) {
-            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-            const hasActiveStops = deliveriesWithStopOrder.some((d) =>
-            d && !finishedStatuses.includes(d.status) && d.driver_id === currentUser.id
-            );
-
-            // CRITICAL: Check if first stop completed
-            const hasCompletedFirstStop = deliveriesWithStopOrder.some((d) => 
-              d && d.driver_id === currentUser.id && finishedStatuses.includes(d.status)
-            );
-            
-            // CRITICAL: Check if pickups remain
-            const allPickups = deliveriesWithStopOrder.filter((d) => 
-              d && !d.patient_id && d.driver_id === currentUser.id
-            );
-            const hasIncompletePickups = allPickups.some(p => 
-              !finishedStatuses.includes(p.status) && p.status !== 'pending'
-            );
-
-            // Include home marker ONLY if:
-            // 1. Has active stops AND no stops completed yet (route start), OR
-            // 2. Has active stops AND no incomplete pickups remaining (heading home)
-            if (hasActiveStops && (!hasCompletedFirstStop || !hasIncompletePickups)) {
-              allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
-            } else if (hasActiveStops && hasCompletedFirstStop && hasIncompletePickups) {
-              console.log('⏭️ [Phase 1] Skipping home marker from bounds - first stop completed, pickups remain');
+            if (home.latitude && home.longitude) {
+              allCoordinates.push([home.latitude, home.longitude]);
+              console.log(`✅ [Phase 1] Added home marker for driver ${home.driverName}`);
             }
-          }
+          });
+        } else {
+          console.log('⏭️ [Phase 1] No home markers available from map');
         }
 
         // 4. Add delivery/pickup markers based on mode
