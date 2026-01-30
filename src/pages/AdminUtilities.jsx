@@ -963,13 +963,15 @@ const DeliveryDataTable = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Drivers</SelectItem>
-              {(drivers || [])
-                .filter(d => d && d.user_name)
-                .map(driver => (
+              {(() => {
+                const filteredDrivers = (drivers || []).filter(d => d && d.user_name);
+                console.log(`📋 [DeliveryDataTable] Rendering driver dropdown: total=${drivers?.length}, filtered=${filteredDrivers.length}`, filteredDrivers.map(d => ({ id: d.id, user_name: d.user_name })));
+                return filteredDrivers.map(driver => (
                   <SelectItem key={driver.user_name} value={driver.user_name}>
                     {getDriverDisplayName(driver)}
                   </SelectItem>
-                ))}
+                ));
+              })()}
             </SelectContent>
           </Select>
 
