@@ -1177,22 +1177,34 @@ export default function RouteImport({
     loadAllDrivers();
   }, []); // CRITICAL: Empty dependency array to run only once on mount
 
-  // CRITICAL: Auto-open file dialog after Dialog animation completes
+  // CRITICAL: Auto-open file dialog - use multiple attempts with user interaction fallback
   useEffect(() => {
-    if (!hasOpenedFileDialogRef.current && fileInputRef.current) {
-      const timer = setTimeout(() => {
-        if (fileInputRef.current) {
-          console.log('[RouteImport] Auto-opening file selector...');
-          try {
-            fileInputRef.current.click();
-            hasOpenedFileDialogRef.current = true;
-          } catch (error) {
-            console.error('[RouteImport] Failed to auto-open file selector:', error);
-          }
+    if (hasOpenedFileDialogRef.current) return;
+
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    const tryOpenDialog = () => {
+      if (fileInputRef.current && !hasOpenedFileDialogRef.current) {
+        console.log(`[RouteImport] Attempting to open file selector (attempt ${attempts + 1})...`);
+        try {
+          fileInputRef.current.click();
+          hasOpenedFileDialogRef.current = true;
+          console.log('[RouteImport] File selector opened successfully');
+        } catch (error) {
+          console.error('[RouteImport] Failed to auto-open file selector:', error);
         }
-      }, 800); // Longer delay to ensure Dialog animation completes
-      return () => clearTimeout(timer);
-    }
+      }
+      
+      attempts++;
+      if (attempts < maxAttempts && !hasOpenedFileDialogRef.current) {
+        setTimeout(tryOpenDialog, 500);
+      }
+    };
+    
+    // First attempt after Dialog renders
+    const timer = setTimeout(tryOpenDialog, 500);
+    return () => clearTimeout(timer);
   }, []); // Run once on mount
 
   const availableDrivers = useMemo(() => {
