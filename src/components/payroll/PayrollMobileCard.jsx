@@ -177,7 +177,7 @@ export default function PayrollMobileCard({
             </div>
           )}
           <div className="pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-            <div className="flex justify-between text-sm font-bold text-emerald-600">
+            <div className="flex justify-between text-sm font-bold" style={{ color: 'var(--text-emerald-600)' }}>
               <span>Gross Pay:</span>
               <span className="text-base">{formatCurrency(data.grossPay || 0)}</span>
             </div>
