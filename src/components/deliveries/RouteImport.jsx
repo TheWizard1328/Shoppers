@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -1176,18 +1175,21 @@ export default function RouteImport({
     };
 
     loadAllDrivers();
-    
-    // CRITICAL: Auto-open file dialog on mount ONLY ONCE
-    // Using ref to prevent multiple triggers from component re-renders
-    if (fileInputRef.current && !hasOpenedFileDialogRef.current) {
-      setTimeout(() => {
-        if (fileInputRef.current) {
-          fileInputRef.current.click();
-          hasOpenedFileDialogRef.current = true; // Mark as opened
-        }
-      }, 150); // Small delay to ensure component is fully mounted
-    }
   }, []); // CRITICAL: Empty dependency array to run only once on mount
+
+  // CRITICAL: Auto-open file dialog after component is mounted and ref is ready
+  useEffect(() => {
+    if (!hasOpenedFileDialogRef.current && fileInputRef.current) {
+      const timer = setTimeout(() => {
+        if (fileInputRef.current) {
+          console.log('[RouteImport] Auto-opening file selector...');
+          fileInputRef.current.click();
+          hasOpenedFileDialogRef.current = true;
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, []); // Run once on mount
 
   const availableDrivers = useMemo(() => {
     const usersToUse = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
