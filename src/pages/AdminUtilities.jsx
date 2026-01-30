@@ -2921,77 +2921,7 @@ export default function AdminUtilities() {
     return dataViewMode.deliveries === 'offline' ? offlineDeliveries : (fetchedDeliveries || []);
   }, [fetchedDeliveries, dataViewMode.deliveries, offlineDeliveries]);
 
-  // CRITICAL: Define mergedUsers and driversForDropdown AFTER all queries
-  const mergedUsers = useMemo(() => {
-    if (!authUsers || !appUsers) return [];
-
-    return authUsers
-      .map((authUser) => {
-        const appUser = appUsers.find((au) => au.user_id === authUser.id);
-        if (!appUser) return null;
-
-        return {
-          ...authUser,
-          ...appUser,
-          id: authUser.id,
-          user_name: appUser.user_name || authUser.full_name,
-          app_roles: appUser.app_roles || ['driver'],
-          status: appUser.status || 'active',
-          display_name: appUser.user_name || authUser.full_name,
-          first_name: (appUser.user_name || authUser.full_name).split(' ')[0]
-        };
-      })
-      .filter(Boolean)
-      .filter((u) => u.status === 'active');
-  }, [authUsers, appUsers]);
-
-  const driversForDropdown = useMemo(() => {
-    if (!mergedUsers) return [];
-
-    const drivers = mergedUsers.filter((user) => {
-      const roles = user.app_roles || [];
-      return roles.includes('driver') || roles.includes('admin');
-    });
-    
-    return sortUsers(drivers);
-  }, [mergedUsers]);
-
   const dataLoading = patientsLoading || storesLoading || authUsersLoading || appUsersLoading || citiesLoading || deliveriesLoading;
-
-  // CRITICAL: Define mergedUsers and driversForDropdown BEFORE queries that depend on them
-  const mergedUsers = useMemo(() => {
-    if (!authUsers || !appUsers) return [];
-
-    return authUsers
-      .map((authUser) => {
-        const appUser = appUsers.find((au) => au.user_id === authUser.id);
-        if (!appUser) return null;
-
-        return {
-          ...authUser,
-          ...appUser,
-          id: authUser.id,
-          user_name: appUser.user_name || authUser.full_name,
-          app_roles: appUser.app_roles || ['driver'],
-          status: appUser.status || 'active',
-          display_name: appUser.user_name || authUser.full_name,
-          first_name: (appUser.user_name || authUser.full_name).split(' ')[0]
-        };
-      })
-      .filter(Boolean)
-      .filter((u) => u.status === 'active');
-  }, [authUsers, appUsers]);
-
-  const driversForDropdown = useMemo(() => {
-    if (!mergedUsers) return [];
-
-    const drivers = mergedUsers.filter((user) => {
-      const roles = user.app_roles || [];
-      return roles.includes('driver') || roles.includes('admin');
-    });
-    
-    return sortUsers(drivers);
-  }, [mergedUsers]);
 
   const handleRefreshAllData = async () => {
     setIsRefreshing(true);
