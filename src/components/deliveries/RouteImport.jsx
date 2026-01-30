@@ -1564,13 +1564,8 @@ export default function RouteImport({
         const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
         const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
 
-        // CRITICAL: PRE-IMPORT DELETION - Delete all existing deliveries for affected drivers and dates (if enabled)
-        if (purgeBeforeImport) {
-          setProgressMessage('Purging existing deliveries for affected drivers and dates...');
-        }
+        // CRITICAL: ALWAYS PURGE - Collect all unique driver/date combinations being imported
         const affectedDriversAndDates = new Set();
-        
-        // Collect all unique driver/date combinations being imported
         deliveriesToCreateFiltered.forEach(d => {
           affectedDriversAndDates.add(`${d.driver_id}|${d.delivery_date}`);
         });
@@ -1583,40 +1578,49 @@ export default function RouteImport({
           return { driverId, date };
         });
 
-        if (purgeBeforeImport) {
-          console.log(`🗑️ [RouteImport] Deleting existing deliveries for ${driverDatePairs.length} driver/date combinations`);
+        // CRITICAL: ALWAYS DELETE - regardless of checkbox (checkbox removed from UI)
+        console.log(`🗑️ [RouteImport] PURGING deliveries for ${driverDatePairs.length} driver/date combinations BEFORE import`);
+        setProgressMessage(`Purging ${driverDatePairs.length} driver/date combinations...`);
 
-          // Delete from online database
-          for (const { driverId, date } of driverDatePairs) {
-            try {
-              const existingDeliveries = await base44.entities.Delivery.filter({
-                driver_id: driverId,
-                delivery_date: date
-              });
-              
-              if (existingDeliveries && existingDeliveries.length > 0) {
-                const idsToDelete = existingDeliveries.map(d => d.id);
-                await base44.entities.Delivery.bulkDelete(idsToDelete);
-                console.log(`✅ [RouteImport] Deleted ${idsToDelete.length} online deliveries for ${driverId} on ${date}`);
-              }
-            } catch (deleteError) {
-              console.warn(`⚠️ [RouteImport] Failed to delete online deliveries for ${driverId}/${date}:`, deleteError.message);
+        // STEP 1: Delete from ONLINE database FIRST
+        for (const { driverId, date } of driverDatePairs) {
+          try {
+            const existingDeliveries = await base44.entities.Delivery.filter({
+              driver_id: driverId,
+              delivery_date: date
+            });
+            
+            if (existingDeliveries && existingDeliveries.length > 0) {
+              const idsToDelete = existingDeliveries.map(d => d.id);
+              await base44.entities.Delivery.bulkDelete(idsToDelete);
+              console.log(`✅ [RouteImport] Deleted ${idsToDelete.length} ONLINE deliveries for ${driverId} on ${date}`);
             }
+          } catch (deleteError) {
+            console.error(`❌ [RouteImport] Failed to delete online deliveries for ${driverId}/${date}:`, deleteError.message);
+            throw deleteError; // CRITICAL: Fail import if purge fails
           }
-
-          // Delete from offline database
-          const datesToPurge = [...new Set(driverDatePairs.map(p => p.date))];
-          for (const date of datesToPurge) {
-            try {
-              await offlineDB.deleteDeliveriesByDate(date);
-            } catch (offlineDeleteError) {
-              console.warn(`⚠️ [RouteImport] Failed to delete offline deliveries for ${date}:`, offlineDeleteError.message);
-            }
-          }
-        } else {
-          console.log('⏭️ [RouteImport] Purge disabled - skipping deletion, will update matching deliveries');
         }
 
+        // STEP 2: Delete from OFFLINE database
+        for (const { driverId, date } of driverDatePairs) {
+          try {
+            // Delete all deliveries for this driver+date from offline DB
+            const allOfflineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date);
+            const driverOfflineDeliveries = allOfflineDeliveries.filter(d => d.driver_id === driverId);
+            
+            if (driverOfflineDeliveries.length > 0) {
+              for (const d of driverOfflineDeliveries) {
+                await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
+              }
+              console.log(`✅ [RouteImport] Deleted ${driverOfflineDeliveries.length} OFFLINE deliveries for ${driverId} on ${date}`);
+            }
+          } catch (offlineDeleteError) {
+            console.error(`❌ [RouteImport] Failed to delete offline deliveries for ${driverId}/${date}:`, offlineDeleteError.message);
+            // Continue - offline DB errors shouldn't block import
+          }
+        }
+
+        console.log('✅ [RouteImport] Purge complete - all driver/date combinations cleared from both databases');
         setProgressPercent(15);
 
         batchUpdateAMPM(deliveriesToCreateFiltered);
@@ -2233,6 +2237,9 @@ export default function RouteImport({
                               <div className="flex flex-col flex-1 min-w-0">
                                 <span className="text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{file.name}</span>
                                 <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Extracted: "{fileInfo?.extractedName || 'N/A'}"</span>
+                                {hasMatch && (
+                                  <span className="text-xs font-mono text-slate-500">ID: {fileInfo.driver.id?.substring(0, 8)}...</span>
+                                )}
                               </div>
                               <div className="ml-3 flex-shrink-0 flex items-center gap-2">
                                 {hasMatch ? (
@@ -2255,7 +2262,7 @@ export default function RouteImport({
                         })}
                       </div>
                       <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                        Drivers are automatically matched by removing " Route.csv" from filenames.
+                        Drivers are automatically matched by removing " Route.csv" from filenames. Import will PURGE all existing deliveries for these drivers before saving new data.
                       </p>
                     </div>
                   )}
