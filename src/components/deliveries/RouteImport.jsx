@@ -2146,6 +2146,7 @@ export default function RouteImport({
                       multiple
                       onChange={handleFileChange}
                       disabled={isParsing || isProcessing || showProgress}
+                      autoFocus
                       className="border-2"
                       style={{ borderColor: '#ffffff', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }} />
 
