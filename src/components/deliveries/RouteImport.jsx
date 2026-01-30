@@ -1578,12 +1578,13 @@ export default function RouteImport({
           return { driverId, date };
         });
 
-        // CRITICAL: ALWAYS DELETE - regardless of checkbox (checkbox removed from UI)
-        console.log(`🗑️ [RouteImport] PURGING deliveries for ${driverDatePairs.length} driver/date combinations BEFORE import`);
-        setProgressMessage(`Purging ${driverDatePairs.length} driver/date combinations...`);
+        // STEP 1: Conditionally purge based on checkbox
+        if (purgeBeforeImport) {
+          console.log(`🗑️ [RouteImport] PURGING deliveries for ${driverDatePairs.length} driver/date combinations BEFORE import`);
+          setProgressMessage(`Purging ${driverDatePairs.length} driver/date combinations...`);
 
-        // STEP 1: Delete from ONLINE database FIRST
-        for (const { driverId, date } of driverDatePairs) {
+          // Delete from ONLINE database FIRST
+          for (const { driverId, date } of driverDatePairs) {
           try {
             const existingDeliveries = await base44.entities.Delivery.filter({
               driver_id: driverId,
