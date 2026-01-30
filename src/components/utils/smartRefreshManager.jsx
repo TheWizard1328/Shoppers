@@ -1975,37 +1975,56 @@ class SmartRefreshManager {
       }
       
       // PRIORITY 3: Background entity refreshes (longer intervals)
-      if (this.shouldRefresh('todayPatients') && currentData.patients) {
-        try {
-          const todayDeliveries = currentData.deliveries?.filter(d => {
-            return d && d.delivery_date === todayStr;
-          }) || [];
-          
-          const patientResult = await this.refreshTodayPatients(currentData.patients, todayDeliveries);
-          if (patientResult?.hasChanges) {
-            updates.patients = patientResult.patients;
-          }
-          this.markRefreshed('todayPatients');
-        } catch (e) {
-          console.warn('⚠️ [SmartRefresh] Patient refresh failed:', e.message);
-        }
-      }
+       if (this.shouldRefresh('todayPatients') && currentData.patients) {
+         try {
+           const todayDeliveries = currentData.deliveries?.filter(d => {
+             return d && d.delivery_date === todayStr;
+           }) || [];
 
-      // Refresh AppUsers status (includes driver status)
-      if (this.shouldRefresh('appUsers') && currentData.appUsers) {
-        try {
-          const appUserResult = await this.refreshAppUsers(currentData.appUsers);
-          if (appUserResult?.hasChanges) {
-            updates.appUsers = appUserResult.appUsers;
-          }
-          this.markRefreshed('appUsers');
-        } catch (e) {
-          console.warn('⚠️ [SmartRefresh] AppUser refresh failed:', e.message);
-        }
-      }
+           const patientResult = await this.refreshTodayPatients(currentData.patients, todayDeliveries);
+           if (patientResult?.hasChanges) {
+             updates.patients = patientResult.patients;
+           }
+           this.markRefreshed('todayPatients');
+         } catch (e) {
+           console.warn('⚠️ [SmartRefresh] Patient refresh failed:', e.message);
+         }
+       }
 
-      // DISABLED: Square Transactions now sync via real-time events only
-      // They update when COD items are created/edited/deleted, not on every refresh cycle
+       // Refresh AppUsers status (includes driver status)
+       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
+         try {
+           const appUserResult = await this.refreshAppUsers(currentData.appUsers);
+           if (appUserResult?.hasChanges) {
+             updates.appUsers = appUserResult.appUsers;
+           }
+           this.markRefreshed('appUsers');
+         } catch (e) {
+           console.warn('⚠️ [SmartRefresh] AppUser refresh failed:', e.message);
+         }
+       }
+
+       // PRIORITY 4: Payroll records (5-minute cycle)
+       if (this.shouldRefresh('payroll') && currentData.payrollRecords && currentData.periodStart && currentData.periodEnd) {
+         try {
+           const payrollResult = await this.refreshPayrollRecords(currentData.payrollRecords, currentData.periodStart, currentData.periodEnd);
+           if (payrollResult?.hasChanges) {
+             updates.payrollRecords = payrollResult.payrollRecords;
+             // Dispatch event to notify payroll UI
+             if (typeof window !== 'undefined') {
+               window.dispatchEvent(new CustomEvent('payrollRecordsUpdated', {
+                 detail: { records: payrollResult.payrollRecords }
+               }));
+             }
+           }
+           this.markRefreshed('payroll');
+         } catch (e) {
+           console.warn('⚠️ [SmartRefresh] Payroll refresh failed:', e.message);
+         }
+       }
+
+       // DISABLED: Square Transactions now sync via real-time events only
+       // They update when COD items are created/edited/deleted, not on every refresh cycle
 
       const hasAnyUpdates = Object.keys(updates).length > 0;
       return hasAnyUpdates ? updates : null;
