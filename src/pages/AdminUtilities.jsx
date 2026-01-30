@@ -2894,16 +2894,29 @@ export default function AdminUtilities() {
   }, [authUsers, appUsers]);
 
   const driversForDropdown = useMemo(() => {
-    if (!mergedUsers || mergedUsers.length === 0) return [];
+    console.log(`📋 [AdminUtilities] driversForDropdown memo triggered - mergedUsers:`, mergedUsers?.length || 0, mergedUsers?.slice(0, 3));
+    if (!mergedUsers || mergedUsers.length === 0) {
+      console.warn(`⚠️ [AdminUtilities] mergedUsers is empty!`);
+      return [];
+    }
 
     const drivers = mergedUsers.filter((user) => {
-      if (!user || !user.user_name) return false;
+      if (!user) {
+        console.warn(`⚠️ [AdminUtilities] Found null user in mergedUsers`);
+        return false;
+      }
+      if (!user.user_name) {
+        console.warn(`⚠️ [AdminUtilities] User has no user_name:`, user);
+        return false;
+      }
       const roles = user.app_roles || [];
-      return roles.includes('driver') || roles.includes('admin');
+      const isDriver = roles.includes('driver') || roles.includes('admin');
+      return isDriver;
     });
     
+    console.log(`📋 [AdminUtilities] Filtered to ${drivers.length} driver/admin roles`);
     const sorted = sortUsers(drivers);
-    console.log(`📋 [AdminUtilities] driversForDropdown: ${sorted.length} drivers with names:`, sorted.map(d => d.user_name).join(', '));
+    console.log(`📋 [AdminUtilities] driversForDropdown final: ${sorted.length} drivers:`, sorted.map(d => ({ id: d.id, user_name: d.user_name, roles: d.app_roles })));
     return sorted;
   }, [mergedUsers]);
 
