@@ -1920,38 +1920,30 @@ function Dashboard() {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const isToday = selectedDateStr === todayStr;
       
-      // CRITICAL: Load ALL drivers when "Show All" is checked OR "All Drivers" is selected
-      const shouldLoadAllDrivers = showAllDriverMarkers || selectedDriverId === 'all';
-      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+      // CRITICAL: ALWAYS load ALL drivers' deliveries for complete map marker data
+      // This ensures markers update correctly in Single Driver, All Drivers, and Show All modes
+      const shouldLoadAllDrivers = true; // ALWAYS fetch all to ensure complete marker updates
       
-      console.log(`🔄 [Periodic Refresh] Loading ${shouldLoadAllDrivers ? 'ALL drivers' : 'driver ' + activeDriverId} for ${selectedDateStr} (isToday: ${isToday})`);
+      console.log(`🔄 [Periodic Refresh] Loading ALL drivers for ${selectedDateStr} (isToday: ${isToday})`);
       
       let freshDeliveries;
       
       // CRITICAL: ALWAYS fetch from API for today's date (cross-device sync)
       // Only use dataSource preference for historical dates
       if (isToday || dataSource === 'online') {
-        console.log(`🌐 [Periodic Refresh] Fetching from API (${isToday ? 'today - cross-device sync' : 'online mode'})`);
-        freshDeliveries = shouldLoadAllDrivers 
-          ? await base44.entities.Delivery.filter({ delivery_date: selectedDateStr })
-          : await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
+        console.log(`🌐 [Periodic Refresh] Fetching ALL drivers from API (${isToday ? 'today - cross-device sync' : 'online mode'})`);
+        freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
         offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
       } else {
         // Historical dates - try offline DB first
         freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
         
         if (!freshDeliveries || freshDeliveries.length === 0) {
-          console.log('📥 [Periodic Refresh] Offline DB empty - fetching from API');
-          freshDeliveries = shouldLoadAllDrivers
-            ? await base44.entities.Delivery.filter({ delivery_date: selectedDateStr })
-            : await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
+          console.log('📥 [Periodic Refresh] Offline DB empty - fetching ALL from API');
+          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
         } else {
-          console.log(`📦 [Periodic Refresh] Loaded ${freshDeliveries.length} from offline DB`);
-          // Filter to selected driver if not loading all
-          if (!shouldLoadAllDrivers && activeDriverId) {
-            freshDeliveries = freshDeliveries.filter((d) => d.driver_id === activeDriverId);
-          }
+          console.log(`📦 [Periodic Refresh] Loaded ${freshDeliveries.length} ALL drivers from offline DB`);
         }
       }
       
@@ -1959,33 +1951,31 @@ function Dashboard() {
       if (updateDeliveriesLocally && freshDeliveries.length > 0) {
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
         updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-        console.log(`✅ [Periodic Refresh] Updated UI with ${freshDeliveries.length} deliveries`);
+        console.log(`✅ [Periodic Refresh] Updated UI with ${freshDeliveries.length} ALL drivers deliveries`);
       }
       
-      // CRITICAL: When "Show All" is checked, force a full AppUser refresh to get ALL drivers
-      const shouldForceFullRefresh = showAllDriverMarkers || selectedDriverId === 'all';
-      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, shouldForceFullRefresh);
+      // CRITICAL: ALWAYS force full AppUser refresh to get ALL drivers' locations
+      // This ensures ALL markers update regardless of selection mode
+      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
       
       // Use updated AppUsers or fall back to current context
       const latestAppUsers = locationUpdates?.appUsers || appUsers;
       
-      if (locationUpdates?.hasChanges) {
-        driverLocationPoller.processLocationData(
-          currentUser, 
-          freshDeliveries, 
-          drivers, 
-          stores, 
-          latestAppUsers, 
-          selectedDate, 
-          true
-        );
-      }
+      // CRITICAL: Always process location data for ALL drivers to update markers
+      driverLocationPoller.processLocationData(
+        currentUser, 
+        freshDeliveries, 
+        drivers, 
+        stores, 
+        latestAppUsers, 
+        selectedDate, 
+        true
+      );
       
-      // CRITICAL: ALWAYS dispatch for ALL drivers when Show All is checked
-      // This ensures placeholder markers for other drivers get updated
-      console.log(`📍 [Periodic Refresh] Dispatching location updates for ${latestAppUsers.length} AppUsers (Show All: ${showAllDriverMarkers})`);
+      // CRITICAL: ALWAYS dispatch for ALL drivers to ensure complete marker updates
+      console.log(`📍 [Periodic Refresh] Dispatching location updates for ALL ${latestAppUsers.length} drivers`);
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: { appUsers: latestAppUsers, forceAll: shouldForceFullRefresh }
+        detail: { appUsers: latestAppUsers, forceAll: true }
       }));
       
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -6894,15 +6884,10 @@ function Dashboard() {
                       console.clear();
                       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
 
-                      // CRITICAL: Check if "Show All" is enabled - if so, fetch ALL drivers' deliveries
-                      const shouldFetchAllDrivers = showAllDriverMarkers || selectedDriverId === 'all';
-                      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+                      // CRITICAL: ALWAYS fetch ALL drivers to ensure complete marker updates
+                      const shouldFetchAllDrivers = true; // Always true for complete marker data
 
-                      if (!activeDriverId && !shouldFetchAllDrivers) {
-                        return;
-                      }
-
-                      console.log(`🔄 [Manual Refresh] Mode: ${shouldFetchAllDrivers ? 'ALL DRIVERS' : 'Single Driver'}, showAllDriverMarkers: ${showAllDriverMarkers}`);
+                      console.log(`🔄 [Manual Refresh] Mode: ALL DRIVERS (always), showAllDriverMarkers: ${showAllDriverMarkers}`);
 
                       const now = new Date();
                       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -6933,29 +6918,21 @@ function Dashboard() {
 
                       const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false, showAllDriverMarkers);
 
-                      // STEP 2: Force reload deliveries - respect data source preference
-                      console.log(`📥 [Manual Refresh] Fetching deliveries for ${selectedDateStr} (mode: ${dataSource})...`);
+                      // STEP 2: Force reload deliveries for ALL drivers - ensures complete marker data
+                      console.log(`📥 [Manual Refresh] Fetching ALL drivers for ${selectedDateStr} (mode: ${dataSource})...`);
                       invalidateDeliveriesForDate(selectedDateStr);
                       
                       let finalDeliveries;
                       if (dataSource === 'online') {
-                        console.log('🌐 [Manual Refresh - ONLINE MODE] Fetching from API');
-                        finalDeliveries = shouldFetchAllDrivers ?
-                          await base44.entities.Delivery.filter({ delivery_date: selectedDateStr }) :
-                          await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
+                        console.log('🌐 [Manual Refresh - ONLINE MODE] Fetching ALL from API');
+                        finalDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
                         offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries).catch(() => {});
                       } else {
                         finalDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
                         if (!finalDeliveries || finalDeliveries.length === 0) {
-                          console.log('📥 [Manual Refresh] Offline DB empty - fetching from API');
-                          finalDeliveries = shouldFetchAllDrivers ?
-                            await base44.entities.Delivery.filter({ delivery_date: selectedDateStr }) :
-                            await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
+                          console.log('📥 [Manual Refresh] Offline DB empty - fetching ALL from API');
+                          finalDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
                           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries);
-                        } else {
-                          if (!shouldFetchAllDrivers) {
-                            finalDeliveries = finalDeliveries.filter((d) => d.driver_id === activeDriverId);
-                          }
                         }
                       }
                       
@@ -6975,9 +6952,10 @@ function Dashboard() {
                       console.log('⏭️ [Refresh Spinner] Skipping route optimization (runs on timer only)');
 
                       // STEP 4: Update isNextDelivery flags for active driver only
-                      const updatedDeliveries = shouldFetchAllDrivers ?
-                      finalDeliveries.filter((d) => d.driver_id === activeDriverId) :
-                      finalDeliveries;
+                      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+                      const updatedDeliveries = activeDriverId ? 
+                        finalDeliveries.filter((d) => d.driver_id === activeDriverId) : 
+                        [];
 
                       // Reset all isNextDelivery flags for this driver
                       const resetPromises = updatedDeliveries.
