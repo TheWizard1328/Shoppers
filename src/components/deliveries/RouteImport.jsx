@@ -800,6 +800,8 @@ export default function RouteImport({
       const stopOrder = parseInt(values[3]?.trim()) || 0;
       const column5Value = parseFloat(values[4]?.trim()); // Column 5 - check if < 0 for pending status
       const completionTimeStr = values[5]?.replace(/"/g, '').trim();
+      const distanceFromStoreStr = values[7]?.replace(/"/g, '').trim(); // Column 8 (index 7): Distance from store to patient
+      const distanceFromStore = distanceFromStoreStr && !isNaN(parseFloat(distanceFromStoreStr)) ? parseFloat(parseFloat(distanceFromStoreStr).toFixed(2)) : null;
       const travelDistStr = values[8]?.replace(/"/g, '').trim();
       const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(parseFloat(travelDistStr).toFixed(2)) : null;
       const importedPuid = (values[12] || '').replace(/"/g, '').trim(); // Column 13: PUID (index 12)
