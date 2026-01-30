@@ -1555,6 +1555,26 @@ export default function RouteImport({
       
       const { offlineDB } = await import('../utils/offlineDatabase');
 
+      // STEP 1: Fetch fresh AppUser IDs
+      setProgressMessage('Fetching fresh AppUser data...');
+      setProgressPercent(5);
+      const freshAppUsers = await base44.entities.AppUser.list();
+      console.log(`✅ [RouteImport] Loaded ${freshAppUsers.length} fresh AppUsers`);
+      setProgressPercent(8);
+
+      // STEP 2: Get drivers being imported
+      const importedDriverIds = [...new Set(
+        [...deliveriesToCreateFiltered, ...deliveriesToUpdateFiltered]
+          .map(d => d.driver_id)
+          .filter(Boolean)
+      )];
+      const importedDates = [...new Set(
+        [...deliveriesToCreateFiltered, ...deliveriesToUpdateFiltered]
+          .map(d => d.delivery_date)
+          .filter(Boolean)
+      )];
+      console.log(`📥 [RouteImport] Importing for drivers: ${importedDriverIds.length}, dates: ${importedDates.length}`);
+
       setProgressMessage('Loading latest patient and store data from cache...');
       setProgressPercent(10);
       const freshPatients = await getData('Patient', '-created_date', null, false);
@@ -1870,38 +1890,48 @@ export default function RouteImport({
         currentFile: ''
       }));
       
-      // CRITICAL: PURGE AND RESYNC - Extract all unique dates from imported data
-      const importedDates = new Set();
-      deliveriesToCreateFiltered.forEach(d => importedDates.add(d.delivery_date));
-      deliveriesToUpdateFiltered.forEach(d => importedDates.add(d.delivery_date));
+      // CRITICAL: REPLACE OFFLINE DB - For each driver/date combination, fetch fresh online data
+      const driverDatePairs = new Set();
+      deliveriesToCreateFiltered.forEach(d => driverDatePairs.add(`${d.driver_id}|${d.delivery_date}`));
+      deliveriesToUpdateFiltered.forEach(d => driverDatePairs.add(`${d.driver_id}|${d.delivery_date}`));
       
-      const uniqueDates = Array.from(importedDates);
-      console.log(`🔄 [RouteImport] Purge and resync for ${uniqueDates.length} dates:`, uniqueDates);
+      const pairs = Array.from(driverDatePairs).map(pair => {
+        const [driverId, date] = pair.split('|');
+        return { driverId, date };
+      });
       
-      setProgressMessage(`Syncing offline database (${uniqueDates.length} dates)...`);
+      console.log(`🔄 [RouteImport] Replacing offline DB for ${pairs.length} driver/date pairs`);
+      setProgressMessage(`Syncing offline database (${pairs.length} combinations)...`);
       
-      // PURGE AND RESYNC: For each date, delete offline deliveries and resync from online
-      for (let i = 0; i < uniqueDates.length; i++) {
-        const dateStr = uniqueDates[i];
+      // For each driver/date pair, fetch fresh online data and replace offline DB
+      for (let i = 0; i < pairs.length; i++) {
+        const { driverId, date } = pairs[i];
         
         try {
-          // PURGE: Delete all offline deliveries for this date
-          await offlineDB.deleteDeliveriesByDate(dateStr);
-          console.log(`🗑️ [RouteImport] Purged offline deliveries for ${dateStr}`);
+          // PURGE: Delete offline deliveries for this driver/date
+          const existingOffline = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date);
+          const toDelete = existingOffline?.filter(d => d.driver_id === driverId) || [];
+          for (const d of toDelete) {
+            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
+          }
+          console.log(`🗑️ [RouteImport] Purged ${toDelete.length} offline deliveries for ${driverId} on ${date}`);
           
-          // RESYNC: Fetch fresh deliveries from online DB for this date
-          const freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+          // RESYNC: Fetch fresh deliveries from online DB for this driver/date
+          const freshDeliveries = await base44.entities.Delivery.filter({ 
+            driver_id: driverId, 
+            delivery_date: date 
+          });
           
           // Save to offline DB
           if (freshDeliveries && freshDeliveries.length > 0) {
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-            console.log(`✅ [RouteImport] Resynced ${freshDeliveries.length} deliveries for ${dateStr}`);
+            console.log(`✅ [RouteImport] Resynced ${freshDeliveries.length} deliveries for ${driverId} on ${date}`);
           }
         } catch (syncError) {
-          console.warn(`⚠️ [RouteImport] Sync failed for ${dateStr}:`, syncError.message);
+          console.warn(`⚠️ [RouteImport] Sync failed for ${driverId}/${date}:`, syncError.message);
         }
         
-        setProgressMessage(`Syncing offline database (${i + 1}/${uniqueDates.length} dates)...`);
+        setProgressMessage(`Syncing offline database (${i + 1}/${pairs.length} combinations)...`);
       }
 
       setImportProgress((prev) => ({
