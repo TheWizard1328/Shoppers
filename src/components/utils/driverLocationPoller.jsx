@@ -100,34 +100,7 @@ class DriverLocationPoller {
     // CRITICAL: Determine device type early
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    // CRITICAL: On desktop, ensure current user's AppUser is in the list for self-marker
-    // On mobile, NEVER add self to the list (blue GPS dot shows instead)
     let users = Array.isArray(usersData) ? [...usersData] : [];
-    
-    if (!isMobileDevice && currentUser && currentUser.current_latitude && currentUser.current_longitude) {
-      // Check if current user is already in the list
-      const selfInList = users.some(u => 
-        u && (u.user_id === currentUserId || u.id === currentUserId || 
-              u.user_id === currentUserUserId || u.id === currentUserUserId)
-      );
-      
-      if (!selfInList) {
-        // Add current user to the list so they can see their own marker (DESKTOP ONLY)
-        console.log('📍 [DriverLocationPoller] Adding current user to list for self-marker (desktop)');
-        users.push({
-          id: currentUser.id,
-          user_id: currentUser.user_id || currentUser.id,
-          user_name: currentUser.user_name || currentUser.full_name,
-          current_latitude: currentUser.current_latitude,
-          current_longitude: currentUser.current_longitude,
-          location_updated_at: currentUser.location_updated_at,
-          driver_status: currentUser.driver_status,
-          location_tracking_enabled: currentUser.location_tracking_enabled,
-          status: currentUser.status,
-          city_id: currentUser.city_id
-        });
-      }
-    }
     
     if (users.length === 0) {
       // CRITICAL: Still notify subscribers with empty array to clear markers
@@ -147,11 +120,8 @@ class DriverLocationPoller {
     const todayStr = new Date().toISOString().split('T')[0];
 
     // CRITICAL: Filter to drivers with location data using the new rules
-    // RULES:
-    // 1. Current user (self): ALWAYS show on desktop (any status, any tracking setting)
-    // 2. Other drivers: on_duty OR on_break, location_tracking_enabled = true, location_updated_at recent
-    // 3. Dispatchers: drivers with assigned stops, on_duty OR on_break, location_tracking_enabled = true
-    // 4. All must be in same city
+    // NEW RULE: Current user sees their OWN shared location from OTHER devices
+    // (on mobile, only hide location marker from the CURRENT device - blue GPS dot shows instead)
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
 
@@ -161,17 +131,35 @@ class DriverLocationPoller {
                      user.user_id === currentUserUserId ||
                      user.id === currentUserUserId;
 
-      // Skip inactive users (but NOT for self - driver should see own marker even if inactive)
+      // Skip inactive users (but NOT for self - user should see own marker even if inactive)
       if (user.status === 'inactive' && !isSelf) return false;
 
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) return false;
 
-      // CRITICAL: Current user (self) - ALWAYS show regardless of driver_status or location_tracking_enabled
-      // This allows the user to see their shared location from any device
-      // DriverLocationMarkers will handle blocking on mobile to prevent overlap with GPS dot
+      // CRITICAL: NEW LOGIC - Show current user's marker on ALL devices (including their own other devices)
+      // regardless of driver_status or location_tracking_enabled
       if (isSelf) {
-        console.log(`✅ [DriverLocationPoller] Including self marker - status: ${user.driver_status}, tracking: ${user.location_tracking_enabled}`);
+        // EXCEPTION: On mobile, hide the shared marker for the CURRENT device
+        // (blue GPS dot shows instead to avoid duplicate markers)
+        // But other devices should still see this marker
+        
+        // To achieve this: we check if THIS device uploaded the location recently
+        // If location was updated within last 30 seconds, it's likely from THIS device
+        const locationAge = user.location_updated_at ? now - new Date(user.location_updated_at).getTime() : Infinity;
+        const isFromCurrentDevice = locationAge < 30000; // Updated within 30 seconds = likely this device
+        
+        if (isMobileDevice && isFromCurrentDevice) {
+          // This is the current mobile device - hide shared marker (blue GPS dot shows)
+          console.log(`🚫 [DriverLocationPoller] Hiding self marker on current mobile device (blue GPS dot active)`);
+          return false;
+        }
+        
+        // This is either:
+        // 1. Desktop viewing own marker, OR
+        // 2. Another device (phone/tablet/desktop) viewing this device's marker
+        // Show the marker regardless of status or sharing settings
+        console.log(`✅ [DriverLocationPoller] Showing self marker - other device or desktop view`);
         return true;
       }
 
@@ -186,8 +174,6 @@ class DriverLocationPoller {
       }
 
       const locationAge = now - new Date(user.location_updated_at).getTime();
-
-      // DEBUG: Log driver status for troubleshooting
 
       // RULE 3: Dispatcher special handling - check BEFORE location_tracking_enabled filter
       // CRITICAL: Dispatchers see driver markers when driver has assigned stops AND (on_duty OR on_break)
