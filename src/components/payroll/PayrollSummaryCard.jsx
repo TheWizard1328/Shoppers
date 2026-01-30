@@ -324,13 +324,22 @@ export default function PayrollSummaryCard({
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
       const returnsCount = periodDeliveries.filter((d) => d.status === 'cancelled' && !d.after_hours_pickup).length;
       
-      // Count returns with store name in brackets (e.g., "[XX] Return") - must be cancelled and not after_hours
-      const storeReturnCount = periodDeliveries.filter((d) => {
-        if (d.status !== 'cancelled' || d.after_hours_pickup) return false;
+      // Count returns: any delivery with store name and 'return' in patient_name or delivery_notes
+      const storeReturnCount = deliveries.filter((d) => {
+        if (!d || d.driver_id !== driverId) return false;
+        const date = new Date(d.delivery_date + 'T00:00:00');
+        if (date < currentPeriod.start || date > currentPeriod.end) return false;
+        
         const patientName = (d.patient_name || '').toLowerCase();
-        const hasStorePattern = /\[[\w\s]+\]/.test(d.patient_name || '');
-        const hasReturn = patientName.includes('return');
-        return hasStorePattern && hasReturn;
+        const deliveryNotes = (d.delivery_notes || '').toLowerCase();
+        const combined = patientName + ' ' + deliveryNotes;
+        
+        // Check if store name (abbreviation) exists and 'return' exists
+        const storeAbbrev = stores.find(s => s && s.id === d.store_id)?.abbreviation || '';
+        const hasStoreName = storeAbbrev && combined.includes(storeAbbrev.toLowerCase());
+        const hasReturn = combined.includes('return');
+        
+        return hasStoreName && hasReturn;
       }).length;
 
       const totalPay = basePay + extraKmPay + oversizedPay;
