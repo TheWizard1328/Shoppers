@@ -314,6 +314,15 @@ export default function PayrollSummaryCard({
       // Count failed and returns (cancelled with after_hours_pickup excluded from returns)
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
       const returnsCount = periodDeliveries.filter((d) => d.status === 'cancelled' && !d.after_hours_pickup).length;
+      
+      // Count returns with store name in brackets (e.g., "[XX] Return")
+      const storeReturnCount = periodDeliveries.filter((d) => {
+        const patientName = (d.patient_name || '').toLowerCase();
+        // Check if patient_name contains both a store abbreviation in brackets AND the word "return"
+        const hasStorePattern = /\[[\w\s]+\]/.test(d.patient_name || '');
+        const hasReturn = patientName.includes('return');
+        return hasStorePattern && hasReturn;
+      }).length;
 
       const totalPay = basePay + extraKmPay + oversizedPay;
 
@@ -374,6 +383,7 @@ export default function PayrollSummaryCard({
         totalOversizedPay: oversizedPay,
         failedCount: failedCount,
         returnsCount: returnsCount,
+        storeReturnCount: storeReturnCount,
         grandTotal: totalPay,
         // New fields
         gstHstEnabled,
@@ -601,7 +611,7 @@ export default function PayrollSummaryCard({
       
       // Row 3: Failed/Returns
       doc.text(`Failed: ${data.failedCount}`, col1, y);
-      doc.text(`Returns: ${data.returnsCount}`, col2, y);
+      doc.text(`Store Returns: ${data.storeReturnCount || 0}`, col2, y);
       y += 7;
       
       // Pay summary - right aligned
@@ -1059,7 +1069,7 @@ export default function PayrollSummaryCard({
                   </div>
                   <div className="flex items-center">
                     <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
-                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.returnsCount}</span>
+                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.storeReturnCount || 0}</span>
                   </div>
                 </div>
 
