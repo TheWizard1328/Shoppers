@@ -811,6 +811,17 @@ export default function DeliveryMap({
     };
   }, [map]);
 
+  // CRITICAL: Pass home markers and driver locations to Dashboard for FAB phase 1 bounds calculation
+  useEffect(() => {
+    window.__mapHomeMarkers = driverHomeMarkers;
+    window.__mapDriverLocationMarkers = driverLocationMarkers;
+    
+    return () => {
+      delete window.__mapHomeMarkers;
+      delete window.__mapDriverLocationMarkers;
+    };
+  }, [driverHomeMarkers, driverLocationMarkers]);
+
   // State to force re-render of polylines when driver locations change
   const [polylineRenderKey, setPolylineRenderKey] = useState(0);
   
