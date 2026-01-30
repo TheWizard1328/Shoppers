@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -166,6 +167,7 @@ export default function RouteImport({
   const [showProgress, setShowProgress] = useState(false);
   const [patients, setPatients] = useState([]);
   const fileInputRef = useRef(null);
+  const hasOpenedFileDialogRef = useRef(false); // CRITICAL: Track if dialog has been auto-opened
 
   const [previewFilterDriver, setPreviewFilterDriver] = useState('all');
   const [previewFilterDate, setPreviewFilterDate] = useState('all');
@@ -626,6 +628,11 @@ export default function RouteImport({
     const selectedFiles = Array.from(e.target.files);
     setFiles(selectedFiles.length > 0 ? selectedFiles : []);
     
+    // CRITICAL: Clear file input value to prevent re-triggering and allow same file selection
+    if (e.target) {
+      e.target.value = '';
+    }
+    
     // Auto-assign drivers based on filenames
     if (selectedFiles.length > 0) {
       const newFileDriverMap = {};
@@ -662,20 +669,18 @@ export default function RouteImport({
           return;
         }
         
-        // Pass the fresh data directly to avoid stale state with error handling
-        setTimeout(() => {
-          try {
-            handlePreview(selectedFiles, newFileDriverMap);
-          } catch (error) {
-            console.error('[RouteImport] Auto-preview error:', error);
-            setImportError({
-              message: error.message,
-              record: { files: selectedFiles.map(f => f.name).join(', ') },
-              lineNumber: null,
-              phase: 'auto-preview'
-            });
-          }
-        }, 300);
+        // CRITICAL: Call handlePreview directly (no setTimeout) to avoid race conditions
+        try {
+          handlePreview(selectedFiles, newFileDriverMap);
+        } catch (error) {
+          console.error('[RouteImport] Auto-preview error:', error);
+          setImportError({
+            message: error.message,
+            record: { files: selectedFiles.map(f => f.name).join(', ') },
+            lineNumber: null,
+            phase: 'auto-preview'
+          });
+        }
       }
     }
   };
@@ -1172,13 +1177,17 @@ export default function RouteImport({
 
     loadAllDrivers();
     
-    // CRITICAL: Auto-open file dialog on mount
-    setTimeout(() => {
-      if (fileInputRef.current) {
-        fileInputRef.current.click();
-      }
-    }, 100);
-  }, [allUsers]);
+    // CRITICAL: Auto-open file dialog on mount ONLY ONCE
+    // Using ref to prevent multiple triggers from component re-renders
+    if (fileInputRef.current && !hasOpenedFileDialogRef.current) {
+      setTimeout(() => {
+        if (fileInputRef.current) {
+          fileInputRef.current.click();
+          hasOpenedFileDialogRef.current = true; // Mark as opened
+        }
+      }, 150); // Small delay to ensure component is fully mounted
+    }
+  }, []); // CRITICAL: Empty dependency array to run only once on mount
 
   const availableDrivers = useMemo(() => {
     const usersToUse = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
