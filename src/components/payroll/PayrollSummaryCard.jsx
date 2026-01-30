@@ -1057,6 +1057,48 @@ export default function PayrollSummaryCard({
         </Dialog>
       )}
 
+      {/* Bonus Manager Overlay Dialog */}
+      {bonusOverlayDriverId && driverEdits[bonusOverlayDriverId] && (
+        <Dialog open={true} onOpenChange={(open) => !open && setBonusOverlayDriverId(null)}>
+          <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <DialogHeader>
+              <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage Bonus Pay</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Bonus Pay for {payrollData.find(d => d.driver.id === bonusOverlayDriverId)?.driver.user_name}:</label>
+                <div className="flex gap-2">
+                  <span className="flex items-center">$</span>
+                  <input
+                    type="number"
+                    value={driverEdits[bonusOverlayDriverId]?.bonusPay || 0}
+                    onChange={(e) => setDriverEdits(prev => ({
+                      ...prev,
+                      [bonusOverlayDriverId]: { ...prev[bonusOverlayDriverId], bonusPay: parseFloat(e.target.value) || 0 }
+                    }))}
+                    placeholder="0.00"
+                    className="flex-1 px-2 py-1 text-sm border rounded"
+                    step="0.01"
+                  />
+                </div>
+                <p className="text-xs text-slate-500 mt-2">Enter the bonus amount to add to this driver's payroll for {currentPeriod?.label}.</p>
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setBonusOverlayDriverId(null)}
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Admin Confirmation Dialog - but NOT for admin-drivers viewing their own payroll */}
       <Dialog open={showConfirmDialog && isAdmin && !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
         <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
