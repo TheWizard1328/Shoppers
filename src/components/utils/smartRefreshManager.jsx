@@ -38,16 +38,15 @@ class SmartRefreshManager {
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
     // Real-time refresh intervals (milliseconds)
-    // CRITICAL: Focus on active data (today) with 15-second cycle
-    // Historical data syncs opportunistically when rate limits are low
+    // OPTIMIZED: Batch entire entity syncs to reduce API calls
     this.intervals = {
       activeRoute: 15000,            // 15s - TODAY's deliveries + driver locations (priority)
-      historicalDate: 999999999,     // Opportunistic - checked sequentially when rate limits allow
-      appUsers: 300000,              // 5min - driver status, assignments
+      appUsers: 15000,               // 15s - ENTIRE AppUser dataset in one hit (all drivers)
+      cities: 300000,                // 5min - ENTIRE Cities dataset in one hit
+      stores: 300000,                // 5min - ENTIRE Stores dataset in one hit
+      patients: 86400000,            // Once a day - ENTIRE Patient dataset + last 90 days deliveries
+      deliveries: 86400000,          // Once a day - Last 90 days of deliveries
       squareTransactions: 600000,    // 10min - Square transaction updates
-      todayPatients: 600000,         // 10min - patients on today's routes
-      patients: 900000,              // 15min - all other patients
-      stores: 1800000,               // 30min - store data (rarely changes)
       payroll: 300000                // 5min - payroll records
     };
     
