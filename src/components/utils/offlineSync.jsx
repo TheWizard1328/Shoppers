@@ -54,15 +54,25 @@ const notifySyncStatus = (status) => {
 
 /**
  * Check if entity needs syncing by comparing server's latest timestamp with client's last sync
+ * CRITICAL: Skip API call if offline DB shows recent sync (within 30 minutes) to prevent rate limits
  * @returns {Promise<{needsSync: boolean, lastClientTimestamp: string|null}>}
  */
 const checkIfEntityNeedsSync = async (entityName, Entity) => {
   try {
     const metadata = await offlineDB.getSyncMetadata(entityName);
     const lastClientTimestamp = metadata?.last_synced_timestamp || null;
+    const lastSyncTime = metadata?.last_sync_time ? new Date(metadata.last_sync_time).getTime() : 0;
+    const now = Date.now();
     
-    // Fetch ONE record sorted by updated_date descending to get server's latest timestamp
-    const latestRecords = await Entity.list('-updated_date', 1);
+    // CRITICAL: If synced recently (within 30 minutes), skip API call to prevent rate limits
+    // This avoids hammering the API with timestamp checks every minute
+    if (lastClientTimestamp && lastSyncTime && (now - lastSyncTime) < 30 * 60 * 1000) {
+      return { needsSync: false, lastClientTimestamp, skipped: true };
+    }
+    
+    // Only fetch ONE record to check timestamp (cheaper than full list)
+    // But only if we haven't synced recently
+    const latestRecords = await Entity.filter({}, '-updated_date', 1);
     if (!latestRecords || latestRecords.length === 0) {
       return { needsSync: false, lastClientTimestamp };
     }
