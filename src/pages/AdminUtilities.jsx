@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { User } from '@/entities/User';
 import { AppUser } from '@/entities/AppUser';
@@ -3397,6 +3396,7 @@ export default function AdminUtilities() {
       return;
     }
 
+    const isOfflineMode = dataViewMode.patients === 'offline';
     const count = patientsToDelete.length;
 
     let delayMs = 100;
@@ -3414,7 +3414,7 @@ export default function AdminUtilities() {
       currentLabel: "",
       currentDelay: delayMs,
       retryQueue: 0,
-      entityLabel: "Patients"
+      entityLabel: `Patients (${isOfflineMode ? 'Offline' : 'Online'})`
     });
 
     const failedDeletions = [];
@@ -3434,16 +3434,31 @@ export default function AdminUtilities() {
 
         const label = patient.full_name || patient.id;
 
-        const { deletePatientLocal } = await import('../components/utils/offlineMutations');
         try {
-          await deletePatientLocal(patient.id);
+          const { offlineDB } = await import('../components/utils/offlineDatabase');
+          
+          if (isOfflineMode) {
+            // OFFLINE MODE: Delete ONLY from offline DB
+            await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, patient.id);
+            setOfflinePatients(prev => prev.filter(p => p.id !== patient.id));
+          } else {
+            // ONLINE MODE: Delete ONLY from backend
+            await Patient.delete(patient.id);
+          }
+          
           successCount++;
         } catch (error) {
-          console.error(`Failed to delete patient ${patient.id}:`, error);
-          failCount++;
-          segmentFailures++;
-          failedDeletions.push(patient);
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          // CRITICAL: Ignore 404 errors in online mode (already deleted)
+          if (!isOfflineMode && error?.response?.status === 404) {
+            console.log(`Patient ${patient.id} already deleted (404) - counting as success`);
+            successCount++;
+          } else {
+            console.error(`Failed to delete patient ${patient.id}:`, error);
+            failCount++;
+            segmentFailures++;
+            failedDeletions.push(patient);
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
         } finally {
           processed++;
           setBulkDelete(prev => ({
@@ -3487,9 +3502,16 @@ export default function AdminUtilities() {
 
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
 
-          const { deletePatientLocal } = await import('../components/utils/offlineMutations');
           try {
-            await deletePatientLocal(p.id);
+            const { offlineDB } = await import('../components/utils/offlineDatabase');
+            
+            if (isOfflineMode) {
+              await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, p.id);
+              setOfflinePatients(prev => prev.filter(pat => pat.id !== p.id));
+            } else {
+              await Patient.delete(p.id);
+            }
+            
             setBulkDelete(prev => ({
               ...prev,
               processed: prev.processed + 1,
@@ -3500,31 +3522,46 @@ export default function AdminUtilities() {
               retryQueue: Math.max(0, prev.retryQueue - 1)
             }));
           } catch (error) {
-            console.error(`Retry failed for patient ${p.id}:`, error);
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            setBulkDelete(prev => ({
-              ...prev,
-              processed: prev.processed + 1,
-              failed: prev.failed + 1,
-              currentLabel: label,
-              currentDelay: retryDelay,
-              retryQueue: Math.max(0, prev.retryQueue - 1)
-            }));
+            // CRITICAL: Ignore 404 errors in online mode (already deleted)
+            if (!isOfflineMode && error?.response?.status === 404) {
+              console.log(`Patient ${p.id} already deleted (404) - counting as success`);
+              setBulkDelete(prev => ({
+                ...prev,
+                processed: prev.processed + 1,
+                success: prev.success + 1,
+                failed: prev.failed - 1,
+                currentLabel: label,
+                currentDelay: retryDelay,
+                retryQueue: Math.max(0, prev.retryQueue - 1)
+              }));
+            } else {
+              console.error(`Retry failed for patient ${p.id}:`, error);
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              setBulkDelete(prev => ({
+                ...prev,
+                processed: prev.processed + 1,
+                failed: prev.failed + 1,
+                currentLabel: label,
+                currentDelay: retryDelay,
+                retryQueue: Math.max(0, prev.retryQueue - 1)
+              }));
+            }
           }
         }
       }
 
       setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
-      queryClient.invalidateQueries(['patients']);
-      await refetchPatients();
       
-      console.log('🔄 [AdminUtilities] Triggering global data refresh after bulk patient delete');
-      await refreshData();
+      if (!isOfflineMode) {
+        queryClient.invalidateQueries(['patients']);
+        await refetchPatients();
+        await refreshData();
+      }
     } catch (error) {
       console.error('Error during bulk patient delete:', error);
       setBulkDelete(prev => ({ ...prev, running: false }));
     }
-  }, [queryClient, refetchPatients, refreshData]);
+  }, [dataViewMode.patients, queryClient, refetchPatients, refreshData]);
 
 
   // Optimized batch delete for duplicates - deletes in chunks with minimal delays
@@ -3623,6 +3660,7 @@ export default function AdminUtilities() {
       return;
     }
 
+    const isOfflineMode = dataViewMode.deliveries === 'offline';
     const count = deliveriesToDelete.length;
 
     let delayMs = 100;
@@ -3640,7 +3678,7 @@ export default function AdminUtilities() {
       currentLabel: "",
       currentDelay: delayMs,
       retryQueue: 0,
-      entityLabel: "Deliveries"
+      entityLabel: `Deliveries (${isOfflineMode ? 'Offline' : 'Online'})`
     });
 
     const failedDeletions = [];
@@ -3661,23 +3699,30 @@ export default function AdminUtilities() {
         const label = delivery.tracking_number || delivery.id;
 
         try {
-          // CRITICAL: Delete from backend AND offline DB
-          await Delivery.delete(delivery.id);
           const { offlineDB } = await import('../components/utils/offlineDatabase');
-          await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);
           
-          // Update offline state if viewing offline data
-          if (dataViewMode.deliveries === 'offline') {
+          if (isOfflineMode) {
+            // OFFLINE MODE: Delete ONLY from offline DB
+            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);
             setOfflineDeliveries(prev => prev.filter(d => d.id !== delivery.id));
+          } else {
+            // ONLINE MODE: Delete ONLY from backend
+            await Delivery.delete(delivery.id);
           }
           
           successCount++;
         } catch (error) {
-          console.error(`Failed to delete delivery ${delivery.id}:`, error);
-          failCount++;
-          segmentFailures++;
-          failedDeletions.push(delivery);
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          // CRITICAL: Ignore 404 errors in online mode (already deleted)
+          if (!isOfflineMode && error?.response?.status === 404) {
+            console.log(`Delivery ${delivery.id} already deleted (404) - counting as success`);
+            successCount++;
+          } else {
+            console.error(`Failed to delete delivery ${delivery.id}:`, error);
+            failCount++;
+            segmentFailures++;
+            failedDeletions.push(delivery);
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
         } finally {
           processed++;
           setBulkDelete(prev => ({
@@ -3722,14 +3767,13 @@ export default function AdminUtilities() {
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
 
           try {
-            // CRITICAL: Delete from backend AND offline DB
-            await Delivery.delete(d.id);
             const { offlineDB } = await import('../components/utils/offlineDatabase');
-            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
             
-            // Update offline state if viewing offline data
-            if (dataViewMode.deliveries === 'offline') {
+            if (isOfflineMode) {
+              await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
               setOfflineDeliveries(prev => prev.filter(del => del.id !== d.id));
+            } else {
+              await Delivery.delete(d.id);
             }
             
             setBulkDelete(prev => ({
@@ -3742,16 +3786,30 @@ export default function AdminUtilities() {
               retryQueue: Math.max(0, prev.retryQueue - 1)
             }));
           } catch (error) {
-            console.error(`Retry failed for delivery ${d.id}:`, error);
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            setBulkDelete(prev => ({
-              ...prev,
-              processed: prev.processed + 1,
-              failed: prev.failed + 1,
-              currentLabel: label,
-              currentDelay: retryDelay,
-              retryQueue: Math.max(0, prev.retryQueue - 1)
-            }));
+            // CRITICAL: Ignore 404 errors in online mode (already deleted)
+            if (!isOfflineMode && error?.response?.status === 404) {
+              console.log(`Delivery ${d.id} already deleted (404) - counting as success`);
+              setBulkDelete(prev => ({
+                ...prev,
+                processed: prev.processed + 1,
+                success: prev.success + 1,
+                failed: prev.failed - 1,
+                currentLabel: label,
+                currentDelay: retryDelay,
+                retryQueue: Math.max(0, prev.retryQueue - 1)
+              }));
+            } else {
+              console.error(`Retry failed for delivery ${d.id}:`, error);
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              setBulkDelete(prev => ({
+                ...prev,
+                processed: prev.processed + 1,
+                failed: prev.failed + 1,
+                currentLabel: label,
+                currentDelay: retryDelay,
+                retryQueue: Math.max(0, prev.retryQueue - 1)
+              }));
+            }
           }
         }
       }
@@ -3759,23 +3817,21 @@ export default function AdminUtilities() {
       setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
       
       // Reload offline data if in offline mode
-      if (dataViewMode.deliveries === 'offline') {
+      if (isOfflineMode) {
         const { offlineDB } = await import('../components/utils/offlineDatabase');
         const data = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
         setOfflineDeliveries(data || []);
         console.log(`📦 Reloaded ${data?.length || 0} offline deliveries after delete`);
+      } else {
+        queryClient.invalidateQueries(['deliveries']);
+        await refetchDeliveries();
+        await refreshData();
       }
-      
-      queryClient.invalidateQueries(['deliveries']);
-      await refetchDeliveries();
-      
-      console.log('🔄 [AdminUtilities] Triggering global data refresh after bulk delivery delete');
-      await refreshData();
     } catch (error) {
       console.error('Error during bulk delivery delete:', error);
       setBulkDelete(prev => ({ ...prev, running: false }));
     }
-  }, [queryClient, refetchDeliveries, refreshData]);
+  }, [dataViewMode.deliveries, queryClient, refetchDeliveries, refreshData]);
 
   const _confirmDeleteAllDeliveries = useCallback(() => {
     const count = filteredAndSortedDeliveries.length;
@@ -4108,78 +4164,85 @@ export default function AdminUtilities() {
         return;
     }
 
+    const isOfflineMode = dataViewMode[entityType] === 'offline';
+
     setConfirmDialog({
       open: true,
       title: `Delete ${entityName}?`,
-      description: `⚠️ Are you sure you want to delete "${entityName}"? This action cannot be undone.`,
+      description: `⚠️ Are you sure you want to delete "${entityName}" from ${isOfflineMode ? 'OFFLINE DATABASE ONLY' : 'BACKEND (online)'}? This action cannot be undone.`,
       confirmText: 'Delete',
       variant: 'destructive',
       onConfirm: async () => {
         try {
-          console.log(`Deleting ${entityType}:`, entity.id);
+          console.log(`Deleting ${entityType} (${isOfflineMode ? 'offline' : 'online'}):`, entity.id);
           const { offlineDB } = await import('../components/utils/offlineDatabase');
           
-          // Delete from backend AND offline DB
-          if (entityType === 'patients') {
-            await Patient.delete(entity.id);
-            await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, entity.id);
-            if (dataViewMode.patients === 'offline') {
+          if (isOfflineMode) {
+            // OFFLINE MODE: Delete ONLY from offline DB
+            if (entityType === 'patients') {
+              await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, entity.id);
               setOfflinePatients(prev => prev.filter(p => p.id !== entity.id));
-            }
-          } else if (entityType === 'deliveries') {
-            await Delivery.delete(entity.id);
-            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id);
-            if (dataViewMode.deliveries === 'offline') {
+            } else if (entityType === 'deliveries') {
+              await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id);
               setOfflineDeliveries(prev => prev.filter(d => d.id !== entity.id));
-            }
-          } else if (entityType === 'stores') {
-            await Store.delete(entity.id);
-            await offlineDB.deleteRecord(offlineDB.STORES.STORES, entity.id);
-            if (dataViewMode.stores === 'offline') {
+            } else if (entityType === 'stores') {
+              await offlineDB.deleteRecord(offlineDB.STORES.STORES, entity.id);
               setOfflineStores(prev => prev.filter(s => s.id !== entity.id));
-            }
-          } else if (entityType === 'users') {
-            await AppUser.delete(entity.id);
-            await offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, entity.id);
-            if (dataViewMode.users === 'offline') {
+            } else if (entityType === 'users') {
+              await offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, entity.id);
               setOfflineAppUsers(prev => prev.filter(u => u.id !== entity.id));
-            }
-          } else if (entityType === 'cities') {
-            await City.delete(entity.id);
-            await offlineDB.deleteRecord(offlineDB.STORES.CITIES, entity.id);
-            if (dataViewMode.cities === 'offline') {
+            } else if (entityType === 'cities') {
+              await offlineDB.deleteRecord(offlineDB.STORES.CITIES, entity.id);
               setOfflineCities(prev => prev.filter(c => c.id !== entity.id));
             }
+            console.log(`✅ Deleted ${entityName} from offline DB`);
+          } else {
+            // ONLINE MODE: Delete ONLY from backend
+            if (entityType === 'patients') {
+              await Patient.delete(entity.id);
+            } else if (entityType === 'deliveries') {
+              await Delivery.delete(entity.id);
+            } else if (entityType === 'stores') {
+              await Store.delete(entity.id);
+            } else if (entityType === 'users') {
+              await AppUser.delete(entity.id);
+            } else if (entityType === 'cities') {
+              await City.delete(entity.id);
+            }
+            console.log(`✅ Deleted ${entityName} from backend`);
+            
+            // Refetch online data
+            await invalidate(EntityClass.name);
+            switch (entityType) {
+              case 'patients':
+                await refetchPatients();
+                break;
+              case 'deliveries':
+                await refetchDeliveries();
+                break;
+              case 'stores':
+                await refetchStores();
+                break;
+              case 'users':
+                await refetchAppUsers();
+                break;
+              case 'cities':
+                await refetchCities();
+                break;
+            }
+            await refreshData();
           }
-          
-          console.log(`✅ Successfully deleted ${entityName}`);
 
-          await invalidate(EntityClass.name);
-
-          switch (entityType) {
-            case 'patients':
-              await refetchPatients();
-              break;
-            case 'deliveries':
-              await refetchDeliveries();
-              break;
-            case 'stores':
-              await refetchStores();
-              break;
-            case 'users':
-              await refetchAppUsers();
-              break;
-            case 'cities':
-              await refetchCities();
-              break;
-          }
-
-          console.log('🔄 [AdminUtilities] Triggering global data refresh after entity delete');
-          await refreshData();
-
-          alert(`✅ Successfully deleted "${entityName}"`);
+          alert(`✅ Successfully deleted "${entityName}" from ${isOfflineMode ? 'offline DB' : 'backend'}`);
         } catch (error) {
           console.error(`❌ Failed to delete ${entityName}:`, error);
+          
+          // CRITICAL: Ignore 404 errors for offline mode (record already gone)
+          if (isOfflineMode || error?.response?.status === 404) {
+            alert(`✅ Successfully deleted "${entityName}"`);
+            return;
+          }
+          
           alert(`❌ Failed to delete "${entityName}": ${error.message}`);
         }
       }
