@@ -170,6 +170,7 @@ export default function RouteImport({
 
   const [previewFilterDriver, setPreviewFilterDriver] = useState('all');
   const [previewFilterDate, setPreviewFilterDate] = useState('all');
+  const [purgeBeforeImport, setPurgeBeforeImport] = useState(true); // Default to true for safety
   const [importError, setImportError] = useState(null); // { message, record, lineNumber }
 
   const [importProgress, setImportProgress] = useState({
@@ -611,6 +612,14 @@ export default function RouteImport({
         if (existingCod !== importedCod) {
           const displayExisting = normalizedExisting === null ? 'none' : normalizedExisting.toString();
           const displayImported = normalizedImported === null ? 'none' : normalizedImported.toString();
+          changes.push(`${field.label}: ${displayExisting} → ${displayImported}`);
+        }
+      } else if (field.key === 'paid_km_override') {
+        const existingKm = normalizedExisting ?? 0;
+        const importedKm = normalizedImported ?? 0;
+        if (existingKm !== importedKm) {
+          const displayExisting = normalizedExisting === null ? 'none' : normalizedExisting.toFixed(2);
+          const displayImported = normalizedImported === null ? 'none' : normalizedImported.toFixed(2);
           changes.push(`${field.label}: ${displayExisting} → ${displayImported}`);
         }
       } else if (normalizedExisting !== normalizedImported) {
@@ -1495,8 +1504,10 @@ export default function RouteImport({
         const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
         const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
 
-        // CRITICAL: PRE-IMPORT DELETION - Delete all existing deliveries for affected drivers and dates
-        setProgressMessage('Purging existing deliveries for affected drivers and dates...');
+        // CRITICAL: PRE-IMPORT DELETION - Delete all existing deliveries for affected drivers and dates (if enabled)
+        if (purgeBeforeImport) {
+          setProgressMessage('Purging existing deliveries for affected drivers and dates...');
+        }
         const affectedDriversAndDates = new Set();
         
         // Collect all unique driver/date combinations being imported
@@ -1512,34 +1523,38 @@ export default function RouteImport({
           return { driverId, date };
         });
 
-        console.log(`🗑️ [RouteImport] Deleting existing deliveries for ${driverDatePairs.length} driver/date combinations`);
+        if (purgeBeforeImport) {
+          console.log(`🗑️ [RouteImport] Deleting existing deliveries for ${driverDatePairs.length} driver/date combinations`);
 
-        // Delete from online database
-        for (const { driverId, date } of driverDatePairs) {
-          try {
-            const existingDeliveries = await base44.entities.Delivery.filter({
-              driver_id: driverId,
-              delivery_date: date
-            });
-            
-            if (existingDeliveries && existingDeliveries.length > 0) {
-              const idsToDelete = existingDeliveries.map(d => d.id);
-              await base44.entities.Delivery.bulkDelete(idsToDelete);
-              console.log(`✅ [RouteImport] Deleted ${idsToDelete.length} online deliveries for ${driverId} on ${date}`);
+          // Delete from online database
+          for (const { driverId, date } of driverDatePairs) {
+            try {
+              const existingDeliveries = await base44.entities.Delivery.filter({
+                driver_id: driverId,
+                delivery_date: date
+              });
+              
+              if (existingDeliveries && existingDeliveries.length > 0) {
+                const idsToDelete = existingDeliveries.map(d => d.id);
+                await base44.entities.Delivery.bulkDelete(idsToDelete);
+                console.log(`✅ [RouteImport] Deleted ${idsToDelete.length} online deliveries for ${driverId} on ${date}`);
+              }
+            } catch (deleteError) {
+              console.warn(`⚠️ [RouteImport] Failed to delete online deliveries for ${driverId}/${date}:`, deleteError.message);
             }
-          } catch (deleteError) {
-            console.warn(`⚠️ [RouteImport] Failed to delete online deliveries for ${driverId}/${date}:`, deleteError.message);
           }
-        }
 
-        // Delete from offline database
-        const datesToPurge = [...new Set(driverDatePairs.map(p => p.date))];
-        for (const date of datesToPurge) {
-          try {
-            await offlineDB.deleteDeliveriesByDate(date);
-          } catch (offlineDeleteError) {
-            console.warn(`⚠️ [RouteImport] Failed to delete offline deliveries for ${date}:`, offlineDeleteError.message);
+          // Delete from offline database
+          const datesToPurge = [...new Set(driverDatePairs.map(p => p.date))];
+          for (const date of datesToPurge) {
+            try {
+              await offlineDB.deleteDeliveriesByDate(date);
+            } catch (offlineDeleteError) {
+              console.warn(`⚠️ [RouteImport] Failed to delete offline deliveries for ${date}:`, offlineDeleteError.message);
+            }
           }
+        } else {
+          console.log('⏭️ [RouteImport] Purge disabled - skipping deletion, will update matching deliveries');
         }
 
         setProgressPercent(15);
@@ -2079,7 +2094,7 @@ export default function RouteImport({
             Import Route Data
           </DialogTitle>
           <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
-            Upload CSV files to import delivery routes for a selected driver.
+            Upload CSV files to import delivery routes for a selected driver. Use "Purge Duplicates" to remove existing deliveries before import.
           </DialogDescription>
         </DialogHeader>
 
@@ -2245,7 +2260,7 @@ export default function RouteImport({
                   </span>
                   <h3 className="text-base md:text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Preview: {filteredPreviewDeliveries.length} Deliveries</h3>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0 w-full md:w-auto">
+                <div className="flex items-center gap-3 flex-shrink-0 w-full md:w-auto">
                   <Select value={previewFilterDate} onValueChange={setPreviewFilterDate}>
                     <SelectTrigger className="w-full md:w-40 text-xs md:text-sm">
                       <SelectValue placeholder="Filter date" />
@@ -2257,6 +2272,19 @@ export default function RouteImport({
                       )}
                     </SelectContent>
                   </Select>
+                  
+                  <div className="flex items-center gap-2 border rounded-lg px-3 py-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+                    <input
+                      type="checkbox"
+                      id="purge-checkbox"
+                      checked={purgeBeforeImport}
+                      onChange={(e) => setPurgeBeforeImport(e.target.checked)}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                    <Label htmlFor="purge-checkbox" className="text-xs md:text-sm cursor-pointer" style={{ color: 'var(--text-slate-700)' }}>
+                      Purge Duplicates
+                    </Label>
+                  </div>
                 </div>
               </div>
 
