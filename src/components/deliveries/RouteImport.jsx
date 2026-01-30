@@ -1585,42 +1585,42 @@ export default function RouteImport({
 
           // Delete from ONLINE database FIRST
           for (const { driverId, date } of driverDatePairs) {
-          try {
-            const existingDeliveries = await base44.entities.Delivery.filter({
-              driver_id: driverId,
-              delivery_date: date
-            });
-            
-            if (existingDeliveries && existingDeliveries.length > 0) {
-              for (const delivery of existingDeliveries) {
-                await base44.entities.Delivery.delete(delivery.id);
+            try {
+              const existingDeliveries = await base44.entities.Delivery.filter({
+                driver_id: driverId,
+                delivery_date: date
+              });
+              
+              if (existingDeliveries && existingDeliveries.length > 0) {
+                for (const delivery of existingDeliveries) {
+                  await base44.entities.Delivery.delete(delivery.id);
+                }
+                console.log(`✅ [RouteImport] Deleted ${existingDeliveries.length} ONLINE deliveries for ${driverId} on ${date}`);
               }
-              console.log(`✅ [RouteImport] Deleted ${existingDeliveries.length} ONLINE deliveries for ${driverId} on ${date}`);
+            } catch (deleteError) {
+              console.error(`❌ [RouteImport] Failed to delete online deliveries for ${driverId}/${date}:`, deleteError.message);
+              throw deleteError; // CRITICAL: Fail import if purge fails
             }
-          } catch (deleteError) {
-            console.error(`❌ [RouteImport] Failed to delete online deliveries for ${driverId}/${date}:`, deleteError.message);
-            throw deleteError; // CRITICAL: Fail import if purge fails
           }
-        }
 
-        // STEP 2: Delete from OFFLINE database
-        for (const { driverId, date } of driverDatePairs) {
-          try {
-            // Delete all deliveries for this driver+date from offline DB
-            const allOfflineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date);
-            const driverOfflineDeliveries = allOfflineDeliveries.filter(d => d.driver_id === driverId);
-            
-            if (driverOfflineDeliveries.length > 0) {
-              for (const d of driverOfflineDeliveries) {
-                await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
+          // STEP 2: Delete from OFFLINE database
+          for (const { driverId, date } of driverDatePairs) {
+            try {
+              // Delete all deliveries for this driver+date from offline DB
+              const allOfflineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date);
+              const driverOfflineDeliveries = allOfflineDeliveries.filter(d => d.driver_id === driverId);
+              
+              if (driverOfflineDeliveries.length > 0) {
+                for (const d of driverOfflineDeliveries) {
+                  await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
+                }
+                console.log(`✅ [RouteImport] Deleted ${driverOfflineDeliveries.length} OFFLINE deliveries for ${driverId} on ${date}`);
               }
-              console.log(`✅ [RouteImport] Deleted ${driverOfflineDeliveries.length} OFFLINE deliveries for ${driverId} on ${date}`);
+            } catch (offlineDeleteError) {
+              console.error(`❌ [RouteImport] Failed to delete offline deliveries for ${driverId}/${date}:`, offlineDeleteError.message);
+              // Continue - offline DB errors shouldn't block import
             }
-          } catch (offlineDeleteError) {
-            console.error(`❌ [RouteImport] Failed to delete offline deliveries for ${driverId}/${date}:`, offlineDeleteError.message);
-            // Continue - offline DB errors shouldn't block import
           }
-        }
 
           console.log('✅ [RouteImport] Purge complete - all driver/date combinations cleared from both databases');
         } else {
