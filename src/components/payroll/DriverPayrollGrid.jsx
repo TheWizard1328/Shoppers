@@ -113,12 +113,11 @@ export default function DriverPayrollGrid({
 
   // Track smart refresh activity - pulse animation when actively refreshing
   useEffect(() => {
+    // Only show spinner if we're on this page (DriverPayroll)
     if (smartRefreshActivity?.active) {
       setIsRefreshing(true);
     } else {
-      // Keep spinner visible briefly after refresh completes
-      const timer = setTimeout(() => setIsRefreshing(false), 500);
-      return () => clearTimeout(timer);
+      setIsRefreshing(false);
     }
   }, [smartRefreshActivity?.active]);
 
@@ -341,7 +340,7 @@ export default function DriverPayrollGrid({
                 <Table className="w-5 h-5" />
                 {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
                 <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
-                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                  <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
                 </button>
               </CardTitle>
               {/* View Mode Toggle */}
@@ -371,7 +370,7 @@ export default function DriverPayrollGrid({
                   <Table className="w-5 h-5" />
                   {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
                   <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
-                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                    <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
                   </button>
                 </CardTitle>
                 <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
@@ -401,7 +400,7 @@ export default function DriverPayrollGrid({
                   <Table className="w-5 h-5" />
                   {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
                   <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
-                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                    <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
                   </button>
                 </CardTitle>
                 <div className="flex gap-1 flex-shrink-0">
@@ -431,7 +430,7 @@ export default function DriverPayrollGrid({
                   <Table className="w-5 h-5" />
                   {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
                   <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
-                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                    <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
                   </button>
                 </CardTitle>
               </div>
@@ -461,7 +460,7 @@ export default function DriverPayrollGrid({
                   <Table className="w-5 h-5" />
                   {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
                   <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
-                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                    <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
                   </button>
                 </CardTitle>
               </div>
