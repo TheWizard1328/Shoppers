@@ -3354,17 +3354,7 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                       }
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                        onClick={() => {
-                          setShowInviteQRModal(true);
-                          setSidebarOpen(false);
-                        }}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
-                        title="Generate Invite QR Code">
-
-                                <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
-                              </button>
+                        <div className="flex flex-col items-center gap-2">
                           <button
                         onClick={() => {
                           setShowMessaging(true);
@@ -3380,6 +3370,16 @@ export default function Layout({ children, currentPageName }) {
                                         {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                                       </span>
                         }
+                              </button>
+                          <button
+                        onClick={() => {
+                          setShowInviteQRModal(true);
+                          setSidebarOpen(false);
+                        }}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
+                        title="Generate Invite QR Code">
+
+                                <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
                               </button>
                         </div>
                       </div>
