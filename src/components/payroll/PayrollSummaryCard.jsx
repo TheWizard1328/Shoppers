@@ -53,8 +53,7 @@ export default function PayrollSummaryCard({
   onFinalizePayroll,
   onPayrollRecordsChange,
   payrollRecords: externalPayrollRecords,
-  refreshPayrollRecords,
-  returnDeliveriesByDriver
+  refreshPayrollRecords
 }) {
   const { currentUser } = useUser();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -315,9 +314,6 @@ export default function PayrollSummaryCard({
       // Count failed and returns (cancelled with after_hours_pickup excluded from returns)
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
       const returnsCount = periodDeliveries.filter((d) => d.status === 'cancelled' && !d.after_hours_pickup).length;
-      
-      // Get store return deliveries count from backend data
-      const storeReturnsCount = returnDeliveriesByDriver?.[driverId] || 0;
 
       const totalPay = basePay + extraKmPay + oversizedPay;
 
@@ -378,7 +374,6 @@ export default function PayrollSummaryCard({
         totalOversizedPay: oversizedPay,
         failedCount: failedCount,
         returnsCount: returnsCount,
-        storeReturnsCount: storeReturnsCount,
         grandTotal: totalPay,
         // New fields
         gstHstEnabled,
@@ -998,7 +993,6 @@ export default function PayrollSummaryCard({
                 onConfirmClick={() => handleDriverFinalize(data)}
                 isFinalizing={isFinalizing}
                 formatCurrency={formatCurrency}
-                storeReturnsCount={data.storeReturnsCount || 0}
               />
             );
           }
@@ -1066,14 +1060,6 @@ export default function PayrollSummaryCard({
                   <div className="flex items-center">
                     <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
                     <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.returnsCount}</span>
-                  </div>
-                  {/* Row 3: Total Returns (cancelled + store returns) */}
-                  <div></div>
-                  <div></div>
-                  <div></div>
-                  <div className="flex items-center">
-                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Total Rtns:</span>
-                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[11px]">{data.returnsCount + (data.storeReturnsCount || 0)}</span>
                   </div>
                 </div>
 
