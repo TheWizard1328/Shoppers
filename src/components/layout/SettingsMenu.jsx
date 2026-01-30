@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { isMobileDevice } from '../utils/deviceUtils';
+import { isMobileDevice, isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { globalFilters } from '../utils/globalFilters';
 import { clearUserCache } from '../utils/auth';
 import { clearSettingsCache } from '../utils/userSettingsManager';
@@ -29,6 +29,7 @@ export default function SettingsMenu({
   onDataSourceChange
 }) {
   const isMobileDeviceForUI = isMobile !== undefined ? isMobile : isMobileDevice();
+  const isMobileForTheme = isMobileDeviceForTheme();
   
   return (
     <DropdownMenuContent 
@@ -86,8 +87,8 @@ export default function SettingsMenu({
         Display
       </DropdownMenuLabel>
       
-      {/* Theme Toggle - Mobile Devices Only */}
-      {isMobileDeviceForUI && (
+      {/* Theme Toggle - Mobile Devices Only (based on user agent, not screen width) */}
+      {isMobileForTheme && (
         <div className="px-2 py-2">
           <label 
             className="font-medium mb-1.5 block" 
