@@ -1129,12 +1129,64 @@ export default function PayrollSummaryCard({
                          <td className="text-right pt-1">$</td>
                          <td className="text-right pt-1">{(data.grossPayWithBonus || data.grossPay || 0).toFixed(2)}</td>
                        </tr>
-                     </tbody>
-                   </table>
-                 </div>
-              </div>
-            </div>
-          );
+                       </tbody>
+                       </table>
+
+                       {/* Deduction Manager */}
+                       {isAdmin && (
+                       <div className="mt-3 pt-2 border-t border-slate-200">
+                       <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-slate-600)' }}>Deductions</div>
+                       {localDeductions.map((ded, idx) => (
+                         <div key={idx} className="flex items-center justify-between text-[10px] mb-1">
+                           <span>{ded.name}:</span>
+                           <div className="flex items-center gap-1">
+                             <span>-${ded.amount.toFixed(2)}</span>
+                             <button onClick={() => setLocalDeductions(localDeductions.filter((_, i) => i !== idx))} className="p-0.5 hover:bg-red-100 rounded">
+                               <X className="w-3 h-3 text-red-600" />
+                             </button>
+                           </div>
+                         </div>
+                       ))}
+                       {showDeductionManager && (
+                         <div className="flex gap-1 mt-1">
+                           <input type="text" placeholder="Name" value={newDeductionName} onChange={(e) => setNewDeductionName(e.target.value)} className="flex-1 px-1 py-0.5 text-[10px] border rounded" />
+                           <input type="number" placeholder="Amt" value={newDeductionAmount} onChange={(e) => setNewDeductionAmount(e.target.value)} className="w-12 px-1 py-0.5 text-[10px] border rounded" />
+                           <button onClick={() => { if (newDeductionName && newDeductionAmount) { setLocalDeductions([...localDeductions, { name: newDeductionName, amount: parseFloat(newDeductionAmount) }]); setNewDeductionName(''); setNewDeductionAmount(''); } }} className="px-1 py-0.5 bg-emerald-600 text-white rounded text-[10px]">+</button>
+                         </div>
+                       )}
+                       <button onClick={() => setShowDeductionManager(!showDeductionManager)} className="text-[10px] text-blue-600 mt-1">
+                         {showDeductionManager ? 'Done' : 'Manage'}
+                       </button>
+                       </div>
+                       )}
+
+                       {/* Bonus Pay */}
+                       {isAdmin && (
+                       <div className="mt-2 text-[10px]">
+                       <label className="block text-slate-600 mb-0.5">Bonus Pay:</label>
+                       <div className="flex items-center gap-1">
+                         <span>$</span>
+                         <input type="number" value={localBonusPay} onChange={(e) => setLocalBonusPay(parseFloat(e.target.value) || 0)} className="flex-1 px-1 py-0.5 text-[10px] border rounded" step="0.01" />
+                       </div>
+                       </div>
+                       )}
+
+                       {/* App Fee % - Only AppOwner and Driver */}
+                       {(isAppOwner(currentUser) || (isDriver && selectedDriverId === data.driver.id)) && appFeePercent > 0 && (
+                       <div className="mt-2 text-[10px]">
+                       <div className="text-slate-600">App Fee %: {appFeePercent}%</div>
+                       </div>
+                       )}
+                       {isAppOwner(currentUser) && (
+                       <div className="mt-2 text-[10px]">
+                       <label className="block text-slate-600 mb-0.5">App Fee %:</label>
+                       <input type="number" value={appFeePercent} onChange={(e) => setAppFeePercent(parseFloat(e.target.value) || 0)} className="w-full px-1 py-0.5 text-[10px] border rounded" step="0.1" min="0" max="100" />
+                       </div>
+                       )}
+                       </div>
+                       </div>
+                       </div>
+                       );
         })}
           
           {/* Grand Total for All Drivers */}
