@@ -121,33 +121,60 @@ export default function PayrollSummaryCard({
 
 
 
+  // Handle bonus pay save and close
+   const handleBonusClose = async () => {
+     const driverId = bonusOverlayDriverId;
+     if (!driverId) return;
+
+     try {
+       const edit = driverEdits[driverId];
+       const existingRecord = getDriverPayrollRecord(driverId);
+
+       if (existingRecord && (edit.bonusPay !== undefined || edit.appFeePercent !== undefined)) {
+         // Update existing record with bonus pay and app fee %
+         await base44.entities.Payroll.update(existingRecord.id, {
+           bonus_pay: edit.bonusPay || 0,
+           app_fee_percentage: edit.appFeePercent || 0
+         });
+         console.log('✅ [Payroll] Updated bonus pay and app fee % for:', driverId);
+       }
+     } catch (error) {
+       console.error('❌ [Payroll] Failed to save bonus pay:', error);
+     } finally {
+       setBonusOverlayDriverId(null);
+     }
+   };
+
   // Handle driver finalization
-  const handleDriverFinalize = async (driverData) => {
-    setIsFinalizing(true);
-    try {
-      const existingRecord = getDriverPayrollRecord(driverData.driver.id);
-      
-      const payrollRecord = {
-        driver_id: driverData.driver.id,
-        city_id: selectedCityId || null,
-        pay_period_start: periodStartStr,
-        pay_period_end: periodEndStr,
-        pay_period_type: payPeriod,
-        total_deliveries: driverData.totalDeliveries,
-        total_extra_km: driverData.totalExtraKm,
-        total_oversized_deliveries: driverData.oversizedCount,
-        gross_pay: driverData.grossPay,
-        net_pay: driverData.grandTotal,
-        total_deductions: driverData.deductions,
-        deductions: driverData.deductionsArray,
-        pay_rate_per_delivery: driverData.payRate,
-        extra_km_rate: driverData.extraKmRate,
-        extra_km_limit: driverData.extraKmLimit,
-        oversized_item_rate: driverData.oversizedRate,
-        gst_hst_enabled: driverData.gstHstEnabled,
-        status: 'driver_finalized',
-        driver_finalized_at: new Date().toISOString()
-      };
+   const handleDriverFinalize = async (driverData) => {
+     setIsFinalizing(true);
+     try {
+       const existingRecord = getDriverPayrollRecord(driverData.driver.id);
+       const edit = driverEdits[driverData.driver.id] || {};
+
+       const payrollRecord = {
+         driver_id: driverData.driver.id,
+         city_id: selectedCityId || null,
+         pay_period_start: periodStartStr,
+         pay_period_end: periodEndStr,
+         pay_period_type: payPeriod,
+         total_deliveries: driverData.totalDeliveries,
+         total_extra_km: driverData.totalExtraKm,
+         total_oversized_deliveries: driverData.oversizedCount,
+         gross_pay: driverData.grossPay,
+         net_pay: driverData.grandTotal,
+         total_deductions: driverData.deductions,
+         deductions: driverData.deductionsArray,
+         bonus_pay: edit.bonusPay || 0,
+         app_fee_percentage: edit.appFeePercent || 0,
+         pay_rate_per_delivery: driverData.payRate,
+         extra_km_rate: driverData.extraKmRate,
+         extra_km_limit: driverData.extraKmLimit,
+         oversized_item_rate: driverData.oversizedRate,
+         gst_hst_enabled: driverData.gstHstEnabled,
+         status: 'driver_finalized',
+         driver_finalized_at: new Date().toISOString()
+       };
 
       let savedRecord;
       if (existingRecord) {
