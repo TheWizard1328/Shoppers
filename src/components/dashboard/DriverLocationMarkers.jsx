@@ -317,13 +317,28 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           >
             <Popup>
               <div className="text-sm">
-                <p className="font-semibold">{firstName}</p>
-                <p className="text-xs text-slate-600">
+                <p className="font-semibold">{displayName}</p>
+                {user.phone && (
+                  <p className="text-xs mt-1">
+                    <a href={`tel:${user.phone}`} className="text-blue-600 hover:text-blue-700 underline">
+                      {user.phone}
+                    </a>
+                  </p>
+                )}
+                <p className="text-xs text-slate-600 mt-1">
                   Updated: {getLocationAge(user.location_updated_at)}
                 </p>
-                <p className="text-xs text-emerald-600 font-medium mt-1">
-                  📍 Location Shared
-                </p>
+                <button
+                  onClick={() => {
+                    // Center map on driver location
+                    const mapEvent = new CustomEvent('centerOnDriver', { detail: { lat: user.current_latitude, lng: user.current_longitude } });
+                    window.dispatchEvent(mapEvent);
+                  }}
+                  className="w-full mt-2 px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded flex items-center justify-center gap-1"
+                  title="Navigate to driver location"
+                >
+                  📍 Go to Location
+                </button>
               </div>
             </Popup>
           </Marker>
