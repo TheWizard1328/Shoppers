@@ -33,13 +33,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     
     const validDrivers = (users || []).filter(user => {
       if (!user) return false;
-      
-      // CRITICAL: Skip current user's shared marker on mobile (blue dot shows instead)
-      const driverId = user.id || user.user_id;
-      if (isMobile && driverId === currentUser?.id) {
-        console.log('🚫 [DriverLocationMarkers] Blocking by driverId match', { driverId, currentUserId: currentUser?.id });
-        return false;
-      }
 
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) {
@@ -50,8 +43,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return false;
       }
       
-      // CRITICAL: ALWAYS block self marker on mobile - blue GPS dot shows instead
-      // Check both _isSelf flag and direct ID comparison for redundancy
+      // CRITICAL: Only block self marker on mobile if live GPS tracking is active
+      // If tracking is off or driver is off-duty, show the shared marker
       const currentUserId = currentUser?.id;
       const currentUserUserId = currentUser?.user_id;
       const userId = user.id || user.user_id;
@@ -61,13 +54,26 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                      user.user_id === currentUserId;
       
       if (isMobile && isSelf) {
-        console.log('🚫 [DriverLocationMarkers] Blocking self shared marker (mobile device)', {
-          userId,
-          currentUserId,
-          userName: user.user_name || user.full_name,
-          _isSelf: user._isSelf
-        });
-        return false;
+        // Check if live GPS tracking is active (blue dot showing)
+        const isLiveTrackingActive = currentUser?.driver_status === 'on_duty' && 
+                                     currentUser?.location_tracking_enabled === true;
+        
+        if (isLiveTrackingActive) {
+          console.log('🚫 [DriverLocationMarkers] Blocking self shared marker - live GPS active', {
+            userId,
+            currentUserId,
+            userName: user.user_name || user.full_name,
+            driver_status: currentUser?.driver_status,
+            location_tracking_enabled: currentUser?.location_tracking_enabled
+          });
+          return false;
+        } else {
+          console.log('✅ [DriverLocationMarkers] Showing self shared marker - live GPS inactive', {
+            userId,
+            driver_status: currentUser?.driver_status,
+            location_tracking_enabled: currentUser?.location_tracking_enabled
+          });
+        }
       }
       
       console.log('✅ [DriverLocationMarkers] Including driver', {
@@ -160,10 +166,13 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         status: user.status 
       });
       
-      // CRITICAL: ALWAYS block current user's shared location marker on mobile (blue dot shows instead)
+      // CRITICAL: Only block current user's shared marker if live GPS tracking is active
       const isCurrentUserOnMobile = isMobile && currentUser && userId === currentUser.id;
+      const isLiveTrackingActive = currentUser?.driver_status === 'on_duty' && 
+                                   currentUser?.location_tracking_enabled === true;
+      const shouldBlockSelfMarker = isCurrentUserOnMobile && isLiveTrackingActive;
       
-      if (user.location_tracking_enabled === true && user.status !== 'inactive' && canView && !isCurrentUserOnMobile) {
+      if (user.location_tracking_enabled === true && user.status !== 'inactive' && canView && !shouldBlockSelfMarker) {
         console.log('✅ [DriverLocationMarkers] Adding/updating visible driver:', user.user_name || user.full_name);
         setVisibleDrivers(prev => {
           const exists = prev.find(d => d && d.id === userId);
