@@ -1591,9 +1591,10 @@ export default function RouteImport({
             });
             
             if (existingDeliveries && existingDeliveries.length > 0) {
-              const idsToDelete = existingDeliveries.map(d => d.id);
-              await base44.entities.Delivery.bulkDelete(idsToDelete);
-              console.log(`✅ [RouteImport] Deleted ${idsToDelete.length} ONLINE deliveries for ${driverId} on ${date}`);
+              for (const delivery of existingDeliveries) {
+                await base44.entities.Delivery.delete(delivery.id);
+              }
+              console.log(`✅ [RouteImport] Deleted ${existingDeliveries.length} ONLINE deliveries for ${driverId} on ${date}`);
             }
           } catch (deleteError) {
             console.error(`❌ [RouteImport] Failed to delete online deliveries for ${driverId}/${date}:`, deleteError.message);
