@@ -1494,31 +1494,33 @@ export default function PayrollSummaryCard({
                        </tr>
                        </tbody>
                        </table>
+                       </div>
+
                        {/* App Fee % - Single line below Gross (AppOwner only) */}
                        {isAppOwner(currentUser) && (
-                         <div className="flex items-center gap-2 mt-2">
-                           <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>App Fee %:</span>
-                           <input 
-                             type="number" 
-                             value={edit.appFeePercent} 
-                             onChange={(e) => {
-                               const newValue = parseFloat(e.target.value) || 0;
-                               updateEdit({ appFeePercent: newValue });
-                             }} 
-                             className="w-16 px-2 py-1 text-xs border rounded" 
-                             style={{ borderColor: 'var(--border-slate-300)' }}
-                             step="0.1" 
-                             min="0" 
-                             max="100" 
-                           />
-                           <Button 
-                             size="sm"
-                             className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-xs"
-                             onClick={() => savePayrollChanges(driverKey, { app_fee_percentage: edit.appFeePercent })}
-                           >
-                             Save
-                           </Button>
-                         </div>
+                       <div className="flex items-center gap-2 mt-2">
+                         <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>App Fee %:</span>
+                         <input 
+                           type="number" 
+                           value={edit.appFeePercent} 
+                           onChange={(e) => {
+                             const newValue = parseFloat(e.target.value) || 0;
+                             updateEdit({ appFeePercent: newValue });
+                           }} 
+                           className="w-16 px-2 py-1 text-xs border rounded" 
+                           style={{ borderColor: 'var(--border-slate-300)' }}
+                           step="0.1" 
+                           min="0" 
+                           max="100" 
+                         />
+                         <Button 
+                           size="sm"
+                           className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-xs"
+                           onClick={() => savePayrollChanges(driverKey, { app_fee_percentage: edit.appFeePercent })}
+                         >
+                           Save
+                         </Button>
+                       </div>
                        )}
                        </div>
                                                );
