@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { base44 } from '@/api/base44Client';
 import { useUser } from '../utils/UserContext';
-import { userHasRole } from '../utils/userRoles';
+import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import PayrollMobileCard from './PayrollMobileCard';
 
