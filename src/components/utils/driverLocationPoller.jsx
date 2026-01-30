@@ -113,7 +113,7 @@ class DriverLocationPoller {
       
       if (!selfInList) {
         // Add current user to the list so they can see their own marker (DESKTOP ONLY)
-        console.log('📍 [DriverLocationPoller] Adding current user to list for self-marker (desktop, off_duty)');
+        console.log('📍 [DriverLocationPoller] Adding current user to list for self-marker (desktop)');
         users.push({
           id: currentUser.id,
           user_id: currentUser.user_id || currentUser.id,
@@ -148,7 +148,7 @@ class DriverLocationPoller {
 
     // CRITICAL: Filter to drivers with location data using the new rules
     // RULES:
-    // 1. Current user (self) on desktop: ALWAYS show (any status, any tracking setting)
+    // 1. Current user (self): ALWAYS show on desktop (any status, any tracking setting)
     // 2. Other drivers: on_duty OR on_break, location_tracking_enabled = true, location_updated_at recent
     // 3. Dispatchers: drivers with assigned stops, on_duty OR on_break, location_tracking_enabled = true
     // 4. All must be in same city
@@ -167,11 +167,12 @@ class DriverLocationPoller {
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) return false;
 
-      // CRITICAL: Current user (self) - NEVER show on mobile (blue GPS dot shows instead)
-      // Desktop: show own marker ONLY when sharing is enabled
+      // CRITICAL: Current user (self) - ALWAYS show regardless of driver_status or location_tracking_enabled
+      // This allows the user to see their shared location from any device
+      // DriverLocationMarkers will handle blocking on mobile to prevent overlap with GPS dot
       if (isSelf) {
-        // Mobile: ALWAYS block self marker - blue GPS dot is shown by the map component
-        return false;
+        console.log(`✅ [DriverLocationPoller] Including self marker - status: ${user.driver_status}, tracking: ${user.location_tracking_enabled}`);
+        return true;
       }
 
       // RULE 4: All other drivers must be in same city
