@@ -1968,6 +1968,15 @@ export default function RouteImport({
     } finally {
       setIsProcessing(false);
       setTimeout(() => setShowProgress(false), 1000);
+      
+      // Resume sync processes
+      console.log('▶️ [RouteImport] Resuming sync processes...');
+      try {
+        smartRefreshManager.resume();
+        driverLocationPoller.resume();
+      } catch (e) {
+        console.warn('⚠️ [RouteImport] Error resuming sync:', e);
+      }
     }
   };
 
