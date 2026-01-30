@@ -1026,6 +1026,14 @@ export default function PayrollSummaryCard({
             );
           }
           
+          // State for managing deductions and bonus per driver per card
+          const [localDeductions, setLocalDeductions] = useState(data.deductionsArray || []);
+          const [localBonusPay, setLocalBonusPay] = useState(data.bonusPay || 0);
+          const [appFeePercent, setAppFeePercent] = useState(data.appFeePercent !== undefined ? data.appFeePercent : 0);
+          const [showDeductionManager, setShowDeductionManager] = useState(false);
+          const [newDeductionName, setNewDeductionName] = useState('');
+          const [newDeductionAmount, setNewDeductionAmount] = useState('');
+
           return (
           <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
