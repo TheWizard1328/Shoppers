@@ -1551,9 +1551,8 @@ export default function RouteImport({
       smartRefreshManager.pause();
       driverLocationPoller.pause();
       
-      // CRITICAL: Use centralized data operation manager
-      await executeDataOperation(async () => {
-        console.log('📥 [RouteImport] Starting import with data operation manager');
+      try {
+        console.log('📥 [RouteImport] Starting import...');
         
         const { offlineDB } = await import('../utils/offlineDatabase');
 
