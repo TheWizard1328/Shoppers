@@ -14,7 +14,8 @@ export default function PayrollMobileCard({
   canShowConfirmButton,
   onConfirmClick,
   isFinalizing,
-  formatCurrency
+  formatCurrency,
+  storeReturnsCount
 }) {
   const [expandedSection, setExpandedSection] = useState(null);
 
@@ -142,6 +143,12 @@ export default function PayrollMobileCard({
               <div className="flex justify-between text-orange-700">
                 <span>Returns:</span>
                 <span className="font-semibold">{data.returnsCount}</span>
+              </div>
+            )}
+            {(storeReturnsCount || 0) > 0 && (
+              <div className="flex justify-between text-purple-700">
+                <span>Store Returns:</span>
+                <span className="font-semibold">{storeReturnsCount}</span>
               </div>
             )}
           </div>
