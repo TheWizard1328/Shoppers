@@ -1876,9 +1876,11 @@ export default function Layout({ children, currentPageName }) {
           });
 
           const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
-          setUsers(mergedUsers);
+          // CRITICAL: Deduplicate by id to prevent duplicates in View As User
+          const dedupedUsers = Array.from(new Map(mergedUsers.map(u => [u.id, u])).values());
+          setUsers(dedupedUsers);
 
-          let activeDrivers = mergedUsers.filter((user) => {
+          let activeDrivers = dedupedUsers.filter((user) => {
             if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
             if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
             if (!user.user_name) return false;
