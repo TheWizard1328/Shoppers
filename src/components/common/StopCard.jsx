@@ -2665,7 +2665,7 @@ export default function StopCard({
                               <span className="text-white">Complete</span>
                             </Button> :
                     onStartDelivery &&
-                    <Button onClick={async (e) => {
+                    <Button type="button" onClick={async (e) => {
                       e.stopPropagation();
                       setIsStarting(true);
 
