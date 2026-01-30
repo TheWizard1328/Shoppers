@@ -555,8 +555,6 @@ export default function PayrollSummaryCard({
     }
   };
 
-
-
   // Export to PDF
   const handleExport = (stores = []) => {
     if (!currentPeriod) return;
