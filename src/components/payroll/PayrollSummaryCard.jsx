@@ -954,6 +954,108 @@ export default function PayrollSummaryCard({
         </DialogContent>
       </Dialog>
 
+      {/* Deduction Manager Overlay Dialog */}
+      {deductionOverlayDriverId && driverEdits[deductionOverlayDriverId] && (
+        <Dialog open={true} onOpenChange={(open) => !open && setDeductionOverlayDriverId(null)}>
+          <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <DialogHeader>
+              <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage Deductions</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>Current Deductions:</label>
+                <div className="mt-2 space-y-1">
+                  {driverEdits[deductionOverlayDriverId]?.deductions?.map((ded, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-sm p-2 bg-slate-50 rounded">
+                      <span>{ded.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">-${ded.amount.toFixed(2)}</span>
+                        <button
+                          onClick={() => setDriverEdits(prev => ({
+                            ...prev,
+                            [deductionOverlayDriverId]: {
+                              ...prev[deductionOverlayDriverId],
+                              deductions: prev[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx)
+                            }
+                          }))}
+                          className="p-1 hover:bg-red-100 rounded"
+                        >
+                          <X className="w-4 h-4 text-red-600" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {!driverEdits[deductionOverlayDriverId]?.deductions?.length && (
+                    <p className="text-xs text-slate-500">No deductions</p>
+                  )}
+                </div>
+              </div>
+              
+              <div className="border-t pt-3">
+                <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Add New Deduction:</label>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Deduction name"
+                    value={driverEdits[deductionOverlayDriverId]?.newDeductionName || ''}
+                    onChange={(e) => setDriverEdits(prev => ({
+                      ...prev,
+                      [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionName: e.target.value }
+                    }))}
+                    className="w-full px-2 py-1 text-sm border rounded"
+                  />
+                  <div className="flex gap-2">
+                    <span className="flex items-center">$</span>
+                    <input
+                      type="number"
+                      placeholder="Amount"
+                      value={driverEdits[deductionOverlayDriverId]?.newDeductionAmount || ''}
+                      onChange={(e) => setDriverEdits(prev => ({
+                        ...prev,
+                        [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionAmount: e.target.value }
+                      }))}
+                      className="flex-1 px-2 py-1 text-sm border rounded"
+                      step="0.01"
+                    />
+                    <button
+                      onClick={() => {
+                        const name = driverEdits[deductionOverlayDriverId]?.newDeductionName;
+                        const amount = driverEdits[deductionOverlayDriverId]?.newDeductionAmount;
+                        if (name && amount) {
+                          setDriverEdits(prev => ({
+                            ...prev,
+                            [deductionOverlayDriverId]: {
+                              ...prev[deductionOverlayDriverId],
+                              deductions: [...prev[deductionOverlayDriverId].deductions, { name, amount: parseFloat(amount) }],
+                              newDeductionName: '',
+                              newDeductionAmount: ''
+                            }
+                          }));
+                        }
+                      }}
+                      className="px-3 py-1 bg-emerald-600 text-white rounded text-sm font-medium hover:bg-emerald-700"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDeductionOverlayDriverId(null)}
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Admin Confirmation Dialog - but NOT for admin-drivers viewing their own payroll */}
       <Dialog open={showConfirmDialog && isAdmin && !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
         <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
