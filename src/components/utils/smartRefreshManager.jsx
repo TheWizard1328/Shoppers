@@ -64,14 +64,14 @@ class SmartRefreshManager {
     // Track last refresh time for each entity type
     // Initialize to 0 so the first refresh happens immediately
     this.lastRefreshTimes = {
-      activeRoute: 0,            // Combined: today's deliveries + driver locations
-      historicalDate: 0,         // Opportunistic historical sync
-      appUsers: 0,
-      squareTransactions: 0,
-      todayPatients: 0,
-      patients: 0,
-      stores: 0,
-      payroll: 0
+      activeRoute: 0,            // Combined: today's deliveries + driver locations (15s)
+      appUsers: 0,               // Full AppUser dataset (15s)
+      cities: 0,                 // Full Cities dataset (5min)
+      stores: 0,                 // Full Stores dataset (5min)
+      patients: 0,               // Full Patients dataset (once daily)
+      deliveries: 0,             // Last 90 days of deliveries (once daily)
+      squareTransactions: 0,     // Square transaction updates (10min)
+      payroll: 0                 // Payroll records (5min)
     };
     
     // Rate limit protection - OPTIMIZED for batch syncs
