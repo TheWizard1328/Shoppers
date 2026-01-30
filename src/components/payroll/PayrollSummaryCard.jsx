@@ -1494,34 +1494,6 @@ export default function PayrollSummaryCard({
                        </tr>
                        </tbody>
                        </table>
-
-
-
-                       {/* App Fee % - Only AppOwner and Driver */}
-                       {(isAppOwner(currentUser) || (isDriver && selectedDriverId === data.driver.id)) && edit.appFeePercent > 0 && (
-                         <div className="mt-2 text-[10px]">
-                           <div className="text-slate-600">App Fee %: {edit.appFeePercent}%</div>
-                         </div>
-                       )}
-                       {isAppOwner(currentUser) && (
-                         <div className="mt-2 text-[10px]">
-                           <label className="block text-slate-600 mb-0.5">App Fee %:</label>
-                           <input 
-                             type="number" 
-                             value={edit.appFeePercent} 
-                             onChange={(e) => {
-                               const newValue = parseFloat(e.target.value) || 0;
-                               updateEdit({ appFeePercent: newValue });
-                               // Save immediately
-                               savePayrollChanges(driverKey, { app_fee_percentage: newValue });
-                             }} 
-                             className="w-full px-1 py-0.5 text-[10px] border rounded" 
-                             step="0.1" 
-                             min="0" 
-                             max="100" 
-                           />
-                         </div>
-                       )}
                        </div>
                        </div>
                        </div>
