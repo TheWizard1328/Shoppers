@@ -133,7 +133,7 @@ export default function PayrollSummaryCard({
 
          // Sync to offline DB
          try {
-           const { offlineDB } = await import('./components/utils/offlineDatabase');
+           const { offlineDB } = await import('../utils/offlineDatabase');
            const updatedRecord = { ...existingRecord, ...updates };
            await offlineDB.save(offlineDB.STORES.PAYROLL, updatedRecord);
            console.log('💾 [Payroll] Synced to offline DB:', driverId);
