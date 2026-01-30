@@ -379,46 +379,27 @@ export default function PayrollSummaryCard({
   // Handle immediate save to Payroll entity and offline DB
    const savePayrollChanges = async (driverId, updates) => {
      try {
-       let existingRecord = getDriverPayrollRecord(driverId);
-
-       if (existingRecord) {
-         // Update existing record with explicit app_fee_percentage handling
-         const updateData = {
-           ...updates,
-           app_fee_percentage: updates.app_fee_percentage !== undefined ? updates.app_fee_percentage : existingRecord.app_fee_percentage
-         };
-         const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, updateData);
-         console.log('✅ [Payroll] Updated record for driver:', driverId, updateData);
-         existingRecord = updatedRecord;
-       } else {
-         // Create new record if it doesn't exist
-         const newRecord = {
-           driver_id: driverId,
-           city_id: selectedCityId || null,
-           pay_period_start: periodStartStr,
-           pay_period_end: periodEndStr,
-           pay_period_type: payPeriod,
-           total_deliveries: 0,
-           total_extra_km: 0,
-           total_oversized_deliveries: 0,
-           gross_pay: 0,
-           net_pay: 0,
-           total_deductions: 0,
-           deductions: [],
-           status: 'draft',
-           app_fee_percentage: updates.app_fee_percentage || 0,
-           ...updates
-         };
-         const created = await base44.entities.Payroll.create(newRecord);
-         existingRecord = created;
-         console.log('✅ [Payroll] Created new record for driver:', driverId);
+       // CRITICAL: Only update existing records - never create on edit operations
+       const existingRecord = getDriverPayrollRecord(driverId);
+       
+       if (!existingRecord) {
+         console.warn('⚠️ [Payroll] No existing record found for driver:', driverId, '- skipping save');
+         return;
        }
+
+       // Update existing record with explicit field handling
+       const updateData = {
+         ...updates,
+         app_fee_percentage: updates.app_fee_percentage !== undefined ? updates.app_fee_percentage : existingRecord.app_fee_percentage
+       };
+       const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, updateData);
+       console.log('✅ [Payroll] Updated record for driver:', driverId, updateData);
 
        // Sync to offline DB
        try {
          const { offlineDB } = await import('../utils/offlineDatabase');
-         const updatedRecord = { ...existingRecord, ...updates };
-         await offlineDB.save(offlineDB.STORES.PAYROLL, updatedRecord);
+         const syncData = { ...existingRecord, ...updatedRecord };
+         await offlineDB.save(offlineDB.STORES.PAYROLL, syncData);
          console.log('💾 [Payroll] Synced to offline DB:', driverId);
        } catch (offlineError) {
          console.warn('⚠️ [Payroll] Failed to sync to offline DB:', offlineError);
