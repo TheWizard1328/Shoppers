@@ -124,29 +124,48 @@ export default function PayrollSummaryCard({
   // Handle immediate save to Payroll entity and offline DB
    const savePayrollChanges = async (driverId, updates) => {
      try {
-       const existingRecord = getDriverPayrollRecord(driverId);
+       let existingRecord = getDriverPayrollRecord(driverId);
 
        if (existingRecord) {
          // Update existing record
          await base44.entities.Payroll.update(existingRecord.id, updates);
          console.log('✅ [Payroll] Updated record for driver:', driverId, updates);
-
-         // Sync to offline DB
-         try {
-           const { offlineDB } = await import('../utils/offlineDatabase');
-           const updatedRecord = { ...existingRecord, ...updates };
-           await offlineDB.save(offlineDB.STORES.PAYROLL, updatedRecord);
-           console.log('💾 [Payroll] Synced to offline DB:', driverId);
-         } catch (offlineError) {
-           console.warn('⚠️ [Payroll] Failed to sync to offline DB:', offlineError);
-         }
-
-         // Refresh payroll records
-         if (refreshPayrollRecords) {
-           await refreshPayrollRecords();
-         }
        } else {
-         console.log('ℹ️ [Payroll] No record yet for driver - will be created on finalization');
+         // Create new record if it doesn't exist
+         const newRecord = {
+           driver_id: driverId,
+           city_id: selectedCityId || null,
+           pay_period_start: periodStartStr,
+           pay_period_end: periodEndStr,
+           pay_period_type: payPeriod,
+           total_deliveries: 0,
+           total_extra_km: 0,
+           total_oversized_deliveries: 0,
+           gross_pay: 0,
+           net_pay: 0,
+           total_deductions: 0,
+           deductions: [],
+           status: 'draft',
+           ...updates
+         };
+         const created = await base44.entities.Payroll.create(newRecord);
+         existingRecord = created;
+         console.log('✅ [Payroll] Created new record for driver:', driverId);
+       }
+
+       // Sync to offline DB
+       try {
+         const { offlineDB } = await import('../utils/offlineDatabase');
+         const updatedRecord = { ...existingRecord, ...updates };
+         await offlineDB.save(offlineDB.STORES.PAYROLL, updatedRecord);
+         console.log('💾 [Payroll] Synced to offline DB:', driverId);
+       } catch (offlineError) {
+         console.warn('⚠️ [Payroll] Failed to sync to offline DB:', offlineError);
+       }
+
+       // Refresh payroll records
+       if (refreshPayrollRecords) {
+         await refreshPayrollRecords();
        }
      } catch (error) {
        console.error('❌ [Payroll] Failed to save changes:', error);
