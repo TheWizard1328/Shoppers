@@ -2550,17 +2550,20 @@ export default function RouteImport({
                             borderLeft: delivery.action === 'create' ? '4px solid #10b981' : '4px solid #3b82f6'
                           }}>
                             <td className="p-1 w-30 text-center">
-                              <div className="flex flex-col gap-1 items-center">
-                                <Badge className="w-full justify-center border-0 font-semibold text-xs py-1" style={{ 
-                                  background: delivery.action === 'create' ? '#10b981' : '#3b82f6',
-                                  color: 'white'
-                                }}>
-                                  {delivery.action === 'create' ? '✓ NEW' : '◇ UPDATE'}
-                                </Badge>
-                                <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>
-                                  {delivery.driver_name}
-                                </span>
-                              </div>
+                             <div className="flex flex-col gap-1 items-center">
+                               <Badge className="w-full justify-center border-0 font-semibold text-xs py-1" style={{ 
+                                 background: delivery.action === 'create' ? '#10b981' : '#3b82f6',
+                                 color: 'white'
+                               }}>
+                                 {delivery.action === 'create' ? '✓ NEW' : '◇ UPDATE'}
+                               </Badge>
+                               <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>
+                                 {delivery.driver_name}
+                               </span>
+                               <span className="text-[10px] font-mono text-slate-400">
+                                 ...{delivery.driver_id?.slice(-4)}
+                               </span>
+                             </div>
                             </td>
                             <td className="p-1 w-24">
                               <div className="flex flex-col">
