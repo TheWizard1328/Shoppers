@@ -1935,13 +1935,12 @@ export default function RouteImport({
         
         console.log('✅ [RouteImport] Import operation complete - NO auto-optimization applied');
         
-        return true; // Signal success
-      }, { restartDelay: 2000 }); // 2 second delay before restarting smart refresh
-
-      console.log('▶️ [RouteImport] Resuming sync processes after success...');
-      smartRefreshManager.resume();
-      driverLocationPoller.resume();
-
+        setImportResult(overallResults);
+        console.log('✅ [RouteImport] Import operation complete');
+      } catch (innerError) {
+        console.error('❌ [RouteImport] Error during import:', innerError);
+        throw innerError;
+      }
     } catch (error) {
       console.error("❌ Overall import error:", error);
       
