@@ -5,7 +5,7 @@
 
 // CRITICAL: Use stable database name and version to prevent recreation
 const DB_NAME = 'rxdeliver_persistent_offline_v1';
-const DB_VERSION = 4; // CRITICAL: Incremented to add DriverOverviewStatsCache
+const DB_VERSION = 5; // Incremented to add SYNC_METADATA store
 
 // Store names
 const STORES = {
