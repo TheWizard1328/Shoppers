@@ -687,7 +687,8 @@ const deduplicateDeliveries = async () => {
        return { success: true, removed: 0 };
      }
 
-     const groupKey = (d) => `${d.delivery_date}|${d.stop_id}`;
+     // CRITICAL: Include driver_id in grouping to prevent cross-driver duplicates
+     const groupKey = (d) => `${d.delivery_date}|${d.stop_id}|${d.driver_id || 'no-driver'}`;
      const deliveryGroups = new Map();
 
      allDeliveries.forEach(delivery => {
