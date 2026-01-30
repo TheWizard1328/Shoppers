@@ -1771,6 +1771,7 @@ class SmartRefreshManager {
   /**
    * Refresh ACTIVE route data (today's deliveries + driver locations)
    * CRITICAL: 15-second cycle for real-time updates
+   * CRITICAL: Uses offline DB first, respects pending mutations
    * @param {boolean} showAllDrivers - If true, refreshes ALL drivers' data regardless of selected driver
    */
   async refreshActiveRoute(currentData, filters, showAllDrivers = false) {
@@ -1787,45 +1788,25 @@ class SmartRefreshManager {
         console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
       }
       
-      // STEP 2: Refresh today's deliveries (from API for cross-device sync)
-      await this.waitForRateLimit();
-      const cityOnlyFilter = { delivery_date: todayStr };
+      // STEP 2: Refresh today's deliveries - OFFLINE DB FIRST, respect pending mutations
+      const { offlineDB } = await import('./offlineDatabase');
       
-      // CRITICAL: When showAllDrivers=true, fetch ALL drivers' deliveries (no driver_id filter)
-      if (!showAllDrivers && filters.deliveryFilter?.driver_id) {
-        cityOnlyFilter.driver_id = filters.deliveryFilter.driver_id;
-        console.log(`📦 [ActiveRoute] Filtering by driver: ${filters.deliveryFilter.driver_id}`);
-      } else if (showAllDrivers) {
-        console.log(`📦 [ActiveRoute] Show All mode - fetching ALL drivers for ${todayStr}`);
-      }
+      // Load from offline DB (includes local mutations not yet synced)
+      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, todayStr);
       
-      if (filters.deliveryFilter?.store_id) {
-        cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
-      }
-      
-      const fetchedDeliveries = await queueEntityRequest(
-        () => base44.entities.Delivery.filter(cityOnlyFilter),
-        `Delivery filter [active, ${todayStr}]`
-      );
-      
-      if (fetchedDeliveries && fetchedDeliveries.length > 0) {
-        const { offlineDB } = await import('./offlineDatabase');
-
-        // PURGE: Delete all offline deliveries for today
-        await offlineDB.deleteDeliveriesByDate(todayStr);
-        console.log(`🗑️ [SmartRefresh] Purged offline deliveries for ${todayStr}`);
-
-        // RESYNC: Save fresh deliveries from API
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
-        console.log(`✅ [SmartRefresh] Resynced ${fetchedDeliveries.length} deliveries for ${todayStr}`);
-
+      if (offlineDeliveries && offlineDeliveries.length > 0) {
+        console.log(`💾 [ActiveRoute] Loaded ${offlineDeliveries.length} deliveries from offline DB for ${todayStr}`);
+        
         const currentTodayDeliveries = currentData.deliveries.filter(d => d && d.delivery_date === todayStr);
         const otherDeliveries = currentData.deliveries.filter(d => d && d.delivery_date !== todayStr);
-
-        const diff = diffEntityArrays(currentTodayDeliveries, fetchedDeliveries);
+        
+        // Check for changes
+        const diff = diffEntityArrays(currentTodayDeliveries, offlineDeliveries);
+        
         if (diff.toUpdate.length > 0 || diff.toAdd.length > 0 || diff.toRemove.length > 0) {
           const mergedToday = mergeEntityChanges(currentTodayDeliveries, diff);
           updates.deliveries = [...otherDeliveries, ...mergedToday];
+          console.log(`✨ [ActiveRoute] Delivery changes detected: +${diff.toAdd.length} ~${diff.toUpdate.length} -${diff.toRemove.length}`);
         }
       }
       
