@@ -2845,8 +2845,27 @@ export default function AdminUtilities() {
 
   // CRITICAL: Define mergedUsers and driversForDropdown BEFORE deliveries query to prevent initialization error
   const mergedUsers = useMemo(() => {
-    if (!authUsers || !appUsers) return [];
+    // CRITICAL: Support non-admins who can't fetch User entity
+    // If no authUsers (non-admin), create pseudo-users from AppUsers
+    if (!appUsers || appUsers.length === 0) return [];
 
+    if (!authUsers || authUsers.length === 0) {
+      // Non-admin: Create pseudo-users from AppUsers
+      return appUsers
+        .map((appUser) => ({
+          id: appUser.user_id,
+          user_id: appUser.user_id,
+          user_name: appUser.user_name,
+          full_name: appUser.user_name,
+          app_roles: appUser.app_roles || [],
+          status: appUser.status || 'active',
+          display_name: appUser.user_name,
+          first_name: (appUser.user_name || '').split(' ')[0]
+        }))
+        .filter((u) => u.user_name && u.status === 'active');
+    }
+
+    // Admin: Merge authUsers with appUsers
     return authUsers
       .map((authUser) => {
         const appUser = appUsers.find((au) => au.user_id === authUser.id);
@@ -2868,14 +2887,17 @@ export default function AdminUtilities() {
   }, [authUsers, appUsers]);
 
   const driversForDropdown = useMemo(() => {
-    if (!mergedUsers) return [];
+    if (!mergedUsers || mergedUsers.length === 0) return [];
 
     const drivers = mergedUsers.filter((user) => {
+      if (!user || !user.user_name) return false;
       const roles = user.app_roles || [];
       return roles.includes('driver') || roles.includes('admin');
     });
     
-    return sortUsers(drivers);
+    const sorted = sortUsers(drivers);
+    console.log(`📋 [AdminUtilities] driversForDropdown: ${sorted.length} drivers with names:`, sorted.map(d => d.user_name).join(', '));
+    return sorted;
   }, [mergedUsers]);
 
   // CRITICAL: Disable automatic delivery loading - only load on explicit "Load Data" button click
