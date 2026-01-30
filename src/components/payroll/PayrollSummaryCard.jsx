@@ -283,9 +283,9 @@ export default function PayrollSummaryCard({
    return () => clearInterval(interval);
   }, [periodStartStr, periodEndStr, externalPayrollRecords]);
 
-  // Auto-create missing Payroll records when payroll data is calculated
+  // Auto-create missing Payroll records when payroll data is calculated - ONLY create if record doesn't exist for driver + period combo
   useEffect(() => {
-    if (!periodStartStr || !periodEndStr || payrollRecords.length > 0 || !payrollData || payrollData.length === 0) return;
+    if (!periodStartStr || !periodEndStr || !payrollData || payrollData.length === 0) return;
     
     const autoCreateMissingRecords = async () => {
       const driversData = payrollData;
@@ -302,12 +302,16 @@ export default function PayrollSummaryCard({
           return;
         }
 
-        // Check which drivers already have records
-        const existingDriverIds = new Set(payrollRecords.map(r => r.driver_id));
+        // Check which drivers already have records for THIS EXACT period
+        const existingDriverIds = new Set(
+          payrollRecords
+            .filter(r => r.pay_period_start === periodStartStr && r.pay_period_end === periodEndStr)
+            .map(r => r.driver_id)
+        );
         const driversNeedingRecords = driversWithDeliveries.filter(driverId => !existingDriverIds.has(driverId));
 
         if (driversNeedingRecords.length === 0) {
-          console.log('ℹ️ [Payroll] All drivers with deliveries already have records');
+          console.log('ℹ️ [Payroll] All drivers with deliveries already have records for this period');
           return;
         }
 
