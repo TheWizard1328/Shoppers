@@ -1496,6 +1496,7 @@ export default function PayrollSummaryCard({
                        </tbody>
                        </table>
                        </div>
+                       </div>
 
                        {/* App Fee % - Single line below Gross (AppOwner only) */}
                        {isAppOwner(currentUser) && (
