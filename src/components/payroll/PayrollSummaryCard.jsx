@@ -175,10 +175,7 @@ export default function PayrollSummaryCard({
       }
     };
 
-    // Only auto-create once when payroll data first loads with drivers
-    if (payrollRecords.length === 0) {
-      autoCreateMissingRecords(payrollData);
-    }
+    autoCreateMissingRecords();
   }, [payrollData, payrollRecords, periodStartStr, periodEndStr, payPeriod, selectedCityId, onPayrollRecordsChange]);
 
   // Get finalization status for each driver
