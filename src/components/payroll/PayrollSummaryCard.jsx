@@ -1093,14 +1093,15 @@ export default function PayrollSummaryCard({
             </div>
             
             <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setBonusOverlayDriverId(null)}
-                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}
-              >
-                Close
-              </Button>
-            </DialogFooter>
+               <Button
+                 variant="outline"
+                 data-dialog-close="bonus"
+                 onClick={() => setBonusOverlayDriverId(null)}
+                 style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}
+               >
+                 Close
+               </Button>
+             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
