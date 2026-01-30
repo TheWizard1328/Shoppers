@@ -193,6 +193,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
               </Button>
             }
             <Button
+              type="button"
               size="sm"
               variant={metricsViewMode === 'deliveries' ? 'default' : 'outline'}
               onClick={() => onViewModeChange?.('deliveries')}
@@ -201,6 +202,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
               Deliveries
             </Button>
             <Button
+              type="button"
               size="sm"
               variant={metricsViewMode === 'fees' ? 'default' : 'outline'}
               onClick={() => onViewModeChange?.('fees')}
