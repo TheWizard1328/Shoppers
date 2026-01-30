@@ -334,9 +334,9 @@ export default function PayrollSummaryCard({
         const deliveryNotes = (d.delivery_notes || '').toLowerCase();
         const combined = patientName + ' ' + deliveryNotes;
         
-        // Check if store name (abbreviation) exists and 'return' exists
-        const storeAbbrev = stores.find(s => s && s.id === d.store_id)?.abbreviation || '';
-        const hasStoreName = storeAbbrev && combined.includes(storeAbbrev.toLowerCase());
+        // Check if store name exists and 'return' exists
+        const storeName = stores.find(s => s && s.id === d.store_id)?.name || '';
+        const hasStoreName = storeName && combined.includes(storeName.toLowerCase());
         const hasReturn = combined.includes('return');
         
         return hasStoreName && hasReturn;
