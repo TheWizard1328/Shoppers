@@ -1058,53 +1058,53 @@ export default function PayrollSummaryCard({
       )}
 
       {/* Bonus Manager Overlay Dialog */}
-      {bonusOverlayDriverId && driverEdits[bonusOverlayDriverId] && (
-        <Dialog open={true} onOpenChange={(open) => !open && setBonusOverlayDriverId(null)}>
-          <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <DialogHeader>
-              <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage Bonus Pay</DialogTitle>
-            </DialogHeader>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Bonus Pay for {payrollData.find(d => d.driver.id === bonusOverlayDriverId)?.driver.user_name}:</label>
-                <div className="flex gap-2">
-                  <span className="flex items-center">$</span>
-                  <input
-                    type="number"
-                    value={driverEdits[bonusOverlayDriverId]?.bonusPay || 0}
-                    onChange={(e) => setDriverEdits(prev => ({
-                      ...prev,
-                      [bonusOverlayDriverId]: { ...prev[bonusOverlayDriverId], bonusPay: parseFloat(e.target.value) || 0 }
-                    }))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const closeButton = document.querySelector('[data-dialog-close="bonus"]');
-                        if (closeButton) closeButton.click();
-                      }
-                    }}
-                    placeholder="0.00"
-                    className="flex-1 px-2 py-1 text-sm border rounded"
-                    step="0.01"
-                  />
-                </div>
-                <p className="text-xs text-slate-500 mt-2">Enter the bonus amount to add to this driver's payroll for {currentPeriod?.label}.</p>
-              </div>
-            </div>
-            
-            <DialogFooter>
-               <Button
-                 variant="outline"
-                 data-dialog-close="bonus"
-                 onClick={() => setBonusOverlayDriverId(null)}
-                 style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}
-               >
-                 Close
-               </Button>
-             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+       {bonusOverlayDriverId && driverEdits[bonusOverlayDriverId] && (
+         <Dialog open={true} onOpenChange={(open) => !open && handleBonusClose()}>
+           <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+             <DialogHeader>
+               <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage Bonus Pay</DialogTitle>
+             </DialogHeader>
+
+             <div className="space-y-3">
+               <div>
+                 <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Bonus Pay for {payrollData.find(d => d.driver.id === bonusOverlayDriverId)?.driver.user_name}:</label>
+                 <div className="flex gap-2">
+                   <span className="flex items-center">$</span>
+                   <input
+                     type="number"
+                     value={driverEdits[bonusOverlayDriverId]?.bonusPay || 0}
+                     onChange={(e) => setDriverEdits(prev => ({
+                       ...prev,
+                       [bonusOverlayDriverId]: { ...prev[bonusOverlayDriverId], bonusPay: parseFloat(e.target.value) || 0 }
+                     }))}
+                     onKeyDown={(e) => {
+                       if (e.key === 'Enter') {
+                         const closeButton = document.querySelector('[data-dialog-close="bonus"]');
+                         if (closeButton) closeButton.click();
+                       }
+                     }}
+                     placeholder="0.00"
+                     className="flex-1 px-2 py-1 text-sm border rounded"
+                     step="0.01"
+                   />
+                 </div>
+                 <p className="text-xs text-slate-500 mt-2">Enter the bonus amount to add to this driver's payroll for {currentPeriod?.label}.</p>
+               </div>
+             </div>
+
+             <DialogFooter>
+                <Button
+                  variant="outline"
+                  data-dialog-close="bonus"
+                  onClick={handleBonusClose}
+                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}
+                >
+                  Close
+                </Button>
+              </DialogFooter>
+           </DialogContent>
+         </Dialog>
+       )}
 
       {/* Admin Confirmation Dialog - but NOT for admin-drivers viewing their own payroll */}
       <Dialog open={showConfirmDialog && isAdmin && !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
@@ -1180,15 +1180,16 @@ export default function PayrollSummaryCard({
             );
           }
           
-          // Get edit state for this driver or initialize
+          // Get edit state for this driver or initialize (load from payroll record if available)
           const driverKey = data.driver.id;
           if (!driverEdits[driverKey]) {
+            const payrollRecord = getDriverPayrollRecord(driverKey);
             setDriverEdits(prev => ({
               ...prev,
               [driverKey]: {
                 deductions: data.deductionsArray || [],
-                bonusPay: data.bonusPay || 0,
-                appFeePercent: data.appFeePercent !== undefined ? data.appFeePercent : 0,
+                bonusPay: payrollRecord?.bonus_pay || data.bonusPay || 0,
+                appFeePercent: payrollRecord?.app_fee_percentage !== undefined ? payrollRecord.app_fee_percentage : (data.appFeePercent !== undefined ? data.appFeePercent : 0),
                 showDeductionManager: false,
                 newDeductionName: '',
                 newDeductionAmount: ''
