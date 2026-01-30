@@ -238,7 +238,10 @@ export default function PayrollSummaryCard({
     });
   }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod]);
 
-  // Use external payroll records if provided, otherwise fetch locally
+  // Last fetch timestamp to detect real changes
+  const lastFetchRef = React.useRef({ timestamp: 0 });
+
+  // Use external payroll records if provided, otherwise fetch locally with 15-sec refresh
   useEffect(() => {
    if (externalPayrollRecords) {
      setPayrollRecords(externalPayrollRecords);
@@ -248,7 +251,11 @@ export default function PayrollSummaryCard({
 
    if (!periodStartStr || !periodEndStr) return;
 
-   const fetchPayrollRecords = async () => {
+   const fetchPayrollRecords = async (force = false) => {
+     const now = Date.now();
+     // Check cache: only fetch if 15 seconds have passed or forced
+     if (!force && now - lastFetchRef.current.timestamp < 15000) return;
+     
      setIsLoadingRecords(true);
      try {
        const records = await base44.entities.Payroll.filter({
@@ -259,6 +266,7 @@ export default function PayrollSummaryCard({
        if (onPayrollRecordsChange) {
          onPayrollRecordsChange(records || []);
        }
+       lastFetchRef.current.timestamp = now;
      } catch (error) {
        console.error('Failed to fetch payroll records:', error);
      } finally {
@@ -266,7 +274,13 @@ export default function PayrollSummaryCard({
      }
    };
 
-   fetchPayrollRecords();
+   // Initial fetch
+   fetchPayrollRecords(true);
+
+   // 15-second refresh cycle (matching app refresh pattern)
+   const interval = setInterval(() => fetchPayrollRecords(), 15000);
+
+   return () => clearInterval(interval);
   }, [periodStartStr, periodEndStr, externalPayrollRecords]);
 
   // Auto-create missing Payroll records when payroll data is calculated
