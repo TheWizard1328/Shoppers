@@ -1556,12 +1556,382 @@ export default function RouteImport({
       const { offlineDB } = await import('../utils/offlineDatabase');
 
       setProgressMessage('Loading latest patient and store data from cache...');
-...
+      setProgressPercent(10);
+      const freshPatients = await getData('Patient', '-created_date', null, false);
+      const freshStores = await getData('Store', '-created_date', null, false);
+      setProgressPercent(12);
+
+      const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
+      const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
+
+      // CRITICAL: ALWAYS PURGE - Collect all unique driver/date combinations being imported
+      const affectedDriversAndDates = new Set();
+      deliveriesToCreateFiltered.forEach(d => {
+        affectedDriversAndDates.add(`${d.driver_id}|${d.delivery_date}`);
+      });
+      deliveriesToUpdateFiltered.forEach(d => {
+        affectedDriversAndDates.add(`${d.driver_id}|${d.delivery_date}`);
+      });
+
+      const driverDatePairs = Array.from(affectedDriversAndDates).map(pair => {
+        const [driverId, date] = pair.split('|');
+        return { driverId, date };
+      });
+
+      // STEP 1: Conditionally purge based on checkbox
+      if (purgeBeforeImport) {
+        console.log(`🗑️ [RouteImport] PURGING deliveries for ${driverDatePairs.length} driver/date combinations BEFORE import`);
+        setProgressMessage(`Purging ${driverDatePairs.length} driver/date combinations...`);
+
+        // Delete from ONLINE database FIRST
+        for (const { driverId, date } of driverDatePairs) {
+          try {
+            const existingDeliveries = await base44.entities.Delivery.filter({
+              driver_id: driverId,
+              delivery_date: date
+            });
+            
+            if (existingDeliveries && existingDeliveries.length > 0) {
+              for (const delivery of existingDeliveries) {
+                await base44.entities.Delivery.delete(delivery.id);
+              }
+              console.log(`✅ [RouteImport] Deleted ${existingDeliveries.length} ONLINE deliveries for ${driverId} on ${date}`);
+            }
+          } catch (deleteError) {
+            console.error(`❌ [RouteImport] Failed to delete online deliveries for ${driverId}/${date}:`, deleteError.message);
+            throw deleteError; // CRITICAL: Fail import if purge fails
+          }
+        }
+
+        // STEP 2: Delete from OFFLINE database
+        for (const { driverId, date } of driverDatePairs) {
+          try {
+            // Delete all deliveries for this driver+date from offline DB
+            const allOfflineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date);
+            const driverOfflineDeliveries = allOfflineDeliveries.filter(d => d.driver_id === driverId);
+            
+            if (driverOfflineDeliveries.length > 0) {
+              for (const d of driverOfflineDeliveries) {
+                await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
+              }
+              console.log(`✅ [RouteImport] Deleted ${driverOfflineDeliveries.length} OFFLINE deliveries for ${driverId} on ${date}`);
+            }
+          } catch (offlineDeleteError) {
+            console.error(`❌ [RouteImport] Failed to delete offline deliveries for ${driverId}/${date}:`, offlineDeleteError.message);
+            // Continue - offline DB errors shouldn't block import
+          }
+        }
+
+        console.log('✅ [RouteImport] Purge complete - all driver/date combinations cleared from both databases');
+      } else {
+        console.log('⏭️ [RouteImport] Skipping purge - checkbox disabled by user');
+      }
+      setProgressPercent(15);
+
+      batchUpdateAMPM(deliveriesToCreateFiltered);
+      batchUpdateAMPM(deliveriesToUpdateFiltered);
+
+      // BATCH CREATE with smaller batches and longer delays
+      if (deliveriesToCreateFiltered.length > 0) {
+        setImportProgress((prev) => ({
+          ...prev,
+          phase: 'creating',
+          total: deliveriesToCreateFiltered.length,
+          current: 0
+        }));
+        setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries...`);
+
+        const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
+
+        // CRITICAL: Smaller batch size (10 instead of 25)
+        const BATCH_SIZE = 10;
+        const batches = [];
+        for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
+          batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
+        }
+
+        let totalCreated = 0;
+        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+          const batch = batches[batchIndex];
+          try {
+            const createdDeliveries = await retryWithBackoff(async () => {
+              return await base44.entities.Delivery.bulkCreate(batch);
+            }, 5, 4000, 2); // Increased retry delay to 4s
+
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
+
+            batch.forEach((cleanData) => {
+              overallResults.created++;
+              if (cleanData.status === 'completed') {
+                overallResults.completed++;
+              }
+              if (cleanData.status === 'failed') {
+                overallResults.failed++;
+              }
+              if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
+                overallResults.returned++;
+              }
+            });
+
+            totalCreated += batch.length;
+            setImportProgress((prev) => ({
+              ...prev,
+              created: totalCreated,
+              current: totalCreated
+            }));
+          } catch (error) {
+            console.warn(`⚠️ Batch ${batchIndex + 1} bulkCreate failed:`, error.message);
+
+            for (const cleanData of batch) {
+              try {
+                const createdDelivery = await retryWithBackoff(async () => {
+                  return await base44.entities.Delivery.create(cleanData);
+                }, 3, 2000, 2);
+                
+                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
+
+                overallResults.created++;
+                if (cleanData.status === 'completed') {
+                  overallResults.completed++;
+                }
+                if (cleanData.status === 'failed') {
+                  overallResults.failed++;
+                }
+                if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
+                  overallResults.returned++;
+                }
+                totalCreated++;
+                setImportProgress((prev) => ({
+                  ...prev,
+                  created: totalCreated,
+                  current: totalCreated
+                }));
+              } catch (individualError) {
+                failedCreations.push({ data: cleanData, error: individualError.message });
+              }
+            }
+          }
+        }
+      }
+
+      // BATCH UPDATE with delays
+      if (deliveriesToUpdateFiltered.length > 0) {
+        setImportProgress((prev) => ({
+          ...prev,
+          phase: 'updating',
+          total: deliveriesToUpdateFiltered.length,
+          current: 0
+        }));
+        setProgressMessage(`Updating ${deliveriesToUpdateFiltered.length} existing deliveries...`);
+
+        // CRITICAL: Process in small batches
+        const UPDATE_BATCH_SIZE = 5;
+        for (let i = 0; i < deliveriesToUpdateFiltered.length; i += UPDATE_BATCH_SIZE) {
+          const batch = deliveriesToUpdateFiltered.slice(i, i + UPDATE_BATCH_SIZE);
+          
+          for (const deliveryData of batch) {
+            try {
+              const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
+              if (!id) throw new Error('Missing delivery ID');
+
+              const cleanPayload = cleanDeliveryData(updatePayload);
+
+              const updatedDelivery = await retryWithBackoff(async () => {
+                return await base44.entities.Delivery.update(id, cleanPayload);
+              }, 5, 2000, 2);
+              
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+
+              overallResults.updated++;
+              if (cleanPayload.status === 'completed') {
+                overallResults.completed++;
+              }
+              if (cleanPayload.status === 'failed') {
+                overallResults.failed++;
+              }
+              if (isReturnDelivery(cleanPayload, freshPatients, freshStores)) {
+                overallResults.returned++;
+              }
+              setImportProgress((prev) => ({
+                ...prev,
+                updated: prev.updated + 1,
+                current: i + batch.indexOf(deliveryData) + 1
+              }));
+              await delay(800); // Increased delay
+            } catch (error) {
+              failedUpdates.push({ data: deliveryData, error: error.message });
+              setImportProgress((prev) => ({ ...prev, current: i + batch.indexOf(deliveryData) + 1 }));
+              await delay(800);
+            }
+          }
+          
+          // Delay between update batches
+          if (i + UPDATE_BATCH_SIZE < deliveriesToUpdateFiltered.length) {
+            await delay(2000);
+          }
+        }
+      }
+
+      // Retry failed operations - directly on backend
+      const totalFailed = failedCreations.length + failedUpdates.length;
+      if (totalFailed > 0) {
+        setImportProgress((prev) => ({
+          ...prev,
+          phase: 'retrying',
+          total: totalFailed,
+          current: 0
+        }));
+        setProgressMessage(`Retrying ${totalFailed} failed operations...`);
+
+        for (let i = 0; i < failedCreations.length; i++) {
+          const { data: cleanData } = failedCreations[i];
+
+          try {
+
+            // Retry on backend
+            const createdDelivery = await retryWithBackoff(async () => {
+              return await base44.entities.Delivery.create(cleanData);
+            }, 3, 2000, 2);
+            
+            // Save to IndexedDB
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
+            
+            overallResults.created++;
+            if (cleanData.status === 'completed') {
+              overallResults.completed++;
+            }
+            if (cleanData.status === 'failed') {
+              overallResults.failed++;
+            }
+            if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
+              overallResults.returned++;
+            }
+            setImportProgress((prev) => ({
+              ...prev,
+              created: prev.created + 1,
+              current: i + 1
+            }));
+          } catch (error) {
+            console.error(`❌ Retry create failed for delivery ${cleanData.delivery_id || 'unknown'}:`, error);
+            overallResults.errors.push(`Failed to create ${cleanData.patient_name || 'Store Pickup'} (${cleanData.delivery_id || 'no ID'}): ${error.message}`);
+            overallResults.failed++;
+            setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: i + 1 }));
+          }
+        }
+
+        const failedUpdateOffset = failedCreations.length;
+        for (let i = 0; i < failedUpdates.length; i++) {
+          const { data: deliveryData } = failedUpdates[i];
+          const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
+
+          try {
+            if (!id) {
+              throw new Error('Missing delivery ID');
+            }
+
+            // Retry on backend
+            const updatedDelivery = await retryWithBackoff(async () => {
+              return await base44.entities.Delivery.update(id, cleanDeliveryData(updatePayload));
+            }, 3, 2000, 2);
+            
+            // Save to IndexedDB
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+            
+            overallResults.updated++;
+            if (updatePayload.status === 'completed') {
+              overallResults.completed++;
+            }
+            if (updatePayload.status === 'failed') {
+              overallResults.failed++;
+            }
+            if (isReturnDelivery(updatePayload, freshPatients, freshStores)) {
+              overallResults.returned++;
+            }
+            setImportProgress((prev) => ({
+              ...prev,
+              updated: prev.updated + 1,
+              current: failedUpdateOffset + i + 1
+            }));
+          } catch (error) {
+            console.error(`❌ Retry update failed for delivery ID ${id}:`, error);
+            overallResults.errors.push(`Failed to update ${deliveryData.patient_name || 'Store Pickup'} (ID ${id}): ${error.message}`);
+            overallResults.failed++;
+            setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: failedUpdateOffset + i + 1 }));
+          }
+        }
+      }
+
+      setImportProgress((prev) => ({
+        ...prev,
+        phase: 'syncing',
+        current: 0,
+        total: 0,
+        filesCompleted: prev.totalFiles,
+        currentFile: ''
+      }));
+      
+      // CRITICAL: PURGE AND RESYNC - Extract all unique dates from imported data
+      const importedDates = new Set();
+      deliveriesToCreateFiltered.forEach(d => importedDates.add(d.delivery_date));
+      deliveriesToUpdateFiltered.forEach(d => importedDates.add(d.delivery_date));
+      
+      const uniqueDates = Array.from(importedDates);
+      console.log(`🔄 [RouteImport] Purge and resync for ${uniqueDates.length} dates:`, uniqueDates);
+      
+      setProgressMessage(`Syncing offline database (${uniqueDates.length} dates)...`);
+      
+      // PURGE AND RESYNC: For each date, delete offline deliveries and resync from online
+      for (let i = 0; i < uniqueDates.length; i++) {
+        const dateStr = uniqueDates[i];
+        
+        try {
+          // PURGE: Delete all offline deliveries for this date
+          await offlineDB.deleteDeliveriesByDate(dateStr);
+          console.log(`🗑️ [RouteImport] Purged offline deliveries for ${dateStr}`);
+          
+          // RESYNC: Fetch fresh deliveries from online DB for this date
+          const freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
+          
+          // Save to offline DB
+          if (freshDeliveries && freshDeliveries.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+            console.log(`✅ [RouteImport] Resynced ${freshDeliveries.length} deliveries for ${dateStr}`);
+          }
+        } catch (syncError) {
+          console.warn(`⚠️ [RouteImport] Sync failed for ${dateStr}:`, syncError.message);
+        }
+        
+        setProgressMessage(`Syncing offline database (${i + 1}/${uniqueDates.length} dates)...`);
+      }
+
+      setImportProgress((prev) => ({
+        ...prev,
+        phase: 'complete',
+        current: prev.total,
+        filesCompleted: prev.totalFiles,
+        currentFile: ''
+      }));
+
+      setImportResult(overallResults);
+      setProgressPercent(100);
+      setProgressMessage('Import complete!');
+      
+      // CRITICAL: NO route optimization after import - preserve imported stop order
+      console.log('✅ [RouteImport] Import complete - stop order preserved from CSV');
+      
+      // CRITICAL: Trigger immediate backend sync after import
+      console.log("📤 [RouteImport] Triggering immediate backend sync...");
+      const { processPendingMutations } = await import('../utils/offlineSync');
+      processPendingMutations().catch(err => console.warn('Backend sync error:', err));
+      
+      console.log('▶️ [RouteImport] Resuming all sync processes...');
+      driverLocationPoller.resume();
+      smartRefreshManager.resume();
+      
       // CRITICAL: Force immediate smart refresh to sync UI with imported data
       console.log('🔄 [RouteImport] Triggering immediate smart refresh...');
-      smartRefreshManager.restart(); // Reset all timers to force immediate refresh
+      smartRefreshManager.restart();
       
-      setImportResult(overallResults);
       console.log('✅ [RouteImport] Import operation complete - NO auto-optimization applied');
     } catch (error) {
       console.error("❌ Overall import error:", error);
