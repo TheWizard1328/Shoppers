@@ -1557,8 +1557,10 @@ export default function RouteImport({
         const { offlineDB } = await import('../utils/offlineDatabase');
 
         setProgressMessage('Loading latest patient and store data from cache...');
+        setProgressPercent(10);
         const freshPatients = await getData('Patient', '-created_date', null, false);
         const freshStores = await getData('Store', '-created_date', null, false);
+        setProgressPercent(12);
 
         const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
         const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
