@@ -717,7 +717,8 @@ export const restartDeliveryPatientSync = async () => {
     
     for (let i = 0; i < uniquePatientIdsList.length; i += ID_BATCH_SIZE) {
       const batchIds = uniquePatientIdsList.slice(i, i + ID_BATCH_SIZE);
-      console.log(`   Fetching batch ${Math.floor(i/ID_BATCH_SIZE)+1} (IDs ${i}-${Math.min(i+ID_BATCH_SIZE, uniquePatientIdsList.length)})`);
+      const batchNumber = Math.floor(i/ID_BATCH_SIZE)+1;
+      const totalBatches = Math.ceil(uniquePatientIdsList.length / ID_BATCH_SIZE);
       
       try {
         const batchPatients = await Patient.filter({
@@ -727,16 +728,20 @@ export const restartDeliveryPatientSync = async () => {
         if (batchPatients && batchPatients.length > 0) {
           patientsFromLastWeek = patientsFromLastWeek.concat(batchPatients);
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+          
+          // Update progress after EACH batch is saved
+          const batchProgress = 55 + Math.floor((i / uniquePatientIdsList.length) * 5);
+          notifySyncStatus({ status: 'syncing', entity: `Patients (${batchNumber}/${totalBatches})`, progress: batchProgress, loaded: patientsFromLastWeek.length });
+          console.log(`   ✅ Batch ${batchNumber}/${totalBatches} saved (${patientsFromLastWeek.length} total)`);
         }
       } catch (batchError) {
-        console.warn(`   ⚠️ Batch fetch failed (IDs ${i}-${Math.min(i+ID_BATCH_SIZE, uniquePatientIdsList.length)}):`, batchError.message);
+        console.warn(`   ⚠️ Batch ${batchNumber} failed:`, batchError.message);
+        // Still update progress even on error so UI doesn't freeze
+        const batchProgress = 55 + Math.floor((i / uniquePatientIdsList.length) * 5);
+        notifySyncStatus({ status: 'syncing', entity: `Patients (${batchNumber}/${totalBatches})`, progress: batchProgress, loaded: patientsFromLastWeek.length, error: 'batch_failed' });
       }
       
-      // Progress update
-      const batchProgress = Math.floor((i / uniquePatientIdsList.length) * 5) + 55;
-      notifySyncStatus({ status: 'syncing', entity: 'Patients (last 7 days)', progress: batchProgress, loaded: patientsFromLastWeek.length });
-      
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 200)); // Faster cooldown
     }
     
     console.log(`✅ [OfflineSync] Synced ${patientsFromLastWeek.length} patients from last 7 days`);
