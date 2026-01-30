@@ -1622,7 +1622,10 @@ export default function RouteImport({
           }
         }
 
-        console.log('✅ [RouteImport] Purge complete - all driver/date combinations cleared from both databases');
+          console.log('✅ [RouteImport] Purge complete - all driver/date combinations cleared from both databases');
+        } else {
+          console.log('⏭️ [RouteImport] Skipping purge - checkbox disabled by user');
+        }
         setProgressPercent(15);
 
         batchUpdateAMPM(deliveriesToCreateFiltered);
