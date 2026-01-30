@@ -1311,26 +1311,7 @@ export default function PayrollSummaryCard({
                        </tbody>
                        </table>
 
-                       {/* Deductions - Clickable */}
-                       {isAdmin && (
-                         <button
-                           onClick={() => setDeductionOverlayDriverId(data.driver.id)}
-                           className="text-[10px] text-blue-600 mt-3 pt-2 border-t border-slate-200 pt-2 hover:text-blue-700 font-semibold"
-                         >
-                           Deductions
-                         </button>
-                       )}
 
-                       {/* Bonus Pay */}
-                       {isAdmin && (
-                         <div className="mt-2 text-[10px]">
-                           <label className="block text-slate-600 mb-0.5">Bonus Pay:</label>
-                           <div className="flex items-center gap-1">
-                             <span>$</span>
-                             <input type="number" value={edit.bonusPay} onChange={(e) => updateEdit({ bonusPay: parseFloat(e.target.value) || 0 })} className="flex-1 px-1 py-0.5 text-[10px] border rounded" step="0.01" />
-                           </div>
-                         </div>
-                       )}
 
                        {/* App Fee % - Only AppOwner and Driver */}
                        {(isAppOwner(currentUser) || (isDriver && selectedDriverId === data.driver.id)) && edit.appFeePercent > 0 && (
