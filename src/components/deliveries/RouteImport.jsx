@@ -1177,20 +1177,14 @@ export default function RouteImport({
     loadAllDrivers();
   }, []); // CRITICAL: Empty dependency array to run only once on mount
 
-  // CRITICAL: Auto-open file dialog immediately after Dialog opens
+  // CRITICAL: Auto-open file dialog on mount (same as PatientImport)
   useEffect(() => {
-    if (hasOpenedFileDialogRef.current) return;
-
-    const timer = setTimeout(() => {
-      if (fileInputRef.current && !hasOpenedFileDialogRef.current) {
-        console.log('[RouteImport] Auto-opening file selector...');
+    setTimeout(() => {
+      if (fileInputRef.current) {
         fileInputRef.current.click();
-        hasOpenedFileDialogRef.current = true;
       }
     }, 100);
-    
-    return () => clearTimeout(timer);
-  }, []); // Run once on mount
+  }, []);
 
   const availableDrivers = useMemo(() => {
     const usersToUse = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
