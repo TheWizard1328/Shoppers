@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users, Plus, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
   Dialog,
