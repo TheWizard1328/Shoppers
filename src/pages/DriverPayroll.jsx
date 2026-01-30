@@ -367,28 +367,59 @@ export default function DriverPayroll() {
     };
   }, [currentPeriod, refreshPayrollRecords]);
 
-  // Smart refresh for payroll records - polls every 30 seconds
+  // Smart refresh for payroll data - auto-refresh every 60 seconds to get latest deductions, bonuses, app fee %
   useEffect(() => {
-    if (!currentPeriod || !hasInitialized) return;
+    if (!currentPeriod || !hasInitialized || !currentUser) return;
 
-    const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
-    const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
+    const refreshPayrollData = async () => {
+      console.log('🔄 [DriverPayroll] Auto-refresh cycle starting');
 
-    const refreshInterval = setInterval(async () => {
-      const result = await smartRefreshManager.refreshPayrollRecords(
-        payrollRecords,
-        periodStartStr,
-        periodEndStr
-      );
-      
-      if (result?.hasChanges) {
-        console.log(`📊 [DriverPayroll] Smart refresh detected payroll changes`);
-        setPayrollRecords(result.payrollRecords);
+      // Notify UI that refresh is active
+      if (setSmartRefreshActivity) {
+        setSmartRefreshActivity({ active: true, updatedEntities: ['Payroll', 'Delivery'] });
       }
-    }, 30000); // 30 seconds
+
+      try {
+        // Fetch fresh payroll data including updated deductions, bonuses, and app fees
+        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+          payrollYear: selectedYear,
+          payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
+          payrollDriverId: null
+        });
+
+        const freshData = response?.data?.payrollData || response?.payrollData;
+        if (freshData) {
+          setPayrollData(freshData);
+          console.log('✅ [DriverPayroll] Payroll data refreshed');
+        }
+
+        // Also refresh payroll records for the current period
+        const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
+        const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
+        const result = await smartRefreshManager.refreshPayrollRecords(
+          payrollRecords,
+          periodStartStr,
+          periodEndStr
+        );
+
+        if (result?.hasChanges) {
+          console.log(`📊 [DriverPayroll] Payroll records updated`);
+          setPayrollRecords(result.payrollRecords);
+        }
+      } catch (error) {
+        console.error('Failed during auto-refresh:', error);
+      } finally {
+        // Notify UI that refresh is complete
+        if (setSmartRefreshActivity) {
+          setSmartRefreshActivity({ active: false, updatedEntities: [] });
+        }
+      }
+    };
+
+    const refreshInterval = setInterval(refreshPayrollData, 60000); // 60 seconds
 
     return () => clearInterval(refreshInterval);
-  }, [currentPeriod, hasInitialized, payrollRecords]);
+  }, [currentPeriod, hasInitialized, currentUser, selectedYear, selectedCityId, payrollRecords, setSmartRefreshActivity]);
 
   const sortedCities = useMemo(() => {
     if (!payrollData?.cities) return [];
