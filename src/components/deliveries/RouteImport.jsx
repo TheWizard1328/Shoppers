@@ -579,6 +579,7 @@ export default function RouteImport({
     { key: 'actual_delivery_time', label: 'Time' },
     { key: 'stop_order', label: 'Order' },
     { key: 'cod_total_amount_required', label: 'COD Amount' },
+    { key: 'paid_km_override', label: 'Paid KM Override' },
     { key: 'signature_needed', label: 'Signature' },
     { key: 'fridge_item', label: 'Fridge' },
     { key: 'oversized', label: 'Oversized' },
