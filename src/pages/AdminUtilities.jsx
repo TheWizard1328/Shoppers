@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { User } from '@/entities/User';
 import { AppUser } from '@/entities/AppUser';
@@ -2721,8 +2722,6 @@ export default function AdminUtilities() {
   const [hasAccess, setHasAccess] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
 
-
-
   const [activeDataTab, setActiveDataTab] = useState('deliveries');
   const [activeUtilityTab, setActiveUtilityTab] = useState('data');
   const [dataViewMode, setDataViewMode] = useState({}); // { tab: 'online' | 'offline' }
@@ -2845,7 +2844,7 @@ export default function AdminUtilities() {
   });
   const cities = dataViewMode.cities === 'offline' ? offlineCities : (contextCities?.length > 0 ? contextCities : (fetchedCities || []));
 
-  // CRITICAL: Define driversForDropdown BEFORE deliveries query to prevent initialization error
+  // CRITICAL: Define mergedUsers and driversForDropdown BEFORE deliveries query to prevent initialization error
   const mergedUsers = useMemo(() => {
     if (!authUsers || !appUsers) return [];
 
@@ -4322,25 +4321,25 @@ export default function AdminUtilities() {
                          isLoadingData={deliveriesLoading}
                          selectedYear={selectedDeliveryYear}
                          onYearChange={(year) => {
-                           setSelectedDeliveryYear(year);
                            if (currentUser?.id) {
                              saveSetting(currentUser.id, 'admin_utilities_year', year);
                            }
+                           setSelectedDeliveryYear(year);
                          }}
                          availableYears={availableDeliveryYears}
                          selectedMonth={selectedDeliveryMonth}
                          onMonthChange={(month) => {
-                           setSelectedDeliveryMonth(month);
                            if (currentUser?.id) {
                              saveSetting(currentUser.id, 'admin_utilities_month', month);
                            }
+                           setSelectedDeliveryMonth(month);
                          }}
                          selectedDriver={selectedDriver}
                          onDriverChange={(driver) => {
-                           setSelectedDriver(driver);
                            if (currentUser?.id) {
                              saveSetting(currentUser.id, 'admin_utilities_driver', driver);
                            }
+                           setSelectedDriver(driver);
                          }}
                        />}
                     </div>
