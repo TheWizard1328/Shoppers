@@ -1,10 +1,10 @@
 /**
- * Offline Sync Manager v3 - Timestamp-Based Sync
+ * Offline Sync Manager v3 - Timestamp-Based Sync with Date-Range Delivery Syncing
  * 
  * STRATEGY:
  * 1. Timestamp-based: Only fetch entities if updated_date > last_synced_timestamp
  * 2. Cities/Stores sync only when server has changes (saves rate limits)
- * 3. Deliveries/Patients/AppUsers: incremental sync with updated_date filter
+ * 3. Deliveries: Check one date at a time over past 90 days for changes before syncing
  * 4. NEVER clear the entire DB - only merge/update records
  */
 
@@ -20,6 +20,7 @@ import { format, subDays } from 'date-fns';
 // Configuration
 const PATIENT_BATCH_SIZE = 250;
 const BATCH_COOLDOWN = 1000;
+const DELIVERY_DATE_RANGE_DAYS = 90;
 
 let syncInProgress = false;
 let syncPaused = false;
@@ -57,7 +58,7 @@ const notifySyncStatus = (status) => {
  * CRITICAL: Skip API call if offline DB shows recent sync (within 30 minutes) to prevent rate limits
  * @returns {Promise<{needsSync: boolean, lastClientTimestamp: string|null}>}
  */
-const checkIfEntityNeedsSync = async (entityName, Entity) => {
+const checkIfEntityNeedsSync = async (entityName, Entity, initialCheckQuery = {}) => {
   try {
     const metadata = await offlineDB.getSyncMetadata(entityName);
     const lastClientTimestamp = metadata?.last_synced_timestamp || null;
@@ -72,7 +73,7 @@ const checkIfEntityNeedsSync = async (entityName, Entity) => {
     
     // Only fetch ONE record to check timestamp (cheaper than full list)
     // But only if we haven't synced recently
-    const latestRecords = await Entity.filter({}, '-updated_date', 1);
+    const latestRecords = await Entity.filter(initialCheckQuery, '-updated_date', 1);
     if (!latestRecords || latestRecords.length === 0) {
       return { needsSync: false, lastClientTimestamp };
     }
@@ -101,9 +102,9 @@ const checkIfEntityNeedsSync = async (entityName, Entity) => {
  * Sync a single entity with timestamp checking
  * Only fetches if server has newer data than client
  */
-const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter = {}) => {
+const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter = {}, initialCheckQuery = {}) => {
   try {
-    const checkResult = await checkIfEntityNeedsSync(entityName, Entity);
+    const checkResult = await checkIfEntityNeedsSync(entityName, Entity, initialCheckQuery);
     
     if (!checkResult.needsSync || checkResult.skipped) {
       // CRITICAL: Update sync time even when skipping to prevent repeated checks
@@ -151,19 +152,19 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   
   try {
     // Step 1: AppUsers with timestamp check
-    const appUserResult = await syncEntityWithTimestampCheck('AppUser', AppUser);
+    const appUserResult = await syncEntityWithTimestampCheck('AppUser', AppUser, {}, {});
     const appUsers = appUserResult.skipped ? await offlineDB.getAll(offlineDB.STORES.APP_USERS) : await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     // Step 2: Cities with timestamp check
-    const cityResult = await syncEntityWithTimestampCheck('City', City);
+    const cityResult = await syncEntityWithTimestampCheck('City', City, {}, {});
     const cities = await offlineDB.getAll(offlineDB.STORES.CITIES);
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     // Step 3: Stores with timestamp check
-    const storeResult = await syncEntityWithTimestampCheck('Store', Store);
+    const storeResult = await syncEntityWithTimestampCheck('Store', Store, {}, {});
     const stores = await offlineDB.getAll(offlineDB.STORES.STORES);
     
     await new Promise(r => setTimeout(r, 3000));
@@ -171,7 +172,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     // Step 4: Patients with timestamp check
     let patients = [];
     try {
-      const patientResult = await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' });
+      const patientResult = await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' }, { status: 'active' });
       patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
       patients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
     } catch (patientError) {}
@@ -205,8 +206,36 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
 // ==================== BACKGROUND SYNC ====================
 
 /**
- * Background sync with timestamp-based incremental strategy
- * Only syncs entities when server has newer data (compares updated_date timestamps)
+ * Get the next delivery date to sync (cycling through past 90 days)
+ * Returns null if all dates have been recently synced
+ */
+const getNextDeliveryDateToSync = async () => {
+  try {
+    const metadata = await offlineDB.getSyncMetadata('Delivery_DateCycle');
+    const lastCycleDate = metadata?.lastCycleDate ? new Date(metadata.lastCycleDate) : null;
+    const cycleIndex = metadata?.cycleIndex || 0;
+    
+    // Start from today and go back 90 days
+    const today = new Date();
+    const targetDate = new Date(today);
+    targetDate.setDate(targetDate.getDate() - ((cycleIndex % DELIVERY_DATE_RANGE_DAYS)));
+    
+    const dateStr = format(targetDate, 'yyyy-MM-dd');
+    const nextIndex = (cycleIndex + 1) % DELIVERY_DATE_RANGE_DAYS;
+    
+    // Store for next cycle
+    await offlineDB.updateSyncMetadata('Delivery_DateCycle', null, new Date().toISOString(), { cycleIndex: nextIndex, lastCycleDate: new Date().toISOString() });
+    
+    return dateStr;
+  } catch (error) {
+    // Default: start from today
+    return format(new Date(), 'yyyy-MM-dd');
+  }
+};
+
+/**
+ * Background sync with timestamp-based incremental strategy for deliveries
+ * Syncs one delivery date at a time over past 90 days
  */
 export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
   if (syncInProgress || syncPaused) {
@@ -219,20 +248,32 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
   try {
     await new Promise(r => setTimeout(r, 2000));
     
-    await syncEntityWithTimestampCheck('City', City);
+    await syncEntityWithTimestampCheck('City', City, {}, {});
     await new Promise(r => setTimeout(r, 2000));
     
-    await syncEntityWithTimestampCheck('Store', Store);
+    await syncEntityWithTimestampCheck('Store', Store, {}, {});
     await new Promise(r => setTimeout(r, 2000));
     
-    await syncEntityWithTimestampCheck('AppUser', AppUser);
+    await syncEntityWithTimestampCheck('AppUser', AppUser, {}, {});
     await new Promise(r => setTimeout(r, 2000));
     
-    await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' });
+    await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' }, { status: 'active' });
     await new Promise(r => setTimeout(r, 2000));
     
-    const deliveryFilter = storeIds && storeIds.length > 0 ? { store_id: { $in: storeIds } } : {};
-    await syncEntityWithTimestampCheck('Delivery', Delivery, deliveryFilter);
+    // CRITICAL: Sync deliveries one date at a time over past 90 days
+    // Check for changes before syncing to minimize rate limits
+    const deliveryDateToSync = await getNextDeliveryDateToSync();
+    const deliveryCheckFilter = { delivery_date: deliveryDateToSync };
+    if (storeIds && storeIds.length > 0) {
+      deliveryCheckFilter.store_id = { $in: storeIds };
+    }
+    
+    const deliveryFilter = { delivery_date: deliveryDateToSync };
+    if (storeIds && storeIds.length > 0) {
+      deliveryFilter.store_id = { $in: storeIds };
+    }
+    
+    await syncEntityWithTimestampCheck('Delivery', Delivery, deliveryFilter, deliveryCheckFilter);
 
     notifySyncStatus({ status: 'complete' });
     window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
@@ -245,7 +286,6 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     syncInProgress = false;
   }
 };
-
 
 
 
