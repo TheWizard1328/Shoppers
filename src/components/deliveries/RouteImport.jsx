@@ -1177,16 +1177,20 @@ export default function RouteImport({
     loadAllDrivers();
   }, []); // CRITICAL: Empty dependency array to run only once on mount
 
-  // CRITICAL: Auto-open file dialog after component is mounted and ref is ready
+  // CRITICAL: Auto-open file dialog after Dialog animation completes
   useEffect(() => {
     if (!hasOpenedFileDialogRef.current && fileInputRef.current) {
       const timer = setTimeout(() => {
         if (fileInputRef.current) {
           console.log('[RouteImport] Auto-opening file selector...');
-          fileInputRef.current.click();
-          hasOpenedFileDialogRef.current = true;
+          try {
+            fileInputRef.current.click();
+            hasOpenedFileDialogRef.current = true;
+          } catch (error) {
+            console.error('[RouteImport] Failed to auto-open file selector:', error);
+          }
         }
-      }, 300);
+      }, 800); // Longer delay to ensure Dialog animation completes
       return () => clearTimeout(timer);
     }
   }, []); // Run once on mount
