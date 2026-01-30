@@ -103,10 +103,13 @@ export default function PayrollSummaryCard({
    fetchPayrollRecords();
   }, [periodStartStr, periodEndStr, externalPayrollRecords]);
 
-  // Auto-create missing Payroll records for drivers with deliveries when payroll data is first calculated
+  // Auto-create missing Payroll records when payroll data is calculated
   useEffect(() => {
-    const autoCreateMissingRecords = async (driversData) => {
-      if (!driversData || driversData.length === 0 || !periodStartStr || !periodEndStr) return;
+    if (!periodStartStr || !periodEndStr || payrollRecords.length > 0 || payrollData.length === 0) return;
+    
+    const autoCreateMissingRecords = async () => {
+      const driversData = payrollData;
+      if (!driversData || driversData.length === 0) return;
 
       try {
         // Get drivers with deliveries in this pay period
