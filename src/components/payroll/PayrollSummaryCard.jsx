@@ -61,6 +61,7 @@ export default function PayrollSummaryCard({
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [payrollRecords, setPayrollRecords] = useState([]);
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
+  const [driverEdits, setDriverEdits] = useState({});
 
   const isAdmin = currentUser && userHasRole(currentUser, 'admin');
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !isAdmin;
