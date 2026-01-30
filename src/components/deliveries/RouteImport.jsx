@@ -1005,6 +1005,14 @@ export default function RouteImport({
       const cleanedNotes = processDeliveryNotes(rawNotes, newDeliveryData, patient, isPickup, true);
       newDeliveryData.delivery_notes = cleanedNotes;
 
+      // CRITICAL: Check if distanceFromStore > driver's extra_km_limit and set paid_km_override
+      if (distanceFromStore !== null && selectedDriver.extra_km_limit !== undefined && selectedDriver.extra_km_limit !== null) {
+        if (distanceFromStore > selectedDriver.extra_km_limit) {
+          newDeliveryData.paid_km_override = distanceFromStore;
+          console.log(`✅ [Import CSV Line ${lineNumber}] Set paid_km_override to ${distanceFromStore} (driver limit: ${selectedDriver.extra_km_limit})`);
+        }
+      }
+
       // CRITICAL: If this PID has duplicates in the import, ONLY match by exact SID
       // This prevents stop 13 from overwriting stop 10's data
       const pidHasDuplicatesInImport = patientPID && pidCountInImport.get(patientPID) > 1;
