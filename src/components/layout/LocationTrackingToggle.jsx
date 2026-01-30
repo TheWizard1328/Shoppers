@@ -119,7 +119,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         setLastUpdateTime(new Date(status.lastUpdate));
 
         const timeSinceLastUpdate = Date.now() - status.lastUpdate;
-        const timeUntilNextUpdate = Math.max(0, 30000 - timeSinceLastUpdate);
+        const timeUntilNextUpdate = Math.max(0, 15000 - timeSinceLastUpdate);
         setNextUpdateIn(Math.ceil(timeUntilNextUpdate / 1000));
       } else {
         // Sharing is OFF - clear timing info

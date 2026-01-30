@@ -23,8 +23,8 @@ class LocationTracker {
     this.currentUser = null;
     this.appUserId = null;
     this.driverStatus = 'off_duty'; // Track driver duty status
-    this.updateInterval = 5000; // 5 seconds heartbeat for live tracking (can be overridden by settings)
-    this.coordinateUpdateInterval = 10000; // 10 seconds max without coordinate update (ensures fresh markers)
+    this.updateInterval = 15000; // 15 seconds heartbeat for live tracking (can be overridden by settings)
+    this.coordinateUpdateInterval = 15000; // 15 seconds max without coordinate update (ensures fresh markers)
     this.minDistanceChange = 50; // 50 meters (can be overridden by settings)
     this.failedUpdateCount = 0;
     this.maxFailedUpdates = 3;
