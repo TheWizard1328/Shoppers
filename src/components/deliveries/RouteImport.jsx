@@ -1934,13 +1934,6 @@ export default function RouteImport({
         smartRefreshManager.restart(); // Reset all timers to force immediate refresh
         
         console.log('✅ [RouteImport] Import operation complete - NO auto-optimization applied');
-        
-        setImportResult(overallResults);
-        console.log('✅ [RouteImport] Import operation complete');
-      } catch (innerError) {
-        console.error('❌ [RouteImport] Error during import:', innerError);
-        throw innerError;
-      }
     } catch (error) {
       console.error("❌ Overall import error:", error);
       
