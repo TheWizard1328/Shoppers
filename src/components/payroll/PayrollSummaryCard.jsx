@@ -240,6 +240,9 @@ export default function PayrollSummaryCard({
 
   // Last fetch timestamp to detect real changes
   const lastFetchRef = React.useRef({ timestamp: 0 });
+  
+  // Track last period we auto-created for to prevent duplicates on effect reruns
+  const lastAutoCreatePeriodRef = React.useRef(null);
 
   // Use external payroll records if provided, otherwise fetch locally with 15-sec refresh
   useEffect(() => {
