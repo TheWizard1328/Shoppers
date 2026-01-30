@@ -3065,7 +3065,6 @@ export default function AdminUtilities() {
     }
   };
 
-
   // Load offline data when mode changes
   useEffect(() => {
     const loadOfflineData = async () => {
@@ -3253,7 +3252,6 @@ export default function AdminUtilities() {
   const handlePatientSort = useCallback((column) => {
     handleSortChange(column, patientSortColumn, patientSortDirection, setPatientSortColumn, setPatientSortDirection);
   }, [handleSortChange, patientSortColumn, patientSortDirection]);
-
 
   const filteredAndSortedDeliveries = useMemo(() => {
     let filtered = allDeliveries || [];
