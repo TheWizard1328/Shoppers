@@ -1150,32 +1150,14 @@ export default function PayrollSummaryCard({
                        </tbody>
                        </table>
 
-                       {/* Deduction Manager */}
+                       {/* Deductions - Clickable */}
                        {isAdmin && (
-                         <div className="mt-3 pt-2 border-t border-slate-200">
-                           <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-slate-600)' }}>Deductions</div>
-                           {edit.deductions?.map((ded, idx) => (
-                             <div key={idx} className="flex items-center justify-between text-[10px] mb-1">
-                               <span>{ded.name}:</span>
-                               <div className="flex items-center gap-1">
-                                 <span>-${ded.amount.toFixed(2)}</span>
-                                 <button onClick={() => updateEdit({ deductions: edit.deductions.filter((_, i) => i !== idx) })} className="p-0.5 hover:bg-red-100 rounded">
-                                   <X className="w-3 h-3 text-red-600" />
-                                 </button>
-                               </div>
-                             </div>
-                           ))}
-                           {edit.showDeductionManager && (
-                             <div className="flex gap-1 mt-1">
-                               <input type="text" placeholder="Name" value={edit.newDeductionName} onChange={(e) => updateEdit({ newDeductionName: e.target.value })} className="flex-1 px-1 py-0.5 text-[10px] border rounded" />
-                               <input type="number" placeholder="Amt" value={edit.newDeductionAmount} onChange={(e) => updateEdit({ newDeductionAmount: e.target.value })} className="w-12 px-1 py-0.5 text-[10px] border rounded" />
-                               <button onClick={() => { if (edit.newDeductionName && edit.newDeductionAmount) { updateEdit({ deductions: [...edit.deductions, { name: edit.newDeductionName, amount: parseFloat(edit.newDeductionAmount) }], newDeductionName: '', newDeductionAmount: '' }); } }} className="px-1 py-0.5 bg-emerald-600 text-white rounded text-[10px]">+</button>
-                             </div>
-                           )}
-                           <button onClick={() => updateEdit({ showDeductionManager: !edit.showDeductionManager })} className="text-[10px] text-blue-600 mt-1">
-                             {edit.showDeductionManager ? 'Done' : 'Manage'}
-                           </button>
-                         </div>
+                         <button
+                           onClick={() => setDeductionOverlayDriverId(data.driver.id)}
+                           className="text-[10px] text-blue-600 mt-3 pt-2 border-t border-slate-200 pt-2 hover:text-blue-700 font-semibold"
+                         >
+                           Deductions
+                         </button>
                        )}
 
                        {/* Bonus Pay */}
