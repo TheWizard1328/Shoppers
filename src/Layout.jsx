@@ -354,7 +354,15 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
 const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, impersonatingUser, currentUser }) => {
   const [open, setOpen] = useState(false);
 
-  const availableUsers = sortUsers(currentUser ? users.filter((u) => u && u.id !== currentUser.id) : users);
+  // CRITICAL: Deduplicate users by ID BEFORE sorting to prevent duplicates in View As User menu
+  const dedupedUsers = currentUser ? users.filter((u) => u && u.id !== currentUser.id) : users;
+  const uniqueUsersMap = new Map();
+  dedupedUsers.forEach(u => {
+    if (u?.id && !uniqueUsersMap.has(u.id)) {
+      uniqueUsersMap.set(u.id, u);
+    }
+  });
+  const availableUsers = sortUsers(Array.from(uniqueUsersMap.values()));
 
   return (
     <div className="mt-2 space-y-2">

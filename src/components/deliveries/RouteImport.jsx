@@ -2327,9 +2327,9 @@ export default function RouteImport({
               <div className={`flex ${isMobile ? 'flex-col' : 'items-center justify-between'} gap-3 md:gap-4 mb-4`}>
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className="text-xs md:text-sm truncate" style={{ color: 'var(--text-slate-500)' }}>
-                    Importing for: <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>
-                      {[...new Set(files.map(f => fileDriverMap[f.name]?.driver).filter(Boolean).map(d => getDriverDisplayName(d)))].join(', ')}
-                    </span>
+                  Importing for: <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+                  {[...new Set(files.map(f => fileDriverMap[f.name]?.driver).filter(Boolean).map(d => `${getDriverDisplayName(d)} (...${d.id?.slice(-4)})`))].join(', ')}
+                  </span>
                   </span>
                   <h3 className="text-base md:text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Preview: {filteredPreviewDeliveries.length} Deliveries</h3>
                   <span className="text-xs text-red-600 font-medium">⚠️ Import will PURGE all existing deliveries for these drivers before saving</span>
