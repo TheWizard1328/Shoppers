@@ -39,3 +39,13 @@ export const isMobileDevice = () => {
   const { deviceType } = getUserAgentInfo();
   return deviceType === 'Mobile';
 };
+
+/**
+ * Checks if device is mobile/tablet based ONLY on user agent (ignores screen width)
+ * Used for theme decisions - allows dark mode on tablets regardless of screen size
+ * @returns {boolean} - true if mobile/tablet user agent
+ */
+export const isMobileDeviceForTheme = () => {
+  const ua = navigator.userAgent;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+};

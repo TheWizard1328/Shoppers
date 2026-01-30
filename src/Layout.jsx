@@ -80,7 +80,7 @@ import { globalFilters } from './components/utils/globalFilters';
 import CitySelectionPopup from './components/cities/CitySelectionPopup';
 import { getActiveDriversForCity, getAvailableDrivers } from './components/utils/driverSelectors';
 // Removed: getCitiesWithinRadius - no longer using geographic filtering
-import { getUserAgentInfo } from './components/utils/deviceUtils';
+import { getUserAgentInfo, isMobileDeviceForTheme } from './components/utils/deviceUtils';
 import PatientImport from './components/patients/PatientImport';
   import RouteImport from './components/deliveries/RouteImport';
   import DriverStatusToggle from './components/layout/DriverStatusToggle';
@@ -646,9 +646,9 @@ export default function Layout({ children, currentPageName }) {
   useEffect(() => {
     // CRITICAL: Delay theme changes to avoid interfering with form submissions or status updates
     const themeUpdateTimer = setTimeout(() => {
-      // CRITICAL: Use isMobileDevice() for reliable mobile/tablet detection (not layout mode)
-      // This allows tablets/mobile devices to use dark mode even when showing desktop layout
-      const isMobileOrTablet = isMobileDevice();
+      // CRITICAL: Use isMobileDeviceForTheme() for theme decisions - ONLY based on user agent, ignores screen width
+      // This allows tablets/mobile devices to use dark mode regardless of screen size
+      const isMobileOrTablet = isMobileDeviceForTheme();
       
       if (!isMobileOrTablet) {
         // Force light mode on actual desktop computers only
@@ -756,7 +756,9 @@ export default function Layout({ children, currentPageName }) {
           }
 
           // Apply theme preference (mobile devices only - desktop computers always light)
-          if (settings.theme_preference && deviceType === 'Mobile') {
+          // CRITICAL: Check user agent for theme, not deviceType (which includes screen width)
+          const isMobileOrTablet = isMobileDeviceForTheme();
+          if (settings.theme_preference && isMobileOrTablet) {
             setThemePreference(settings.theme_preference);
           } else {
             setThemePreference('light');
