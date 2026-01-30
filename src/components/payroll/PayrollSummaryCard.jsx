@@ -324,10 +324,10 @@ export default function PayrollSummaryCard({
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
       const returnsCount = periodDeliveries.filter((d) => d.status === 'cancelled' && !d.after_hours_pickup).length;
       
-      // Count returns with store name in brackets (e.g., "[XX] Return")
+      // Count returns with store name in brackets (e.g., "[XX] Return") - must be cancelled and not after_hours
       const storeReturnCount = periodDeliveries.filter((d) => {
+        if (d.status !== 'cancelled' || d.after_hours_pickup) return false;
         const patientName = (d.patient_name || '').toLowerCase();
-        // Check if patient_name contains both a store abbreviation in brackets AND the word "return"
         const hasStorePattern = /\[[\w\s]+\]/.test(d.patient_name || '');
         const hasReturn = patientName.includes('return');
         return hasStorePattern && hasReturn;
