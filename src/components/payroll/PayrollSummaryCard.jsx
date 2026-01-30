@@ -270,15 +270,24 @@ export default function PayrollSummaryCard({
       const oversizedRate = appUser?.oversized_item_rate || 0;
 
       // Filter deliveries for this driver in the current period
-      // Exclude pickups (no patient_id) UNLESS it's an after_hours_pickup
+      // Include completed, failed, cancelled (after_hours OR store returns)
       const periodDeliveries = deliveries.filter((d) => {
         if (!d || !d.delivery_date) return false;
-        // Count completed, failed, and cancelled (for after_hours_pickup)
-        const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
-        if (!validStatus) return false;
         if (d.driver_id !== driverId) return false;
-        // Exclude pickups (no patient_id) unless it's an after_hours_pickup
+        // Exclude pickups (no patient_id) unless it's an after_hours_pickup or store return
         if (!d.patient_id && !d.after_hours_pickup) return false;
+
+        // Valid statuses: completed, failed, or cancelled (for after_hours or store returns)
+        if (d.status === 'completed' || d.status === 'failed') {
+          // Valid - count these
+        } else if (d.status === 'cancelled') {
+          // For cancelled: include after_hours_pickup OR store returns
+          const isStoreReturn = /\[[\w\s]+\]/.test(d.patient_name || '') && 
+                                (d.patient_name || '').toLowerCase().includes('return');
+          if (!d.after_hours_pickup && !isStoreReturn) return false;
+        } else {
+          return false;
+        }
 
         const date = new Date(d.delivery_date + 'T00:00:00');
         return date >= currentPeriod.start && date <= currentPeriod.end;
