@@ -121,28 +121,43 @@ export default function PayrollSummaryCard({
 
 
 
+  // Handle immediate save to Payroll entity and offline DB
+   const savePayrollChanges = async (driverId, updates) => {
+     try {
+       const existingRecord = getDriverPayrollRecord(driverId);
+
+       if (existingRecord) {
+         // Update existing record
+         await base44.entities.Payroll.update(existingRecord.id, updates);
+         console.log('✅ [Payroll] Updated record for driver:', driverId, updates);
+
+         // Sync to offline DB
+         try {
+           const { offlineDB } = await import('./components/utils/offlineDatabase');
+           const updatedRecord = { ...existingRecord, ...updates };
+           await offlineDB.save(offlineDB.STORES.PAYROLL, updatedRecord);
+           console.log('💾 [Payroll] Synced to offline DB:', driverId);
+         } catch (offlineError) {
+           console.warn('⚠️ [Payroll] Failed to sync to offline DB:', offlineError);
+         }
+
+         // Refresh payroll records
+         if (refreshPayrollRecords) {
+           await refreshPayrollRecords();
+         }
+       } else {
+         console.log('ℹ️ [Payroll] No record yet for driver - will be created on finalization');
+       }
+     } catch (error) {
+       console.error('❌ [Payroll] Failed to save changes:', error);
+     }
+   };
+
   // Handle bonus pay save and close
    const handleBonusClose = async () => {
      const driverId = bonusOverlayDriverId;
      if (!driverId) return;
-
-     try {
-       const edit = driverEdits[driverId];
-       const existingRecord = getDriverPayrollRecord(driverId);
-
-       if (existingRecord && (edit.bonusPay !== undefined || edit.appFeePercent !== undefined)) {
-         // Update existing record with bonus pay and app fee %
-         await base44.entities.Payroll.update(existingRecord.id, {
-           bonus_pay: edit.bonusPay || 0,
-           app_fee_percentage: edit.appFeePercent || 0
-         });
-         console.log('✅ [Payroll] Updated bonus pay and app fee % for:', driverId);
-       }
-     } catch (error) {
-       console.error('❌ [Payroll] Failed to save bonus pay:', error);
-     } finally {
-       setBonusOverlayDriverId(null);
-     }
+     setBonusOverlayDriverId(null);
    };
 
   // Handle driver finalization
@@ -1000,17 +1015,25 @@ export default function PayrollSummaryCard({
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">-${ded.amount.toFixed(2)}</span>
                         <button
-                          onClick={() => setDriverEdits(prev => ({
-                            ...prev,
-                            [deductionOverlayDriverId]: {
-                              ...prev[deductionOverlayDriverId],
-                              deductions: prev[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx)
-                            }
-                          }))}
-                          className="p-1 hover:bg-red-100 rounded"
-                        >
-                          <X className="w-4 h-4 text-red-600" />
-                        </button>
+                           onClick={async () => {
+                             const updatedDeductions = driverEdits[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx);
+                             setDriverEdits(prev => ({
+                               ...prev,
+                               [deductionOverlayDriverId]: {
+                                 ...prev[deductionOverlayDriverId],
+                                 deductions: updatedDeductions
+                               }
+                             }));
+                             // Save immediately
+                             await savePayrollChanges(deductionOverlayDriverId, { 
+                               deductions: updatedDeductions,
+                               total_deductions: updatedDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
+                             });
+                           }}
+                           className="p-1 hover:bg-red-100 rounded"
+                         >
+                           <X className="w-4 h-4 text-red-600" />
+                         </button>
                       </div>
                     </div>
                   ))}
@@ -1047,24 +1070,30 @@ export default function PayrollSummaryCard({
                       step="0.01"
                     />
                     <button
-                      onClick={() => {
-                        const name = driverEdits[deductionOverlayDriverId]?.newDeductionName;
-                        const amount = driverEdits[deductionOverlayDriverId]?.newDeductionAmount;
-                        if (name && amount) {
-                          setDriverEdits(prev => ({
-                            ...prev,
-                            [deductionOverlayDriverId]: {
-                              ...prev[deductionOverlayDriverId],
-                              deductions: [...prev[deductionOverlayDriverId].deductions, { name, amount: parseFloat(amount) }],
-                              newDeductionName: '',
-                              newDeductionAmount: ''
-                            }
-                          }));
-                        }
-                      }}
-                      className="px-3 py-1 bg-emerald-600 text-white rounded text-sm font-medium hover:bg-emerald-700"
+                     onClick={async () => {
+                       const name = driverEdits[deductionOverlayDriverId]?.newDeductionName;
+                       const amount = driverEdits[deductionOverlayDriverId]?.newDeductionAmount;
+                       if (name && amount) {
+                         const newDeductions = [...(driverEdits[deductionOverlayDriverId].deductions || []), { name, amount: parseFloat(amount) }];
+                         setDriverEdits(prev => ({
+                           ...prev,
+                           [deductionOverlayDriverId]: {
+                             ...prev[deductionOverlayDriverId],
+                             deductions: newDeductions,
+                             newDeductionName: '',
+                             newDeductionAmount: ''
+                           }
+                         }));
+                         // Save immediately
+                         await savePayrollChanges(deductionOverlayDriverId, { 
+                           deductions: newDeductions,
+                           total_deductions: newDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
+                         });
+                       }
+                     }}
+                     className="px-3 py-1 bg-emerald-600 text-white rounded text-sm font-medium hover:bg-emerald-700"
                     >
-                      Add
+                     Add
                     </button>
                   </div>
                 </div>
@@ -1100,10 +1129,15 @@ export default function PayrollSummaryCard({
                    <input
                      type="number"
                      value={driverEdits[bonusOverlayDriverId]?.bonusPay || 0}
-                     onChange={(e) => setDriverEdits(prev => ({
-                       ...prev,
-                       [bonusOverlayDriverId]: { ...prev[bonusOverlayDriverId], bonusPay: parseFloat(e.target.value) || 0 }
-                     }))}
+                     onChange={(e) => {
+                       const newValue = parseFloat(e.target.value) || 0;
+                       setDriverEdits(prev => ({
+                         ...prev,
+                         [bonusOverlayDriverId]: { ...prev[bonusOverlayDriverId], bonusPay: newValue }
+                       }));
+                       // Save immediately
+                       savePayrollChanges(bonusOverlayDriverId, { bonus_pay: newValue });
+                     }}
                      onKeyDown={(e) => {
                        if (e.key === 'Enter') {
                          const closeButton = document.querySelector('[data-dialog-close="bonus"]');
@@ -1357,7 +1391,20 @@ export default function PayrollSummaryCard({
                        {isAppOwner(currentUser) && (
                          <div className="mt-2 text-[10px]">
                            <label className="block text-slate-600 mb-0.5">App Fee %:</label>
-                           <input type="number" value={edit.appFeePercent} onChange={(e) => updateEdit({ appFeePercent: parseFloat(e.target.value) || 0 })} className="w-full px-1 py-0.5 text-[10px] border rounded" step="0.1" min="0" max="100" />
+                           <input 
+                             type="number" 
+                             value={edit.appFeePercent} 
+                             onChange={(e) => {
+                               const newValue = parseFloat(e.target.value) || 0;
+                               updateEdit({ appFeePercent: newValue });
+                               // Save immediately
+                               savePayrollChanges(driverKey, { app_fee_percentage: newValue });
+                             }} 
+                             className="w-full px-1 py-0.5 text-[10px] border rounded" 
+                             step="0.1" 
+                             min="0" 
+                             max="100" 
+                           />
                          </div>
                        )}
                        </div>
