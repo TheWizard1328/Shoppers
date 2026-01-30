@@ -105,8 +105,10 @@ const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter
   try {
     const checkResult = await checkIfEntityNeedsSync(entityName, Entity);
     
-    if (!checkResult.needsSync) {
-      return { skipped: true, reason: 'no_updates' };
+    if (!checkResult.needsSync || checkResult.skipped) {
+      // CRITICAL: Update sync time even when skipping to prevent repeated checks
+      await offlineDB.updateSyncMetadata(entityName, null, new Date().toISOString());
+      return { skipped: true, reason: checkResult.skipped ? 'recently_synced' : 'no_updates' };
     }
     
     const filter = checkResult.lastClientTimestamp 
@@ -123,8 +125,10 @@ const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter
                         offlineDB.STORES.STORES;
       
       await offlineDB.bulkSave(storeName, records);
-      await offlineDB.updateSyncMetadata(entityName, checkResult.latestServerTimestamp);
     }
+    
+    // CRITICAL: Always update sync metadata even if no records, to mark check timestamp
+    await offlineDB.updateSyncMetadata(entityName, checkResult.latestServerTimestamp, new Date().toISOString());
     
     return { success: true, recordCount: records.length };
   } catch (error) {
