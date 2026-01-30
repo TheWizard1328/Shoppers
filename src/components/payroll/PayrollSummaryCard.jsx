@@ -382,9 +382,14 @@ export default function PayrollSummaryCard({
        let existingRecord = getDriverPayrollRecord(driverId);
 
        if (existingRecord) {
-         // Update existing record
-         await base44.entities.Payroll.update(existingRecord.id, updates);
-         console.log('✅ [Payroll] Updated record for driver:', driverId, updates);
+         // Update existing record with explicit app_fee_percentage handling
+         const updateData = {
+           ...updates,
+           app_fee_percentage: updates.app_fee_percentage !== undefined ? updates.app_fee_percentage : existingRecord.app_fee_percentage
+         };
+         const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, updateData);
+         console.log('✅ [Payroll] Updated record for driver:', driverId, updateData);
+         existingRecord = updatedRecord;
        } else {
          // Create new record if it doesn't exist
          const newRecord = {
@@ -401,6 +406,7 @@ export default function PayrollSummaryCard({
            total_deductions: 0,
            deductions: [],
            status: 'draft',
+           app_fee_percentage: updates.app_fee_percentage || 0,
            ...updates
          };
          const created = await base44.entities.Payroll.create(newRecord);
@@ -418,7 +424,8 @@ export default function PayrollSummaryCard({
          console.warn('⚠️ [Payroll] Failed to sync to offline DB:', offlineError);
        }
 
-       // Refresh payroll records
+       // Force refresh after save to sync across devices
+       lastFetchRef.current.timestamp = 0;
        if (refreshPayrollRecords) {
          await refreshPayrollRecords();
        }
