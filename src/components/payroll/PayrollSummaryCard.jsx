@@ -286,23 +286,29 @@ export default function PayrollSummaryCard({
    return () => clearInterval(interval);
   }, [periodStartStr, periodEndStr, externalPayrollRecords]);
 
-  // Auto-create missing Payroll records when payroll data is calculated - ONLY create if record doesn't exist for driver + period combo
+  // Auto-create missing Payroll records - ONLY when period changes
   useEffect(() => {
     if (!periodStartStr || !periodEndStr || !payrollData || payrollData.length === 0) return;
     
-    // CRITICAL: Skip if we've already processed this exact period (prevents duplicate creates on effect reruns)
+    // CRITICAL: Skip if we've already processed this exact period
     const currentPeriodKey = `${periodStartStr}-${periodEndStr}`;
     if (lastAutoCreatePeriodRef.current === currentPeriodKey) {
       return;
     }
     
+    // Mark IMMEDIATELY to prevent concurrent auto-creates
+    lastAutoCreatePeriodRef.current = currentPeriodKey;
+    
     const autoCreateMissingRecords = async () => {
-      const driversData = payrollData;
-      if (!driversData || driversData.length === 0) return;
-
       try {
+        // Fetch latest records from API to ensure we have current state
+        const latestRecords = await base44.entities.Payroll.filter({
+          pay_period_start: periodStartStr,
+          pay_period_end: periodEndStr
+        });
+
         // Get drivers with deliveries in this pay period
-        const driversWithDeliveries = driversData
+        const driversWithDeliveries = payrollData
           .filter(data => data.totalDeliveries > 0)
           .map(data => data.driver.id);
 
@@ -311,18 +317,12 @@ export default function PayrollSummaryCard({
           return;
         }
 
-        // Check which drivers already have records for THIS EXACT period
-        const existingDriverIds = new Set(
-          payrollRecords
-            .filter(r => r.pay_period_start === periodStartStr && r.pay_period_end === periodEndStr)
-            .map(r => r.driver_id)
-        );
+        // Check which drivers already have records (from latest API data)
+        const existingDriverIds = new Set(latestRecords.map(r => r.driver_id));
         const driversNeedingRecords = driversWithDeliveries.filter(driverId => !existingDriverIds.has(driverId));
 
         if (driversNeedingRecords.length === 0) {
-          console.log('ℹ️ [Payroll] All drivers with deliveries already have records for this period');
-          // Mark this period as processed even if no new records were created
-          lastAutoCreatePeriodRef.current = currentPeriodKey;
+          console.log('ℹ️ [Payroll] All drivers already have records for this period');
           return;
         }
 
@@ -331,8 +331,8 @@ export default function PayrollSummaryCard({
         // Create records for missing drivers
         const newRecords = await Promise.all(
           driversNeedingRecords.map(driverId => {
-            const driverData = driversData.find(d => d.driver.id === driverId);
-            const newRecord = {
+            const driverData = payrollData.find(d => d.driver.id === driverId);
+            return base44.entities.Payroll.create({
               driver_id: driverId,
               city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : null,
               pay_period_start: periodStartStr,
@@ -353,20 +353,17 @@ export default function PayrollSummaryCard({
               oversized_item_rate: driverData?.oversizedRate || 0,
               gst_hst_enabled: driverData?.gstHstEnabled || false,
               status: 'draft'
-            };
-            return base44.entities.Payroll.create(newRecord);
+            });
           })
         );
 
         console.log(`✅ [Payroll] Created ${newRecords.length} payroll records`);
 
-        // Mark this period as processed BEFORE updating state to prevent reruns
-        lastAutoCreatePeriodRef.current = currentPeriodKey;
-
-        // Update local state
-        setPayrollRecords([...payrollRecords, ...newRecords]);
+        // Update local state with fresh API data
+        const allRecords = [...latestRecords, ...newRecords];
+        setPayrollRecords(allRecords);
         if (onPayrollRecordsChange) {
-          onPayrollRecordsChange([...payrollRecords, ...newRecords]);
+          onPayrollRecordsChange(allRecords);
         }
       } catch (error) {
         console.error('❌ [Payroll] Failed to auto-create payroll records:', error);
@@ -374,7 +371,7 @@ export default function PayrollSummaryCard({
     };
 
     autoCreateMissingRecords();
-  }, [periodStartStr, periodEndStr, payrollData, selectedCityId, onPayrollRecordsChange]);
+  }, [periodStartStr, periodEndStr]);
 
   // Get finalization status for each driver
   // CRITICAL: Only return records that match the current period's dates
