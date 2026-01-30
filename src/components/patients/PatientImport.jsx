@@ -1268,9 +1268,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                     })}
                                             </div>
                                             <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-                                                {item.willGeocode && <span className="text-yellow-600">📍 Geocode</span>}
-                                                <span>{item.fileName} R{item.rowNumber}</span>
-                                            </div>
+                                                 {item.willGeocode && <span className="text-yellow-600">📍 Geocode</span>}
+                                                 <span>{item.data.store_name}</span>
+                                                 <span>•</span>
+                                                 <span>{item.fileName} R{item.rowNumber}</span>
+                                             </div>
                                         </div>
                 )}
                                 </div>
