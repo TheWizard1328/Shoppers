@@ -1981,35 +1981,91 @@ class SmartRefreshManager {
         }
       }
       
-      // PRIORITY 3: Background entity refreshes (longer intervals)
-       if (this.shouldRefresh('todayPatients') && currentData.patients) {
-         try {
-           const todayDeliveries = currentData.deliveries?.filter(d => {
-             return d && d.delivery_date === todayStr;
-           }) || [];
+      // PRIORITY 2B: Every 15 seconds - FULL AppUser dataset (entire sync, one hit)
+      if (this.shouldRefresh('appUsers') && currentData.appUsers) {
+        try {
+          console.log('📡 [SmartRefresh] Syncing FULL AppUser dataset (every 15s)');
+          const appUserResult = await this.refreshAllAppUsersFullSync(currentData.appUsers);
+          if (appUserResult?.hasChanges) {
+            updates.appUsers = appUserResult.appUsers;
+          }
+          this.markRefreshed('appUsers');
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Full AppUser sync failed:', e.message);
+        }
+      }
 
-           const patientResult = await this.refreshTodayPatients(currentData.patients, todayDeliveries);
-           if (patientResult?.hasChanges) {
-             updates.patients = patientResult.patients;
-           }
-           this.markRefreshed('todayPatients');
-         } catch (e) {
-           console.warn('⚠️ [SmartRefresh] Patient refresh failed:', e.message);
-         }
-       }
+      // PRIORITY 2C: Every 5 minutes - FULL Cities + Stores datasets (entire sync, one hit each)
+      if (this.shouldRefresh('cities') && currentData.cities) {
+        try {
+          console.log('🏙️ [SmartRefresh] Syncing FULL Cities dataset (every 5min)');
+          const citiesResult = await this.refreshAllCitiesFullSync(currentData.cities);
+          if (citiesResult?.hasChanges) {
+            updates.cities = citiesResult.cities;
+          }
+          this.markRefreshed('cities');
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Full Cities sync failed:', e.message);
+        }
+      }
 
-       // Refresh AppUsers status (includes driver status)
-       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
-         try {
-           const appUserResult = await this.refreshAppUsers(currentData.appUsers);
-           if (appUserResult?.hasChanges) {
-             updates.appUsers = appUserResult.appUsers;
-           }
-           this.markRefreshed('appUsers');
-         } catch (e) {
-           console.warn('⚠️ [SmartRefresh] AppUser refresh failed:', e.message);
-         }
-       }
+      if (this.shouldRefresh('stores') && currentData.stores) {
+        try {
+          console.log('🏪 [SmartRefresh] Syncing FULL Stores dataset (every 5min)');
+          const storesResult = await this.refreshAllStoresFullSync(currentData.stores);
+          if (storesResult?.hasChanges) {
+            updates.stores = storesResult.stores;
+          }
+          this.markRefreshed('stores');
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Full Stores sync failed:', e.message);
+        }
+      }
+
+      // PRIORITY 3: Once daily - FULL Patient + Last 90 days Deliveries
+      if (this.shouldRefresh('patients') && currentData.patients) {
+        try {
+          console.log('👥 [SmartRefresh] Syncing FULL Patient dataset + last 90 days deliveries (once daily)');
+          const patientResult = await this.refreshAllPatientsFullSync(currentData.patients);
+          if (patientResult?.hasChanges) {
+            updates.patients = patientResult.patients;
+          }
+          this.markRefreshed('patients');
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Full Patient sync failed:', e.message);
+        }
+      }
+
+      // PRIORITY 3B: Throughout the day - Update patients for current date + selected date deliveries
+      const selectedDateStr = globalFilters?.getSelectedDate?.() || todayStr;
+      if (selectedDateStr !== todayStr && currentData.deliveries && currentData.patients) {
+        try {
+          console.log(`👥 [SmartRefresh] Syncing patients for current+selected dates (${todayStr}, ${selectedDateStr})`);
+          const relevantDeliveries = currentData.deliveries.filter(d => 
+            d && (d.delivery_date === todayStr || d.delivery_date === selectedDateStr)
+          );
+          const uniquePatientIds = [...new Set(relevantDeliveries.map(d => d.patient_id).filter(Boolean))];
+          const relevantPatientResult = await this.refreshRelevantPatientsOnly(currentData.patients, uniquePatientIds);
+          if (relevantPatientResult?.hasChanges) {
+            updates.patients = relevantPatientResult.patients;
+          }
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Relevant patient sync failed:', e.message);
+        }
+      }
+
+      // PRIORITY 3C: Throughout the day - Update deliveries for current date + selected date only
+      if (selectedDateStr !== todayStr && currentData.deliveries) {
+        try {
+          console.log(`📦 [SmartRefresh] Syncing deliveries for current+selected dates (${todayStr}, ${selectedDateStr})`);
+          const selectedDateDeliveryResult = await this.refreshSelectDateDeliveries(currentData.deliveries, selectedDateStr);
+          if (selectedDateDeliveryResult?.hasChanges) {
+            updates.deliveries = selectedDateDeliveryResult.deliveries;
+          }
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Selected date delivery sync failed:', e.message);
+        }
+      }
 
        // PRIORITY 4: Payroll records (5-minute cycle)
        if (this.shouldRefresh('payroll') && currentData.payrollRecords && currentData.periodStart && currentData.periodEnd) {
