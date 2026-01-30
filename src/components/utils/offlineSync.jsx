@@ -683,16 +683,32 @@ export const restartDeliveryPatientSync = async () => {
     
     console.log(`📍 [OfflineSync] Found ${uniquePatientIds.size} unique patients in last week's deliveries`);
     
-    // Fetch only these patients
+    // Fetch patients in batches by ID to avoid timeout
     let patientsFromLastWeek = [];
     if (uniquePatientIds.size > 0) {
       try {
         const patientIds = Array.from(uniquePatientIds);
-        patientsFromLastWeek = await Patient.filter({
-          id: { $in: patientIds }
-        });
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsFromLastWeek);
-        console.log(`✅ [OfflineSync] Synced ${patientsFromLastWeek.length} patients from last week`);
+        const ID_BATCH_SIZE = 50; // Batch IDs to avoid query timeout
+        
+        for (let i = 0; i < patientIds.length; i += ID_BATCH_SIZE) {
+          const batchIds = patientIds.slice(i, i + ID_BATCH_SIZE);
+          const batchPatients = await Patient.filter({
+            id: { $in: batchIds }
+          });
+          
+          if (batchPatients && batchPatients.length > 0) {
+            patientsFromLastWeek = patientsFromLastWeek.concat(batchPatients);
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+          }
+          
+          // Progress update
+          const batchProgress = Math.floor((i / patientIds.length) * 5) + 50;
+          notifySyncStatus({ status: 'syncing', entity: 'Patients (week)', progress: batchProgress, loaded: patientsFromLastWeek.length });
+          
+          await new Promise(r => setTimeout(r, 500));
+        }
+        
+        console.log(`✅ [OfflineSync] Synced ${patientsFromLastWeek.length} unique patients from last week`);
       } catch (error) {
         console.warn('⚠️ [OfflineSync] Failed to sync patients from last week:', error.message);
       }
