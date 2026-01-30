@@ -2836,6 +2836,11 @@ export default function AdminUtilities() {
     ...queryOptions
   });
   const appUsers = dataViewMode.users === 'offline' ? offlineAppUsers : (contextAppUsers?.length > 0 ? contextAppUsers : (fetchedAppUsers || []));
+  
+  // CRITICAL: Log appUsers when loaded to debug driver dropdown issue
+  useEffect(() => {
+    console.log(`📋 [AdminUtilities] appUsers loaded: ${appUsers?.length || 0}`, appUsers?.slice(0, 3).map(u => ({ id: u.id, user_name: u.user_name, user_id: u.user_id })));
+  }, [appUsers?.length]);
 
   const { data: fetchedCities, isLoading: citiesLoading, refetch: refetchCities } = useQuery({
     queryKey: ['cities'],
