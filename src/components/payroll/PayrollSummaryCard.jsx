@@ -74,34 +74,110 @@ export default function PayrollSummaryCard({
 
   // Use external payroll records if provided, otherwise fetch locally
   useEffect(() => {
-    if (externalPayrollRecords) {
-      setPayrollRecords(externalPayrollRecords);
-      setIsLoadingRecords(false);
-      return;
-    }
+   if (externalPayrollRecords) {
+     setPayrollRecords(externalPayrollRecords);
+     setIsLoadingRecords(false);
+     return;
+   }
 
-    if (!periodStartStr || !periodEndStr) return;
+   if (!periodStartStr || !periodEndStr) return;
 
-    const fetchPayrollRecords = async () => {
-      setIsLoadingRecords(true);
-      try {
-        const records = await base44.entities.Payroll.filter({
-          pay_period_start: periodStartStr,
-          pay_period_end: periodEndStr
-        });
-        setPayrollRecords(records || []);
-        if (onPayrollRecordsChange) {
-          onPayrollRecordsChange(records || []);
-        }
-      } catch (error) {
-        console.error('Failed to fetch payroll records:', error);
-      } finally {
-        setIsLoadingRecords(false);
-      }
-    };
+   const fetchPayrollRecords = async () => {
+     setIsLoadingRecords(true);
+     try {
+       const records = await base44.entities.Payroll.filter({
+         pay_period_start: periodStartStr,
+         pay_period_end: periodEndStr
+       });
+       setPayrollRecords(records || []);
+       if (onPayrollRecordsChange) {
+         onPayrollRecordsChange(records || []);
+       }
+     } catch (error) {
+       console.error('Failed to fetch payroll records:', error);
+     } finally {
+       setIsLoadingRecords(false);
+     }
+   };
 
-    fetchPayrollRecords();
+   fetchPayrollRecords();
   }, [periodStartStr, periodEndStr, externalPayrollRecords]);
+
+  // Auto-create missing Payroll records for drivers with deliveries when payroll data is first calculated
+  useEffect(() => {
+   if (!payrollData || payrollData.length === 0 || !periodStartStr || !periodEndStr) return;
+
+   const autoCreateMissingRecords = async () => {
+     try {
+       // Get drivers with deliveries in this pay period
+       const driversWithDeliveries = payrollData
+         .filter(data => data.totalDeliveries > 0)
+         .map(data => data.driver.id);
+
+       if (driversWithDeliveries.length === 0) {
+         console.log('ℹ️ [Payroll] No drivers with deliveries - skipping auto-create');
+         return;
+       }
+
+       // Check which drivers already have records
+       const existingRecords = payrollRecords;
+       const existingDriverIds = new Set(existingRecords.map(r => r.driver_id));
+       const driversNeedingRecords = driversWithDeliveries.filter(driverId => !existingDriverIds.has(driverId));
+
+       if (driversNeedingRecords.length === 0) {
+         console.log('ℹ️ [Payroll] All drivers with deliveries already have records');
+         return;
+       }
+
+       console.log(`🔄 [Payroll] Auto-creating records for ${driversNeedingRecords.length} drivers`);
+
+       // Create records for missing drivers
+       const newRecords = await Promise.all(
+         driversNeedingRecords.map(driverId => {
+           const driverData = payrollData.find(d => d.driver.id === driverId);
+           const newRecord = {
+             driver_id: driverId,
+             city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : null,
+             pay_period_start: periodStartStr,
+             pay_period_end: periodEndStr,
+             pay_period_type: payPeriod,
+             total_deliveries: driverData?.totalDeliveries || 0,
+             total_extra_km: driverData?.totalExtraKm || 0,
+             total_oversized_deliveries: driverData?.oversizedCount || 0,
+             gross_pay: driverData?.grossPay || 0,
+             net_pay: driverData?.grandTotal || 0,
+             total_deductions: driverData?.deductions || 0,
+             deductions: driverData?.deductionsArray || [],
+             bonus_pay: 0,
+             app_fee_percentage: 0,
+             pay_rate_per_delivery: driverData?.payRate || 0,
+             extra_km_rate: driverData?.extraKmRate || 0,
+             extra_km_limit: driverData?.extraKmLimit || 0,
+             oversized_item_rate: driverData?.oversizedRate || 0,
+             gst_hst_enabled: driverData?.gstHstEnabled || false,
+             status: 'draft'
+           };
+           return base44.entities.Payroll.create(newRecord);
+         })
+       );
+
+       console.log(`✅ [Payroll] Created ${newRecords.length} payroll records`);
+
+       // Update local state
+       setPayrollRecords([...payrollRecords, ...newRecords]);
+       if (onPayrollRecordsChange) {
+         onPayrollRecordsChange([...payrollRecords, ...newRecords]);
+       }
+     } catch (error) {
+       console.error('❌ [Payroll] Failed to auto-create payroll records:', error);
+     }
+   };
+
+   // Only auto-create once when payroll data first loads with drivers
+   if (payrollRecords.length === 0) {
+     autoCreateMissingRecords();
+   }
+  }, [payrollData]);
 
   // Get finalization status for each driver
   // CRITICAL: Only return records that match the current period's dates
