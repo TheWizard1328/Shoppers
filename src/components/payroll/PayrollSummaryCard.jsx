@@ -290,6 +290,12 @@ export default function PayrollSummaryCard({
   useEffect(() => {
     if (!periodStartStr || !periodEndStr || !payrollData || payrollData.length === 0) return;
     
+    // CRITICAL: Skip if we've already processed this exact period (prevents duplicate creates on effect reruns)
+    const currentPeriodKey = `${periodStartStr}-${periodEndStr}`;
+    if (lastAutoCreatePeriodRef.current === currentPeriodKey) {
+      return;
+    }
+    
     const autoCreateMissingRecords = async () => {
       const driversData = payrollData;
       if (!driversData || driversData.length === 0) return;
@@ -315,6 +321,8 @@ export default function PayrollSummaryCard({
 
         if (driversNeedingRecords.length === 0) {
           console.log('ℹ️ [Payroll] All drivers with deliveries already have records for this period');
+          // Mark this period as processed even if no new records were created
+          lastAutoCreatePeriodRef.current = currentPeriodKey;
           return;
         }
 
@@ -352,6 +360,9 @@ export default function PayrollSummaryCard({
 
         console.log(`✅ [Payroll] Created ${newRecords.length} payroll records`);
 
+        // Mark this period as processed BEFORE updating state to prevent reruns
+        lastAutoCreatePeriodRef.current = currentPeriodKey;
+
         // Update local state
         setPayrollRecords([...payrollRecords, ...newRecords]);
         if (onPayrollRecordsChange) {
@@ -363,7 +374,7 @@ export default function PayrollSummaryCard({
     };
 
     autoCreateMissingRecords();
-  }, [payrollData, payrollRecords, periodStartStr, periodEndStr, payPeriod, selectedCityId, onPayrollRecordsChange]);
+  }, [periodStartStr, periodEndStr, payrollData, selectedCityId, onPayrollRecordsChange]);
 
   // Get finalization status for each driver
   // CRITICAL: Only return records that match the current period's dates
