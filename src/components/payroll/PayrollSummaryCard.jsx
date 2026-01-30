@@ -1067,13 +1067,13 @@ export default function PayrollSummaryCard({
                     <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
                     <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.returnsCount}</span>
                   </div>
-                  {/* Row 3: Store Returns (new row) */}
+                  {/* Row 3: Total Returns (cancelled + store returns) */}
                   <div></div>
                   <div></div>
                   <div></div>
                   <div className="flex items-center">
-                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Str Rtns:</span>
-                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[11px]">{data.storeReturnsCount || 0}</span>
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Total Rtns:</span>
+                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[11px]">{data.returnsCount + (data.storeReturnsCount || 0)}</span>
                   </div>
                 </div>
 

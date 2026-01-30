@@ -145,10 +145,10 @@ export default function PayrollMobileCard({
                 <span className="font-semibold">{data.returnsCount}</span>
               </div>
             )}
-            {(storeReturnsCount || 0) > 0 && (
+            {(data.returnsCount > 0 || (storeReturnsCount || 0) > 0) && (
               <div className="flex justify-between text-purple-700">
-                <span>Store Returns:</span>
-                <span className="font-semibold">{storeReturnsCount}</span>
+                <span>Total Returns:</span>
+                <span className="font-semibold">{data.returnsCount + (storeReturnsCount || 0)}</span>
               </div>
             )}
           </div>
