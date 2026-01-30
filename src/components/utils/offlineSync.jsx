@@ -18,9 +18,11 @@ import { SquareTransaction } from '@/entities/SquareTransaction';
 import { format, subDays } from 'date-fns';
 
 // Configuration
-const PATIENT_BATCH_SIZE = 250;
+const PATIENT_BATCH_SIZE = 50; // Smaller chunks to reduce rate limits
+const PATIENT_SYNC_COOLDOWN = 5000; // Longer cooldown between patient batches
 const BATCH_COOLDOWN = 1000;
 const DELIVERY_DATE_RANGE_DAYS = 90;
+const PATIENT_SYNC_INTERVAL_HOURS = 24; // Only sync patients once per 24 hours in background
 
 let syncInProgress = false;
 let syncPaused = false;
