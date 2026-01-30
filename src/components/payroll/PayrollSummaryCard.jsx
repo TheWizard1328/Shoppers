@@ -1488,42 +1488,38 @@ export default function PayrollSummaryCard({
                          <td className="text-right">+$</td>
                          <td className="text-right font-semibold">${(edit.bonusPay || 0).toFixed(2)}</td>
                        </tr>
-                       <tr className="text-lg font-bold text-emerald-600">
-                         <td className="text-right pr-1 pt-1">Gross:</td>
-                         <td className="text-right pt-1">$</td>
-                         <td className="text-right pt-1">{(data.grandTotal + data.taxAmount + (edit.bonusPay || 0) - data.deductions).toFixed(2)}</td>
-                       </tr>
+                       {isAppOwner(currentUser) && (
+                         <tr style={{ color: 'var(--text-slate-600)' }}>
+                           <td className="text-right pr-1">App Fee %:</td>
+                           <td colSpan="2" className="text-right">
+                             <div className="flex items-center justify-end gap-1">
+                               <input 
+                                 type="number" 
+                                 value={edit.appFeePercent} 
+                                 onChange={(e) => {
+                                   const newValue = parseFloat(e.target.value) || 0;
+                                   updateEdit({ appFeePercent: newValue });
+                                 }} 
+                                 className="w-12 px-1 py-0.5 text-xs border rounded" 
+                                 style={{ borderColor: 'var(--border-slate-300)' }}
+                                 step="0.1" 
+                                 min="0" 
+                                 max="100" 
+                               />
+                               <button 
+                                 onClick={() => savePayrollChanges(driverKey, { app_fee_percentage: edit.appFeePercent })}
+                                 className="p-1 text-emerald-600 hover:text-emerald-700"
+                                 title="Save"
+                               >
+                                 <Save className="w-4 h-4" />
+                               </button>
+                             </div>
+                           </td>
+                         </tr>
+                       )}
                        </tbody>
                        </table>
                        </div>
-                       </div>
-
-                       {/* App Fee % - Single line below Gross (AppOwner only) */}
-                       {isAppOwner(currentUser) && (
-                       <div className="flex items-center gap-2 mt-2">
-                         <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>App Fee %:</span>
-                         <input 
-                           type="number" 
-                           value={edit.appFeePercent} 
-                           onChange={(e) => {
-                             const newValue = parseFloat(e.target.value) || 0;
-                             updateEdit({ appFeePercent: newValue });
-                           }} 
-                           className="w-16 px-2 py-1 text-xs border rounded" 
-                           style={{ borderColor: 'var(--border-slate-300)' }}
-                           step="0.1" 
-                           min="0" 
-                           max="100" 
-                         />
-                         <Button 
-                           size="sm"
-                           className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-xs"
-                           onClick={() => savePayrollChanges(driverKey, { app_fee_percentage: edit.appFeePercent })}
-                         >
-                           Save
-                         </Button>
-                       </div>
-                       )}
                        </div>
                        </div>
                        );
