@@ -120,11 +120,50 @@ const openDatabase = () => {
 };
 
 /**
+ * Save a single record to a store
+ */
+const save = async (storeName, record) => {
+  if (!record) {
+    return { success: false, error: 'No record provided' };
+  }
+
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([storeName], 'readwrite');
+    const store = transaction.objectStore(storeName);
+
+    return new Promise((resolve, reject) => {
+      const request = store.put(record);
+      request.onsuccess = () => resolve({ success: true });
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Save multiple records to a store (bulk insert/update)
+ * CRITICAL: Deduplicates by ID before saving to prevent duplicates
  */
 const bulkSave = async (storeName, records) => {
   if (!records || records.length === 0) {
     return { success: true, count: 0 };
+  }
+
+  // CRITICAL: Deduplicate by ID BEFORE saving
+  const uniqueRecords = new Map();
+  records.forEach(record => {
+    if (record?.id) {
+      uniqueRecords.set(record.id, record);
+    }
+  });
+  
+  const deduplicatedRecords = Array.from(uniqueRecords.values());
+  const duplicatesRemoved = records.length - deduplicatedRecords.length;
+  
+  if (duplicatesRemoved > 0) {
+    console.warn(`⚠️ [OfflineDB] bulkSave removed ${duplicatesRemoved} duplicate IDs before saving to ${storeName}`);
   }
 
   try {
@@ -133,7 +172,7 @@ const bulkSave = async (storeName, records) => {
     const store = transaction.objectStore(storeName);
 
     let successCount = 0;
-    const promises = records.map(record => {
+    const promises = deduplicatedRecords.map(record => {
       return new Promise((resolve, reject) => {
         const request = store.put(record);
         request.onsuccess = () => {
