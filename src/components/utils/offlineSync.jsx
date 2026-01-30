@@ -64,9 +64,9 @@ const checkIfEntityNeedsSync = async (entityName, Entity) => {
     const lastSyncTime = metadata?.last_sync_time ? new Date(metadata.last_sync_time).getTime() : 0;
     const now = Date.now();
     
-    // CRITICAL: If synced recently (within 30 minutes), skip API call to prevent rate limits
-    // This avoids hammering the API with timestamp checks every minute
-    if (lastClientTimestamp && lastSyncTime && (now - lastSyncTime) < 30 * 60 * 1000) {
+    // CRITICAL: If synced recently (within 4 hours), skip API call to prevent rate limits
+    // This avoids hammering the API with timestamp checks during idle periods
+    if (lastClientTimestamp && lastSyncTime && (now - lastSyncTime) < 4 * 60 * 60 * 1000) {
       return { needsSync: false, lastClientTimestamp, skipped: true };
     }
     
