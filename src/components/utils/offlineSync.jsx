@@ -665,24 +665,48 @@ export const restartDeliveryPatientSync = async () => {
       await new Promise(r => setTimeout(r, 500));
     }
     
-    // Step 1: Get ALL deliveries from last 7 days and extract unique patient IDs
+    // Step 1: Get deliveries from last 7 days and extract unique patient IDs
     notifySyncStatus({ status: 'syncing', entity: 'Patients (gathering IDs)', progress: 50 });
     console.log('🔄 [OfflineSync] Step 1: Gathering unique patient IDs from last 7 days...');
     
     const weekAgoDateStr = format(subDays(new Date(), 7), 'yyyy-MM-dd');
-    const deliveriesLastWeek = await Delivery.filter({ 
-      delivery_date: { $gte: weekAgoDateStr } 
-    });
+    
+    // Fetch deliveries in batches to avoid timeout
+    let allDeliveriesLastWeek = [];
+    let deliveryOffset = 0;
+    const DELIVERY_BATCH_SIZE = 500;
+    
+    try {
+      while (true) {
+        const batchDeliveries = await Delivery.filter({ 
+          delivery_date: { $gte: weekAgoDateStr } 
+        }, '-delivery_date', DELIVERY_BATCH_SIZE, deliveryOffset);
+        
+        if (!batchDeliveries || batchDeliveries.length === 0) break;
+        
+        allDeliveriesLastWeek = allDeliveriesLastWeek.concat(batchDeliveries);
+        deliveryOffset += DELIVERY_BATCH_SIZE;
+        
+        console.log(`   Fetched ${batchDeliveries.length} deliveries (total: ${allDeliveriesLastWeek.length})`);
+        
+        // Stop if we got fewer records than batch size
+        if (batchDeliveries.length < DELIVERY_BATCH_SIZE) break;
+        
+        await new Promise(r => setTimeout(r, 300));
+      }
+    } catch (deliveryError) {
+      console.warn('⚠️ [OfflineSync] Error fetching last week deliveries:', deliveryError.message);
+    }
     
     // Extract ONLY unique patient IDs from last 7 days
     const uniquePatientIdsFromLastWeek = new Set(
-      deliveriesLastWeek
+      allDeliveriesLastWeek
         .filter(d => d && d.patient_id)
         .map(d => d.patient_id)
     );
     
     const uniquePatientIdsList = Array.from(uniquePatientIdsFromLastWeek);
-    console.log(`📍 [OfflineSync] Found ${uniquePatientIdsList.length} unique patients in last 7 days of deliveries`);
+    console.log(`📍 [OfflineSync] Found ${uniquePatientIdsList.length} unique patients in ${allDeliveriesLastWeek.length} deliveries from last 7 days`);
     
     // Step 2: Sync ONLY those unique patient IDs in batches
     notifySyncStatus({ status: 'syncing', entity: 'Patients (last 7 days)', progress: 55 });
