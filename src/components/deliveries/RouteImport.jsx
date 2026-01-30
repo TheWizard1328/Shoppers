@@ -170,7 +170,7 @@ export default function RouteImport({
 
   const [previewFilterDriver, setPreviewFilterDriver] = useState('all');
   const [previewFilterDate, setPreviewFilterDate] = useState('all');
-  const [purgeBeforeImport, setPurgeBeforeImport] = useState(true); // Default to true for safety
+  const [purgeBeforeImport, setPurgeBeforeImport] = useState(false);
   const [importError, setImportError] = useState(null); // { message, record, lineNumber }
 
   const [importProgress, setImportProgress] = useState({
@@ -2261,18 +2261,6 @@ export default function RouteImport({
                   <h3 className="text-base md:text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Preview: {filteredPreviewDeliveries.length} Deliveries</h3>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0 w-full md:w-auto">
-                  <Select value={previewFilterDate} onValueChange={setPreviewFilterDate}>
-                    <SelectTrigger className="w-full md:w-40 text-xs md:text-sm">
-                      <SelectValue placeholder="Filter date" />
-                    </SelectTrigger>
-                    <SelectContent className="z-[10002]">
-                      <SelectItem value="all">All Dates</SelectItem>
-                      {previewDates.map((date) =>
-                      <SelectItem key={date} value={date}>{date}</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                  
                   <div className="flex items-center gap-2 border rounded-lg px-3 py-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
                     <input
                       type="checkbox"
@@ -2285,6 +2273,18 @@ export default function RouteImport({
                       Purge Duplicates
                     </Label>
                   </div>
+                  
+                  <Select value={previewFilterDate} onValueChange={setPreviewFilterDate}>
+                    <SelectTrigger className="w-full md:w-40 text-xs md:text-sm">
+                      <SelectValue placeholder="Filter date" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[10002]">
+                      <SelectItem value="all">All Dates</SelectItem>
+                      {previewDates.map((date) =>
+                      <SelectItem key={date} value={date}>{date}</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
