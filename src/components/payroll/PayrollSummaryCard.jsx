@@ -1077,6 +1077,12 @@ export default function PayrollSummaryCard({
                       ...prev,
                       [bonusOverlayDriverId]: { ...prev[bonusOverlayDriverId], bonusPay: parseFloat(e.target.value) || 0 }
                     }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const closeButton = document.querySelector('[data-dialog-close="bonus"]');
+                        if (closeButton) closeButton.click();
+                      }
+                    }}
                     placeholder="0.00"
                     className="flex-1 px-2 py-1 text-sm border rounded"
                     step="0.01"
