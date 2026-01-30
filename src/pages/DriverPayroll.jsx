@@ -551,6 +551,7 @@ export default function DriverPayroll() {
           }}
           payrollRecords={payrollRecords}
           refreshPayrollRecords={refreshPayrollRecords}
+          returnDeliveriesByDriver={payrollData?.returnDeliveriesByDriver || {}}
         />
       </div>
     </div>
