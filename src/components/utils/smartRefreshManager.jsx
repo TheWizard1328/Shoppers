@@ -74,11 +74,11 @@ class SmartRefreshManager {
       payroll: 0
     };
     
-    // Rate limit protection - EXTREMELY AGGRESSIVE
+    // Rate limit protection - OPTIMIZED for batch syncs
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 10000; // 10s minimum between API calls (rely heavily on offline DB)
+    this.minTimeBetweenCalls = 5000;  // 5s minimum between API calls (batch syncs are less frequent)
     this.consecutiveErrors = 0;
-    this.maxConsecutiveErrors = 1; // Enter cooldown after FIRST error
+    this.maxConsecutiveErrors = 2;    // Enter cooldown after 2 errors (more tolerant)
     this.errorCooldownUntil = 0;
     
     // Rate limit error callback
