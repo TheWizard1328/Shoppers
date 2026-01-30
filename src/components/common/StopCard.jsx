@@ -149,6 +149,7 @@ export default function StopCard({
   const [isCompleting, setIsCompleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [isPreparingReturn, setIsPreparingReturn] = useState(false);
+  const [isProcessingBackground, setIsProcessingBackground] = useState(false);
   const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false);
   const [pendingFailureStatus, setPendingFailureStatus] = useState(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -2231,6 +2232,7 @@ export default function StopCard({
                         e.stopPropagation();
                         fabControlEvents.deactivateFAB();
                         setIsEntityUpdating(true);
+                        setIsProcessingBackground(true);
                         await new Promise((resolve) => setTimeout(resolve, 100));
 
                         try {
@@ -2308,11 +2310,12 @@ export default function StopCard({
                         } finally {
                           // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
                           fabControlEvents.reactivateFAB(true);
+                          setIsProcessingBackground(false);
                         }
                       }}
                       size="sm"
                       className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
-                      disabled={false}>
+                      disabled={isProcessingBackground}>
                           <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
                           <span className="text-white">Restart</span>
                         </Button> :
@@ -2323,6 +2326,7 @@ export default function StopCard({
 
                         fabControlEvents.deactivateFAB();
                         setIsRetrying(true);
+                        setIsProcessingBackground(true);
                         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
                         await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -2377,6 +2381,7 @@ export default function StopCard({
                           }
                         } finally {
                           setIsRetrying(false);
+                          setIsProcessingBackground(false);
                           console.log('✅ [RETRY] Retry cycle complete');
 
                           // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
@@ -2385,7 +2390,7 @@ export default function StopCard({
                       }}
                       size="sm"
                       className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
-                      disabled={isRetrying || !canRetry || hasFutureRetry || hasCompletedDelivery}>
+                      disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery}>
                           {isRetrying ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                           <span className="text-white">Retry</span>
                         </Button> :
@@ -2397,6 +2402,7 @@ export default function StopCard({
 
                         fabControlEvents.deactivateFAB();
                         setIsCompleting(true);
+                        setIsProcessingBackground(true);
                         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
                         await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -2601,6 +2607,7 @@ export default function StopCard({
 
                           // ═══════════ PHASE 2: BACKGROUND TASKS ═══════════
                           console.log('🔄 [COMPLETE] PHASE 2: Running background tasks...');
+                          setIsProcessingBackground(true);
 
                           // Background: Route optimization
                           base44.functions.invoke('optimizeRouteRealTime', {
@@ -2639,17 +2646,20 @@ export default function StopCard({
                                 });
                               }
                             }
-                          }).catch((err) => console.warn('Route optimization failed:', err));
+                          }).catch((err) => console.warn('Route optimization failed:', err)).finally(() => {
+                            setIsProcessingBackground(false);
+                          });
 
                         } catch (error) {
                           console.error('❌ [COMPLETE] Error:', error);
                           fabControlEvents.reactivateFAB(true);
+                          setIsProcessingBackground(false);
                         } finally {
                           setIsCompleting(false);
                         }
                       }}
                       size="sm"
-                      disabled={isCompleting}
+                      disabled={isCompleting || isProcessingBackground}
                       className="rounded-md bg-emerald-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-emerald-700 h-10 md:h-8 border-r border-emerald-500 !text-white">
                               {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                               <span className="text-white">Complete</span>
@@ -2798,6 +2808,7 @@ export default function StopCard({
                           console.error('❌ [START] Background error:', error);
                         } finally {
                           setIsStarting(false);
+                          setIsProcessingBackground(false);
                         }
                       })();
 
@@ -2806,7 +2817,7 @@ export default function StopCard({
                         setIsStarting(false);
                       }, 300);
 
-                    }} size="sm" disabled={isStarting} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
+                    }} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
                               {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                               <span className="text-white">Start</span>
                             </Button>)
