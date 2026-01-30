@@ -2845,6 +2845,41 @@ export default function AdminUtilities() {
   });
   const cities = dataViewMode.cities === 'offline' ? offlineCities : (contextCities?.length > 0 ? contextCities : (fetchedCities || []));
 
+  // CRITICAL: Define driversForDropdown BEFORE deliveries query to prevent initialization error
+  const mergedUsers = useMemo(() => {
+    if (!authUsers || !appUsers) return [];
+
+    return authUsers
+      .map((authUser) => {
+        const appUser = appUsers.find((au) => au.user_id === authUser.id);
+        if (!appUser) return null;
+
+        return {
+          ...authUser,
+          ...appUser,
+          id: authUser.id,
+          user_name: appUser.user_name || authUser.full_name,
+          app_roles: appUser.app_roles || ['driver'],
+          status: appUser.status || 'active',
+          display_name: appUser.user_name || authUser.full_name,
+          first_name: (appUser.user_name || authUser.full_name).split(' ')[0]
+        };
+      })
+      .filter(Boolean)
+      .filter((u) => u.status === 'active');
+  }, [authUsers, appUsers]);
+
+  const driversForDropdown = useMemo(() => {
+    if (!mergedUsers) return [];
+
+    const drivers = mergedUsers.filter((user) => {
+      const roles = user.app_roles || [];
+      return roles.includes('driver') || roles.includes('admin');
+    });
+    
+    return sortUsers(drivers);
+  }, [mergedUsers]);
+
   // CRITICAL: Disable automatic delivery loading - only load on explicit "Load Data" button click
   const [manualLoadTriggered, setManualLoadTriggered] = useState(false);
   
