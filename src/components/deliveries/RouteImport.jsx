@@ -1891,21 +1891,14 @@ export default function RouteImport({
       }));
       
       // CRITICAL: REPLACE OFFLINE DB - For each driver/date combination, fetch fresh online data
-      const driverDatePairs = new Set();
-      deliveriesToCreateFiltered.forEach(d => driverDatePairs.add(`${d.driver_id}|${d.delivery_date}`));
-      deliveriesToUpdateFiltered.forEach(d => driverDatePairs.add(`${d.driver_id}|${d.delivery_date}`));
+      // (driverDatePairs already defined above)
       
-      const pairs = Array.from(driverDatePairs).map(pair => {
-        const [driverId, date] = pair.split('|');
-        return { driverId, date };
-      });
-      
-      console.log(`🔄 [RouteImport] Replacing offline DB for ${pairs.length} driver/date pairs`);
-      setProgressMessage(`Syncing offline database (${pairs.length} combinations)...`);
+      console.log(`🔄 [RouteImport] Replacing offline DB for ${driverDatePairs.length} driver/date pairs`);
+      setProgressMessage(`Syncing offline database (${driverDatePairs.length} combinations)...`);
       
       // For each driver/date pair, fetch fresh online data and replace offline DB
-      for (let i = 0; i < pairs.length; i++) {
-        const { driverId, date } = pairs[i];
+      for (let i = 0; i < driverDatePairs.length; i++) {
+        const { driverId, date } = driverDatePairs[i];
         
         try {
           // PURGE: Delete offline deliveries for this driver/date
@@ -1931,7 +1924,7 @@ export default function RouteImport({
           console.warn(`⚠️ [RouteImport] Sync failed for ${driverId}/${date}:`, syncError.message);
         }
         
-        setProgressMessage(`Syncing offline database (${i + 1}/${pairs.length} combinations)...`);
+        setProgressMessage(`Syncing offline database (${i + 1}/${driverDatePairs.length} combinations)...`);
       }
 
       setImportProgress((prev) => ({
