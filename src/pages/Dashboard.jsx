@@ -402,6 +402,16 @@ function Dashboard() {
           updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
         }
         
+        // CRITICAL: Force refresh ALL AppUsers after import to update all driver markers
+        console.log('📍 [Import] Refreshing ALL driver locations after import...');
+        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+        const latestAppUsers = locationUpdates?.appUsers || appUsers;
+        
+        // Dispatch location updates for ALL drivers
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: latestAppUsers, forceAll: true }
+        }));
+        
         // Force map markers and routes to update
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: { deliveryDate: selectedDateStr, triggeredBy: 'deliveriesImported' }
@@ -1948,23 +1958,30 @@ function Dashboard() {
         console.log(`✅ [Periodic Refresh] Updated UI with ${freshDeliveries.length} deliveries`);
       }
       
-      // Refresh driver locations and dispatch update events
-      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, false);
+      // CRITICAL: When "Show All" is checked, force a full AppUser refresh to get ALL drivers
+      const shouldForceFullRefresh = showAllDriverMarkers || selectedDriverId === 'all';
+      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, shouldForceFullRefresh);
+      
+      // Use updated AppUsers or fall back to current context
+      const latestAppUsers = locationUpdates?.appUsers || appUsers;
+      
       if (locationUpdates?.hasChanges) {
         driverLocationPoller.processLocationData(
           currentUser, 
           freshDeliveries, 
           drivers, 
           stores, 
-          locationUpdates.appUsers, 
+          latestAppUsers, 
           selectedDate, 
           true
         );
       }
       
-      // CRITICAL: Dispatch events to update map markers for ALL drivers (not just active driver)
+      // CRITICAL: ALWAYS dispatch for ALL drivers when Show All is checked
+      // This ensures placeholder markers for other drivers get updated
+      console.log(`📍 [Periodic Refresh] Dispatching location updates for ${latestAppUsers.length} AppUsers (Show All: ${showAllDriverMarkers})`);
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: { appUsers: locationUpdates?.appUsers || appUsers }
+        detail: { appUsers: latestAppUsers, forceAll: shouldForceFullRefresh }
       }));
       
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -6996,9 +7013,9 @@ function Dashboard() {
                        }
 
                       // CRITICAL: Dispatch event to update driver location markers for ALL drivers
-                      console.log('📍 [Refresh Spinner] Dispatching driverLocationsUpdated event...');
+                      console.log('📍 [Refresh Spinner] Dispatching driverLocationsUpdated event for ALL drivers...');
                       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                        detail: { appUsers: freshAppUsers }
+                        detail: { appUsers: freshAppUsers, forceAll: true }
                       }));
 
                       // CRITICAL: Force deliveries update event to refresh map markers
@@ -7237,9 +7254,14 @@ function Dashboard() {
                               driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locationUpdates.appUsers, selectedDate);
                             }
 
+                            // CRITICAL: Force refresh ALL AppUsers when Show All is checked
+                            console.log('📍 [Show All Checked] Force refreshing ALL driver locations...');
+                            const showAllLocationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+                            const showAllLatestAppUsers = showAllLocationUpdates?.appUsers || appUsers;
+                            
                             // Dispatch event to force map to re-render with new markers
                             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                              detail: { appUsers }
+                              detail: { appUsers: showAllLatestAppUsers, forceAll: true }
                             }));
                           } catch (error) {
                             console.error('❌ [Show All] Failed to load deliveries:', error);

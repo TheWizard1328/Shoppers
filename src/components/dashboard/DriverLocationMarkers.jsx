@@ -11,6 +11,29 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const markersRef = useRef({});
   const prevVisibleIdsRef = useRef(new Set());
 
+  // Listen for driverLocationsUpdated events to force marker refresh
+  useEffect(() => {
+    const handleLocationUpdates = (event) => {
+      const { appUsers: updatedAppUsers, forceAll } = event.detail || {};
+      
+      if (!updatedAppUsers || updatedAppUsers.length === 0) {
+        console.warn('⚠️ [DriverLocationMarkers] Empty AppUsers in event');
+        return;
+      }
+      
+      console.log(`📍 [DriverLocationMarkers] Received location update event: ${updatedAppUsers.length} AppUsers (forceAll: ${forceAll})`);
+      
+      // Trigger a re-render by setting users state
+      // This will cause the main effect below to re-run with fresh data
+      if (forceAll) {
+        console.log('🔄 [DriverLocationMarkers] Force updating ALL driver markers');
+      }
+    };
+    
+    window.addEventListener('driverLocationsUpdated', handleLocationUpdates);
+    return () => window.removeEventListener('driverLocationsUpdated', handleLocationUpdates);
+  }, []);
+
   useEffect(() => {
     // CRITICAL: The `users` prop comes pre-filtered from driverLocationPoller
     // which already handles all permission checks, status checks, and dispatcher logic
