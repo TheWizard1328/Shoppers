@@ -1301,7 +1301,7 @@ export default function PayrollSummaryCard({
                            )}
                          </td>
                          <td className="text-right">+$</td>
-                         <td className="text-right font-semibold">{(data.bonusPay || 0).toFixed(2)}</td>
+                         <td className="text-right font-semibold">${(edit.bonusPay || 0).toFixed(2)}</td>
                        </tr>
                        <tr className="text-lg font-bold text-emerald-600">
                          <td className="text-right pr-1 pt-1">Gross:</td>
