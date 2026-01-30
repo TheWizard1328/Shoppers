@@ -1093,32 +1093,37 @@ export default function PayrollSummaryCard({
                 </div>
 
                 {/* Right: Pay Summary */}
-                <div className="text-xs ml-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  <table className="border-collapse">
-                    <tbody>
-                      <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-right pr-1">Net:</td>
-                        <td className="text-right">$</td>
-                        <td className="text-right font-semibold">{(data.grandTotal || 0).toFixed(2)}</td>
-                      </tr>
-                      <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-right pr-1">Tax:</td>
-                        <td className="text-right">$</td>
-                        <td className="text-right font-semibold">{(data.taxAmount || 0).toFixed(2)}</td>
-                      </tr>
-                      <tr style={{ color: 'var(--text-slate-600)' }}>
-                        <td className="text-right pr-1">Deductions:</td>
-                        <td className="text-right">-$</td>
-                        <td className="text-right font-semibold">{(data.deductions || 0).toFixed(2)}</td>
-                      </tr>
-                      <tr className="text-lg font-bold text-emerald-600">
-                        <td className="text-right pr-1 pt-1">Gross:</td>
-                        <td className="text-right pt-1">$</td>
-                        <td className="text-right pt-1">{(data.grossPay || 0).toFixed(2)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                 <div className="text-xs ml-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                   <table className="border-collapse">
+                     <tbody>
+                       <tr style={{ color: 'var(--text-slate-600)' }}>
+                         <td className="text-right pr-1">Net:</td>
+                         <td className="text-right">$</td>
+                         <td className="text-right font-semibold">{(data.grandTotal || 0).toFixed(2)}</td>
+                       </tr>
+                       <tr style={{ color: 'var(--text-slate-600)' }}>
+                         <td className="text-right pr-1">Tax:</td>
+                         <td className="text-right">$</td>
+                         <td className="text-right font-semibold">{(data.taxAmount || 0).toFixed(2)}</td>
+                       </tr>
+                       <tr style={{ color: 'var(--text-slate-600)' }}>
+                         <td className="text-right pr-1">Deductions:</td>
+                         <td className="text-right">-$</td>
+                         <td className="text-right font-semibold">{(data.deductions || 0).toFixed(2)}</td>
+                       </tr>
+                       <tr style={{ color: 'var(--text-slate-600)' }}>
+                         <td className="text-right pr-1">Bonus:</td>
+                         <td className="text-right">+$</td>
+                         <td className="text-right font-semibold">{(data.bonusPay || 0).toFixed(2)}</td>
+                       </tr>
+                       <tr className="text-lg font-bold text-emerald-600">
+                         <td className="text-right pr-1 pt-1">Gross:</td>
+                         <td className="text-right pt-1">$</td>
+                         <td className="text-right pt-1">{(data.grossPayWithBonus || data.grossPay || 0).toFixed(2)}</td>
+                       </tr>
+                     </tbody>
+                   </table>
+                 </div>
               </div>
             </div>
           );
