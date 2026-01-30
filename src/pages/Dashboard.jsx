@@ -1932,8 +1932,13 @@ function Dashboard() {
       // Only use dataSource preference for historical dates
       if (isToday || dataSource === 'online') {
         console.log(`🌐 [Periodic Refresh] Fetching ALL drivers from API (${isToday ? 'today - cross-device sync' : 'online mode'})`);
-        freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
+        try {
+          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
+        } catch (apiError) {
+          console.warn(`⚠️ [Periodic Refresh] API fetch failed - using offline DB: ${apiError.message}`);
+          freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr) || [];
+        }
       } else {
         // Historical dates - try offline DB first
         freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
