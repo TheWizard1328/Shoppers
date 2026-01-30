@@ -142,10 +142,11 @@ const findCurrentPeriodIndex = (periods, today) => {
 };
 
 export default function DriverPayroll() {
-  const { currentUser } = useUser();
-  const [payrollData, setPayrollData] = useState(null);
-  const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
-  const [payrollRecords, setPayrollRecords] = useState([]);
+   const { currentUser } = useUser();
+   const { smartRefreshActivity, setSmartRefreshActivity } = useAppData();
+   const [payrollData, setPayrollData] = useState(null);
+   const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
+   const [payrollRecords, setPayrollRecords] = useState([]);
   
   const currentDate = new Date();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
