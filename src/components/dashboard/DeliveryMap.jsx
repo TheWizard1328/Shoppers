@@ -811,17 +811,6 @@ export default function DeliveryMap({
     };
   }, [map]);
 
-  // CRITICAL: Pass home markers and driver locations to Dashboard for FAB phase 1 bounds calculation
-  useEffect(() => {
-    window.__mapHomeMarkers = driverHomeMarkers;
-    window.__mapDriverLocationMarkers = driverLocationMarkers;
-    
-    return () => {
-      delete window.__mapHomeMarkers;
-      delete window.__mapDriverLocationMarkers;
-    };
-  }, [driverHomeMarkers, driverLocationMarkers]);
-
   // State to force re-render of polylines when driver locations change
   const [polylineRenderKey, setPolylineRenderKey] = useState(0);
   
@@ -1895,6 +1884,17 @@ export default function DeliveryMap({
     JSON.stringify(otherDriverDeliveries.map(d => ({ id: d?.driver_id, status: d?.status }))),
     JSON.stringify(safeUsers.map(u => ({ id: u?.id, hLat: u?.home_latitude, hLon: u?.home_longitude })))
   ]);
+
+  // CRITICAL: Pass home markers and driver locations to Dashboard for FAB phase 1 bounds calculation
+  useEffect(() => {
+    window.__mapHomeMarkers = driverHomeMarkers;
+    window.__mapDriverLocationMarkers = driverLocationMarkers;
+    
+    return () => {
+      delete window.__mapHomeMarkers;
+      delete window.__mapDriverLocationMarkers;
+    };
+  }, [driverHomeMarkers, driverLocationMarkers]);
 
   // CRITICAL: Store previous driverRoutes to prevent unnecessary recalculations
   const prevDriverRoutesRef = useRef([]);
