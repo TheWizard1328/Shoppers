@@ -1917,23 +1917,27 @@ function Dashboard() {
       }
 
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const isToday = selectedDateStr === todayStr;
       
       // CRITICAL: Load ALL drivers when "Show All" is checked OR "All Drivers" is selected
-      // Otherwise, load only the selected driver
       const shouldLoadAllDrivers = showAllDriverMarkers || selectedDriverId === 'all';
       const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
       
-      console.log(`🔄 [Periodic Refresh] Loading ${shouldLoadAllDrivers ? 'ALL drivers' : 'driver ' + activeDriverId} for ${selectedDateStr}`);
+      console.log(`🔄 [Periodic Refresh] Loading ${shouldLoadAllDrivers ? 'ALL drivers' : 'driver ' + activeDriverId} for ${selectedDateStr} (isToday: ${isToday})`);
       
       let freshDeliveries;
       
-      if (dataSource === 'online') {
-        console.log('🌐 [Periodic Refresh - ONLINE] Fetching from API');
+      // CRITICAL: ALWAYS fetch from API for today's date (cross-device sync)
+      // Only use dataSource preference for historical dates
+      if (isToday || dataSource === 'online') {
+        console.log(`🌐 [Periodic Refresh] Fetching from API (${isToday ? 'today - cross-device sync' : 'online mode'})`);
         freshDeliveries = shouldLoadAllDrivers 
           ? await base44.entities.Delivery.filter({ delivery_date: selectedDateStr })
           : await base44.entities.Delivery.filter({ delivery_date: selectedDateStr, driver_id: activeDriverId });
         offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
       } else {
+        // Historical dates - try offline DB first
         freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
         
         if (!freshDeliveries || freshDeliveries.length === 0) {
