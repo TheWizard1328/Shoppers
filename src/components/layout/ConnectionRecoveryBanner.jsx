@@ -78,14 +78,28 @@ export default function ConnectionRecoveryBanner() {
         invalidate('User');
         invalidate('City');
         
-        // STEP 4: Wait a moment for invalidation to settle
+        // STEP 4: CRITICAL - Force refresh ALL AppUsers to prevent duplicate driver IDs
+        console.log('📍 [Recovery] Force refreshing ALL AppUsers to purge stale driver data...');
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        
+        // Fetch fresh AppUsers from backend
+        const freshAppUsers = await base44.entities.AppUser.list();
+        console.log(`✅ [Recovery] Fetched ${freshAppUsers.length} fresh AppUsers from backend`);
+        
+        // Purge offline AppUsers and resync
+        await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+        await offlineDB.deduplicateAppUsers(); // Ensure no duplicates
+        console.log(`✅ [Recovery] Purged and resynced AppUsers to offline DB`);
+        
+        // STEP 5: Wait a moment for invalidation to settle
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // STEP 5: Trigger full data reload
+        // STEP 6: Trigger full data reload
         console.log('📥 [Recovery] Triggering validated data refresh...');
         window.dispatchEvent(new CustomEvent('forceDataRefresh'));
         
-        // STEP 6: Force refresh stats immediately
+        // STEP 7: Force refresh stats immediately
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         
         // Auto-hide after 3 seconds when restored

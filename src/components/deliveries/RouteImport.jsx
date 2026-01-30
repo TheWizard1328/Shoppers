@@ -2326,20 +2326,9 @@ export default function RouteImport({
                     </span>
                   </span>
                   <h3 className="text-base md:text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Preview: {filteredPreviewDeliveries.length} Deliveries</h3>
+                  <span className="text-xs text-red-600 font-medium">⚠️ Import will PURGE all existing deliveries for these drivers before saving</span>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0 w-full md:w-auto">
-                  <div className="flex items-center gap-2 border rounded-lg px-3 py-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
-                    <input
-                      type="checkbox"
-                      id="purge-checkbox"
-                      checked={purgeBeforeImport}
-                      onChange={(e) => setPurgeBeforeImport(e.target.checked)}
-                      className="w-4 h-4 cursor-pointer"
-                    />
-                    <Label htmlFor="purge-checkbox" className="text-xs md:text-sm cursor-pointer" style={{ color: 'var(--text-slate-700)' }}>
-                      Purge Duplicates
-                    </Label>
-                  </div>
                   
                   <Select value={previewFilterDate} onValueChange={setPreviewFilterDate}>
                     <SelectTrigger className="w-full md:w-40 text-xs md:text-sm">
