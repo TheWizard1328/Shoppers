@@ -3156,7 +3156,7 @@ export default function Layout({ children, currentPageName }) {
                     }
 
                     {/* Snapshot Mode - App Owner Only */}
-                    {isAppOwner(currentUser) && currentPageName === 'Dashboard' &&
+                    {isAppOwner(currentUser) &&
                     <button
                     onClick={() => {
                       setIsSnapshotModeActive(!isSnapshotModeActive);
