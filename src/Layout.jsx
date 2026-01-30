@@ -3098,13 +3098,19 @@ export default function Layout({ children, currentPageName }) {
                     <div className="border-t my-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                  <Link
+                    <Link
                     to={createPageUrl('Patients')}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={(e) => {
+                      if (isSnapshotModeActive) {
+                        e.preventDefault();
+                        return;
+                      }
+                      setSidebarOpen(false);
+                    }}
                     className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
                     currentPageName === 'Patients' ?
                     'shadow-sm' :
-                    'hover:opacity-80'}`
+                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
                     }
                     style={currentPageName === 'Patients' ? {
                       background: 'var(--bg-slate-100)',
@@ -3120,16 +3126,22 @@ export default function Layout({ children, currentPageName }) {
                       patients.filter((p) => p && currentUser?.store_ids?.includes(p.store_id)).length}
                           </Badge>
                           </Link>
-                  }
+                    }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                     <Link
                     to={getRouteNavigationUrl('Deliveries')}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={(e) => {
+                      if (isSnapshotModeActive) {
+                        e.preventDefault();
+                        return;
+                      }
+                      setSidebarOpen(false);
+                    }}
                     className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
                     currentPageName === 'Deliveries' ?
                     'shadow-sm' :
-                    'hover:opacity-80'}`
+                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
                     }
                     style={currentPageName === 'Deliveries' ? {
                       background: 'var(--bg-slate-100)',
@@ -3167,13 +3179,19 @@ export default function Layout({ children, currentPageName }) {
                     }
 
                     {(isAppOwner(currentUser) || userHasRole(currentUser, 'driver')) &&
-                  <Link
+                    <Link
                     to={createPageUrl('SquareManagement')}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={(e) => {
+                      if (isSnapshotModeActive) {
+                        e.preventDefault();
+                        return;
+                      }
+                      setSidebarOpen(false);
+                    }}
                     className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
                     currentPageName === 'SquareManagement' ?
                     'shadow-sm' :
-                    'hover:opacity-80'}`
+                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
                     }
                     style={currentPageName === 'SquareManagement' ? {
                       background: 'var(--bg-slate-100)',
@@ -3187,16 +3205,22 @@ export default function Layout({ children, currentPageName }) {
                             ${totalCodsDue.toFixed(2)}
                           </Badge>
                           </Link>
-                  }
+                    }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-                  <Link
+                    <Link
                     to={createPageUrl('DriverPayroll')}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={(e) => {
+                      if (isSnapshotModeActive) {
+                        e.preventDefault();
+                        return;
+                      }
+                      setSidebarOpen(false);
+                    }}
                     className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
                     currentPageName === 'DriverPayroll' ?
                     'shadow-sm' :
-                    'hover:opacity-80'}`
+                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
                     }
                     style={currentPageName === 'DriverPayroll' ? {
                       background: 'var(--bg-slate-100)',
@@ -3207,16 +3231,22 @@ export default function Layout({ children, currentPageName }) {
                           <DollarSign className="w-5 h-5" />
                           <span className="font-semibold">Driver Payroll</span>
                           </Link>
-                  }
+                    }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                  <Link
+                    <Link
                     to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={(e) => {
+                      if (isSnapshotModeActive) {
+                        e.preventDefault();
+                        return;
+                      }
+                      setSidebarOpen(false);
+                    }}
                     className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
                     currentPageName === 'DeliveryMetrics' ?
                     'shadow-sm' :
-                    'hover:opacity-80'}`
+                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
                     }
                     style={currentPageName === 'DeliveryMetrics' ? {
                       background: 'var(--bg-slate-100)',
@@ -3227,7 +3257,7 @@ export default function Layout({ children, currentPageName }) {
                         <BarChart3 className="w-5 h-5" />
                         <span className="font-semibold">Route Metrics</span>
                       </Link>
-                  }
+                    }
 
                     </div>
 
