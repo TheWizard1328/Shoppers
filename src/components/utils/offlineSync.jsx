@@ -295,8 +295,17 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     await syncEntityWithTimestampCheck('AppUser', AppUser, {}, {});
     await new Promise(r => setTimeout(r, 2000));
     
-    await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' }, { status: 'active' });
-    await new Promise(r => setTimeout(r, 2000));
+    // CRITICAL: Skip patient sync in background unless it's been 24+ hours since last full sync
+    // This prevents rate limit errors from frequent patient syncs
+    const patientStatus = await offlineDB.getSyncStatus('Patient');
+    const lastFullSync = patientStatus?.lastFullSync ? new Date(patientStatus.lastFullSync).getTime() : 0;
+    const timeSinceLastSync = Date.now() - lastFullSync;
+    const shouldSyncPatients = timeSinceLastSync > (PATIENT_SYNC_INTERVAL_HOURS * 60 * 60 * 1000);
+    
+    if (shouldSyncPatients) {
+      await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' }, { status: 'active' });
+      await new Promise(r => setTimeout(r, 2000));
+    }
     
     // CRITICAL: Sync deliveries one date at a time over past 90 days
     // Check for changes before syncing to minimize rate limits
