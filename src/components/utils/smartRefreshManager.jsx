@@ -2376,12 +2376,351 @@ class SmartRefreshManager {
   }
   
   /**
-   * CRITICAL: DISABLED - was causing unnecessary data reloads
-   */
-  async checkAndRestartOfflineSync() {
-    // DISABLED - this was triggering full data reloads
-    return { skipped: true, reason: 'disabled' };
-  }
-}
+    * CRITICAL: DISABLED - was causing unnecessary data reloads
+    */
+   async checkAndRestartOfflineSync() {
+     // DISABLED - this was triggering full data reloads
+     return { skipped: true, reason: 'disabled' };
+   }
 
-export const smartRefreshManager = new SmartRefreshManager();
+   /**
+    * NEW: Full AppUser sync - every 15 seconds, entire dataset in one API hit
+    */
+   async refreshAllAppUsersFullSync(currentAppUsers) {
+     try {
+       await this.waitForRateLimit();
+       const allAppUsers = await queueEntityRequest(
+         () => base44.entities.AppUser.list(),
+         'AppUser list [FULL SYNC]'
+       );
+
+       this.recordSuccess();
+
+       if (!allAppUsers || allAppUsers.length === 0) {
+         return null;
+       }
+
+       // Sync entire dataset to offline DB
+       try {
+         const { offlineDB } = await import('./offlineDatabase');
+         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+         await offlineDB.updateSyncStatus('AppUser', {
+           recordCount: allAppUsers.length,
+           status: 'synced',
+           lastSync: new Date().toISOString()
+         });
+         console.log(`✅ [SmartRefresh] Full AppUser sync: ${allAppUsers.length} records`);
+       } catch (offlineError) {
+         console.warn('⚠️ [SmartRefresh] Failed to sync AppUsers to offline DB:', offlineError);
+       }
+
+       const diff = diffEntityArrays(currentAppUsers, allAppUsers);
+
+       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+         return null;
+       }
+
+       const merged = mergeEntityChanges(currentAppUsers, diff);
+       return {
+         hasChanges: true,
+         appUsers: merged
+       };
+     } catch (error) {
+       this.recordError();
+       this.recordConnectionError(error);
+       if (error.response?.status === 429 || error.message?.includes('429')) {
+         console.warn('⏰ [SmartRefresh] Rate limit on full AppUser sync');
+         this.notifyRateLimit(true);
+       }
+       return null;
+     }
+   }
+
+   /**
+    * NEW: Full Cities sync - every 5 minutes, entire dataset in one API hit
+    */
+   async refreshAllCitiesFullSync(currentCities) {
+     try {
+       await this.waitForRateLimit();
+       const allCities = await queueEntityRequest(
+         () => base44.entities.City.list(),
+         'City list [FULL SYNC]'
+       );
+
+       this.recordSuccess();
+
+       if (!allCities || allCities.length === 0) {
+         return null;
+       }
+
+       // Sync entire dataset to offline DB
+       try {
+         const { offlineDB } = await import('./offlineDatabase');
+         await offlineDB.bulkSave(offlineDB.STORES.CITIES, allCities);
+         await offlineDB.updateSyncStatus('City', {
+           recordCount: allCities.length,
+           status: 'synced',
+           lastSync: new Date().toISOString()
+         });
+         console.log(`✅ [SmartRefresh] Full Cities sync: ${allCities.length} records`);
+       } catch (offlineError) {
+         console.warn('⚠️ [SmartRefresh] Failed to sync Cities to offline DB:', offlineError);
+       }
+
+       const diff = diffEntityArrays(currentCities, allCities);
+
+       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+         return null;
+       }
+
+       const merged = mergeEntityChanges(currentCities, diff);
+       return {
+         hasChanges: true,
+         cities: merged
+       };
+     } catch (error) {
+       this.recordError();
+       this.recordConnectionError(error);
+       if (error.response?.status === 429 || error.message?.includes('429')) {
+         console.warn('⏰ [SmartRefresh] Rate limit on full Cities sync');
+         this.notifyRateLimit(true);
+       }
+       return null;
+     }
+   }
+
+   /**
+    * NEW: Full Stores sync - every 5 minutes, entire dataset in one API hit
+    */
+   async refreshAllStoresFullSync(currentStores) {
+     try {
+       await this.waitForRateLimit();
+       const allStores = await queueEntityRequest(
+         () => base44.entities.Store.list(),
+         'Store list [FULL SYNC]'
+       );
+
+       this.recordSuccess();
+
+       if (!allStores || allStores.length === 0) {
+         return null;
+       }
+
+       // Sync entire dataset to offline DB
+       try {
+         const { offlineDB } = await import('./offlineDatabase');
+         await offlineDB.bulkSave(offlineDB.STORES.STORES, allStores);
+         await offlineDB.updateSyncStatus('Store', {
+           recordCount: allStores.length,
+           status: 'synced',
+           lastSync: new Date().toISOString()
+         });
+         console.log(`✅ [SmartRefresh] Full Stores sync: ${allStores.length} records`);
+       } catch (offlineError) {
+         console.warn('⚠️ [SmartRefresh] Failed to sync Stores to offline DB:', offlineError);
+       }
+
+       const diff = diffEntityArrays(currentStores, allStores);
+
+       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+         return null;
+       }
+
+       const merged = mergeEntityChanges(currentStores, diff);
+       return {
+         hasChanges: true,
+         stores: merged
+       };
+     } catch (error) {
+       this.recordError();
+       this.recordConnectionError(error);
+       if (error.response?.status === 429 || error.message?.includes('429')) {
+         console.warn('⏰ [SmartRefresh] Rate limit on full Stores sync');
+         this.notifyRateLimit(true);
+       }
+       return null;
+     }
+   }
+
+   /**
+    * NEW: Full Patients sync - once daily, entire dataset + last 90 days deliveries
+    */
+   async refreshAllPatientsFullSync(currentPatients) {
+     try {
+       // First sync all active patients
+       await this.waitForRateLimit();
+       const allPatients = await queueEntityRequest(
+         () => base44.entities.Patient.list(),
+         'Patient list [FULL SYNC - ALL]'
+       );
+
+       this.recordSuccess();
+
+       if (!allPatients || allPatients.length === 0) {
+         return null;
+       }
+
+       // Sync entire patient dataset to offline DB
+       try {
+         const { offlineDB } = await import('./offlineDatabase');
+         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, allPatients);
+
+         // Also sync last 90 days of deliveries
+         const ninetyDaysAgo = new Date();
+         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+         const startDateStr = format(ninetyDaysAgo, 'yyyy-MM-dd');
+
+         await this.waitForRateLimit();
+         const last90DeliveriesResult = await queueEntityRequest(
+           () => base44.entities.Delivery.filter({
+             delivery_date: { $gte: startDateStr }
+           }, '-updated_date', 5000),
+           'Delivery list [LAST 90 DAYS]'
+         );
+
+         if (last90DeliveriesResult && last90DeliveriesResult.length > 0) {
+           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, last90DeliveriesResult);
+         }
+
+         await offlineDB.updateSyncStatus('Patient', {
+           recordCount: allPatients.length,
+           status: 'synced',
+           lastSync: new Date().toISOString(),
+           lastFullSync: new Date().toISOString()
+         });
+         console.log(`✅ [SmartRefresh] Full Patient sync: ${allPatients.length} records + last 90 days deliveries`);
+       } catch (offlineError) {
+         console.warn('⚠️ [SmartRefresh] Failed to sync Patients to offline DB:', offlineError);
+       }
+
+       const diff = diffEntityArrays(currentPatients, allPatients);
+
+       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+         return null;
+       }
+
+       const merged = mergeEntityChanges(currentPatients, diff);
+       return {
+         hasChanges: true,
+         patients: merged
+       };
+     } catch (error) {
+       this.recordError();
+       this.recordConnectionError(error);
+       if (error.response?.status === 429 || error.message?.includes('429')) {
+         console.warn('⏰ [SmartRefresh] Rate limit on full Patient sync');
+         this.notifyRateLimit(true);
+       }
+       return null;
+     }
+   }
+
+   /**
+    * NEW: Sync only patients referenced by current date + selected date deliveries
+    */
+   async refreshRelevantPatientsOnly(currentPatients, relevantPatientIds) {
+     try {
+       if (!relevantPatientIds || relevantPatientIds.length === 0) {
+         return null;
+       }
+
+       await this.waitForRateLimit();
+       const relevantPatients = await queueEntityRequest(
+         () => base44.entities.Patient.filter({
+           id: { $in: relevantPatientIds }
+         }),
+         `Patient list [${relevantPatientIds.length} for dates]`
+       );
+
+       this.recordSuccess();
+
+       if (!relevantPatients || relevantPatients.length === 0) {
+         return null;
+       }
+
+       // Sync to offline DB
+       try {
+         const { offlineDB } = await import('./offlineDatabase');
+         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, relevantPatients);
+       } catch (offlineError) {
+         console.warn('⚠️ [SmartRefresh] Failed to sync relevant patients to offline DB:', offlineError);
+       }
+
+       const diff = diffEntityArrays(currentPatients, relevantPatients);
+
+       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0) {
+         return null;
+       }
+
+       const merged = mergeEntityChanges(currentPatients, diff);
+       return {
+         hasChanges: true,
+         patients: merged
+       };
+     } catch (error) {
+       if (error.response?.status === 429 || error.message?.includes('429')) {
+         console.warn('⏰ [SmartRefresh] Rate limit on relevant patient sync');
+         this.notifyRateLimit(true);
+       }
+       return null;
+     }
+   }
+
+   /**
+    * NEW: Sync deliveries for selected date only
+    */
+   async refreshSelectDateDeliveries(currentDeliveries, selectedDateStr) {
+     try {
+       await this.waitForRateLimit();
+       const selectedDateDeliveries = await queueEntityRequest(
+         () => base44.entities.Delivery.filter({
+           delivery_date: selectedDateStr
+         }),
+         `Delivery filter [selected: ${selectedDateStr}]`
+       );
+
+       this.recordSuccess();
+
+       if (!selectedDateDeliveries || selectedDateDeliveries.length === 0) {
+         return null;
+       }
+
+       // Sync to offline DB
+       try {
+         const { offlineDB } = await import('./offlineDatabase');
+         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, selectedDateDeliveries);
+       } catch (offlineError) {
+         console.warn('⚠️ [SmartRefresh] Failed to sync selected date deliveries to offline DB:', offlineError);
+       }
+
+       // Merge with other dates
+       const otherDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== selectedDateStr);
+       const diff = diffEntityArrays(
+         currentDeliveries.filter(d => d && d.delivery_date === selectedDateStr),
+         selectedDateDeliveries
+       );
+
+       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0) {
+         return null;
+       }
+
+       const merged = mergeEntityChanges(
+         currentDeliveries.filter(d => d && d.delivery_date === selectedDateStr),
+         diff
+       );
+
+       return {
+         hasChanges: true,
+         deliveries: [...otherDeliveries, ...merged]
+       };
+     } catch (error) {
+       if (error.response?.status === 429 || error.message?.includes('429')) {
+         console.warn('⏰ [SmartRefresh] Rate limit on selected date delivery sync');
+         this.notifyRateLimit(true);
+       }
+       return null;
+     }
+   }
+  }
+
+  export const smartRefreshManager = new SmartRefreshManager();
