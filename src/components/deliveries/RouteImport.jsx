@@ -1159,17 +1159,22 @@ export default function RouteImport({
   useEffect(() => {
     const loadAllDrivers = async () => {
       try {
+        console.log('📥 [RouteImport] Loading fresh AppUser data for ALL drivers...');
+        
+        // CRITICAL: ALWAYS fetch fresh AppUsers to ensure accurate driver_id matching
+        // This prevents temporary IDs from being created during import
+        const freshAppUsers = await base44.entities.AppUser.list();
+        console.log(`✅ [RouteImport] Loaded ${freshAppUsers.length} fresh AppUsers`);
+        
         // CRITICAL: Only admins can list User entities
-        // Non-admins should use the allUsers prop from Layout
         const isAdmin = userHasRole(currentUser, 'admin');
         
         if (isAdmin) {
-          const allAppUsers = await base44.entities.AppUser.list();
           const allAuthUsers = await base44.entities.User.list();
 
           // Merge AppUsers with Auth Users
           const mergedUsers = allAuthUsers.map((authUser) => {
-            const appUser = allAppUsers.find((au) => au.user_id === authUser.id);
+            const appUser = freshAppUsers.find((au) => au.user_id === authUser.id);
             if (appUser) {
               return {
                 ...authUser,
@@ -1182,13 +1187,24 @@ export default function RouteImport({
             return authUser;
           });
 
+          console.log(`✅ [RouteImport] Created ${mergedUsers.length} merged users (admins can see full list)`);
           setAllDriverUsers(mergedUsers);
         } else {
-          // Non-admins: use the allUsers prop from Layout (already has merged data)
-          setAllDriverUsers(allUsers || []);
+          // Non-admins: Create pseudo-users from AppUser data
+          const pseudoUsers = freshAppUsers.map((au) => ({
+            id: au.user_id,
+            user_id: au.user_id,
+            user_name: au.user_name,
+            full_name: au.user_name,
+            app_roles: au.app_roles || [],
+            status: au.status
+          }));
+          
+          console.log(`✅ [RouteImport] Created ${pseudoUsers.length} pseudo-users from AppUsers (non-admin)`);
+          setAllDriverUsers(pseudoUsers);
         }
       } catch (error) {
-        console.error('[RouteImport] Error loading all drivers:', error);
+        console.error('[RouteImport] Error loading fresh drivers:', error);
         // Fallback to prop allUsers
         setAllDriverUsers(allUsers || []);
       }
@@ -1331,8 +1347,52 @@ export default function RouteImport({
 
 
     try {
+      // STEP 0: Refresh driver data FIRST to ensure accurate driver_id matching
+      setProgressMessage('Refreshing driver data...');
+      setProgressPercent(3);
+      
+      try {
+        console.log('📥 [RouteImport Preview] Fetching fresh AppUser data...');
+        const freshAppUsers = await base44.entities.AppUser.list();
+        console.log(`✅ [RouteImport Preview] Loaded ${freshAppUsers.length} fresh AppUsers`);
+        
+        const isAdmin = userHasRole(currentUser, 'admin');
+        
+        if (isAdmin) {
+          const allAuthUsers = await base44.entities.User.list();
+          const mergedUsers = allAuthUsers.map((authUser) => {
+            const appUser = freshAppUsers.find((au) => au.user_id === authUser.id);
+            if (appUser) {
+              return {
+                ...authUser,
+                ...appUser,
+                id: authUser.id,
+                user_name: appUser.user_name || authUser.full_name,
+                app_roles: appUser.app_roles || []
+              };
+            }
+            return authUser;
+          });
+          setAllDriverUsers(mergedUsers);
+        } else {
+          const pseudoUsers = freshAppUsers.map((au) => ({
+            id: au.user_id,
+            user_id: au.user_id,
+            user_name: au.user_name,
+            full_name: au.user_name,
+            app_roles: au.app_roles || [],
+            status: au.status
+          }));
+          setAllDriverUsers(pseudoUsers);
+        }
+        
+        console.log('✅ [RouteImport Preview] Driver data refreshed successfully');
+      } catch (driverError) {
+        console.error('[RouteImport Preview] Failed to refresh driver data:', driverError);
+        // Continue with existing data
+      }
 
-      // STEP 1: Extract date range from import files FIRST
+      // STEP 1: Extract date range from import files
       setProgressMessage('Analyzing import files for date range...');
       setProgressPercent(5);
       
