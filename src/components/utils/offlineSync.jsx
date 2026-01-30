@@ -103,6 +103,7 @@ const checkIfEntityNeedsSync = async (entityName, Entity, initialCheckQuery = {}
 /**
  * Sync a single entity with timestamp checking
  * Only fetches if server has newer data than client
+ * For Patients, syncs in smaller batches with longer cooldown
  */
 const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter = {}, initialCheckQuery = {}) => {
   try {
@@ -118,11 +119,15 @@ const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter
       ? { ...additionalFilter, updated_date: { $gte: checkResult.lastClientTimestamp } }
       : additionalFilter;
     
+    // For Patients: sync in smaller batches with cooldown to reduce rate limits
+    if (entityName === 'Patient') {
+      return await syncPatientsBatched(Entity, filter, checkResult.latestServerTimestamp);
+    }
+    
     const records = await Entity.filter(filter, '-updated_date', 5000);
     
     if (records.length > 0) {
-      const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
-                        entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
+      const storeName = entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
                         entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
                         entityName === 'City' ? offlineDB.STORES.CITIES :
                         offlineDB.STORES.STORES;
@@ -137,6 +142,37 @@ const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter
   } catch (error) {
     return { error: error.message };
   }
+};
+
+/**
+ * Sync patients in smaller chunks with cooldown to avoid rate limits
+ */
+const syncPatientsBatched = async (Entity, filter, latestServerTimestamp) => {
+  let totalRecords = 0;
+  let offset = 0;
+  
+  while (true) {
+    const records = await Entity.filter(filter, '-updated_date', PATIENT_BATCH_SIZE, offset);
+    
+    if (!records || records.length === 0) break;
+    
+    // Save batch to offline DB
+    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, records);
+    totalRecords += records.length;
+    
+    // Stop if we got fewer records than batch size (end of data)
+    if (records.length < PATIENT_BATCH_SIZE) break;
+    
+    offset += PATIENT_BATCH_SIZE;
+    
+    // Wait before fetching next batch
+    await new Promise(r => setTimeout(r, PATIENT_SYNC_COOLDOWN));
+  }
+  
+  // Update metadata after all batches
+  await offlineDB.updateSyncMetadata('Patient', latestServerTimestamp, new Date().toISOString());
+  
+  return { success: true, recordCount: totalRecords };
 };
 
 // ==================== PRIORITY DATA LOADING ====================
