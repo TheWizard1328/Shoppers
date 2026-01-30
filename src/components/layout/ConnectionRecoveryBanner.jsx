@@ -68,8 +68,8 @@ export default function ConnectionRecoveryBanner() {
           throw new Error('Backend connection not ready');
         }
         
-        // STEP 3: Clear ALL caches to force fresh fetch
-        console.log('🧹 [Recovery] Clearing all caches...');
+        // STEP 3: Clear ALL backend caches to force fresh fetch
+        console.log('🧹 [Recovery] Clearing all backend caches...');
         clearUserCache();
         invalidate('Delivery');
         invalidate('Patient');
@@ -78,28 +78,66 @@ export default function ConnectionRecoveryBanner() {
         invalidate('User');
         invalidate('City');
         
-        // STEP 4: CRITICAL - Force refresh ALL AppUsers to prevent duplicate driver IDs
-        console.log('📍 [Recovery] Force refreshing ALL AppUsers to purge stale driver data...');
+        // STEP 4: CRITICAL - Completely purge offline database to remove stale data
+        console.log('🗑️ [Recovery] COMPLETELY PURGING offline database...');
         const { offlineDB } = await import('../utils/offlineDatabase');
         
-        // Fetch fresh AppUsers from backend
-        const freshAppUsers = await base44.entities.AppUser.list();
-        console.log(`✅ [Recovery] Fetched ${freshAppUsers.length} fresh AppUsers from backend`);
+        // Delete ALL stores from offline DB
+        const stores = [
+          offlineDB.STORES.DELIVERIES,
+          offlineDB.STORES.PATIENTS,
+          offlineDB.STORES.APP_USERS,
+          offlineDB.STORES.STORES,
+          offlineDB.STORES.USERS,
+          offlineDB.STORES.CITIES
+        ];
         
-        // Purge offline AppUsers and resync
-        await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-        await offlineDB.deduplicateAppUsers(); // Ensure no duplicates
-        console.log(`✅ [Recovery] Purged and resynced AppUsers to offline DB`);
+        for (const store of stores) {
+          try {
+            await offlineDB.clearStore(store);
+            console.log(`✅ [Recovery] Cleared offline store: ${store}`);
+          } catch (clearError) {
+            console.warn(`⚠️ [Recovery] Failed to clear ${store}:`, clearError.message);
+          }
+        }
         
-        // STEP 5: Wait a moment for invalidation to settle
+        // STEP 5: CRITICAL - Refresh ALL critical data from backend
+        console.log('📥 [Recovery] Fetching fresh data from backend...');
+        try {
+          const [freshAppUsers, freshDeliveries, freshPatients, freshStores, freshCities] = await Promise.all([
+            base44.entities.AppUser.list(),
+            base44.entities.Delivery.list(),
+            base44.entities.Patient.list(),
+            base44.entities.Store.list(),
+            base44.entities.City.list()
+          ]);
+          
+          console.log(`✅ [Recovery] Fetched fresh data: ${freshAppUsers.length} users, ${freshDeliveries.length} deliveries, ${freshPatients.length} patients, ${freshStores.length} stores, ${freshCities.length} cities`);
+          
+          // STEP 6: Resync all fresh data to offline DB
+          console.log('💾 [Recovery] Resyncing all fresh data to offline DB...');
+          await Promise.all([
+            offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers),
+            offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries),
+            offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients),
+            offlineDB.bulkSave(offlineDB.STORES.STORES, freshStores),
+            offlineDB.bulkSave(offlineDB.STORES.CITIES, freshCities)
+          ]);
+          
+          console.log('✅ [Recovery] All data resynced to offline DB - duplicate driver IDs purged');
+        } catch (fetchError) {
+          console.error('❌ [Recovery] Failed to fetch fresh data:', fetchError.message);
+          throw fetchError;
+        }
+        
+        // STEP 7: Wait a moment for resync to settle
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // STEP 6: Trigger full data reload
-        console.log('📥 [Recovery] Triggering validated data refresh...');
+        // STEP 8: Trigger full UI refresh with newly synced data
+        console.log('🔄 [Recovery] Triggering full UI refresh...');
         window.dispatchEvent(new CustomEvent('forceDataRefresh'));
         
-        // STEP 7: Force refresh stats immediately
+        // STEP 9: Force refresh stats immediately
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         
         // Auto-hide after 3 seconds when restored
