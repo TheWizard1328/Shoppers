@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
 import { sortUsers, sortStores } from '../components/utils/sorting';
 import { useUser } from '../components/utils/UserContext';
+import { useAppData } from '../components/utils/AppDataContext';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
 import { userHasRole } from '../components/utils/userRoles';
 import { base44 } from '@/api/base44Client';
