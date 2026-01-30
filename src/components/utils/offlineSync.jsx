@@ -194,22 +194,41 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
  * Background sync with timestamp-based incremental strategy
  * Only syncs entities when server has newer data (compares updated_date timestamps)
  */
-    await Promise.all([
-      offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
-      offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
-      offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
-      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
-      offlineDB.updateSyncStatus('Patient', { recordCount: patients.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() })
-    ]);
+export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
+  if (syncInProgress || syncPaused) {
+    return { skipped: true };
+  }
+  
+  syncInProgress = true;
+  notifySyncStatus({ status: 'background_syncing' });
+  
+  try {
+    await new Promise(r => setTimeout(r, 2000));
+    
+    await syncEntityWithTimestampCheck('City', City);
+    await new Promise(r => setTimeout(r, 2000));
+    
+    await syncEntityWithTimestampCheck('Store', Store);
+    await new Promise(r => setTimeout(r, 2000));
+    
+    await syncEntityWithTimestampCheck('AppUser', AppUser);
+    await new Promise(r => setTimeout(r, 2000));
+    
+    await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' });
+    await new Promise(r => setTimeout(r, 2000));
+    
+    const deliveryFilter = storeIds && storeIds.length > 0 ? { store_id: { $in: storeIds } } : {};
+    await syncEntityWithTimestampCheck('Delivery', Delivery, deliveryFilter);
 
-    notifySyncStatus({ status: 'priority_loaded', cities: cities.length, stores: stores.length, appUsers: appUsers.length, deliveries: deliveries.length, patients: patients.length });
-
-    syncInProgress = false;
-    return { cities, stores, appUsers, deliveries, patients };
+    notifySyncStatus({ status: 'complete' });
+    window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+    
+    return { success: true };
   } catch (error) {
     notifySyncStatus({ status: 'error', error: error.message });
-    syncInProgress = false;
     return { error: error.message };
+  } finally {
+    syncInProgress = false;
   }
 };
 
