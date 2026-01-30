@@ -1546,7 +1546,7 @@ export default function PayrollSummaryCard({
                         </div>
                       )}
                       {grandTotalDeductions > 0 && (
-                        <div className="text-sm text-red-600">
+                        <div className="text-sm" style={{ color: '#ef4444' }}>
                           <span className="text-xs mr-1">Deductions:</span>
                           <span className="font-semibold">-{formatCurrency(grandTotalDeductions)}</span>
                         </div>
