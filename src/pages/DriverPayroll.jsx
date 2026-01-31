@@ -13,7 +13,6 @@ import PayrollSummaryCard from '../components/payroll/PayrollSummaryCard';
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { invalidate } from '../components/utils/dataManager';
 import { toast } from 'sonner';
-import { RefreshCw } from 'lucide-react';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import html2canvas from 'html2canvas';
 
