@@ -617,6 +617,12 @@ export default function PayrollSummaryCard({
       if (controlsElement) {
         controlsElement.style.display = 'flex';
       }
+
+      // Show App Fee % rows again
+      const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
+      appFeeRows.forEach(row => {
+        row.style.display = '';
+      });
     } catch (error) {
       console.error('Failed to capture screenshot:', error);
     } finally {
