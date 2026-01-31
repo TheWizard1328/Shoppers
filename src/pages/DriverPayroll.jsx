@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DollarSign, ChevronLeft, ChevronRight, Share2, Loader2 } from "lucide-react";
+import { DollarSign, ChevronLeft, ChevronRight, Share2, Loader2, Download } from "lucide-react";
 import { sortUsers, sortStores } from '../components/utils/sorting';
 import { useUser } from '../components/utils/UserContext';
 import { useAppData } from '../components/utils/AppDataContext';
@@ -730,15 +730,15 @@ export default function DriverPayroll() {
           refreshPayrollRecords={refreshPayrollRecords}
         />
         </div>
+        
+        {/* Screenshot Share Modal */}
+        <ScreenshotShareModal
+          isOpen={showScreenshotModal}
+          onClose={() => setShowScreenshotModal(false)}
+          imageDataUrl={screenshotDataUrl}
+          filename={`driver-payroll-${selectedYear}.png`}
+        />
       </div>
-
-      {/* Screenshot Share Modal */}
-      <ScreenshotShareModal
-        isOpen={showScreenshotModal}
-        onClose={() => setShowScreenshotModal(false)}
-        imageDataUrl={screenshotDataUrl}
-        filename={`driver-payroll-${selectedYear}.png`}
-      />
     </div>
   );
 }
