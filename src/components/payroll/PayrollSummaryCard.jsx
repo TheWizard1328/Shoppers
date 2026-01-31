@@ -1,8 +1,10 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users, Plus, X, Save } from 'lucide-react';
+import { Download, Calculator, CheckCircle, AlertCircle, Clock, Users, Plus, X, Save, Share2, Loader2 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import ScreenshotShareModal from '../common/ScreenshotShareModal';
 import { jsPDF } from 'jspdf';
 import {
   Dialog,
@@ -64,6 +66,10 @@ export default function PayrollSummaryCard({
   const [driverEdits, setDriverEdits] = useState({});
   const [deductionOverlayDriverId, setDeductionOverlayDriverId] = useState(null);
   const [bonusOverlayDriverId, setBonusOverlayDriverId] = useState(null);
+  const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
+  const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const contentRef = useRef(null);
 
   const isAdmin = currentUser && userHasRole(currentUser, 'admin');
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !isAdmin;
@@ -574,6 +580,41 @@ export default function PayrollSummaryCard({
     } finally {
       setIsFinalizing(false);
       setShowConfirmDialog(false);
+    }
+  };
+
+  // Handle screenshot capture for sharing
+  const handleCaptureScreenshot = async () => {
+    if (!contentRef.current) return;
+    
+    setIsCapturingScreenshot(true);
+    try {
+      // Temporarily hide control elements
+      const controlsElement = document.getElementById('payroll-controls');
+      if (controlsElement) {
+        controlsElement.style.display = 'none';
+      }
+      
+      // Capture the content
+      const canvas = await html2canvas(contentRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+        logging: false
+      });
+      
+      const imageUrl = canvas.toDataURL('image/png');
+      setScreenshotDataUrl(imageUrl);
+      setShowScreenshotModal(true);
+      
+      // Show controls again
+      if (controlsElement) {
+        controlsElement.style.display = 'flex';
+      }
+    } catch (error) {
+      console.error('Failed to capture screenshot:', error);
+    } finally {
+      setIsCapturingScreenshot(false);
     }
   };
 
@@ -1530,7 +1571,21 @@ export default function PayrollSummaryCard({
             <Calculator className="w-5 h-5" />
             Payroll Summary
           </CardTitle>
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center" id="payroll-controls">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={handleCaptureScreenshot}
+              disabled={isCapturingScreenshot}
+              className="gap-2" 
+              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+            >
+              {isCapturingScreenshot ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Share2 className="w-4 h-4" />
+              )}
+            </Button>
             <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
               <Download className="w-4 h-4" />
               Export PDF
@@ -1840,7 +1895,15 @@ export default function PayrollSummaryCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <CardContent>
+      {/* Screenshot Share Modal */}
+      <ScreenshotShareModal
+        isOpen={showScreenshotModal}
+        onClose={() => setShowScreenshotModal(false)}
+        imageDataUrl={screenshotDataUrl}
+        filename={`payroll-summary-${currentPeriod?.label || 'report'}.png`}
+      />
+
+      <CardContent ref={contentRef}>
         <div className="space-y-4">
           {payrollData.filter(data => data.totalDeliveries > 0).map((data, idx) => {
           const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
