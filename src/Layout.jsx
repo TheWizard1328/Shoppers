@@ -2388,6 +2388,11 @@ export default function Layout({ children, currentPageName }) {
   return (
     <ErrorBoundary>
       <style>{`
+          /* CRITICAL: Set color-scheme in <html> element BEFORE page loads to prevent flash */
+          html {
+            color-scheme: ${themePreference === 'dark' ? 'dark' : themePreference === 'light' ? 'light' : 'light dark'};
+          }
+
           :root {
             /* Light mode (default) - whites, blacks, and grays */
             --bg-white: #ffffff;

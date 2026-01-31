@@ -18,8 +18,17 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache to prevent rate limits
 /**
  * Gets device type identifier - simply "Mobile" or "Desktop"
  * This ensures only 1 settings record per device type per user
+ * CRITICAL: Always returns "Mobile" if is_mobile flag was set, regardless of current screen width
  */
 export function getDeviceType() {
+  // CRITICAL: Check if this device was previously marked as mobile via localStorage
+  const wasMobile = localStorage.getItem('rxdeliver_is_mobile');
+  if (wasMobile === 'true') {
+    cachedDeviceType = 'Mobile';
+    console.log('📱 [UserSettings] Device Type: Mobile (from localStorage flag)');
+    return cachedDeviceType;
+  }
+
   // Return cached if available
   if (cachedDeviceType) {
     return cachedDeviceType;
@@ -28,6 +37,11 @@ export function getDeviceType() {
   const { deviceType } = getUserAgentInfo();
   const isMobile = deviceType === 'Mobile';
   cachedDeviceType = isMobile ? 'Mobile' : 'Desktop';
+  
+  // CRITICAL: Store mobile flag in localStorage to persist across sessions
+  if (isMobile) {
+    localStorage.setItem('rxdeliver_is_mobile', 'true');
+  }
   
   console.log('📱 [UserSettings] Device Type:', cachedDeviceType);
   return cachedDeviceType;
