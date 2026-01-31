@@ -786,14 +786,14 @@ export default function PayrollSummaryCard({
       y = gridY + 10;
       const rightColStart = leftMargin;
       
-      // Define column positions for proper spacing
+      // Define column positions for proper spacing (15% more condensed)
       const col1_rowTitles = rightColStart;
-      const col2_payRates = rightColStart + 28;
-      const col3_calcTotals = rightColStart + 85;
-      const divider1 = col3_calcTotals + 22;
-      const col4_ytdCounts = divider1 + 4;
-      const col5_ytdTotals = col4_ytdCounts + 20;
-      const rightMargin = col5_ytdTotals + 25;
+      const col2_payRates = rightColStart + 24;
+      const col3_calcTotals = rightColStart + 72;
+      const divider1 = col3_calcTotals + 19;
+      const col4_ytdCounts = divider1 + 3;
+      const col5_ytdTotals = col4_ytdCounts + 17;
+      const rightMargin = col5_ytdTotals + 21;
       const breakdownWidth = rightMargin - rightColStart;
       
       doc.setFontSize(10);
