@@ -76,13 +76,13 @@ export default function ScreenshotShareModal({ isOpen, onClose, imageDataUrl, fi
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
         <DialogHeader>
-          <DialogTitle>Screenshot Preview</DialogTitle>
+          <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Screenshot Preview</DialogTitle>
         </DialogHeader>
 
         {/* Screenshot Preview */}
-        <div className="overflow-auto max-h-[60vh] border rounded-lg bg-slate-50">
+        <div className="overflow-auto max-h-[60vh] border rounded-lg" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
           {imageDataUrl ? (
             <img 
               src={imageDataUrl} 
