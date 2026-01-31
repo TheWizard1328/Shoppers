@@ -781,21 +781,31 @@ export default function PayrollSummaryCard({
       // Payroll details below the grid (2 columns: Period + YTD)
       y = gridY + 10;
       const rightColStart = leftMargin;
-      const periodColWidth = 60;
-      const dividerX = rightColStart + periodColWidth + 4;
-      const ytdColStart = dividerX + 6;
-      const breakdownWidth = 140; // Fixed width for breakdown section
-      const rightMargin = rightColStart + breakdownWidth;
+      
+      // Define column positions for proper spacing
+      const col1_rowTitles = rightColStart;
+      const col2_payRates = rightColStart + 28;
+      const col3_calcTotals = rightColStart + 85;
+      const divider1 = col3_calcTotals + 28;
+      const col4_ytdCounts = divider1 + 5;
+      const col5_ytdTotals = col4_ytdCounts + 25;
+      const rightMargin = col5_ytdTotals + 30;
+      const breakdownWidth = rightMargin - rightColStart;
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('Pay Breakdown', rightColStart, y);
       y += 5;
       
+      // Draw box around entire section
+      const boxTop = y - 2;
+      
       // Column headers
       doc.setFontSize(7);
-      doc.text('Period', rightColStart + periodColWidth / 2, y, { align: 'center' });
-      doc.text('YTD', ytdColStart + (rightMargin - ytdColStart) / 2, y, { align: 'center' });
+      const periodCenterX = (col1_rowTitles + col3_calcTotals + 28) / 2;
+      const ytdCenterX = (divider1 + 5 + rightMargin) / 2;
+      doc.text('Period', periodCenterX, y, { align: 'center' });
+      doc.text('YTD', ytdCenterX, y, { align: 'center' });
       y += 1;
       
       // Top separator
@@ -803,24 +813,11 @@ export default function PayrollSummaryCard({
       doc.line(rightColStart, y, rightMargin, y);
       y += 4;
       
-      // Draw vertical divider between Period and YTD sections
-      const dividerStartY = y - 4;
-      const dividerEndY = y + 100; // Will adjust after content
+      const breakdownStartY = y;
       
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       const lineHeight = 4.5;
-      
-      // Calculate alignment positions for Period column
-      const periodEqualsPos = rightColStart + 40;
-      const periodDollarPos = rightColStart + 43;
-      const periodAmountEndPos = dividerX - 5;
-      
-      // Calculate alignment positions for YTD column
-      const ytdCountPos = ytdColStart + 8;
-      const ytdEqualsPos = ytdColStart + 18;
-      const ytdDollarPos = ytdColStart + 21;
-      const ytdAmountEndPos = rightMargin - 3;
       
       // Calculate YTD data for this driver
       const ytdDeliveries = deliveries.filter(d => {
@@ -853,87 +850,93 @@ export default function PayrollSummaryCard({
       const ytdReturnsCount = ytdDeliveries.filter(d => d.status === 'cancelled' && d.after_hours_pickup).length;
       
       // Delivery Rate line
-      doc.text(`Delivery Rate:`, rightColStart, y);
-      doc.text(`$${driverData.payRate.toFixed(2)} x ${driverData.totalDeliveries}`, rightColStart + 28, y);
-      doc.text(`=`, periodEqualsPos, y);
-      doc.text(`$`, periodDollarPos, y);
-      doc.text(driverData.totalBasePay.toFixed(2), periodAmountEndPos, y, { align: 'right' });
+      doc.text(`Delivery Rate:`, col1_rowTitles, y);
+      doc.text(`$${driverData.payRate.toFixed(2)} x ${driverData.totalDeliveries}`, col2_payRates, y);
+      doc.text(`=`, col3_calcTotals, y);
+      doc.text(`$`, col3_calcTotals + 3, y);
+      doc.text(driverData.totalBasePay.toFixed(2), col3_calcTotals + 25, y, { align: 'right' });
       
-      doc.text(`${ytdTotalDeliveries}`, ytdCountPos, y);
-      doc.text(`=`, ytdEqualsPos, y);
-      doc.text(`$`, ytdDollarPos, y);
-      doc.text(ytdTotalBasePay.toFixed(2), ytdAmountEndPos, y, { align: 'right' });
+      doc.text(`${ytdTotalDeliveries}`, col4_ytdCounts, y);
+      doc.text(`=`, col5_ytdTotals, y);
+      doc.text(`$`, col5_ytdTotals + 3, y);
+      doc.text(ytdTotalBasePay.toFixed(2), rightMargin - 3, y, { align: 'right' });
       y += lineHeight;
       
       // Extra KM line
-      doc.text(`Extra KM:`, rightColStart, y);
-      doc.text(`$${driverData.extraKmRate.toFixed(3)}/km (>${driverData.extraKmLimit}km) x ${driverData.totalExtraKm.toFixed(2)} km`, rightColStart + 28, y);
-      doc.text(`=`, periodEqualsPos, y);
-      doc.text(`$`, periodDollarPos, y);
-      doc.text(driverData.totalExtraKmPay.toFixed(2), periodAmountEndPos, y, { align: 'right' });
+      doc.text(`Extra KM:`, col1_rowTitles, y);
+      doc.text(`$${driverData.extraKmRate.toFixed(3)}/km (>${driverData.extraKmLimit}km) x ${driverData.totalExtraKm.toFixed(2)} km`, col2_payRates, y);
+      doc.text(`=`, col3_calcTotals, y);
+      doc.text(`$`, col3_calcTotals + 3, y);
+      doc.text(driverData.totalExtraKmPay.toFixed(2), col3_calcTotals + 25, y, { align: 'right' });
       
-      doc.text(`${ytdExtraKm.toFixed(2)}`, ytdCountPos, y);
-      doc.text(`=`, ytdEqualsPos, y);
-      doc.text(`$`, ytdDollarPos, y);
-      doc.text(ytdExtraKmPay.toFixed(2), ytdAmountEndPos, y, { align: 'right' });
+      doc.text(`${ytdExtraKm.toFixed(2)} km`, col4_ytdCounts, y);
+      doc.text(`=`, col5_ytdTotals, y);
+      doc.text(`$`, col5_ytdTotals + 3, y);
+      doc.text(ytdExtraKmPay.toFixed(2), rightMargin - 3, y, { align: 'right' });
       y += lineHeight;
       
       // Oversized line
-      doc.text(`Oversized:`, rightColStart, y);
-      doc.text(`$${driverData.oversizedRate.toFixed(2)} x ${driverData.oversizedCount}`, rightColStart + 28, y);
-      doc.text(`=`, periodEqualsPos, y);
-      doc.text(`$`, periodDollarPos, y);
-      doc.text(driverData.totalOversizedPay.toFixed(2), periodAmountEndPos, y, { align: 'right' });
+      doc.text(`Oversized:`, col1_rowTitles, y);
+      doc.text(`$${driverData.oversizedRate.toFixed(2)} x ${driverData.oversizedCount}`, col2_payRates, y);
+      doc.text(`=`, col3_calcTotals, y);
+      doc.text(`$`, col3_calcTotals + 3, y);
+      doc.text(driverData.totalOversizedPay.toFixed(2), col3_calcTotals + 25, y, { align: 'right' });
       
-      doc.text(`${ytdOversizedCount}`, ytdCountPos, y);
-      doc.text(`=`, ytdEqualsPos, y);
-      doc.text(`$`, ytdDollarPos, y);
-      doc.text(ytdOversizedPay.toFixed(2), ytdAmountEndPos, y, { align: 'right' });
+      doc.text(`${ytdOversizedCount}`, col4_ytdCounts, y);
+      doc.text(`=`, col5_ytdTotals, y);
+      doc.text(`$`, col5_ytdTotals + 3, y);
+      doc.text(ytdOversizedPay.toFixed(2), rightMargin - 3, y, { align: 'right' });
       y += lineHeight + 1;
       
+      // Draw vertical dividers
+      doc.setDrawColor(150, 150, 150);
+      doc.line(divider1, breakdownStartY, divider1, y);
+      
       // Separator
+      doc.setDrawColor(100, 100, 100);
       doc.line(rightColStart, y, rightMargin, y);
       y += 5;
       
       // Pay Summary section
+      const summaryStartY = y;
       doc.setFont('helvetica', 'bold');
-      doc.text('Pay Summary:', rightColStart, y);
+      doc.text('Pay Summary:', col1_rowTitles, y);
       doc.setFont('helvetica', 'normal');
       y += lineHeight;
       
       // Only show Net Pay if different from Gross Pay
       const hasDeductions = driverData.taxAmount > 0 || driverData.deductions > 0;
       if (hasDeductions) {
-      doc.text(`Net Pay:`, rightColStart, y);
-      doc.text(`=`, periodEqualsPos, y);
-      doc.text(`$`, periodDollarPos, y);
-      doc.text(driverData.grandTotal.toFixed(2), periodAmountEndPos, y, { align: 'right' });
+      doc.text(`Net Pay:`, col1_rowTitles, y);
+      doc.text(`=`, col3_calcTotals, y);
+      doc.text(`$`, col3_calcTotals + 3, y);
+      doc.text(driverData.grandTotal.toFixed(2), col3_calcTotals + 25, y, { align: 'right' });
 
       // YTD Net Pay (same as gross for now, assuming no deductions tracking for YTD)
-      doc.text(`=`, ytdEqualsPos, y);
-      doc.text(`$`, ytdDollarPos, y);
-      doc.text(ytdGrossPay.toFixed(2), ytdAmountEndPos, y, { align: 'right' });
+      doc.text(`=`, col5_ytdTotals, y);
+      doc.text(`$`, col5_ytdTotals + 3, y);
+      doc.text(ytdGrossPay.toFixed(2), rightMargin - 3, y, { align: 'right' });
       y += lineHeight;
         
         if (driverData.taxAmount > 0) {
-          doc.text(`Tax (${(driverData.taxRate * 100).toFixed(0)}% ${driverData.provinceCode || ''}):`, rightColStart, y);
-          doc.text(`$`, periodDollarPos, y);
-          doc.text(driverData.taxAmount.toFixed(2), periodAmountEndPos, y, { align: 'right' });
+          doc.text(`Tax (${(driverData.taxRate * 100).toFixed(0)}% ${driverData.provinceCode || ''}):`, col1_rowTitles, y);
+          doc.text(`$`, col3_calcTotals + 3, y);
+          doc.text(driverData.taxAmount.toFixed(2), col3_calcTotals + 25, y, { align: 'right' });
           y += lineHeight;
         }
         
         if (driverData.deductions > 0) {
-          doc.text(`Deductions:`, rightColStart, y);
-          doc.text(`-$`, periodDollarPos - 2, y);
-          doc.text(driverData.deductions.toFixed(2), periodAmountEndPos, y, { align: 'right' });
+          doc.text(`Deductions:`, col1_rowTitles, y);
+          doc.text(`-$`, col3_calcTotals + 2, y);
+          doc.text(driverData.deductions.toFixed(2), col3_calcTotals + 25, y, { align: 'right' });
           y += lineHeight;
           
           if (driverData.deductionsArray && driverData.deductionsArray.length > 0) {
             doc.setFontSize(7);
             driverData.deductionsArray.forEach(ded => {
-              doc.text(`  • ${ded.name}:`, rightColStart + 2, y);
-              doc.text(`-$`, periodDollarPos - 2, y);
-              doc.text(ded.amount.toFixed(2), periodAmountEndPos, y, { align: 'right' });
+              doc.text(`  • ${ded.name}:`, col1_rowTitles + 2, y);
+              doc.text(`-$`, col3_calcTotals + 2, y);
+              doc.text(ded.amount.toFixed(2), col3_calcTotals + 25, y, { align: 'right' });
               y += 3.5;
             });
             doc.setFontSize(8);
@@ -944,15 +947,19 @@ export default function PayrollSummaryCard({
       
       // Gross Pay
       doc.setFont('helvetica', 'bold');
-      doc.text(`Gross Pay:`, rightColStart, y);
-      doc.text(`=`, periodEqualsPos, y);
-      doc.text(`$`, periodDollarPos, y);
-      doc.text(driverData.grossPay.toFixed(2), periodAmountEndPos, y, { align: 'right' });
+      doc.text(`Gross Pay:`, col1_rowTitles, y);
+      doc.text(`=`, col3_calcTotals, y);
+      doc.text(`$`, col3_calcTotals + 3, y);
+      doc.text(driverData.grossPay.toFixed(2), col3_calcTotals + 25, y, { align: 'right' });
       
-      doc.text(`=`, ytdEqualsPos, y);
-      doc.text(`$`, ytdDollarPos, y);
-      doc.text(ytdGrossPay.toFixed(2), ytdAmountEndPos, y, { align: 'right' });
+      doc.text(`=`, col5_ytdTotals, y);
+      doc.text(`$`, col5_ytdTotals + 3, y);
+      doc.text(ytdGrossPay.toFixed(2), rightMargin - 3, y, { align: 'right' });
       y += lineHeight;
+      
+      // Draw vertical divider between Period and YTD for Pay Summary
+      doc.setDrawColor(150, 150, 150);
+      doc.line(divider1, summaryStartY - 5, divider1, y);
       
       // App Fee (admin/app owner only)
       if (currentUser && (userHasRole(currentUser, 'admin') || isAppOwner(currentUser))) {
@@ -994,34 +1001,44 @@ export default function PayrollSummaryCard({
         if (appFeeTotal > 0 && driverData.appFeePercentage > 0) {
           doc.setFont('helvetica', 'normal');
           const appFeePercentage = driverData.appFeePercentage * 100;
-          doc.text(`App Fee (${appFeePercentage.toFixed(0)}%):`, rightColStart, y);
-          doc.text(`$`, periodDollarPos, y);
-          doc.text(appFeeTotal.toFixed(2), periodAmountEndPos, y, { align: 'right' });
+          doc.text(`App Fee (${appFeePercentage.toFixed(0)}%):`, col1_rowTitles, y);
+          doc.text(`$`, col3_calcTotals + 3, y);
+          doc.text(appFeeTotal.toFixed(2), col3_calcTotals + 25, y, { align: 'right' });
           y += lineHeight;
         }
       }
       
       y += 1;
       
-      // Draw vertical divider between Period and YTD
-      doc.setDrawColor(150, 150, 150);
-      doc.line(dividerX, dividerStartY, dividerX, y);
+      // Draw box around Pay Breakdown section
+      doc.setDrawColor(100, 100, 100);
+      doc.rect(rightColStart - 1, boxTop, rightMargin - rightColStart + 2, y - boxTop);
       
       // Separator before Failed/Returns
-      doc.setDrawColor(100, 100, 100);
       doc.line(rightColStart, y, rightMargin, y);
       y += 4;
       
+      const failedReturnsStartY = y - 4;
+      
       // Failed and Returns
       doc.setFont('helvetica', 'normal');
-      doc.text(`Failed:`, rightColStart, y);
-      doc.text(`${driverData.failedCount}`, periodAmountEndPos, y, { align: 'right' });
-      doc.text(`${ytdFailedCount}`, ytdAmountEndPos, y, { align: 'right' });
+      doc.text(`Failed:`, col1_rowTitles, y);
+      doc.text(`${driverData.failedCount}`, col3_calcTotals + 25, y, { align: 'right' });
+      doc.text(`${ytdFailedCount}`, rightMargin - 3, y, { align: 'right' });
       y += lineHeight;
       
-      doc.text(`Returns:`, rightColStart, y);
-      doc.text(`${driverData.storeReturnCount || 0}`, periodAmountEndPos, y, { align: 'right' });
-      doc.text(`${ytdReturnsCount}`, ytdAmountEndPos, y, { align: 'right' });
+      doc.text(`Returns:`, col1_rowTitles, y);
+      doc.text(`${driverData.storeReturnCount || 0}`, col3_calcTotals + 25, y, { align: 'right' });
+      doc.text(`${ytdReturnsCount}`, rightMargin - 3, y, { align: 'right' });
+      y += lineHeight;
+      
+      // Draw vertical divider for Failed/Returns section
+      doc.setDrawColor(150, 150, 150);
+      doc.line(divider1, failedReturnsStartY, divider1, y);
+      
+      // Draw box around Failed/Returns section
+      doc.setDrawColor(100, 100, 100);
+      doc.rect(rightColStart - 1, failedReturnsStartY, rightMargin - rightColStart + 2, y - failedReturnsStartY);
       
       doc.save(filename);
       return;
