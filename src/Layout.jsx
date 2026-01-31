@@ -2917,8 +2917,8 @@ export default function Layout({ children, currentPageName }) {
 
                   {/* Offline DB Monitor - embedded on narrow screens, floating on desktop */}
                   {currentPageName === 'Dashboard' &&
-      <OfflineSyncIndicator embedded={!isMobile && screenWidth < 768} />
-      }
+                  <OfflineSyncIndicator embedded={isMobile || screenWidth < 768} />
+                  }
 
                   {/* Global Conflict Manager */}
                   <ConflictManager />
