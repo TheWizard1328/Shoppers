@@ -731,7 +731,7 @@ export default function PayrollSummaryCard({
         let dayTotal = 0;
         displayStores.forEach((store, i) => {
           const count = storeDataMap[dateKey]?.[store.id] || 0;
-          const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
+          const oversizedCount = oversizedMapSingle[dateKey]?.[store.id] || 0;
           dayTotal += count;
           storeTotals[store.id] += count;
           
@@ -1066,14 +1066,14 @@ export default function PayrollSummaryCard({
     
     // Build store delivery map and oversized map (dateKey -> storeId -> count)
     const storeDataMap = {};
-    const oversizedMap = {};
+    const oversizedMapMulti = {};
     dates.forEach(date => {
       const dateKey = date.toISOString().split('T')[0];
       storeDataMap[dateKey] = {};
-      oversizedMap[dateKey] = {};
+      oversizedMapMulti[dateKey] = {};
       activeStores.forEach(store => {
         storeDataMap[dateKey][store.id] = 0;
-        oversizedMap[dateKey][store.id] = 0;
+        oversizedMapMulti[dateKey][store.id] = 0;
       });
     });
     
@@ -1091,7 +1091,7 @@ export default function PayrollSummaryCard({
       if (storeDataMap[d.delivery_date] && storeDataMap[d.delivery_date][d.store_id] !== undefined) {
         storeDataMap[d.delivery_date][d.store_id]++;
         if (d.oversized) {
-          oversizedMap[d.delivery_date][d.store_id]++;
+          oversizedMapMulti[d.delivery_date][d.store_id]++;
         }
       }
     });
@@ -1161,7 +1161,7 @@ export default function PayrollSummaryCard({
       let dayTotal = 0;
       displayStores.forEach((store, i) => {
         const count = storeDataMap[dateKey]?.[store.id] || 0;
-        const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
+        const oversizedCount = oversizedMapMulti[dateKey]?.[store.id] || 0;
         dayTotal += count;
         storeTotals[store.id] += count;
         
