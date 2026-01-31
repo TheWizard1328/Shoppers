@@ -78,12 +78,7 @@ export default function ScreenshotShareModal({ isOpen, onClose, imageDataUrl, fi
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Screenshot Preview</span>
-            <Button variant="ghost" size="icon" onClick={onClose}>
-              <X className="w-4 h-4" />
-            </Button>
-          </DialogTitle>
+          <DialogTitle>Screenshot Preview</DialogTitle>
         </DialogHeader>
 
         {/* Screenshot Preview */}
