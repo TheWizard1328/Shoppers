@@ -121,9 +121,6 @@ export default function DriverPayrollGrid({
     }
   }, [smartRefreshActivity?.active]);
 
-  // Guard early - before hooks that depend on currentPeriod
-  if (!deliveries || !stores || !currentPeriod) return null;
-
   // Manual refresh handler
   const handleManualRefresh = () => {
     if (isRefreshing) return;
