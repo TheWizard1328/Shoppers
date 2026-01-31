@@ -3510,7 +3510,7 @@ export default function Layout({ children, currentPageName }) {
 
                     {/* Centered Controls Container - Admins and Drivers */}
                     {isMobile && screenWidth < 768 && currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
-                    <div className="flex-1 flex items-center justify-between px-4" style={{ marginLeft: '60px' }}>
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center gap-2">
                       {/* Menu - Left */}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
