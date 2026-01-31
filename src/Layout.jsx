@@ -1078,6 +1078,53 @@ export default function Layout({ children, currentPageName }) {
     };
     window.addEventListener('offlineSyncComplete', handleSyncComplete);
 
+    // Listen for user role changes and update UI immediately
+    const handleUserRolesChanged = async (event) => {
+      const { appUsers: changedAppUsers } = event.detail || {};
+      if (!changedAppUsers || changedAppUsers.length === 0) return;
+
+      console.log(`🔐 [Layout] User roles changed - updating UI and navigation`);
+
+      // Update appUsers state with new roles
+      setAppUsers((prev) => {
+        const map = new Map(prev.map((u) => [u.id, u]));
+        changedAppUsers.forEach((updated) => {
+          const existing = map.get(updated.id);
+          if (existing) {
+            map.set(updated.id, { ...existing, ...updated });
+          }
+        });
+        return Array.from(map.values());
+      });
+
+      // Update merged users with new roles for navigation
+      setUsers((prev) => {
+        const map = new Map(prev.map((u) => [u.id, u]));
+        changedAppUsers.forEach((updated) => {
+          const existing = map.get(updated.user_id || updated.id);
+          if (existing) {
+            map.set(existing.id, { ...existing, app_roles: updated.app_roles });
+          }
+        });
+        return Array.from(map.values());
+      });
+
+      // Update current user's roles if they changed
+      if (currentUser && changedAppUsers.some((u) => u.user_id === currentUser.id)) {
+        const updatedCurrentUser = changedAppUsers.find((u) => u.user_id === currentUser.id);
+        if (updatedCurrentUser) {
+          setCurrentUser({
+            ...currentUser,
+            app_roles: updatedCurrentUser.app_roles
+          });
+        }
+      }
+
+      // Force UI refresh for sidebar navigation
+      window.dispatchEvent(new CustomEvent('navigationUpdate'));
+    };
+    window.addEventListener('userRolesChanged', handleUserRolesChanged);
+
     // Listen for conflict events and show resolution UI
     const handleConflict = async (event) => {
       const { conflicts } = event.detail || {};
