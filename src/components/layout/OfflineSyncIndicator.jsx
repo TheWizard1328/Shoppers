@@ -195,6 +195,48 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                 {stats &&
               <>
                     <div className="text-xs space-y-0">
+                      {/* AppUsers */}
+                      <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1 mb-1">
+                            <span>{getEntityIcon('appUsers')}</span>
+                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Users</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                            <Clock className="w-3 h-3" />
+                            <span>{formatLastSync(runtimeStats.appusers !== undefined ? undefined : stats.appUsers.lastSync)}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{runtimeStats.appusers !== undefined ? runtimeStats.appusers : stats.appUsers.count}</div>
+                          {stats.fullSyncStatus?.appUsers?.completed &&
+                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                      }
+                        </div>
+                      </div>
+
+                      {/* Cities */}
+                      {stats.cities &&
+                  <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-1 mb-1">
+                              <span>{getEntityIcon('cities')}</span>
+                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Cities</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                              <Clock className="w-3 h-3" />
+                              <span>{formatLastSync(stats.cities.lastSync)}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.cities.count}</div>
+                            {stats.fullSyncStatus?.cities?.completed &&
+                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
+                      }
+                          </div>
+                        </div>
+                  }
+
                       {/* Patients */}
                       <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
                         <div className="flex-1">
@@ -271,48 +313,6 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                       }
                         </div>
                       </div>
-
-                      {/* AppUsers */}
-                      <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1 mb-1">
-                            <span>{getEntityIcon('appUsers')}</span>
-                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Users</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                            <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(runtimeStats.appusers !== undefined ? undefined : stats.appUsers.lastSync)}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{runtimeStats.appusers !== undefined ? runtimeStats.appusers : stats.appUsers.count}</div>
-                          {stats.fullSyncStatus?.appUsers?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                        </div>
-                      </div>
-
-                      {/* Cities */}
-                      {stats.cities &&
-                  <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-1 mb-1">
-                              <span>{getEntityIcon('cities')}</span>
-                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Cities</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                              <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(stats.cities.lastSync)}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.cities.count}</div>
-                            {stats.fullSyncStatus?.cities?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                          </div>
-                        </div>
-                  }
 
                       {/* Square Transactions */}
                       {stats.squareTransactions &&
