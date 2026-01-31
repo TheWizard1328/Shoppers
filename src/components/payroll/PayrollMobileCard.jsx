@@ -122,26 +122,18 @@ export default function PayrollMobileCard({
               <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.totalBasePay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
 
               {/* Extra KM */}
-              {data.totalExtraKm > 0 && (
-                <>
-                  <span style={{ color: 'var(--text-slate-600)' }}>Extra KM:</span>
-                  <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.totalExtraKm.toFixed(2)}km</span>
-                  <span className="text-right" style={{ color: 'var(--text-slate-600)' }}>@ {formatCurrency(data.extraKmRate, 3)}</span>
-                  <span style={{ color: 'var(--text-slate-600)' }}>= $</span>
-                  <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.totalExtraKmPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </>
-              )}
+              <span style={{ color: 'var(--text-slate-600)', display: data.totalExtraKm > 0 ? 'block' : 'none' }}>Extra KM:</span>
+              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)', display: data.totalExtraKm > 0 ? 'block' : 'none' }}>{data.totalExtraKm.toFixed(2)}km</span>
+              <span className="text-right" style={{ color: 'var(--text-slate-600)', display: data.totalExtraKm > 0 ? 'block' : 'none' }}>@ {formatCurrency(data.extraKmRate, 3)}</span>
+              <span style={{ color: 'var(--text-slate-600)', display: data.totalExtraKm > 0 ? 'block' : 'none' }}>= $</span>
+              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)', display: data.totalExtraKm > 0 ? 'block' : 'none' }}>{data.totalExtraKmPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
 
               {/* Oversized */}
-              {data.oversizedCount > 0 && (
-                <>
-                  <span style={{ color: 'var(--text-slate-600)' }}>Oversized:</span>
-                  <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.oversizedCount}x</span>
-                  <span className="text-right" style={{ color: 'var(--text-slate-600)' }}>@ {formatCurrency(data.oversizedRate)}</span>
-                  <span style={{ color: 'var(--text-slate-600)' }}>= $</span>
-                  <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.totalOversizedPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </>
-              )}
+              <span style={{ color: 'var(--text-slate-600)', display: data.oversizedCount > 0 ? 'block' : 'none' }}>Oversized:</span>
+              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)', display: data.oversizedCount > 0 ? 'block' : 'none' }}>{data.oversizedCount}x</span>
+              <span className="text-right" style={{ color: 'var(--text-slate-600)', display: data.oversizedCount > 0 ? 'block' : 'none' }}>@ {formatCurrency(data.oversizedRate)}</span>
+              <span style={{ color: 'var(--text-slate-600)', display: data.oversizedCount > 0 ? 'block' : 'none' }}>= $</span>
+              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)', display: data.oversizedCount > 0 ? 'block' : 'none' }}>{data.totalOversizedPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
 
             {/* Failed & Returns counts */}
