@@ -111,45 +111,53 @@ export default function PayrollMobileCard({
           />
         </button>
         {expandedSection === 'deliveries' && (
-          <div className="px-3 py-2 space-y-1.5 text-xs" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)' }}>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-slate-600)' }}>Total:</span>
-              <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                {data.totalDeliveries}x @ {formatCurrency(data.payRate)}
-              </span>
+          <div className="px-3 py-2 space-y-2 text-xs font-mono" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)' }}>
+            {/* 4-column layout */}
+            <div className="space-y-0.5">
+              {/* Total */}
+              <div className="flex items-baseline gap-1">
+                <span style={{ color: 'var(--text-slate-600)', width: '70px' }}>Total:</span>
+                <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '45px', textAlign: 'right' }}>{data.totalDeliveries}x</span>
+                <span style={{ color: 'var(--text-slate-600)' }}>@</span>
+                <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '50px', textAlign: 'right' }}>{formatCurrency(data.payRate)}</span>
+                <span style={{ color: 'var(--text-slate-600)' }}>=</span>
+                <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {(data.totalBasePay).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+
+              {/* Extra KM */}
+              {data.totalExtraKm > 0 && (
+                <div className="flex items-baseline gap-1">
+                  <span style={{ color: 'var(--text-slate-600)', width: '70px' }}>Extra KM:</span>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '45px', textAlign: 'right' }}>{data.totalExtraKm.toFixed(2)}km</span>
+                  <span style={{ color: 'var(--text-slate-600)' }}>@</span>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '50px', textAlign: 'right' }}>{formatCurrency(data.extraKmRate, 3)}</span>
+                  <span style={{ color: 'var(--text-slate-600)' }}>=</span>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {(data.totalExtraKmPay).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
+
+              {/* Oversized */}
+              {data.oversizedCount > 0 && (
+                <div className="flex items-baseline gap-1">
+                  <span style={{ color: 'var(--text-slate-600)', width: '70px' }}>Oversized:</span>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '45px', textAlign: 'right' }}>{data.oversizedCount}x</span>
+                  <span style={{ color: 'var(--text-slate-600)' }}>@</span>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '50px', textAlign: 'right' }}>{formatCurrency(data.oversizedRate)}</span>
+                  <span style={{ color: 'var(--text-slate-600)' }}>=</span>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {(data.totalOversizedPay).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
             </div>
-            <div className="flex justify-between" style={{ color: 'var(--text-slate-900)' }}>
-              <span style={{ color: 'var(--text-slate-600)' }}>Subtotal:</span>
-              <span className="font-semibold">{formatCurrency(data.totalBasePay)}</span>
+
+            {/* Failed & Returns counts */}
+            <div className="flex items-center gap-3 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+              {data.failedCount > 0 && (
+                <span style={{ color: 'var(--text-red-600)' }}>Failed: <span className="font-semibold">{data.failedCount}</span></span>
+              )}
+              {data.returnsCount > 0 && (
+                <span style={{ color: 'var(--text-orange-600)' }}>Returns: <span className="font-semibold">{data.returnsCount}</span></span>
+              )}
             </div>
-            {data.totalExtraKm > 0 && (
-              <div className="flex justify-between">
-                <span style={{ color: 'var(--text-slate-600)' }}>Extra KM:</span>
-                <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                  {data.totalExtraKm.toFixed(2)}km = {formatCurrency(data.totalExtraKmPay)}
-                </span>
-              </div>
-            )}
-            {data.oversizedCount > 0 && (
-              <div className="flex justify-between">
-                <span style={{ color: 'var(--text-slate-600)' }}>Oversized:</span>
-                <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                  {data.oversizedCount}x = {formatCurrency(data.totalOversizedPay)}
-                </span>
-              </div>
-            )}
-            {data.failedCount > 0 && (
-              <div className="flex justify-between text-red-700">
-                <span>Failed:</span>
-                <span className="font-semibold">{data.failedCount}</span>
-              </div>
-            )}
-            {data.returnsCount > 0 && (
-              <div className="flex justify-between text-orange-700">
-                <span>Returns:</span>
-                <span className="font-semibold">{data.returnsCount}</span>
-              </div>
-            )}
           </div>
         )}
       </div>
