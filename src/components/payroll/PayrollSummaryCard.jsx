@@ -2038,6 +2038,8 @@ export default function PayrollSummaryCard({
                 {/* Right: Pay Summary with YTD */}
                  <div className="text-xs ml-4 flex gap-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
                    {/* Period Column */}
+                   <div className="flex flex-col">
+                     <div className="font-bold text-center mb-1 pb-1 border-b">Period</div>
                    <table className="border-collapse">
                      <tbody>
                        <tr style={{ color: 'var(--text-slate-600)' }}>
