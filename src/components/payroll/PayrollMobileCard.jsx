@@ -112,41 +112,33 @@ export default function PayrollMobileCard({
         </button>
         {expandedSection === 'deliveries' &&
         <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
-            {/* 4-column layout */}
-            <div className="space-y-0.5">
+            {/* 4-column grid layout */}
+            <div className="space-y-1" style={{ display: 'grid', gridTemplateColumns: '1fr 0.6fr 0.4fr 1fr', columnGap: '0.25rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
               {/* Total */}
-              <div className="flex items-baseline gap-0.5">
-                <span style={{ color: 'var(--text-slate-600)', width: '70px' }}>Total:</span>
-                <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '45px', textAlign: 'right' }}>{data.totalDeliveries}x</span>
-                <span style={{ color: 'var(--text-slate-600)' }}>@</span>
-                <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '50px', textAlign: 'right' }}>{formatCurrency(data.payRate)}</span>
-                <span style={{ color: 'var(--text-slate-600)' }}>=</span>
-                <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {data.totalBasePay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </div>
+              <span style={{ color: 'var(--text-slate-600)' }}>Total:</span>
+              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.totalDeliveries}x @ {formatCurrency(data.payRate)}</span>
+              <span style={{ color: 'var(--text-slate-600)', textAlign: 'center' }}>=</span>
+              <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>$ {data.totalBasePay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
 
               {/* Extra KM */}
-              {data.totalExtraKm > 0 &&
-            <div className="flex items-baseline gap-1">
-                  <span style={{ color: 'var(--text-slate-600)', width: '70px' }}>Extra KM:</span>
-                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '45px', textAlign: 'right' }}>{data.totalExtraKm.toFixed(2)}km</span>
-                  <span style={{ color: 'var(--text-slate-600)' }}>@</span>
-                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '50px', textAlign: 'right' }}>{formatCurrency(data.extraKmRate, 3)}</span>
-                  <span style={{ color: 'var(--text-slate-600)' }}>=</span>
-                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {data.totalExtraKmPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-            }
+              {data.totalExtraKm > 0 && (
+                <>
+                  <span style={{ color: 'var(--text-slate-600)' }}>Extra KM:</span>
+                  <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.totalExtraKm.toFixed(2)}km @ {formatCurrency(data.extraKmRate, 3)}</span>
+                  <span style={{ color: 'var(--text-slate-600)', textAlign: 'center' }}>=</span>
+                  <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>$ {data.totalExtraKmPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </>
+              )}
 
               {/* Oversized */}
-              {data.oversizedCount > 0 &&
-            <div className="flex items-baseline gap-1">
-                  <span style={{ color: 'var(--text-slate-600)', width: '70px' }}>Oversized:</span>
-                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '45px', textAlign: 'right' }}>{data.oversizedCount}x</span>
-                  <span style={{ color: 'var(--text-slate-600)' }}>@</span>
-                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '50px', textAlign: 'right' }}>{formatCurrency(data.oversizedRate)}</span>
-                  <span style={{ color: 'var(--text-slate-600)' }}>=</span>
-                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {data.totalOversizedPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-            }
+              {data.oversizedCount > 0 && (
+                <>
+                  <span style={{ color: 'var(--text-slate-600)' }}>Oversized:</span>
+                  <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{data.oversizedCount}x @ {formatCurrency(data.oversizedRate)}</span>
+                  <span style={{ color: 'var(--text-slate-600)', textAlign: 'center' }}>=</span>
+                  <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>$ {data.totalOversizedPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </>
+              )}
             </div>
 
             {/* Failed & Returns counts */}
