@@ -19,13 +19,13 @@ class LocationTracker {
     this.isTracking = false;
     this.lastPosition = null;
     this.lastUpdate = 0;
-    this.lastCoordinateUpdate = 0; // NEW: Track coordinate updates separately
+    this.lastCoordinateUpdate = 0;
     this.currentUser = null;
     this.appUserId = null;
-    this.driverStatus = 'off_duty'; // Track driver duty status
-    this.updateInterval = 15000; // 15 seconds heartbeat for live tracking (can be overridden by settings)
-    this.coordinateUpdateInterval = 15000; // 15 seconds max without coordinate update (ensures fresh markers)
-    this.minDistanceChange = 50; // 50 meters (can be overridden by settings)
+    this.driverStatus = 'off_duty';
+    this.updateInterval = 15000; // 15 seconds heartbeat
+    this.coordinateUpdateInterval = 15000; // 15 seconds max without coordinate update
+    this.minDistanceChange = 100; // 100 meters (can be overridden by settings)
     this.failedUpdateCount = 0;
     this.maxFailedUpdates = 3;
     this.backoffTime = 0;
@@ -54,9 +54,7 @@ class LocationTracker {
   }
 
   /**
-   * Set driver duty status - controls whether location_updated_at is updated
-   * CRITICAL: We no longer stop tracking when off_duty - we just stop updating the timestamp
-   * This allows coordinates to still be saved for the driver's desktop self-marker
+   * Set driver duty status - tracked for reference but doesn't control location updates
    */
   setDriverStatus(status) {
     const previousStatus = this.driverStatus;
@@ -69,27 +67,19 @@ class LocationTracker {
       liveDistanceTracker.updateDriverStatus(status);
     }
     
-    // CRITICAL: Do NOT stop tracking when going off_duty/on_break
-    // We still want to update coordinates so driver can see their marker on desktop
-    // We just won't update location_updated_at when not on_duty
-    
     return status === 'on_duty' || status === 'on_break';
   }
 
   /**
-   * Check if tracking should be active based on driver status
-   * CRITICAL: Now returns true for all statuses on mobile - we always track coordinates
-   * The difference is whether we update location_updated_at (only on_duty/on_break)
+   * Check if tracking should be active
+   * CRITICAL: Always returns true - we track as long as app is open
    */
   shouldTrack() {
-    // Always return true on mobile - we track coordinates regardless of status
-    // The updateLocationInDatabase method handles whether to update location_updated_at
     return true;
   }
 
   /**
    * Enhanced mobile device detection using centralized utility
-   * Returns true only if device is a true mobile device (phone/tablet with mobile OS)
    */
   isMobileDevice() {
     return checkIsMobileDevice();
@@ -97,7 +87,6 @@ class LocationTracker {
 
   /**
    * Check if device has GPS capabilities with high accuracy
-   * This requires geolocation permission, so it's checked during tracking start
    */
   async checkGPSCapabilities() {
     if (this.deviceCapabilities !== null) {
@@ -114,7 +103,6 @@ class LocationTracker {
     }
 
     return new Promise((resolve) => {
-      
       const timeoutId = setTimeout(() => {
         this.deviceCapabilities = {
           hasGeolocation: true,
@@ -122,13 +110,13 @@ class LocationTracker {
           error: 'GPS test timed out'
         };
         resolve(this.deviceCapabilities);
-      }, 5000); // 5 second timeout
+      }, 5000);
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
           clearTimeout(timeoutId);
           const accuracy = position.coords.accuracy;
-          const hasHighAccuracy = accuracy && accuracy < 100; // < 100m is considered "high accuracy"
+          const hasHighAccuracy = accuracy && accuracy < 100;
           
           this.deviceCapabilities = {
             hasGeolocation: true,
@@ -140,7 +128,6 @@ class LocationTracker {
         },
         (error) => {
           clearTimeout(timeoutId);
-          
           this.deviceCapabilities = {
             hasGeolocation: true,
             hasHighAccuracy: false,
@@ -175,38 +162,26 @@ class LocationTracker {
   async updateLocationInDatabase(latitude, longitude, accuracy) {
     const now = Date.now();
     
-    // CRITICAL: Check if driver is on duty - this is the primary control
-    // Only update when on_duty (not on_break or off_duty)
-    const isOnDuty = this.driverStatus === 'on_duty';
-    
-    if (!isOnDuty) {
-      console.log(`⏸️ [LocationTracker] Skipping update - driver status is ${this.driverStatus} (not on_duty)`);
-      // Still update lastPosition for distance calculations
-      this.lastPosition = { latitude, longitude, accuracy };
-      return;
-    }
-    
     // Check if we're in backoff period
     if (this.backoffTime > 0 && (now - this.lastUpdate) < this.backoffTime) {
       console.log('⏸️ [LocationTracker] Skipping update - in backoff period');
       return;
     }
 
-    // Check if enough time has passed since last heartbeat update
-    if (now - this.lastUpdate < this.updateInterval) {
+    // CRITICAL: Check if driver has moved enough from last position
+    const hasMovedEnough = this.lastPosition ? 
+                            this.calculateDistance(this.lastPosition.latitude, this.lastPosition.longitude, latitude, longitude) >= this.minDistanceChange : 
+                            true; // First update - always proceed
+
+    const timeForHeartbeat = (now - this.lastUpdate) >= this.updateInterval;
+    const timeForCoordinateUpdate = (now - this.lastCoordinateUpdate) >= this.coordinateUpdateInterval;
+
+    // Skip if neither movement nor time thresholds are met
+    if (!hasMovedEnough && !timeForHeartbeat && !timeForCoordinateUpdate) {
       return;
     }
 
-    // Determine if we should update coordinates (not just timestamp)
-    let shouldUpdateCoordinates = false;
     let distance = 0;
-    
-    // CRITICAL: Check if current user's stored coordinates are missing or null
-    const storedLat = this.currentUser?.current_latitude;
-    const storedLng = this.currentUser?.current_longitude;
-    const hasStoredCoords = storedLat != null && storedLng != null && 
-                           !isNaN(storedLat) && !isNaN(storedLng);
-
     if (this.lastPosition) {
       distance = this.calculateDistance(
         this.lastPosition.latitude,
@@ -214,34 +189,13 @@ class LocationTracker {
         latitude,
         longitude
       );
-
-      // Update coordinates if: 
-      // 1. Stored coords are missing/null
-      // 2. Significant movement (200m+)
-      // 3. Normal movement threshold met (50m)
-      // 4. 10 seconds since last coordinate update (ensures fresh markers)
-      const timeSinceCoordinateUpdate = now - this.lastCoordinateUpdate;
-      const significantMovement = distance >= 200; // 200m threshold for forced update
       
-      shouldUpdateCoordinates = !hasStoredCoords || 
-                                significantMovement || 
-                                distance >= this.minDistanceChange || 
-                                timeSinceCoordinateUpdate >= this.coordinateUpdateInterval;
-      
-      if (shouldUpdateCoordinates) {
-        if (!hasStoredCoords) {
-          console.log(`📍 [LocationTracker] Updating coordinates - stored coords missing/null`);
-        } else if (significantMovement) {
-          console.log(`📍 [LocationTracker] Updating coordinates - significant movement ${distance.toFixed(0)}m (>200m)`);
-        } else if (timeSinceCoordinateUpdate >= this.coordinateUpdateInterval) {
-          console.log(`📍 [LocationTracker] Updating coordinates - time threshold met (${Math.floor(timeSinceCoordinateUpdate/1000)}s)`);
-        } else {
-          console.log(`📍 [LocationTracker] Updating coordinates - moved ${distance.toFixed(0)}m`);
-        }
+      if (distance >= this.minDistanceChange) {
+        console.log(`📍 [LocationTracker] Updating - moved ${distance.toFixed(0)}m`);
+      } else if (timeForCoordinateUpdate) {
+        console.log(`📍 [LocationTracker] Updating - time threshold met (${Math.floor((now - this.lastCoordinateUpdate)/1000)}s)`);
       }
     } else {
-      // First update - always update coordinates
-      shouldUpdateCoordinates = true;
       console.log('🚀 [LocationTracker] First location update');
     }
 
@@ -251,58 +205,38 @@ class LocationTracker {
         return;
       }
 
-      // CRITICAL: Ensure we have AppUser ID
       if (!this.appUserId) {
         return;
       }
 
-      // Build update object
-      const updateData = {};
+      // CRITICAL: Always update coordinates and timestamp when app is open and movement occurs
+      const nowFormatted = new Date();
+      const year = nowFormatted.getFullYear();
+      const month = String(nowFormatted.getMonth() + 1).padStart(2, '0');
+      const day = String(nowFormatted.getDate()).padStart(2, '0');
+      const hours = String(nowFormatted.getHours()).padStart(2, '0');
+      const minutes = String(nowFormatted.getMinutes()).padStart(2, '0');
+      const seconds = String(nowFormatted.getSeconds()).padStart(2, '0');
       
-      // CRITICAL: Always update location_updated_at when on_duty
-      // Use local time without timezone offset (YYYY-MM-DDTHH:MM:SS)
-      if (isOnDuty) {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const seconds = String(now.getSeconds()).padStart(2, '0');
-        updateData.location_updated_at = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-      }
-
-      // CRITICAL: Update coordinates when on_duty
-      if (shouldUpdateCoordinates) {
-        updateData.current_latitude = latitude;
-        updateData.current_longitude = longitude;
-        this.lastCoordinateUpdate = now;
-        console.log(`📍 [LocationTracker] Updating coordinates (on_duty: ${isOnDuty})`);
-      }
-      
-      // Skip update if nothing to update
-      if (Object.keys(updateData).length === 0) {
-        console.log(`⏸️ [LocationTracker] No updates to send`);
-        return;
-      }
+      const updateData = {
+        current_latitude: latitude,
+        current_longitude: longitude,
+        location_updated_at: `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+      };
       
       // Update AppUser entity
       const updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
       
-      // CRITICAL: Broadcast location update to other devices via WebSocket
-      // This ensures other users see driver location changes instantly
+      // Broadcast location update to other devices
       broadcastMutation('AppUser', 'update', this.appUserId, updatedAppUser);
       
-      // CRITICAL: Update the currentUser reference with new coordinates
-      // so the driverLocationPoller has access to them
+      // Update currentUser reference
       if (this.currentUser) {
         this.currentUser.current_latitude = latitude;
         this.currentUser.current_longitude = longitude;
-        if (isOnDuty) {
-          this.currentUser.location_updated_at = updateData.location_updated_at;
-        }
+        this.currentUser.location_updated_at = updateData.location_updated_at;
         
-        // CRITICAL: Update liveDistanceTracker's currentUser reference too
+        // Update liveDistanceTracker's currentUser reference
         if (liveDistanceTracker.isTracking && liveDistanceTracker.currentUser) {
           liveDistanceTracker.currentUser.current_latitude = latitude;
           liveDistanceTracker.currentUser.current_longitude = longitude;
@@ -311,14 +245,12 @@ class LocationTracker {
 
       this.lastUpdate = now;
       this.lastSuccessfulUpdate = now;
-      
-      // Always update lastPosition to have the latest GPS reading for distance calculations
+      this.lastCoordinateUpdate = now;
       this.lastPosition = { latitude, longitude, accuracy };
-      
       this.failedUpdateCount = 0;
-      this.backoffTime = 0; // Reset backoff on success
+      this.backoffTime = 0;
       
-      console.log(`✅ [LocationTracker] Location updated - Coords: ${shouldUpdateCoordinates ? 'YES' : 'NO (heartbeat only)'}, Accuracy: ${accuracy?.toFixed(0)}m`);
+      console.log(`✅ [LocationTracker] Location updated - Accuracy: ${accuracy?.toFixed(0)}m`);
 
       window.dispatchEvent(new CustomEvent('driverLocationUpdated', {
         detail: {
@@ -328,7 +260,7 @@ class LocationTracker {
           accuracy,
           timestamp: now,
           isRealtime: true,
-          isCoordinateUpdate: shouldUpdateCoordinates
+          isCoordinateUpdate: true
         }
       }));
 
@@ -337,13 +269,13 @@ class LocationTracker {
 
       // Implement exponential backoff
       if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
-        this.backoffTime = Math.min(60000 * Math.pow(2, this.failedUpdateCount), 300000); // Max 5 min
+        this.backoffTime = Math.min(60000 * Math.pow(2, this.failedUpdateCount), 300000);
         console.warn(`⏰ Rate limited. Backing off for ${this.backoffTime / 1000}s`);
       } else if (error.message?.includes('Network Error') || !navigator.onLine) {
-        this.backoffTime = 30000; // 30 second backoff for network errors
+        this.backoffTime = 30000;
         console.warn(`🔌 Network error. Backing off for ${this.backoffTime / 1000}s`);
       } else {
-        this.backoffTime = 10000; // 10 second backoff for other errors
+        this.backoffTime = 10000;
       }
 
       // If too many failures, stop tracking
@@ -351,14 +283,13 @@ class LocationTracker {
         console.error('❌ Too many failed updates, stopping location tracking');
         this.stopTracking();
         
-        // Update database to reflect stopped tracking
         try {
           if (this.appUserId) {
             await base44.entities.AppUser.update(this.appUserId, {
               location_tracking_enabled: false,
               current_latitude: null,
               current_longitude: null,
-              location_updated_at: null // null is appropriate here (clearing timestamp)
+              location_updated_at: null
             });
           }
         } catch (dbError) {
@@ -377,7 +308,6 @@ class LocationTracker {
 
   handleLocationSuccess(position) {
     const { latitude, longitude, accuracy } = position.coords;
-    
     this.updateLocationInDatabase(latitude, longitude, accuracy);
   }
 
@@ -422,7 +352,6 @@ class LocationTracker {
       throw new Error('Geolocation is not supported by this browser');
     }
 
-    // Check if online
     if (!navigator.onLine) {
       throw new Error('Device is offline. Please check your internet connection.');
     }
@@ -433,7 +362,6 @@ class LocationTracker {
     if (user.appUserId) {
       this.appUserId = user.appUserId;
     } else {
-      // Try to find AppUser record
       try {
         const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
         if (appUsers && appUsers.length > 0) {
@@ -448,7 +376,7 @@ class LocationTracker {
     
     this.failedUpdateCount = 0;
     this.backoffTime = 0;
-    this.lastCoordinateUpdate = 0; // Reset coordinate update timer
+    this.lastCoordinateUpdate = 0;
 
     // Test GPS capabilities
     const capabilities = await this.checkGPSCapabilities();
@@ -461,7 +389,6 @@ class LocationTracker {
     }
 
     return new Promise((resolve, reject) => {
-      
       this.watchId = navigator.geolocation.watchPosition(
         (position) => {
           this.handleLocationSuccess(position);
@@ -485,7 +412,6 @@ class LocationTracker {
           maximumAge: 0
         }
       );
-
     });
   }
 
@@ -502,13 +428,10 @@ class LocationTracker {
     this.appUserId = null;
     this.failedUpdateCount = 0;
     this.backoffTime = 0;
-    
   }
 
   async restartTracking(user) {
     this.stopTracking();
-    
-    // Small delay to ensure clean restart
     await new Promise(resolve => setTimeout(resolve, 500));
     
     try {
@@ -525,8 +448,6 @@ class LocationTracker {
     try {
       if (newStatus) {
         // Turning ON
-        
-        // Check if online first
         if (!navigator.onLine) {
           throw new Error('Device is offline. Please check your internet connection.');
         }
@@ -542,25 +463,22 @@ class LocationTracker {
           }
         }
         
-        // FIRST: Update AppUser entity to set location_tracking_enabled = true
+        // Update AppUser entity to set location_tracking_enabled = true
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
         
-        // THEN: Try to start tracking
+        // Try to start tracking
         try {
           await this.startTracking(user);
         } catch (trackingError) {
           console.error('❌ Failed to start tracking:', trackingError);
           
-          // If it's a permission error or device capability error, revert the database change
-          if (trackingError.code === 1) { // PERMISSION_DENIED
+          if (trackingError.code === 1) {
             console.warn('⚠️ Location permission denied by user. Reverting database change...');
-            
             await base44.entities.AppUser.update(appUserId, {
               location_tracking_enabled: false
             });
-            
             window.dispatchEvent(new CustomEvent('locationPermissionDenied', { 
               detail: { message: this.handleLocationError(trackingError).message } 
             }));
@@ -570,11 +488,9 @@ class LocationTracker {
           if (trackingError.message?.includes('only available on mobile devices') || 
               trackingError.message?.includes('GPS is not available')) {
             console.warn('⚠️ Device does not support location tracking:', trackingError.message);
-            
             await base44.entities.AppUser.update(appUserId, {
               location_tracking_enabled: false
             });
-            
             window.dispatchEvent(new CustomEvent('locationPermissionDenied', { 
               detail: { message: trackingError.message } 
             }));
@@ -585,14 +501,10 @@ class LocationTracker {
         }
         
         return true;
-        
       } else {
         // Turning OFF
-        
-        // Stop tracking first
         this.stopTracking();
         
-        // Get AppUser ID
         let appUserId = user.appUserId;
         if (!appUserId) {
           const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
@@ -601,20 +513,13 @@ class LocationTracker {
           }
         }
         
-        // CRITICAL: When turning off location sharing on MOBILE:
-        // - Set location_tracking_enabled = false
-        // - Set location_updated_at = null (signals sharing is OFF to other users)
-        // - Keep coordinates (driver can still see on desktop)
         if (navigator.onLine && appUserId) {
-          console.log('🔴 [LocationTracker] Turning OFF location sharing - keeping coords but clearing timestamp');
+          console.log('🔴 [LocationTracker] Turning OFF location sharing');
           await base44.entities.AppUser.update(appUserId, {
             location_tracking_enabled: false,
             location_updated_at: null
-            // CRITICAL: Do NOT clear current_latitude/current_longitude
-            // Driver needs these to see their own marker on desktop
           });
           
-          // CRITICAL: Update currentUser ref to reflect change
           if (this.currentUser) {
             this.currentUser.location_tracking_enabled = false;
             this.currentUser.location_updated_at = null;
@@ -623,7 +528,6 @@ class LocationTracker {
           console.warn('⚠️ Device offline or no AppUser ID, tracking stopped locally only');
         }
         
-        // Dispatch event to notify UI that location sharing was turned off
         window.dispatchEvent(new CustomEvent('driverLocationCleared', {
           detail: { userId: user.id }
         }));
@@ -632,7 +536,6 @@ class LocationTracker {
       }
     } catch (error) {
       console.error('❌ Failed to toggle location tracking:', error);
-      // Ensure tracking is stopped if enabling failed
       if (newStatus) {
         this.stopTracking();
       }
@@ -658,9 +561,6 @@ class LocationTracker {
     };
   }
 
-  /**
-   * Reload settings from RouteOptimizationSettings (call when settings change)
-   */
   reloadSettings() {
     this.loadSettings();
   }
