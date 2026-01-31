@@ -91,8 +91,10 @@ export default function AdminMetrics() {
     toast.info('Capturing screenshot...');
 
     try {
-      if (!contentRef.current) {
+      const elem = contentRef.current;
+      if (!elem) {
         toast.error('Content not found');
+        setIsCapturingScreenshot(false);
         return;
       }
 
@@ -106,7 +108,7 @@ export default function AdminMetrics() {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Capture only the content area
-      const canvas = await html2canvas(contentRef.current, {
+      const canvas = await html2canvas(elem, {
         allowTaint: true,
         useCORS: true,
         scale: 2,
