@@ -1505,6 +1505,7 @@ export default function Layout({ children, currentPageName }) {
       unsubscribeRealtime();
       realtimeSync.disconnect();
       window.removeEventListener('offlineSyncComplete', handleSyncComplete);
+      window.removeEventListener('userRolesChanged', handleUserRolesChanged);
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
       window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
       window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
