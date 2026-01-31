@@ -520,10 +520,10 @@ export default function DriverPayrollGrid({
                 <th className="text-center px-1 md:px-2 py-1 font-medium sticky left-0 z-10 border-r-2 border-slate-300 align-middle" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
                 {sortedStores.map((store) => (
                   <th
-                    key={store.id}
-                    className="text-center px-1 md:px-2 py-1 font-bold min-w-[28px] md:min-w-[40px]"
-                    style={{ color: getStoreColor(store) }}
-                    title={store.name}
+                   key={store.id}
+                   className="text-center px-1 md:px-2 py-1 font-bold min-w-[28px] md:min-w-[40px] align-middle"
+                   style={{ color: getStoreColor(store) }}
+                   title={store.name}
                   >
                     {store.abbreviation || store.name?.substring(0, 2)}
                   </th>
