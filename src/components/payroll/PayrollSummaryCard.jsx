@@ -707,6 +707,10 @@ export default function PayrollSummaryCard({
       const gridLineEnd = leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth;
       doc.line(leftMargin, tableTop + rowHeight + 1, gridLineEnd, tableTop + rowHeight + 1);
       
+      // Vertical divider after Day column and before Tot column
+      const dividerAfterDay = leftMargin + dayColWidth;
+      const dividerBeforeTot = leftMargin + dayColWidth + (displayStores.length * storeColWidth);
+      
       doc.setFont('helvetica', 'normal');
       let gridY = tableTop + rowHeight + 5;
       
@@ -1100,6 +1104,10 @@ export default function PayrollSummaryCard({
     doc.setDrawColor(100, 100, 100);
     const multiGridLineEnd = leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth;
     doc.line(leftMargin, tableTop + rowHeight + 2, multiGridLineEnd, tableTop + rowHeight + 2);
+    
+    // Vertical dividers
+    const multiDividerAfterDay = leftMargin + dayColWidth;
+    const multiDividerBeforeTot = leftMargin + dayColWidth + (displayStores.length * storeColWidth);
     
     // Data rows - one per day
     doc.setFont('helvetica', 'normal');
