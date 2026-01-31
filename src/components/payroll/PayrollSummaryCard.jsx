@@ -2145,8 +2145,8 @@ export default function PayrollSummaryCard({
                              <td className="text-right pr-1 pt-1">Gross:</td>
                              <td className="text-right pt-1">$</td>
                              <td className="text-right pt-1">{ytdGrossPay.toFixed(2)}</td>
-                           </tr>
-                           {isAppOwner(currentUser) && (
+                             </tr>
+                             {isAppOwner(currentUser) && (
                              <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
                                <td className="text-right pr-1">App Fee %:</td>
                                <td colSpan="2" className="text-right">
@@ -2174,18 +2174,18 @@ export default function PayrollSummaryCard({
                                  </div>
                                </td>
                              </tr>
-                           )}
-                         </tbody>
-                         </table>
-                         </div>
-                         );
-                         }, [data, deliveries, currentPeriod, patients])}
-                         </div>
-                   </div>
-                   </div>
-                   </div>
-                   );
-                   })}
+                             )}
+                             </tbody>
+                             </table>
+                             </div>
+                             );
+                             }, [data, deliveries, currentPeriod, patients])}
+                             </div>
+                             </div>
+                             </div>
+                             </div>
+                             );
+                             })}
           
           {/* Grand Total for All Drivers */}
           {payrollData.length > 1 && (
