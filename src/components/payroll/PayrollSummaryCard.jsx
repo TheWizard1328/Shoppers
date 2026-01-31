@@ -683,9 +683,9 @@ export default function PayrollSummaryCard({
       const gridWidth = 140;
       const tableTop = y;
       const rowHeight = 5;
-      const dayColWidth = 15;
-      const storeColWidth = Math.min(18, (gridWidth - dayColWidth - 20) / Math.max(displayStores.length, 1));
-      const totalColWidth = 18;
+      const dayColWidth = 12;
+      const storeColWidth = Math.min(14, (gridWidth - dayColWidth - 20) / Math.max(displayStores.length, 1));
+      const totalColWidth = 14;
       
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
@@ -1062,9 +1062,9 @@ export default function PayrollSummaryCard({
     // Calculate table dimensions
     const tableTop = 30;
     const rowHeight = 6;
-    const dayColWidth = 20;
-    const storeColWidth = Math.min(22, (pageWidth - leftMargin * 2 - dayColWidth - 25) / Math.max(displayStores.length, 1));
-    const totalColWidth = 22;
+    const dayColWidth = 15;
+    const storeColWidth = Math.min(16, (pageWidth - leftMargin * 2 - dayColWidth - 25) / Math.max(displayStores.length, 1));
+    const totalColWidth = 16;
     
     // Header row - store abbreviations
     doc.setFontSize(7);
