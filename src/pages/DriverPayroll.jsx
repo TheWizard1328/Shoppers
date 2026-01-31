@@ -196,13 +196,10 @@ export default function DriverPayroll() {
 
       // Capture only the content area
       const canvas = await html2canvas(contentRef.current, {
-        allowTaint: true,
-        useCORS: true,
-        scale: 1,
         backgroundColor: '#f8fafc',
-        windowHeight: contentRef.current.scrollHeight,
-        windowWidth: contentRef.current.scrollWidth,
-        letterRendering: true
+        useCORS: true,
+        logging: false,
+        imageTimeout: 0
       });
 
       // Show controls again
