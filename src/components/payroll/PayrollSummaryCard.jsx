@@ -760,75 +760,94 @@ export default function PayrollSummaryCard({
       
       // Payroll details on right side
       const rightColStart = leftMargin + gridWidth + 15;
+      const rightMargin = pageWidth - leftMargin;
       y = tableTop;
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('Pay Breakdown', rightColStart, y);
-      y += 6;
+      y += 5;
+      
+      // Top separator
+      doc.setDrawColor(100, 100, 100);
+      doc.line(rightColStart, y, rightMargin, y);
+      y += 4;
       
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       const lineHeight = 4.5;
       
-      // Rates
-      doc.text(`Delivery Rate: $${driverData.payRate.toFixed(2)}`, rightColStart, y);
+      // Delivery Rate line
+      doc.text(`Delivery Rate:`, rightColStart, y);
+      doc.text(`$${driverData.payRate.toFixed(2)} x ${driverData.totalDeliveries}`, rightColStart + 50, y);
+      doc.text(`= $${driverData.totalBasePay.toFixed(2).padStart(7)}`, rightMargin, y, { align: 'right' });
       y += lineHeight;
-      doc.text(`Extra KM: $${driverData.extraKmRate.toFixed(3)}/km (>${driverData.extraKmLimit}km)`, rightColStart, y);
-      y += lineHeight;
-      doc.text(`Oversized: $${driverData.oversizedRate.toFixed(2)}`, rightColStart, y);
-      y += lineHeight + 2;
       
-      // Earnings breakdown
-      doc.text(`Deliveries: ${driverData.totalDeliveries} × $${driverData.payRate.toFixed(2)} = $${driverData.totalBasePay.toFixed(2)}`, rightColStart, y);
+      // Extra KM line
+      doc.text(`Extra KM:`, rightColStart, y);
+      doc.text(`$${driverData.extraKmRate.toFixed(3)}/km (>${driverData.extraKmLimit}km) x ${driverData.totalExtraKm.toFixed(2)} km`, rightColStart + 50, y);
+      doc.text(`= $${driverData.totalExtraKmPay.toFixed(2).padStart(7)}`, rightMargin, y, { align: 'right' });
       y += lineHeight;
-      doc.text(`Extra KM: ${driverData.totalExtraKm.toFixed(2)} km = $${driverData.totalExtraKmPay.toFixed(2)}`, rightColStart, y);
-      y += lineHeight;
-      doc.text(`Oversized: ${driverData.oversizedCount} = $${driverData.totalOversizedPay.toFixed(2)}`, rightColStart, y);
-      y += lineHeight;
+      
+      // Oversized line
+      doc.text(`Oversized:`, rightColStart, y);
+      doc.text(`$${driverData.oversizedRate.toFixed(2)} x ${driverData.oversizedCount}`, rightColStart + 50, y);
+      doc.text(`= $${driverData.totalOversizedPay.toFixed(2).padStart(7)}`, rightMargin, y, { align: 'right' });
+      y += lineHeight + 1;
+      
+      // Middle separator
+      doc.line(rightColStart, y, rightMargin, y);
+      y += 4;
+      
+      // Failed and Returns
       doc.text(`Failed: ${driverData.failedCount} | Returns: ${driverData.storeReturnCount || 0}`, rightColStart, y);
-      y += lineHeight + 3;
+      y += lineHeight + 1;
       
-      // Pay Summary
+      // Bottom separator
+      doc.line(rightColStart, y, rightMargin, y);
+      y += 5;
+      
+      // Pay Summary section
       doc.setFont('helvetica', 'bold');
       doc.text('Pay Summary:', rightColStart, y);
       doc.setFont('helvetica', 'normal');
       y += lineHeight;
       
-      doc.text(`Net Pay:`, rightColStart, y);
-      doc.text(`$${driverData.grandTotal.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
-      y += lineHeight;
-      
-      if (driverData.taxAmount > 0) {
-        doc.text(`Tax (${(driverData.taxRate * 100).toFixed(0)}% ${driverData.provinceCode || ''}):`, rightColStart, y);
-        doc.text(`$${driverData.taxAmount.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
-        y += lineHeight;
-      }
-      
-      if (driverData.deductions > 0) {
-        doc.text(`Deductions:`, rightColStart, y);
-        doc.text(`-$${driverData.deductions.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
+      // Only show Net Pay if different from Gross Pay
+      const hasDeductions = driverData.taxAmount > 0 || driverData.deductions > 0;
+      if (hasDeductions) {
+        doc.text(`Net Pay:`, rightColStart, y);
+        doc.text(`= $${driverData.grandTotal.toFixed(2)}`, rightMargin, y, { align: 'right' });
         y += lineHeight;
         
-        if (driverData.deductionsArray && driverData.deductionsArray.length > 0) {
-          doc.setFontSize(7);
-          driverData.deductionsArray.forEach(ded => {
-            doc.text(`  • ${ded.name}:`, rightColStart + 2, y);
-            doc.text(`-$${ded.amount.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
-            y += 3.5;
-          });
-          doc.setFontSize(8);
+        if (driverData.taxAmount > 0) {
+          doc.text(`Tax (${(driverData.taxRate * 100).toFixed(0)}% ${driverData.provinceCode || ''}):`, rightColStart, y);
+          doc.text(`$${driverData.taxAmount.toFixed(2)}`, rightMargin, y, { align: 'right' });
+          y += lineHeight;
         }
+        
+        if (driverData.deductions > 0) {
+          doc.text(`Deductions:`, rightColStart, y);
+          doc.text(`-$${driverData.deductions.toFixed(2)}`, rightMargin, y, { align: 'right' });
+          y += lineHeight;
+          
+          if (driverData.deductionsArray && driverData.deductionsArray.length > 0) {
+            doc.setFontSize(7);
+            driverData.deductionsArray.forEach(ded => {
+              doc.text(`  • ${ded.name}:`, rightColStart + 2, y);
+              doc.text(`-$${ded.amount.toFixed(2)}`, rightMargin, y, { align: 'right' });
+              y += 3.5;
+            });
+            doc.setFontSize(8);
+          }
+        }
+        y += 1;
       }
       
-      y += 2;
-      doc.setDrawColor(200, 200, 200);
-      doc.line(rightColStart, y - 1, pageWidth - leftMargin, y - 1);
-      y += 3;
-      doc.setFontSize(11);
+      // Gross Pay
       doc.setFont('helvetica', 'bold');
       doc.text(`Gross Pay:`, rightColStart, y);
-      doc.text(`$${driverData.grossPay.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
+      doc.text(`= $${driverData.grossPay.toFixed(2)}`, rightMargin, y, { align: 'right' });
       
       doc.save(filename);
       return;
