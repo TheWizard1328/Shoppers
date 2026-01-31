@@ -193,37 +193,14 @@ export default function DriverPayroll() {
       // Small delay to ensure UI updates
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Get HTML content for server-side rendering
-      const htmlContent = contentRef.current?.innerHTML;
-      if (!htmlContent) {
-        toast.error('Content not available');
-        return;
-      }
-
-      // Call backend function for server-side screenshot
-      const response = await base44.functions.invoke('capturePayrollScreenshot', {
-        html: `
-          <html>
-            <head>
-              <meta charset="UTF-8">
-              <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                  background: #f8fafc;
-                  padding: 24px;
-                  font-size: 15px;
-                }
-                table { border-collapse: collapse; }
-                th, td { border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; }
-                th { background: #f1f5f9; font-weight: 600; color: #0f172a; }
-              </style>
-            </head>
-            <body>${htmlContent}</body>
-          </html>
-        `,
-        width: 1400,
-        height: 800
+      // Capture with html2canvas using better settings for clean output
+      const canvas = await html2canvas(contentRef.current, {
+        backgroundColor: '#f8fafc',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        imageTimeout: 0,
+        allowTaint: true
       });
 
       // Show controls again
@@ -231,13 +208,8 @@ export default function DriverPayroll() {
         controlsElement.style.display = 'flex';
       }
 
-      const imageDataUrl = response?.data?.imageData;
-      if (!imageDataUrl) {
-        toast.error('Failed to capture screenshot');
-        return;
-      }
-
-      setScreenshotDataUrl(imageDataUrl);
+      const dataUrl = canvas.toDataURL('image/png');
+      setScreenshotDataUrl(dataUrl);
       setShowScreenshotModal(true);
       toast.success('Screenshot captured!');
     } catch (error) {
