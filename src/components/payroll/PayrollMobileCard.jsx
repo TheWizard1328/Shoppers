@@ -25,34 +25,8 @@ export default function PayrollMobileCard({
     setExpandedSection(expandedSection === section ? null : section);
   };
 
-  // Calculate YTD values (always, not conditionally)
-  const ytdValues = currentPeriod ? (() => {
-    const ytdDeliveries = deliveries?.filter(d => {
-      if (!d || d.driver_id !== data.driver.id) return false;
-      const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
-      if (!validStatus) return false;
-      if (!d.patient_id && !d.after_hours_pickup) return false;
-      const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-      const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-      return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
-    }) || [];
-
-    const ytdTotalDeliveries = ytdDeliveries.length;
-    const ytdTotalBasePay = ytdTotalDeliveries * data.payRate;
-    const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
-      const patient = patients?.find(p => p?.id === d.patient_id);
-      if (!patient?.distance_from_store) return sum;
-      const distance = d.paid_km_override ?? patient.distance_from_store;
-      const extraKm = Math.max(0, distance - data.extraKmLimit);
-      return sum + extraKm;
-    }, 0);
-    const ytdExtraKmPay = ytdExtraKm * data.extraKmRate;
-    const ytdOversizedCount = ytdDeliveries.filter(d => d.oversized).length;
-    const ytdOversizedPay = ytdOversizedCount * data.oversizedRate;
-    const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
-
-    return { ytdGrossPay };
-  })() : null;
+  // YTD totals from data (assumed to be calculated by parent)
+  const hasYTD = currentPeriod && (data.ytd_gross_pay !== undefined || data.ytdGrossPay !== undefined);
 
   return (
     <div className="p-4 rounded-lg space-y-3" style={{ background: 'var(--bg-slate-50)' }}>
