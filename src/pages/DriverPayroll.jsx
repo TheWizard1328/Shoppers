@@ -198,8 +198,11 @@ export default function DriverPayroll() {
       const canvas = await html2canvas(contentRef.current, {
         allowTaint: true,
         useCORS: true,
-        scale: 2,
-        backgroundColor: '#f8fafc'
+        scale: 1,
+        backgroundColor: '#f8fafc',
+        windowHeight: contentRef.current.scrollHeight,
+        windowWidth: contentRef.current.scrollWidth,
+        letterRendering: true
       });
 
       // Show controls again
