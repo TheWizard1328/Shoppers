@@ -1783,38 +1783,19 @@ export default function Layout({ children, currentPageName }) {
       let workingCities = cities;
       const isAdmin = userHasRole(currentUser, 'admin');
 
-      // CRITICAL: Load from offline DB first to prevent rate limiting
-      let citiesData = workingCities?.length > 0 ? workingCities : null;
-      if (!citiesData || citiesData.length === 0) {
-        citiesData = await offlineDB.getAll(offlineDB.STORES.CITIES);
-        if (!citiesData || citiesData.length === 0) {
-          console.log('📥 [triggerFullDataLoad] Cities not in offline DB - fetching from API');
-          citiesData = await City.list();
-          await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesData);
-        } else {
-          console.log(`📦 [triggerFullDataLoad] Using ${citiesData.length} cities from offline DB`);
-        }
-      }
+      // CRITICAL: Stagger initial data loads to prevent rate limiting
+      // Load Cities first (usually cached), then others with delays
+      const citiesData = workingCities?.length > 0 ? workingCities : await City.list();
 
-      // Load stores from offline DB first
-      let allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
-      if (!allStores || allStores.length === 0) {
-        console.log('📥 [triggerFullDataLoad] Stores not in offline DB - fetching from API');
-        allStores = await Store.list();
-        await offlineDB.bulkSave(offlineDB.STORES.STORES, allStores);
-      } else {
-        console.log(`📦 [triggerFullDataLoad] Using ${allStores.length} stores from offline DB`);
-      }
+      // Small delay before next batch
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Load app users from offline DB first
-      let allAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-      if (!allAppUsers || allAppUsers.length === 0) {
-        console.log('📥 [triggerFullDataLoad] AppUsers not in offline DB - fetching from API');
-        allAppUsers = await AppUser.list();
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
-      } else {
-        console.log(`📦 [triggerFullDataLoad] Using ${allAppUsers.length} AppUsers from offline DB`);
-      }
+      const allStores = await getData('Store', null, null, forceRefresh);
+
+      // Another delay before AppUsers
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const allAppUsers = await getData('AppUser', null, null, forceRefresh);
 
       if (citiesData && (!workingCities || workingCities.length === 0)) {
         citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
@@ -1853,19 +1834,14 @@ export default function Layout({ children, currentPageName }) {
         { delivery_date: selectedDateStr, ...cityStoreFilter }, // Background: same (no separate background load)
         forceRefresh,
         // Instant UI callback
-        async (initialDeliveries) => {
+        (initialDeliveries) => {
           setDeliveries(initialDeliveries);
           setDataLoaded(true);
 
-          // Load patients from offline DB first
-          const patientsData = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-          if (patientsData && patientsData.length > 0) {
-            console.log(`📦 [triggerFullDataLoad] Using ${patientsData.length} patients from offline DB`);
+          setTimeout(async () => {
+            const patientsData = await getData('Patient', null, null, forceRefresh);
             setPatients(patientsData);
-          } else {
-            console.log('📥 [triggerFullDataLoad] Patients not in offline DB - will sync in background');
-            setPatients([]);
-          }
+          }, 100);
         },
         // Background callback
         (fullMonthDeliveries) => {
@@ -2897,63 +2873,43 @@ export default function Layout({ children, currentPageName }) {
       }
 
                   {showDeliveryImport &&
-                  <RouteImport
-                    onCancel={() => {
-                      setShowDeliveryImport(false);
-                      setIsFormOverlayOpen(false);
-                      // Clean up global callback
-                      if (typeof window !== 'undefined') {
-                        delete window.__routeImportStartCallback;
-                      }
-                    }}
-                    onImportStart={() => {
-                      setIsFormOverlayOpen(true);
-                    }}
-                    onImportComplete={async () => {
-                      setShowDeliveryImport(false);
-                      setIsFormOverlayOpen(false);
-                      if (typeof window !== 'undefined') {
-                        delete window.__routeImportStartCallback;
-                      }
+      <RouteImport
+        onCancel={() => {
+          setShowDeliveryImport(false);
+          setIsFormOverlayOpen(false);
+          // Clean up global callback
+          if (typeof window !== 'undefined') {
+            delete window.__routeImportStartCallback;
+          }
+        }}
+        onImportStart={() => {
+          setIsFormOverlayOpen(true);
+        }}
+        onImportComplete={async () => {
+          setShowDeliveryImport(false);
+          setIsFormOverlayOpen(false);
+          if (typeof window !== 'undefined') {
+            delete window.__routeImportStartCallback;
+          }
+          invalidate('Delivery');
+          invalidate('Patient');
+          await triggerFullDataLoadRef.current(true);
 
-                      // CRITICAL: Wait a moment for offline DB to finish writing
-                      await new Promise(resolve => setTimeout(resolve, 500));
+          // CRITICAL: Dispatch events for active page to refresh
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+          window.dispatchEvent(new CustomEvent('deliveriesImported', {
+            detail: { source: 'routeImport', deliveries: [] }
+          }));
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { triggeredBy: 'routeImportComplete' }
+          }));
+        }}
+        stores={stores}
+        allUsers={users}
+        currentUser={currentUser}
+        allDeliveries={deliveries} />
 
-                      // CRITICAL: Load ALL fresh data from offline DB
-                      console.log('🔄 [Layout] RouteImport complete - reloading ALL data from offline DB');
-                      const [freshDeliveries, freshPatients, freshStores] = await Promise.all([
-                        offlineDB.getAll(offlineDB.STORES.DELIVERIES),
-                        offlineDB.getAll(offlineDB.STORES.PATIENTS),
-                        offlineDB.getAll(offlineDB.STORES.STORES)
-                      ]);
-
-                      console.log(`📦 [Layout] Loaded after import: ${freshDeliveries?.length || 0} deliveries, ${freshPatients?.length || 0} patients, ${freshStores?.length || 0} stores`);
-
-                      if (freshDeliveries && freshDeliveries.length > 0) {
-                        setDeliveries(freshDeliveries);
-                      }
-                      if (freshPatients && freshPatients.length > 0) {
-                        setPatients(freshPatients);
-                      }
-                      if (freshStores && freshStores.length > 0) {
-                        setStores(freshStores);
-                      }
-
-                      // CRITICAL: Dispatch events for active page to refresh
-                      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                      window.dispatchEvent(new CustomEvent('deliveriesImported', {
-                        detail: { source: 'routeImport', deliveries: freshDeliveries || [] }
-                      }));
-                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                        detail: { triggeredBy: 'routeImportComplete' }
-                      }));
-                    }}
-                    stores={stores}
-                    allUsers={users}
-                    currentUser={currentUser}
-                    allDeliveries={deliveries} />
-
-                  }
+      }
 
 
 
@@ -3039,34 +2995,43 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Wide mobile (>= 768px): Show driver controls + settings in sidebar */}
-                      {isMobile && screenWidth >= 768 && currentUser && userHasRole(currentUser, 'driver') && (
+                      {/* Show controls in navigation panel when mobile wide screen OR desktop admin */}
+                      {(isMobile && screenWidth >= 768) || (!isMobile && userHasRole(currentUser, 'admin') && cities && cities.length > 0) ?
                         <>
-                          <LocationTrackingToggle
-                            currentUser={currentUser}
-                            onUpdate={async () => {
-                              clearUserCache();
-                              const refreshedUser = await getEffectiveUser();
-                              if (refreshedUser) {
-                                setCurrentUser(refreshedUser);
-                              }
-                            }}
-                          />
-                          <DriverStatusToggle
-                            currentUser={currentUser}
-                            vertical={true}
-                            onStatusChange={async (newStatus) => {
-                              clearUserCache();
-                              const refreshedUser = await getEffectiveUser();
-                              if (refreshedUser) {
-                                setCurrentUser(refreshedUser);
-                              }
-                            }}
-                          />
+                          {/* Location Tracking Toggle - mobile wide screen only, drivers only */}
+                          {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
+                            <LocationTrackingToggle
+                              currentUser={currentUser}
+                              onUpdate={async () => {
+                                clearUserCache();
+                                const refreshedUser = await getEffectiveUser();
+                                if (refreshedUser) {
+                                  setCurrentUser(refreshedUser);
+                                }
+                              }}
+                            />
+                          }
+
+                          {/* Driver Status Toggle - mobile wide screen only, drivers only */}
+                          {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
+                            <DriverStatusToggle
+                              currentUser={currentUser}
+                              vertical={true}
+                              onStatusChange={async (newStatus) => {
+                                clearUserCache();
+                                const refreshedUser = await getEffectiveUser();
+                                if (refreshedUser) {
+                                  setCurrentUser(refreshedUser);
+                                }
+                              }}
+                            />
+                          }
+
+                          {/* Settings Menu */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreVertical className="w-5 h-5 text-slate-500" />
+                                <MoreVertical className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} text-slate-500`} />
                               </Button>
                             </DropdownMenuTrigger>
                             <SettingsMenu
@@ -3098,53 +3063,11 @@ export default function Layout({ children, currentPageName }) {
                               cities={cities}
                               onPatientImportClick={() => setShowPatientImport(true)}
                               onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                              isMobile={true}
+                              isMobile={isMobile}
                             />
                           </DropdownMenu>
-                        </>
-                      )}
-
-                      {/* Desktop admin: Show settings only */}
-                      {!isMobile && userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreVertical className="w-4 h-4 text-slate-500" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <SettingsMenu
-                            currentUser={currentUser}
-                            realUser={realUser}
-                            isAppOwner={isAppOwner(currentUser)}
-                            adminImportEnabled={adminImportEnabled}
-                            onAdminImportToggle={async (checked) => {
-                              if (currentUser?._isImpersonating) return;
-                              setAdminImportEnabled(checked);
-                              try {
-                                const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                                if (settings && settings.length > 0) {
-                                  await base44.entities.AppSettings.update(settings[0].id, {
-                                    setting_value: {
-                                      ...settings[0].setting_value,
-                                      adminImportEnabled: checked
-                                    }
-                                  });
-                                }
-                              } catch (error) {
-                                console.error('Failed to save admin import setting:', error);
-                              }
-                            }}
-                            themePreference={themePreference}
-                            onThemeChange={handleThemeChange}
-                            dataSource={dataSource}
-                            onDataSourceChange={handleDataSourceChange}
-                            cities={cities}
-                            onPatientImportClick={() => setShowPatientImport(true)}
-                            onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                            isMobile={false}
-                          />
-                        </DropdownMenu>
-                      )}
+                        </> : null
+                      }
                     </div>
                   </div>
                 </div>
