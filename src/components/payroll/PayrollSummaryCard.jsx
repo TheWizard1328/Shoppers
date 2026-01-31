@@ -1579,6 +1579,7 @@ export default function PayrollSummaryCard({
               disabled={isCapturingScreenshot}
               className="gap-2" 
               style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+              title="Share screenshot"
             >
               {isCapturingScreenshot ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1588,7 +1589,7 @@ export default function PayrollSummaryCard({
             </Button>
             <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
               <Download className="w-4 h-4" />
-              Export PDF
+              PDF
             </Button>
             
             {/* Driver Finalize Button - for drivers OR admin-drivers viewing their own payroll (single driver mode) */}
