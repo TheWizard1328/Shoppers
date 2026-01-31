@@ -546,7 +546,7 @@ export default function DriverPayrollGrid({
                     style={{ borderBottom: '1px solid var(--border-slate-200)', background: isWeekend ? 'var(--bg-slate-100)' : 'transparent' }}
                   >
                     <td
-                      className="text-center px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10 border-r-2 border-slate-300 align-middle"
+                      className="text-center px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10 border-r-2 border-slate-300 align-top"
                       style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-100)' : 'var(--bg-white)' }}
                     >
                       <div className="flex items-center justify-center gap-0.5">
