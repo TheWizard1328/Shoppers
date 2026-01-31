@@ -1,4 +1,3 @@
-
 // smartRefreshManager.js - Manages intelligent, differential data refreshes
 
 import { base44 } from "@/api/base44Client";
@@ -960,11 +959,29 @@ class SmartRefreshManager {
 
           const diff = diffEntityArrays(currentAppUsers, filteredUpdates);
 
-          if (diff.toUpdate.length === 0 && diff.toAdd.length === 0) {
-              return null;
-          }
+              if (diff.toUpdate.length === 0 && diff.toAdd.length === 0) {
+                  return null;
+              }
 
-          const mergedAppUsers = mergeEntityChanges(currentAppUsers, diff);
+              const mergedAppUsers = mergeEntityChanges(currentAppUsers, diff);
+
+              // CRITICAL: Detect role changes and dispatch event for UI update
+              const roleChanges = diff.toUpdate.filter(update => {
+                const current = currentAppUsers.find(u => u.id === update.id);
+                if (!current) return false;
+                const currentRoles = JSON.stringify((current.app_roles || []).sort());
+                const newRoles = JSON.stringify((update.app_roles || []).sort());
+                return currentRoles !== newRoles;
+              });
+
+              if (roleChanges.length > 0) {
+                console.log(`🔐 [SmartRefresh] Detected role changes in ${roleChanges.length} AppUsers`);
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('userRolesChanged', {
+                    detail: { appUsers: roleChanges }
+                  }));
+                }
+              }
 
           // CRITICAL: Sync to offline database after changes
           try {
