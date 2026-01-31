@@ -195,7 +195,7 @@ export default function PayrollMobileCard({
       </div>
 
       {/* Pay Summary - 3 Columns: Labels | Period | YTD */}
-      <div style={{ display: !currentPeriod || !(data.ytd_gross_pay || data.ytdGrossPay) ? 'none' : 'block' }} className="p-3 rounded-lg border" style={{ 
+      <div style={{ display: !currentPeriod || !ytdTotals.ytdGrossPay ? 'none' : 'block' }} className="p-3 rounded-lg border" style={{ 
         background: 'var(--bg-white)', 
         borderColor: 'var(--border-slate-200)',
         fontVariantNumeric: 'tabular-nums'
@@ -212,29 +212,29 @@ export default function PayrollMobileCard({
           <div className="flex gap-2">
             <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Net</div>
             <div className="w-24 text-right">{formatCurrency(data.grandTotal || 0)}</div>
-            <div className="w-24 text-right">{formatCurrency(data.ytd_net_pay || data.ytdNetPay || 0)}</div>
+            <div className="w-24 text-right">{formatCurrency(ytdTotals.ytdNetPay)}</div>
           </div>
 
           {/* Tax */}
           <div className="flex gap-2">
             <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Tax</div>
             <div className="w-24 text-right">{formatCurrency(data.taxAmount || 0)}</div>
-            <div className="w-24 text-right">{formatCurrency(data.ytd_tax_amount || data.ytdTaxAmount || 0)}</div>
+            <div className="w-24 text-right">{formatCurrency(ytdTotals.ytdTaxAmount)}</div>
           </div>
 
           {/* Deductions */}
           <div className="flex gap-2 text-red-700">
             <div className="flex-1 text-left">Deductions</div>
             <div className="w-24 text-right">-{formatCurrency(data.total_deductions || data.totalDeductions || 0)}</div>
-            <div className="w-24 text-right">-{formatCurrency(data.ytd_deductions || data.ytdDeductions || 0)}</div>
+            <div className="w-24 text-right">-{formatCurrency(ytdTotals.ytdDeductions)}</div>
           </div>
 
           {/* Bonus (if any) */}
-          {(data.bonus_pay || data.bonusPay || data.ytd_bonus_pay || data.ytdBonusPay) > 0 && (
+          {(data.bonus_pay || data.bonusPay || ytdTotals.ytdBonusPay) > 0 && (
             <div className="flex gap-2 text-blue-700">
               <div className="flex-1 text-left">Bonus</div>
               <div className="w-24 text-right">{formatCurrency(data.bonus_pay || data.bonusPay || 0)}</div>
-              <div className="w-24 text-right">{formatCurrency(data.ytd_bonus_pay || data.ytdBonusPay || 0)}</div>
+              <div className="w-24 text-right">{formatCurrency(ytdTotals.ytdBonusPay)}</div>
             </div>
           )}
 
@@ -242,7 +242,7 @@ export default function PayrollMobileCard({
           <div className="flex gap-2 pt-1 border-t font-bold" style={{ borderColor: 'var(--border-slate-200)', color: '#10b981' }}>
             <div className="flex-1 text-left">Gross</div>
             <div className="w-24 text-right">{formatCurrency(data.grossPay || data.gross_pay || 0)}</div>
-            <div className="w-24 text-right">{formatCurrency(data.ytd_gross_pay || data.ytdGrossPay || 0)}</div>
+            <div className="w-24 text-right">{formatCurrency(ytdTotals.ytdGrossPay)}</div>
           </div>
         </div>
       </div>
