@@ -517,7 +517,7 @@ export default function DriverPayrollGrid({
           <table className="w-full text-[11px]" style={{ lineHeight: '1.2' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-                <th className="text-center px-1 md:px-2 py-1 font-medium sticky left-0 z-10 border-r-2 border-slate-300" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
+                <th className="text-center px-1 md:px-2 py-1 font-medium sticky left-0 z-10 border-r-2 border-slate-300 align-middle" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
                 {sortedStores.map((store) => (
                   <th
                     key={store.id}
