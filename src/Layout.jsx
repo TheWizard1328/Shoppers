@@ -3549,18 +3549,18 @@ export default function Layout({ children, currentPageName }) {
                           isMobile={true}
                         />
                       </DropdownMenu>
-                      {userHasRole(currentUser, 'driver') &&
-                      <DriverStatusToggle
-                        currentUser={currentUser}
-                        onStatusChange={async (newStatus) => {
-                          clearUserCache();
-                          const refreshedUser = await getEffectiveUser();
-                          if (refreshedUser) {
-                            setCurrentUser(refreshedUser);
-                          }
-                        }}
-                      />
-                      }
+                      <div style={{ display: userHasRole(currentUser, 'driver') ? 'block' : 'none' }}>
+                        <DriverStatusToggle
+                          currentUser={currentUser}
+                          onStatusChange={async (newStatus) => {
+                            clearUserCache();
+                            const refreshedUser = await getEffectiveUser();
+                            if (refreshedUser) {
+                              setCurrentUser(refreshedUser);
+                            }
+                          }}
+                        />
+                      </div>
                       <button
                          onClick={() => setShowInviteQRModal(true)}
                          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
