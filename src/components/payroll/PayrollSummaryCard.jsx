@@ -647,13 +647,16 @@ export default function PayrollSummaryCard({
       const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
       const activeStores = sortedStores.filter(s => s.status !== 'inactive');
       
-      // Build store data map for THIS driver only
+      // Build store data map and oversized map for THIS driver only
       const storeDataMap = {};
+      const oversizedMapSingle = {};
       dates.forEach(date => {
         const dateKey = date.toISOString().split('T')[0];
         storeDataMap[dateKey] = {};
+        oversizedMapSingle[dateKey] = {};
         activeStores.forEach(store => {
           storeDataMap[dateKey][store.id] = 0;
+          oversizedMapSingle[dateKey][store.id] = 0;
         });
       });
       
@@ -668,6 +671,9 @@ export default function PayrollSummaryCard({
         
         if (storeDataMap[d.delivery_date] && storeDataMap[d.delivery_date][d.store_id] !== undefined) {
           storeDataMap[d.delivery_date][d.store_id]++;
+          if (d.oversized) {
+            oversizedMapSingle[d.delivery_date][d.store_id]++;
+          }
         }
       });
       
