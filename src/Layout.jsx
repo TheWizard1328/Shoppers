@@ -3508,7 +3508,7 @@ export default function Layout({ children, currentPageName }) {
                     </div>
                     </div>
 
-                    {/* Driver Status Toggle - CENTERED in Mobile Header (narrow screen only) */}
+                    {/* Menu & QR Code - CENTERED in Mobile Header (narrow screen only) - Admins and Drivers */}
                     {isMobile && screenWidth < 768 && currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
                     <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2">
                       <DropdownMenu>
@@ -3549,6 +3549,7 @@ export default function Layout({ children, currentPageName }) {
                           isMobile={true}
                         />
                       </DropdownMenu>
+                      {userHasRole(currentUser, 'driver') &&
                       <DriverStatusToggle
                         currentUser={currentUser}
                         onStatusChange={async (newStatus) => {
@@ -3559,6 +3560,7 @@ export default function Layout({ children, currentPageName }) {
                           }
                         }}
                       />
+                      }
                       <button
                          onClick={() => setShowInviteQRModal(true)}
                          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
