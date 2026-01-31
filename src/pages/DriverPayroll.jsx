@@ -198,12 +198,11 @@ export default function DriverPayroll() {
       const clone = contentRef.current.cloneNode(true);
       const style = document.createElement('style');
       style.textContent = `
+        * { vertical-align: top !important; }
         table { border-collapse: collapse !important; }
         th, td { 
           padding: 6px 8px !important;
-          vertical-align: middle !important;
-          line-height: 1.3 !important;
-          height: auto !important;
+          line-height: 1.2 !important;
         }
       `;
       clone.appendChild(style);
