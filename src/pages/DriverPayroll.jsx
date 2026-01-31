@@ -642,29 +642,31 @@ export default function DriverPayroll() {
           <div className="flex flex-wrap items-center gap-2">
             <div id="payroll-controls" className="flex items-center gap-2">
               <Button
-                onClick={handleManualRefresh}
-                disabled={isRefreshing || isLoadingPayroll}
-                size="sm"
-                variant="outline"
-                className="gap-2"
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-              </Button>
-              <Button
-                onClick={handleCaptureScreenshot}
-                disabled={isCapturingScreenshot}
-                size="sm"
-                variant="outline"
-                className="gap-2"
-              >
-                {isCapturingScreenshot ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Share2 className="w-4 h-4" />
-                )}
-                <span className="hidden sm:inline">{isCapturingScreenshot ? 'Capturing...' : 'Share'}</span>
-              </Button>
+                 onClick={handleManualRefresh}
+                 disabled={isRefreshing || isLoadingPayroll}
+                 size="sm"
+                 variant="outline"
+                 className="gap-2"
+                 style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+               >
+                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                 <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+               </Button>
+               <Button
+                 onClick={handleCaptureScreenshot}
+                 disabled={isCapturingScreenshot}
+                 size="sm"
+                 variant="outline"
+                 className="gap-2"
+                 style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+               >
+                 {isCapturingScreenshot ? (
+                   <Loader2 className="w-4 h-4 animate-spin" />
+                 ) : (
+                   <Share2 className="w-4 h-4" />
+                 )}
+                 <span className="hidden sm:inline">{isCapturingScreenshot ? 'Capturing...' : 'Share'}</span>
+               </Button>
             </div>
             {/* City Filter */}
             <Select value={selectedCityId} onValueChange={setSelectedCityId} disabled={isDriver}>
