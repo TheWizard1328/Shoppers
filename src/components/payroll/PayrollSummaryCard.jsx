@@ -142,6 +142,10 @@ export default function PayrollSummaryCard({
       // Calculate oversized pay
       const oversizedCount = periodDeliveries.filter((d) => d.oversized).length;
       const oversizedPay = oversizedCount * oversizedRate;
+      
+      // Get app fee percentage from AppUser or Payroll record
+      const payrollRecord = payrollRecords.find(r => r.driver_id === driverId);
+      const appFeePercentage = payrollRecord?.app_fee_percentage ?? appUser?.app_fee_percentage ?? 0;
 
       // Count failed and returns (cancelled with after_hours_pickup excluded from returns)
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
@@ -233,7 +237,8 @@ export default function PayrollSummaryCard({
         provinceCode,
         deductions: totalDeductions,
         deductionsArray,
-        grossPay
+        grossPay,
+        appFeePercentage
       };
     });
   }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod]);
@@ -758,12 +763,12 @@ export default function PayrollSummaryCard({
       
       doc.text(grandTotal.toString(), leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, gridY, { align: 'center' });
       
-      // Payroll details on right side (2 columns: Period + YTD)
-      const rightColStart = leftMargin + gridWidth + 15;
+      // Payroll details below the grid (2 columns: Period + YTD)
+      y = gridY + 10;
+      const rightColStart = leftMargin;
       const rightMargin = pageWidth - leftMargin;
       const periodColWidth = 65;
       const ytdColStart = rightColStart + periodColWidth + 8;
-      y = tableTop;
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
@@ -959,15 +964,14 @@ export default function PayrollSummaryCard({
             }
           }
           
-          if (paysAppFees) {
-            const appFeePercentage = driverData.appFeePercentage || 0.10; // Default 10%
-            appFeeTotal += driverData.payRate * appFeePercentage;
+          if (paysAppFees && driverData.appFeePercentage > 0) {
+            appFeeTotal += driverData.payRate * driverData.appFeePercentage;
           }
         });
         
-        if (appFeeTotal > 0) {
+        if (appFeeTotal > 0 && driverData.appFeePercentage > 0) {
           doc.setFont('helvetica', 'normal');
-          const appFeePercentage = (driverData.appFeePercentage || 0.10) * 100;
+          const appFeePercentage = driverData.appFeePercentage * 100;
           doc.text(`App Fee (${appFeePercentage.toFixed(0)}%):`, rightColStart, y);
           doc.text(`$`, periodDollarPos, y);
           doc.text(appFeeTotal.toFixed(2), periodAmountEndPos, y, { align: 'right' });
