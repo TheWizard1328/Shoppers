@@ -194,8 +194,29 @@ export default function DriverPayroll() {
       // Small delay to ensure UI updates
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Capture with html2canvas using better settings for clean output
-      const canvas = await html2canvas(contentRef.current, {
+      // Clone and style for optimal screenshot capture
+      const clone = contentRef.current.cloneNode(true);
+      const style = document.createElement('style');
+      style.textContent = `
+        table { border-collapse: collapse !important; }
+        th, td { 
+          padding: 6px 8px !important;
+          vertical-align: middle !important;
+          line-height: 1.3 !important;
+          height: auto !important;
+        }
+      `;
+      clone.appendChild(style);
+
+      // Create temporary container for capturing
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.background = '#f8fafc';
+      tempContainer.appendChild(clone);
+      document.body.appendChild(tempContainer);
+
+      const canvas = await html2canvas(tempContainer, {
         backgroundColor: '#f8fafc',
         scale: 2,
         useCORS: true,
@@ -203,6 +224,8 @@ export default function DriverPayroll() {
         imageTimeout: 0,
         allowTaint: true
       });
+
+      document.body.removeChild(tempContainer);
 
       // Show controls again
       if (controlsElement) {
