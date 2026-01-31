@@ -547,18 +547,39 @@ export const forceSyncAll = async () => {
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 25 });
-    // Sync patients in smaller batches to avoid rate limits
+    // CRITICAL: Sync patients in batches with progress updates after EACH batch
     let allPatients = [];
     let offset = 0;
+    let batchNumber = 0;
+    
     while (true) {
       const batch = await Patient.filter({ status: 'active' }, '-created_date', PATIENT_BATCH_SIZE, offset);
       if (!batch || batch.length === 0) break;
+      
+      batchNumber++;
       allPatients = allPatients.concat(batch);
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batch);
+      
+      // CRITICAL: Update progress after EACH batch (25-35% range for patients)
+      const batchProgress = 25 + Math.min(Math.floor((offset / 500) * 10), 10); // Estimate ~500 patients total
+      notifySyncStatus({ 
+        status: 'syncing', 
+        entity: `Patients (batch ${batchNumber})`, 
+        progress: batchProgress, 
+        count: allPatients.length 
+      });
+      console.log(`📥 [ForceSyncAll] Patient batch ${batchNumber} synced: ${batch.length} records (total: ${allPatients.length})`);
+      
       offset += PATIENT_BATCH_SIZE;
+      
+      // Stop if fewer than batch size (reached the end)
+      if (batch.length < PATIENT_BATCH_SIZE) break;
+      
       await new Promise(r => setTimeout(r, PATIENT_SYNC_COOLDOWN));
     }
+    
     const cleanPatients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
-    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanPatients);
+    console.log(`✅ [ForceSyncAll] Total patients synced: ${cleanPatients.length}`);
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 35, count: cleanPatients.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
