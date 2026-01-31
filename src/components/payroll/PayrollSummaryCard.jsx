@@ -1968,22 +1968,7 @@ export default function PayrollSummaryCard({
             );
           }
           
-          // Get edit state for this driver or initialize (load from payroll record if available)
           const driverKey = data.driver.id;
-          if (!driverEdits[driverKey]) {
-            const payrollRecord = getDriverPayrollRecord(driverKey);
-            setDriverEdits(prev => ({
-              ...prev,
-              [driverKey]: {
-                deductions: data.deductionsArray || [],
-                bonusPay: payrollRecord?.bonus_pay || data.bonusPay || 0,
-                appFeePercent: payrollRecord?.app_fee_percentage !== undefined ? payrollRecord.app_fee_percentage : (data.appFeePercent !== undefined ? data.appFeePercent : 0),
-                showDeductionManager: false,
-                newDeductionName: '',
-                newDeductionAmount: ''
-              }
-            }));
-          }
           const edit = driverEdits[driverKey] || {};
 
           const updateEdit = (updates) => {
