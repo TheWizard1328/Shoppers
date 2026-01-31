@@ -791,8 +791,8 @@ export default function PayrollSummaryCard({
       const periodAmountEndPos = rightColStart + periodColWidth - 3;
       
       // Calculate alignment positions for YTD column
-      const ytdEqualsPos = ytdColStart + 35;
-      const ytdDollarPos = ytdColStart + 40;
+      const ytdEqualsPos = ytdColStart + 15;
+      const ytdDollarPos = ytdColStart + 20;
       const ytdAmountEndPos = rightMargin - 3;
       
       // Calculate YTD data for this driver
@@ -820,6 +820,10 @@ export default function PayrollSummaryCard({
       
       const ytdOversizedCount = ytdDeliveries.filter(d => d.oversized).length;
       const ytdOversizedPay = ytdOversizedCount * driverData.oversizedRate;
+      
+      const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
+      const ytdFailedCount = ytdDeliveries.filter(d => d.status === 'failed').length;
+      const ytdReturnsCount = ytdDeliveries.filter(d => d.status === 'cancelled' && d.after_hours_pickup).length;
       
       // Delivery Rate line
       doc.text(`Delivery Rate:`, rightColStart, y);
@@ -873,11 +877,16 @@ export default function PayrollSummaryCard({
       // Only show Net Pay if different from Gross Pay
       const hasDeductions = driverData.taxAmount > 0 || driverData.deductions > 0;
       if (hasDeductions) {
-        doc.text(`Net Pay:`, rightColStart, y);
-        doc.text(`=`, periodEqualsPos, y);
-        doc.text(`$`, periodDollarPos, y);
-        doc.text(driverData.grandTotal.toFixed(2), periodAmountEndPos, y, { align: 'right' });
-        y += lineHeight;
+      doc.text(`Net Pay:`, rightColStart, y);
+      doc.text(`=`, periodEqualsPos, y);
+      doc.text(`$`, periodDollarPos, y);
+      doc.text(driverData.grandTotal.toFixed(2), periodAmountEndPos, y, { align: 'right' });
+
+      // YTD Net Pay (same as gross for now, assuming no deductions tracking for YTD)
+      doc.text(`=`, ytdEqualsPos, y);
+      doc.text(`$`, ytdDollarPos, y);
+      doc.text(ytdGrossPay.toFixed(2), ytdAmountEndPos, y, { align: 'right' });
+      y += lineHeight;
         
         if (driverData.taxAmount > 0) {
           doc.text(`Tax (${(driverData.taxRate * 100).toFixed(0)}% ${driverData.provinceCode || ''}):`, rightColStart, y);
@@ -912,6 +921,10 @@ export default function PayrollSummaryCard({
       doc.text(`=`, periodEqualsPos, y);
       doc.text(`$`, periodDollarPos, y);
       doc.text(driverData.grossPay.toFixed(2), periodAmountEndPos, y, { align: 'right' });
+      
+      doc.text(`=`, ytdEqualsPos, y);
+      doc.text(`$`, ytdDollarPos, y);
+      doc.text(ytdGrossPay.toFixed(2), ytdAmountEndPos, y, { align: 'right' });
       y += lineHeight;
       
       // App Fee (admin/app owner only)
@@ -970,7 +983,14 @@ export default function PayrollSummaryCard({
       
       // Failed and Returns
       doc.setFont('helvetica', 'normal');
-      doc.text(`Failed: ${driverData.failedCount} | Returns: ${driverData.storeReturnCount || 0}`, rightColStart, y);
+      doc.text(`Failed:`, rightColStart, y);
+      doc.text(`${driverData.failedCount}`, periodAmountEndPos - 15, y, { align: 'right' });
+      doc.text(`${ytdFailedCount}`, ytdAmountEndPos, y, { align: 'right' });
+      y += lineHeight;
+      
+      doc.text(`Returns:`, rightColStart, y);
+      doc.text(`${driverData.storeReturnCount || 0}`, periodAmountEndPos - 15, y, { align: 'right' });
+      doc.text(`${ytdReturnsCount}`, ytdAmountEndPos, y, { align: 'right' });
       
       doc.save(filename);
       return;
