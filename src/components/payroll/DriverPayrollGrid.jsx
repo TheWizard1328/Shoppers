@@ -606,7 +606,7 @@ export default function DriverPayrollGrid({
                    return (
                      <td
                        key={store.id}
-                       className="text-center px-1 md:px-2 py-1 tabular-nums align-top"
+                       className="text-center px-1 md:px-2 py-1 tabular-nums"
                        style={{ color: getStoreColor(store) }}
                      >
                       <span className="md:hidden">{displayValueMobile}</span>
