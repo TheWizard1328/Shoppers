@@ -3509,7 +3509,7 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     {/* Driver Status Toggle - CENTERED in Mobile Header (narrow screen only) */}
-                    {isMobile && screenWidth < 768 && currentUser && userHasRole(currentUser, 'driver') &&
+                    {isMobile && screenWidth < 768 && currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
                     <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
