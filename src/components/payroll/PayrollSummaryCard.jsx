@@ -619,8 +619,8 @@ export default function PayrollSummaryCard({
       }
 
       // Show App Fee % rows again
-      const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
-      appFeeRows.forEach(row => {
+      const appFeeRowsToShow = document.querySelectorAll('[data-app-fee-row="true"]');
+      appFeeRowsToShow.forEach(row => {
         row.style.display = '';
       });
     } catch (error) {
