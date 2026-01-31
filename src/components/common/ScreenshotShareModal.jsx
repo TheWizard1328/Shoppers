@@ -91,7 +91,7 @@ export default function ScreenshotShareModal({ isOpen, onClose, imageDataUrl, fi
             />
           ) : (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+              <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--text-slate-400)' }} />
             </div>
           )}
         </div>
