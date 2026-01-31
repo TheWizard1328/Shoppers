@@ -814,6 +814,8 @@ export default function RouteImport({
       const distanceFromStore = distanceFromStoreStr && !isNaN(parseFloat(distanceFromStoreStr)) ? parseFloat(parseFloat(distanceFromStoreStr).toFixed(2)) : null;
       const travelDistStr = values[8]?.replace(/"/g, '').trim();
       const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(parseFloat(travelDistStr).toFixed(2)) : null;
+      const codAmountStr = values[9]?.replace(/"/g, '').trim(); // Column 10 (index 9): COD Amount
+      const codAmount = codAmountStr && !isNaN(parseFloat(codAmountStr)) ? parseFloat(codAmountStr) : 0;
       const importedPuid = (values[12] || '').replace(/"/g, '').trim(); // Column 13: PUID (index 12)
       const stopId = (values[13] || '').replace(/"/g, '').trim(); // Column 14: SID (index 13)
       const patientPID = values[14]?.replace(/"/g, '').trim(); // Column 15: PID (index 14)
@@ -890,6 +892,11 @@ export default function RouteImport({
         console.log(`✅ [Import CSV Line ${lineNumber}] Assigned sequential stop_order ${finalStopOrder} to ${statusFromColumns} stop`);
       }
 
+      // CRITICAL: For completed deliveries, set COD amount from CSV
+      // For incomplete deliveries (pending, in_transit, en_route), always set to 0
+      const isCompletedStatus = statusFromColumns === 'completed';
+      const codTotalForImport = isCompletedStatus && codAmount > 0 ? codAmount : 0;
+
       const newDeliveryData = {
         delivery_date: currentDate,
         store_id: store.id,
@@ -902,7 +909,7 @@ export default function RouteImport({
         status: statusFromColumns,
         extra_time: 0,
         ampm_deliveries: ampmValue,
-        cod_total_amount_required: 0,
+        cod_total_amount_required: codTotalForImport, // CRITICAL: Only set for completed deliveries
         cod_payments: [],
         cod_payment_type: 'No Payment',
         cod_amount: '',
@@ -1077,14 +1084,28 @@ export default function RouteImport({
             }
           }
 
-          // CRITICAL: For incomplete stops (pending, in_transit, en_route), preserve COD payment type and collected payments
-          // Only update cod_total_amount_required, NOT cod_payment_type or cod_payments
+          // CRITICAL: For incomplete stops (pending, in_transit, en_route), preserve COD payment fields AND set amount to 0
+          // For completed stops, only set COD amount if not already collected
           const incompleteStatuses = ['pending', 'in_transit', 'en_route'];
           if (incompleteStatuses.includes(updatedDeliveryData.status)) {
-            // Preserve existing COD payment fields for incomplete stops
+            // Incomplete stops: preserve existing COD fields and force amount to 0
             updatedDeliveryData.cod_payment_type = existingDelivery.cod_payment_type;
             updatedDeliveryData.cod_payments = existingDelivery.cod_payments;
-            console.log(`✅ [Import] Incomplete stop - preserving COD payment type: ${existingDelivery.cod_payment_type}`);
+            updatedDeliveryData.cod_total_amount_required = 0; // Force to 0 for incomplete
+            console.log(`✅ [Import] Incomplete stop - COD amount forced to 0, preserved payment type: ${existingDelivery.cod_payment_type}`);
+          } else if (updatedDeliveryData.status === 'completed') {
+            // Completed stops: only update COD amount if not already collected
+            const hasPaymentRecorded = existingDelivery.cod_payments && existingDelivery.cod_payments.length > 0;
+            const hasPaymentTypeSet = existingDelivery.cod_payment_type && existingDelivery.cod_payment_type !== 'No Payment';
+            
+            if (hasPaymentRecorded || hasPaymentTypeSet) {
+              // Already collected - preserve existing COD data
+              updatedDeliveryData.cod_total_amount_required = existingDelivery.cod_total_amount_required;
+              updatedDeliveryData.cod_payment_type = existingDelivery.cod_payment_type;
+              updatedDeliveryData.cod_payments = existingDelivery.cod_payments;
+              console.log(`✅ [Import] Completed stop already collected - preserving COD: $${existingDelivery.cod_total_amount_required}`);
+            }
+            // Otherwise, use imported COD amount (already set in newDeliveryData)
           }
 
           deliveriesToUpdate.push({
