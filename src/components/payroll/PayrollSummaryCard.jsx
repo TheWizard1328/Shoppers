@@ -1572,21 +1572,6 @@ export default function PayrollSummaryCard({
             Payroll Summary
           </CardTitle>
           <div className="flex gap-2 items-center" id="payroll-controls">
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={handleCaptureScreenshot}
-              disabled={isCapturingScreenshot}
-              className="gap-2" 
-              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-              title="Share screenshot"
-            >
-              {isCapturingScreenshot ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Share2 className="w-4 h-4" />
-              )}
-            </Button>
             <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
               <Download className="w-4 h-4" />
               PDF
