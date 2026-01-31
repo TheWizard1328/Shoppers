@@ -622,7 +622,7 @@ export default function DriverPayroll() {
 
   return (
     <div className="p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto" ref={contentRef}>
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
@@ -691,7 +691,7 @@ export default function DriverPayroll() {
             </div>
 
         {/* Content Area for Screenshot */}
-        <div ref={contentRef}>
+         <div>
           {/* Grid */}
           <DriverPayrollGrid
           deliveries={cityFilteredDeliveries}
