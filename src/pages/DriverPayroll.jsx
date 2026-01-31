@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
+import { DollarSign, ChevronLeft, ChevronRight, Share2, Loader2 } from "lucide-react";
 import { sortUsers, sortStores } from '../components/utils/sorting';
 import { useUser } from '../components/utils/UserContext';
 import { useAppData } from '../components/utils/AppDataContext';
@@ -14,6 +14,8 @@ import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { invalidate } from '../components/utils/dataManager';
 import { toast } from 'sonner';
 import { RefreshCw } from 'lucide-react';
+import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
+import html2canvas from 'html2canvas';
 
 // Helper: Get first Monday of a given year
 const getFirstMondayOfYear = (year) => {
@@ -151,6 +153,10 @@ export default function DriverPayroll() {
    const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
    const [payrollRecords, setPayrollRecords] = useState([]);
    const [isRefreshing, setIsRefreshing] = useState(false);
+   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
+   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
+   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+   const contentRef = useRef(null);
   
   const currentDate = new Date();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
@@ -162,6 +168,56 @@ export default function DriverPayroll() {
 
   // Determine if current user is a driver (not admin)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
+
+  const handleCaptureScreenshot = async () => {
+    setIsCapturingScreenshot(true);
+    toast.info('Capturing screenshot...');
+
+    try {
+      if (!contentRef.current) {
+        toast.error('Content not found');
+        return;
+      }
+
+      // Hide all controls temporarily
+      const controlsElement = document.getElementById('payroll-controls');
+      if (controlsElement) {
+        controlsElement.style.display = 'none';
+      }
+
+      // Small delay to ensure UI updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Capture only the content area
+      const canvas = await html2canvas(contentRef.current, {
+        allowTaint: true,
+        useCORS: true,
+        scale: 2,
+        backgroundColor: '#f8fafc'
+      });
+
+      // Show controls again
+      if (controlsElement) {
+        controlsElement.style.display = 'flex';
+      }
+
+      const dataUrl = canvas.toDataURL('image/png');
+      setScreenshotDataUrl(dataUrl);
+      setShowScreenshotModal(true);
+      toast.success('Screenshot captured!');
+    } catch (error) {
+      console.error('Screenshot error:', error);
+      toast.error('Failed to capture screenshot');
+      
+      // Make sure controls are visible again even if error
+      const controlsElement = document.getElementById('payroll-controls');
+      if (controlsElement) {
+        controlsElement.style.display = 'flex';
+      }
+    } finally {
+      setIsCapturingScreenshot(false);
+    }
+  };
 
   // Manual refresh handler
   const handleManualRefresh = async () => {
@@ -575,7 +631,7 @@ export default function DriverPayroll() {
           </div>
           
           {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div id="payroll-controls" className="flex flex-wrap items-center gap-2">
             <Button
               onClick={handleManualRefresh}
               disabled={isRefreshing || isLoadingPayroll}
@@ -632,8 +688,10 @@ export default function DriverPayroll() {
           </div>
         </div>
 
-        {/* Grid */}
-        <DriverPayrollGrid
+        {/* Content Area for Screenshot */}
+        <div ref={contentRef}>
+          {/* Grid */}
+          <DriverPayrollGrid
           deliveries={cityFilteredDeliveries}
           stores={filteredStores}
           patients={payrollData?.patients || []}
@@ -671,7 +729,16 @@ export default function DriverPayroll() {
           payrollRecords={payrollRecords}
           refreshPayrollRecords={refreshPayrollRecords}
         />
+        </div>
       </div>
+
+      {/* Screenshot Share Modal */}
+      <ScreenshotShareModal
+        isOpen={showScreenshotModal}
+        onClose={() => setShowScreenshotModal(false)}
+        imageDataUrl={screenshotDataUrl}
+        filename={`driver-payroll-${selectedYear}.png`}
+      />
     </div>
   );
 }
