@@ -152,6 +152,9 @@ export default function DriverPayrollGrid({
 
    const periodDays = useMemo(() => getDaysInPeriod(), [getDaysInPeriod]);
 
+  // Early guard - after all hooks are defined
+  if (!deliveries || !stores || !currentPeriod) return null;
+
   // Sort stores by sort_order
   const allSortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
