@@ -2084,12 +2084,13 @@ export default function PayrollSummaryCard({
                          <td className="text-right pt-1">{(data.grandTotal + data.taxAmount + (edit.bonusPay || 0) - data.deductions).toFixed(2)}</td>
                        </tr>
                      </tbody>
-                   </table>
+                     </table>
+                     </div>
 
-                   {/* Vertical Divider */}
-                   <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
+                     {/* Vertical Divider */}
+                     <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
 
-                   {/* YTD Column */}
+                     {/* YTD Column */}
                    {useMemo(() => {
                      const ytdDeliveries = deliveries?.filter(d => {
                        if (!d || d.driver_id !== data.driver.id) return false;
