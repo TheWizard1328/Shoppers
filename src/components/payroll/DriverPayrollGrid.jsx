@@ -594,7 +594,7 @@ export default function DriverPayrollGrid({
               })}
               {/* Totals Row */}
               <tr className="font-semibold" style={{ borderTop: '2px solid var(--border-slate-300)', background: 'var(--bg-slate-100)' }}>
-                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)' }}>Tot</td>
+                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 align-top" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)' }}>Tot</td>
                 {sortedStores.map((store) => {
                   const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
                   const displayValueMobile = viewMode === 'extraKm' 
