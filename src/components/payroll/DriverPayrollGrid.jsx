@@ -136,8 +136,6 @@ export default function DriverPayrollGrid({
     setIsRefreshing(true);
   };
 
-  if (!deliveries || !stores || !currentPeriod) return null;
-
   // Generate days array from the current period's start to end date
   const getDaysInPeriod = () => {
     const days = [];
