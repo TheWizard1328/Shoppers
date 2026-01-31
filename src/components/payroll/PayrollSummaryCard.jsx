@@ -2176,10 +2176,11 @@ export default function PayrollSummaryCard({
                              </tr>
                            )}
                          </tbody>
-                       </table>
-                     );
-                   }, [data, deliveries, currentPeriod, patients])}
-                   </div>
+                         </table>
+                         </div>
+                         );
+                         }, [data, deliveries, currentPeriod, patients])}
+                         </div>
                    </div>
                    </div>
                    </div>
