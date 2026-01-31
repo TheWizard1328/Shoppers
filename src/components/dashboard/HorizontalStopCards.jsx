@@ -73,7 +73,66 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     });
   }, []);
 
+  // CRITICAL: Check if next delivery card is already centered
+  const isNextDeliveryCardCentered = React.useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return false;
+    
+    const nextCard = validCards.find((card) => card?.isNextDelivery === true);
+    if (!nextCard) return false;
+    
+    const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+    if (!cardElement) return false;
+    
+    const containerRect = container.getBoundingClientRect();
+    const cardRect = cardElement.getBoundingClientRect();
+    
+    const containerCenter = containerRect.left + containerRect.width / 2;
+    const cardCenter = cardRect.left + cardRect.width / 2;
+    const distanceFromCenter = Math.abs(cardCenter - containerCenter);
+    
+    // Consider centered if within 50px of center
+    return distanceFromCenter < 50;
+  }, [validCards]);
 
+  // CRITICAL: Listen for incomplete deliveries count change (Rule 1) AND smart refresh events (Rule 2)
+  React.useEffect(() => {
+    const handleIncompleteCountChanged = () => {
+      // RULE 1: Incomplete delivery count changed AND no cards expanded
+      if (!selectedCardId) {
+        console.log('🎯 [Auto-Center Rule 1] Incomplete count changed - centering next delivery card');
+        const nextCard = validCards.find((card) => card?.isNextDelivery === true);
+        if (nextCard) {
+          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+          if (cardElement) {
+            scrollToCenterCard(cardElement);
+          }
+        }
+      }
+    };
+    
+    const handleSmartRefreshComplete = () => {
+      // RULE 2: On every refresh, if no cards expanded AND next card not centered, then center it
+      if (!selectedCardId && !isNextDeliveryCardCentered()) {
+        console.log('🎯 [Auto-Center Rule 2] Smart refresh - centering next delivery card (not centered)');
+        const nextCard = validCards.find((card) => card?.isNextDelivery === true);
+        if (nextCard) {
+          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+          if (cardElement) {
+            scrollToCenterCard(cardElement);
+          }
+        }
+      }
+    };
+    
+    window.addEventListener('incompleteDeliveriesCountChanged', handleIncompleteCountChanged);
+    window.addEventListener('smartRefreshComplete', handleSmartRefreshComplete);
+    
+    return () => {
+      window.removeEventListener('incompleteDeliveriesCountChanged', handleIncompleteCountChanged);
+      window.removeEventListener('smartRefreshComplete', handleSmartRefreshComplete);
+    };
+  }, [selectedCardId, validCards, scrollToCenterCard, isNextDeliveryCardCentered]);
 
   // Enable native scroll with CSS scroll-snap for smooth card-by-card scrolling
   // Removed custom touch handlers that were preventing native scrolling
@@ -121,7 +180,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [selectedCardId]);
+  }, [selectedCardId, scrollToCenterCard]);
 
   // NOW we can do the safety check and early return
   if (!pickupCards || !Array.isArray(pickupCards) || pickupCards.length === 0) {
