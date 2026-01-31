@@ -127,17 +127,17 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[99999] bg-black flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow-2xl w-full h-full md:max-w-2xl md:max-h-[90vh] flex flex-col">
-        <div className="border-b p-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-slate-900">Proof of Delivery Photos</h3>
+      <div className="rounded-xl shadow-2xl w-full h-full md:max-w-2xl md:max-h-[90vh] flex flex-col" style={{ background: 'var(--bg-white)' }}>
+        <div className="border-b p-4 flex items-center justify-between" style={{ borderColor: 'var(--border-slate-200)' }}>
+          <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>Proof of Delivery Photos</h3>
           <Button variant="ghost" size="icon" onClick={handleCancel} disabled={isCapturing}>
             <X className="w-5 h-5" />
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ background: 'var(--bg-slate-50)' }}>
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
+            <div className="border rounded-lg p-3 text-sm" style={{ background: 'var(--bg-red-50, #fef2f2)', borderColor: 'var(--border-red-200, #fecaca)', color: 'var(--text-red-700, #b91c1c)' }}>
               {error}
             </div>
           )}
@@ -148,7 +148,8 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
                 ref={videoRef} 
                 autoPlay 
                 playsInline 
-                className="w-full rounded-lg bg-black"
+                className="w-full rounded-lg"
+                style={{ background: 'var(--bg-black, #000000)' }}
               />
               <canvas ref={canvasRef} className="hidden" />
               
@@ -169,7 +170,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
           {capturedPhotos.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium text-slate-700">
+                <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
                   Captured Photos ({capturedPhotos.length}/{maxPhotos})
                 </p>
                 {!isCameraActive && capturedPhotos.length < maxPhotos && (
@@ -198,7 +199,8 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
                       <img
                         src={photo.url}
                         alt={`Photo ${index + 1}`}
-                        className="w-full h-32 object-cover rounded-lg border-2 border-slate-200"
+                        className="w-full h-32 object-cover rounded-lg border-2"
+                        style={{ borderColor: 'var(--border-slate-200)' }}
                       />
                       <Button
                         variant="destructive"
@@ -217,7 +219,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
           )}
         </div>
 
-        <div className="border-t p-4 flex gap-3 justify-end">
+        <div className="border-t p-4 flex gap-3 justify-end" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
           <Button variant="outline" onClick={handleCancel} disabled={isCapturing}>
             Cancel
           </Button>

@@ -122,11 +122,11 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[50000] bg-black flex items-center justify-center">
-      <div className="bg-white w-full h-full flex flex-col">
-         <div className="border-b px-4 py-3 flex items-center justify-between bg-slate-50">
+      <div className="w-full h-full flex flex-col" style={{ background: 'var(--bg-white)' }}>
+         <div className="border-b px-4 py-3 flex items-center justify-between" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
            <div className="flex items-center gap-3">
-             <h3 className="text-base font-semibold text-slate-900">Customer Signature</h3>
-             {customerName && <span className="text-sm text-slate-600">— {customerName}</span>}
+             <h3 className="text-base font-semibold" style={{ color: 'var(--text-slate-900)' }}>Customer Signature</h3>
+             {customerName && <span className="text-sm" style={{ color: 'var(--text-slate-600)' }}>— {customerName}</span>}
            </div>
            <Button 
              variant="ghost" 
@@ -138,8 +138,8 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
            </Button>
          </div>
 
-         <div className="flex-1 p-3 bg-slate-50 overflow-hidden">
-           <div className="w-full h-full border-2 border-slate-300 rounded-lg bg-white relative">
+         <div className="flex-1 p-3 overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
+           <div className="w-full h-full border-2 rounded-lg relative" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)' }}>
              <canvas
                ref={canvasRef}
                onMouseDown={startDrawing}
@@ -152,13 +152,13 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
                className="w-full h-full touch-none cursor-crosshair"
                style={{ touchAction: 'none' }}
              />
-             <div className="absolute top-4 left-4 text-lg text-slate-400 pointer-events-none">
+             <div className="absolute top-4 left-4 text-lg pointer-events-none" style={{ color: 'var(--text-slate-400)' }}>
                Sign here with your finger
              </div>
            </div>
          </div>
 
-         <div className="border-t px-4 py-3 bg-white flex gap-2 justify-end">
+         <div className="border-t px-4 py-3 flex gap-2 justify-end" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
            {showClear ? (
              <>
                <Button 
