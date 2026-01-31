@@ -694,7 +694,7 @@ export default function PayrollSummaryCard({
       
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
-      doc.text('Day', leftMargin + 1, tableTop + 4);
+      doc.text('Day', leftMargin + dayColWidth / 2, tableTop + 4, { align: 'center' });
       
       displayStores.forEach((store, i) => {
         const x = leftMargin + dayColWidth + (i * storeColWidth);
@@ -723,9 +723,14 @@ export default function PayrollSummaryCard({
         const dayNum = date.getDate().toString();
         const isWeekend = date.getDay() === 0 || date.getDay() === 6;
         
-        doc.setFont('helvetica', isWeekend ? 'bold' : 'normal');
-        doc.text(dayNum, leftMargin + dayColWidth/2, gridY, { align: 'center' });
+        // Highlight weekend rows
+        if (isWeekend) {
+          doc.setFillColor(240, 240, 240);
+          doc.rect(leftMargin, gridY - 4, gridLineEnd - leftMargin, rowHeight, 'F');
+        }
+        
         doc.setFont('helvetica', 'normal');
+        doc.text(dayNum, leftMargin + dayColWidth/2, gridY, { align: 'center' });
         
         let dayTotal = 0;
         displayStores.forEach((store, i) => {
@@ -767,6 +772,11 @@ export default function PayrollSummaryCard({
       });
       
       doc.text(grandTotal.toString(), leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, gridY, { align: 'center' });
+      
+      // Draw vertical dividers
+      doc.setDrawColor(150, 150, 150);
+      doc.line(dividerAfterDay, tableTop + rowHeight + 1, dividerAfterDay, gridY + 2);
+      doc.line(dividerBeforeTot, tableTop + rowHeight + 1, dividerBeforeTot, gridY + 2);
       
       // Payroll details below the grid (2 columns: Period + YTD)
       y = gridY + 10;
@@ -1090,7 +1100,7 @@ export default function PayrollSummaryCard({
     // Header row - store abbreviations
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Day', leftMargin + 2, tableTop + 5);
+    doc.text('Day', leftMargin + dayColWidth / 2, tableTop + 5, { align: 'center' });
     
     displayStores.forEach((store, i) => {
       const x = leftMargin + dayColWidth + (i * storeColWidth);
@@ -1123,10 +1133,15 @@ export default function PayrollSummaryCard({
       const dayNum = date.getDate().toString();
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
       
+      // Highlight weekend rows
+      if (isWeekend) {
+        doc.setFillColor(240, 240, 240);
+        doc.rect(leftMargin, y - 4, multiGridLineEnd - leftMargin, rowHeight, 'F');
+      }
+      
       // Day number
-      doc.setFont('helvetica', isWeekend ? 'bold' : 'normal');
-      doc.text(dayNum, leftMargin + dayColWidth/2, y, { align: 'center' });
       doc.setFont('helvetica', 'normal');
+      doc.text(dayNum, leftMargin + dayColWidth/2, y, { align: 'center' });
       
       let dayTotal = 0;
       displayStores.forEach((store, i) => {
@@ -1169,6 +1184,11 @@ export default function PayrollSummaryCard({
     });
     
     doc.text(grandTotal.toString(), leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, y, { align: 'center' });
+    
+    // Draw vertical dividers
+    doc.setDrawColor(150, 150, 150);
+    doc.line(multiDividerAfterDay, tableTop + rowHeight + 2, multiDividerAfterDay, y + 2);
+    doc.line(multiDividerBeforeTot, tableTop + rowHeight + 2, multiDividerBeforeTot, y + 2);
     
     // Second page: Portrait with detailed summaries
     doc.addPage('portrait');
