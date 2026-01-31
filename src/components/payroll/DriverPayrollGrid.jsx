@@ -137,20 +137,20 @@ export default function DriverPayrollGrid({
   };
 
   // Generate days array from the current period's start to end date
-  const getDaysInPeriod = () => {
-    const days = [];
-    const start = new Date(currentPeriod.start);
-    const end = new Date(currentPeriod.end);
-    let current = new Date(start);
-    
-    while (current <= end) {
-      days.push(new Date(current));
-      current.setDate(current.getDate() + 1);
-    }
-    return days;
-  };
-  
-  const periodDays = getDaysInPeriod();
+   const getDaysInPeriod = useCallback(() => {
+     const days = [];
+     const start = new Date(currentPeriod.start);
+     const end = new Date(currentPeriod.end);
+     let current = new Date(start);
+
+     while (current <= end) {
+       days.push(new Date(current));
+       current.setDate(current.getDate() + 1);
+     }
+     return days;
+   }, [currentPeriod]);
+
+   const periodDays = useMemo(() => getDaysInPeriod(), [getDaysInPeriod]);
 
   // Sort stores by sort_order
   const allSortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
