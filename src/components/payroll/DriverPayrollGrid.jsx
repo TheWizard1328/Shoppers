@@ -28,9 +28,6 @@ export default function DriverPayrollGrid({
   onPrevPeriod,
   onNextPeriod
 }) {
-  // Guard early - check required props before any hooks
-  if (!deliveries || !stores || !currentPeriod) return null;
-
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extraKm'
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [headerLayout, setHeaderLayout] = useState('single'); // 'single', 'title-viewmode', 'title-paycycle', 'viewmode-paycycle', 'three'
