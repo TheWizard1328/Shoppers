@@ -2916,16 +2916,27 @@ export default function Layout({ children, currentPageName }) {
                         delete window.__routeImportStartCallback;
                       }
 
-                      // CRITICAL: Load fresh data from offline DB immediately
-                      console.log('🔄 [Layout] RouteImport complete - reloading from offline DB');
-                      const freshDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-                      const freshPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+                      // CRITICAL: Wait a moment for offline DB to finish writing
+                      await new Promise(resolve => setTimeout(resolve, 500));
+
+                      // CRITICAL: Load ALL fresh data from offline DB
+                      console.log('🔄 [Layout] RouteImport complete - reloading ALL data from offline DB');
+                      const [freshDeliveries, freshPatients, freshStores] = await Promise.all([
+                        offlineDB.getAll(offlineDB.STORES.DELIVERIES),
+                        offlineDB.getAll(offlineDB.STORES.PATIENTS),
+                        offlineDB.getAll(offlineDB.STORES.STORES)
+                      ]);
+
+                      console.log(`📦 [Layout] Loaded after import: ${freshDeliveries?.length || 0} deliveries, ${freshPatients?.length || 0} patients, ${freshStores?.length || 0} stores`);
 
                       if (freshDeliveries && freshDeliveries.length > 0) {
                         setDeliveries(freshDeliveries);
                       }
                       if (freshPatients && freshPatients.length > 0) {
                         setPatients(freshPatients);
+                      }
+                      if (freshStores && freshStores.length > 0) {
+                        setStores(freshStores);
                       }
 
                       // CRITICAL: Dispatch events for active page to refresh
