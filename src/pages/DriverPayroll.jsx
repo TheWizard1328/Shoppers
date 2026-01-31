@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DollarSign, ChevronLeft, ChevronRight, Share2, Loader2, Download } from "lucide-react";
+import { DollarSign, ChevronLeft, ChevronRight, Share2, Loader2, Download, RefreshCw } from "lucide-react";
 import { sortUsers, sortStores } from '../components/utils/sorting';
 import { useUser } from '../components/utils/UserContext';
 import { useAppData } from '../components/utils/AppDataContext';
@@ -649,6 +649,20 @@ export default function DriverPayroll() {
               >
                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </Button>
+              <Button
+                onClick={handleCaptureScreenshot}
+                disabled={isCapturingScreenshot}
+                size="sm"
+                variant="outline"
+                className="gap-2"
+              >
+                {isCapturingScreenshot ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Share2 className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">{isCapturingScreenshot ? 'Capturing...' : 'Share'}</span>
               </Button>
             </div>
             {/* City Filter */}
