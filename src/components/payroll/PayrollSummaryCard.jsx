@@ -2175,12 +2175,11 @@ export default function PayrollSummaryCard({
                      );
                    }, [data, deliveries, currentPeriod, patients])}
                    </div>
-                       </div>
-                       </div>
-                       </div>
-                       </div>
-                       );
-                       })}
+                   </div>
+                   </div>
+                   </div>
+                   );
+                   })}
           
           {/* Grand Total for All Drivers */}
           {payrollData.length > 1 && (
