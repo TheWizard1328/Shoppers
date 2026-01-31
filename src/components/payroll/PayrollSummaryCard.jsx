@@ -586,7 +586,7 @@ export default function PayrollSummaryCard({
   // Handle screenshot capture for sharing
   const handleCaptureScreenshot = async () => {
     if (!contentRef.current) return;
-    
+
     setIsCapturingScreenshot(true);
     try {
       // Temporarily hide control elements
@@ -594,6 +594,12 @@ export default function PayrollSummaryCard({
       if (controlsElement) {
         controlsElement.style.display = 'none';
       }
+
+      // Hide all App Fee % rows before capturing
+      const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
+      appFeeRows.forEach(row => {
+        row.style.display = 'none';
+      });
       
       // Capture the content
       const canvas = await html2canvas(contentRef.current, {
