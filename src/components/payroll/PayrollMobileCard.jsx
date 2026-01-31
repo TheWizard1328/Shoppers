@@ -151,28 +151,113 @@ export default function PayrollMobileCard({
         )}
       </div>
 
-      {/* Pay Summary - Period vs YTD */}
-      <div className="space-y-2">
-        {/* Period */}
+      {/* Pay Summary - Period vs YTD Side by Side */}
+      {currentPeriod ? (
         <div className="p-3 rounded-lg border" style={{ 
           background: 'var(--bg-white)', 
           borderColor: 'var(--border-slate-200)',
           fontVariantNumeric: 'tabular-nums'
         }}>
-          <h4 className="text-xs font-semibold mb-2" style={{ color: 'var(--text-slate-700)' }}>Period</h4>
+          <div className="flex gap-4 mb-2">
+            <h4 className="text-xs font-semibold flex-1" style={{ color: 'var(--text-slate-700)' }}>Period</h4>
+            <h4 className="text-xs font-semibold flex-1" style={{ color: 'var(--text-slate-700)' }}>YTD</h4>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            {(() => {
+              const ytdDeliveries = deliveries?.filter(d => {
+                if (!d || d.driver_id !== data.driver.id) return false;
+                const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+                if (!validStatus) return false;
+                if (!d.patient_id && !d.after_hours_pickup) return false;
+                const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
+                return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
+              }) || [];
+
+              const ytdTotalDeliveries = ytdDeliveries.length;
+              const ytdTotalBasePay = ytdTotalDeliveries * data.payRate;
+              const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
+                const patient = patients?.find(p => p?.id === d.patient_id);
+                if (!patient?.distance_from_store) return sum;
+                const distance = d.paid_km_override ?? patient.distance_from_store;
+                const extraKm = Math.max(0, distance - data.extraKmLimit);
+                return sum + extraKm;
+              }, 0);
+              const ytdExtraKmPay = ytdExtraKm * data.extraKmRate;
+              const ytdOversizedCount = ytdDeliveries.filter(d => d.oversized).length;
+              const ytdOversizedPay = ytdOversizedCount * data.oversizedRate;
+              const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
+
+              return (
+                <>
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <div className="flex justify-between">
+                        <span style={{ color: 'var(--text-slate-600)' }}>Net:</span>
+                        <span className="font-semibold">{formatCurrency(data.grandTotal || 0)}</span>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between">
+                        <span style={{ color: 'var(--text-slate-600)' }}>Gross:</span>
+                        <span className="font-semibold">{formatCurrency(ytdGrossPay)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  {data.taxAmount > 0 && (
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <div className="flex justify-between">
+                          <span style={{ color: 'var(--text-slate-600)' }}>Tax:</span>
+                          <span className="font-semibold">{formatCurrency(data.taxAmount)}</span>
+                        </div>
+                      </div>
+                      <div className="flex-1"></div>
+                    </div>
+                  )}
+                  {data.deductions > 0 && (
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <div className="flex justify-between text-red-700">
+                          <span>Deductions:</span>
+                          <span className="font-semibold">-{formatCurrency(data.deductions)}</span>
+                        </div>
+                      </div>
+                      <div className="flex-1"></div>
+                    </div>
+                  )}
+                  <div className="pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <div className="flex justify-between font-bold" style={{ color: '#10b981' }}>
+                          <span>Gross:</span>
+                          <span>{formatCurrency(data.grossPay || 0)}</span>
+                        </div>
+                      </div>
+                      <div className="flex-1"></div>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      ) : (
+        <div className="p-3 rounded-lg border" style={{ 
+          background: 'var(--bg-white)', 
+          borderColor: 'var(--border-slate-200)',
+          fontVariantNumeric: 'tabular-nums'
+        }}>
+          <h4 className="text-xs font-semibold mb-2" style={{ color: 'var(--text-slate-700)' }}>Pay Summary</h4>
           <div className="space-y-1.5 text-xs">
             <div className="flex justify-between">
               <span style={{ color: 'var(--text-slate-600)' }}>Net:</span>
-              <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                {formatCurrency(data.grandTotal || 0)}
-              </span>
+              <span className="font-semibold">{formatCurrency(data.grandTotal || 0)}</span>
             </div>
             {data.taxAmount > 0 && (
               <div className="flex justify-between">
                 <span style={{ color: 'var(--text-slate-600)' }}>Tax:</span>
-                <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                  {formatCurrency(data.taxAmount)}
-                </span>
+                <span className="font-semibold">{formatCurrency(data.taxAmount)}</span>
               </div>
             )}
             {data.deductions > 0 && (
@@ -184,61 +269,12 @@ export default function PayrollMobileCard({
             <div className="pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               <div className="flex justify-between text-sm font-bold" style={{ color: '#10b981' }}>
                 <span>Gross:</span>
-                <span className="text-base">{formatCurrency(data.grossPay || 0)}</span>
+                <span>{formatCurrency(data.grossPay || 0)}</span>
               </div>
             </div>
           </div>
         </div>
-
-        {/* YTD */}
-        {currentPeriod && (
-          <div className="p-3 rounded-lg border" style={{ 
-            background: 'var(--bg-white)', 
-            borderColor: 'var(--border-slate-200)',
-            fontVariantNumeric: 'tabular-nums'
-          }}>
-            <h4 className="text-xs font-semibold mb-2" style={{ color: 'var(--text-slate-700)' }}>YTD</h4>
-            <div className="space-y-1.5 text-xs">
-              {(() => {
-                const ytdDeliveries = deliveries?.filter(d => {
-                  if (!d || d.driver_id !== data.driver.id) return false;
-                  const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
-                  if (!validStatus) return false;
-                  if (!d.patient_id && !d.after_hours_pickup) return false;
-                  const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                  const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-                  return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
-                }) || [];
-
-                const ytdTotalDeliveries = ytdDeliveries.length;
-                const ytdTotalBasePay = ytdTotalDeliveries * data.payRate;
-                const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
-                  const patient = patients?.find(p => p?.id === d.patient_id);
-                  if (!patient?.distance_from_store) return sum;
-                  const distance = d.paid_km_override ?? patient.distance_from_store;
-                  const extraKm = Math.max(0, distance - data.extraKmLimit);
-                  return sum + extraKm;
-                }, 0);
-                const ytdExtraKmPay = ytdExtraKm * data.extraKmRate;
-                const ytdOversizedCount = ytdDeliveries.filter(d => d.oversized).length;
-                const ytdOversizedPay = ytdOversizedCount * data.oversizedRate;
-                const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
-
-                return (
-                  <>
-                    <div className="flex justify-between">
-                      <span style={{ color: 'var(--text-slate-600)' }}>Gross:</span>
-                      <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                        {formatCurrency(ytdGrossPay)}
-                      </span>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
