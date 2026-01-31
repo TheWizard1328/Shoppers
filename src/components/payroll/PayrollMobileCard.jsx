@@ -14,7 +14,10 @@ export default function PayrollMobileCard({
   canShowConfirmButton,
   onConfirmClick,
   isFinalizing,
-  formatCurrency
+  formatCurrency,
+  deliveries = [],
+  patients = [],
+  currentPeriod = null
 }) {
   const [expandedSection, setExpandedSection] = useState(null);
 
