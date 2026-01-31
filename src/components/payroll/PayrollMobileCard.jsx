@@ -154,7 +154,7 @@ export default function PayrollMobileCard({
       </div>
 
       {/* Pay Summary - 3 Columns: Labels | Period | YTD */}
-      {currentPeriod && (data.ytd_gross_pay || data.ytdGrossPay) && (
+      {currentPeriod && (data.ytd_gross_pay || data.ytdGrossPay) ? (
         <div className="p-3 rounded-lg border" style={{ 
           background: 'var(--bg-white)', 
           borderColor: 'var(--border-slate-200)',
@@ -206,7 +206,7 @@ export default function PayrollMobileCard({
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
