@@ -195,7 +195,15 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                                    currentUser?.location_tracking_enabled === true;
       const shouldBlockSelfMarker = isCurrentUserOnMobile && isLiveTrackingActive;
       
-      if (user.location_tracking_enabled === true && user.status !== 'inactive' && canView && !shouldBlockSelfMarker) {
+      // CRITICAL: ALWAYS show current user's own marker (even if location_tracking_enabled is false)
+      // Only requirement: must have valid status and permissions
+      const isCurrentUserMarker = userId === currentUser?.id || userId === currentUser?.user_id;
+      const shouldShowMarker = (user.location_tracking_enabled === true || isCurrentUserMarker) && 
+                               user.status !== 'inactive' && 
+                               canView && 
+                               !shouldBlockSelfMarker;
+      
+      if (shouldShowMarker) {
         console.log('✅ [DriverLocationMarkers] Adding/updating visible driver:', user.user_name || user.full_name);
         setVisibleDrivers(prev => {
           const exists = prev.find(d => d && d.id === userId);
