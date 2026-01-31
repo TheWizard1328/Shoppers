@@ -546,47 +546,46 @@ export const forceSyncAll = async () => {
     notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 24, count: stores.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // CRITICAL: Only sync unique patients from last 7 days of deliveries (manual sync)
-    // Background sync will handle the rest at normal intervals
-    notifySyncStatus({ status: 'syncing', entity: 'Patients (gathering IDs)', progress: 25 });
+    // CRITICAL: Manual sync ONLY gets unique patients from last 7 days
+    notifySyncStatus({ status: 'syncing', entity: 'Patients (last 7 days)', progress: 25 });
     console.log('🔄 [ForceSyncAll] Gathering unique patient IDs from last 7 days...');
     
     const weekAgoDateStr = format(subDays(new Date(), 7), 'yyyy-MM-dd');
+    
+    // Fetch deliveries from last 7 days in batches
     let allDeliveriesLastWeek = [];
     let deliveryOffset = 0;
     const DELIVERY_BATCH_SIZE = 500;
     
-    try {
-      while (true) {
-        const batchDeliveries = await Delivery.filter({ 
-          delivery_date: { $gte: weekAgoDateStr } 
-        }, '-delivery_date', DELIVERY_BATCH_SIZE, deliveryOffset);
-        
-        if (!batchDeliveries || batchDeliveries.length === 0) break;
-        
-        allDeliveriesLastWeek = allDeliveriesLastWeek.concat(batchDeliveries);
-        deliveryOffset += DELIVERY_BATCH_SIZE;
-        
-        if (batchDeliveries.length < DELIVERY_BATCH_SIZE) break;
-        
-        await new Promise(r => setTimeout(r, 300));
-      }
-    } catch (deliveryError) {
-      console.warn('⚠️ [ForceSyncAll] Error fetching last week deliveries:', deliveryError.message);
+    while (true) {
+      const batchDeliveries = await Delivery.filter({ 
+        delivery_date: { $gte: weekAgoDateStr } 
+      }, '-delivery_date', DELIVERY_BATCH_SIZE, deliveryOffset);
+      
+      if (!batchDeliveries || batchDeliveries.length === 0) break;
+      
+      allDeliveriesLastWeek = allDeliveriesLastWeek.concat(batchDeliveries);
+      deliveryOffset += DELIVERY_BATCH_SIZE;
+      
+      console.log(`   Fetched ${batchDeliveries.length} deliveries (total: ${allDeliveriesLastWeek.length})`);
+      
+      if (batchDeliveries.length < DELIVERY_BATCH_SIZE) break;
+      
+      await new Promise(r => setTimeout(r, 300));
     }
     
-    const uniquePatientIds = new Set(
+    // Extract unique patient IDs from last 7 days
+    const uniquePatientIdsFromLastWeek = new Set(
       allDeliveriesLastWeek
         .filter(d => d && d.patient_id)
         .map(d => d.patient_id)
     );
     
-    const uniquePatientIdsList = Array.from(uniquePatientIds);
-    console.log(`📍 [ForceSyncAll] Found ${uniquePatientIdsList.length} unique patients in last 7 days`);
+    const uniquePatientIdsList = Array.from(uniquePatientIdsFromLastWeek);
+    console.log(`📍 [ForceSyncAll] Found ${uniquePatientIdsList.length} unique patients in ${allDeliveriesLastWeek.length} deliveries from last 7 days`);
     
-    notifySyncStatus({ status: 'syncing', entity: 'Patients (last 7 days)', progress: 27 });
-    
-    let allPatients = [];
+    // Sync ONLY those unique patient IDs in batches
+    let patientsFromLastWeek = [];
     const ID_BATCH_SIZE = 50;
     
     for (let i = 0; i < uniquePatientIdsList.length; i += ID_BATCH_SIZE) {
@@ -600,27 +599,36 @@ export const forceSyncAll = async () => {
         });
         
         if (batchPatients && batchPatients.length > 0) {
-          allPatients = allPatients.concat(batchPatients);
+          patientsFromLastWeek = patientsFromLastWeek.concat(batchPatients);
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
           
-          const batchProgress = 27 + Math.floor((i / uniquePatientIdsList.length) * 8);
+          // Update progress after EACH batch (25-35% range)
+          const batchProgress = 25 + Math.floor((i / uniquePatientIdsList.length) * 10);
           notifySyncStatus({ 
             status: 'syncing', 
             entity: `Patients (${batchNumber}/${totalBatches})`, 
             progress: batchProgress, 
-            count: allPatients.length 
+            loaded: patientsFromLastWeek.length 
           });
-          console.log(`   ✅ Batch ${batchNumber}/${totalBatches} saved (${allPatients.length} total)`);
+          console.log(`   ✅ Batch ${batchNumber}/${totalBatches} saved (${patientsFromLastWeek.length} total)`);
         }
       } catch (batchError) {
         console.warn(`   ⚠️ Batch ${batchNumber} failed:`, batchError.message);
+        const batchProgress = 25 + Math.floor((i / uniquePatientIdsList.length) * 10);
+        notifySyncStatus({ 
+          status: 'syncing', 
+          entity: `Patients (${batchNumber}/${totalBatches})`, 
+          progress: batchProgress, 
+          loaded: patientsFromLastWeek.length, 
+          error: 'batch_failed' 
+        });
       }
       
       await new Promise(r => setTimeout(r, 200));
     }
     
-    const cleanPatients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
-    console.log(`✅ [ForceSyncAll] Synced ${cleanPatients.length} patients from last 7 days (background sync will handle rest)`);
+    const cleanPatients = patientsFromLastWeek.filter(p => p && p.id && !p.id.startsWith('temp_'));
+    console.log(`✅ [ForceSyncAll] Synced ${cleanPatients.length} patients from last 7 days`);
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 35, count: cleanPatients.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
@@ -639,6 +647,205 @@ export const forceSyncAll = async () => {
     ]);
 
     notifySyncStatus({ status: 'syncing', entity: 'Finalizing', progress: 90 });
+    // Background sync will handle remaining patients incrementally
+    await performBackgroundSync(selectedDateStr);
+    notifySyncStatus({ status: 'complete', progress: 100 });
+    return { success: true };
+  } catch (error) {
+    notifySyncStatus({ status: 'error', error: error.message });
+    return { error: error.message };
+  } finally {
+    syncInProgress = false;
+  }
+};
+
+export const performBidirectionalSync = forceSyncAll;
+
+export const handleDeleteBroadcast = async (entityName, recordId) => {
+  if (!entityName || !recordId) return;
+  
+  try {
+    const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
+    await offlineDB.deleteRecord(storeName, recordId);
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+/**
+ * Restart sync cycle for deliveries and patients only
+ * Deliveries: Restart from today, go back 90 days
+ * Patients: Only sync patients from last week's deliveries (deduplicated), then full sync the rest
+ * Other entities: Complete full sync
+ */
+export const restartDeliveryPatientSync = async () => {
+  if (syncInProgress) return { skipped: true };
+  
+  syncInProgress = true;
+  notifySyncStatus({ status: 'restart_syncing' });
+  
+  try {
+    const selectedDateStr = format(new Date(), 'yyyy-MM-dd');
+    
+    // CRITICAL: Reset delivery sync cycle to restart from today
+    console.log('🔄 [OfflineSync] Restarting delivery sync cycle from today...');
+    await offlineDB.updateSyncMetadata('Delivery_DateCycle', null, new Date().toISOString(), { cycleIndex: 0, lastCycleDate: new Date().toISOString() });
+    
+    // Clear delivery sync metadata to restart fresh
+    const db = await offlineDB.openDatabase();
+    const transaction = db.transaction([offlineDB.STORES.SYNC_METADATA], 'readwrite');
+    const store = transaction.objectStore(offlineDB.STORES.SYNC_METADATA);
+    
+    // Reset delivery timestamp to force refetch
+    const deliveryMetadata = await new Promise((resolve) => {
+      const request = store.get('Delivery');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    });
+    
+    if (deliveryMetadata) {
+      deliveryMetadata.last_synced_timestamp = null;
+      await new Promise((resolve) => {
+        const putRequest = store.put(deliveryMetadata);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => resolve();
+      });
+    }
+    
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries (restarting)', progress: 10 });
+    
+    // Sync deliveries from today back 90 days
+    for (let i = 0; i < DELIVERY_DATE_RANGE_DAYS; i++) {
+      const dateToSync = format(subDays(new Date(), i), 'yyyy-MM-dd');
+      const deliveryFilter = { delivery_date: dateToSync };
+      
+      await syncEntityWithTimestampCheck('Delivery', Delivery, deliveryFilter, deliveryFilter);
+      
+      const deliveryMetadataUpdate = {
+        entity_name: 'Delivery_DateCycle',
+        cycleIndex: (i + 1) % DELIVERY_DATE_RANGE_DAYS,
+        lastCycleDate: new Date().toISOString()
+      };
+      await offlineDB.updateSyncMetadata('Delivery_DateCycle', null, new Date().toISOString(), deliveryMetadataUpdate);
+      
+      // Update progress
+      const progress = Math.floor((i / DELIVERY_DATE_RANGE_DAYS) * 40) + 10;
+      notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress, date: dateToSync });
+      
+      await new Promise(r => setTimeout(r, 500));
+    }
+    
+    // Step 1: Get deliveries from last 7 days and extract unique patient IDs
+    notifySyncStatus({ status: 'syncing', entity: 'Patients (gathering IDs)', progress: 50 });
+    console.log('🔄 [OfflineSync] Step 1: Gathering unique patient IDs from last 7 days...');
+    
+    const weekAgoDateStr = format(subDays(new Date(), 7), 'yyyy-MM-dd');
+    
+    // Fetch deliveries in batches to avoid timeout
+    let allDeliveriesLastWeek = [];
+    let deliveryOffset = 0;
+    const DELIVERY_BATCH_SIZE = 500;
+    
+    try {
+      while (true) {
+        const batchDeliveries = await Delivery.filter({ 
+          delivery_date: { $gte: weekAgoDateStr } 
+        }, '-delivery_date', DELIVERY_BATCH_SIZE, deliveryOffset);
+        
+        if (!batchDeliveries || batchDeliveries.length === 0) break;
+        
+        allDeliveriesLastWeek = allDeliveriesLastWeek.concat(batchDeliveries);
+        deliveryOffset += DELIVERY_BATCH_SIZE;
+        
+        console.log(`   Fetched ${batchDeliveries.length} deliveries (total: ${allDeliveriesLastWeek.length})`);
+        
+        // Stop if we got fewer records than batch size
+        if (batchDeliveries.length < DELIVERY_BATCH_SIZE) break;
+        
+        await new Promise(r => setTimeout(r, 300));
+      }
+    } catch (deliveryError) {
+      console.warn('⚠️ [OfflineSync] Error fetching last week deliveries:', deliveryError.message);
+    }
+    
+    // Extract ONLY unique patient IDs from last 7 days
+    const uniquePatientIdsFromLastWeek = new Set(
+      allDeliveriesLastWeek
+        .filter(d => d && d.patient_id)
+        .map(d => d.patient_id)
+    );
+    
+    const uniquePatientIdsList = Array.from(uniquePatientIdsFromLastWeek);
+    console.log(`📍 [OfflineSync] Found ${uniquePatientIdsList.length} unique patients in ${allDeliveriesLastWeek.length} deliveries from last 7 days`);
+    
+    // Step 2: Sync ONLY those unique patient IDs in batches
+    notifySyncStatus({ status: 'syncing', entity: 'Patients (last 7 days)', progress: 55 });
+    console.log(`🔄 [OfflineSync] Step 2: Syncing ${uniquePatientIdsList.length} unique patients from last 7 days...`);
+    
+    let patientsFromLastWeek = [];
+    const ID_BATCH_SIZE = 50;
+    
+    for (let i = 0; i < uniquePatientIdsList.length; i += ID_BATCH_SIZE) {
+      const batchIds = uniquePatientIdsList.slice(i, i + ID_BATCH_SIZE);
+      const batchNumber = Math.floor(i/ID_BATCH_SIZE)+1;
+      const totalBatches = Math.ceil(uniquePatientIdsList.length / ID_BATCH_SIZE);
+      
+      try {
+        const batchPatients = await Patient.filter({
+          id: { $in: batchIds }
+        });
+        
+        if (batchPatients && batchPatients.length > 0) {
+          patientsFromLastWeek = patientsFromLastWeek.concat(batchPatients);
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+          
+          // Update progress after EACH batch (25-75% range for patients)
+          const batchProgress = 25 + Math.floor((i / uniquePatientIdsList.length) * 50);
+          notifySyncStatus({ 
+            status: 'syncing', 
+            entity: `Patients (${batchNumber}/${totalBatches})`, 
+            progress: batchProgress, 
+            loaded: patientsFromLastWeek.length 
+          });
+          console.log(`   ✅ Batch ${batchNumber}/${totalBatches} saved (${patientsFromLastWeek.length} total)`);
+        }
+      } catch (batchError) {
+        console.warn(`   ⚠️ Batch ${batchNumber} failed:`, batchError.message);
+        const batchProgress = 25 + Math.floor((i / uniquePatientIdsList.length) * 50);
+        notifySyncStatus({ 
+          status: 'syncing', 
+          entity: `Patients (${batchNumber}/${totalBatches})`, 
+          progress: batchProgress, 
+          loaded: patientsFromLastWeek.length, 
+          error: 'batch_failed' 
+        });
+      }
+      
+      await new Promise(r => setTimeout(r, 200));
+    }
+    
+    const cleanPatients = patientsFromLastWeek.filter(p => p && p.id && !p.id.startsWith('temp_'));
+    console.log(`✅ [ForceSyncAll] Synced ${cleanPatients.length} patients from last 7 days (background sync will handle the rest)`);
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 75, count: cleanPatients.length });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 80 });
+    const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 85, count: deliveries.length });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    await Promise.all([
+      offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Patient', { recordCount: cleanPatients.length, status: 'synced', lastSync: new Date().toISOString() })
+    ]);
+
+    notifySyncStatus({ status: 'syncing', entity: 'Finalizing', progress: 90 });
+    // Background sync will handle remaining patients incrementally
     await performBackgroundSync(selectedDateStr);
     notifySyncStatus({ status: 'complete', progress: 100 });
     return { success: true };
