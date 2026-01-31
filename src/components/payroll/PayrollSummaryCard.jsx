@@ -704,7 +704,8 @@ export default function PayrollSummaryCard({
       doc.text('Tot', leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, tableTop + 4, { align: 'center' });
       
       doc.setDrawColor(100, 100, 100);
-      doc.line(leftMargin, tableTop + rowHeight + 1, leftMargin + gridWidth, tableTop + rowHeight + 1);
+      const gridLineEnd = leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth;
+      doc.line(leftMargin, tableTop + rowHeight + 1, gridLineEnd, tableTop + rowHeight + 1);
       
       doc.setFont('helvetica', 'normal');
       let gridY = tableTop + rowHeight + 5;
@@ -747,7 +748,7 @@ export default function PayrollSummaryCard({
       
       // Totals row
       doc.setDrawColor(100, 100, 100);
-      doc.line(leftMargin, gridY - 2, leftMargin + gridWidth, gridY - 2);
+      doc.line(leftMargin, gridY - 2, gridLineEnd, gridY - 2);
       gridY += 3;
       
       doc.setFont('helvetica', 'bold');
@@ -766,9 +767,10 @@ export default function PayrollSummaryCard({
       // Payroll details below the grid (2 columns: Period + YTD)
       y = gridY + 10;
       const rightColStart = leftMargin;
-      const rightMargin = pageWidth - leftMargin;
-      const periodColWidth = 65;
-      const ytdColStart = rightColStart + periodColWidth + 8;
+      const breakdownWidth = 160; // Fixed width for breakdown section
+      const rightMargin = rightColStart + breakdownWidth;
+      const periodColWidth = 70;
+      const ytdColStart = rightColStart + periodColWidth + 5;
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
@@ -777,8 +779,8 @@ export default function PayrollSummaryCard({
       
       // Column headers
       doc.setFontSize(7);
-      doc.text('Period', rightColStart + periodColWidth - 20, y, { align: 'center' });
-      doc.text('YTD', ytdColStart + 25, y, { align: 'center' });
+      doc.text('Period', rightColStart + periodColWidth / 2, y, { align: 'center' });
+      doc.text('YTD', ytdColStart + (rightMargin - ytdColStart) / 2, y, { align: 'center' });
       y += 1;
       
       // Top separator
@@ -791,13 +793,13 @@ export default function PayrollSummaryCard({
       const lineHeight = 4.5;
       
       // Calculate alignment positions for Period column
-      const periodEqualsPos = rightColStart + periodColWidth - 35;
-      const periodDollarPos = rightColStart + periodColWidth - 30;
+      const periodEqualsPos = rightColStart + periodColWidth - 30;
+      const periodDollarPos = rightColStart + periodColWidth - 27;
       const periodAmountEndPos = rightColStart + periodColWidth - 3;
       
       // Calculate alignment positions for YTD column
-      const ytdEqualsPos = ytdColStart + 15;
-      const ytdDollarPos = ytdColStart + 20;
+      const ytdEqualsPos = ytdColStart + 12;
+      const ytdDollarPos = ytdColStart + 15;
       const ytdAmountEndPos = rightMargin - 3;
       
       // Calculate YTD data for this driver
@@ -1085,7 +1087,8 @@ export default function PayrollSummaryCard({
     
     // Draw header line
     doc.setDrawColor(100, 100, 100);
-    doc.line(leftMargin, tableTop + rowHeight + 2, pageWidth - leftMargin, tableTop + rowHeight + 2);
+    const multiGridLineEnd = leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth;
+    doc.line(leftMargin, tableTop + rowHeight + 2, multiGridLineEnd, tableTop + rowHeight + 2);
     
     // Data rows - one per day
     doc.setFont('helvetica', 'normal');
@@ -1132,7 +1135,7 @@ export default function PayrollSummaryCard({
     
     // Totals row
     doc.setDrawColor(100, 100, 100);
-    doc.line(leftMargin, y - 2, pageWidth - leftMargin, y - 2);
+    doc.line(leftMargin, y - 2, multiGridLineEnd, y - 2);
     y += 4;
     
     doc.setFont('helvetica', 'bold');
