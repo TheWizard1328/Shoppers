@@ -528,7 +528,7 @@ export default function DriverPayrollGrid({
                     {store.abbreviation || store.name?.substring(0, 2)}
                   </th>
                 ))}
-                <th className="text-center px-1 md:px-2 py-1 font-bold border-l-2 border-purple-300 min-w-[36px] md:min-w-[50px]" style={{ color: 'var(--text-slate-900)' }}>Tot</th>
+                <th className="text-center px-1 md:px-2 py-1 font-bold border-l-2 border-purple-300 min-w-[36px] md:min-w-[50px] align-middle" style={{ color: 'var(--text-slate-900)' }}>Tot</th>
               </tr>
             </thead>
             <tbody>
