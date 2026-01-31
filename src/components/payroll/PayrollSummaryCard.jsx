@@ -767,10 +767,11 @@ export default function PayrollSummaryCard({
       // Payroll details below the grid (2 columns: Period + YTD)
       y = gridY + 10;
       const rightColStart = leftMargin;
-      const breakdownWidth = 160; // Fixed width for breakdown section
+      const periodColWidth = 60;
+      const dividerX = rightColStart + periodColWidth + 4;
+      const ytdColStart = dividerX + 6;
+      const breakdownWidth = 140; // Fixed width for breakdown section
       const rightMargin = rightColStart + breakdownWidth;
-      const periodColWidth = 70;
-      const ytdColStart = rightColStart + periodColWidth + 5;
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
@@ -788,18 +789,23 @@ export default function PayrollSummaryCard({
       doc.line(rightColStart, y, rightMargin, y);
       y += 4;
       
+      // Draw vertical divider between Period and YTD sections
+      const dividerStartY = y - 4;
+      const dividerEndY = y + 100; // Will adjust after content
+      
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       const lineHeight = 4.5;
       
       // Calculate alignment positions for Period column
-      const periodEqualsPos = rightColStart + periodColWidth - 30;
-      const periodDollarPos = rightColStart + periodColWidth - 27;
-      const periodAmountEndPos = rightColStart + periodColWidth - 3;
+      const periodEqualsPos = rightColStart + 40;
+      const periodDollarPos = rightColStart + 43;
+      const periodAmountEndPos = dividerX - 5;
       
       // Calculate alignment positions for YTD column
-      const ytdEqualsPos = ytdColStart + 12;
-      const ytdDollarPos = ytdColStart + 15;
+      const ytdCountPos = ytdColStart + 8;
+      const ytdEqualsPos = ytdColStart + 18;
+      const ytdDollarPos = ytdColStart + 21;
       const ytdAmountEndPos = rightMargin - 3;
       
       // Calculate YTD data for this driver
@@ -834,12 +840,12 @@ export default function PayrollSummaryCard({
       
       // Delivery Rate line
       doc.text(`Delivery Rate:`, rightColStart, y);
-      doc.text(`$${driverData.payRate.toFixed(2)} x ${driverData.totalDeliveries}`, rightColStart + 32, y);
+      doc.text(`$${driverData.payRate.toFixed(2)} x ${driverData.totalDeliveries}`, rightColStart + 28, y);
       doc.text(`=`, periodEqualsPos, y);
       doc.text(`$`, periodDollarPos, y);
       doc.text(driverData.totalBasePay.toFixed(2), periodAmountEndPos, y, { align: 'right' });
       
-      doc.text(`${ytdTotalDeliveries}`, ytdColStart, y);
+      doc.text(`${ytdTotalDeliveries}`, ytdCountPos, y);
       doc.text(`=`, ytdEqualsPos, y);
       doc.text(`$`, ytdDollarPos, y);
       doc.text(ytdTotalBasePay.toFixed(2), ytdAmountEndPos, y, { align: 'right' });
@@ -847,12 +853,12 @@ export default function PayrollSummaryCard({
       
       // Extra KM line
       doc.text(`Extra KM:`, rightColStart, y);
-      doc.text(`$${driverData.extraKmRate.toFixed(3)}/km (>${driverData.extraKmLimit}km) x ${driverData.totalExtraKm.toFixed(2)} km`, rightColStart + 32, y);
+      doc.text(`$${driverData.extraKmRate.toFixed(3)}/km (>${driverData.extraKmLimit}km) x ${driverData.totalExtraKm.toFixed(2)} km`, rightColStart + 28, y);
       doc.text(`=`, periodEqualsPos, y);
       doc.text(`$`, periodDollarPos, y);
       doc.text(driverData.totalExtraKmPay.toFixed(2), periodAmountEndPos, y, { align: 'right' });
       
-      doc.text(`${ytdExtraKm.toFixed(2)}`, ytdColStart, y);
+      doc.text(`${ytdExtraKm.toFixed(2)}`, ytdCountPos, y);
       doc.text(`=`, ytdEqualsPos, y);
       doc.text(`$`, ytdDollarPos, y);
       doc.text(ytdExtraKmPay.toFixed(2), ytdAmountEndPos, y, { align: 'right' });
@@ -860,12 +866,12 @@ export default function PayrollSummaryCard({
       
       // Oversized line
       doc.text(`Oversized:`, rightColStart, y);
-      doc.text(`$${driverData.oversizedRate.toFixed(2)} x ${driverData.oversizedCount}`, rightColStart + 32, y);
+      doc.text(`$${driverData.oversizedRate.toFixed(2)} x ${driverData.oversizedCount}`, rightColStart + 28, y);
       doc.text(`=`, periodEqualsPos, y);
       doc.text(`$`, periodDollarPos, y);
       doc.text(driverData.totalOversizedPay.toFixed(2), periodAmountEndPos, y, { align: 'right' });
       
-      doc.text(`${ytdOversizedCount}`, ytdColStart, y);
+      doc.text(`${ytdOversizedCount}`, ytdCountPos, y);
       doc.text(`=`, ytdEqualsPos, y);
       doc.text(`$`, ytdDollarPos, y);
       doc.text(ytdOversizedPay.toFixed(2), ytdAmountEndPos, y, { align: 'right' });
@@ -983,19 +989,24 @@ export default function PayrollSummaryCard({
       
       y += 1;
       
+      // Draw vertical divider between Period and YTD
+      doc.setDrawColor(150, 150, 150);
+      doc.line(dividerX, dividerStartY, dividerX, y);
+      
       // Separator before Failed/Returns
+      doc.setDrawColor(100, 100, 100);
       doc.line(rightColStart, y, rightMargin, y);
       y += 4;
       
       // Failed and Returns
       doc.setFont('helvetica', 'normal');
       doc.text(`Failed:`, rightColStart, y);
-      doc.text(`${driverData.failedCount}`, periodAmountEndPos - 15, y, { align: 'right' });
+      doc.text(`${driverData.failedCount}`, periodAmountEndPos, y, { align: 'right' });
       doc.text(`${ytdFailedCount}`, ytdAmountEndPos, y, { align: 'right' });
       y += lineHeight;
       
       doc.text(`Returns:`, rightColStart, y);
-      doc.text(`${driverData.storeReturnCount || 0}`, periodAmountEndPos - 15, y, { align: 'right' });
+      doc.text(`${driverData.storeReturnCount || 0}`, periodAmountEndPos, y, { align: 'right' });
       doc.text(`${ytdReturnsCount}`, ytdAmountEndPos, y, { align: 'right' });
       
       doc.save(filename);
