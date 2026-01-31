@@ -572,7 +572,7 @@ export default function DriverPayrollGrid({
                         ? (value > 0 ? value.toFixed(2) : '')
                         : (value > 0 ? value : '');
                       const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 
-                        ? '+'.repeat(oversizedCount) 
+                        ? ` +${oversizedCount}` 
                         : '';
                       return (
                         <td
