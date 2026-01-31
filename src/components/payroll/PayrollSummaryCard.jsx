@@ -12,8 +12,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  DialogTitle } from
+"@/components/ui/dialog";
 import { base44 } from '@/api/base44Client';
 import { useUser } from '../utils/UserContext';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
@@ -26,19 +26,19 @@ import PayrollMobileCard from './PayrollMobileCard';
  */
 // GST/HST rates by province (Canada)
 const PROVINCE_TAX_RATES = {
-  'AB': 0.05,  // Alberta - GST only
-  'BC': 0.05,  // BC - GST only (PST separate)
-  'SK': 0.05,  // Saskatchewan - GST only
-  'MB': 0.05,  // Manitoba - GST only
-  'ON': 0.13,  // Ontario - HST
-  'QC': 0.05,  // Quebec - GST only (QST separate)
-  'NB': 0.15,  // New Brunswick - HST
-  'NS': 0.15,  // Nova Scotia - HST
-  'PE': 0.15,  // PEI - HST
-  'NL': 0.15,  // Newfoundland - HST
-  'YT': 0.05,  // Yukon - GST only
-  'NT': 0.05,  // Northwest Territories - GST only
-  'NU': 0.05,  // Nunavut - GST only
+  'AB': 0.05, // Alberta - GST only
+  'BC': 0.05, // BC - GST only (PST separate)
+  'SK': 0.05, // Saskatchewan - GST only
+  'MB': 0.05, // Manitoba - GST only
+  'ON': 0.13, // Ontario - HST
+  'QC': 0.05, // Quebec - GST only (QST separate)
+  'NB': 0.15, // New Brunswick - HST
+  'NS': 0.15, // Nova Scotia - HST
+  'PE': 0.15, // PEI - HST
+  'NL': 0.15, // Newfoundland - HST
+  'YT': 0.05, // Yukon - GST only
+  'NT': 0.05, // Northwest Territories - GST only
+  'NU': 0.05 // Nunavut - GST only
 };
 
 export default function PayrollSummaryCard({
@@ -108,11 +108,11 @@ export default function PayrollSummaryCard({
 
         // Valid statuses: completed, failed, or cancelled (for after_hours or store returns)
         if (d.status === 'completed' || d.status === 'failed') {
+
           // Valid - count these
-        } else if (d.status === 'cancelled') {
-          // For cancelled: include after_hours_pickup OR store returns
-          const isStoreReturn = /\[[\w\s]+\]/.test(d.patient_name || '') && 
-                                (d.patient_name || '').toLowerCase().includes('return');
+        } else if (d.status === 'cancelled') {// For cancelled: include after_hours_pickup OR store returns
+          const isStoreReturn = /\[[\w\s]+\]/.test(d.patient_name || '') &&
+          (d.patient_name || '').toLowerCase().includes('return');
           if (!d.after_hours_pickup && !isStoreReturn) return false;
         } else {
           return false;
@@ -148,30 +148,30 @@ export default function PayrollSummaryCard({
       // Calculate oversized pay
       const oversizedCount = periodDeliveries.filter((d) => d.oversized).length;
       const oversizedPay = oversizedCount * oversizedRate;
-      
+
       // Get app fee percentage from AppUser or Payroll record
-      const payrollRecord = payrollRecords.find(r => r.driver_id === driverId);
+      const payrollRecord = payrollRecords.find((r) => r.driver_id === driverId);
       const appFeePercentage = payrollRecord?.app_fee_percentage ?? appUser?.app_fee_percentage ?? 0;
 
       // Count failed and returns (cancelled with after_hours_pickup excluded from returns)
       const failedCount = periodDeliveries.filter((d) => d.status === 'failed').length;
       const returnsCount = periodDeliveries.filter((d) => d.status === 'cancelled' && !d.after_hours_pickup).length;
-      
+
       // Count returns: any delivery with store name and 'return' in patient_name or delivery_notes
       const storeReturnCount = deliveries.filter((d) => {
         if (!d || d.driver_id !== driverId) return false;
         const date = new Date(d.delivery_date + 'T00:00:00');
         if (date < currentPeriod.start || date > currentPeriod.end) return false;
-        
+
         const patientName = (d.patient_name || '').toLowerCase();
         const deliveryNotes = (d.delivery_notes || '').toLowerCase();
         const combined = patientName + ' ' + deliveryNotes;
-        
+
         // Check if store name exists and 'return' exists
-        const storeName = stores.find(s => s && s.id === d.store_id)?.name || '';
+        const storeName = stores.find((s) => s && s.id === d.store_id)?.name || '';
         const hasStoreName = storeName && combined.includes(storeName.toLowerCase());
         const hasReturn = combined.includes('return');
-        
+
         return hasStoreName && hasReturn;
       }).length;
 
@@ -186,8 +186,8 @@ export default function PayrollSummaryCard({
       if (gstHstEnabled && cities) {
         // Get driver's city to determine province
         const driverCityId = appUser?.city_id;
-        const driverCity = driverCityId ? cities.find(c => c && c.id === driverCityId) : null;
-        
+        const driverCity = driverCityId ? cities.find((c) => c && c.id === driverCityId) : null;
+
         if (driverCity?.province_state) {
           // Extract province code (handle full names and abbreviations)
           const province = driverCity.province_state.toUpperCase();
@@ -205,7 +205,7 @@ export default function PayrollSummaryCard({
             };
             provinceCode = provinceMap[province] || null;
           }
-          
+
           if (provinceCode && PROVINCE_TAX_RATES[provinceCode]) {
             taxRate = PROVINCE_TAX_RATES[provinceCode];
             taxAmount = totalPay * taxRate;
@@ -251,65 +251,65 @@ export default function PayrollSummaryCard({
 
   // Last fetch timestamp to detect real changes
   const lastFetchRef = React.useRef({ timestamp: 0 });
-  
+
   // Track last period we auto-created for to prevent duplicates on effect reruns
   const lastAutoCreatePeriodRef = React.useRef(null);
 
   // Use external payroll records if provided, otherwise fetch locally with 15-sec refresh
   useEffect(() => {
-   if (externalPayrollRecords) {
-     setPayrollRecords(externalPayrollRecords);
-     setIsLoadingRecords(false);
-     return;
-   }
+    if (externalPayrollRecords) {
+      setPayrollRecords(externalPayrollRecords);
+      setIsLoadingRecords(false);
+      return;
+    }
 
-   if (!periodStartStr || !periodEndStr) return;
+    if (!periodStartStr || !periodEndStr) return;
 
-   const fetchPayrollRecords = async (force = false) => {
-     const now = Date.now();
-     // Check cache: only fetch if 15 seconds have passed or forced
-     if (!force && now - lastFetchRef.current.timestamp < 15000) return;
-     
-     setIsLoadingRecords(true);
-     try {
-       const records = await base44.entities.Payroll.filter({
-         pay_period_start: periodStartStr,
-         pay_period_end: periodEndStr
-       });
-       setPayrollRecords(records || []);
-       if (onPayrollRecordsChange) {
-         onPayrollRecordsChange(records || []);
-       }
-       lastFetchRef.current.timestamp = now;
-     } catch (error) {
-       console.error('Failed to fetch payroll records:', error);
-     } finally {
-       setIsLoadingRecords(false);
-     }
-   };
+    const fetchPayrollRecords = async (force = false) => {
+      const now = Date.now();
+      // Check cache: only fetch if 15 seconds have passed or forced
+      if (!force && now - lastFetchRef.current.timestamp < 15000) return;
 
-   // Initial fetch
-   fetchPayrollRecords(true);
+      setIsLoadingRecords(true);
+      try {
+        const records = await base44.entities.Payroll.filter({
+          pay_period_start: periodStartStr,
+          pay_period_end: periodEndStr
+        });
+        setPayrollRecords(records || []);
+        if (onPayrollRecordsChange) {
+          onPayrollRecordsChange(records || []);
+        }
+        lastFetchRef.current.timestamp = now;
+      } catch (error) {
+        console.error('Failed to fetch payroll records:', error);
+      } finally {
+        setIsLoadingRecords(false);
+      }
+    };
 
-   // 15-second refresh cycle (matching app refresh pattern)
-   const interval = setInterval(() => fetchPayrollRecords(), 15000);
+    // Initial fetch
+    fetchPayrollRecords(true);
 
-   return () => clearInterval(interval);
+    // 15-second refresh cycle (matching app refresh pattern)
+    const interval = setInterval(() => fetchPayrollRecords(), 15000);
+
+    return () => clearInterval(interval);
   }, [periodStartStr, periodEndStr, externalPayrollRecords]);
 
   // Auto-create missing Payroll records - ONLY when period changes
   useEffect(() => {
     if (!periodStartStr || !periodEndStr || !payrollData || payrollData.length === 0) return;
-    
+
     // CRITICAL: Skip if we've already processed this exact period
     const currentPeriodKey = `${periodStartStr}-${periodEndStr}`;
     if (lastAutoCreatePeriodRef.current === currentPeriodKey) {
       return;
     }
-    
+
     // Mark IMMEDIATELY to prevent concurrent auto-creates
     lastAutoCreatePeriodRef.current = currentPeriodKey;
-    
+
     const autoCreateMissingRecords = async () => {
       try {
         // Fetch latest records from API to ensure we have current state
@@ -319,9 +319,9 @@ export default function PayrollSummaryCard({
         });
 
         // Get drivers with deliveries in this pay period
-        const driversWithDeliveries = payrollData
-          .filter(data => data.totalDeliveries > 0)
-          .map(data => data.driver.id);
+        const driversWithDeliveries = payrollData.
+        filter((data) => data.totalDeliveries > 0).
+        map((data) => data.driver.id);
 
         if (driversWithDeliveries.length === 0) {
           console.log('ℹ️ [Payroll] No drivers with deliveries - skipping auto-create');
@@ -329,8 +329,8 @@ export default function PayrollSummaryCard({
         }
 
         // Check which drivers already have records (from latest API data)
-        const existingDriverIds = new Set(latestRecords.map(r => r.driver_id));
-        const driversNeedingRecords = driversWithDeliveries.filter(driverId => !existingDriverIds.has(driverId));
+        const existingDriverIds = new Set(latestRecords.map((r) => r.driver_id));
+        const driversNeedingRecords = driversWithDeliveries.filter((driverId) => !existingDriverIds.has(driverId));
 
         if (driversNeedingRecords.length === 0) {
           console.log('ℹ️ [Payroll] All drivers already have records for this period');
@@ -341,8 +341,8 @@ export default function PayrollSummaryCard({
 
         // Create records for missing drivers
         const newRecords = await Promise.all(
-          driversNeedingRecords.map(driverId => {
-            const driverData = payrollData.find(d => d.driver.id === driverId);
+          driversNeedingRecords.map((driverId) => {
+            const driverData = payrollData.find((d) => d.driver.id === driverId);
             return base44.entities.Payroll.create({
               driver_id: driverId,
               city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : null,
@@ -387,97 +387,97 @@ export default function PayrollSummaryCard({
   // Get finalization status for each driver
   // CRITICAL: Only return records that match the current period's dates
   const getDriverPayrollRecord = (driverId) => {
-    return payrollRecords.find(r => 
-      r.driver_id === driverId &&
-      r.pay_period_start === periodStartStr &&
-      r.pay_period_end === periodEndStr
+    return payrollRecords.find((r) =>
+    r.driver_id === driverId &&
+    r.pay_period_start === periodStartStr &&
+    r.pay_period_end === periodEndStr
     );
   };
 
   // Check if current driver has finalized (for driver view)
   const currentDriverRecord = isDriver && currentUser ? getDriverPayrollRecord(currentUser.id) : null;
-  const isCurrentDriverFinalized = currentDriverRecord?.status === 'driver_finalized' || 
-                                    currentDriverRecord?.status === 'admin_finalized' ||
-                                    currentDriverRecord?.status === 'paid';
+  const isCurrentDriverFinalized = currentDriverRecord?.status === 'driver_finalized' ||
+  currentDriverRecord?.status === 'admin_finalized' ||
+  currentDriverRecord?.status === 'paid';
 
 
 
   // Handle immediate save to Payroll entity and offline DB
-   const savePayrollChanges = async (driverId, updates) => {
-     try {
-       // CRITICAL: Only update existing records - never create on edit operations
-       const existingRecord = getDriverPayrollRecord(driverId);
-       
-       if (!existingRecord) {
-         console.warn('⚠️ [Payroll] No existing record found for driver:', driverId, '- skipping save');
-         return;
-       }
+  const savePayrollChanges = async (driverId, updates) => {
+    try {
+      // CRITICAL: Only update existing records - never create on edit operations
+      const existingRecord = getDriverPayrollRecord(driverId);
 
-       // Update existing record with explicit field handling
-       const updateData = {
-         ...updates,
-         app_fee_percentage: updates.app_fee_percentage !== undefined ? updates.app_fee_percentage : existingRecord.app_fee_percentage
-       };
-       const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, updateData);
-       console.log('✅ [Payroll] Updated record for driver:', driverId, updateData);
+      if (!existingRecord) {
+        console.warn('⚠️ [Payroll] No existing record found for driver:', driverId, '- skipping save');
+        return;
+      }
 
-       // Sync to offline DB
-       try {
-         const { offlineDB } = await import('../utils/offlineDatabase');
-         const syncData = { ...existingRecord, ...updatedRecord };
-         await offlineDB.save(offlineDB.STORES.PAYROLL, syncData);
-         console.log('💾 [Payroll] Synced to offline DB:', driverId);
-       } catch (offlineError) {
-         console.warn('⚠️ [Payroll] Failed to sync to offline DB:', offlineError);
-       }
+      // Update existing record with explicit field handling
+      const updateData = {
+        ...updates,
+        app_fee_percentage: updates.app_fee_percentage !== undefined ? updates.app_fee_percentage : existingRecord.app_fee_percentage
+      };
+      const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, updateData);
+      console.log('✅ [Payroll] Updated record for driver:', driverId, updateData);
 
-       // Force refresh after save to sync across devices
-       lastFetchRef.current.timestamp = 0;
-       if (refreshPayrollRecords) {
-         await refreshPayrollRecords();
-       }
-     } catch (error) {
-       console.error('❌ [Payroll] Failed to save changes:', error);
-     }
-   };
+      // Sync to offline DB
+      try {
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const syncData = { ...existingRecord, ...updatedRecord };
+        await offlineDB.save(offlineDB.STORES.PAYROLL, syncData);
+        console.log('💾 [Payroll] Synced to offline DB:', driverId);
+      } catch (offlineError) {
+        console.warn('⚠️ [Payroll] Failed to sync to offline DB:', offlineError);
+      }
+
+      // Force refresh after save to sync across devices
+      lastFetchRef.current.timestamp = 0;
+      if (refreshPayrollRecords) {
+        await refreshPayrollRecords();
+      }
+    } catch (error) {
+      console.error('❌ [Payroll] Failed to save changes:', error);
+    }
+  };
 
   // Handle bonus pay save and close
-   const handleBonusClose = async () => {
-     const driverId = bonusOverlayDriverId;
-     if (!driverId) return;
-     setBonusOverlayDriverId(null);
-   };
+  const handleBonusClose = async () => {
+    const driverId = bonusOverlayDriverId;
+    if (!driverId) return;
+    setBonusOverlayDriverId(null);
+  };
 
   // Handle driver finalization
-   const handleDriverFinalize = async (driverData) => {
-     setIsFinalizing(true);
-     try {
-       const existingRecord = getDriverPayrollRecord(driverData.driver.id);
-       const edit = driverEdits[driverData.driver.id] || {};
+  const handleDriverFinalize = async (driverData) => {
+    setIsFinalizing(true);
+    try {
+      const existingRecord = getDriverPayrollRecord(driverData.driver.id);
+      const edit = driverEdits[driverData.driver.id] || {};
 
-       const payrollRecord = {
-         driver_id: driverData.driver.id,
-         city_id: selectedCityId || null,
-         pay_period_start: periodStartStr,
-         pay_period_end: periodEndStr,
-         pay_period_type: payPeriod,
-         total_deliveries: driverData.totalDeliveries,
-         total_extra_km: driverData.totalExtraKm,
-         total_oversized_deliveries: driverData.oversizedCount,
-         gross_pay: driverData.grossPay,
-         net_pay: driverData.grandTotal,
-         total_deductions: driverData.deductions,
-         deductions: driverData.deductionsArray,
-         bonus_pay: edit.bonusPay || 0,
-         app_fee_percentage: edit.appFeePercent || 0,
-         pay_rate_per_delivery: driverData.payRate,
-         extra_km_rate: driverData.extraKmRate,
-         extra_km_limit: driverData.extraKmLimit,
-         oversized_item_rate: driverData.oversizedRate,
-         gst_hst_enabled: driverData.gstHstEnabled,
-         status: 'driver_finalized',
-         driver_finalized_at: new Date().toISOString()
-       };
+      const payrollRecord = {
+        driver_id: driverData.driver.id,
+        city_id: selectedCityId || null,
+        pay_period_start: periodStartStr,
+        pay_period_end: periodEndStr,
+        pay_period_type: payPeriod,
+        total_deliveries: driverData.totalDeliveries,
+        total_extra_km: driverData.totalExtraKm,
+        total_oversized_deliveries: driverData.oversizedCount,
+        gross_pay: driverData.grossPay,
+        net_pay: driverData.grandTotal,
+        total_deductions: driverData.deductions,
+        deductions: driverData.deductionsArray,
+        bonus_pay: edit.bonusPay || 0,
+        app_fee_percentage: edit.appFeePercent || 0,
+        pay_rate_per_delivery: driverData.payRate,
+        extra_km_rate: driverData.extraKmRate,
+        extra_km_limit: driverData.extraKmLimit,
+        oversized_item_rate: driverData.oversizedRate,
+        gst_hst_enabled: driverData.gstHstEnabled,
+        status: 'driver_finalized',
+        driver_finalized_at: new Date().toISOString()
+      };
 
       let savedRecord;
       if (existingRecord) {
@@ -527,11 +527,11 @@ export default function PayrollSummaryCard({
   const handleAdminFinalize = async () => {
     setIsFinalizing(true);
     try {
-      const driversWithDeliveries = payrollData.filter(d => d.totalDeliveries > 0);
-      
+      const driversWithDeliveries = payrollData.filter((d) => d.totalDeliveries > 0);
+
       for (const driverData of driversWithDeliveries) {
         const existingRecord = getDriverPayrollRecord(driverData.driver.id);
-        
+
         if (existingRecord) {
           await base44.entities.Payroll.update(existingRecord.id, {
             status: 'admin_finalized',
@@ -597,10 +597,10 @@ export default function PayrollSummaryCard({
 
       // Hide all App Fee % rows before capturing
       const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
-      appFeeRows.forEach(row => {
+      appFeeRows.forEach((row) => {
         row.style.display = 'none';
       });
-      
+
       // Capture the content
       const canvas = await html2canvas(contentRef.current, {
         backgroundColor: '#ffffff',
@@ -608,11 +608,11 @@ export default function PayrollSummaryCard({
         useCORS: true,
         logging: false
       });
-      
+
       const imageUrl = canvas.toDataURL('image/png');
       setScreenshotDataUrl(imageUrl);
       setShowScreenshotModal(true);
-      
+
       // Show controls again
       if (controlsElement) {
         controlsElement.style.display = 'flex';
@@ -620,7 +620,7 @@ export default function PayrollSummaryCard({
 
       // Show App Fee % rows again
       const appFeeRowsToShow = document.querySelectorAll('[data-app-fee-row="true"]');
-      appFeeRowsToShow.forEach(row => {
+      appFeeRowsToShow.forEach((row) => {
         row.style.display = '';
       });
     } catch (error) {
@@ -635,36 +635,36 @@ export default function PayrollSummaryCard({
     if (!currentPeriod) return;
 
     const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    
+
     // Format filename dates: "MM_DD" format (2 digits each)
     const formatFilenameDate = (date) => {
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       return `${month}_${day}`;
     };
-    
+
     // Format dates for filename
     const dateFrom = formatFilenameDate(currentPeriod.start);
     const dateTo = formatFilenameDate(currentPeriod.end);
     const year = currentPeriod.end.getFullYear();
-    
+
     // Determine if single driver or all drivers
     let filenameContext = '';
     if (selectedDriverId && selectedDriverId !== 'all') {
       // Single driver - use driver name
-      const driver = payrollData.find(d => d.driver.id === selectedDriverId)?.driver;
+      const driver = payrollData.find((d) => d.driver.id === selectedDriverId)?.driver;
       filenameContext = driver?.user_name || driver?.full_name || 'Driver';
     } else {
       // All drivers - use city name
-      const city = cities?.find(c => c.id === selectedCityId);
+      const city = cities?.find((c) => c.id === selectedCityId);
       filenameContext = city?.name || 'All';
     }
-    
+
     const filename = `${dateFrom}-${dateTo}_${year} - ${filenameContext}.pdf`;
-    
+
     // Check if single driver view
     const isSingleDriver = selectedDriverId && selectedDriverId !== 'all';
-    
+
     // For single driver: create compact single-page landscape layout with grid + payroll
     if (isSingleDriver) {
       const doc = new jsPDF({ orientation: 'landscape' });
@@ -672,11 +672,11 @@ export default function PayrollSummaryCard({
       const pageHeight = doc.internal.pageSize.getHeight();
       const leftMargin = 14;
       let y = 15;
-      
+
       // Get single driver data
-      const driverData = payrollData.find(d => d.driver.id === selectedDriverId);
+      const driverData = payrollData.find((d) => d.driver.id === selectedDriverId);
       if (!driverData) return;
-      
+
       // Title and Driver Name - compact header
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
@@ -686,7 +686,7 @@ export default function PayrollSummaryCard({
       doc.setFont('helvetica', 'normal');
       doc.text(`${currentPeriod.label} | ${formatDate(currentPeriod.start)} - ${formatDate(currentPeriod.end)}`, leftMargin, y);
       y += 8;
-      
+
       // Build store delivery grid (same as multi-driver view)
       const periodStart = currentPeriod.start;
       const periodEnd = currentPeriod.end;
@@ -696,32 +696,32 @@ export default function PayrollSummaryCard({
         dates.push(new Date(currentDate));
         currentDate.setDate(currentDate.getDate() + 1);
       }
-      
+
       const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-      const activeStores = sortedStores.filter(s => s.status !== 'inactive');
-      
+      const activeStores = sortedStores.filter((s) => s.status !== 'inactive');
+
       // Build store data map and oversized map for THIS driver only
       const storeDataMap = {};
       const oversizedMapSingle = {};
-      dates.forEach(date => {
+      dates.forEach((date) => {
         const dateKey = date.toISOString().split('T')[0];
         storeDataMap[dateKey] = {};
         oversizedMapSingle[dateKey] = {};
-        activeStores.forEach(store => {
+        activeStores.forEach((store) => {
           storeDataMap[dateKey][store.id] = 0;
           oversizedMapSingle[dateKey][store.id] = 0;
         });
       });
-      
-      deliveries.forEach(d => {
+
+      deliveries.forEach((d) => {
         if (!d || !d.delivery_date || !d.store_id) return;
         if (d.driver_id !== selectedDriverId) return; // Filter by selected driver
-        const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+        const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
         if (!validStatus) return;
         if (!d.patient_id && !d.after_hours_pickup) return;
         const date = new Date(d.delivery_date + 'T00:00:00');
         if (date < currentPeriod.start || date > currentPeriod.end) return;
-        
+
         if (storeDataMap[d.delivery_date] && storeDataMap[d.delivery_date][d.store_id] !== undefined) {
           storeDataMap[d.delivery_date][d.store_id]++;
           if (d.oversized) {
@@ -729,16 +729,16 @@ export default function PayrollSummaryCard({
           }
         }
       });
-      
+
       // Filter to only stores with data
-      const storesWithData = activeStores.filter(store => {
-        return dates.some(date => {
+      const storesWithData = activeStores.filter((store) => {
+        return dates.some((date) => {
           const dateKey = date.toISOString().split('T')[0];
           return storeDataMap[dateKey]?.[store.id] > 0;
         });
       });
       const displayStores = storesWithData.length > 0 ? storesWithData : activeStores;
-      
+
       // Grid on left side (compact)
       const gridWidth = 140;
       const tableTop = y;
@@ -746,103 +746,103 @@ export default function PayrollSummaryCard({
       const dayColWidth = 12;
       const storeColWidth = Math.min(12, (gridWidth - dayColWidth - 18) / Math.max(displayStores.length, 1));
       const totalColWidth = 12;
-      
+
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
       doc.text('Day', leftMargin + dayColWidth / 2, tableTop + 4, { align: 'center' });
-      
+
       displayStores.forEach((store, i) => {
-        const x = leftMargin + dayColWidth + (i * storeColWidth);
+        const x = leftMargin + dayColWidth + i * storeColWidth;
         const abbr = store.abbreviation || store.name?.substring(0, 2) || '??';
-        doc.text(abbr, x + storeColWidth/2, tableTop + 4, { align: 'center' });
+        doc.text(abbr, x + storeColWidth / 2, tableTop + 4, { align: 'center' });
       });
-      doc.text('Tot', leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, tableTop + 4, { align: 'center' });
-      
+      doc.text('Tot', leftMargin + dayColWidth + displayStores.length * storeColWidth + totalColWidth / 2, tableTop + 4, { align: 'center' });
+
       doc.setDrawColor(100, 100, 100);
-      const gridLineEnd = leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth;
+      const gridLineEnd = leftMargin + dayColWidth + displayStores.length * storeColWidth + totalColWidth;
       doc.line(leftMargin, tableTop + rowHeight + 1, gridLineEnd, tableTop + rowHeight + 1);
-      
+
       // Vertical divider after Day column and before Tot column
       const dividerAfterDay = leftMargin + dayColWidth;
-      const dividerBeforeTot = leftMargin + dayColWidth + (displayStores.length * storeColWidth);
-      
+      const dividerBeforeTot = leftMargin + dayColWidth + displayStores.length * storeColWidth;
+
       doc.setFont('helvetica', 'normal');
       let gridY = tableTop + rowHeight + 5;
-      
+
       const storeTotals = {};
-      displayStores.forEach(store => { storeTotals[store.id] = 0; });
+      displayStores.forEach((store) => {storeTotals[store.id] = 0;});
       let grandTotal = 0;
-      
+
       dates.forEach((date) => {
         const dateKey = date.toISOString().split('T')[0];
         const dayNum = date.getDate().toString();
         const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-        
+
         // Highlight weekend rows
         if (isWeekend) {
           doc.setFillColor(240, 240, 240);
           doc.rect(leftMargin, gridY - 4, gridLineEnd - leftMargin, rowHeight, 'F');
         }
-        
+
         doc.setFont('helvetica', 'normal');
-        doc.text(dayNum, leftMargin + dayColWidth/2, gridY, { align: 'center' });
-        
+        doc.text(dayNum, leftMargin + dayColWidth / 2, gridY, { align: 'center' });
+
         let dayTotal = 0;
         displayStores.forEach((store, i) => {
           const count = storeDataMap[dateKey]?.[store.id] || 0;
           const oversizedCount = oversizedMapSingle[dateKey]?.[store.id] || 0;
           dayTotal += count;
           storeTotals[store.id] += count;
-          
-          const x = leftMargin + dayColWidth + (i * storeColWidth);
+
+          const x = leftMargin + dayColWidth + i * storeColWidth;
           if (count > 0) {
             const plusSigns = oversizedCount > 0 ? '+'.repeat(oversizedCount) : '';
-            doc.text(count.toString() + plusSigns, x + storeColWidth/2, gridY, { align: 'center' });
+            doc.text(count.toString() + plusSigns, x + storeColWidth / 2, gridY, { align: 'center' });
           }
         });
-        
+
         grandTotal += dayTotal;
-        
+
         doc.setFont('helvetica', 'bold');
         if (dayTotal > 0) {
-          doc.text(dayTotal.toString(), leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, gridY, { align: 'center' });
+          doc.text(dayTotal.toString(), leftMargin + dayColWidth + displayStores.length * storeColWidth + totalColWidth / 2, gridY, { align: 'center' });
         }
         doc.setFont('helvetica', 'normal');
-        
+
         gridY += rowHeight;
       });
-      
+
       // Totals row
       doc.setDrawColor(100, 100, 100);
       doc.line(leftMargin, gridY - 2, gridLineEnd, gridY - 2);
       gridY += 3;
-      
+
       doc.setFont('helvetica', 'bold');
-      doc.text('Tot', leftMargin + dayColWidth/2, gridY, { align: 'center' });
-      
+      doc.text('Tot', leftMargin + dayColWidth / 2, gridY, { align: 'center' });
+
       displayStores.forEach((store, i) => {
         const total = storeTotals[store.id];
-        const x = leftMargin + dayColWidth + (i * storeColWidth);
+        const x = leftMargin + dayColWidth + i * storeColWidth;
         if (total > 0) {
-          doc.text(total.toString(), x + storeColWidth/2, gridY, { align: 'center' });
+          doc.text(total.toString(), x + storeColWidth / 2, gridY, { align: 'center' });
         }
       });
-      
-      doc.text(grandTotal.toString(), leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, gridY, { align: 'center' });
-      
+
+      doc.text(grandTotal.toString(), leftMargin + dayColWidth + displayStores.length * storeColWidth + totalColWidth / 2, gridY, { align: 'center' });
+
       // Draw vertical dividers
       doc.setDrawColor(150, 150, 150);
       doc.line(dividerAfterDay, tableTop + rowHeight + 1, dividerAfterDay, gridY + 2);
       doc.line(dividerBeforeTot, tableTop + rowHeight + 1, dividerBeforeTot, gridY + 2);
-      
+
       // Draw box around grid
       doc.setDrawColor(100, 100, 100);
       doc.rect(leftMargin - 1, tableTop, gridLineEnd - leftMargin + 2, gridY - tableTop + 3);
-      
+
       // Payroll details below the grid (2 columns: Period + YTD)
       y = gridY + 10;
       const rightColStart = leftMargin;
-      
+
       // Define column positions for proper spacing (15% more condensed)
       const col1_rowTitles = rightColStart;
       const col2_payRates = rightColStart + 24;
@@ -852,15 +852,15 @@ export default function PayrollSummaryCard({
       const col5_ytdTotals = col4_ytdCounts + 17;
       const rightMargin = col5_ytdTotals + 21;
       const breakdownWidth = rightMargin - rightColStart;
-      
+
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('Pay Breakdown', rightColStart, y);
       y += 5;
-      
+
       // Draw box around entire section
       const boxTop = y - 2;
-      
+
       // Column headers
       doc.setFontSize(7);
       const periodCenterX = (col1_rowTitles + col3_calcTotals + 28) / 2;
@@ -868,125 +868,125 @@ export default function PayrollSummaryCard({
       doc.text('Period', periodCenterX, y, { align: 'center' });
       doc.text('YTD', ytdCenterX, y, { align: 'center' });
       y += 1;
-      
+
       // Top separator
       doc.setDrawColor(100, 100, 100);
       doc.line(rightColStart, y, rightMargin, y);
       y += 4;
-      
+
       const breakdownStartY = y;
-      
+
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       const lineHeight = 4.5;
-      
+
       // Calculate YTD data for this driver
-      const ytdDeliveries = deliveries.filter(d => {
+      const ytdDeliveries = deliveries.filter((d) => {
         if (!d || d.driver_id !== selectedDriverId) return false;
-        const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+        const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
         if (!validStatus) return false;
         if (!d.patient_id && !d.after_hours_pickup) return false;
         const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
         const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
         return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
       });
-      
+
       const ytdTotalDeliveries = ytdDeliveries.length;
       const ytdTotalBasePay = ytdTotalDeliveries * driverData.payRate;
-      
+
       const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
-        const patient = patients.find(p => p?.id === d.patient_id);
+        const patient = patients.find((p) => p?.id === d.patient_id);
         if (!patient?.distance_from_store) return sum;
         const distance = d.paid_km_override ?? patient.distance_from_store;
         const extraKm = Math.max(0, distance - driverData.extraKmLimit);
         return sum + extraKm;
       }, 0);
       const ytdExtraKmPay = ytdExtraKm * driverData.extraKmRate;
-      
-      const ytdOversizedCount = ytdDeliveries.filter(d => d.oversized).length;
+
+      const ytdOversizedCount = ytdDeliveries.filter((d) => d.oversized).length;
       const ytdOversizedPay = ytdOversizedCount * driverData.oversizedRate;
-      
+
       const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
-      const ytdFailedCount = ytdDeliveries.filter(d => d.status === 'failed').length;
-      const ytdReturnsCount = ytdDeliveries.filter(d => d.status === 'cancelled' && d.after_hours_pickup).length;
-      
+      const ytdFailedCount = ytdDeliveries.filter((d) => d.status === 'failed').length;
+      const ytdReturnsCount = ytdDeliveries.filter((d) => d.status === 'cancelled' && d.after_hours_pickup).length;
+
       // Delivery Rate line
       doc.text(`Delivery Rate:`, col1_rowTitles, y);
       doc.text(`$${driverData.payRate.toFixed(2)} x ${driverData.totalDeliveries}`, col2_payRates, y);
       doc.text(`=$`, col3_calcTotals, y);
       doc.text(driverData.totalBasePay.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
-      
+
       doc.text(`${ytdTotalDeliveries}`, col4_ytdCounts, y);
       doc.text(`=$`, col5_ytdTotals, y);
       doc.text(ytdTotalBasePay.toFixed(2), rightMargin - 2, y, { align: 'right' });
       y += lineHeight;
-      
+
       // Extra KM line
       doc.text(`Extra KM:`, col1_rowTitles, y);
       doc.text(`$${driverData.extraKmRate.toFixed(3)}/km (>${driverData.extraKmLimit}km) x ${driverData.totalExtraKm.toFixed(2)} km`, col2_payRates, y);
       doc.text(`=$`, col3_calcTotals, y);
       doc.text(driverData.totalExtraKmPay.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
-      
+
       doc.text(`${ytdExtraKm.toFixed(2)} km`, col4_ytdCounts, y);
       doc.text(`=$`, col5_ytdTotals, y);
       doc.text(ytdExtraKmPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
       y += lineHeight;
-      
+
       // Oversized line
       doc.text(`Oversized:`, col1_rowTitles, y);
       doc.text(`$${driverData.oversizedRate.toFixed(2)} x ${driverData.oversizedCount}`, col2_payRates, y);
       doc.text(`=$`, col3_calcTotals, y);
       doc.text(driverData.totalOversizedPay.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
-      
+
       doc.text(`${ytdOversizedCount}`, col4_ytdCounts, y);
       doc.text(`=$`, col5_ytdTotals, y);
       doc.text(ytdOversizedPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
       y += lineHeight + 1;
-      
+
       // Draw vertical dividers
       doc.setDrawColor(150, 150, 150);
       doc.line(divider1, breakdownStartY, divider1, y);
-      
+
       // Separator
       doc.setDrawColor(100, 100, 100);
       doc.line(rightColStart, y, rightMargin, y);
       y += 5;
-      
+
       // Pay Summary section
       const summaryStartY = y;
       doc.setFont('helvetica', 'bold');
       doc.text('Pay Summary:', col1_rowTitles, y);
       doc.setFont('helvetica', 'normal');
       y += lineHeight;
-      
+
       // Only show Net Pay if different from Gross Pay
       const hasDeductions = driverData.taxAmount > 0 || driverData.deductions > 0;
       if (hasDeductions) {
-      doc.text(`Net Pay:`, col1_rowTitles, y);
-      doc.text(`=$`, col3_calcTotals, y);
-      doc.text(driverData.grandTotal.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
+        doc.text(`Net Pay:`, col1_rowTitles, y);
+        doc.text(`=$`, col3_calcTotals, y);
+        doc.text(driverData.grandTotal.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
 
-      // YTD Net Pay (same as gross for now, assuming no deductions tracking for YTD)
-      doc.text(`=$`, col5_ytdTotals, y);
-      doc.text(ytdGrossPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
-      y += lineHeight;
-        
+        // YTD Net Pay (same as gross for now, assuming no deductions tracking for YTD)
+        doc.text(`=$`, col5_ytdTotals, y);
+        doc.text(ytdGrossPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
+        y += lineHeight;
+
         if (driverData.taxAmount > 0) {
           doc.text(`Tax (${(driverData.taxRate * 100).toFixed(0)}% ${driverData.provinceCode || ''}):`, col1_rowTitles, y);
           doc.text(`$`, col3_calcTotals + 1, y);
           doc.text(driverData.taxAmount.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
           y += lineHeight;
         }
-        
+
         if (driverData.deductions > 0) {
           doc.text(`Deductions:`, col1_rowTitles, y);
           doc.text(`-$`, col3_calcTotals, y);
           doc.text(driverData.deductions.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
           y += lineHeight;
-          
+
           if (driverData.deductionsArray && driverData.deductionsArray.length > 0) {
             doc.setFontSize(7);
-            driverData.deductionsArray.forEach(ded => {
+            driverData.deductionsArray.forEach((ded) => {
               doc.text(`  • ${ded.name}:`, col1_rowTitles + 2, y);
               doc.text(`-$`, col3_calcTotals, y);
               doc.text(ded.amount.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
@@ -997,58 +997,58 @@ export default function PayrollSummaryCard({
         }
         y += 1;
       }
-      
+
       // Gross Pay
       doc.setFont('helvetica', 'bold');
       doc.text(`Gross Pay:`, col1_rowTitles, y);
       doc.text(`=$`, col3_calcTotals, y);
       doc.text(driverData.grossPay.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
-      
+
       doc.text(`=$`, col5_ytdTotals, y);
       doc.text(ytdGrossPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
       y += lineHeight;
-      
+
       // Draw vertical divider between Period and YTD for Pay Summary
       doc.setDrawColor(150, 150, 150);
       doc.line(divider1, summaryStartY - 5, divider1, y);
-      
+
       // App Fee (admin/app owner only)
       if (currentUser && (userHasRole(currentUser, 'admin') || isAppOwner(currentUser))) {
         // Calculate app fee based on stores that pay app fees
         let appFeeTotal = 0;
-        const periodDeliveries = deliveries.filter(d => {
+        const periodDeliveries = deliveries.filter((d) => {
           if (!d || d.driver_id !== selectedDriverId) return false;
-          const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+          const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
           if (!validStatus) return false;
           if (!d.patient_id && !d.after_hours_pickup) return false;
           const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
           return deliveryDate >= currentPeriod.start && deliveryDate <= currentPeriod.end;
         });
-        
-        periodDeliveries.forEach(d => {
-          const store = stores.find(s => s?.id === d.store_id);
+
+        periodDeliveries.forEach((d) => {
+          const store = stores.find((s) => s?.id === d.store_id);
           if (!store) return;
-          
+
           // Check if store pays app fees during this delivery date
           let paysAppFees = store.pays_app_fees || false;
           if (store.app_fee_history && store.app_fee_history.length > 0) {
             const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-            const sortedHistory = [...store.app_fee_history].sort((a, b) => 
-              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+            const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+            new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
             );
-            const applicableEntry = sortedHistory.find(entry => 
-              new Date(entry.effective_date) <= deliveryDate
+            const applicableEntry = sortedHistory.find((entry) =>
+            new Date(entry.effective_date) <= deliveryDate
             );
             if (applicableEntry) {
               paysAppFees = applicableEntry.pays_app_fees;
             }
           }
-          
+
           if (paysAppFees && driverData.appFeePercentage > 0) {
             appFeeTotal += driverData.payRate * driverData.appFeePercentage;
           }
         });
-        
+
         if (appFeeTotal > 0 && driverData.appFeePercentage > 0) {
           doc.setFont('helvetica', 'normal');
           const appFeePercentage = driverData.appFeePercentage * 100;
@@ -1058,49 +1058,49 @@ export default function PayrollSummaryCard({
           y += lineHeight;
         }
       }
-      
+
       y += 1;
-      
+
       // Draw box around Pay Breakdown section
       doc.setDrawColor(100, 100, 100);
       doc.rect(rightColStart - 1, boxTop, rightMargin - rightColStart + 2, y - boxTop);
-      
+
       // Separator before Failed/Returns
       doc.line(rightColStart, y, rightMargin, y);
       y += 4;
-      
+
       const failedReturnsStartY = y - 4;
-      
+
       // Failed and Returns
       doc.setFont('helvetica', 'normal');
       doc.text(`Failed:`, col1_rowTitles, y);
       doc.text(`${driverData.failedCount}`, col3_calcTotals + 15, y, { align: 'right' });
       doc.text(`${ytdFailedCount}`, rightMargin - 2, y, { align: 'right' });
       y += lineHeight;
-      
+
       doc.text(`Returns:`, col1_rowTitles, y);
       doc.text(`${driverData.storeReturnCount || 0}`, col3_calcTotals + 15, y, { align: 'right' });
       doc.text(`${ytdReturnsCount}`, rightMargin - 2, y, { align: 'right' });
       y += lineHeight;
-      
+
       // Draw vertical divider for Failed/Returns section
       doc.setDrawColor(150, 150, 150);
       doc.line(divider1, failedReturnsStartY, divider1, y);
-      
+
       // Draw box around Failed/Returns section
       doc.setDrawColor(100, 100, 100);
       doc.rect(rightColStart - 1, failedReturnsStartY, rightMargin - rightColStart + 2, y - failedReturnsStartY);
-      
+
       doc.save(filename);
       return;
     }
-    
+
     // Multi-driver view: First page: Landscape with grid matching DriverPayrollGrid (stores as columns, days as rows)
     const doc = new jsPDF({ orientation: 'landscape' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const leftMargin = 14;
-    
+
     // Title on landscape page
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
@@ -1108,7 +1108,7 @@ export default function PayrollSummaryCard({
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`${currentPeriod.label} | ${formatDate(currentPeriod.start)} - ${formatDate(currentPeriod.end)}`, leftMargin, 22);
-    
+
     // Build grid data - days as rows, stores as columns
     const periodStart = currentPeriod.start;
     const periodEnd = currentPeriod.end;
@@ -1118,35 +1118,35 @@ export default function PayrollSummaryCard({
       dates.push(new Date(currentDate));
       currentDate.setDate(currentDate.getDate() + 1);
     }
-    
+
     // Sort stores and filter to those with data
     const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-    const activeStores = sortedStores.filter(s => s.status !== 'inactive');
-    
+    const activeStores = sortedStores.filter((s) => s.status !== 'inactive');
+
     // Build store delivery map and oversized map (dateKey -> storeId -> count)
     const storeDataMap = {};
     const oversizedMapMulti = {};
-    dates.forEach(date => {
+    dates.forEach((date) => {
       const dateKey = date.toISOString().split('T')[0];
       storeDataMap[dateKey] = {};
       oversizedMapMulti[dateKey] = {};
-      activeStores.forEach(store => {
+      activeStores.forEach((store) => {
         storeDataMap[dateKey][store.id] = 0;
         oversizedMapMulti[dateKey][store.id] = 0;
       });
     });
-    
+
     // Populate from deliveries
-    deliveries.forEach(d => {
+    deliveries.forEach((d) => {
       if (!d || !d.delivery_date || !d.store_id) return;
-      const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
       if (!validStatus) return;
       if (!d.patient_id && !d.after_hours_pickup) return;
       const date = new Date(d.delivery_date + 'T00:00:00');
       if (date < currentPeriod.start || date > currentPeriod.end) return;
       // Filter by driver if selected
       if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return;
-      
+
       if (storeDataMap[d.delivery_date] && storeDataMap[d.delivery_date][d.store_id] !== undefined) {
         storeDataMap[d.delivery_date][d.store_id]++;
         if (d.oversized) {
@@ -1154,134 +1154,134 @@ export default function PayrollSummaryCard({
         }
       }
     });
-    
+
     // Filter to only stores that have data
-    const storesWithData = activeStores.filter(store => {
-      return dates.some(date => {
+    const storesWithData = activeStores.filter((store) => {
+      return dates.some((date) => {
         const dateKey = date.toISOString().split('T')[0];
         return storeDataMap[dateKey]?.[store.id] > 0;
       });
     });
     const displayStores = storesWithData.length > 0 ? storesWithData : activeStores;
-    
+
     // Calculate table dimensions
     const tableTop = 30;
     const rowHeight = 6;
     const dayColWidth = 15;
     const storeColWidth = Math.min(14, (pageWidth - leftMargin * 2 - dayColWidth - 22) / Math.max(displayStores.length, 1));
     const totalColWidth = 14;
-    
+
     // Header row - store abbreviations
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Day', leftMargin + dayColWidth / 2, tableTop + 5, { align: 'center' });
-    
+
     displayStores.forEach((store, i) => {
-      const x = leftMargin + dayColWidth + (i * storeColWidth);
+      const x = leftMargin + dayColWidth + i * storeColWidth;
       const abbr = store.abbreviation || store.name?.substring(0, 2) || '??';
-      doc.text(abbr, x + storeColWidth/2, tableTop + 5, { align: 'center' });
+      doc.text(abbr, x + storeColWidth / 2, tableTop + 5, { align: 'center' });
     });
-    
-    doc.text('Tot', leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, tableTop + 5, { align: 'center' });
-    
+
+    doc.text('Tot', leftMargin + dayColWidth + displayStores.length * storeColWidth + totalColWidth / 2, tableTop + 5, { align: 'center' });
+
     // Draw header line
     doc.setDrawColor(100, 100, 100);
-    const multiGridLineEnd = leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth;
+    const multiGridLineEnd = leftMargin + dayColWidth + displayStores.length * storeColWidth + totalColWidth;
     doc.line(leftMargin, tableTop + rowHeight + 2, multiGridLineEnd, tableTop + rowHeight + 2);
-    
+
     // Vertical dividers
     const multiDividerAfterDay = leftMargin + dayColWidth;
-    const multiDividerBeforeTot = leftMargin + dayColWidth + (displayStores.length * storeColWidth);
-    
+    const multiDividerBeforeTot = leftMargin + dayColWidth + displayStores.length * storeColWidth;
+
     // Data rows - one per day
     doc.setFont('helvetica', 'normal');
     let y = tableTop + rowHeight + 8;
-    
+
     // Store column totals
     const storeTotals = {};
-    displayStores.forEach(store => { storeTotals[store.id] = 0; });
+    displayStores.forEach((store) => {storeTotals[store.id] = 0;});
     let grandTotal = 0;
-    
+
     dates.forEach((date) => {
       const dateKey = date.toISOString().split('T')[0];
       const dayNum = date.getDate().toString();
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      
+
       // Highlight weekend rows
       if (isWeekend) {
         doc.setFillColor(240, 240, 240);
         doc.rect(leftMargin, y - 4, multiGridLineEnd - leftMargin, rowHeight, 'F');
       }
-      
+
       // Day number
       doc.setFont('helvetica', 'normal');
-      doc.text(dayNum, leftMargin + dayColWidth/2, y, { align: 'center' });
-      
+      doc.text(dayNum, leftMargin + dayColWidth / 2, y, { align: 'center' });
+
       let dayTotal = 0;
       displayStores.forEach((store, i) => {
         const count = storeDataMap[dateKey]?.[store.id] || 0;
         const oversizedCount = oversizedMapMulti[dateKey]?.[store.id] || 0;
         dayTotal += count;
         storeTotals[store.id] += count;
-        
-        const x = leftMargin + dayColWidth + (i * storeColWidth);
+
+        const x = leftMargin + dayColWidth + i * storeColWidth;
         if (count > 0) {
           const plusSigns = oversizedCount > 0 ? '+'.repeat(oversizedCount) : '';
-          doc.text(count.toString() + plusSigns, x + storeColWidth/2, y, { align: 'center' });
+          doc.text(count.toString() + plusSigns, x + storeColWidth / 2, y, { align: 'center' });
         }
       });
-      
+
       grandTotal += dayTotal;
-      
+
       // Day total
       doc.setFont('helvetica', 'bold');
       if (dayTotal > 0) {
-        doc.text(dayTotal.toString(), leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, y, { align: 'center' });
+        doc.text(dayTotal.toString(), leftMargin + dayColWidth + displayStores.length * storeColWidth + totalColWidth / 2, y, { align: 'center' });
       }
       doc.setFont('helvetica', 'normal');
-      
+
       y += rowHeight;
     });
-    
+
     // Totals row
     doc.setDrawColor(100, 100, 100);
     doc.line(leftMargin, y - 2, multiGridLineEnd, y - 2);
     y += 4;
-    
+
     doc.setFont('helvetica', 'bold');
-    doc.text('Tot', leftMargin + dayColWidth/2, y, { align: 'center' });
-    
+    doc.text('Tot', leftMargin + dayColWidth / 2, y, { align: 'center' });
+
     displayStores.forEach((store, i) => {
       const total = storeTotals[store.id];
-      const x = leftMargin + dayColWidth + (i * storeColWidth);
+      const x = leftMargin + dayColWidth + i * storeColWidth;
       if (total > 0) {
-        doc.text(total.toString(), x + storeColWidth/2, y, { align: 'center' });
+        doc.text(total.toString(), x + storeColWidth / 2, y, { align: 'center' });
       }
     });
-    
-    doc.text(grandTotal.toString(), leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, y, { align: 'center' });
-    
+
+    doc.text(grandTotal.toString(), leftMargin + dayColWidth + displayStores.length * storeColWidth + totalColWidth / 2, y, { align: 'center' });
+
     // Draw vertical dividers
     doc.setDrawColor(150, 150, 150);
     doc.line(multiDividerAfterDay, tableTop + rowHeight + 2, multiDividerAfterDay, y + 2);
     doc.line(multiDividerBeforeTot, tableTop + rowHeight + 2, multiDividerBeforeTot, y + 2);
-    
+
     // Draw box around grid
     doc.setDrawColor(100, 100, 100);
     doc.rect(leftMargin - 1, tableTop, multiGridLineEnd - leftMargin + 2, y - tableTop + 3);
-    
+
     // Second page: Portrait with detailed summaries
     doc.addPage('portrait');
     const portraitWidth = doc.internal.pageSize.getWidth();
-    
+
     y = 20;
-    
+
     // Title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.text('Driver Payroll Report', 14, y);
     y += 10;
-    
+
     // Period info
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
@@ -1291,84 +1291,84 @@ export default function PayrollSummaryCard({
     y += 6;
     doc.text(`Pay Period Type: ${payPeriod.charAt(0).toUpperCase() + payPeriod.slice(1)}`, 14, y);
     y += 12;
-    
+
     // Driver sections
-    payrollData.filter(data => data.totalDeliveries > 0).forEach((data, idx) => {
+    payrollData.filter((data) => data.totalDeliveries > 0).forEach((data, idx) => {
       // Check if we need a new page
       if (y > 250) {
         doc.addPage();
         y = 20;
       }
-      
+
       const driverName = data.driver.user_name || data.driver.full_name;
-      
+
       // Driver name header
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text(driverName, 14, y);
       y += 7;
-      
+
       // Stats - left side
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
-      
+
       const col1 = 14;
       const col2 = 64;
       const col3 = 114;
-      
+
       // Row 1: Rates
       doc.text(`Rate: $${data.payRate.toFixed(2)}`, col1, y);
       doc.text(`KM Rate: $${data.extraKmRate.toFixed(3)}/km`, col2, y);
       doc.text(`OS Rate: $${data.oversizedRate.toFixed(2)}`, col3, y);
       y += 5;
-      
+
       // Row 2: Totals
       doc.text(`Del: ${data.totalDeliveries} = $${data.totalBasePay.toFixed(2)}`, col1, y);
       doc.text(`KM: ${data.totalExtraKm.toFixed(2)} = $${data.totalExtraKmPay.toFixed(2)}`, col2, y);
       doc.text(`OS: ${data.oversizedCount} = $${data.totalOversizedPay.toFixed(2)}`, col3, y);
       y += 5;
-      
+
       // Row 3: Failed/Returns
       doc.text(`Failed: ${data.failedCount}`, col1, y);
       doc.text(`Store Returns: ${data.storeReturnCount || 0}`, col2, y);
       y += 7;
-      
+
       // Pay summary - right aligned
       const rightCol = portraitWidth - 14;
       doc.setFont('helvetica', 'normal');
       doc.text(`Net:`, rightCol - 40, y - 14);
       doc.text(`$${(data.grandTotal || 0).toFixed(2)}`, rightCol, y - 14, { align: 'right' });
-      
+
       doc.text(`Tax:`, rightCol - 40, y - 9);
       doc.text(`$${(data.taxAmount || 0).toFixed(2)}`, rightCol, y - 9, { align: 'right' });
-      
+
       doc.text(`Deductions:`, rightCol - 40, y - 4);
       doc.text(`-$${(data.deductions || 0).toFixed(2)}`, rightCol, y - 4, { align: 'right' });
-      
+
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
       doc.text(`Gross:`, rightCol - 40, y + 2);
       doc.text(`$${(data.grossPay || 0).toFixed(2)}`, rightCol, y + 2, { align: 'right' });
-      
+
       y += 8;
-      
+
       // Separator line
       doc.setDrawColor(200, 200, 200);
       doc.line(14, y, portraitWidth - 14, y);
       y += 8;
     });
-    
+
     // Grand total for all drivers
     if (payrollData.length > 1) {
       if (y > 260) {
         doc.addPage();
         y = 20;
       }
-      
+
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('Total Payroll (All Drivers)', 14, y);
-      
+
       const rightCol = portraitWidth - 14;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
@@ -1382,7 +1382,7 @@ export default function PayrollSummaryCard({
       doc.setFontSize(14);
       doc.text(`Gross: $${grandTotalGross.toFixed(2)}`, rightCol, y, { align: 'right' });
     }
-    
+
     // Save the PDF
     doc.save(filename);
   };
@@ -1398,7 +1398,7 @@ export default function PayrollSummaryCard({
   };
 
   // Grand totals across all displayed drivers (only those with deliveries)
-  const driversWithDeliveries = useMemo(() => payrollData.filter(d => d.totalDeliveries > 0), [payrollData]);
+  const driversWithDeliveries = useMemo(() => payrollData.filter((d) => d.totalDeliveries > 0), [payrollData]);
   const grandTotalAllDrivers = driversWithDeliveries.reduce((sum, d) => sum + d.grandTotal, 0);
   const grandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + d.taxAmount, 0);
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + d.deductions, 0);
@@ -1406,15 +1406,15 @@ export default function PayrollSummaryCard({
 
   // Count finalized drivers for admin view
   const driversWithDeliveriesIds = useMemo(() => {
-    return driversWithDeliveries.map(d => d.driver.id);
+    return driversWithDeliveries.map((d) => d.driver.id);
   }, [driversWithDeliveries]);
 
   const finalizedDriversCount = useMemo(() => {
-    return driversWithDeliveriesIds.filter(driverId => {
+    return driversWithDeliveriesIds.filter((driverId) => {
       const record = getDriverPayrollRecord(driverId);
-      return record?.status === 'driver_finalized' || 
-             record?.status === 'admin_finalized' ||
-             record?.status === 'paid';
+      return record?.status === 'driver_finalized' ||
+      record?.status === 'admin_finalized' ||
+      record?.status === 'paid';
     }).length;
   }, [driversWithDeliveriesIds, payrollRecords]);
 
@@ -1423,56 +1423,56 @@ export default function PayrollSummaryCard({
   // Check if finalization is allowed (6pm local time on last day of pay period, or after)
   const canFinalize = useMemo(() => {
     if (!currentPeriod?.end || !cities || !currentUser) return false;
-    
+
     // Get user's city to determine timezone
     const userCityId = currentUser.city_id || selectedCityId;
-    const userCity = cities.find(c => c && c.id === userCityId);
-    
+    const userCity = cities.find((c) => c && c.id === userCityId);
+
     // Map provinces to timezones (Canadian provinces)
     const PROVINCE_TIMEZONES = {
-      'AB': 'America/Edmonton',        // Alberta - MST
-      'BC': 'America/Vancouver',       // BC - PST
-      'SK': 'America/Regina',          // Saskatchewan - CST (no DST)
-      'MB': 'America/Winnipeg',        // Manitoba - CST
-      'ON': 'America/Toronto',         // Ontario - EST
-      'QC': 'America/Montreal',        // Quebec - EST
-      'NB': 'America/Moncton',         // New Brunswick - AST
-      'NS': 'America/Halifax',         // Nova Scotia - AST
-      'PE': 'America/Halifax',         // PEI - AST
-      'NL': 'America/St_Johns',        // Newfoundland - NST
-      'YT': 'America/Whitehorse',      // Yukon - PST
-      'NT': 'America/Yellowknife',     // Northwest Territories - MST
-      'NU': 'America/Iqaluit',         // Nunavut - EST
+      'AB': 'America/Edmonton', // Alberta - MST
+      'BC': 'America/Vancouver', // BC - PST
+      'SK': 'America/Regina', // Saskatchewan - CST (no DST)
+      'MB': 'America/Winnipeg', // Manitoba - CST
+      'ON': 'America/Toronto', // Ontario - EST
+      'QC': 'America/Montreal', // Quebec - EST
+      'NB': 'America/Moncton', // New Brunswick - AST
+      'NS': 'America/Halifax', // Nova Scotia - AST
+      'PE': 'America/Halifax', // PEI - AST
+      'NL': 'America/St_Johns', // Newfoundland - NST
+      'YT': 'America/Whitehorse', // Yukon - PST
+      'NT': 'America/Yellowknife', // Northwest Territories - MST
+      'NU': 'America/Iqaluit' // Nunavut - EST
     };
-    
+
     const provinceCode = userCity?.province_state?.toUpperCase()?.substring(0, 2);
     const timezone = provinceCode && PROVINCE_TIMEZONES[provinceCode] || 'America/Edmonton';
-    
+
     // Get current time in city's timezone
     const nowInCityTime = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
     const todayInCityTime = new Date(nowInCityTime);
     todayInCityTime.setHours(0, 0, 0, 0);
-    
+
     const periodEnd = new Date(currentPeriod.end);
     periodEnd.setHours(0, 0, 0, 0);
-    
+
     // If today is AFTER the pay period end, allow finalization
     if (todayInCityTime > periodEnd) return true;
-    
+
     // If today IS the pay period end date, check if time is >= 6pm (18:00)
     if (todayInCityTime.getTime() === periodEnd.getTime()) {
       const currentHour = nowInCityTime.getHours();
       return currentHour >= 18;
     }
-    
+
     // Before pay period end - not allowed
     return false;
   }, [currentPeriod?.end, cities, currentUser, selectedCityId]);
-  
+
   // Check if admin has finalized
   const isAdminFinalized = useMemo(() => {
     if (driversWithDeliveriesIds.length === 0) return false;
-    return driversWithDeliveriesIds.every(driverId => {
+    return driversWithDeliveriesIds.every((driverId) => {
       const record = getDriverPayrollRecord(driverId);
       return record?.status === 'admin_finalized' || record?.status === 'paid';
     });
@@ -1480,9 +1480,9 @@ export default function PayrollSummaryCard({
 
   // Initialize driver edits on mount
   useEffect(() => {
-    const driversWithDeliveries = payrollData.filter(d => d.totalDeliveries > 0);
+    const driversWithDeliveries = payrollData.filter((d) => d.totalDeliveries > 0);
     const newEdits = {};
-    
+
     driversWithDeliveries.forEach((data) => {
       const driverKey = data.driver.id;
       if (!driverEdits[driverKey]) {
@@ -1490,16 +1490,16 @@ export default function PayrollSummaryCard({
         newEdits[driverKey] = {
           deductions: data.deductionsArray || [],
           bonusPay: payrollRecord?.bonus_pay || data.bonusPay || 0,
-          appFeePercent: payrollRecord?.app_fee_percentage !== undefined ? payrollRecord.app_fee_percentage : (data.appFeePercent !== undefined ? data.appFeePercent : 0),
+          appFeePercent: payrollRecord?.app_fee_percentage !== undefined ? payrollRecord.app_fee_percentage : data.appFeePercent !== undefined ? data.appFeePercent : 0,
           showDeductionManager: false,
           newDeductionName: '',
           newDeductionAmount: ''
         };
       }
     });
-    
+
     if (Object.keys(newEdits).length > 0) {
-      setDriverEdits(prev => ({ ...prev, ...newEdits }));
+      setDriverEdits((prev) => ({ ...prev, ...newEdits }));
     }
   }, [payrollData]);
 
@@ -1536,69 +1536,69 @@ export default function PayrollSummaryCard({
           {/* Row 2: Confirmed Drivers and Finalize Button */}
           <div className="flex items-center justify-between">
             {/* Admin View: Show finalization progress - multi-driver view only */}
-              {isAdmin && driversWithDeliveriesIds.length > 0 && 
-                selectedDriverId === 'all' && (
+              {isAdmin && driversWithDeliveriesIds.length > 0 &&
+            selectedDriverId === 'all' &&
+            <>
+                {!isAdminFinalized &&
               <>
-                {!isAdminFinalized && (
-                  <>
                     <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                       <Users className="w-3 h-3 inline mr-1" />
                       {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
                     </span>
-                    <Button 
-                      size="sm" 
-                      onClick={() => setShowConfirmDialog(true)} 
-                      disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
-                      className={`gap-2 h-8 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                      title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}
-                    >
-                      {allDriversFinalized ? (
-                        <>
+                    <Button
+                  size="sm"
+                  onClick={() => setShowConfirmDialog(true)}
+                  disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
+                  className={`gap-2 h-8 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
+
+                      {allDriversFinalized ?
+                  <>
                           <CheckCircle className="w-4 h-4" />
                           {isFinalizing ? 'Finalizing...' : 'Finalize All'}
-                        </>
-                      ) : (
-                        <>
+                        </> :
+
+                  <>
                           <Clock className="w-4 h-4" />
                           {isFinalizing ? 'Finalizing...' : 'Finalize All'}
                         </>
-                      )}
+                  }
                     </Button>
                   </>
-                )}
-                {isAdminFinalized && (
-                  <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
+              }
+                {isAdminFinalized &&
+              <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
                     <CheckCircle className="w-4 h-4" />
                     Finalized
                   </div>
-                )}
+              }
               </>
-            )}
+            }
             
             {/* Driver View: Show Confirm/Confirmed status */}
-            {((isDriver && selectedDriverId === currentUser?.id) || 
-              (isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)) && (
-              <>
-                {!isCurrentDriverFinalized && (
-                   <Button 
-                     size="sm" 
-                     onClick={() => setShowConfirmDialog(true)} 
-                     disabled={isFinalizing || isLoadingRecords || !canFinalize || isCurrentDriverFinalized}
-                     className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8 ml-auto"
-                     title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}
-                   >
+            {(isDriver && selectedDriverId === currentUser?.id ||
+            isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) &&
+            <>
+                {!isCurrentDriverFinalized &&
+              <Button
+                size="sm"
+                onClick={() => setShowConfirmDialog(true)}
+                disabled={isFinalizing || isLoadingRecords || !canFinalize || isCurrentDriverFinalized}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8 ml-auto"
+                title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
+
                      <CheckCircle className="w-4 h-4" />
                      {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
                    </Button>
-                )}
-                {isCurrentDriverFinalized && (
-                  <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2 ml-auto">
+              }
+                {isCurrentDriverFinalized &&
+              <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2 ml-auto">
                     <CheckCircle className="w-4 h-4" />
                     Confirmed
                   </div>
-                )}
+              }
               </>
-            )}
+            }
           </div>
         </div>
         
@@ -1615,75 +1615,75 @@ export default function PayrollSummaryCard({
             </Button>
             
             {/* Driver Finalize Button - for drivers OR admin-drivers viewing their own payroll (single driver mode) */}
-            {((isDriver && selectedDriverId === currentUser?.id) || 
-              (isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)) && 
-              !isCurrentDriverFinalized && (
-              <Button 
-                size="sm" 
-                onClick={() => setShowConfirmDialog(true)} 
-                disabled={isFinalizing || isLoadingRecords || !canFinalize || isCurrentDriverFinalized}
-                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-                title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}
-              >
+            {(isDriver && selectedDriverId === currentUser?.id ||
+            isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) &&
+            !isCurrentDriverFinalized &&
+            <Button
+              size="sm"
+              onClick={() => setShowConfirmDialog(true)}
+              disabled={isFinalizing || isLoadingRecords || !canFinalize || isCurrentDriverFinalized}
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+              title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
+
                 <CheckCircle className="w-4 h-4" />
                 {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
               </Button>
-            )}
+            }
             
             {/* Driver Finalized Status - for drivers OR admin-drivers viewing their own payroll */}
-            {((isDriver && isCurrentDriverFinalized) || 
-              (isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id && isCurrentDriverFinalized)) && (
-              <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
+            {(isDriver && isCurrentDriverFinalized ||
+            isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id && isCurrentDriverFinalized) &&
+            <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
                 <CheckCircle className="w-4 h-4" />
                 Confirmed
               </div>
-            )}
+            }
 
             {/* Admin View: Show finalization progress - but only in multi-driver view, NOT if viewing single driver */}
-            {isAdmin && driversWithDeliveriesIds.length > 0 && 
-              selectedDriverId === 'all' && (
-              <>
-                {!isAdminFinalized && (
-                  <div className="flex items-center gap-2">
+            {isAdmin && driversWithDeliveriesIds.length > 0 &&
+            selectedDriverId === 'all' &&
+            <>
+                {!isAdminFinalized &&
+              <div className="flex items-center gap-2">
                     <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                       <Users className="w-3 h-3 inline mr-1" />
                       {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
                     </span>
-                    <Button 
-                      size="sm" 
-                      onClick={() => setShowConfirmDialog(true)} 
-                      disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
-                      className={`gap-2 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                      title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}
-                    >
-                      {allDriversFinalized ? (
-                        <>
+                    <Button
+                  size="sm"
+                  onClick={() => setShowConfirmDialog(true)}
+                  disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
+                  className={`gap-2 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
+
+                      {allDriversFinalized ?
+                  <>
                           <CheckCircle className="w-4 h-4" />
                           {isFinalizing ? 'Finalizing...' : 'Finalize All'}
-                        </>
-                      ) : (
-                        <>
+                        </> :
+
+                  <>
                           <Clock className="w-4 h-4" />
                           {isFinalizing ? 'Finalizing...' : 'Finalize All'}
                         </>
-                      )}
+                  }
                     </Button>
                   </div>
-                )}
-                {isAdminFinalized && (
-                  <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
+              }
+                {isAdminFinalized &&
+              <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
                     <CheckCircle className="w-4 h-4" />
                     Finalized
                   </div>
-                )}
+              }
               </>
-            )}
+            }
           </div>
         </div>
       </CardHeader>
 
       {/* Driver Confirmation Dialog - also for admin-drivers viewing their own payroll */}
-      <Dialog open={showConfirmDialog && (isDriver || (isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id))} onOpenChange={setShowConfirmDialog}>
+      <Dialog open={showConfirmDialog && (isDriver || isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
         <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
@@ -1693,7 +1693,7 @@ export default function PayrollSummaryCard({
             <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
               You are confirming your payroll for <strong>{currentPeriod?.label}</strong>.
               <br /><br />
-              <strong>Total Gross Pay:</strong> {formatCurrency(payrollData.find(d => d.driver.id === currentUser?.id)?.grossPay || 0)}
+              <strong>Total Gross Pay:</strong> {formatCurrency(payrollData.find((d) => d.driver.id === currentUser?.id)?.grossPay || 0)}
               <br /><br />
               Please review your deliveries and pay above before confirming. Once confirmed, you will not be able to edit any stops for this pay period.
             </DialogDescription>
@@ -1702,14 +1702,14 @@ export default function PayrollSummaryCard({
             <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={() => {
-                const myData = payrollData.find(d => d.driver.id === currentUser?.id);
+                const myData = payrollData.find((d) => d.driver.id === currentUser?.id);
                 if (myData) handleDriverFinalize(myData);
               }}
               disabled={isFinalizing}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
+              className="bg-emerald-600 hover:bg-emerald-700">
+
               {isFinalizing ? 'Confirming...' : 'Confirm My Payroll'}
             </Button>
           </DialogFooter>
@@ -1717,8 +1717,8 @@ export default function PayrollSummaryCard({
       </Dialog>
 
       {/* Deduction Manager Overlay Dialog */}
-      {deductionOverlayDriverId && driverEdits[deductionOverlayDriverId] && (
-        <Dialog open={true} onOpenChange={(open) => !open && setDeductionOverlayDriverId(null)}>
+      {deductionOverlayDriverId && driverEdits[deductionOverlayDriverId] &&
+      <Dialog open={true} onOpenChange={(open) => !open && setDeductionOverlayDriverId(null)}>
           <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <DialogHeader>
               <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage Deductions</DialogTitle>
@@ -1728,37 +1728,37 @@ export default function PayrollSummaryCard({
               <div>
                 <label className="text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>Current Deductions:</label>
                 <div className="mt-2 space-y-1">
-                  {driverEdits[deductionOverlayDriverId]?.deductions?.map((ded, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-sm p-2 bg-slate-50 rounded">
+                  {driverEdits[deductionOverlayDriverId]?.deductions?.map((ded, idx) =>
+                <div key={idx} className="flex items-center justify-between text-sm p-2 bg-slate-50 rounded">
                       <span>{ded.name}</span>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">-${ded.amount.toFixed(2)}</span>
                         <button
-                           onClick={async () => {
-                             const updatedDeductions = driverEdits[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx);
-                             setDriverEdits(prev => ({
-                               ...prev,
-                               [deductionOverlayDriverId]: {
-                                 ...prev[deductionOverlayDriverId],
-                                 deductions: updatedDeductions
-                               }
-                             }));
-                             // Save immediately
-                             await savePayrollChanges(deductionOverlayDriverId, { 
-                               deductions: updatedDeductions,
-                               total_deductions: updatedDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
-                             });
-                           }}
-                           className="p-1 hover:bg-red-100 rounded"
-                         >
+                      onClick={async () => {
+                        const updatedDeductions = driverEdits[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx);
+                        setDriverEdits((prev) => ({
+                          ...prev,
+                          [deductionOverlayDriverId]: {
+                            ...prev[deductionOverlayDriverId],
+                            deductions: updatedDeductions
+                          }
+                        }));
+                        // Save immediately
+                        await savePayrollChanges(deductionOverlayDriverId, {
+                          deductions: updatedDeductions,
+                          total_deductions: updatedDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
+                        });
+                      }}
+                      className="p-1 hover:bg-red-100 rounded">
+
                            <X className="w-4 h-4 text-red-600" />
                          </button>
                       </div>
                     </div>
-                  ))}
-                  {!driverEdits[deductionOverlayDriverId]?.deductions?.length && (
-                    <p className="text-xs text-slate-500">No deductions</p>
-                  )}
+                )}
+                  {!driverEdits[deductionOverlayDriverId]?.deductions?.length &&
+                <p className="text-xs text-slate-500">No deductions</p>
+                }
                 </div>
               </div>
               
@@ -1766,52 +1766,52 @@ export default function PayrollSummaryCard({
                 <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Add New Deduction:</label>
                 <div className="space-y-2">
                   <input
-                    type="text"
-                    placeholder="Deduction name"
-                    value={driverEdits[deductionOverlayDriverId]?.newDeductionName || ''}
-                    onChange={(e) => setDriverEdits(prev => ({
-                      ...prev,
-                      [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionName: e.target.value }
-                    }))}
-                    className="w-full px-2 py-1 text-sm border rounded"
-                  />
+                  type="text"
+                  placeholder="Deduction name"
+                  value={driverEdits[deductionOverlayDriverId]?.newDeductionName || ''}
+                  onChange={(e) => setDriverEdits((prev) => ({
+                    ...prev,
+                    [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionName: e.target.value }
+                  }))}
+                  className="w-full px-2 py-1 text-sm border rounded" />
+
                   <div className="flex gap-2">
                     <span className="flex items-center">$</span>
                     <input
-                      type="number"
-                      placeholder="Amount"
-                      value={driverEdits[deductionOverlayDriverId]?.newDeductionAmount || ''}
-                      onChange={(e) => setDriverEdits(prev => ({
-                        ...prev,
-                        [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionAmount: e.target.value }
-                      }))}
-                      className="flex-1 px-2 py-1 text-sm border rounded"
-                      step="0.01"
-                    />
+                    type="number"
+                    placeholder="Amount"
+                    value={driverEdits[deductionOverlayDriverId]?.newDeductionAmount || ''}
+                    onChange={(e) => setDriverEdits((prev) => ({
+                      ...prev,
+                      [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionAmount: e.target.value }
+                    }))}
+                    className="flex-1 px-2 py-1 text-sm border rounded"
+                    step="0.01" />
+
                     <button
-                     onClick={async () => {
-                       const name = driverEdits[deductionOverlayDriverId]?.newDeductionName;
-                       const amount = driverEdits[deductionOverlayDriverId]?.newDeductionAmount;
-                       if (name && amount) {
-                         const newDeductions = [...(driverEdits[deductionOverlayDriverId].deductions || []), { name, amount: parseFloat(amount) }];
-                         setDriverEdits(prev => ({
-                           ...prev,
-                           [deductionOverlayDriverId]: {
-                             ...prev[deductionOverlayDriverId],
-                             deductions: newDeductions,
-                             newDeductionName: '',
-                             newDeductionAmount: ''
-                           }
-                         }));
-                         // Save immediately
-                         await savePayrollChanges(deductionOverlayDriverId, { 
-                           deductions: newDeductions,
-                           total_deductions: newDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
-                         });
-                       }
-                     }}
-                     className="px-3 py-1 bg-emerald-600 text-white rounded text-sm font-medium hover:bg-emerald-700"
-                    >
+                    onClick={async () => {
+                      const name = driverEdits[deductionOverlayDriverId]?.newDeductionName;
+                      const amount = driverEdits[deductionOverlayDriverId]?.newDeductionAmount;
+                      if (name && amount) {
+                        const newDeductions = [...(driverEdits[deductionOverlayDriverId].deductions || []), { name, amount: parseFloat(amount) }];
+                        setDriverEdits((prev) => ({
+                          ...prev,
+                          [deductionOverlayDriverId]: {
+                            ...prev[deductionOverlayDriverId],
+                            deductions: newDeductions,
+                            newDeductionName: '',
+                            newDeductionAmount: ''
+                          }
+                        }));
+                        // Save immediately
+                        await savePayrollChanges(deductionOverlayDriverId, {
+                          deductions: newDeductions,
+                          total_deductions: newDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
+                        });
+                      }
+                    }}
+                    className="px-3 py-1 bg-emerald-600 text-white rounded text-sm font-medium hover:bg-emerald-700">
+
                      Add
                     </button>
                   </div>
@@ -1821,20 +1821,20 @@ export default function PayrollSummaryCard({
             
             <DialogFooter>
               <Button
-                variant="outline"
-                onClick={() => setDeductionOverlayDriverId(null)}
-                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}
-              >
+              variant="outline"
+              onClick={() => setDeductionOverlayDriverId(null)}
+              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+
                 Close
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
+      }
 
       {/* Bonus Manager Overlay Dialog */}
-       {bonusOverlayDriverId && driverEdits[bonusOverlayDriverId] && (
-         <Dialog open={true} onOpenChange={(open) => !open && handleBonusClose()}>
+       {bonusOverlayDriverId && driverEdits[bonusOverlayDriverId] &&
+      <Dialog open={true} onOpenChange={(open) => !open && handleBonusClose()}>
            <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
              <DialogHeader>
                <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage Bonus Pay</DialogTitle>
@@ -1842,31 +1842,31 @@ export default function PayrollSummaryCard({
 
              <div className="space-y-3">
                <div>
-                 <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Bonus Pay for {payrollData.find(d => d.driver.id === bonusOverlayDriverId)?.driver.user_name}:</label>
+                 <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Bonus Pay for {payrollData.find((d) => d.driver.id === bonusOverlayDriverId)?.driver.user_name}:</label>
                  <div className="flex gap-2">
                    <span className="flex items-center">$</span>
                    <input
-                     type="number"
-                     value={driverEdits[bonusOverlayDriverId]?.bonusPay || 0}
-                     onChange={(e) => {
-                       const newValue = parseFloat(e.target.value) || 0;
-                       setDriverEdits(prev => ({
-                         ...prev,
-                         [bonusOverlayDriverId]: { ...prev[bonusOverlayDriverId], bonusPay: newValue }
-                       }));
-                       // Save immediately
-                       savePayrollChanges(bonusOverlayDriverId, { bonus_pay: newValue });
-                     }}
-                     onKeyDown={(e) => {
-                       if (e.key === 'Enter') {
-                         const closeButton = document.querySelector('[data-dialog-close="bonus"]');
-                         if (closeButton) closeButton.click();
-                       }
-                     }}
-                     placeholder="0.00"
-                     className="flex-1 px-2 py-1 text-sm border rounded"
-                     step="0.01"
-                   />
+                  type="number"
+                  value={driverEdits[bonusOverlayDriverId]?.bonusPay || 0}
+                  onChange={(e) => {
+                    const newValue = parseFloat(e.target.value) || 0;
+                    setDriverEdits((prev) => ({
+                      ...prev,
+                      [bonusOverlayDriverId]: { ...prev[bonusOverlayDriverId], bonusPay: newValue }
+                    }));
+                    // Save immediately
+                    savePayrollChanges(bonusOverlayDriverId, { bonus_pay: newValue });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const closeButton = document.querySelector('[data-dialog-close="bonus"]');
+                      if (closeButton) closeButton.click();
+                    }
+                  }}
+                  placeholder="0.00"
+                  className="flex-1 px-2 py-1 text-sm border rounded"
+                  step="0.01" />
+
                  </div>
                  <p className="text-xs text-slate-500 mt-2">Enter the bonus amount to add to this driver's payroll for {currentPeriod?.label}.</p>
                </div>
@@ -1874,17 +1874,17 @@ export default function PayrollSummaryCard({
 
              <DialogFooter>
                 <Button
-                  variant="outline"
-                  data-dialog-close="bonus"
-                  onClick={handleBonusClose}
-                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}
-                >
+              variant="outline"
+              data-dialog-close="bonus"
+              onClick={handleBonusClose}
+              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+
                   Close
                 </Button>
               </DialogFooter>
            </DialogContent>
          </Dialog>
-       )}
+      }
 
       {/* Admin Confirmation Dialog - but NOT for admin-drivers viewing their own payroll */}
       <Dialog open={showConfirmDialog && isAdmin && !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
@@ -1908,11 +1908,11 @@ export default function PayrollSummaryCard({
             <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleAdminFinalize}
               disabled={isFinalizing}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
+              className="bg-emerald-600 hover:bg-emerald-700">
+
               {isFinalizing ? 'Finalizing...' : 'Finalize All Payrolls'}
             </Button>
           </DialogFooter>
@@ -1923,88 +1923,88 @@ export default function PayrollSummaryCard({
         isOpen={showScreenshotModal}
         onClose={() => setShowScreenshotModal(false)}
         imageDataUrl={screenshotDataUrl}
-        filename={`payroll-summary-${currentPeriod?.label || 'report'}.png`}
-      />
+        filename={`payroll-summary-${currentPeriod?.label || 'report'}.png`} />
 
-      <CardContent ref={contentRef}>
+
+      <CardContent ref={contentRef} className="px-3 py-6">
         <div className="space-y-4">
-          {payrollData.filter(data => data.totalDeliveries > 0).map((data, idx) => {
-          const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
-          const driverPayrollRecord = getDriverPayrollRecord(data.driver.id);
-          const driverHasConfirmed = driverPayrollRecord?.status === 'driver_finalized' || 
-                                      driverPayrollRecord?.status === 'admin_finalized' ||
-                                      driverPayrollRecord?.status === 'paid';
-          const adminHasFinalized = driverPayrollRecord?.status === 'admin_finalized' ||
-                                     driverPayrollRecord?.status === 'paid';
-          
-          // For admins: show badge when driver confirmed
-          // For drivers: show badge when admin finalized
-          const showBadge = isAdmin ? driverHasConfirmed : adminHasFinalized;
-          
-          // Check if this is the current admin-driver's own card in "All Drivers" mode
-          const isOwnCardInAllDriversMode = isAdmin && 
-                                             userHasRole(currentUser, 'driver') && 
-                                             selectedDriverId === 'all' && 
-                                             data.driver.id === currentUser?.id;
-          const canShowConfirmButton = isOwnCardInAllDriversMode && !driverHasConfirmed && canFinalize;
-          
-          // Mobile view
-          const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-          
-          if (isMobile) {
+          {payrollData.filter((data) => data.totalDeliveries > 0).map((data, idx) => {
+            const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
+            const driverPayrollRecord = getDriverPayrollRecord(data.driver.id);
+            const driverHasConfirmed = driverPayrollRecord?.status === 'driver_finalized' ||
+            driverPayrollRecord?.status === 'admin_finalized' ||
+            driverPayrollRecord?.status === 'paid';
+            const adminHasFinalized = driverPayrollRecord?.status === 'admin_finalized' ||
+            driverPayrollRecord?.status === 'paid';
+
+            // For admins: show badge when driver confirmed
+            // For drivers: show badge when admin finalized
+            const showBadge = isAdmin ? driverHasConfirmed : adminHasFinalized;
+
+            // Check if this is the current admin-driver's own card in "All Drivers" mode
+            const isOwnCardInAllDriversMode = isAdmin &&
+            userHasRole(currentUser, 'driver') &&
+            selectedDriverId === 'all' &&
+            data.driver.id === currentUser?.id;
+            const canShowConfirmButton = isOwnCardInAllDriversMode && !driverHasConfirmed && canFinalize;
+
+            // Mobile view
+            const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
+            if (isMobile) {
+              return (
+                <PayrollMobileCard
+                  key={data.driver.id}
+                  data={data}
+                  isAdmin={isAdmin}
+                  driverHasConfirmed={driverHasConfirmed}
+                  adminHasFinalized={adminHasFinalized}
+                  showBadge={showBadge}
+                  canShowConfirmButton={canShowConfirmButton}
+                  onConfirmClick={() => handleDriverFinalize(data)}
+                  isFinalizing={isFinalizing}
+                  formatCurrency={formatCurrency}
+                  deliveries={deliveries}
+                  patients={patients}
+                  currentPeriod={currentPeriod} />);
+
+
+            }
+
+            const driverKey = data.driver.id;
+            const edit = driverEdits[driverKey] || {};
+
+            const updateEdit = (updates) => {
+              setDriverEdits((prev) => ({
+                ...prev,
+                [driverKey]: { ...edit, ...updates }
+              }));
+            };
+
             return (
-              <PayrollMobileCard
-                key={data.driver.id}
-                data={data}
-                isAdmin={isAdmin}
-                driverHasConfirmed={driverHasConfirmed}
-                adminHasFinalized={adminHasFinalized}
-                showBadge={showBadge}
-                canShowConfirmButton={canShowConfirmButton}
-                onConfirmClick={() => handleDriverFinalize(data)}
-                isFinalizing={isFinalizing}
-                formatCurrency={formatCurrency}
-                deliveries={deliveries}
-                patients={patients}
-                currentPeriod={currentPeriod}
-              />
-            );
-          }
-          
-          const driverKey = data.driver.id;
-          const edit = driverEdits[driverKey] || {};
-
-          const updateEdit = (updates) => {
-            setDriverEdits(prev => ({
-              ...prev,
-              [driverKey]: { ...edit, ...updates }
-            }));
-          };
-
-          return (
-          <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
+              <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
               <div className="flex items-center justify-between mb-1">
                 <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                   {data.driver.user_name || data.driver.full_name}
-                  {showBadge && (
+                  {showBadge &&
                     <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500" title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
                       <CheckCircle className="w-3.5 h-3.5 text-white" />
                     </span>
-                  )}
+                    }
                 </h3>
-                {canShowConfirmButton && (
-                   <Button 
-                     size="sm" 
-                     onClick={() => handleDriverFinalize(data)} 
-                     disabled={isFinalizing || isLoadingRecords || driverHasConfirmed}
-                     className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs h-7 px-2"
-                     title={driverHasConfirmed ? 'Already confirmed' : ''}
-                   >
+                {canShowConfirmButton &&
+                  <Button
+                    size="sm"
+                    onClick={() => handleDriverFinalize(data)}
+                    disabled={isFinalizing || isLoadingRecords || driverHasConfirmed}
+                    className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs h-7 px-2"
+                    title={driverHasConfirmed ? 'Already confirmed' : ''}>
+
                      <CheckCircle className="w-3 h-3" />
                      {isFinalizing ? '...' : 'Confirm My Payroll'}
                    </Button>
-                )}
+                  }
               </div>
 
               {/* Stats and Pay Summary - Side by Side */}
@@ -2067,26 +2067,26 @@ export default function PayrollSummaryCard({
                        </tr>
                        <tr style={{ color: 'var(--text-slate-600)' }}>
                          <td className="text-right pr-1">
-                           {isAdmin ? (
-                             <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                           {isAdmin ?
+                                <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
                                Deductions:
-                             </button>
-                           ) : (
-                             'Deductions:'
-                           )}
+                             </button> :
+
+                                'Deductions:'
+                                }
                          </td>
                          <td className="text-right">-$</td>
                          <td className="text-right font-semibold">{(edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0).toFixed(2)}</td>
                        </tr>
                        <tr style={{ color: 'var(--text-slate-600)' }}>
                          <td className="text-right pr-1">
-                           {isAdmin ? (
-                             <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                           {isAdmin ?
+                                <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
                                Bonus:
-                             </button>
-                           ) : (
-                             'Bonus:'
-                           )}
+                             </button> :
+
+                                'Bonus:'
+                                }
                          </td>
                          <td className="text-right">+$</td>
                          <td className="text-right font-semibold">${(edit.bonusPay || 0).toFixed(2)}</td>
@@ -2105,32 +2105,32 @@ export default function PayrollSummaryCard({
 
                      {/* YTD Column */}
                      {useMemo(() => {
-                       const ytdDeliveries = deliveries?.filter(d => {
-                         if (!d || d.driver_id !== data.driver.id) return false;
-                         const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
-                         if (!validStatus) return false;
-                         if (!d.patient_id && !d.after_hours_pickup) return false;
-                         const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                         const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-                         return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
-                       }) || [];
+                        const ytdDeliveries = deliveries?.filter((d) => {
+                          if (!d || d.driver_id !== data.driver.id) return false;
+                          const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                          if (!validStatus) return false;
+                          if (!d.patient_id && !d.after_hours_pickup) return false;
+                          const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                          const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
+                          return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
+                        }) || [];
 
-                       const ytdTotalDeliveries = ytdDeliveries.length;
-                       const ytdTotalBasePay = ytdTotalDeliveries * data.payRate;
-                       const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
-                         const patient = patients?.find(p => p?.id === d.patient_id);
-                         if (!patient?.distance_from_store) return sum;
-                         const distance = d.paid_km_override ?? patient.distance_from_store;
-                         const extraKm = Math.max(0, distance - data.extraKmLimit);
-                         return sum + extraKm;
-                       }, 0);
-                       const ytdExtraKmPay = ytdExtraKm * data.extraKmRate;
-                       const ytdOversizedCount = ytdDeliveries.filter(d => d.oversized).length;
-                       const ytdOversizedPay = ytdOversizedCount * data.oversizedRate;
-                       const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
+                        const ytdTotalDeliveries = ytdDeliveries.length;
+                        const ytdTotalBasePay = ytdTotalDeliveries * data.payRate;
+                        const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
+                          const patient = patients?.find((p) => p?.id === d.patient_id);
+                          if (!patient?.distance_from_store) return sum;
+                          const distance = d.paid_km_override ?? patient.distance_from_store;
+                          const extraKm = Math.max(0, distance - data.extraKmLimit);
+                          return sum + extraKm;
+                        }, 0);
+                        const ytdExtraKmPay = ytdExtraKm * data.extraKmRate;
+                        const ytdOversizedCount = ytdDeliveries.filter((d) => d.oversized).length;
+                        const ytdOversizedPay = ytdOversizedCount * data.oversizedRate;
+                        const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
 
-                       return (
-                         <div className="flex flex-col">
+                        return (
+                          <div className="flex flex-col">
                            <div className="font-bold text-center mb-1 pb-1 border-b">YTD</div>
                            <table className="border-collapse">
                              <tbody>
@@ -2154,87 +2154,87 @@ export default function PayrollSummaryCard({
                                  <td className="text-right pt-1">$</td>
                                  <td className="text-right pt-1">{ytdGrossPay.toFixed(2)}</td>
                                </tr>
-                             {isAppOwner(currentUser) && (
-                             <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
+                             {isAppOwner(currentUser) &&
+                                <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
                                <td className="text-right pr-1">App Fee %:</td>
                                <td colSpan="2" className="text-right">
                                  <div className="flex items-center justify-end gap-1">
-                                   <input 
-                                     type="number" 
-                                     value={edit.appFeePercent} 
-                                     onChange={(e) => {
-                                       const newValue = parseFloat(e.target.value) || 0;
-                                       updateEdit({ appFeePercent: newValue });
-                                     }} 
-                                     className="w-12 px-1 py-0.5 text-xs border rounded" 
-                                     style={{ borderColor: 'var(--border-slate-300)' }}
-                                     step="0.1" 
-                                     min="0" 
-                                     max="100" 
-                                   />
-                                   <button 
-                                     onClick={() => savePayrollChanges(driverKey, { app_fee_percentage: edit.appFeePercent })}
-                                     className="p-1 text-emerald-600 hover:text-emerald-700"
-                                     title="Save"
-                                   >
+                                   <input
+                                        type="number"
+                                        value={edit.appFeePercent}
+                                        onChange={(e) => {
+                                          const newValue = parseFloat(e.target.value) || 0;
+                                          updateEdit({ appFeePercent: newValue });
+                                        }}
+                                        className="w-12 px-1 py-0.5 text-xs border rounded"
+                                        style={{ borderColor: 'var(--border-slate-300)' }}
+                                        step="0.1"
+                                        min="0"
+                                        max="100" />
+
+                                   <button
+                                        onClick={() => savePayrollChanges(driverKey, { app_fee_percentage: edit.appFeePercent })}
+                                        className="p-1 text-emerald-600 hover:text-emerald-700"
+                                        title="Save">
+
                                      <Save className="w-4 h-4" />
                                    </button>
                                  </div>
                                </td>
                              </tr>
-                             )}
+                                }
                              </tbody>
                              </table>
-                             </div>
-                             );
-                             }, [data, deliveries, currentPeriod, patients])}
-                             </div>
-                             </div>
+                             </div>);
+
+                      }, [data, deliveries, currentPeriod, patients])}
                              </div>
                              </div>
-                             );
-                             })}
+                             </div>
+                             </div>);
+
+          })}
           
           {/* Grand Total for All Drivers */}
-          {payrollData.length > 1 && (
+          {payrollData.length > 1 &&
           <div className="pt-4" style={{ borderTop: '2px solid var(--border-slate-300)' }}>
               <div className="flex items-center justify-between">
                 <div className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
                 <div className="flex flex-col items-end gap-0.5">
-                  {(grandTotalTax > 0 || grandTotalDeductions > 0) ? (
-                    <>
+                  {grandTotalTax > 0 || grandTotalDeductions > 0 ?
+                <>
                       <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
                         <span className="text-xs mr-1">Net:</span>
                         <span className="font-semibold">{formatCurrency(grandTotalAllDrivers)}</span>
                       </div>
-                      {grandTotalTax > 0 && (
-                        <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                      {grandTotalTax > 0 &&
+                  <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
                           <span className="text-xs mr-1">Tax:</span>
                           <span className="font-semibold">{formatCurrency(grandTotalTax)}</span>
                         </div>
-                      )}
-                      {grandTotalDeductions > 0 && (
-                        <div className="text-sm" style={{ color: '#ef4444' }}>
+                  }
+                      {grandTotalDeductions > 0 &&
+                  <div className="text-sm" style={{ color: '#ef4444' }}>
                           <span className="text-xs mr-1">Deductions:</span>
                           <span className="font-semibold">-{formatCurrency(grandTotalDeductions)}</span>
                         </div>
-                      )}
+                  }
                       <div className="text-2xl font-bold text-emerald-700 mt-1">
                         <span className="text-2xl font-bold mr-1">Gross:</span>
                         {formatCurrency(grandTotalGross)}
                       </div>
-                    </>
-                  ) : (
-                    <div className="text-2xl font-bold text-emerald-700">
+                    </> :
+
+                <div className="text-2xl font-bold text-emerald-700">
                       {formatCurrency(grandTotalGross)}
                     </div>
-                  )}
+                }
                 </div>
               </div>
             </div>
-          )}
+          }
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
