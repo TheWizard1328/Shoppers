@@ -647,7 +647,7 @@ export default function DriverPayrollGrid({
                     </td>
                   );
                 })}
-                <td className="text-center px-1 md:px-2 py-1 font-semibold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
+                <td className="text-center px-1 md:px-2 py-1 font-semibold border-l-2 border-purple-300 tabular-nums align-top" style={{ color: 'var(--text-slate-900)' }}>
                   {(() => {
                     const activeDays = periodDays.filter(day => {
                       const dateKey = format(day, 'yyyy-MM-dd');
@@ -692,7 +692,7 @@ export default function DriverPayrollGrid({
                     </td>
                   );
                 })}
-                <td className="text-center px-1 md:px-2 py-1 font-semibold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
+                <td className="text-center px-1 md:px-2 py-1 font-semibold border-l-2 border-purple-300 tabular-nums align-top" style={{ color: 'var(--text-slate-900)' }}>
                   {(() => {
                     const activeDays = periodDays.filter(day => {
                       const dateKey = format(day, 'yyyy-MM-dd');
