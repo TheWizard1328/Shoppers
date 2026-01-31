@@ -1783,19 +1783,38 @@ export default function Layout({ children, currentPageName }) {
       let workingCities = cities;
       const isAdmin = userHasRole(currentUser, 'admin');
 
-      // CRITICAL: Stagger initial data loads to prevent rate limiting
-      // Load Cities first (usually cached), then others with delays
-      const citiesData = workingCities?.length > 0 ? workingCities : await City.list();
+      // CRITICAL: Load from offline DB first to prevent rate limiting
+      let citiesData = workingCities?.length > 0 ? workingCities : null;
+      if (!citiesData || citiesData.length === 0) {
+        citiesData = await offlineDB.getAll(offlineDB.STORES.CITIES);
+        if (!citiesData || citiesData.length === 0) {
+          console.log('📥 [triggerFullDataLoad] Cities not in offline DB - fetching from API');
+          citiesData = await City.list();
+          await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesData);
+        } else {
+          console.log(`📦 [triggerFullDataLoad] Using ${citiesData.length} cities from offline DB`);
+        }
+      }
 
-      // Small delay before next batch
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Load stores from offline DB first
+      let allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
+      if (!allStores || allStores.length === 0) {
+        console.log('📥 [triggerFullDataLoad] Stores not in offline DB - fetching from API');
+        allStores = await Store.list();
+        await offlineDB.bulkSave(offlineDB.STORES.STORES, allStores);
+      } else {
+        console.log(`📦 [triggerFullDataLoad] Using ${allStores.length} stores from offline DB`);
+      }
 
-      const allStores = await getData('Store', null, null, forceRefresh);
-
-      // Another delay before AppUsers
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      const allAppUsers = await getData('AppUser', null, null, forceRefresh);
+      // Load app users from offline DB first
+      let allAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+      if (!allAppUsers || allAppUsers.length === 0) {
+        console.log('📥 [triggerFullDataLoad] AppUsers not in offline DB - fetching from API');
+        allAppUsers = await AppUser.list();
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+      } else {
+        console.log(`📦 [triggerFullDataLoad] Using ${allAppUsers.length} AppUsers from offline DB`);
+      }
 
       if (citiesData && (!workingCities || workingCities.length === 0)) {
         citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
@@ -1834,14 +1853,19 @@ export default function Layout({ children, currentPageName }) {
         { delivery_date: selectedDateStr, ...cityStoreFilter }, // Background: same (no separate background load)
         forceRefresh,
         // Instant UI callback
-        (initialDeliveries) => {
+        async (initialDeliveries) => {
           setDeliveries(initialDeliveries);
           setDataLoaded(true);
 
-          setTimeout(async () => {
-            const patientsData = await getData('Patient', null, null, forceRefresh);
+          // Load patients from offline DB first
+          const patientsData = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+          if (patientsData && patientsData.length > 0) {
+            console.log(`📦 [triggerFullDataLoad] Using ${patientsData.length} patients from offline DB`);
             setPatients(patientsData);
-          }, 100);
+          } else {
+            console.log('📥 [triggerFullDataLoad] Patients not in offline DB - will sync in background');
+            setPatients([]);
+          }
         },
         // Background callback
         (fullMonthDeliveries) => {
@@ -2873,43 +2897,52 @@ export default function Layout({ children, currentPageName }) {
       }
 
                   {showDeliveryImport &&
-      <RouteImport
-        onCancel={() => {
-          setShowDeliveryImport(false);
-          setIsFormOverlayOpen(false);
-          // Clean up global callback
-          if (typeof window !== 'undefined') {
-            delete window.__routeImportStartCallback;
-          }
-        }}
-        onImportStart={() => {
-          setIsFormOverlayOpen(true);
-        }}
-        onImportComplete={async () => {
-          setShowDeliveryImport(false);
-          setIsFormOverlayOpen(false);
-          if (typeof window !== 'undefined') {
-            delete window.__routeImportStartCallback;
-          }
-          invalidate('Delivery');
-          invalidate('Patient');
-          await triggerFullDataLoadRef.current(true);
+                  <RouteImport
+                    onCancel={() => {
+                      setShowDeliveryImport(false);
+                      setIsFormOverlayOpen(false);
+                      // Clean up global callback
+                      if (typeof window !== 'undefined') {
+                        delete window.__routeImportStartCallback;
+                      }
+                    }}
+                    onImportStart={() => {
+                      setIsFormOverlayOpen(true);
+                    }}
+                    onImportComplete={async () => {
+                      setShowDeliveryImport(false);
+                      setIsFormOverlayOpen(false);
+                      if (typeof window !== 'undefined') {
+                        delete window.__routeImportStartCallback;
+                      }
 
-          // CRITICAL: Dispatch events for active page to refresh
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          window.dispatchEvent(new CustomEvent('deliveriesImported', {
-            detail: { source: 'routeImport', deliveries: [] }
-          }));
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { triggeredBy: 'routeImportComplete' }
-          }));
-        }}
-        stores={stores}
-        allUsers={users}
-        currentUser={currentUser}
-        allDeliveries={deliveries} />
+                      // CRITICAL: Load fresh data from offline DB immediately
+                      console.log('🔄 [Layout] RouteImport complete - reloading from offline DB');
+                      const freshDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+                      const freshPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
 
-      }
+                      if (freshDeliveries && freshDeliveries.length > 0) {
+                        setDeliveries(freshDeliveries);
+                      }
+                      if (freshPatients && freshPatients.length > 0) {
+                        setPatients(freshPatients);
+                      }
+
+                      // CRITICAL: Dispatch events for active page to refresh
+                      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                      window.dispatchEvent(new CustomEvent('deliveriesImported', {
+                        detail: { source: 'routeImport', deliveries: freshDeliveries || [] }
+                      }));
+                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                        detail: { triggeredBy: 'routeImportComplete' }
+                      }));
+                    }}
+                    stores={stores}
+                    allUsers={users}
+                    currentUser={currentUser}
+                    allDeliveries={deliveries} />
+
+                  }
 
 
 
