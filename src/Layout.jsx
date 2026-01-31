@@ -2995,43 +2995,34 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Show controls in navigation panel when mobile wide screen OR desktop admin */}
-                      {(isMobile && screenWidth >= 768) || (!isMobile && userHasRole(currentUser, 'admin') && cities && cities.length > 0) ?
+                      {/* Wide mobile (>= 768px): Show driver controls + settings in sidebar */}
+                      {isMobile && screenWidth >= 768 && currentUser && userHasRole(currentUser, 'driver') && (
                         <>
-                          {/* Location Tracking Toggle - mobile wide screen only, drivers only */}
-                          {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
-                            <LocationTrackingToggle
-                              currentUser={currentUser}
-                              onUpdate={async () => {
-                                clearUserCache();
-                                const refreshedUser = await getEffectiveUser();
-                                if (refreshedUser) {
-                                  setCurrentUser(refreshedUser);
-                                }
-                              }}
-                            />
-                          }
-
-                          {/* Driver Status Toggle - mobile wide screen only, drivers only */}
-                          {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
-                            <DriverStatusToggle
-                              currentUser={currentUser}
-                              vertical={true}
-                              onStatusChange={async (newStatus) => {
-                                clearUserCache();
-                                const refreshedUser = await getEffectiveUser();
-                                if (refreshedUser) {
-                                  setCurrentUser(refreshedUser);
-                                }
-                              }}
-                            />
-                          }
-
-                          {/* Settings Menu */}
+                          <LocationTrackingToggle
+                            currentUser={currentUser}
+                            onUpdate={async () => {
+                              clearUserCache();
+                              const refreshedUser = await getEffectiveUser();
+                              if (refreshedUser) {
+                                setCurrentUser(refreshedUser);
+                              }
+                            }}
+                          />
+                          <DriverStatusToggle
+                            currentUser={currentUser}
+                            vertical={true}
+                            onStatusChange={async (newStatus) => {
+                              clearUserCache();
+                              const refreshedUser = await getEffectiveUser();
+                              if (refreshedUser) {
+                                setCurrentUser(refreshedUser);
+                              }
+                            }}
+                          />
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreVertical className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} text-slate-500`} />
+                                <MoreVertical className="w-5 h-5 text-slate-500" />
                               </Button>
                             </DropdownMenuTrigger>
                             <SettingsMenu
@@ -3063,11 +3054,53 @@ export default function Layout({ children, currentPageName }) {
                               cities={cities}
                               onPatientImportClick={() => setShowPatientImport(true)}
                               onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                              isMobile={isMobile}
+                              isMobile={true}
                             />
                           </DropdownMenu>
-                        </> : null
-                      }
+                        </>
+                      )}
+
+                      {/* Desktop admin: Show settings only */}
+                      {!isMobile && userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreVertical className="w-4 h-4 text-slate-500" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <SettingsMenu
+                            currentUser={currentUser}
+                            realUser={realUser}
+                            isAppOwner={isAppOwner(currentUser)}
+                            adminImportEnabled={adminImportEnabled}
+                            onAdminImportToggle={async (checked) => {
+                              if (currentUser?._isImpersonating) return;
+                              setAdminImportEnabled(checked);
+                              try {
+                                const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                if (settings && settings.length > 0) {
+                                  await base44.entities.AppSettings.update(settings[0].id, {
+                                    setting_value: {
+                                      ...settings[0].setting_value,
+                                      adminImportEnabled: checked
+                                    }
+                                  });
+                                }
+                              } catch (error) {
+                                console.error('Failed to save admin import setting:', error);
+                              }
+                            }}
+                            themePreference={themePreference}
+                            onThemeChange={handleThemeChange}
+                            dataSource={dataSource}
+                            onDataSourceChange={handleDataSourceChange}
+                            cities={cities}
+                            onPatientImportClick={() => setShowPatientImport(true)}
+                            onDeliveryImportClick={() => setShowDeliveryImport(true)}
+                            isMobile={false}
+                          />
+                        </DropdownMenu>
+                      )}
                     </div>
                   </div>
                 </div>
