@@ -521,7 +521,7 @@ export default function DriverPayrollGrid({
                 {sortedStores.map((store) => (
                   <th
                    key={store.id}
-                   className="text-center px-1 md:px-2 py-1 font-bold min-w-[28px] md:min-w-[40px] align-middle"
+                   className="text-center px-1 md:px-2 py-1 font-bold min-w-[28px] md:min-w-[40px] align-top"
                    style={{ color: getStoreColor(store) }}
                    title={store.name}
                   >
