@@ -94,46 +94,6 @@ export default function PayrollMobileCard({
         )}
       </div>
 
-      {/* Rates Section - Collapsible */}
-      <div className="border rounded" style={{ borderColor: 'var(--border-slate-200)' }}>
-        <button
-          onClick={() => toggleSection('rates')}
-          className="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-200 transition-colors"
-          style={{ background: 'var(--bg-white)' }}
-        >
-          <span className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>Pay Rates</span>
-          <ChevronDown 
-            className="w-4 h-4 transition-transform" 
-            style={{ 
-              transform: expandedSection === 'rates' ? 'rotate(180deg)' : 'rotate(0deg)',
-              color: 'var(--text-slate-500)'
-            }} 
-          />
-        </button>
-        {expandedSection === 'rates' && (
-          <div className="px-3 py-2 space-y-1.5 text-xs" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)' }}>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-slate-600)' }}>Per Delivery:</span>
-              <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{formatCurrency(data.payRate)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-slate-600)' }}>Extra KM:</span>
-              <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-slate-600)' }}>Oversized:</span>
-              <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{formatCurrency(data.oversizedRate)}</span>
-            </div>
-            {data.extraKmLimit > 0 && (
-              <div className="flex justify-between text-[11px]" style={{ color: 'var(--text-slate-500)' }}>
-                <span>KM Limit:</span>
-                <span>{data.extraKmLimit}km</span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* Deliveries Section - Collapsible */}
       <div className="border rounded" style={{ borderColor: 'var(--border-slate-200)' }}>
         <button
