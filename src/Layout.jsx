@@ -3560,11 +3560,11 @@ export default function Layout({ children, currentPageName }) {
                         }}
                       />
                       <button
-                        onClick={() => setShowInviteQRModal(true)}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                        title="Generate Invite QR Code">
-                        <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
-                      </button>
+                         onClick={() => setShowInviteQRModal(true)}
+                         className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                         title="Generate Invite QR Code">
+                         <QrCode className="w-6 h-6 text-slate-500 hover:text-slate-700" />
+                       </button>
                     </div>
                     }
 
