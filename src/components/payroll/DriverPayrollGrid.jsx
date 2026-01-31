@@ -596,19 +596,19 @@ export default function DriverPayrollGrid({
               <tr className="font-semibold" style={{ borderTop: '2px solid var(--border-slate-300)', background: 'var(--bg-slate-100)' }}>
                 <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 align-top" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)' }}>Tot</td>
                 {sortedStores.map((store) => {
-                  const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
-                  const displayValueMobile = viewMode === 'extraKm' 
-                    ? (value > 0 ? value.toFixed(1) : '')
-                    : (value > 0 ? value : '');
-                  const displayValueDesktop = viewMode === 'extraKm' 
-                    ? (value > 0 ? value.toFixed(2) : '')
-                    : (value > 0 ? value : '');
-                  return (
-                    <td
-                      key={store.id}
-                      className="text-center px-1 md:px-2 py-1 tabular-nums"
-                      style={{ color: getStoreColor(store) }}
-                    >
+                   const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
+                   const displayValueMobile = viewMode === 'extraKm' 
+                     ? (value > 0 ? value.toFixed(1) : '')
+                     : (value > 0 ? value : '');
+                   const displayValueDesktop = viewMode === 'extraKm' 
+                     ? (value > 0 ? value.toFixed(2) : '')
+                     : (value > 0 ? value : '');
+                   return (
+                     <td
+                       key={store.id}
+                       className="text-center px-1 md:px-2 py-1 tabular-nums align-top"
+                       style={{ color: getStoreColor(store) }}
+                     >
                       <span className="md:hidden">{displayValueMobile}</span>
                       <span className="hidden md:inline">{displayValueDesktop}</span>
                     </td>
