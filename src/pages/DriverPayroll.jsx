@@ -11,6 +11,9 @@ import { base44 } from '@/api/base44Client';
 import DriverPayrollGrid from '../components/payroll/DriverPayrollGrid';
 import PayrollSummaryCard from '../components/payroll/PayrollSummaryCard';
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
+import { invalidate } from '../components/utils/dataManager';
+import { toast } from 'sonner';
+import { RefreshCw } from 'lucide-react';
 
 // Helper: Get first Monday of a given year
 const getFirstMondayOfYear = (year) => {
@@ -147,6 +150,7 @@ export default function DriverPayroll() {
    const [payrollData, setPayrollData] = useState(null);
    const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
    const [payrollRecords, setPayrollRecords] = useState([]);
+   const [isRefreshing, setIsRefreshing] = useState(false);
   
   const currentDate = new Date();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
@@ -159,48 +163,85 @@ export default function DriverPayroll() {
   // Determine if current user is a driver (not admin)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
+  // Manual refresh handler
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    console.log('🔄 [DriverPayroll] Manual refresh triggered');
+    
+    // Invalidate caches
+    invalidate('Delivery');
+    invalidate('Patient');
+    invalidate('Payroll');
+    
+    // Force fresh fetch
+    await fetchPayroll(false, true);
+    
+    setIsRefreshing(false);
+    toast.success('Payroll data refreshed');
+  };
+
   // Fetch payroll data - only refetch when year or city changes, NOT when driver changes
-  useEffect(() => {
-    const fetchPayroll = async (isAutoRefresh = false) => {
-      if (!currentUser) return;
-      if (!isAutoRefresh) setIsLoadingPayroll(true);
+  const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
+    if (!currentUser) return;
+    if (!isAutoRefresh) setIsLoadingPayroll(true);
 
-      // Show refresh spinner during fetch
-      if (isAutoRefresh && setSmartRefreshActivity) {
-        setSmartRefreshActivity({ active: true, updatedEntities: ['Payroll', 'Delivery'] });
-      }
-
-      try {
-        console.log(`📥 [DriverPayroll] Fetching payroll data - Year: ${selectedYear}, City: ${selectedCityId}`);
-        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
-          payrollYear: selectedYear,
-          payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
-          payrollDriverId: null // Always fetch all drivers, filter locally
-        });
-        const data = response?.data?.payrollData || response?.payrollData;
-        console.log(`✅ [DriverPayroll] Received payroll data:`, {
-          deliveries: data?.deliveries?.length || 0,
-          drivers: data?.drivers?.length || 0,
-          stores: data?.stores?.length || 0,
-          appUsers: data?.appUsers?.length || 0,
-          patients: data?.patients?.length || 0
-        });
-        setPayrollData(data);
-      } catch (error) {
-        console.error('Failed to fetch payroll data:', error);
-      } finally {
-        if (!isAutoRefresh) setIsLoadingPayroll(false);
-        // Hide refresh spinner after fetch
-        if (isAutoRefresh && setSmartRefreshActivity) {
-          setSmartRefreshActivity({ active: false, updatedEntities: [] });
-        }
-      }
-    };
-
-    if (hasInitialized) {
-      fetchPayroll(false);
+    // Show refresh spinner during fetch
+    if (isAutoRefresh && setSmartRefreshActivity) {
+      setSmartRefreshActivity({ active: true, updatedEntities: ['Payroll', 'Delivery'] });
     }
-  }, [selectedYear, selectedCityId, currentUser, hasInitialized, setSmartRefreshActivity]);
+
+    try {
+      // CRITICAL: Invalidate caches before fetching to ensure fresh data
+      if (forceFresh) {
+        console.log('🔄 [DriverPayroll] Invalidating caches before fetch');
+        invalidate('Delivery');
+        invalidate('Patient');
+        invalidate('Payroll');
+      }
+
+      console.log(`📥 [DriverPayroll] Fetching payroll data - Year: ${selectedYear}, City: ${selectedCityId}, Force: ${forceFresh}`);
+      const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+        payrollYear: selectedYear,
+        payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
+        payrollDriverId: null // Always fetch all drivers, filter locally
+      });
+      const data = response?.data?.payrollData || response?.payrollData;
+      console.log(`✅ [DriverPayroll] Received payroll data:`, {
+        deliveries: data?.deliveries?.length || 0,
+        drivers: data?.drivers?.length || 0,
+        stores: data?.stores?.length || 0,
+        appUsers: data?.appUsers?.length || 0,
+        patients: data?.patients?.length || 0
+      });
+      setPayrollData(data);
+      
+      // Also refresh payroll records for current period
+      if (currentPeriod) {
+        const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
+        const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
+        const records = await base44.entities.Payroll.filter({
+          pay_period_start: periodStartStr,
+          pay_period_end: periodEndStr
+        });
+        setPayrollRecords(records || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch payroll data:', error);
+      toast.error('Failed to refresh payroll data');
+    } finally {
+      if (!isAutoRefresh) setIsLoadingPayroll(false);
+      // Hide refresh spinner after fetch
+      if (isAutoRefresh && setSmartRefreshActivity) {
+        setSmartRefreshActivity({ active: false, updatedEntities: [] });
+      }
+    }
+  }, [selectedYear, selectedCityId, currentUser, currentPeriod, setSmartRefreshActivity]);
+
+  useEffect(() => {
+    if (hasInitialized) {
+      fetchPayroll(false, false);
+    }
+  }, [selectedYear, selectedCityId, hasInitialized, fetchPayroll]);
 
   // Initialize defaults based on user role - runs ONCE on mount
   useEffect(() => {
@@ -380,6 +421,11 @@ export default function DriverPayroll() {
       }
 
       try {
+        // CRITICAL: Invalidate caches before auto-refresh to get latest data
+        invalidate('Delivery');
+        invalidate('Patient');
+        invalidate('Payroll');
+
         // Fetch fresh payroll data including updated deductions, bonuses, and app fees
         const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
@@ -396,16 +442,11 @@ export default function DriverPayroll() {
         // Also refresh payroll records for the current period
         const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
         const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
-        const result = await smartRefreshManager.refreshPayrollRecords(
-          payrollRecords,
-          periodStartStr,
-          periodEndStr
-        );
-
-        if (result?.hasChanges) {
-          console.log(`📊 [DriverPayroll] Payroll records updated`);
-          setPayrollRecords(result.payrollRecords);
-        }
+        const records = await base44.entities.Payroll.filter({
+          pay_period_start: periodStartStr,
+          pay_period_end: periodEndStr
+        });
+        setPayrollRecords(records || []);
       } catch (error) {
         console.error('Failed during auto-refresh:', error);
       } finally {
@@ -419,47 +460,22 @@ export default function DriverPayroll() {
     const refreshInterval = setInterval(refreshPayrollData, 60000); // 60 seconds
 
     return () => clearInterval(refreshInterval);
-  }, [currentPeriod, hasInitialized, currentUser, selectedYear, selectedCityId, payrollRecords, setSmartRefreshActivity]);
+  }, [currentPeriod, hasInitialized, currentUser, selectedYear, selectedCityId, setSmartRefreshActivity]);
 
   // Listen for delivery/patient imports and refresh data immediately
   useEffect(() => {
     const handleImportComplete = async () => {
-      console.log('📥 [DriverPayroll] Import detected - refreshing payroll data');
-      if (setSmartRefreshActivity) {
-        setSmartRefreshActivity({ active: true, updatedEntities: ['Payroll', 'Delivery'] });
-      }
-
-      try {
-        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
-          payrollYear: selectedYear,
-          payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
-          payrollDriverId: null
-        });
-        const freshData = response?.data?.payrollData || response?.payrollData;
-        if (freshData) {
-          setPayrollData(freshData);
-          console.log('✅ [DriverPayroll] Payroll data refreshed after import');
-        }
-
-        if (currentPeriod) {
-          const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
-          const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
-          const result = await smartRefreshManager.refreshPayrollRecords(
-            payrollRecords,
-            periodStartStr,
-            periodEndStr
-          );
-          if (result?.hasChanges) {
-            setPayrollRecords(result.payrollRecords);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to refresh after import:', error);
-      } finally {
-        if (setSmartRefreshActivity) {
-          setSmartRefreshActivity({ active: false, updatedEntities: [] });
-        }
-      }
+      console.log('📥 [DriverPayroll] Import detected - invalidating caches and refreshing');
+      
+      // CRITICAL: Invalidate ALL relevant caches before fetching
+      invalidate('Delivery');
+      invalidate('Patient');
+      invalidate('Payroll');
+      
+      // Force fresh fetch
+      await fetchPayroll(true, true);
+      
+      toast.success('Payroll data updated');
     };
 
     window.addEventListener('deliveriesImported', handleImportComplete);
@@ -469,7 +485,7 @@ export default function DriverPayroll() {
       window.removeEventListener('deliveriesImported', handleImportComplete);
       window.removeEventListener('patientsUpdated', handleImportComplete);
     };
-  }, [selectedYear, selectedCityId, currentPeriod, payrollRecords, setSmartRefreshActivity]);
+  }, [fetchPayroll]);
 
   const sortedCities = useMemo(() => {
     if (!payrollData?.cities) return [];
@@ -560,6 +576,16 @@ export default function DriverPayroll() {
           
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing || isLoadingPayroll}
+              size="sm"
+              variant="outline"
+              className="gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+            </Button>
             {/* City Filter */}
             <Select value={selectedCityId} onValueChange={setSelectedCityId} disabled={isDriver}>
               <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
