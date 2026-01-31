@@ -87,16 +87,18 @@ export default function AdminMetrics() {
   };
 
   const handleCaptureScreenshot = async () => {
-    setIsCapturingScreenshot(true);
-    toast.info('Capturing screenshot...');
+     const elem = contentRef.current;
 
-    try {
-      const elem = contentRef.current;
-      if (!elem) {
-        toast.error('Content not found');
-        setIsCapturingScreenshot(false);
-        return;
-      }
+     setIsCapturingScreenshot(true);
+     toast.info('Capturing screenshot...');
+
+     if (!elem) {
+       toast.error('Content not found');
+       setIsCapturingScreenshot(false);
+       return;
+     }
+
+     try {
 
       // Hide the controls temporarily
       const controlsElement = document.getElementById('screenshot-controls');
