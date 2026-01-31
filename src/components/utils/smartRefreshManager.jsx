@@ -1,3 +1,4 @@
+
 // smartRefreshManager.js - Manages intelligent, differential data refreshes
 
 import { base44 } from "@/api/base44Client";
@@ -92,6 +93,7 @@ class SmartRefreshManager {
     this._recoveryAttempts = 0;
     this._maxRecoveryAttempts = 3; // Reduced from 5
     this._recoveryBackoffMs = 30000; // Start with 30 seconds (was 10s)
+    this._lastIncompleteDeliveriesCount = 0; // Track incomplete delivery count for auto-centering
     
     // CRITICAL: Track deliveries that have pending local updates
     // This prevents smart refresh from overwriting them with stale DB data
@@ -1832,6 +1834,17 @@ class SmartRefreshManager {
           
           updates.deliveries = [...otherDeliveries, ...filteredMerged];
           console.log(`✨ [ActiveRoute] Delivery updates from API: +${diff.toAdd.length} ~${diff.toUpdate.length} -${diff.toRemove.length}`);
+
+          // CRITICAL: If incomplete delivery count changed, dispatch event for auto-centering
+          const incompleteDeliveries = updates.deliveries.filter(d => 
+            d && d.delivery_date === todayStr && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+          );
+          if (incompleteDeliveries.length !== this._lastIncompleteDeliveriesCount) {
+            this._lastIncompleteDeliveriesCount = incompleteDeliveries.length;
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('incompleteDeliveriesCountChanged'));
+            }
+          }
         }
       }
       
