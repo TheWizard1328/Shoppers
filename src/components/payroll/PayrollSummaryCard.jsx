@@ -608,7 +608,132 @@ export default function PayrollSummaryCard({
     
     const filename = `${dateFrom}-${dateTo} - ${filenameContext}.pdf`;
     
-    // First page: Landscape with grid matching DriverPayrollGrid (stores as columns, days as rows)
+    // Check if single driver view
+    const isSingleDriver = selectedDriverId && selectedDriverId !== 'all';
+    
+    // For single driver: create compact single-page portrait layout
+    if (isSingleDriver) {
+      const doc = new jsPDF({ orientation: 'portrait' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const leftMargin = 14;
+      let y = 20;
+      
+      // Get single driver data
+      const driverData = payrollData.find(d => d.driver.id === selectedDriverId);
+      if (!driverData) return;
+      
+      // Title
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Driver Payroll Report', leftMargin, y);
+      y += 10;
+      
+      // Driver Name
+      doc.setFontSize(14);
+      doc.text(driverData.driver.user_name || driverData.driver.full_name, leftMargin, y);
+      y += 8;
+      
+      // Period info
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Period: ${currentPeriod.label} | ${formatDate(currentPeriod.start)} - ${formatDate(currentPeriod.end)}`, leftMargin, y);
+      y += 5;
+      doc.text(`Pay Period Type: ${payPeriod.charAt(0).toUpperCase() + payPeriod.slice(1)}`, leftMargin, y);
+      y += 12;
+      
+      // Stats section - compact 2-column layout
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Pay Breakdown', leftMargin, y);
+      y += 7;
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      const col1 = leftMargin;
+      const col2 = pageWidth / 2 + 5;
+      const lineHeight = 5;
+      
+      // Left column - Rates
+      doc.setFont('helvetica', 'bold');
+      doc.text('Rates:', col1, y);
+      doc.setFont('helvetica', 'normal');
+      y += lineHeight;
+      doc.text(`Delivery Rate: $${driverData.payRate.toFixed(2)}`, col1, y);
+      y += lineHeight;
+      doc.text(`Extra KM Rate: $${driverData.extraKmRate.toFixed(3)}/km (after ${driverData.extraKmLimit} km)`, col1, y);
+      y += lineHeight;
+      doc.text(`Oversized Rate: $${driverData.oversizedRate.toFixed(2)}`, col1, y);
+      y += lineHeight + 3;
+      
+      // Counts and earnings
+      doc.setFont('helvetica', 'bold');
+      doc.text('Deliveries:', col1, y);
+      doc.setFont('helvetica', 'normal');
+      y += lineHeight;
+      doc.text(`Total Deliveries: ${driverData.totalDeliveries} × $${driverData.payRate.toFixed(2)} = $${driverData.totalBasePay.toFixed(2)}`, col1, y);
+      y += lineHeight;
+      doc.text(`Extra KM: ${driverData.totalExtraKm.toFixed(2)} km × $${driverData.extraKmRate.toFixed(3)} = $${driverData.totalExtraKmPay.toFixed(2)}`, col1, y);
+      y += lineHeight;
+      doc.text(`Oversized: ${driverData.oversizedCount} × $${driverData.oversizedRate.toFixed(2)} = $${driverData.totalOversizedPay.toFixed(2)}`, col1, y);
+      y += lineHeight;
+      doc.text(`Failed Deliveries: ${driverData.failedCount}`, col1, y);
+      y += lineHeight;
+      doc.text(`Store Returns: ${driverData.storeReturnCount || 0}`, col1, y);
+      
+      // Right column - Pay Summary (start from same top position)
+      y = 46; // Reset to match left column start
+      const rightCol = col2;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Pay Summary:', rightCol, y);
+      doc.setFont('helvetica', 'normal');
+      y += lineHeight;
+      
+      // Net pay
+      doc.text(`Net Pay:`, rightCol, y);
+      doc.text(`$${driverData.grandTotal.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
+      y += lineHeight;
+      
+      // Tax
+      if (driverData.taxAmount > 0) {
+        doc.text(`Tax (${(driverData.taxRate * 100).toFixed(0)}% ${driverData.provinceCode || ''}):`, rightCol, y);
+        doc.text(`$${driverData.taxAmount.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
+        y += lineHeight;
+      }
+      
+      // Deductions
+      if (driverData.deductions > 0) {
+        doc.text(`Deductions:`, rightCol, y);
+        doc.text(`-$${driverData.deductions.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
+        y += lineHeight;
+        
+        // Deduction breakdown
+        if (driverData.deductionsArray && driverData.deductionsArray.length > 0) {
+          doc.setFontSize(8);
+          driverData.deductionsArray.forEach(ded => {
+            doc.text(`  • ${ded.name}:`, rightCol + 3, y);
+            doc.text(`-$${ded.amount.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
+            y += 4;
+          });
+          doc.setFontSize(9);
+        }
+      }
+      
+      // Gross pay
+      y += 2;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(rightCol, y - 1, pageWidth - leftMargin, y - 1);
+      y += 3;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Gross Pay:`, rightCol, y);
+      doc.text(`$${driverData.grossPay.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
+      
+      // Save the PDF
+      doc.save(filename);
+      return;
+    }
+    
+    // Multi-driver view: First page: Landscape with grid matching DriverPayrollGrid (stores as columns, days as rows)
     const doc = new jsPDF({ orientation: 'landscape' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
