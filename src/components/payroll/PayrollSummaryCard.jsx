@@ -2125,24 +2125,24 @@ export default function PayrollSummaryCard({
                                  <td className="text-right pr-1">Net:</td>
                              <td className="text-right">$</td>
                              <td className="text-right font-semibold">{ytdGrossPay.toFixed(2)}</td>
-                           </tr>
-                           <tr style={{ color: 'var(--text-slate-600)' }}>
-                             <td className="text-right pr-1 text-[10px]">Tax:</td>
+                             </tr>
+                             <tr style={{ color: 'var(--text-slate-600)' }}>
+                             <td className="text-right pr-1">Tax:</td>
                              <td className="text-right">$</td>
                              <td className="text-right font-semibold">0.00</td>
-                           </tr>
-                           <tr style={{ color: 'var(--text-slate-600)' }}>
-                             <td className="text-right pr-1 text-[10px]">Ded:</td>
+                             </tr>
+                             <tr style={{ color: 'var(--text-slate-600)' }}>
+                             <td className="text-right pr-1">Ded:</td>
                              <td className="text-right">-$</td>
                              <td className="text-right font-semibold">0.00</td>
-                           </tr>
-                           <tr style={{ color: 'var(--text-slate-600)' }}>
-                             <td className="text-right pr-1 text-[10px]">Bonus:</td>
+                             </tr>
+                             <tr style={{ color: 'var(--text-slate-600)' }}>
+                             <td className="text-right pr-1">Bonus:</td>
                              <td className="text-right">+$</td>
                              <td className="text-right font-semibold">0.00</td>
-                           </tr>
-                           <tr className="text-lg font-bold text-emerald-600">
-                             <td className="text-right pr-1 pt-1 text-[10px]">Gross:</td>
+                             </tr>
+                             <tr className="text-lg font-bold text-emerald-600">
+                             <td className="text-right pr-1 pt-1">Gross:</td>
                              <td className="text-right pt-1">$</td>
                              <td className="text-right pt-1">{ytdGrossPay.toFixed(2)}</td>
                            </tr>
