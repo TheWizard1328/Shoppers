@@ -777,33 +777,39 @@ export default function PayrollSummaryCard({
       doc.setFont('helvetica', 'normal');
       const lineHeight = 4.5;
       
+      // Calculate alignment positions for equals, dollar signs, and decimals
+      const equalsPos = rightMargin - 45;
+      const dollarPos = rightMargin - 38;
+      const amountEndPos = rightMargin - 5;
+      
       // Delivery Rate line
       doc.text(`Delivery Rate:`, rightColStart, y);
-      doc.text(`$${driverData.payRate.toFixed(2)} x ${driverData.totalDeliveries}`, rightColStart + 50, y);
-      doc.text(`= $${driverData.totalBasePay.toFixed(2).padStart(7)}`, rightMargin, y, { align: 'right' });
+      doc.text(`$${driverData.payRate.toFixed(2)} x ${driverData.totalDeliveries}`, rightColStart + 35, y);
+      doc.text(`=`, equalsPos, y);
+      const deliveryAmount = driverData.totalBasePay.toFixed(2);
+      doc.text(`$`, dollarPos, y);
+      doc.text(deliveryAmount, amountEndPos, y, { align: 'right' });
       y += lineHeight;
       
       // Extra KM line
       doc.text(`Extra KM:`, rightColStart, y);
-      doc.text(`$${driverData.extraKmRate.toFixed(3)}/km (>${driverData.extraKmLimit}km) x ${driverData.totalExtraKm.toFixed(2)} km`, rightColStart + 50, y);
-      doc.text(`= $${driverData.totalExtraKmPay.toFixed(2).padStart(7)}`, rightMargin, y, { align: 'right' });
+      doc.text(`$${driverData.extraKmRate.toFixed(3)}/km (>${driverData.extraKmLimit}km) x ${driverData.totalExtraKm.toFixed(2)} km`, rightColStart + 35, y);
+      doc.text(`=`, equalsPos, y);
+      const kmAmount = driverData.totalExtraKmPay.toFixed(2);
+      doc.text(`$`, dollarPos, y);
+      doc.text(kmAmount, amountEndPos, y, { align: 'right' });
       y += lineHeight;
       
       // Oversized line
       doc.text(`Oversized:`, rightColStart, y);
-      doc.text(`$${driverData.oversizedRate.toFixed(2)} x ${driverData.oversizedCount}`, rightColStart + 50, y);
-      doc.text(`= $${driverData.totalOversizedPay.toFixed(2).padStart(7)}`, rightMargin, y, { align: 'right' });
+      doc.text(`$${driverData.oversizedRate.toFixed(2)} x ${driverData.oversizedCount}`, rightColStart + 35, y);
+      doc.text(`=`, equalsPos, y);
+      const oversizedAmount = driverData.totalOversizedPay.toFixed(2);
+      doc.text(`$`, dollarPos, y);
+      doc.text(oversizedAmount, amountEndPos, y, { align: 'right' });
       y += lineHeight + 1;
       
-      // Middle separator
-      doc.line(rightColStart, y, rightMargin, y);
-      y += 4;
-      
-      // Failed and Returns
-      doc.text(`Failed: ${driverData.failedCount} | Returns: ${driverData.storeReturnCount || 0}`, rightColStart, y);
-      y += lineHeight + 1;
-      
-      // Bottom separator
+      // Separator
       doc.line(rightColStart, y, rightMargin, y);
       y += 5;
       
@@ -817,25 +823,34 @@ export default function PayrollSummaryCard({
       const hasDeductions = driverData.taxAmount > 0 || driverData.deductions > 0;
       if (hasDeductions) {
         doc.text(`Net Pay:`, rightColStart, y);
-        doc.text(`= $${driverData.grandTotal.toFixed(2)}`, rightMargin, y, { align: 'right' });
+        doc.text(`=`, equalsPos, y);
+        const netAmount = driverData.grandTotal.toFixed(2);
+        doc.text(`$`, dollarPos, y);
+        doc.text(netAmount, amountEndPos, y, { align: 'right' });
         y += lineHeight;
         
         if (driverData.taxAmount > 0) {
           doc.text(`Tax (${(driverData.taxRate * 100).toFixed(0)}% ${driverData.provinceCode || ''}):`, rightColStart, y);
-          doc.text(`$${driverData.taxAmount.toFixed(2)}`, rightMargin, y, { align: 'right' });
+          const taxAmount = driverData.taxAmount.toFixed(2);
+          doc.text(`$`, dollarPos, y);
+          doc.text(taxAmount, amountEndPos, y, { align: 'right' });
           y += lineHeight;
         }
         
         if (driverData.deductions > 0) {
           doc.text(`Deductions:`, rightColStart, y);
-          doc.text(`-$${driverData.deductions.toFixed(2)}`, rightMargin, y, { align: 'right' });
+          const deductAmount = driverData.deductions.toFixed(2);
+          doc.text(`-$`, dollarPos - 3, y);
+          doc.text(deductAmount, amountEndPos, y, { align: 'right' });
           y += lineHeight;
           
           if (driverData.deductionsArray && driverData.deductionsArray.length > 0) {
             doc.setFontSize(7);
             driverData.deductionsArray.forEach(ded => {
               doc.text(`  • ${ded.name}:`, rightColStart + 2, y);
-              doc.text(`-$${ded.amount.toFixed(2)}`, rightMargin, y, { align: 'right' });
+              const dedAmount = ded.amount.toFixed(2);
+              doc.text(`-$`, dollarPos - 3, y);
+              doc.text(dedAmount, amountEndPos, y, { align: 'right' });
               y += 3.5;
             });
             doc.setFontSize(8);
@@ -847,7 +862,15 @@ export default function PayrollSummaryCard({
       // Gross Pay
       doc.setFont('helvetica', 'bold');
       doc.text(`Gross Pay:`, rightColStart, y);
-      doc.text(`= $${driverData.grossPay.toFixed(2)}`, rightMargin, y, { align: 'right' });
+      doc.text(`=`, equalsPos, y);
+      const grossAmount = driverData.grossPay.toFixed(2);
+      doc.text(`$`, dollarPos, y);
+      doc.text(grossAmount, amountEndPos, y, { align: 'right' });
+      y += lineHeight + 1;
+      
+      // Failed and Returns (moved below Gross Pay)
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Failed: ${driverData.failedCount} | Returns: ${driverData.storeReturnCount || 0}`, rightColStart, y);
       
       doc.save(filename);
       return;
