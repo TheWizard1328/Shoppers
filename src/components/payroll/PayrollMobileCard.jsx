@@ -5,7 +5,7 @@ import { ChevronDown } from 'lucide-react';
  * Mobile-friendly payroll card for displaying driver payroll
  * Collapses stats into expandable sections and stacks pay summary vertically
  */
-export default function PayrollMobileCard({ 
+export default function PayrollMobileCard({
   data,
   isAdmin,
   driverHasConfirmed,
@@ -32,9 +32,9 @@ export default function PayrollMobileCard({
     }
 
     const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-    const ytdDeliveries = deliveries.filter(d => {
+    const ytdDeliveries = deliveries.filter((d) => {
       if (!d || d.driver_id !== data.driver.id) return false;
-      const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
       if (!validStatus) return false;
       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
       return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
@@ -42,19 +42,19 @@ export default function PayrollMobileCard({
 
     const ytdTotalDeliveries = ytdDeliveries.length;
     const ytdTotalBasePay = ytdTotalDeliveries * data.payRate;
-    
+
     const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
-      const patient = patients?.find(p => p?.id === d.patient_id);
+      const patient = patients?.find((p) => p?.id === d.patient_id);
       if (!patient?.distance_from_store) return sum;
       const distance = d.paid_km_override ?? patient.distance_from_store;
       const extraKm = Math.max(0, distance - data.extraKmLimit);
       return sum + extraKm;
     }, 0);
     const ytdExtraKmPay = ytdExtraKm * data.extraKmRate;
-    
-    const ytdOversizedCount = ytdDeliveries.filter(d => d.oversized).length;
+
+    const ytdOversizedCount = ytdDeliveries.filter((d) => d.oversized).length;
     const ytdOversizedPay = ytdOversizedCount * data.oversizedRate;
-    
+
     const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
     const ytdTaxAmount = data.taxRate ? ytdGrossPay * data.taxRate : 0;
     const ytdDeductions = data.totalDeductions || 0;
@@ -74,24 +74,24 @@ export default function PayrollMobileCard({
       <div className="flex items-center justify-between">
         <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
           {data.driver.user_name || data.driver.full_name}
-          {showBadge && (
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500" 
-              title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
+          {showBadge &&
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500"
+          title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
               <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             </span>
-          )}
+          }
         </h3>
-        {canShowConfirmButton && (
-          <button 
-            onClick={onConfirmClick}
-            disabled={isFinalizing}
-            className="px-3 py-1.5 rounded text-xs font-medium gap-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
+        {canShowConfirmButton &&
+        <button
+          onClick={onConfirmClick}
+          disabled={isFinalizing}
+          className="px-3 py-1.5 rounded text-xs font-medium gap-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+
             {isFinalizing ? 'Confirming...' : 'Confirm'}
           </button>
-        )}
+        }
       </div>
 
       {/* Deliveries Section - Collapsible */}
@@ -99,72 +99,72 @@ export default function PayrollMobileCard({
         <button
           onClick={() => toggleSection('deliveries')}
           className="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-200 transition-colors"
-          style={{ background: 'var(--bg-white)' }}
-        >
+          style={{ background: 'var(--bg-white)' }}>
+
           <span className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>Deliveries</span>
-          <ChevronDown 
-            className="w-4 h-4 transition-transform" 
-            style={{ 
+          <ChevronDown
+            className="w-4 h-4 transition-transform"
+            style={{
               transform: expandedSection === 'deliveries' ? 'rotate(180deg)' : 'rotate(0deg)',
               color: 'var(--text-slate-500)'
-            }} 
-          />
+            }} />
+
         </button>
-        {expandedSection === 'deliveries' && (
-          <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
+        {expandedSection === 'deliveries' &&
+        <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
             {/* 4-column layout */}
             <div className="space-y-0.5">
               {/* Total */}
-              <div className="flex items-baseline gap-1">
+              <div className="flex items-baseline gap-0.5">
                 <span style={{ color: 'var(--text-slate-600)', width: '70px' }}>Total:</span>
                 <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '45px', textAlign: 'right' }}>{data.totalDeliveries}x</span>
                 <span style={{ color: 'var(--text-slate-600)' }}>@</span>
                 <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '50px', textAlign: 'right' }}>{formatCurrency(data.payRate)}</span>
                 <span style={{ color: 'var(--text-slate-600)' }}>=</span>
-                <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {(data.totalBasePay).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {data.totalBasePay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
 
               {/* Extra KM */}
-              {data.totalExtraKm > 0 && (
-                <div className="flex items-baseline gap-1">
+              {data.totalExtraKm > 0 &&
+            <div className="flex items-baseline gap-1">
                   <span style={{ color: 'var(--text-slate-600)', width: '70px' }}>Extra KM:</span>
                   <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '45px', textAlign: 'right' }}>{data.totalExtraKm.toFixed(2)}km</span>
                   <span style={{ color: 'var(--text-slate-600)' }}>@</span>
                   <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '50px', textAlign: 'right' }}>{formatCurrency(data.extraKmRate, 3)}</span>
                   <span style={{ color: 'var(--text-slate-600)' }}>=</span>
-                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {(data.totalExtraKmPay).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {data.totalExtraKmPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
-              )}
+            }
 
               {/* Oversized */}
-              {data.oversizedCount > 0 && (
-                <div className="flex items-baseline gap-1">
+              {data.oversizedCount > 0 &&
+            <div className="flex items-baseline gap-1">
                   <span style={{ color: 'var(--text-slate-600)', width: '70px' }}>Oversized:</span>
                   <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '45px', textAlign: 'right' }}>{data.oversizedCount}x</span>
                   <span style={{ color: 'var(--text-slate-600)' }}>@</span>
                   <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '50px', textAlign: 'right' }}>{formatCurrency(data.oversizedRate)}</span>
                   <span style={{ color: 'var(--text-slate-600)' }}>=</span>
-                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {(data.totalOversizedPay).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-900)', width: '65px', textAlign: 'right' }}>$ {data.totalOversizedPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
-              )}
+            }
             </div>
 
             {/* Failed & Returns counts */}
             <div className="flex items-center gap-3 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-              {(data.failedCount > 0 || data.returnsCount > 0) && (
-                <>
+              {(data.failedCount > 0 || data.returnsCount > 0) &&
+            <>
                   <span style={{ color: 'var(--text-red-600)' }}>Failed: <span className="font-semibold">{data.failedCount}</span></span>
                   <span style={{ color: 'var(--text-orange-600)' }}>Returns: <span className="font-semibold">{data.returnsCount}</span></span>
                 </>
-              )}
+            }
             </div>
           </div>
-        )}
+        }
       </div>
 
       {/* Pay Summary - 3 Columns: Labels | Period | YTD */}
-      <div style={{ display: !currentPeriod || !ytdTotals.ytdGrossPay ? 'none' : 'block' }} className="p-3 rounded-lg border" style={{ 
-        background: 'var(--bg-white)', 
+      <div style={{ display: !currentPeriod || !ytdTotals.ytdGrossPay ? 'none' : 'block' }} className="p-3 rounded-lg border" style={{
+        background: 'var(--bg-white)',
         borderColor: 'var(--border-slate-200)',
         fontVariantNumeric: 'tabular-nums'
       }}>
@@ -198,13 +198,13 @@ export default function PayrollMobileCard({
           </div>
 
           {/* Bonus (if any) */}
-          {(data.bonus_pay || data.bonusPay || ytdTotals.ytdBonusPay) > 0 && (
-            <div className="flex gap-2 text-blue-700">
+          {(data.bonus_pay || data.bonusPay || ytdTotals.ytdBonusPay) > 0 &&
+          <div className="flex gap-2 text-blue-700">
               <div className="flex-1 text-left">Bonus</div>
               <div className="w-24 text-right">{formatCurrency(data.bonus_pay || data.bonusPay || 0)}</div>
               <div className="w-24 text-right">{formatCurrency(ytdTotals.ytdBonusPay)}</div>
             </div>
-          )}
+          }
 
           {/* Gross (bold, divider) */}
           <div className="flex gap-2 pt-1 border-t font-bold" style={{ borderColor: 'var(--border-slate-200)', color: '#10b981' }}>
@@ -214,6 +214,6 @@ export default function PayrollMobileCard({
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 }
