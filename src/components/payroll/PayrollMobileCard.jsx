@@ -154,59 +154,57 @@ export default function PayrollMobileCard({
       </div>
 
       {/* Pay Summary - 3 Columns: Labels | Period | YTD */}
-      {currentPeriod && (data.ytd_gross_pay || data.ytdGrossPay) ? (
-        <div className="p-3 rounded-lg border" style={{ 
-          background: 'var(--bg-white)', 
-          borderColor: 'var(--border-slate-200)',
-          fontVariantNumeric: 'tabular-nums'
-        }}>
-          <div className="space-y-1 text-xs font-mono">
-            {/* Header */}
-            <div className="flex gap-2 mb-2 font-semibold pb-1 border-b" style={{ borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-700)' }}>
-              <div className="flex-1"></div>
-              <div className="w-24 text-right">Period</div>
-              <div className="w-24 text-right">YTD</div>
-            </div>
+      <div style={{ display: !currentPeriod || !(data.ytd_gross_pay || data.ytdGrossPay) ? 'none' : 'block' }} className="p-3 rounded-lg border" style={{ 
+        background: 'var(--bg-white)', 
+        borderColor: 'var(--border-slate-200)',
+        fontVariantNumeric: 'tabular-nums'
+      }}>
+        <div className="space-y-1 text-xs font-mono">
+          {/* Header */}
+          <div className="flex gap-2 mb-2 font-semibold pb-1 border-b" style={{ borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-700)' }}>
+            <div className="flex-1"></div>
+            <div className="w-24 text-right">Period</div>
+            <div className="w-24 text-right">YTD</div>
+          </div>
 
-            {/* Net */}
-            <div className="flex gap-2">
-              <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Net</div>
-              <div className="w-24 text-right">{formatCurrency(data.grandTotal || 0)}</div>
-              <div className="w-24 text-right">{formatCurrency(data.ytd_net_pay || data.ytdNetPay || 0)}</div>
-            </div>
+          {/* Net */}
+          <div className="flex gap-2">
+            <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Net</div>
+            <div className="w-24 text-right">{formatCurrency(data.grandTotal || 0)}</div>
+            <div className="w-24 text-right">{formatCurrency(data.ytd_net_pay || data.ytdNetPay || 0)}</div>
+          </div>
 
-            {/* Tax */}
-            <div className="flex gap-2">
-              <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Tax</div>
-              <div className="w-24 text-right">{formatCurrency(data.taxAmount || 0)}</div>
-              <div className="w-24 text-right">{formatCurrency(data.ytd_tax_amount || data.ytdTaxAmount || 0)}</div>
-            </div>
+          {/* Tax */}
+          <div className="flex gap-2">
+            <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Tax</div>
+            <div className="w-24 text-right">{formatCurrency(data.taxAmount || 0)}</div>
+            <div className="w-24 text-right">{formatCurrency(data.ytd_tax_amount || data.ytdTaxAmount || 0)}</div>
+          </div>
 
-            {/* Deductions */}
-            <div className="flex gap-2 text-red-700">
-              <div className="flex-1 text-left">Deductions</div>
-              <div className="w-24 text-right">-{formatCurrency(data.total_deductions || data.totalDeductions || 0)}</div>
-              <div className="w-24 text-right">-{formatCurrency(data.ytd_deductions || data.ytdDeductions || 0)}</div>
-            </div>
+          {/* Deductions */}
+          <div className="flex gap-2 text-red-700">
+            <div className="flex-1 text-left">Deductions</div>
+            <div className="w-24 text-right">-{formatCurrency(data.total_deductions || data.totalDeductions || 0)}</div>
+            <div className="w-24 text-right">-{formatCurrency(data.ytd_deductions || data.ytdDeductions || 0)}</div>
+          </div>
 
-            {/* Bonus (if any) */}
-            {(data.bonus_pay || data.bonusPay || data.ytd_bonus_pay || data.ytdBonusPay) > 0 && (
-              <div className="flex gap-2 text-blue-700">
-                <div className="flex-1 text-left">Bonus</div>
-                <div className="w-24 text-right">{formatCurrency(data.bonus_pay || data.bonusPay || 0)}</div>
-                <div className="w-24 text-right">{formatCurrency(data.ytd_bonus_pay || data.ytdBonusPay || 0)}</div>
-              </div>
-            )}
-
-            {/* Gross (bold, divider) */}
-            <div className="flex gap-2 pt-1 border-t font-bold" style={{ borderColor: 'var(--border-slate-200)', color: '#10b981' }}>
-              <div className="flex-1 text-left">Gross</div>
-              <div className="w-24 text-right">{formatCurrency(data.grossPay || data.gross_pay || 0)}</div>
-              <div className="w-24 text-right">{formatCurrency(data.ytd_gross_pay || data.ytdGrossPay || 0)}</div>
+          {/* Bonus (if any) */}
+          {(data.bonus_pay || data.bonusPay || data.ytd_bonus_pay || data.ytdBonusPay) > 0 && (
+            <div className="flex gap-2 text-blue-700">
+              <div className="flex-1 text-left">Bonus</div>
+              <div className="w-24 text-right">{formatCurrency(data.bonus_pay || data.bonusPay || 0)}</div>
+              <div className="w-24 text-right">{formatCurrency(data.ytd_bonus_pay || data.ytdBonusPay || 0)}</div>
             </div>
+          )}
+
+          {/* Gross (bold, divider) */}
+          <div className="flex gap-2 pt-1 border-t font-bold" style={{ borderColor: 'var(--border-slate-200)', color: '#10b981' }}>
+            <div className="flex-1 text-left">Gross</div>
+            <div className="w-24 text-right">{formatCurrency(data.grossPay || data.gross_pay || 0)}</div>
+            <div className="w-24 text-right">{formatCurrency(data.ytd_gross_pay || data.ytdGrossPay || 0)}</div>
           </div>
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
