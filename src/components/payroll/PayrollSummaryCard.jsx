@@ -583,21 +583,17 @@ export default function PayrollSummaryCard({
 
     const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     
-    // Format filename dates: "MMM_DD_YYYY" with year only if needed
-    const formatFilenameDate = (date, includeYear) => {
-      const month = date.toLocaleDateString('en-US', { month: 'short' });
-      const day = date.getDate();
-      return includeYear ? `${month}_${day}_${date.getFullYear()}` : `${month}_${day}`;
+    // Format filename dates: "MM_DD" format (2 digits each)
+    const formatFilenameDate = (date) => {
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${month}_${day}`;
     };
     
-    // Determine if years are different
-    const startYear = currentPeriod.start.getFullYear();
-    const endYear = currentPeriod.end.getFullYear();
-    const differentYears = startYear !== endYear;
-    
     // Format dates for filename
-    const dateFrom = formatFilenameDate(currentPeriod.start, differentYears);
-    const dateTo = formatFilenameDate(currentPeriod.end, true); // Always include year in "to" date
+    const dateFrom = formatFilenameDate(currentPeriod.start);
+    const dateTo = formatFilenameDate(currentPeriod.end);
+    const year = currentPeriod.end.getFullYear();
     
     // Determine if single driver or all drivers
     let filenameContext = '';
@@ -611,7 +607,7 @@ export default function PayrollSummaryCard({
       filenameContext = city?.name || 'All';
     }
     
-    const filename = `${dateFrom}-${dateTo} - ${filenameContext}.pdf`;
+    const filename = `${dateFrom}-${dateTo}_${year} - ${filenameContext}.pdf`;
     
     // Check if single driver view
     const isSingleDriver = selectedDriverId && selectedDriverId !== 'all';
@@ -689,8 +685,8 @@ export default function PayrollSummaryCard({
       const tableTop = y;
       const rowHeight = 5;
       const dayColWidth = 12;
-      const storeColWidth = Math.min(14, (gridWidth - dayColWidth - 20) / Math.max(displayStores.length, 1));
-      const totalColWidth = 14;
+      const storeColWidth = Math.min(12, (gridWidth - dayColWidth - 18) / Math.max(displayStores.length, 1));
+      const totalColWidth = 12;
       
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
@@ -735,12 +731,14 @@ export default function PayrollSummaryCard({
         let dayTotal = 0;
         displayStores.forEach((store, i) => {
           const count = storeDataMap[dateKey]?.[store.id] || 0;
+          const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
           dayTotal += count;
           storeTotals[store.id] += count;
           
           const x = leftMargin + dayColWidth + (i * storeColWidth);
           if (count > 0) {
-            doc.text(count.toString(), x + storeColWidth/2, gridY, { align: 'center' });
+            const plusSigns = oversizedCount > 0 ? '+'.repeat(oversizedCount) : '';
+            doc.text(count.toString() + plusSigns, x + storeColWidth/2, gridY, { align: 'center' });
           }
         });
         
@@ -1066,13 +1064,16 @@ export default function PayrollSummaryCard({
     const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
     const activeStores = sortedStores.filter(s => s.status !== 'inactive');
     
-    // Build store delivery map (dateKey -> storeId -> count)
+    // Build store delivery map and oversized map (dateKey -> storeId -> count)
     const storeDataMap = {};
+    const oversizedMap = {};
     dates.forEach(date => {
       const dateKey = date.toISOString().split('T')[0];
       storeDataMap[dateKey] = {};
+      oversizedMap[dateKey] = {};
       activeStores.forEach(store => {
         storeDataMap[dateKey][store.id] = 0;
+        oversizedMap[dateKey][store.id] = 0;
       });
     });
     
@@ -1089,6 +1090,9 @@ export default function PayrollSummaryCard({
       
       if (storeDataMap[d.delivery_date] && storeDataMap[d.delivery_date][d.store_id] !== undefined) {
         storeDataMap[d.delivery_date][d.store_id]++;
+        if (d.oversized) {
+          oversizedMap[d.delivery_date][d.store_id]++;
+        }
       }
     });
     
@@ -1105,8 +1109,8 @@ export default function PayrollSummaryCard({
     const tableTop = 30;
     const rowHeight = 6;
     const dayColWidth = 15;
-    const storeColWidth = Math.min(16, (pageWidth - leftMargin * 2 - dayColWidth - 25) / Math.max(displayStores.length, 1));
-    const totalColWidth = 16;
+    const storeColWidth = Math.min(14, (pageWidth - leftMargin * 2 - dayColWidth - 22) / Math.max(displayStores.length, 1));
+    const totalColWidth = 14;
     
     // Header row - store abbreviations
     doc.setFontSize(7);
@@ -1157,12 +1161,14 @@ export default function PayrollSummaryCard({
       let dayTotal = 0;
       displayStores.forEach((store, i) => {
         const count = storeDataMap[dateKey]?.[store.id] || 0;
+        const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
         dayTotal += count;
         storeTotals[store.id] += count;
         
         const x = leftMargin + dayColWidth + (i * storeColWidth);
         if (count > 0) {
-          doc.text(count.toString(), x + storeColWidth/2, y, { align: 'center' });
+          const plusSigns = oversizedCount > 0 ? '+'.repeat(oversizedCount) : '';
+          doc.text(count.toString() + plusSigns, x + storeColWidth/2, y, { align: 'center' });
         }
       });
       
