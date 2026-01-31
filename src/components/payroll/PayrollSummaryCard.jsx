@@ -2141,42 +2141,40 @@ export default function PayrollSummaryCard({
                              <td className="text-right pt-1">$</td>
                              <td className="text-right pt-1">{ytdGrossPay.toFixed(2)}</td>
                            </tr>
+                           {isAppOwner(currentUser) && (
+                             <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
+                               <td className="text-right pr-1">App Fee %:</td>
+                               <td colSpan="2" className="text-right">
+                                 <div className="flex items-center justify-end gap-1">
+                                   <input 
+                                     type="number" 
+                                     value={edit.appFeePercent} 
+                                     onChange={(e) => {
+                                       const newValue = parseFloat(e.target.value) || 0;
+                                       updateEdit({ appFeePercent: newValue });
+                                     }} 
+                                     className="w-12 px-1 py-0.5 text-xs border rounded" 
+                                     style={{ borderColor: 'var(--border-slate-300)' }}
+                                     step="0.1" 
+                                     min="0" 
+                                     max="100" 
+                                   />
+                                   <button 
+                                     onClick={() => savePayrollChanges(driverKey, { app_fee_percentage: edit.appFeePercent })}
+                                     className="p-1 text-emerald-600 hover:text-emerald-700"
+                                     title="Save"
+                                   >
+                                     <Save className="w-4 h-4" />
+                                   </button>
+                                 </div>
+                               </td>
+                             </tr>
+                           )}
                          </tbody>
                        </table>
                      );
                    }, [data, deliveries, currentPeriod, patients])}
-                 </div>
-                       {isAppOwner(currentUser) && (
-                         <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
-                           <td className="text-right pr-1">App Fee %:</td>
-                           <td colSpan="2" className="text-right">
-                             <div className="flex items-center justify-end gap-1">
-                               <input 
-                                 type="number" 
-                                 value={edit.appFeePercent} 
-                                 onChange={(e) => {
-                                   const newValue = parseFloat(e.target.value) || 0;
-                                   updateEdit({ appFeePercent: newValue });
-                                 }} 
-                                 className="w-12 px-1 py-0.5 text-xs border rounded" 
-                                 style={{ borderColor: 'var(--border-slate-300)' }}
-                                 step="0.1" 
-                                 min="0" 
-                                 max="100" 
-                               />
-                               <button 
-                                 onClick={() => savePayrollChanges(driverKey, { app_fee_percentage: edit.appFeePercent })}
-                                 className="p-1 text-emerald-600 hover:text-emerald-700"
-                                 title="Save"
-                               >
-                                 <Save className="w-4 h-4" />
-                               </button>
-                             </div>
-                           </td>
-                         </tr>
-                       )}
-                       </tbody>
-                       </table>
+                   </div>
                        </div>
                        </div>
                        </div>
