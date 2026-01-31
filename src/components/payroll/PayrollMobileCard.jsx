@@ -25,8 +25,7 @@ export default function PayrollMobileCard({
     setExpandedSection(expandedSection === section ? null : section);
   };
 
-  // YTD totals from data (assumed to be calculated by parent)
-  const hasYTD = currentPeriod && (data.ytd_gross_pay !== undefined || data.ytdGrossPay !== undefined);
+
 
   return (
     <div className="p-4 rounded-lg space-y-3" style={{ background: 'var(--bg-slate-50)' }}>
