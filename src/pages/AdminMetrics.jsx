@@ -29,6 +29,7 @@ export default function AdminMetrics() {
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const contentRef = React.useRef(null);
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -85,19 +86,32 @@ export default function AdminMetrics() {
     toast.info('Capturing screenshot...');
 
     try {
-      // Capture the entire page content
-      const element = document.body;
-      
-      const canvas = await html2canvas(element, {
+      if (!contentRef.current) {
+        toast.error('Content not found');
+        return;
+      }
+
+      // Hide the controls temporarily
+      const controlsElement = document.getElementById('screenshot-controls');
+      if (controlsElement) {
+        controlsElement.style.display = 'none';
+      }
+
+      // Small delay to ensure UI updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Capture only the content area
+      const canvas = await html2canvas(contentRef.current, {
         allowTaint: true,
         useCORS: true,
-        scrollY: -window.scrollY,
-        scrollX: -window.scrollX,
-        windowHeight: document.documentElement.scrollHeight,
-        windowWidth: document.documentElement.scrollWidth,
-        height: document.documentElement.scrollHeight,
-        width: document.documentElement.scrollWidth
+        scale: 2,
+        backgroundColor: '#f8fafc'
       });
+
+      // Show controls again
+      if (controlsElement) {
+        controlsElement.style.display = 'flex';
+      }
 
       const dataUrl = canvas.toDataURL('image/png');
       setScreenshotDataUrl(dataUrl);
@@ -106,6 +120,12 @@ export default function AdminMetrics() {
     } catch (error) {
       console.error('Screenshot error:', error);
       toast.error('Failed to capture screenshot');
+      
+      // Make sure controls are visible again even if error
+      const controlsElement = document.getElementById('screenshot-controls');
+      if (controlsElement) {
+        controlsElement.style.display = 'flex';
+      }
     } finally {
       setIsCapturingScreenshot(false);
     }
@@ -128,7 +148,7 @@ export default function AdminMetrics() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div id="screenshot-controls" className="flex items-center gap-3">
             <Select value={selectedYear} onValueChange={setSelectedYear}>
               <SelectTrigger className="w-28">
                 <SelectValue />
@@ -163,7 +183,7 @@ export default function AdminMetrics() {
         </div>
 
         {/* Tabs for different admin sections */}
-        <Tabs defaultValue="deliveries" className="w-full">
+        <Tabs defaultValue="deliveries" className="w-full" ref={contentRef}>
           <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6">
             <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
             <TabsTrigger value="store-fees">Store Fees</TabsTrigger>
