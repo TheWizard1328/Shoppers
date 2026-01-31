@@ -170,6 +170,13 @@ export default function DriverPayroll() {
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
   const handleCaptureScreenshot = async () => {
+    // Check if in dark mode - don't allow screenshot
+    const isDarkMode = document.documentElement.classList.contains('dark-theme');
+    if (isDarkMode) {
+      toast.error('Screenshots only work in light mode. Please switch to light theme.');
+      return;
+    }
+
     setIsCapturingScreenshot(true);
     toast.info('Capturing screenshot...');
 
