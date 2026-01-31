@@ -578,6 +578,36 @@ export default function PayrollSummaryCard({
 
     const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     
+    // Format filename dates: "MMM_DD_YYYY" with year only if needed
+    const formatFilenameDate = (date, includeYear) => {
+      const month = date.toLocaleDateString('en-US', { month: 'short' });
+      const day = date.getDate();
+      return includeYear ? `${month}_${day}_${date.getFullYear()}` : `${month}_${day}`;
+    };
+    
+    // Determine if years are different
+    const startYear = currentPeriod.start.getFullYear();
+    const endYear = currentPeriod.end.getFullYear();
+    const differentYears = startYear !== endYear;
+    
+    // Format dates for filename
+    const dateFrom = formatFilenameDate(currentPeriod.start, differentYears);
+    const dateTo = formatFilenameDate(currentPeriod.end, true); // Always include year in "to" date
+    
+    // Determine if single driver or all drivers
+    let filenameContext = '';
+    if (selectedDriverId && selectedDriverId !== 'all') {
+      // Single driver - use driver name
+      const driver = payrollData.find(d => d.driver.id === selectedDriverId)?.driver;
+      filenameContext = driver?.user_name || driver?.full_name || 'Driver';
+    } else {
+      // All drivers - use city name
+      const city = cities?.find(c => c.id === selectedCityId);
+      filenameContext = city?.name || 'All';
+    }
+    
+    const filename = `${dateFrom}-${dateTo} - ${filenameContext}.pdf`;
+    
     // First page: Landscape with grid matching DriverPayrollGrid (stores as columns, days as rows)
     const doc = new jsPDF({ orientation: 'landscape' });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -840,7 +870,7 @@ export default function PayrollSummaryCard({
     }
     
     // Save the PDF
-    doc.save(`payroll_${currentPeriod.label.replace(/\s+/g, '_')}_${selectedYear}.pdf`);
+    doc.save(filename);
   };
 
   // Format currency
