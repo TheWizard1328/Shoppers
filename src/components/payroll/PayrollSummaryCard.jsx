@@ -2081,7 +2081,7 @@ export default function PayrollSummaryCard({
                          <td className="text-right pt-1">{(data.grandTotal + data.taxAmount + (edit.bonusPay || 0) - data.deductions).toFixed(2)}</td>
                        </tr>
                        {isAppOwner(currentUser) && (
-                         <tr style={{ color: 'var(--text-slate-600)' }}>
+                         <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
                            <td className="text-right pr-1">App Fee %:</td>
                            <td colSpan="2" className="text-right">
                              <div className="flex items-center justify-end gap-1">
