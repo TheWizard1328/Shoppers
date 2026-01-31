@@ -407,7 +407,7 @@ export default function DriverPayroll() {
          }
        }
      }
-   }, [selectedDriverId, payrollData?.appUsers]);
+   }, [selectedDriverId]);
 
   // Get available years (current year and 2 years back)
   const years = useMemo(() => {
