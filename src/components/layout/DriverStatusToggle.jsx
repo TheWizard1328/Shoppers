@@ -27,6 +27,7 @@ const broadcastMutation = async (entity, action, id, data) => {
  * Right: On Break (Blue) - Disables location sharing
  */
 export default function DriverStatusToggle({ currentUser, onStatusChange, onBreakStart, onBreakEnd, vertical = false }) {
+  // CRITICAL: Move all hooks to top before any conditions - prevents hook mismatch errors
   const [status, setStatus] = useState(currentUser?.driver_status || 'off_duty');
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState(null);
