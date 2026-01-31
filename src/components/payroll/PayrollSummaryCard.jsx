@@ -608,127 +608,230 @@ export default function PayrollSummaryCard({
     
     const filename = `${dateFrom}-${dateTo} - ${filenameContext}.pdf`;
     
+    const filename = `${dateFrom}-${dateTo} - ${filenameContext}.pdf`;
+    
     // Check if single driver view
     const isSingleDriver = selectedDriverId && selectedDriverId !== 'all';
     
-    // For single driver: create compact single-page portrait layout
+    // For single driver: create compact single-page landscape layout with grid + payroll
     if (isSingleDriver) {
-      const doc = new jsPDF({ orientation: 'portrait' });
+      const doc = new jsPDF({ orientation: 'landscape' });
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
       const leftMargin = 14;
-      let y = 20;
+      let y = 15;
       
       // Get single driver data
       const driverData = payrollData.find(d => d.driver.id === selectedDriverId);
       if (!driverData) return;
       
-      // Title
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Driver Payroll Report', leftMargin, y);
-      y += 10;
-      
-      // Driver Name
+      // Title and Driver Name - compact header
       doc.setFontSize(14);
-      doc.text(driverData.driver.user_name || driverData.driver.full_name, leftMargin, y);
-      y += 8;
-      
-      // Period info
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Period: ${currentPeriod.label} | ${formatDate(currentPeriod.start)} - ${formatDate(currentPeriod.end)}`, leftMargin, y);
-      y += 5;
-      doc.text(`Pay Period Type: ${payPeriod.charAt(0).toUpperCase() + payPeriod.slice(1)}`, leftMargin, y);
-      y += 12;
-      
-      // Stats section - compact 2-column layout
-      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text('Pay Breakdown', leftMargin, y);
+      doc.text(`${driverData.driver.user_name || driverData.driver.full_name} - Payroll Report`, leftMargin, y);
       y += 7;
-      
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
-      const col1 = leftMargin;
-      const col2 = pageWidth / 2 + 5;
-      const lineHeight = 5;
+      doc.text(`${currentPeriod.label} | ${formatDate(currentPeriod.start)} - ${formatDate(currentPeriod.end)}`, leftMargin, y);
+      y += 8;
       
-      // Left column - Rates
+      // Build store delivery grid (same as multi-driver view)
+      const periodStart = currentPeriod.start;
+      const periodEnd = currentPeriod.end;
+      const dates = [];
+      let currentDate = new Date(periodStart);
+      while (currentDate <= periodEnd) {
+        dates.push(new Date(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+      const activeStores = sortedStores.filter(s => s.status !== 'inactive');
+      
+      // Build store data map for THIS driver only
+      const storeDataMap = {};
+      dates.forEach(date => {
+        const dateKey = date.toISOString().split('T')[0];
+        storeDataMap[dateKey] = {};
+        activeStores.forEach(store => {
+          storeDataMap[dateKey][store.id] = 0;
+        });
+      });
+      
+      deliveries.forEach(d => {
+        if (!d || !d.delivery_date || !d.store_id) return;
+        if (d.driver_id !== selectedDriverId) return; // Filter by selected driver
+        const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+        if (!validStatus) return;
+        if (!d.patient_id && !d.after_hours_pickup) return;
+        const date = new Date(d.delivery_date + 'T00:00:00');
+        if (date < currentPeriod.start || date > currentPeriod.end) return;
+        
+        if (storeDataMap[d.delivery_date] && storeDataMap[d.delivery_date][d.store_id] !== undefined) {
+          storeDataMap[d.delivery_date][d.store_id]++;
+        }
+      });
+      
+      // Filter to only stores with data
+      const storesWithData = activeStores.filter(store => {
+        return dates.some(date => {
+          const dateKey = date.toISOString().split('T')[0];
+          return storeDataMap[dateKey]?.[store.id] > 0;
+        });
+      });
+      const displayStores = storesWithData.length > 0 ? storesWithData : activeStores;
+      
+      // Grid on left side (compact)
+      const gridWidth = 140;
+      const tableTop = y;
+      const rowHeight = 5;
+      const dayColWidth = 15;
+      const storeColWidth = Math.min(18, (gridWidth - dayColWidth - 20) / Math.max(displayStores.length, 1));
+      const totalColWidth = 18;
+      
+      doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
-      doc.text('Rates:', col1, y);
+      doc.text('Day', leftMargin + 1, tableTop + 4);
+      
+      displayStores.forEach((store, i) => {
+        const x = leftMargin + dayColWidth + (i * storeColWidth);
+        const abbr = store.abbreviation || store.name?.substring(0, 2) || '??';
+        doc.text(abbr, x + storeColWidth/2, tableTop + 4, { align: 'center' });
+      });
+      doc.text('Tot', leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, tableTop + 4, { align: 'center' });
+      
+      doc.setDrawColor(100, 100, 100);
+      doc.line(leftMargin, tableTop + rowHeight + 1, leftMargin + gridWidth, tableTop + rowHeight + 1);
+      
       doc.setFont('helvetica', 'normal');
+      let gridY = tableTop + rowHeight + 5;
+      
+      const storeTotals = {};
+      displayStores.forEach(store => { storeTotals[store.id] = 0; });
+      let grandTotal = 0;
+      
+      dates.forEach((date) => {
+        const dateKey = date.toISOString().split('T')[0];
+        const dayNum = date.getDate().toString();
+        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+        
+        doc.setFont('helvetica', isWeekend ? 'bold' : 'normal');
+        doc.text(dayNum, leftMargin + dayColWidth/2, gridY, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        
+        let dayTotal = 0;
+        displayStores.forEach((store, i) => {
+          const count = storeDataMap[dateKey]?.[store.id] || 0;
+          dayTotal += count;
+          storeTotals[store.id] += count;
+          
+          const x = leftMargin + dayColWidth + (i * storeColWidth);
+          if (count > 0) {
+            doc.text(count.toString(), x + storeColWidth/2, gridY, { align: 'center' });
+          }
+        });
+        
+        grandTotal += dayTotal;
+        
+        doc.setFont('helvetica', 'bold');
+        if (dayTotal > 0) {
+          doc.text(dayTotal.toString(), leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, gridY, { align: 'center' });
+        }
+        doc.setFont('helvetica', 'normal');
+        
+        gridY += rowHeight;
+      });
+      
+      // Totals row
+      doc.setDrawColor(100, 100, 100);
+      doc.line(leftMargin, gridY - 2, leftMargin + gridWidth, gridY - 2);
+      gridY += 3;
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('Tot', leftMargin + dayColWidth/2, gridY, { align: 'center' });
+      
+      displayStores.forEach((store, i) => {
+        const total = storeTotals[store.id];
+        const x = leftMargin + dayColWidth + (i * storeColWidth);
+        if (total > 0) {
+          doc.text(total.toString(), x + storeColWidth/2, gridY, { align: 'center' });
+        }
+      });
+      
+      doc.text(grandTotal.toString(), leftMargin + dayColWidth + (displayStores.length * storeColWidth) + totalColWidth/2, gridY, { align: 'center' });
+      
+      // Payroll details on right side
+      const rightColStart = leftMargin + gridWidth + 15;
+      y = tableTop;
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Pay Breakdown', rightColStart, y);
+      y += 6;
+      
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      const lineHeight = 4.5;
+      
+      // Rates
+      doc.text(`Delivery Rate: $${driverData.payRate.toFixed(2)}`, rightColStart, y);
       y += lineHeight;
-      doc.text(`Delivery Rate: $${driverData.payRate.toFixed(2)}`, col1, y);
+      doc.text(`Extra KM: $${driverData.extraKmRate.toFixed(3)}/km (>${driverData.extraKmLimit}km)`, rightColStart, y);
       y += lineHeight;
-      doc.text(`Extra KM Rate: $${driverData.extraKmRate.toFixed(3)}/km (after ${driverData.extraKmLimit} km)`, col1, y);
+      doc.text(`Oversized: $${driverData.oversizedRate.toFixed(2)}`, rightColStart, y);
+      y += lineHeight + 2;
+      
+      // Earnings breakdown
+      doc.text(`Deliveries: ${driverData.totalDeliveries} × $${driverData.payRate.toFixed(2)} = $${driverData.totalBasePay.toFixed(2)}`, rightColStart, y);
       y += lineHeight;
-      doc.text(`Oversized Rate: $${driverData.oversizedRate.toFixed(2)}`, col1, y);
+      doc.text(`Extra KM: ${driverData.totalExtraKm.toFixed(2)} km = $${driverData.totalExtraKmPay.toFixed(2)}`, rightColStart, y);
+      y += lineHeight;
+      doc.text(`Oversized: ${driverData.oversizedCount} = $${driverData.totalOversizedPay.toFixed(2)}`, rightColStart, y);
+      y += lineHeight;
+      doc.text(`Failed: ${driverData.failedCount} | Returns: ${driverData.storeReturnCount || 0}`, rightColStart, y);
       y += lineHeight + 3;
       
-      // Counts and earnings
+      // Pay Summary
       doc.setFont('helvetica', 'bold');
-      doc.text('Deliveries:', col1, y);
-      doc.setFont('helvetica', 'normal');
-      y += lineHeight;
-      doc.text(`Total Deliveries: ${driverData.totalDeliveries} × $${driverData.payRate.toFixed(2)} = $${driverData.totalBasePay.toFixed(2)}`, col1, y);
-      y += lineHeight;
-      doc.text(`Extra KM: ${driverData.totalExtraKm.toFixed(2)} km × $${driverData.extraKmRate.toFixed(3)} = $${driverData.totalExtraKmPay.toFixed(2)}`, col1, y);
-      y += lineHeight;
-      doc.text(`Oversized: ${driverData.oversizedCount} × $${driverData.oversizedRate.toFixed(2)} = $${driverData.totalOversizedPay.toFixed(2)}`, col1, y);
-      y += lineHeight;
-      doc.text(`Failed Deliveries: ${driverData.failedCount}`, col1, y);
-      y += lineHeight;
-      doc.text(`Store Returns: ${driverData.storeReturnCount || 0}`, col1, y);
-      
-      // Right column - Pay Summary (start from same top position)
-      y = 46; // Reset to match left column start
-      const rightCol = col2;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Pay Summary:', rightCol, y);
+      doc.text('Pay Summary:', rightColStart, y);
       doc.setFont('helvetica', 'normal');
       y += lineHeight;
       
-      // Net pay
-      doc.text(`Net Pay:`, rightCol, y);
+      doc.text(`Net Pay:`, rightColStart, y);
       doc.text(`$${driverData.grandTotal.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
       y += lineHeight;
       
-      // Tax
       if (driverData.taxAmount > 0) {
-        doc.text(`Tax (${(driverData.taxRate * 100).toFixed(0)}% ${driverData.provinceCode || ''}):`, rightCol, y);
+        doc.text(`Tax (${(driverData.taxRate * 100).toFixed(0)}% ${driverData.provinceCode || ''}):`, rightColStart, y);
         doc.text(`$${driverData.taxAmount.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
         y += lineHeight;
       }
       
-      // Deductions
       if (driverData.deductions > 0) {
-        doc.text(`Deductions:`, rightCol, y);
+        doc.text(`Deductions:`, rightColStart, y);
         doc.text(`-$${driverData.deductions.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
         y += lineHeight;
         
-        // Deduction breakdown
         if (driverData.deductionsArray && driverData.deductionsArray.length > 0) {
-          doc.setFontSize(8);
+          doc.setFontSize(7);
           driverData.deductionsArray.forEach(ded => {
-            doc.text(`  • ${ded.name}:`, rightCol + 3, y);
+            doc.text(`  • ${ded.name}:`, rightColStart + 2, y);
             doc.text(`-$${ded.amount.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
-            y += 4;
+            y += 3.5;
           });
-          doc.setFontSize(9);
+          doc.setFontSize(8);
         }
       }
       
-      // Gross pay
       y += 2;
       doc.setDrawColor(200, 200, 200);
-      doc.line(rightCol, y - 1, pageWidth - leftMargin, y - 1);
+      doc.line(rightColStart, y - 1, pageWidth - leftMargin, y - 1);
       y += 3;
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text(`Gross Pay:`, rightCol, y);
+      doc.text(`Gross Pay:`, rightColStart, y);
       doc.text(`$${driverData.grossPay.toFixed(2)}`, pageWidth - leftMargin, y, { align: 'right' });
       
-      // Save the PDF
       doc.save(filename);
       return;
     }
