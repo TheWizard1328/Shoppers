@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart3, DollarSign, Store, Package, RefreshCw, Loader2, Settings, MapPin, FileText, Activity } from 'lucide-react';
+import { BarChart3, DollarSign, Store, Package, RefreshCw, Loader2, Settings, MapPin, FileText, Activity, Share2 } from 'lucide-react';
 import { useAppData } from '@/components/utils/AppDataContext';
 import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
 import MonthlyStoreMetricsGrid from '../components/admin/MonthlyStoreMetricsGrid';
@@ -13,6 +13,9 @@ import AppSettingsPanel from '../components/admin/AppSettingsPanel';
 import PolylineViewer from '../components/admin/PolylineViewer';
 import DeliveryDataTable from '../components/admin/DeliveryDataTable';
 import PatientDataTable from '../components/admin/PatientDataTable';
+import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
+import html2canvas from 'html2canvas';
+import { toast } from 'sonner';
 
 export default function AdminMetrics() {
   const { deliveries, patients, stores, users, drivers } = useAppData();
@@ -23,6 +26,9 @@ export default function AdminMetrics() {
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
   const [metricsViewMode, setMetricsViewMode] = useState('deliveries'); // 'deliveries' or 'fees'
   const [showEnvelopeAdjustedTotals, setShowEnvelopeAdjustedTotals] = useState(false);
+  const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
+  const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -74,6 +80,37 @@ export default function AdminMetrics() {
     setSelectedStoreMonth(null);
   };
 
+  const handleCaptureScreenshot = async () => {
+    setIsCapturingScreenshot(true);
+    toast.info('Capturing screenshot...');
+
+    try {
+      // Capture the entire page content
+      const element = document.body;
+      
+      const canvas = await html2canvas(element, {
+        allowTaint: true,
+        useCORS: true,
+        scrollY: -window.scrollY,
+        scrollX: -window.scrollX,
+        windowHeight: document.documentElement.scrollHeight,
+        windowWidth: document.documentElement.scrollWidth,
+        height: document.documentElement.scrollHeight,
+        width: document.documentElement.scrollWidth
+      });
+
+      const dataUrl = canvas.toDataURL('image/png');
+      setScreenshotDataUrl(dataUrl);
+      setShowScreenshotModal(true);
+      toast.success('Screenshot captured!');
+    } catch (error) {
+      console.error('Screenshot error:', error);
+      toast.error('Failed to capture screenshot');
+    } finally {
+      setIsCapturingScreenshot(false);
+    }
+  };
+
   return (
     <div className="min-h-screen p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl mx-auto space-y-6">
@@ -104,6 +141,20 @@ export default function AdminMetrics() {
                 ))}
               </SelectContent>
             </Select>
+
+            <Button 
+              onClick={handleCaptureScreenshot} 
+              variant="outline" 
+              disabled={isCapturingScreenshot}
+              className="gap-2"
+            >
+              {isCapturingScreenshot ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Share2 className="w-4 h-4" />
+              )}
+              Share
+            </Button>
 
             <Button onClick={loadMetrics} variant="outline" size="icon">
               <RefreshCw className={`w-4 h-4 ${isLoadingMetrics ? 'animate-spin' : ''}`} />
@@ -225,6 +276,14 @@ export default function AdminMetrics() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Screenshot Share Modal */}
+      <ScreenshotShareModal
+        isOpen={showScreenshotModal}
+        onClose={() => setShowScreenshotModal(false)}
+        imageDataUrl={screenshotDataUrl}
+        filename={`admin-metrics-${selectedYear}.png`}
+      />
     </div>
   );
 }
