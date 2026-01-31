@@ -97,11 +97,11 @@ export default function ScreenshotShareModal({ isOpen, onClose, imageDataUrl, fi
         </div>
 
         <DialogFooter className="flex-row gap-2 justify-end">
-          <Button variant="outline" onClick={handleDownload} className="gap-2">
+          <Button variant="outline" onClick={handleDownload} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
             <Download className="w-4 h-4" />
             Save
           </Button>
-          <Button variant="outline" onClick={handlePrint} className="gap-2">
+          <Button variant="outline" onClick={handlePrint} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
             <Printer className="w-4 h-4" />
             Print
           </Button>
