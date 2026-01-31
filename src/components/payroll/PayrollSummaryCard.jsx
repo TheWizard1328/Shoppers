@@ -1503,19 +1503,6 @@ export default function PayrollSummaryCard({
     }
   }, [payrollData]);
 
-  if (payrollData.length === 0) {
-    return (
-      <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-        <CardContent className="p-6 text-center" style={{ color: 'var(--text-slate-500)' }}>
-          No payroll data available for this period. 
-          {drivers?.length === 0 && ' No drivers found.'}
-          {drivers?.length > 0 && appUsers?.length === 0 && ' No driver pay rates configured.'}
-          {drivers?.length > 0 && appUsers?.length > 0 && deliveries?.length === 0 && ' No deliveries in selected period.'}
-        </CardContent>
-      </Card>);
-
-  }
-
   return (
     <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader className="pb-3">
