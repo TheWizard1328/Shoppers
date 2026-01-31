@@ -3508,9 +3508,10 @@ export default function Layout({ children, currentPageName }) {
                     </div>
                     </div>
 
-                    {/* Menu & QR Code - CENTERED in Mobile Header (narrow screen only) - Admins and Drivers */}
+                    {/* Centered Controls Container - Admins and Drivers */}
                     {isMobile && screenWidth < 768 && currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2">
+                    <div className="flex-1 flex items-center justify-between px-4" style={{ marginLeft: '60px' }}>
+                      {/* Menu - Left */}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
@@ -3549,7 +3550,9 @@ export default function Layout({ children, currentPageName }) {
                           isMobile={true}
                         />
                       </DropdownMenu>
-                      <div style={{ display: userHasRole(currentUser, 'driver') ? 'block' : 'none' }}>
+
+                      {/* Status Toggle - Center */}
+                      <div style={{ width: userHasRole(currentUser, 'driver') ? 'auto' : '0px', overflow: 'hidden' }}>
                         <DriverStatusToggle
                           currentUser={currentUser}
                           onStatusChange={async (newStatus) => {
@@ -3561,12 +3564,14 @@ export default function Layout({ children, currentPageName }) {
                           }}
                         />
                       </div>
+
+                      {/* QR Code - Right */}
                       <button
-                         onClick={() => setShowInviteQRModal(true)}
-                         className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                         title="Generate Invite QR Code">
-                         <QrCode className="w-6 h-6 text-slate-500 hover:text-slate-700" />
-                       </button>
+                        onClick={() => setShowInviteQRModal(true)}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                        title="Generate Invite QR Code">
+                        <QrCode className="w-6 h-6 text-slate-500 hover:text-slate-700" />
+                      </button>
                     </div>
                     }
 
