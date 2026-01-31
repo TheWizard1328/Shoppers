@@ -546,7 +546,7 @@ export default function DriverPayrollGrid({
                     style={{ borderBottom: '1px solid var(--border-slate-200)', background: isWeekend ? 'var(--bg-slate-100)' : 'transparent' }}
                   >
                     <td
-                      className="text-center px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10 border-r-2 border-slate-300"
+                      className="text-center px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10 border-r-2 border-slate-300 align-middle"
                       style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-100)' : 'var(--bg-white)' }}
                     >
                       <div className="flex items-center justify-center gap-0.5">
@@ -577,7 +577,7 @@ export default function DriverPayrollGrid({
                       return (
                         <td
                            key={store.id}
-                           className="text-center px-1 md:px-2 py-0.5 tabular-nums"
+                           className="text-center px-1 md:px-2 py-0.5 tabular-nums align-middle"
                            style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
                          >
                           <span className="md:hidden">{displayValueMobile}{plusSigns}</span>
@@ -585,7 +585,7 @@ export default function DriverPayrollGrid({
                         </td>
                       );
                     })}
-                    <td className="text-center px-1 md:px-2 py-0.5 font-semibold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
+                    <td className="text-center px-1 md:px-2 py-0.5 font-semibold border-l-2 border-purple-300 tabular-nums align-middle" style={{ color: 'var(--text-slate-900)' }}>
                       <span className="md:hidden">{viewMode === 'extraKm' ? (dayTotal > 0 ? dayTotal.toFixed(1) : '') : (dayTotal > 0 ? dayTotal : '')}</span>
                       <span className="hidden md:inline">{viewMode === 'extraKm' ? (dayTotal > 0 ? dayTotal.toFixed(2) : '') : (dayTotal > 0 ? dayTotal : '')}</span>
                     </td>
