@@ -155,7 +155,7 @@ export default function PayrollMobileCard({
       </div>
 
       {/* Pay Summary - Period vs YTD Side by Side */}
-      {currentPeriod && ytdValues ? (
+      {hasYTD ? (
         <div className="p-3 rounded-lg border" style={{ 
           background: 'var(--bg-white)', 
           borderColor: 'var(--border-slate-200)',
@@ -175,31 +175,53 @@ export default function PayrollMobileCard({
               </div>
               <div className="flex-1">
                 <div className="flex justify-between">
-                  <span style={{ color: 'var(--text-slate-600)' }}>Gross:</span>
-                  <span className="font-semibold">{formatCurrency(ytdValues.ytdGrossPay)}</span>
+                  <span style={{ color: 'var(--text-slate-600)' }}>Net:</span>
+                  <span className="font-semibold">{formatCurrency(data.ytd_net_pay || data.ytdNetPay || 0)}</span>
                 </div>
               </div>
             </div>
-            {data.taxAmount > 0 && (
-              <div className="flex gap-4">
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--text-slate-600)' }}>Tax:</span>
+                  <span className="font-semibold">{formatCurrency(data.taxAmount || 0)}</span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--text-slate-600)' }}>Tax:</span>
+                  <span className="font-semibold">{formatCurrency(data.ytd_tax_amount || data.ytdTaxAmount || 0)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <div className="flex justify-between text-red-700">
+                  <span>Deductions:</span>
+                  <span className="font-semibold">-{formatCurrency(data.total_deductions || data.totalDeductions || 0)}</span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between text-red-700">
+                  <span>Deductions:</span>
+                  <span className="font-semibold">-{formatCurrency(data.ytd_deductions || data.ytdDeductions || 0)}</span>
+                </div>
+              </div>
+            </div>
+            {(data.bonus_pay || data.bonusPay || data.ytd_bonus_pay || data.ytdBonusPay) > 0 && (
+              <div className="flex gap-4 text-blue-700">
                 <div className="flex-1">
                   <div className="flex justify-between">
-                    <span style={{ color: 'var(--text-slate-600)' }}>Tax:</span>
-                    <span className="font-semibold">{formatCurrency(data.taxAmount)}</span>
+                    <span>Bonus:</span>
+                    <span className="font-semibold">{formatCurrency(data.bonus_pay || data.bonusPay || 0)}</span>
                   </div>
                 </div>
-                <div className="flex-1"></div>
-              </div>
-            )}
-            {data.deductions > 0 && (
-              <div className="flex gap-4">
                 <div className="flex-1">
-                  <div className="flex justify-between text-red-700">
-                    <span>Deductions:</span>
-                    <span className="font-semibold">-{formatCurrency(data.deductions)}</span>
+                  <div className="flex justify-between">
+                    <span>Bonus:</span>
+                    <span className="font-semibold">{formatCurrency(data.ytd_bonus_pay || data.ytdBonusPay || 0)}</span>
                   </div>
                 </div>
-                <div className="flex-1"></div>
               </div>
             )}
             <div className="pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
@@ -207,10 +229,15 @@ export default function PayrollMobileCard({
                 <div className="flex-1">
                   <div className="flex justify-between font-bold" style={{ color: '#10b981' }}>
                     <span>Gross:</span>
-                    <span>{formatCurrency(data.grossPay || 0)}</span>
+                    <span>{formatCurrency(data.grossPay || data.gross_pay || 0)}</span>
                   </div>
                 </div>
-                <div className="flex-1"></div>
+                <div className="flex-1">
+                  <div className="flex justify-between font-bold" style={{ color: '#10b981' }}>
+                    <span>Gross:</span>
+                    <span>{formatCurrency(data.ytd_gross_pay || data.ytdGrossPay || 0)}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
