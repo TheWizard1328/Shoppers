@@ -2119,10 +2119,10 @@ export default function PayrollSummaryCard({
                        return (
                          <div className="flex flex-col">
                            <div className="font-bold text-center mb-1 pb-1 border-b">YTD</div>
-                         <table className="border-collapse">
-                           <tbody>
-                             <tr style={{ color: 'var(--text-slate-600)' }}>
-                               <td className="text-right pr-1 text-[10px]">Net:</td>
+                           <table className="border-collapse">
+                             <tbody>
+                               <tr style={{ color: 'var(--text-slate-600)' }}>
+                                 <td className="text-right pr-1">Net:</td>
                              <td className="text-right">$</td>
                              <td className="text-right font-semibold">{ytdGrossPay.toFixed(2)}</td>
                            </tr>
