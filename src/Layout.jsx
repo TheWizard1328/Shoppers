@@ -650,35 +650,30 @@ export default function Layout({ children, currentPageName }) {
   const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
 
   // Apply theme class - mobile devices (by user agent) can use dark mode even with desktop layout
-  // CRITICAL: Debounced theme application to prevent blocking UI updates during critical operations
+  // CRITICAL: Apply theme IMMEDIATELY to prevent flash of light mode
   useEffect(() => {
-    // CRITICAL: Delay theme changes to avoid interfering with form submissions or status updates
-    const themeUpdateTimer = setTimeout(() => {
-      // CRITICAL: Use isMobileDeviceForTheme() for theme decisions - ONLY based on user agent, ignores screen width
-      // This allows tablets/mobile devices to use dark mode regardless of screen size
-      const isMobileOrTablet = isMobileDeviceForTheme();
-      
-      if (!isMobileOrTablet) {
-        // Force light mode on actual desktop computers only
-        document.documentElement.classList.remove('auto-theme', 'dark-theme');
-        document.documentElement.classList.add('light-theme');
-        return;
-      }
+    // CRITICAL: Use isMobileDeviceForTheme() for theme decisions - ONLY based on user agent, ignores screen width
+    // This allows tablets/mobile devices to use dark mode regardless of screen size
+    const isMobileOrTablet = isMobileDeviceForTheme();
+    
+    if (!isMobileOrTablet) {
+      // Force light mode on actual desktop computers only
+      document.documentElement.classList.remove('auto-theme', 'dark-theme');
+      document.documentElement.classList.add('light-theme');
+      return;
+    }
 
-      // Mobile/tablet theme switching (works regardless of screen width or layout)
-      if (themePreference === 'dark') {
-        document.documentElement.classList.remove('auto-theme', 'light-theme');
-        document.documentElement.classList.add('dark-theme');
-      } else if (themePreference === 'light') {
-        document.documentElement.classList.remove('auto-theme', 'dark-theme');
-        document.documentElement.classList.add('light-theme');
-      } else {
-        document.documentElement.classList.remove('light-theme', 'dark-theme');
-        document.documentElement.classList.add('auto-theme');
-      }
-    }, 300); // 300ms delay to avoid blocking critical operations
-
-    return () => clearTimeout(themeUpdateTimer);
+    // Mobile/tablet theme switching (works regardless of screen width or layout)
+    if (themePreference === 'dark') {
+      document.documentElement.classList.remove('auto-theme', 'light-theme');
+      document.documentElement.classList.add('dark-theme');
+    } else if (themePreference === 'light') {
+      document.documentElement.classList.remove('auto-theme', 'dark-theme');
+      document.documentElement.classList.add('light-theme');
+    } else {
+      document.documentElement.classList.remove('light-theme', 'dark-theme');
+      document.documentElement.classList.add('auto-theme');
+    }
   }, [themePreference]);
 
   const handleThemeChange = async (newTheme) => {
@@ -2511,6 +2506,16 @@ export default function Layout({ children, currentPageName }) {
           z-index: 1 !important;
           height: 100% !important;
           width: 100% !important;
+          background: var(--bg-slate-50) !important;
+        }
+
+        /* Prevent white flash during map tile loading */
+        .leaflet-tile-pane {
+          background: var(--bg-slate-50) !important;
+        }
+
+        .leaflet-map-pane {
+          background: var(--bg-slate-50) !important;
         }
 
         .pb-safe {
