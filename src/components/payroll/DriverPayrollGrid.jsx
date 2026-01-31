@@ -307,6 +307,9 @@ export default function DriverPayrollGrid({
   // Format period date range for header
   const periodDateRange = `${format(currentPeriod.start, 'MMM d')} - ${format(currentPeriod.end, 'MMM d, yyyy')}`;
 
+  // Early guard - after ALL hooks and calculations
+  if (!deliveries || !stores || !currentPeriod) return null;
+
   return (
     <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader className="pb-3">
