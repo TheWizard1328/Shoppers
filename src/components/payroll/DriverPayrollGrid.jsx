@@ -138,6 +138,7 @@ export default function DriverPayrollGrid({
 
   // Generate days array from the current period's start to end date
   const getDaysInPeriod = useCallback(() => {
+     if (!currentPeriod) return [];
      const days = [];
      const start = new Date(currentPeriod.start);
      const end = new Date(currentPeriod.end);
