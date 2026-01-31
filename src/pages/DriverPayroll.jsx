@@ -169,13 +169,6 @@ export default function DriverPayroll() {
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
   const handleCaptureScreenshot = async () => {
-    // Check if in dark mode - don't allow screenshot
-    const isDarkMode = document.documentElement.classList.contains('dark-theme');
-    if (isDarkMode) {
-      toast.error('Screenshots only work in light mode. Please switch to light theme.');
-      return;
-    }
-
     setIsCapturingScreenshot(true);
     toast.info('Capturing screenshot...');
 
@@ -185,11 +178,37 @@ export default function DriverPayroll() {
         return;
       }
 
-      // Hide all controls temporarily
+      // Store original theme class
+      const htmlElement = document.documentElement;
+      const originalThemeClass = htmlElement.className;
+
+      // Force light mode temporarily
+      htmlElement.classList.remove('dark-theme', 'auto-theme');
+      htmlElement.classList.add('light-theme');
+
+      // Hide all controls, buttons, toggles, and dropdowns
       const controlsElement = document.getElementById('payroll-controls');
       if (controlsElement) {
         controlsElement.style.display = 'none';
       }
+
+      // Hide Select dropdowns and other UI controls
+      const selectTriggers = contentRef.current.querySelectorAll('[class*="SelectTrigger"]');
+      selectTriggers.forEach(el => {
+        el.style.display = 'none';
+      });
+
+      // Hide any buttons within the content
+      const buttons = contentRef.current.querySelectorAll('button');
+      buttons.forEach(el => {
+        el.style.display = 'none';
+      });
+
+      // Hide App Fee % rows
+      const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
+      appFeeRows.forEach(row => {
+        row.style.display = 'none';
+      });
 
       // Small delay to ensure UI updates
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -204,10 +223,26 @@ export default function DriverPayroll() {
         allowTaint: true
       });
 
-      // Show controls again
+      // Restore original theme
+      htmlElement.className = originalThemeClass;
+
+      // Show all controls again
       if (controlsElement) {
         controlsElement.style.display = 'flex';
       }
+
+      selectTriggers.forEach(el => {
+        el.style.display = '';
+      });
+
+      buttons.forEach(el => {
+        el.style.display = '';
+      });
+
+      // Show App Fee % rows again
+      appFeeRows.forEach(row => {
+        row.style.display = '';
+      });
 
       const dataUrl = canvas.toDataURL('image/png');
       setScreenshotDataUrl(dataUrl);
@@ -217,7 +252,9 @@ export default function DriverPayroll() {
       console.error('Screenshot error:', error);
       toast.error('Failed to capture screenshot');
       
-      // Make sure controls are visible again even if error
+      // Restore original state on error
+      const htmlElement = document.documentElement;
+      htmlElement.className = htmlElement.className.replace('light-theme', '').trim();
       const controlsElement = document.getElementById('payroll-controls');
       if (controlsElement) {
         controlsElement.style.display = 'flex';
