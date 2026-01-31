@@ -1478,6 +1478,31 @@ export default function PayrollSummaryCard({
     });
   }, [driversWithDeliveriesIds, payrollRecords]);
 
+  // Initialize driver edits on mount
+  useEffect(() => {
+    const driversWithDeliveries = payrollData.filter(d => d.totalDeliveries > 0);
+    const newEdits = {};
+    
+    driversWithDeliveries.forEach((data) => {
+      const driverKey = data.driver.id;
+      if (!driverEdits[driverKey]) {
+        const payrollRecord = getDriverPayrollRecord(driverKey);
+        newEdits[driverKey] = {
+          deductions: data.deductionsArray || [],
+          bonusPay: payrollRecord?.bonus_pay || data.bonusPay || 0,
+          appFeePercent: payrollRecord?.app_fee_percentage !== undefined ? payrollRecord.app_fee_percentage : (data.appFeePercent !== undefined ? data.appFeePercent : 0),
+          showDeductionManager: false,
+          newDeductionName: '',
+          newDeductionAmount: ''
+        };
+      }
+    });
+    
+    if (Object.keys(newEdits).length > 0) {
+      setDriverEdits(prev => ({ ...prev, ...newEdits }));
+    }
+  }, [payrollData]);
+
   if (payrollData.length === 0) {
     return (
       <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
