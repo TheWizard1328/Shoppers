@@ -514,7 +514,7 @@ export default function DriverPayrollGrid({
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-[11px]" style={{ lineHeight: '1.2' }}>
+          <table className="w-full text-[11px]" style={{ lineHeight: '1.4' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
                 <th className="text-center px-1 md:px-2 py-1 font-medium sticky left-0 z-10 border-r-2 border-slate-300 align-top" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
