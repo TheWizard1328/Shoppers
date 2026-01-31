@@ -121,6 +121,9 @@ export default function DriverPayrollGrid({
     }
   }, [smartRefreshActivity?.active]);
 
+  // Guard early - before hooks that depend on currentPeriod
+  if (!deliveries || !stores || !currentPeriod) return null;
+
   // Manual refresh handler
   const handleManualRefresh = () => {
     if (isRefreshing) return;
@@ -136,7 +139,7 @@ export default function DriverPayrollGrid({
     setIsRefreshing(true);
   };
 
-  // Generate days array from the current period's start to end date (MUST be before guard)
+  // Generate days array from the current period's start to end date
   const getDaysInPeriod = useCallback(() => {
      const days = [];
      const start = new Date(currentPeriod.start);
