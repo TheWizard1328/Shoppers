@@ -18,7 +18,12 @@ import html2canvas from 'html2canvas';
 import { toast } from 'sonner';
 
 export default function AdminMetrics() {
-  const { deliveries, patients, stores, users, drivers } = useAppData();
+  const appData = useAppData();
+  const deliveries = appData?.deliveries || [];
+  const patients = appData?.patients || [];
+  const stores = appData?.stores || [];
+  const users = appData?.users || [];
+  const drivers = appData?.drivers || [];
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState(null); // null = show yearly grid
   const [selectedStoreMonth, setSelectedStoreMonth] = useState(null); // {month, storeId, storeName, storeAbbr}
