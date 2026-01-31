@@ -111,7 +111,7 @@ export default function PayrollMobileCard({
           />
         </button>
         {expandedSection === 'deliveries' && (
-          <div className="px-3 py-2 space-y-2 text-xs font-mono" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)' }}>
+          <div className="px-3 py-2 text-xs font-mono flex flex-col justify-between" style={{ background: 'var(--bg-white)', borderTop: '1px solid var(--border-slate-200)', minHeight: '120px' }}>
             {/* 4-column layout */}
             <div className="space-y-0.5">
               {/* Total */}
