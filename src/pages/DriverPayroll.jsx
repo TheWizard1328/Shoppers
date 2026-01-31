@@ -421,6 +421,56 @@ export default function DriverPayroll() {
     return () => clearInterval(refreshInterval);
   }, [currentPeriod, hasInitialized, currentUser, selectedYear, selectedCityId, payrollRecords, setSmartRefreshActivity]);
 
+  // Listen for delivery/patient imports and refresh data immediately
+  useEffect(() => {
+    const handleImportComplete = async () => {
+      console.log('📥 [DriverPayroll] Import detected - refreshing payroll data');
+      if (setSmartRefreshActivity) {
+        setSmartRefreshActivity({ active: true, updatedEntities: ['Payroll', 'Delivery'] });
+      }
+
+      try {
+        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+          payrollYear: selectedYear,
+          payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
+          payrollDriverId: null
+        });
+        const freshData = response?.data?.payrollData || response?.payrollData;
+        if (freshData) {
+          setPayrollData(freshData);
+          console.log('✅ [DriverPayroll] Payroll data refreshed after import');
+        }
+
+        if (currentPeriod) {
+          const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
+          const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
+          const result = await smartRefreshManager.refreshPayrollRecords(
+            payrollRecords,
+            periodStartStr,
+            periodEndStr
+          );
+          if (result?.hasChanges) {
+            setPayrollRecords(result.payrollRecords);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to refresh after import:', error);
+      } finally {
+        if (setSmartRefreshActivity) {
+          setSmartRefreshActivity({ active: false, updatedEntities: [] });
+        }
+      }
+    };
+
+    window.addEventListener('deliveriesImported', handleImportComplete);
+    window.addEventListener('patientsUpdated', handleImportComplete);
+
+    return () => {
+      window.removeEventListener('deliveriesImported', handleImportComplete);
+      window.removeEventListener('patientsUpdated', handleImportComplete);
+    };
+  }, [selectedYear, selectedCityId, currentPeriod, payrollRecords, setSmartRefreshActivity]);
+
   const sortedCities = useMemo(() => {
     if (!payrollData?.cities) return [];
     return [...payrollData.cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
