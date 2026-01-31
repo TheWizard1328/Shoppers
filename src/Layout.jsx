@@ -3408,7 +3408,12 @@ export default function Layout({ children, currentPageName }) {
                       currentUser={currentUser}
                       storeIds={stores.map((s) => s?.id).filter(Boolean)} />
 
-
+                        {/* Offline DB Monitor - embedded on narrow screens */}
+                        {(isMobile || screenWidth < 768) &&
+                        <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+                          <OfflineSyncIndicator embedded={true} />
+                        </div>
+                        }
                       </div>
                   }
                 </div>
