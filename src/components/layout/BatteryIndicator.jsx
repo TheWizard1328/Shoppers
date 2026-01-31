@@ -61,7 +61,7 @@ export default function BatteryIndicator({ vertical = false }) {
   };
 
   const getBatteryIcon = () => {
-    const iconSize = vertical ? "w-5 h-4" : "w-8 h-5";
+    const iconSize = vertical ? "w-6 h-5" : "w-10 h-6";
     const colorClass = getColor();
 
     if (isCharging) {
