@@ -608,8 +608,6 @@ export default function PayrollSummaryCard({
     
     const filename = `${dateFrom}-${dateTo} - ${filenameContext}.pdf`;
     
-    const filename = `${dateFrom}-${dateTo} - ${filenameContext}.pdf`;
-    
     // Check if single driver view
     const isSingleDriver = selectedDriverId && selectedDriverId !== 'all';
     
