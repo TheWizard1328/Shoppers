@@ -622,7 +622,7 @@ export default function DriverPayroll() {
 
   return (
     <div className="p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
-      <div className="max-w-7xl mx-auto" ref={contentRef}>
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
@@ -631,17 +631,19 @@ export default function DriverPayroll() {
           </div>
           
           {/* Filters */}
-          <div id="payroll-controls" className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={handleManualRefresh}
-              disabled={isRefreshing || isLoadingPayroll}
-              size="sm"
-              variant="outline"
-              className="gap-2"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div id="payroll-controls" className="flex items-center gap-2">
+              <Button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing || isLoadingPayroll}
+                size="sm"
+                variant="outline"
+                className="gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </Button>
+            </div>
             {/* City Filter */}
             <Select value={selectedCityId} onValueChange={setSelectedCityId} disabled={isDriver}>
               <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
@@ -672,21 +674,21 @@ export default function DriverPayroll() {
             </Select>
 
             {/* Driver Filter - filtered by pay cycle type */}
-            <Select value={selectedDriverId} onValueChange={setSelectedDriverId} disabled={isDriver}>
-              <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                <SelectValue placeholder="Driver" />
-              </SelectTrigger>
-              <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers ({driversInPayCycle.length})</SelectItem>
-                {driversInPayCycle.map(driver => (
-                  <SelectItem key={driver.user_id} value={driver.user_id} style={{ color: 'var(--text-slate-900)' }}>
-                    {getDriverDisplayName(driver)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+             <Select value={selectedDriverId} onValueChange={setSelectedDriverId} disabled={isDriver}>
+               <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                 <SelectValue placeholder="Driver" />
+               </SelectTrigger>
+               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                 <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers ({driversInPayCycle.length})</SelectItem>
+                 {driversInPayCycle.map(driver => (
+                   <SelectItem key={driver.user_id} value={driver.user_id} style={{ color: 'var(--text-slate-900)' }}>
+                     {getDriverDisplayName(driver)}
+                   </SelectItem>
+                 ))}
+               </SelectContent>
+             </Select>
+            </div>
+            </div>
 
         {/* Content Area for Screenshot */}
         <div ref={contentRef}>
