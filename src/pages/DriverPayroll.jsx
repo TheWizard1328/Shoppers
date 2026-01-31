@@ -214,17 +214,6 @@ export default function DriverPayroll() {
         patients: data?.patients?.length || 0
       });
       setPayrollData(data);
-      
-      // Also refresh payroll records for current period
-      if (currentPeriod) {
-        const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
-        const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
-        const records = await base44.entities.Payroll.filter({
-          pay_period_start: periodStartStr,
-          pay_period_end: periodEndStr
-        });
-        setPayrollRecords(records || []);
-      }
     } catch (error) {
       console.error('Failed to fetch payroll data:', error);
       toast.error('Failed to refresh payroll data');
@@ -235,7 +224,7 @@ export default function DriverPayroll() {
         setSmartRefreshActivity({ active: false, updatedEntities: [] });
       }
     }
-  }, [selectedYear, selectedCityId, currentUser, currentPeriod, setSmartRefreshActivity]);
+  }, [selectedYear, selectedCityId, currentUser, setSmartRefreshActivity]);
 
   useEffect(() => {
     if (hasInitialized) {
@@ -472,8 +461,19 @@ export default function DriverPayroll() {
       invalidate('Patient');
       invalidate('Payroll');
       
-      // Force fresh fetch
+      // Force fresh fetch of payroll data
       await fetchPayroll(true, true);
+      
+      // Also refresh payroll records if period is available
+      if (currentPeriod) {
+        const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
+        const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
+        const records = await base44.entities.Payroll.filter({
+          pay_period_start: periodStartStr,
+          pay_period_end: periodEndStr
+        });
+        setPayrollRecords(records || []);
+      }
       
       toast.success('Payroll data updated');
     };
@@ -485,7 +485,7 @@ export default function DriverPayroll() {
       window.removeEventListener('deliveriesImported', handleImportComplete);
       window.removeEventListener('patientsUpdated', handleImportComplete);
     };
-  }, [fetchPayroll]);
+  }, [fetchPayroll, currentPeriod]);
 
   const sortedCities = useMemo(() => {
     if (!payrollData?.cities) return [];
