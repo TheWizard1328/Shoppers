@@ -1964,6 +1964,9 @@ export default function PayrollSummaryCard({
                 onConfirmClick={() => handleDriverFinalize(data)}
                 isFinalizing={isFinalizing}
                 formatCurrency={formatCurrency}
+                deliveries={deliveries}
+                patients={patients}
+                currentPeriod={currentPeriod}
               />
             );
           }
