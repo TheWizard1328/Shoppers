@@ -275,8 +275,10 @@ export default function PayrollSummaryCard({
         // CRITICAL: Fetch ALL payroll records from Jan 1 to current period end for YTD calculations
         const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
         const records = await base44.entities.Payroll.filter({
-          pay_period_end: { $gte: yearStart, $lte: periodEndStr }
+          pay_period_end: { $gte: yearStart, $lte: periodEndStr },
+          driver_id: selectedDriverId === 'all' ? undefined : selectedDriverId // Only fetch for selected driver if not 'all'
         });
+        console.log(`📥 [Payroll] Fetched ${records?.length || 0} payroll records from ${yearStart} to ${periodEndStr} for driver ${selectedDriverId}`);
         setPayrollRecords(records || []);
         if (onPayrollRecordsChange) {
           onPayrollRecordsChange(records || []);
