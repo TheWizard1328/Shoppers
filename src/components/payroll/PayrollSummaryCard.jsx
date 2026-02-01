@@ -272,9 +272,10 @@ export default function PayrollSummaryCard({
 
       setIsLoadingRecords(true);
       try {
+        // CRITICAL: Fetch ALL payroll records from Jan 1 to current period end for YTD calculations
+        const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
         const records = await base44.entities.Payroll.filter({
-          pay_period_start: periodStartStr,
-          pay_period_end: periodEndStr
+          pay_period_end: { $gte: yearStart, $lte: periodEndStr }
         });
         setPayrollRecords(records || []);
         if (onPayrollRecordsChange) {
