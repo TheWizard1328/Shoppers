@@ -780,10 +780,24 @@ export default function PayrollSummaryCard({
         controlsElement.style.display = 'none';
       }
 
-      // Hide all App Fee % rows before capturing
+      // Show/hide App Fee % rows based on conditions:
+      // Only show if: driver > 0, single driver mode, and user is AppOwner or actual driver
+      const isSingleDriver = selectedDriverId && selectedDriverId !== 'all';
+      const isOwnerOrDriver = isAppOwner(currentUser) || (isDriver && selectedDriverId === currentUser?.id);
+      const shouldShowAppFees = isSingleDriver && isOwnerOrDriver;
+
       const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
       appFeeRows.forEach((row) => {
-        row.style.display = 'none';
+        // Hide if conditions not met OR if app fee value is 0
+        const appFeeValue = parseFloat(row.getAttribute('data-app-fee-value') || '0');
+        const shouldHide = !shouldShowAppFees || appFeeValue === 0;
+        row.style.display = shouldHide ? 'none' : '';
+      });
+
+      // Add labels to YTD column headers if needed
+      const ytdHeaders = document.querySelectorAll('[data-ytd-header="true"]');
+      ytdHeaders.forEach((header) => {
+        header.style.display = '';
       });
 
       // Capture the content
@@ -803,9 +817,8 @@ export default function PayrollSummaryCard({
         controlsElement.style.display = 'flex';
       }
 
-      // Show App Fee % rows again
-      const appFeeRowsToShow = document.querySelectorAll('[data-app-fee-row="true"]');
-      appFeeRowsToShow.forEach((row) => {
+      // Restore App Fee % rows display
+      appFeeRows.forEach((row) => {
         row.style.display = '';
       });
     } catch (error) {
