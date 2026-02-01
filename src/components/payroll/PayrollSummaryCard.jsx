@@ -2191,7 +2191,7 @@ export default function PayrollSummaryCard({
                              App Fee %:
                            </button>
                          </td>
-                         <td className="text-right">-$</td>
+                         <td className="text-right">+$</td>
                          <td className="text-right font-semibold">{((edit.appFeePercent || 0) / 100 * data.totalBasePay).toFixed(2)}</td>
                          </tr>
                        }
