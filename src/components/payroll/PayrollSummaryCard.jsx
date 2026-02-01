@@ -2176,7 +2176,13 @@ export default function PayrollSummaryCard({
                          <td className="text-right">+$</td>
                          <td className="text-right font-semibold">{(edit.bonusPay || 0).toFixed(2)}</td>
                        </tr>
-                       {isAdmin &&
+                       {isAdmin && currentPeriod?.end && (() => {
+                         // Only show app fees if payroll period ends on last day of month
+                         const nextDay = new Date(currentPeriod.end);
+                         nextDay.setDate(nextDay.getDate() + 1);
+                         const isEndOfMonth = nextDay.getMonth() !== currentPeriod.end.getMonth();
+                         return isEndOfMonth;
+                       })() &&
                        <tr style={{ color: 'var(--text-slate-600)' }}>
                          <td className="text-right pr-1">
                            <button onClick={() => {
@@ -2192,39 +2198,7 @@ export default function PayrollSummaryCard({
                            </button>
                          </td>
                          <td className="text-right">+$</td>
-                         <td className="text-right font-semibold">{(() => {
-                           // Calculate billable app fees = total deliveries from stores that pay app fees
-                           let billableAppFees = 0;
-                           const periodDeliveries = deliveries.filter((d) => {
-                             if (!d || d.driver_id !== data.driver.id) return false;
-                             const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                             if (!validStatus) return false;
-                             if (!d.patient_id && !d.after_hours_pickup) return false;
-                             const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                             return deliveryDate >= currentPeriod.start && deliveryDate <= currentPeriod.end;
-                           });
-                           periodDeliveries.forEach((d) => {
-                             const store = stores.find((s) => s?.id === d.store_id);
-                             if (!store) return;
-                             let paysAppFees = store.pays_app_fees || false;
-                             if (store.app_fee_history && store.app_fee_history.length > 0) {
-                               const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                               const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                 new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                               );
-                               const applicableEntry = sortedHistory.find((entry) =>
-                                 new Date(entry.effective_date) <= deliveryDate
-                               );
-                               if (applicableEntry) {
-                                 paysAppFees = applicableEntry.pays_app_fees;
-                               }
-                             }
-                             if (paysAppFees) {
-                               billableAppFees += 1;
-                             }
-                           });
-                           return ((edit.appFeePercent || 0) / 100 * billableAppFees).toFixed(2);
-                         })()}</td>
+                         <td className="text-right font-semibold">0.00</td>
                          </tr>
                        }
                        <tr className="text-lg font-bold text-emerald-600">
