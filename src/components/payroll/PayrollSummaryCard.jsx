@@ -2486,7 +2486,7 @@ export default function PayrollSummaryCard({
                          <td className="text-right">$</td>
                          <td className="text-right font-semibold">{(data.taxAmount || 0).toFixed(2)}</td>
                        </tr>
-                       <tr style={{ color: 'var(--text-slate-600)' }}>
+                       <tr style={{ color: 'var(--text-slate-600)' }} data-ytd-header="deductions">
                          <td className="text-right pr-1">
                            {isAdmin ?
                                 <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
@@ -2499,7 +2499,7 @@ export default function PayrollSummaryCard({
                          <td className="text-right">-$</td>
                          <td className="text-right font-semibold">{(edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0).toFixed(2)}</td>
                        </tr>
-                       <tr style={{ color: 'var(--text-slate-600)' }}>
+                       <tr style={{ color: 'var(--text-slate-600)' }} data-ytd-header="bonus">
                          <td className="text-right pr-1">
                            {isAdmin ?
                                 <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
@@ -2513,7 +2513,7 @@ export default function PayrollSummaryCard({
                          <td className="text-right font-semibold">{(edit.bonusPay || 0).toFixed(2)}</td>
                        </tr>
                        {isAdmin && isPeriodEndOfMonth &&
-                       <tr style={{ color: 'var(--text-slate-600)' }}>
+                       <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true" data-app-fee-value={calculateAppFeeAmount(driverKey, edit.appFeePercent)}>
                          <td className="text-right pr-1">
                            <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
                              App Fee %:
