@@ -1721,8 +1721,8 @@ export default function PayrollSummaryCard({
       const ytdTaxAmount = ytdRecords.reduce((sum, r) => sum + (r.tax_amount || 0), 0);
       const ytdAppFeeAmount = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
       
-      // CRITICAL: Include app fees in gross pay calculation
-      const ytdGrossPay = ytdNetPay + ytdTaxAmount + ytdBonusAmount - ytdDeductionsAmount + ytdAppFeeAmount;
+      // CRITICAL: Include app fees in gross pay calculation (round to prevent floating-point errors)
+      const ytdGrossPay = Math.round((ytdNetPay + ytdTaxAmount + ytdBonusAmount - ytdDeductionsAmount + ytdAppFeeAmount) * 100) / 100;
       
       console.log(`🧮 [Payroll] YTD Summary for ${data.driver.user_name}: Net=$${ytdNetPay}, Tax=$${ytdTaxAmount}, Bonus=$${ytdBonusAmount}, Deductions=$${ytdDeductionsAmount}, AppFee=$${ytdAppFeeAmount}, Gross=$${ytdGrossPay}`);
       
