@@ -194,6 +194,15 @@ export default function PayrollMobileCard({
             </div>
           }
 
+          {/* App Fee (if any) */}
+          {(data.app_fee_amount || data.appFeeAmount || ytdTotals.ytdAppFeeAmount) > 0 &&
+          <div className="flex gap-2 text-purple-700">
+              <div className="flex-1 text-left">App Fee</div>
+              <div className="w-24 text-right">{formatCurrency(data.app_fee_amount || data.appFeeAmount || 0)}</div>
+              <div className="w-24 text-right">{formatCurrency(ytdTotals.ytdAppFeeAmount)}</div>
+            </div>
+          }
+
           {/* Gross (bold, divider) */}
           <div className="flex gap-2 pt-1 border-t font-bold" style={{ borderColor: 'var(--border-slate-200)', color: '#10b981' }}>
             <div className="flex-1 text-left">Gross</div>
