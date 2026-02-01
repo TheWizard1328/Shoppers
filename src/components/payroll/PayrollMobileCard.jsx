@@ -161,7 +161,7 @@ export default function PayrollMobileCard({
         borderColor: 'var(--border-slate-200)',
         fontVariantNumeric: 'tabular-nums'
       }}>
-        <div className="space-y-1 text-xs font-mono">
+        <div className="space-y-1 text-xs font-mono" style={{ color: 'var(--text-slate-900)' }}>
           {/* Header */}
           <div className="flex gap-2 mb-2 font-semibold pb-1 border-b" style={{ borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-700)' }}>
             <div className="flex-1"></div>
