@@ -191,20 +191,20 @@ export default function PayrollMobileCard({
           </div>
 
           {/* Bonus (if any) */}
-          {(data.bonus_pay || data.bonusPay || ytdTotals.ytdBonusPay) > 0 &&
-          <div className="flex gap-2 text-blue-700">
+          {(bonusAmount || ytdDataByDriver[data.driver.id]?.ytdBonusAmount) > 0 &&
+          <div className="flex gap-2" style={{ color: 'var(--text-blue-700)' }}>
               <div className="flex-1 text-left">Bonus</div>
-              <div className="w-24 text-right">{formatCurrency(data.bonus_pay || data.bonusPay || 0)}</div>
-              <div className="w-24 text-right">{formatCurrency(ytdTotals.ytdBonusPay)}</div>
+              <div className="w-24 text-right">{formatCurrency(bonusAmount || 0)}</div>
+              <div className="w-24 text-right">{formatCurrency(ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0)}</div>
             </div>
           }
 
           {/* App Fee (if any) */}
-          {(data.app_fee_amount || data.appFeeAmount || ytdTotals.ytdAppFeeAmount) > 0 &&
-          <div className="flex gap-2 text-purple-700">
-              <div className="flex-1 text-left">App Fee</div>
-              <div className="w-24 text-right">{formatCurrency(data.app_fee_amount || data.appFeeAmount || 0)}</div>
-              <div className="w-24 text-right">{formatCurrency(ytdTotals.ytdAppFeeAmount)}</div>
+          {isAdmin && isPeriodEndOfMonth && (appFeeAmount || ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount) > 0 &&
+          <div className="flex gap-2" style={{ color: 'var(--text-purple-700)' }}>
+              <div className="flex-1 text-left">App Fee ({appFeePercent}%)</div>
+              <div className="w-24 text-right">{formatCurrency(appFeeAmount || 0)}</div>
+              <div className="w-24 text-right">{formatCurrency(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0)}</div>
             </div>
           }
 
