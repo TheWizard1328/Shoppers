@@ -1578,6 +1578,25 @@ export default function PayrollSummaryCard({
     }).format(amount);
   };
 
+  // Round currency values to 2 decimals before saving to Payroll entity
+  const roundPayrollData = (data) => {
+    const currencyFields = [
+      'gross_pay', 'net_pay', 'total_deductions', 'bonus_pay', 'app_fee_amount',
+      'tax_amount', 'pay_rate_per_delivery', 'extra_km_rate', 'extra_km_limit', 'oversized_item_rate'
+    ];
+    const rounded = { ...data };
+    currencyFields.forEach(field => {
+      if (rounded[field] !== undefined && rounded[field] !== null) {
+        rounded[field] = Math.round(rounded[field] * 100) / 100;
+      }
+    });
+    // Also round total_extra_km to 2 decimals for precision
+    if (rounded.total_extra_km !== undefined && rounded.total_extra_km !== null) {
+      rounded.total_extra_km = Math.round(rounded.total_extra_km * 100) / 100;
+    }
+    return rounded;
+  };
+
   // Grand totals across all displayed drivers (only those with deliveries)
   const driversWithDeliveries = useMemo(() => payrollData.filter((d) => d.totalDeliveries > 0), [payrollData]);
   const grandTotalAllDrivers = driversWithDeliveries.reduce((sum, d) => sum + d.grandTotal, 0);
