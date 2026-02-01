@@ -168,6 +168,75 @@ export default function DriverPayroll() {
   // Determine if current user is a driver (not admin)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
+  // CRITICAL: Declare ALL hooks BEFORE any early returns
+  const years = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return [currentYear, currentYear - 1, currentYear - 2];
+  }, []);
+
+  const allPeriods = useMemo(() => {
+    return calculateAllPeriods(selectedYear, payPeriod);
+  }, [selectedYear, payPeriod]);
+
+  const currentPeriod = allPeriods[selectedPeriodIndex] || allPeriods[0];
+
+  const sortedCities = useMemo(() => {
+    if (!payrollData?.cities) return [];
+    return [...payrollData.cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+  }, [payrollData?.cities]);
+
+  const filteredStores = useMemo(() => {
+    if (!payrollData?.stores) return [];
+    let filtered = payrollData.stores.filter(s => s.status !== 'inactive');
+    if (selectedCityId && selectedCityId !== 'all') {
+      filtered = filtered.filter(s => s.city_id === selectedCityId);
+    }
+    return sortStores(filtered);
+  }, [payrollData?.stores, selectedCityId]);
+
+  const sortedDrivers = useMemo(() => {
+    if (!payrollData?.drivers) return [];
+    return sortUsers(payrollData.drivers.filter(d => d && d.status === 'active'));
+  }, [payrollData?.drivers]);
+
+  const availablePayCycles = useMemo(() => {
+    if (!payrollData?.appUsers) return [];
+    const cycles = new Set();
+    payrollData.appUsers.forEach(au => {
+      if (au.pay_cycle_type && au.status === 'active') {
+        cycles.add(au.pay_cycle_type);
+      }
+    });
+    const order = ['weekly', 'biweekly', 'semimonthly', 'monthly'];
+    return order.filter(c => cycles.has(c));
+  }, [payrollData?.appUsers]);
+
+  const driversInPayCycle = useMemo(() => {
+    if (!payrollData?.appUsers || !payrollData?.drivers) return [];
+    const driverIdsInCycle = new Set(
+      payrollData.appUsers
+        .filter(au => au.pay_cycle_type === payPeriod && au.status === 'active')
+        .map(au => au.user_id)
+    );
+    return sortUsers(
+      payrollData.drivers.filter(d => {
+        if (!d || d.status !== 'active') return false;
+        const driverId = d.user_id || d.id;
+        return driverIdsInCycle.has(driverId);
+      })
+    );
+  }, [payrollData?.appUsers, payrollData?.drivers, payPeriod]);
+
+  const cityFilteredDeliveries = useMemo(() => {
+    if (!payrollData?.deliveries) return [];
+    let filtered = payrollData.deliveries;
+    if (selectedCityId !== 'all') {
+      const cityStoreIds = new Set(filteredStores.map(s => s.id));
+      filtered = filtered.filter(d => d && cityStoreIds.has(d.store_id));
+    }
+    return filtered;
+  }, [payrollData?.deliveries, selectedCityId, filteredStores]);
+
   const handleCaptureScreenshot = async () => {
     setIsCapturingScreenshot(true);
     toast.info('Capturing screenshot...');
