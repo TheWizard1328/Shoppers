@@ -2232,7 +2232,7 @@ export default function PayrollSummaryCard({
                            </tr>
                            <tr style={{ color: 'var(--text-slate-600)' }}>
                              <td className="text-right">+$</td>
-                             <td className="text-right font-semibold">0.00</td>
+                             <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0).toFixed(2)}</td>
                            </tr>
                            {isAdmin && currentPeriod?.end && (() => {
                              const nextDay = new Date(currentPeriod.end);
