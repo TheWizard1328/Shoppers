@@ -439,6 +439,7 @@ export default function DriverPayroll() {
     }
   }, [selectedYear, selectedCityId, currentUser, setSmartRefreshActivity]);
 
+  // Trigger fetch when filters change (after initialization)
   useEffect(() => {
     if (hasInitialized) {
       fetchPayroll(false, false);
