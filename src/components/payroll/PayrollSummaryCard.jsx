@@ -66,6 +66,7 @@ export default function PayrollSummaryCard({
   const [driverEdits, setDriverEdits] = useState({});
   const [deductionOverlayDriverId, setDeductionOverlayDriverId] = useState(null);
   const [bonusOverlayDriverId, setBonusOverlayDriverId] = useState(null);
+  const [appFeeOverlayDriverId, setAppFeeOverlayDriverId] = useState(null);
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
