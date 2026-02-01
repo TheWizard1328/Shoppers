@@ -394,7 +394,7 @@ export default function PayrollSummaryCard({
             
             const periodAppFeeAmount = (periodAppFeeDeliveries * (driverData?.appFeePercentage || 0)) / 100;
             
-            return base44.entities.Payroll.create({
+            const recordData = {
               driver_id: driverId,
               city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : null,
               pay_period_start: periodStartStr,
@@ -417,7 +417,9 @@ export default function PayrollSummaryCard({
               oversized_item_rate: driverData?.oversizedRate || 0,
               gst_hst_enabled: driverData?.gstHstEnabled || false,
               status: 'draft'
-            });
+            };
+            
+            return base44.entities.Payroll.create(roundPayrollData(recordData));
           })
         );
 
