@@ -1726,6 +1726,8 @@ export default function PayrollSummaryCard({
     
     // Calculate TOTAL monthly app fee pool (all stores that pay, all deliveries)
     let totalBillableCount = 0;
+    const storeBreakdown = {};
+    
     deliveries.forEach((d) => {
       if (!d) return;
       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
@@ -1752,17 +1754,31 @@ export default function PayrollSummaryCard({
         }
       }
       
+      if (!storeBreakdown[store.id]) {
+        storeBreakdown[store.id] = { name: store.name, count: 0, pays: paysAppFees };
+      }
+      storeBreakdown[store.id].count++;
+      
       if (paysAppFees) {
         totalBillableCount++;
       }
     });
     
-    // Total app fee pool = all billable deliveries × per-delivery fee
+    // Debug log
+    console.log(`🧮 [AppFee Debug] Period: ${periodStartStr} to ${periodEndStr}, Fee/Del: $${appFeesPerDelivery}`);
+    console.log(`   Store Breakdown:`, storeBreakdown);
+    console.log(`   Total Billable: ${totalBillableCount} deliveries`);
     const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+    console.log(`   Total App Fee Pool: ${totalBillableCount} × $${appFeesPerDelivery} = $${totalMonthlyAppFees.toFixed(2)}`);
+    const driverAppFee = (totalMonthlyAppFees * appFeePercent) / 100;
+    console.log(`   Driver ${driverId} gets ${appFeePercent}% = $${driverAppFee.toFixed(2)}`);
+    
+    // Total app fee pool = all billable deliveries × per-delivery fee
+    const totalMonthlyAppFees2 = totalBillableCount * appFeesPerDelivery;
     
     // Driver gets their percentage of the total pool
-    return (totalMonthlyAppFees * appFeePercent) / 100;
-  }, [deliveries, stores, currentPeriod, appFeesPerDelivery]);
+    return (totalMonthlyAppFees2 * appFeePercent) / 100;
+  }, [deliveries, stores, currentPeriod, appFeesPerDelivery, periodStartStr]);
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
