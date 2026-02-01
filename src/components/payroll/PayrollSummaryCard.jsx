@@ -1660,6 +1660,7 @@ export default function PayrollSummaryCard({
   }, [driversWithDeliveriesIds, payrollRecords]);
 
   // Calculate YTD data from payroll records - sum stored values from all periods including current
+  // CRITICAL: App fees are included in YTD calculations
   const ytdDataByDriver = useMemo(() => {
     const ytdMap = {};
     
@@ -1687,6 +1688,7 @@ export default function PayrollSummaryCard({
       const ytdTaxAmount = ytdRecords.reduce((sum, r) => sum + (r.tax_amount || 0), 0);
       const ytdAppFeeAmount = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
       
+      // CRITICAL: Include app fees in gross pay calculation
       const ytdGrossPay = ytdNetPay + ytdTaxAmount + ytdBonusAmount - ytdDeductionsAmount + ytdAppFeeAmount;
       
       console.log(`🧮 [Payroll] YTD Summary for ${data.driver.user_name}: Net=$${ytdNetPay}, Tax=$${ytdTaxAmount}, Bonus=$${ytdBonusAmount}, Deductions=$${ytdDeductionsAmount}, AppFee=$${ytdAppFeeAmount}, Gross=$${ytdGrossPay}`);
