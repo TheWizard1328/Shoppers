@@ -273,7 +273,8 @@ export default function DriverPayroll() {
     }
   }, [currentPeriod]);
 
-  const handleCaptureScreenshot = async () => {
+  // All useCallback hooks must be declared here, before useEffect
+  const handleCaptureScreenshot = useCallback(async () => {
     setIsCapturingScreenshot(true);
     toast.info('Capturing screenshot...');
 
@@ -367,10 +368,9 @@ export default function DriverPayroll() {
     } finally {
       setIsCapturingScreenshot(false);
     }
-  };
+  }, []);
 
-  // Manual refresh handler
-  const handleManualRefresh = async () => {
+  const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
     console.log('🔄 [DriverPayroll] Manual refresh triggered');
     
@@ -384,7 +384,7 @@ export default function DriverPayroll() {
     
     setIsRefreshing(false);
     toast.success('Payroll data refreshed');
-  };
+  }, [selectedYear, selectedCityId]);
 
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
     if (!currentUser) return;
@@ -431,8 +431,18 @@ export default function DriverPayroll() {
     }
   }, [selectedYear, selectedCityId, currentUser, setSmartRefreshActivity]);
 
-  // Determine if current user is a driver (after all hooks)
-  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
+  // Navigation handlers - must be useCallback
+  const goToPrevPeriod = useCallback(() => {
+    if (selectedPeriodIndex > 0) {
+      setSelectedPeriodIndex(selectedPeriodIndex - 1);
+    }
+  }, [selectedPeriodIndex]);
+
+  const goToNextPeriod = useCallback(() => {
+    if (selectedPeriodIndex < allPeriods.length - 1) {
+      setSelectedPeriodIndex(selectedPeriodIndex + 1);
+    }
+  }, [selectedPeriodIndex, allPeriods.length]);
 
   // Trigger fetch when filters change (after initialization)
   useEffect(() => {
@@ -511,25 +521,15 @@ export default function DriverPayroll() {
     }
   }, [payPeriod, selectedYear, allPeriods]);
 
-  // Navigation handlers
-  const goToPrevPeriod = () => {
-    if (selectedPeriodIndex > 0) {
-      setSelectedPeriodIndex(selectedPeriodIndex - 1);
-    }
-  };
-
-  const goToNextPeriod = () => {
-    if (selectedPeriodIndex < allPeriods.length - 1) {
-      setSelectedPeriodIndex(selectedPeriodIndex + 1);
-    }
-  };
-
   // Load payroll records when period changes (initial load and period navigation)
   useEffect(() => {
     if (!currentPeriod || !hasInitialized) return;
     console.log(`🔄 [DriverPayroll] Period changed, loading payroll records...`);
     refreshPayrollRecords();
   }, [currentPeriod, hasInitialized, refreshPayrollRecords]);
+
+  // Determine if current user is a driver (after ALL hooks)
+  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
   // Conditional rendering without early return to maintain hook order
   return !currentUser ? (
