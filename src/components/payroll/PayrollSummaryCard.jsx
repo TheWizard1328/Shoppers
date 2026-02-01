@@ -2363,32 +2363,27 @@ export default function PayrollSummaryCard({
            {/* Drivers Breakdown Table */}
            <div className="mt-4">
              <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Driver App Fee Breakdown</h3>
-             <div className="overflow-x-auto border rounded" style={{ borderColor: 'var(--border-slate-200)', maxHeight: '400px', overflowY: 'auto' }}>
-               <table className="w-full text-xs">
+             <div className="border rounded" style={{ borderColor: 'var(--border-slate-200)', maxHeight: '350px', overflowY: 'auto' }}>
+               <table className="w-full text-xs border-collapse">
                  <thead style={{ background: 'var(--bg-slate-100)', position: 'sticky', top: 0 }}>
                    <tr style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
-                     <th className="text-left px-3 py-2">Driver</th>
-                     <th className="text-right px-2 py-2">App Fee %</th>
-                     <th className="text-right px-2 py-2">App Fee $</th>
-                     <th className="text-right px-2 py-2">Other App Fee %</th>
-                     <th className="text-right px-2 py-2">Other App Fee $</th>
+                     <th className="text-left px-2 py-1.5 font-semibold">Driver</th>
+                     <th className="text-right px-2 py-1.5 font-semibold" style={{ width: '80px' }}>Fee %</th>
+                     <th className="text-right px-2 py-1.5 font-semibold" style={{ width: '80px' }}>Fee $</th>
                    </tr>
                  </thead>
                  <tbody>
                    {driversWithDeliveries.map((driver, idx) => {
                      const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
                      const driverAppFeeAmount = calculateAppFeeAmount(driver.driver.id, driverAppFeePercent);
-                     // Other App Fee is the balance after this driver's percentage
-                     const otherAppFeePercent = Math.max(0, 100 - driverAppFeePercent - extraAppFeePercent);
-                     const otherAppFeeAmount = calculateAppFeeAmount(driver.driver.id, otherAppFeePercent);
 
                      return (
                        <tr key={driver.driver.id} style={{ borderBottom: '1px solid var(--border-slate-200)', background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
-                         <td className="px-3 py-2">{driver.driver.user_name || driver.driver.full_name}</td>
-                         <td className="text-right px-2 py-2">
+                         <td className="px-2 py-1.5 truncate text-left">{driver.driver.user_name || driver.driver.full_name}</td>
+                         <td className="text-right px-1 py-1.5">
                            <input
                              type="number"
-                             value={driverAppFeePercent}
+                             value={driverAppFeePercent.toFixed(2)}
                              onChange={(e) => {
                                const newPercent = parseFloat(e.target.value) || 0;
                                setDriverEdits((prev) => ({
@@ -2400,13 +2395,12 @@ export default function PayrollSummaryCard({
                                  }
                                }));
                              }}
-                             className="w-16 px-1 py-0.5 border rounded text-right"
+                             className="w-full px-1 py-0.5 border rounded text-right text-xs"
                              step="0.01"
                              min="0"
                              max="100" />
-                           %
                          </td>
-                         <td className="text-right px-2 py-2">
+                         <td className="text-right px-1 py-1.5">
                            <input
                              type="number"
                              value={driverAppFeeAmount.toFixed(2)}
@@ -2448,22 +2442,18 @@ export default function PayrollSummaryCard({
                                  }
                                }));
                              }}
-                             className="w-20 px-1 py-0.5 border rounded text-right"
+                             className="w-full px-1 py-0.5 border rounded text-right text-xs"
                              step="0.01"
                              min="0" />
                          </td>
-                         <td className="text-right px-2 py-2">{otherAppFeePercent.toFixed(2)}%</td>
-                         <td className="text-right px-2 py-2">${otherAppFeeAmount.toFixed(2)}</td>
                        </tr>
                      );
                    })}
                    {/* App Owner Row */}
                    <tr style={{ background: 'var(--bg-slate-100)', borderTop: '2px solid var(--border-slate-300)' }}>
-                     <td className="px-3 py-2 font-semibold">App Owner</td>
-                     <td className="text-right px-2 py-2 font-semibold">{appOwnerAppFeePercent.toFixed(2)}%</td>
-                     <td className="text-right px-2 py-2 font-semibold">${(calculateAppFeeAmount('app-owner', appOwnerAppFeePercent) || 0).toFixed(2)}</td>
-                     <td className="text-right px-2 py-2 font-semibold">Extra: {extraAppFeePercent.toFixed(2)}%</td>
-                     <td className="text-right px-2 py-2 font-semibold">${(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) || 0).toFixed(2)}</td>
+                     <td className="px-2 py-1.5 font-semibold">App Owner + Extra</td>
+                     <td className="text-right px-1 py-1.5 font-semibold">{appOwnerAppFeePercent.toFixed(2)}%</td>
+                     <td className="text-right px-1 py-1.5 font-semibold">${(calculateAppFeeAmount('app-owner', appOwnerAppFeePercent) || 0).toFixed(2)}</td>
                    </tr>
                  </tbody>
                </table>
