@@ -1855,12 +1855,17 @@ export default function PayrollSummaryCard({
     driversWithDeliveries.forEach((data) => {
       const driverKey = data.driver.id;
       const payrollRecord = getDriverPayrollRecord(driverKey);
+      const appFeePercent = payrollRecord?.app_fee_percentage !== undefined ? payrollRecord.app_fee_percentage : 0;
+      
+      // CRITICAL: Recalculate app_fee_amount based on current deliveries and stored percentage
+      const recalculatedAppFeeAmount = calculateAppFeeAmount(driverKey, appFeePercent);
       
       // CRITICAL: Always sync from payroll record if it exists, otherwise use defaults
       newEdits[driverKey] = {
         deductions: payrollRecord?.deductions || data.deductionsArray || [],
         bonusPay: payrollRecord?.bonus_pay !== undefined ? payrollRecord.bonus_pay : 0,
-        appFeePercent: payrollRecord?.app_fee_percentage !== undefined ? payrollRecord.app_fee_percentage : 0,
+        appFeePercent: appFeePercent,
+        recalculatedAppFeeAmount: recalculatedAppFeeAmount,
         showDeductionManager: false,
         newDeductionName: '',
         newDeductionAmount: ''
@@ -1868,7 +1873,7 @@ export default function PayrollSummaryCard({
     });
 
     setDriverEdits(newEdits);
-  }, [payrollData, payrollRecords]);
+  }, [payrollData, payrollRecords, calculateAppFeeAmount]);
 
   // Guard clause AFTER all hooks
   if (payrollData.length === 0) {
