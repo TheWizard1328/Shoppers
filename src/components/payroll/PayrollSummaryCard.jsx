@@ -1540,25 +1540,30 @@ export default function PayrollSummaryCard({
       const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
       const currentPeriodEnd = currentPeriod.end.toISOString().split('T')[0];
       
-      // Accumulate from all payroll records in this range
+      // CRITICAL: Filter payrollRecords to ONLY include periods up to and including current period end
+      // Exclude the current period being viewed to avoid double-counting
       const ytdRecords = payrollRecords.filter((r) => {
         if (!r || r.driver_id !== data.driver.id) return false;
         // Include records from Jan 1 through current period end
+        // But EXCLUDE the current period itself (we'll count deliveries from payrollData instead)
         const recordEnd = r.pay_period_end;
-        return recordEnd >= yearStart && recordEnd <= currentPeriodEnd;
+        return recordEnd >= yearStart && recordEnd < currentPeriodEnd;
       });
       
-      // YTD Net Pay: Sum of net_pay from all periods
-      const ytdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
+      // YTD Net Pay: Sum of net_pay from all PRIOR periods + current period's deliveries
+      const priorYtdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
+      const ytdNetPay = priorYtdNetPay + (data.grandTotal || 0); // Add current period's net pay
       
       // YTD Tax: YTD Net Pay * the driver's current tax rate (if GST/HST enabled)
       const ytdTaxAmount = data.gstHstEnabled ? ytdNetPay * data.taxRate : 0;
       
-      // YTD Deductions: Sum of total_deductions from all periods
-      const ytdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
+      // YTD Deductions: Sum of total_deductions from all PRIOR periods + current period
+      const priorYtdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
+      const ytdDeductionsAmount = priorYtdDeductionsAmount + (data.deductions || 0); // Add current period's deductions
       
-      // YTD Bonus: Sum of bonus_pay from all periods
-      const ytdBonusAmount = ytdRecords.reduce((sum, r) => sum + (r.bonus_pay || 0), 0);
+      // YTD Bonus: Sum of bonus_pay from all PRIOR periods + current period
+      const priorYtdBonusAmount = ytdRecords.reduce((sum, r) => sum + (r.bonus_pay || 0), 0);
+      const ytdBonusAmount = priorYtdBonusAmount + (driverEdits[data.driver.id]?.bonusPay || 0); // Add current period's bonus
       
       // YTD App Fee: Sum of app_fee_amount from all periods
       const ytdAppFeeAmount = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
@@ -1577,7 +1582,7 @@ export default function PayrollSummaryCard({
     });
     
     return ytdMap;
-  }, [payrollData, payrollRecords, currentPeriod]);
+  }, [payrollData, payrollRecords, currentPeriod, driverEdits]);
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
