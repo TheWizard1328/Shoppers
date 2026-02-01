@@ -2192,8 +2192,8 @@ export default function PayrollSummaryCard({
                            </button>
                          </td>
                          <td className="text-right">-$</td>
-                         <td className="text-right font-semibold">{((data.grandTotal || 0) * (edit.appFeePercent || 0)).toFixed(2)}</td>
-                       </tr>
+                         <td className="text-right font-semibold">{((edit.appFeePercent || 0) / 100 * data.totalBasePay).toFixed(2)}</td>
+                         </tr>
                        }
                        <tr className="text-lg font-bold text-emerald-600">
                          <td className="text-right pr-1 pt-1">Gross:</td>
