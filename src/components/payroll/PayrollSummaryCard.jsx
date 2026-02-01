@@ -2275,6 +2275,91 @@ export default function PayrollSummaryCard({
         </Dialog>
       }
 
+      {/* App Owner Fee Manager Overlay Dialog */}
+      {appFeeOverlayAllDriversId === 'all' && isAppOwner(currentUser) &&
+      <Dialog open={true} onOpenChange={(open) => !open && setAppFeeOverlayAllDriversId(null)}>
+       <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+         <DialogHeader>
+           <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Owner App Fee</DialogTitle>
+         </DialogHeader>
+
+         <div className="space-y-3">
+           <p className="text-xs text-slate-600">Configure the extra app fee percentage reserved for operational costs.</p>
+           <p className="text-xs text-slate-500">Formula: App Owner % = 100% - [Sum of All Drivers App Fee %] - [Extra App Fee %]</p>
+
+           {/* Two fields side by side */}
+           <div className="grid grid-cols-2 gap-3">
+             {/* Extra App Fee % */}
+             <div>
+               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Extra App Fee %</label>
+               <div className="flex gap-1">
+                 <input
+                   type="number"
+                   value={extraAppFeePercent}
+                   onChange={(e) => {
+                     const newValue = parseFloat(e.target.value) || 0;
+                     setExtraAppFeePercent(Math.max(0, Math.min(100, newValue)));
+                   }}
+                   placeholder="0"
+                   className="flex-1 px-2 py-1 text-sm border rounded"
+                   step="0.01"
+                   min="0"
+                   max="100" />
+                 <span className="flex items-center text-slate-500">%</span>
+               </div>
+             </div>
+
+             {/* App Owner App Fee % (Read-only) */}
+             <div>
+               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Owner %</label>
+               <div className="flex gap-1">
+                 <input
+                   type="number"
+                   value={appOwnerAppFeePercent}
+                   readOnly
+                   className="flex-1 px-2 py-1 text-sm border rounded bg-slate-50"
+                   disabled />
+                 <span className="flex items-center text-slate-500">%</span>
+               </div>
+             </div>
+           </div>
+
+           {/* Summary */}
+           <div className="text-xs p-2 bg-slate-50 rounded">
+             <div>Sum of Driver App Fees: <strong>{sumAllDriversAppFeePercent.toFixed(2)}%</strong></div>
+             <div>Extra App Fee: <strong>{extraAppFeePercent.toFixed(2)}%</strong></div>
+             <div className="text-blue-600 font-semibold mt-1">App Owner App Fee: <strong>{appOwnerAppFeePercent.toFixed(2)}%</strong></div>
+           </div>
+         </div>
+
+         <DialogFooter>
+           <Button
+             variant="outline"
+             onClick={async () => {
+               // Save Extra_App_Fee_Percentage to AppSettings
+               try {
+                 const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                 if (settings?.[0]) {
+                   await base44.entities.AppSettings.update(settings[0].id, {
+                     setting_value: {
+                       ...settings[0].setting_value,
+                       Extra_App_Fee_Percentage: extraAppFeePercent
+                     }
+                   });
+                 }
+                 setAppFeeOverlayAllDriversId(null);
+               } catch (error) {
+                 console.error('Failed to save Extra App Fee %:', error);
+               }
+             }}
+             style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+             Save & Close
+           </Button>
+         </DialogFooter>
+       </DialogContent>
+      </Dialog>
+      }
+
       {/* App Fee Manager Overlay Dialog */}
       {appFeeOverlayDriverId && driverEdits[appFeeOverlayDriverId] &&
       <Dialog open={true} onOpenChange={(open) => !open && setAppFeeOverlayDriverId(null)}>
