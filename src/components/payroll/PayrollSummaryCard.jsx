@@ -2561,7 +2561,6 @@ export default function PayrollSummaryCard({
                            </tr>
                            {isAdmin && isPeriodEndOfMonth && driverEdits[data.driver.id]?.appFeePercent > 0 &&
                            <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-ytd-row="true">
-                             <td className="text-right">App Fee %:</td>
                              <td className="text-right">+$</td>
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0).toFixed(2)}</td>
                            </tr>
