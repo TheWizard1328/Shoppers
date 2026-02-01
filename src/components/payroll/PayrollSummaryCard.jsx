@@ -1710,7 +1710,7 @@ export default function PayrollSummaryCard({
   }, [driversWithDeliveriesIds, payrollRecords]);
 
   // Calculate YTD data from payroll records - sum stored values from all periods including current
-  // CRITICAL: App fees are included in YTD calculations
+  // CRITICAL: Uses shared utility to ensure consistent calculations between mobile and desktop
   const ytdDataByDriver = useMemo(() => {
     const ytdMap = {};
     
@@ -1728,33 +1728,20 @@ export default function PayrollSummaryCard({
       console.log(`📋 [Payroll YTD Debug] Driver ${data.driver.user_name}: Checking payroll records from ${yearStart} to ${currentPeriodEnd}`);
       console.log(`   Total payroll records found: ${ytdRecords.length}`);
       ytdRecords.forEach(r => {
-        console.log(`     - ${r.pay_period_start} to ${r.pay_period_end}: net=$${r.net_pay}, tax=$${r.tax_amount}, bonus=$${r.bonus_pay}, deductions=$${r.total_deductions}, app_fee=$${r.app_fee_amount}`);
+        console.log(`     - ${r.pay_period_start} to ${r.pay_period_end}: net=$${r.net_pay}, bonus=$${r.bonus_pay}, deductions=$${r.total_deductions}, app_fee=$${r.app_fee_amount}`);
       });
       
-      // Sum the stored values from all payroll records
-      const ytdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
-      const ytdBonusAmount = ytdRecords.reduce((sum, r) => sum + (r.bonus_pay || 0), 0);
-      const ytdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
-      const ytdTaxAmount = ytdRecords.reduce((sum, r) => sum + (r.tax_amount || 0), 0);
-      const ytdAppFeeAmount = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
+      // Use shared utility to calculate YTD values
+      const appUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
+      const ytdValues = calculateYtdPayroll(ytdRecords, data, cities, appUser);
       
-      // CRITICAL: Sum stored gross_pay values directly from payroll records to avoid floating-point errors
-      const ytdGrossPay = ytdRecords.reduce((sum, r) => sum + (r.gross_pay || 0), 0);
+      console.log(`🧮 [Payroll] YTD Summary for ${data.driver.user_name}: Net=$${ytdValues.ytdNetPay}, Tax=$${ytdValues.ytdTaxAmount}, Bonus=$${ytdValues.ytdBonusAmount}, Deductions=$${ytdValues.ytdDeductionsAmount}, AppFee=$${ytdValues.ytdAppFeeAmount}, Gross=$${ytdValues.ytdGrossPay}`);
       
-      console.log(`🧮 [Payroll] YTD Summary for ${data.driver.user_name}: Net=$${ytdNetPay}, Tax=$${ytdTaxAmount}, Bonus=$${ytdBonusAmount}, Deductions=$${ytdDeductionsAmount}, AppFee=$${ytdAppFeeAmount}, Gross=$${ytdGrossPay}`);
-      
-      ytdMap[data.driver.id] = { 
-        ytdNetPay,
-        ytdGrossPay,
-        ytdBonusAmount,
-        ytdDeductionsAmount,
-        ytdTaxAmount,
-        ytdAppFeeAmount
-      };
+      ytdMap[data.driver.id] = ytdValues;
     });
     
     return ytdMap;
-  }, [payrollData, payrollRecords, currentPeriod]);
+  }, [payrollData, payrollRecords, currentPeriod, appUsers, cities]);
 
   // Load app fees per delivery setting
   const [appFeesPerDelivery, setAppFeesPerDelivery] = useState(0);
