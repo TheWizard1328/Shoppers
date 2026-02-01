@@ -1757,14 +1757,21 @@ export default function PayrollSummaryCard({
   const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
 
-  // Load app fees per delivery setting
+  // Load app fees per delivery setting and Extra_App_Fee_Percentage
   const [appFeesPerDelivery, setAppFeesPerDelivery] = useState(0);
+  const [extraAppFeePercent, setExtraAppFeePercent] = useState(0);
+  const [appFeeOverlayAllDriversId, setAppFeeOverlayAllDriversId] = useState(null);
+  const [extraAppFeeAmount, setExtraAppFeeAmount] = useState(0);
+
   useEffect(() => {
     const loadAppFeesSetting = async () => {
       try {
         const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
         if (settings?.[0]?.setting_value?.app_fees_per_delivery) {
           setAppFeesPerDelivery(parseFloat(settings[0].setting_value.app_fees_per_delivery));
+        }
+        if (settings?.[0]?.setting_value?.Extra_App_Fee_Percentage !== undefined) {
+          setExtraAppFeePercent(parseFloat(settings[0].setting_value.Extra_App_Fee_Percentage));
         }
       } catch (error) {
         console.warn('Failed to load app fees setting:', error);
