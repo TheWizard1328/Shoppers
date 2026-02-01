@@ -2326,12 +2326,13 @@ export default function PayrollSummaryCard({
                              value={driverAppFeePercent}
                              onChange={(e) => {
                                const newPercent = parseFloat(e.target.value) || 0;
+                               const calculatedAmount = calculateAppFeeAmount(driver.driver.id, newPercent);
                                setDriverEdits((prev) => ({
                                  ...prev,
                                  [driver.driver.id]: { 
                                    ...prev[driver.driver.id], 
                                    appFeePercent: newPercent,
-                                   appFeeAmount: calculateAppFeeAmount(driver.driver.id, newPercent)
+                                   appFeeAmount: Math.round(calculatedAmount * 100) / 100
                                  }
                                }));
                              }}
