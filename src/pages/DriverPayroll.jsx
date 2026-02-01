@@ -221,6 +221,12 @@ export default function DriverPayroll() {
         .filter(au => au.pay_cycle_type === payPeriod && au.status === 'active')
         .map(au => au.user_id)
     );
+    
+    // CRITICAL: Always include the currently selected driver to prevent dropdown mismatch during transitions
+    if (selectedDriverId !== 'all') {
+      driverIdsInCycle.add(selectedDriverId);
+    }
+    
     return sortUsers(
       payrollData.drivers.filter(d => {
         if (!d || d.status !== 'active') return false;
@@ -228,7 +234,7 @@ export default function DriverPayroll() {
         return driverIdsInCycle.has(driverId);
       })
     );
-  }, [payrollData?.appUsers, payrollData?.drivers, payPeriod]);
+  }, [payrollData?.appUsers, payrollData?.drivers, payPeriod, selectedDriverId]);
 
   const cityFilteredDeliveries = useMemo(() => {
     if (!payrollData?.deliveries) return [];
