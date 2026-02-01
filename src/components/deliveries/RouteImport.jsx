@@ -907,9 +907,9 @@ export default function RouteImport({
         status: statusFromColumns,
         extra_time: 0,
         ampm_deliveries: ampmValue,
-        paid_km_override: paidKmOverride, // Column 8
-        travel_dist: travelDist, // Column 9
-        cod_total_amount_required: 0, // CRITICAL: Will be set from notes processing
+        paid_km_override: paidKmOverride, // Column 8 - imported directly
+        travel_dist: travelDist, // Column 9 - imported directly
+        cod_total_amount_required: 0, // CRITICAL: Set to 0 - processDeliveryNotes will extract from notes
         cod_payments: [],
         cod_payment_type: 'No Payment',
         cod_amount: '',
