@@ -518,6 +518,11 @@ export default function DriverPayroll() {
   useEffect(() => {
     if (!currentPeriod || !hasInitialized) return;
     console.log(`🔄 [DriverPayroll] Period changed, loading payroll records...`);
+    
+    // Invalidate caches to force fresh fetch
+    invalidate('Payroll');
+    invalidate('Delivery');
+    
     refreshPayrollRecords();
   }, [currentPeriod, hasInitialized, refreshPayrollRecords]);
 
