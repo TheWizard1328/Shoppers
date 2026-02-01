@@ -1557,6 +1557,7 @@ export default function PayrollSummaryCard({
         ytdNetPay,
         ytdTaxAmount,
         ytdDeductionsAmount,
+        ytdBonusAmount,
         ytdGrossPay
       };
     });
