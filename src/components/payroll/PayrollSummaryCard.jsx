@@ -2198,7 +2198,7 @@ export default function PayrollSummaryCard({
                        <tr className="text-lg font-bold text-emerald-600">
                          <td className="text-right pr-1 pt-1">Gross:</td>
                          <td className="text-right pt-1">$</td>
-                         <td className="text-right pt-1">{(data.grandTotal + data.taxAmount + (edit.bonusPay || 0) - data.deductions).toFixed(2)}</td>
+                         <td className="text-right pt-1">{(data.grandTotal + data.taxAmount + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) - ((data.grandTotal || 0) * (edit.appFeePercent || 0))).toFixed(2)}</td>
                        </tr>
                      </tbody>
                      </table>
