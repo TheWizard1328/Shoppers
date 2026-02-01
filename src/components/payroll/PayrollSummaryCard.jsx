@@ -1550,8 +1550,8 @@ export default function PayrollSummaryCard({
       // YTD Net Pay: Sum of net_pay from all periods
       const ytdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
       
-      // YTD Tax: Sum of tax_amount from all periods (actual tax calculated)
-      const ytdTaxAmount = ytdRecords.reduce((sum, r) => sum + (r.tax_amount || 0), 0);
+      // YTD Tax: YTD Net Pay * the driver's current tax rate (if GST/HST enabled)
+      const ytdTaxAmount = data.gstHstEnabled ? ytdNetPay * data.taxRate : 0;
       
       // YTD Deductions: Sum of total_deductions from all periods
       const ytdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
@@ -1562,8 +1562,8 @@ export default function PayrollSummaryCard({
       // YTD App Fee: Sum of app_fee_amount from all periods
       const ytdAppFeeAmount = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
       
-      // YTD Gross Pay: Sum of gross_pay from all periods
-      const ytdGrossPay = ytdRecords.reduce((sum, r) => sum + (r.gross_pay || 0), 0);
+      // YTD Gross Pay: Net + Tax + Bonus - Deductions
+      const ytdGrossPay = ytdNetPay + ytdTaxAmount + ytdBonusAmount - ytdDeductionsAmount;
       
       ytdMap[data.driver.id] = { 
         ytdNetPay,
