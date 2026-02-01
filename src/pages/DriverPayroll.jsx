@@ -169,6 +169,9 @@ export default function DriverPayroll() {
   const prevPayPeriodRef = useRef(payPeriod);
   const prevYearRef = useRef(selectedYear);
 
+  // Define isDriver early (after refs, before useMemo/useCallback that might use it)
+  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
+
   const years = useMemo(() => {
     const currentYear = new Date().getFullYear();
     return [currentYear, currentYear - 1, currentYear - 2];
@@ -527,9 +530,6 @@ export default function DriverPayroll() {
     console.log(`🔄 [DriverPayroll] Period changed, loading payroll records...`);
     refreshPayrollRecords();
   }, [currentPeriod, hasInitialized, refreshPayrollRecords]);
-
-  // Determine if current user is a driver (after ALL hooks)
-  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
   // Conditional rendering without early return to maintain hook order
   return !currentUser ? (
