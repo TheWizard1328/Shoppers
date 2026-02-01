@@ -2552,18 +2552,15 @@ export default function PayrollSummaryCard({
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount ?? 0).toFixed(2)}</td>
                            </tr>
                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                             <td className="text-right">Deductions:</td>
                              <td className="text-right">-$</td>
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount ?? 0).toFixed(2)}</td>
                            </tr>
                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                             <td className="text-right">Bonus:</td>
                              <td className="text-right">+$</td>
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0).toFixed(2)}</td>
                            </tr>
                            {isAdmin && isPeriodEndOfMonth && driverEdits[data.driver.id]?.appFeePercent > 0 &&
                            <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-ytd-row="true">
-                             <td className="text-right">App Fee %:</td>
                              <td className="text-right">+$</td>
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0).toFixed(2)}</td>
                            </tr>
