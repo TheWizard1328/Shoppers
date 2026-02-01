@@ -2263,43 +2263,103 @@ export default function PayrollSummaryCard({
       <Dialog open={true} onOpenChange={(open) => !open && setAppFeeOverlayDriverId(null)}>
        <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
          <DialogHeader>
-           <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Fee %</DialogTitle>
+           <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Fee</DialogTitle>
          </DialogHeader>
 
          <div className="space-y-3">
-           <div>
-             <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee % for {payrollData.find((d) => d.driver.id === appFeeOverlayDriverId)?.driver.user_name}:</label>
-             <div className="flex gap-2">
-               <input
-                 type="number"
-                 value={driverEdits[appFeeOverlayDriverId]?.appFeePercent || 0}
-                 onChange={(e) => {
-                   const newValue = parseFloat(e.target.value) || 0;
-                   setDriverEdits((prev) => ({
-                     ...prev,
-                     [appFeeOverlayDriverId]: { ...prev[appFeeOverlayDriverId], appFeePercent: newValue }
-                   }));
-                   // Calculate and save app fee amount along with percentage
-                   const calculatedAmount = calculateAppFeeAmount(appFeeOverlayDriverId, newValue);
-                   savePayrollChanges(appFeeOverlayDriverId, { 
-                     app_fee_percentage: newValue,
-                     app_fee_amount: calculatedAmount
-                   });
-                 }}
-                 onKeyDown={(e) => {
-                   if (e.key === 'Enter') {
-                     const closeButton = document.querySelector('[data-dialog-close="appfee"]');
-                     if (closeButton) closeButton.click();
-                   }
-                 }}
-                 placeholder="0"
-                 className="flex-1 px-2 py-1 text-sm border rounded"
-                 step="0.01"
-                 min="0"
-                 max="100" />
-               <span className="flex items-center">%</span>
+           <p className="text-xs text-slate-600">For {payrollData.find((d) => d.driver.id === appFeeOverlayDriverId)?.driver.user_name}:</p>
+
+           {/* Two fields side by side */}
+           <div className="grid grid-cols-2 gap-3">
+             {/* App Fee % */}
+             <div>
+               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee %</label>
+               <div className="flex gap-1">
+                 <input
+                   type="number"
+                   value={driverEdits[appFeeOverlayDriverId]?.appFeePercent || 0}
+                   onChange={(e) => {
+                     const newPercent = parseFloat(e.target.value) || 0;
+                     const calculatedAmount = calculateAppFeeAmount(appFeeOverlayDriverId, newPercent);
+                     setDriverEdits((prev) => ({
+                       ...prev,
+                       [appFeeOverlayDriverId]: { 
+                         ...prev[appFeeOverlayDriverId], 
+                         appFeePercent: newPercent,
+                         appFeeAmount: calculatedAmount
+                       }
+                     }));
+                   }}
+                   placeholder="0"
+                   className="flex-1 px-2 py-1 text-sm border rounded"
+                   step="0.01"
+                   min="0"
+                   max="100" />
+                 <span className="flex items-center text-slate-500">%</span>
+               </div>
              </div>
-             <p className="text-xs text-slate-500 mt-2">Enter the app fee percentage (0-100) for {currentPeriod?.label}.</p>
+
+             {/* App Fee Amount */}
+             <div>
+               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee Amount</label>
+               <div className="flex gap-1">
+                 <span className="flex items-center text-slate-500">$</span>
+                 <input
+                   type="number"
+                   value={driverEdits[appFeeOverlayDriverId]?.appFeeAmount || 0}
+                   onChange={(e) => {
+                     const newAmount = parseFloat(e.target.value) || 0;
+                     // Recalculate percentage: (amount / total_monthly_app_fees) * 100
+                     // Need to get total monthly app fees for this calculation
+                     let totalBillableCount = 0;
+                     const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                     const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+
+                     deliveries.forEach((d) => {
+                       if (!d || !d.store_id) return;
+                       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                       if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+
+                       const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+                       if (!validStatus) return;
+                       if (!d.patient_id && !d.after_hours_pickup) return;
+
+                       const store = stores.find((s) => s?.id === d.store_id);
+                       if (!store) return;
+
+                       let paysAppFees = store.pays_app_fees || false;
+                       if (store.app_fee_history && store.app_fee_history.length > 0) {
+                         const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                           new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                         );
+                         if (sortedHistory[0]) {
+                           paysAppFees = sortedHistory[0].pays_app_fees;
+                         }
+                       }
+
+                       if (paysAppFees) {
+                         totalBillableCount++;
+                       }
+                     });
+
+                     const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                     const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
+
+                     setDriverEdits((prev) => ({
+                       ...prev,
+                       [appFeeOverlayDriverId]: { 
+                         ...prev[appFeeOverlayDriverId], 
+                         appFeeAmount: newAmount,
+                         appFeePercent: newPercent
+                       }
+                     }));
+                   }}
+                   placeholder="0.00"
+                   className="flex-1 px-2 py-1 text-sm border rounded"
+                   step="0.01"
+                   min="0" />
+               </div>
+             </div>
            </div>
          </div>
 
@@ -2307,7 +2367,14 @@ export default function PayrollSummaryCard({
            <Button
              variant="outline"
              data-dialog-close="appfee"
-             onClick={() => setAppFeeOverlayDriverId(null)}
+             onClick={() => {
+               // Save only the app fee percentage
+               savePayrollChanges(appFeeOverlayDriverId, { 
+                 app_fee_percentage: driverEdits[appFeeOverlayDriverId]?.appFeePercent || 0,
+                 app_fee_amount: driverEdits[appFeeOverlayDriverId]?.appFeeAmount || 0
+               });
+               setAppFeeOverlayDriverId(null);
+             }}
              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
              Close
            </Button>
