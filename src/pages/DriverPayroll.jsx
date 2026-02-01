@@ -274,13 +274,12 @@ export default function DriverPayroll() {
 
   const refreshPayrollRecords = useCallback(async () => {
     if (!currentPeriod) return;
-    const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
+    const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
     const periodEndStr = currentPeriod.end.toISOString().split('T')[0];
-    console.log(`📥 [DriverPayroll] Fetching payroll records for ${periodStartStr} to ${periodEndStr}`);
+    console.log(`📥 [DriverPayroll] Fetching payroll records from ${yearStart} to ${periodEndStr}`);
     try {
       const records = await base44.entities.Payroll.filter({
-        pay_period_start: periodStartStr,
-        pay_period_end: periodEndStr
+        pay_period_end: { $gte: yearStart, $lte: periodEndStr }
       });
       console.log(`✅ [DriverPayroll] Found ${records?.length || 0} payroll records`);
       setPayrollRecords(records || []);
