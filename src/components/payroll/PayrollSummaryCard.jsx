@@ -2295,8 +2295,8 @@ export default function PayrollSummaryCard({
                    type="number"
                    value={extraAppFeePercent}
                    onChange={(e) => {
-                     const newValue = parseFloat(e.target.value) || 0;
-                     setExtraAppFeePercent(Math.max(0, Math.min(100, newValue)));
+                     const newPercent = parseFloat(e.target.value) || 0;
+                     setExtraAppFeePercent(Math.max(0, Math.min(100, newPercent)));
                    }}
                    placeholder="0"
                    className="flex-1 px-2 py-1 text-sm border rounded"
@@ -2307,17 +2307,55 @@ export default function PayrollSummaryCard({
                </div>
              </div>
 
-             {/* App Owner App Fee % (Read-only) */}
+             {/* Extra App Fee Amount */}
              <div>
-               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Owner %</label>
+               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Extra App Fee Amount</label>
                <div className="flex gap-1">
+                 <span className="flex items-center text-slate-500">$</span>
                  <input
                    type="number"
-                   value={appOwnerAppFeePercent}
-                   readOnly
-                   className="flex-1 px-2 py-1 text-sm border rounded bg-slate-50"
-                   disabled />
-                 <span className="flex items-center text-slate-500">%</span>
+                   value={calculateAppFeeAmount('extra-app-fee', extraAppFeePercent)}
+                   onChange={(e) => {
+                     const newAmount = parseFloat(e.target.value) || 0;
+                     let totalBillableCount = 0;
+                     const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                     const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+
+                     deliveries.forEach((d) => {
+                       if (!d || !d.store_id) return;
+                       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                       if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+
+                       const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+                       if (!validStatus) return;
+                       if (!d.patient_id && !d.after_hours_pickup) return;
+
+                       const store = stores.find((s) => s?.id === d.store_id);
+                       if (!store) return;
+
+                       let paysAppFees = store.pays_app_fees || false;
+                       if (store.app_fee_history && store.app_fee_history.length > 0) {
+                         const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                           new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                         );
+                         if (sortedHistory[0]) {
+                           paysAppFees = sortedHistory[0].pays_app_fees;
+                         }
+                       }
+
+                       if (paysAppFees) {
+                         totalBillableCount++;
+                       }
+                     });
+
+                     const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                     const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
+                     setExtraAppFeePercent(newPercent);
+                   }}
+                   placeholder="0.00"
+                   className="flex-1 px-2 py-1 text-sm border rounded"
+                   step="0.01"
+                   min="0" />
                </div>
              </div>
            </div>
