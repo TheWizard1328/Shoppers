@@ -2447,7 +2447,6 @@ export default function PayrollSummaryCard({
            {/* Summary */}
            <div className="text-xs p-2 bg-slate-50 rounded mt-3">
              <div>Sum of Driver App Fees: <strong>{sumAllDriversAppFeePercent.toFixed(2)}%</strong></div>
-             <div>Extra App Fee: <strong>{extraAppFeePercent.toFixed(2)}%</strong></div>
              <div>Other App Fee: <strong>{otherAppFeePercent.toFixed(2)}%</strong></div>
              <div className="text-blue-600 font-semibold mt-1">App Owner App Fee: <strong>{appOwnerAppFeePercent.toFixed(2)}%</strong></div>
            </div>
