@@ -1778,10 +1778,10 @@ export default function PayrollSummaryCard({
     return driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.appFeePercent || 0), 0);
   }, [driversWithDeliveries, driverEdits]);
 
-  // Calculate App Owner's app fee % = 100% - Sum of all drivers - Extra App Fee %
+  // Calculate App Owner's app fee % = 100% - Sum of all drivers - Extra App Fee % - Other App Fee %
   const appOwnerAppFeePercent = useMemo(() => {
-    return Math.max(0, 100 - sumAllDriversAppFeePercent - extraAppFeePercent);
-  }, [sumAllDriversAppFeePercent, extraAppFeePercent]);
+    return Math.max(0, 100 - sumAllDriversAppFeePercent - extraAppFeePercent - otherAppFeePercent);
+  }, [sumAllDriversAppFeePercent, extraAppFeePercent, otherAppFeePercent]);
 
   // YTD grand totals across all displayed drivers (calculated AFTER ytdDataByDriver)
   const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
