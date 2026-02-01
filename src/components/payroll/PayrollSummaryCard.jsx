@@ -1530,46 +1530,27 @@ export default function PayrollSummaryCard({
     });
   }, [driversWithDeliveriesIds, payrollRecords]);
 
-  // Calculate YTD data for all drivers ONCE - BEFORE the map loop
+  // Calculate YTD data from payroll records - accumulate all periods from start of year to current period
   const ytdDataByDriver = useMemo(() => {
     const ytdMap = {};
     
     payrollData.forEach((data) => {
-      const ytdDeliveries = deliveries?.filter((d) => {
-        if (!d || d.driver_id !== data.driver.id) return false;
-        const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-        if (!validStatus) return false;
-        if (!d.patient_id && !d.after_hours_pickup) return false;
-        const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-        const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-        return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
-      }) || [];
-
-      const ytdTotalDeliveries = ytdDeliveries.length;
-      const ytdTotalBasePay = ytdTotalDeliveries * data.payRate;
-      const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
-        const patient = patients?.find((p) => p?.id === d.patient_id);
-        if (!patient?.distance_from_store) return sum;
-        const distance = d.paid_km_override ?? patient.distance_from_store;
-        const extraKm = Math.max(0, distance - data.extraKmLimit);
-        return sum + extraKm;
-      }, 0);
-      const ytdExtraKmPay = ytdExtraKm * data.extraKmRate;
-      const ytdOversizedCount = ytdDeliveries.filter((d) => d.oversized).length;
-      const ytdOversizedPay = ytdOversizedCount * data.oversizedRate;
-      const ytdNetPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
+      // Sum payroll records for this driver from Jan 1 to current period end
+      const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
+      const currentPeriodEnd = currentPeriod.end.toISOString().split('T')[0];
       
-      // Calculate YTD Tax (using same tax rate and logic)
-      let ytdTaxAmount = 0;
-      if (data.gstHstEnabled && data.taxRate > 0) {
-        ytdTaxAmount = ytdNetPay * data.taxRate;
-      }
+      // Accumulate from all payroll records in this range
+      const ytdRecords = payrollRecords.filter((r) => {
+        if (!r || r.driver_id !== data.driver.id) return false;
+        // Include records from Jan 1 through current period end
+        const recordEnd = r.pay_period_end;
+        return recordEnd >= yearStart && recordEnd <= currentPeriodEnd;
+      });
       
-      // YTD Deductions (from AppUser deductions array, same as Period)
-      const ytdDeductionsAmount = data.deductions || 0;
-      
-      // YTD Gross = Net + Tax - Deductions (no bonus in YTD, bonuses are period-specific)
-      const ytdGrossPay = ytdNetPay + ytdTaxAmount - ytdDeductionsAmount;
+      const ytdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
+      const ytdTaxAmount = ytdRecords.reduce((sum, r) => sum + (r.taxAmount || 0), 0);
+      const ytdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
+      const ytdGrossPay = ytdRecords.reduce((sum, r) => sum + (r.gross_pay || 0), 0);
       
       ytdMap[data.driver.id] = { 
         ytdNetPay,
@@ -1580,7 +1561,7 @@ export default function PayrollSummaryCard({
     });
     
     return ytdMap;
-  }, [payrollData, deliveries, currentPeriod, patients]);
+  }, [payrollData, payrollRecords, currentPeriod]);
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
