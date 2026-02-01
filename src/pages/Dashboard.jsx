@@ -2050,7 +2050,7 @@ function Dashboard() {
     }
 
     console.log('📍 [Dashboard] Reprocessing location data - data updated');
-    driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, true);
+    driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, true, 'Dashboard');
   }, [isDataLoaded, currentUser?.id, deliveries, drivers, appUsers, stores, selectedDate]);
 
   // REMOVED: This effect was causing re-processing on every appUsers/deliveries change
@@ -6950,7 +6950,7 @@ function Dashboard() {
                       console.log(`   ✅ Loaded ${freshAppUsers.length} fresh AppUsers from backend`);
 
                       // CRITICAL: Process updated locations through poller to update markers immediately
-                      driverLocationPoller.processLocationData(currentUser, finalDeliveries, drivers, stores, freshAppUsers, selectedDate, true);
+                      driverLocationPoller.processLocationData(currentUser, finalDeliveries, drivers, stores, freshAppUsers, selectedDate, true, 'Dashboard');
 
                       // STEP 3: Route optimization removed from manual refresh
                       // Optimization now only runs on 5-minute timer when driver moves 100m+
@@ -7238,7 +7238,7 @@ function Dashboard() {
                               console.log('✅ [Show All] Driver locations refreshed');
 
                               // Process through poller to update markers
-                              driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locationUpdates.appUsers, selectedDate);
+                              driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locationUpdates.appUsers, selectedDate, false, 'Dashboard');
                             }
 
                             // CRITICAL: Force refresh ALL AppUsers when Show All is checked
