@@ -307,7 +307,7 @@ export default function PayrollSummaryCard({
     const interval = setInterval(() => fetchPayrollRecords(), 15000);
 
     return () => clearInterval(interval);
-  }, [currentPeriod, externalPayrollRecords];
+  }, [currentPeriod, externalPayrollRecords]);
 
   // Auto-create missing Payroll records - ONLY when period changes
   useEffect(() => {
