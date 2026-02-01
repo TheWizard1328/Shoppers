@@ -3688,9 +3688,9 @@ export default function Layout({ children, currentPageName }) {
                       </div>
                     </div>
                     }
-                    </div>
-                    </header>
-                    }
+                  </div>
+                </header>
+                }
 
                     <main className="flex-1 overflow-y-auto relative" style={{ background: 'var(--bg-slate-50)' }}>
                   {children}
