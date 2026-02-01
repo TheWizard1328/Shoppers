@@ -2353,7 +2353,7 @@ export default function PayrollSummaryCard({
                          <td className="text-right px-1 py-1.5">
                            <input
                              type="number"
-                             value={driverAppFeeAmount.toFixed(2)}
+                             value={driverAppFeeAmount}
                              onChange={(e) => {
                                const newAmount = parseFloat(e.target.value) || 0;
                                let totalBillableCount = 0;
