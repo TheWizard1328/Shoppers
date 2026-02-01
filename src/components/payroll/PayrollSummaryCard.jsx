@@ -2311,7 +2311,7 @@ export default function PayrollSummaryCard({
                  <tbody>
                    {driversWithDeliveries.map((driver, idx) => {
                      const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
-                     const driverAppFeeAmount = calculateAppFeeAmount(driver.driver.id, driverAppFeePercent);
+                     const driverAppFeeAmount = driverEdits[driver.driver.id]?.appFeeAmount !== undefined ? driverEdits[driver.driver.id].appFeeAmount : calculateAppFeeAmount(driver.driver.id, driverAppFeePercent);
                      const isCurrentUser = driver.driver.id === currentUser?.id;
 
                      return (
