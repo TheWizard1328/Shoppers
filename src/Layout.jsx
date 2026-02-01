@@ -163,7 +163,7 @@ const createMergedUser = (authUser, appUser) => {
   return merged;
 };
 
-const QuickStats = ({ currentUser, storeIds = [] }) => {
+const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
   const [selectedDriverId, setSelectedDriverIdLocal] = useState(() => globalFilters.getSelectedDriverId());
   const [stats, setStats] = useState(null);
@@ -3405,8 +3405,10 @@ export default function Layout({ children, currentPageName }) {
                           Quick Stats
                         </div>
                         <QuickStats
-                      currentUser={currentUser}
-                      storeIds={stores.map((s) => s?.id).filter(Boolean)} />
+                        currentUser={currentUser}
+                        storeIds={stores.map((s) => s?.id).filter(Boolean)}
+                        isMobile={isMobile}
+                        screenWidth={screenWidth} />
 
                         {/* Offline DB Monitor - embedded on narrow screens */}
                         {(isMobile || screenWidth < 768) &&
