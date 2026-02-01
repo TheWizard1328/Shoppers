@@ -404,7 +404,7 @@ function Dashboard() {
         
         // CRITICAL: Force refresh ALL AppUsers after import to update all driver markers
         console.log('📍 [Import] Refreshing ALL driver locations after import...');
-        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
         const latestAppUsers = locationUpdates?.appUsers || appUsers;
         
         // Dispatch location updates for ALL drivers
@@ -1961,7 +1961,7 @@ function Dashboard() {
       
       // CRITICAL: ALWAYS force full AppUser refresh to get ALL drivers' locations
       // This ensures ALL markers update regardless of selection mode
-      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
       
       // Use updated AppUsers or fall back to current context
       const latestAppUsers = locationUpdates?.appUsers || appUsers;
@@ -6921,7 +6921,7 @@ function Dashboard() {
                         stores: 0
                       };
 
-                      const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false, showAllDriverMarkers);
+                      const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false, showAllDriverMarkers, 'Dashboard', selectedDate);
 
                       // STEP 2: Force reload deliveries for ALL drivers - ensures complete marker data
                       console.log(`📥 [Manual Refresh] Fetching ALL drivers for ${selectedDateStr} (mode: ${dataSource})...`);
@@ -7243,7 +7243,7 @@ function Dashboard() {
 
                             // CRITICAL: Force refresh ALL AppUsers when Show All is checked
                             console.log('📍 [Show All Checked] Force refreshing ALL driver locations...');
-                            const showAllLocationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+                            const showAllLocationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
                             const showAllLatestAppUsers = showAllLocationUpdates?.appUsers || appUsers;
                             
                             // Dispatch event to force map to re-render with new markers
