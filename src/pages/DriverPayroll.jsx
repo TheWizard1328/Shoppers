@@ -542,6 +542,14 @@ export default function DriverPayroll() {
   }, [currentPeriod, hasInitialized, refreshPayrollRecords]);
 
   // Conditional rendering without early return to maintain hook order
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+        <span className="text-lg text-slate-600">Please log in to view payroll</span>
+      </div>
+    );
+  }
+
   return isLoadingPayroll ? (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
