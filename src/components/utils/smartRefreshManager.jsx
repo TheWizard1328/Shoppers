@@ -1012,13 +1012,26 @@ class SmartRefreshManager {
    * OFFLINE-FIRST: Loads from offline DB, only fetches API when stale or missing
    * @param currentAppUsers - Current AppUser data
    * @param forceRefresh - If true, bypasses offline DB and forces API fetch
+   * @param currentPage - Current page name (to check if on Dashboard)
+   * @param selectedDate - Selected date (to check if today)
    * CRITICAL: Never throws - always returns null on error to prevent stuck refresh
    */
-  async refreshDriverLocations(currentAppUsers, forceRefresh = false) {
+  async refreshDriverLocations(currentAppUsers, forceRefresh = false, currentPage = null, selectedDate = null) {
     try {
       // Check if disabled or paused - silently skip automatic polling (unless forced)
       if ((!this._enabled || this._paused) && !forceRefresh) {
         return null;
+      }
+      
+      // CRITICAL: Only check driver locations when on Dashboard AND date is today
+      if (!forceRefresh && currentPage && selectedDate) {
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+        
+        if (currentPage !== 'Dashboard' || selectedDateStr !== todayStr) {
+          console.log(`⏭️ [SmartRefresh] Skipping driver location refresh - not on Dashboard today (page: ${currentPage}, date: ${selectedDateStr})`);
+          return null;
+        }
       }
       
       // CRITICAL: Use adaptive interval based on user activity
@@ -1791,15 +1804,17 @@ class SmartRefreshManager {
    * CRITICAL: 15-second cycle for real-time updates
    * CRITICAL: ALWAYS fetches from API for today for cross-device sync
    * @param {boolean} showAllDrivers - If true, refreshes ALL drivers' data regardless of selected driver
+   * @param {string} currentPage - Current page name (to check if on Dashboard)
+   * @param {Date} selectedDate - Selected date (to check if today)
    */
-  async refreshActiveRoute(currentData, filters, showAllDrivers = false) {
+  async refreshActiveRoute(currentData, filters, showAllDrivers = false, currentPage = null, selectedDate = null) {
     const updates = {};
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     
     try {
-      // STEP 1: Refresh driver locations (from API for live data)
+      // STEP 1: Refresh driver locations (only on Dashboard when viewing today)
       await this.waitForRateLimit();
-      const locationResult = await this.refreshDriverLocations(currentData.appUsers, true);
+      const locationResult = await this.refreshDriverLocations(currentData.appUsers, true, currentPage, selectedDate);
       if (locationResult?.hasChanges) {
         updates.appUsers = locationResult.appUsers;
         console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
@@ -1945,8 +1960,10 @@ class SmartRefreshManager {
   
   /**
    * NEW: Combined smart refresh - 15s active route, opportunistic historical
+   * @param {string} currentPage - Current page name (to check if on Dashboard)
+   * @param {Date} selectedDate - Selected date (to check if today)
    */
-  async performSmartRefresh(currentData, filters, isEntityUpdating = false, showAllDrivers = false) {
+  async performSmartRefresh(currentData, filters, isEntityUpdating = false, showAllDrivers = false, currentPage = null, selectedDate = null) {
     // CRITICAL: When disabled, skip background polling
     if (!this._enabled) {
       this.isRefreshing = false;
@@ -1988,7 +2005,7 @@ class SmartRefreshManager {
     try {
       // PRIORITY 1: Active route data (15-second cycle)
       if (this.shouldRefresh('activeRoute')) {
-        const activeResult = await this.refreshActiveRoute(currentData, filters, showAllDrivers);
+        const activeResult = await this.refreshActiveRoute(currentData, filters, showAllDrivers, currentPage, selectedDate);
         if (activeResult) {
           Object.assign(updates, activeResult);
         }
