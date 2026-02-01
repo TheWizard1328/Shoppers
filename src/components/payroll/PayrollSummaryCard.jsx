@@ -1478,6 +1478,41 @@ export default function PayrollSummaryCard({
     });
   }, [driversWithDeliveriesIds, payrollRecords]);
 
+  // Calculate YTD data for all drivers ONCE - BEFORE the map loop
+  const ytdDataByDriver = useMemo(() => {
+    const ytdMap = {};
+    
+    payrollData.forEach((data) => {
+      const ytdDeliveries = deliveries?.filter((d) => {
+        if (!d || d.driver_id !== data.driver.id) return false;
+        const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+        if (!validStatus) return false;
+        if (!d.patient_id && !d.after_hours_pickup) return false;
+        const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+        const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
+        return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
+      }) || [];
+
+      const ytdTotalDeliveries = ytdDeliveries.length;
+      const ytdTotalBasePay = ytdTotalDeliveries * data.payRate;
+      const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
+        const patient = patients?.find((p) => p?.id === d.patient_id);
+        if (!patient?.distance_from_store) return sum;
+        const distance = d.paid_km_override ?? patient.distance_from_store;
+        const extraKm = Math.max(0, distance - data.extraKmLimit);
+        return sum + extraKm;
+      }, 0);
+      const ytdExtraKmPay = ytdExtraKm * data.extraKmRate;
+      const ytdOversizedCount = ytdDeliveries.filter((d) => d.oversized).length;
+      const ytdOversizedPay = ytdOversizedCount * data.oversizedRate;
+      const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
+      
+      ytdMap[data.driver.id] = { ytdGrossPay };
+    });
+    
+    return ytdMap;
+  }, [payrollData, deliveries, currentPeriod, patients]);
+
   // Initialize driver edits on mount
   useEffect(() => {
     const driversWithDeliveries = payrollData.filter((d) => d.totalDeliveries > 0);
