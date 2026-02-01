@@ -669,7 +669,7 @@ export default function PayrollSummaryCard({
         savedRecord = await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(payrollRecord));
         console.log('✅ [Payroll] Updated existing record:', existingRecord.id, savedRecord);
       } else {
-        savedRecord = await base44.entities.Payroll.create(payrollRecord);
+        savedRecord = await base44.entities.Payroll.create(roundPayrollData(payrollRecord));
         console.log('✅ [Payroll] Created new record:', savedRecord);
       }
 
