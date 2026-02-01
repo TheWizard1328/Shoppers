@@ -1757,6 +1757,16 @@ export default function PayrollSummaryCard({
   const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
 
+  // Calculate sum of all drivers' app fee percentages
+  const sumAllDriversAppFeePercent = useMemo(() => {
+    return driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.appFeePercent || 0), 0);
+  }, [driversWithDeliveries, driverEdits]);
+
+  // Calculate App Owner's app fee % = 100% - Sum of all drivers - Extra App Fee %
+  const appOwnerAppFeePercent = useMemo(() => {
+    return Math.max(0, 100 - sumAllDriversAppFeePercent - extraAppFeePercent);
+  }, [sumAllDriversAppFeePercent, extraAppFeePercent]);
+
   // Load app fees per delivery setting and Extra_App_Fee_Percentage
   const [appFeesPerDelivery, setAppFeesPerDelivery] = useState(0);
   const [extraAppFeePercent, setExtraAppFeePercent] = useState(0);
