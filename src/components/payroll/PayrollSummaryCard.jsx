@@ -300,14 +300,15 @@ export default function PayrollSummaryCard({
       }
     };
 
-    // Initial fetch
+    // Initial fetch - FORCE fetch when period changes
+    console.log(`🔄 [Payroll] Period changed - forcing YTD records fetch`);
     fetchPayrollRecords(true);
 
     // 15-second refresh cycle (matching app refresh pattern)
     const interval = setInterval(() => fetchPayrollRecords(), 15000);
 
     return () => clearInterval(interval);
-  }, [currentPeriod, externalPayrollRecords]);
+  }, [currentPeriod, externalPayrollRecords, periodStartStr, periodEndStr]);
 
   // Auto-create missing Payroll records - ONLY when period changes
   useEffect(() => {
