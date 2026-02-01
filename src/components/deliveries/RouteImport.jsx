@@ -809,13 +809,13 @@ export default function RouteImport({
       const trackingNumber = values[2]?.replace(/"/g, '').trim();
       const stopOrder = parseInt(values[3]?.trim()) || 0;
       const column5Value = parseFloat(values[4]?.trim()); // Column 5 - check if < 0 for pending status
-      const completionTimeStr = values[5]?.replace(/"/g, '').trim();
-      const distanceFromStoreStr = values[7]?.replace(/"/g, '').trim(); // Column 8 (index 7): Distance from store to patient
-      const distanceFromStore = distanceFromStoreStr && !isNaN(parseFloat(distanceFromStoreStr)) ? parseFloat(parseFloat(distanceFromStoreStr).toFixed(2)) : null;
-      const travelDistStr = values[8]?.replace(/"/g, '').trim();
+      const col6Value = values[5]?.replace(/"/g, '').trim(); // Column 6: delivery_time_start/actual_delivery_time/delivery_time_eta
+      const col7Value = values[6]?.replace(/"/g, '').trim(); // Column 7: delivery_time_end
+      const paidKmOverrideStr = values[7]?.replace(/"/g, '').trim(); // Column 8 (index 7): paid_km_override
+      const paidKmOverride = paidKmOverrideStr && !isNaN(parseFloat(paidKmOverrideStr)) ? parseFloat(parseFloat(paidKmOverrideStr).toFixed(2)) : null;
+      const travelDistStr = values[8]?.replace(/"/g, '').trim(); // Column 9 (index 8): travel_dist
       const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(parseFloat(travelDistStr).toFixed(2)) : null;
-      const codAmountStr = values[9]?.replace(/"/g, '').trim(); // Column 10 (index 9): COD Amount
-      const codAmount = codAmountStr && !isNaN(parseFloat(codAmountStr)) ? parseFloat(codAmountStr) : 0;
+      // Column 10 (index 9) is IGNORED - COD extracted from notes instead
       const importedPuid = (values[12] || '').replace(/"/g, '').trim(); // Column 13: PUID (index 12)
       const stopId = (values[13] || '').replace(/"/g, '').trim(); // Column 14: SID (index 13)
       const patientPID = values[14]?.replace(/"/g, '').trim(); // Column 15: PID (index 14)
@@ -892,10 +892,8 @@ export default function RouteImport({
         console.log(`✅ [Import CSV Line ${lineNumber}] Assigned sequential stop_order ${finalStopOrder} to ${statusFromColumns} stop`);
       }
 
-      // CRITICAL: For completed deliveries, set COD amount from CSV
-      // For incomplete deliveries (pending, in_transit, en_route), always set to 0
-      const isCompletedStatus = statusFromColumns === 'completed';
-      const codTotalForImport = isCompletedStatus && codAmount > 0 ? codAmount : 0;
+      // CRITICAL: COD amount extracted from notes, NOT from column 10 (which is ignored)
+      // processDeliveryNotes will handle COD extraction
 
       const newDeliveryData = {
         delivery_date: currentDate,
@@ -909,7 +907,9 @@ export default function RouteImport({
         status: statusFromColumns,
         extra_time: 0,
         ampm_deliveries: ampmValue,
-        cod_total_amount_required: codTotalForImport, // CRITICAL: Only set for completed deliveries
+        paid_km_override: paidKmOverride, // Column 8
+        travel_dist: travelDist, // Column 9
+        cod_total_amount_required: 0, // CRITICAL: Will be set from notes processing
         cod_payments: [],
         cod_payment_type: 'No Payment',
         cod_amount: '',
@@ -951,23 +951,24 @@ export default function RouteImport({
 
       // PUID assignment will be done after all rows are parsed (see below)
 
-      // CRITICAL: Set delivery_time_start and delivery_time_end based on stop order and completion time
-      if (completionTimeStr && currentDate) {
-        // Validate time format before setting
-        const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
-        if (timeRegex.test(completionTimeStr)) {
-          // 1. If stop has order number (completed/failed/cancelled), set actual_delivery_time
-          if (stopOrder > 0) {
-            newDeliveryData.actual_delivery_time = `${currentDate}T${completionTimeStr}:00`;
-          } 
-          // 2. For incomplete stops (stopOrder === 0), set both delivery_time_start and delivery_time_end
-          else if (stopOrder === 0) {
-            newDeliveryData.delivery_time_start = completionTimeStr;
-            newDeliveryData.delivery_time_end = completionTimeStr;
-          }
-        } else {
-          console.warn(`⚠️ Row ${lineNumber}: Invalid time format "${completionTimeStr}", skipping time assignment`);
-          // Don't throw - just skip the time but continue with the record
+      // CRITICAL: Column 6 & 7 parsing for time fields
+      // - For completed/failed/cancelled (stopOrder > 0): Col 6 = actual_delivery_time
+      // - For incomplete (stopOrder === 0): Col 6 = delivery_time_start AND delivery_time_eta, Col 7 = delivery_time_end
+      const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+      
+      if (stopOrder > 0) {
+        // Completed/Failed/Cancelled: Col 6 = actual_delivery_time
+        if (col6Value && timeRegex.test(col6Value)) {
+          newDeliveryData.actual_delivery_time = `${currentDate}T${col6Value}:00`;
+        }
+      } else {
+        // Incomplete stops: Col 6 = delivery_time_start AND delivery_time_eta, Col 7 = delivery_time_end
+        if (col6Value && timeRegex.test(col6Value)) {
+          newDeliveryData.delivery_time_start = col6Value;
+          newDeliveryData.delivery_time_eta = col6Value;
+        }
+        if (col7Value && timeRegex.test(col7Value)) {
+          newDeliveryData.delivery_time_end = col7Value;
         }
       }
 
@@ -1019,16 +1020,9 @@ export default function RouteImport({
       }
 
       // CRITICAL: Use shared notes processor for consistency (AFTER checking for first delivery flag)
+      // This will extract COD amount from notes and set cod_total_amount_required
       const cleanedNotes = processDeliveryNotes(rawNotes, newDeliveryData, patient, isPickup, true);
       newDeliveryData.delivery_notes = cleanedNotes;
-
-      // CRITICAL: Check if distanceFromStore > driver's extra_km_limit and set paid_km_override
-      if (distanceFromStore !== null && selectedDriver.extra_km_limit !== undefined && selectedDriver.extra_km_limit !== null) {
-        if (distanceFromStore > selectedDriver.extra_km_limit) {
-          newDeliveryData.paid_km_override = distanceFromStore;
-          console.log(`✅ [Import CSV Line ${lineNumber}] Set paid_km_override to ${distanceFromStore} (driver limit: ${selectedDriver.extra_km_limit})`);
-        }
-      }
 
       // CRITICAL: If this PID has duplicates in the import, ONLY match by exact SID
       // This prevents stop 13 from overwriting stop 10's data
@@ -2324,10 +2318,13 @@ export default function RouteImport({
                   <ul className="list-disc list-inside space-y-1">
                     <li>Date metadata: <code className="font-mono">#YYYY-MM-DD#,TotalDeliveries,...</code></li>
                     <li>Col 1: Store Abbr, Col 2: AM/PM (1=AM, 2=PM)</li>
-                    <li>Col 3: TR#, Col 4: Stop Order, Col 6: Time</li>
-                    <li>Col 9: Travel Dist, Col 10: COD Total</li>
+                    <li>Col 3: TR#, Col 4: Stop Order</li>
+                    <li>Col 6: Time (actual_delivery_time if completed, delivery_time_start/ETA if incomplete)</li>
+                    <li>Col 7: delivery_time_end (for incomplete stops only)</li>
+                    <li>Col 8: Paid KM Override, Col 9: Travel Distance</li>
+                    <li>Col 10: IGNORED (not used)</li>
                     <li>Col 13: PUID, Col 14: SID, Col 15: PID</li>
-                    <li>Col 17: Notes</li>
+                    <li>Col 17: Notes (COD extracted from here)</li>
                     <li>Matching by Stop ID (SID) + Date for updates.</li>
                   </ul>
                 </div>}
