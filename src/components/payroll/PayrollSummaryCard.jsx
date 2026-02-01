@@ -2423,12 +2423,7 @@ export default function PayrollSummaryCard({
                              <td className="text-right">+$</td>
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0).toFixed(2)}</td>
                            </tr>
-                           {isAdmin && currentPeriod?.end && (() => {
-                             const nextDay = new Date(currentPeriod.end);
-                             nextDay.setDate(nextDay.getDate() + 1);
-                             const isEndOfMonth = nextDay.getMonth() !== currentPeriod.end.getMonth();
-                             return isEndOfMonth;
-                           })() &&
+                           {isAdmin && driverEdits[data.driver.id]?.appFeePercent > 0 &&
                            <tr style={{ color: 'var(--text-slate-600)' }}>
                              <td className="text-right">+$</td>
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0).toFixed(2)}</td>
