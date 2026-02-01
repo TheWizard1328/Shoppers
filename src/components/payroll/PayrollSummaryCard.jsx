@@ -2371,13 +2371,7 @@ export default function PayrollSummaryCard({
                          <td className="text-right">+$</td>
                          <td className="text-right font-semibold">{(edit.bonusPay || 0).toFixed(2)}</td>
                        </tr>
-                       {isAdmin && currentPeriod?.end && (() => {
-                         // Only show app fees if payroll period ends on last day of month
-                         const nextDay = new Date(currentPeriod.end);
-                         nextDay.setDate(nextDay.getDate() + 1);
-                         const isEndOfMonth = nextDay.getMonth() !== currentPeriod.end.getMonth();
-                         return isEndOfMonth;
-                       })() &&
+                       {isAdmin && edit.appFeePercent > 0 &&
                        <tr style={{ color: 'var(--text-slate-600)' }}>
                          <td className="text-right pr-1">
                            <button onClick={() => {
@@ -2393,7 +2387,7 @@ export default function PayrollSummaryCard({
                            </button>
                          </td>
                          <td className="text-right">+$</td>
-                         <td className="text-right font-semibold">0.00</td>
+                         <td className="text-right font-semibold">{calculateAppFeeAmount(driverKey, edit.appFeePercent).toFixed(2)}</td>
                          </tr>
                        }
                        <tr className="text-lg font-bold text-emerald-600">
