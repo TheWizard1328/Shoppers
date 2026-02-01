@@ -1905,6 +1905,17 @@ export default function PayrollSummaryCard({
   }
 
   return (
+     <>
+      <style>{`
+        input[type='number'].no-spinner::-webkit-outer-spin-button,
+        input[type='number'].no-spinner::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type='number'].no-spinner[type=number] {
+          -moz-appearance: textfield;
+        }
+      `}</style>
      <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
        <CardHeader className="pb-3">
         {/* Mobile View: 2 rows */}
