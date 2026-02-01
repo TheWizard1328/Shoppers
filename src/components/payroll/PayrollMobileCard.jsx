@@ -28,7 +28,7 @@ export default function PayrollMobileCard({
   // Calculate YTD totals from deliveries
   const calculateYTDTotals = () => {
     if (!currentPeriod || !deliveries.length) {
-      return { ytdGrossPay: 0, ytdNetPay: 0, ytdTaxAmount: 0, ytdDeductions: 0, ytdBonusPay: 0 };
+      return { ytdGrossPay: 0, ytdNetPay: 0, ytdTaxAmount: 0, ytdDeductions: 0, ytdBonusPay: 0, ytdAppFeeAmount: 0 };
     }
 
     const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
