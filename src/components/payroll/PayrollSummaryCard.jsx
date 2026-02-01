@@ -2848,28 +2848,23 @@ export default function PayrollSummaryCard({
                     {ytdGrandTotalTax > 0 || ytdGrandTotalDeductions > 0 ?
                   <>
                         <div className="text-xs text-center font-bold mb-1" style={{ color: 'var(--text-slate-500)' }}>YTD</div>
-                        <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
-                          <span className="text-xs mr-1">Net:</span>
-                          <span className="font-semibold">{formatCurrency(ytdGrandTotalNet)}</span>
+                        <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-600)' }}>
+                          {formatCurrency(ytdGrandTotalNet)}
                         </div>
                         {ytdGrandTotalTax > 0 &&
-                    <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
-                            <span className="text-xs mr-1">Tax:</span>
-                            <span className="font-semibold">{formatCurrency(ytdGrandTotalTax)}</span>
+                    <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-600)' }}>
+                            {formatCurrency(ytdGrandTotalTax)}
                           </div>
                     }
                         {ytdGrandTotalDeductions > 0 &&
-                    <div className="text-sm" style={{ color: '#ef4444' }}>
-                            <span className="text-xs mr-1">Deductions:</span>
-                            <span className="font-semibold">-{formatCurrency(ytdGrandTotalDeductions)}</span>
+                    <div className="text-sm font-semibold" style={{ color: '#ef4444' }}>
+                            -{formatCurrency(ytdGrandTotalDeductions)}
                           </div>
                     }
-                        <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
-                          <span className="text-xs mr-1">Extra App Fee Cut:</span>
-                          <span className="font-semibold">-{formatCurrency(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent))}</span>
-                        </div>
+                        <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-600)' }}>
+                         -{formatCurrency(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent))}
+                       </div>
                         <div className="text-lg font-bold text-emerald-700 mt-1">
-                          <span className="text-lg font-bold mr-1">Gross:</span>
                           {formatCurrency(ytdGrandTotalGross)}
                         </div>
                       </> :
