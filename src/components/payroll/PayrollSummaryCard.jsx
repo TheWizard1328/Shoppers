@@ -3027,7 +3027,8 @@ export default function PayrollSummaryCard({
             </div>
           }
         </div>
-      </CardContent>
-    </Card>);
+        </CardContent>
+        </Card>
+        </>);
 
-}
+        }
