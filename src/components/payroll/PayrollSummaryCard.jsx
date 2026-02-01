@@ -1771,7 +1771,6 @@ export default function PayrollSummaryCard({
   const [appFeesPerDelivery, setAppFeesPerDelivery] = useState(0);
   const [extraAppFeePercent, setExtraAppFeePercent] = useState(0);
   const [appFeeOverlayAllDriversId, setAppFeeOverlayAllDriversId] = useState(null);
-  const [extraAppFeeAmount, setExtraAppFeeAmount] = useState(0);
 
   useEffect(() => {
     const loadAppFeesSetting = async () => {
