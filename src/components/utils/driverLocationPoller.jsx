@@ -60,10 +60,29 @@ class DriverLocationPoller {
    * @param {Array} stores - Array of store objects
    * @param {Array} appUsers - Array of AppUser objects with location data (fallback if offline DB fails)
    * @param {Date} selectedDate - Currently selected date
+   * @param {String} currentPageName - Current page name to check if on Dashboard
    */
-  async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false) {
+  async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false, currentPageName = null) {
     // Skip processing if paused (e.g., during imports)
     if (this.isPaused) {
+      return;
+    }
+
+    // NEW RULE: Do not check for other drivers' locations when not on Dashboard
+    if (currentPageName !== 'Dashboard') {
+      this.notifySubscribers([]);
+      return;
+    }
+
+    // NEW RULE: Do not check for other drivers' locations when date is not today (device local time)
+    const todayLocal = new Date();
+    const todayStr = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}-${String(todayLocal.getDate()).padStart(2, '0')}`;
+    const selectedDateStr = selectedDate ? 
+      (typeof selectedDate === 'string' ? selectedDate : selectedDate.toISOString().split('T')[0]) : 
+      todayStr;
+    
+    if (selectedDateStr !== todayStr) {
+      this.notifySubscribers([]);
       return;
     }
 
