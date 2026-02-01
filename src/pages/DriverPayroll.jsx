@@ -245,25 +245,30 @@ export default function DriverPayroll() {
     return filtered;
   }, [payrollData?.deliveries, selectedCityId, filteredStores]);
 
-  const handlePayPeriodChange = useCallback(async (newPayPeriod) => {
+  const handlePayPeriodChange = useCallback((newPayPeriod) => {
     isManualChangeRef.current = true;
-    setPayPeriod(newPayPeriod);
-    setPayrollData(prev => {
-      if (selectedDriverId && selectedDriverId !== 'all' && prev?.appUsers) {
-        const driverAppUser = prev.appUsers.find(au => au.user_id === selectedDriverId);
-        if (driverAppUser) {
-          base44.entities.AppUser.update(driverAppUser.id, {
-            pay_cycle_type: newPayPeriod
-          }).catch(error => console.error('Failed to save pay cycle type:', error));
-          return {
-            ...prev,
-            appUsers: prev.appUsers.map(au => au.id === driverAppUser.id ? { ...au, pay_cycle_type: newPayPeriod } : au)
-          };
+    
+    // Batch all state updates together in a single synchronous block
+    React.startTransition(() => {
+      setPayPeriod(newPayPeriod);
+      setPayrollData(prev => {
+        if (selectedDriverId && selectedDriverId !== 'all' && prev?.appUsers) {
+          const driverAppUser = prev.appUsers.find(au => au.user_id === selectedDriverId);
+          if (driverAppUser) {
+            base44.entities.AppUser.update(driverAppUser.id, {
+              pay_cycle_type: newPayPeriod
+            }).catch(error => console.error('Failed to save pay cycle type:', error));
+            return {
+              ...prev,
+              appUsers: prev.appUsers.map(au => au.id === driverAppUser.id ? { ...au, pay_cycle_type: newPayPeriod } : au)
+            };
+          }
         }
-      }
-      return prev;
+        return prev;
+      });
     });
-    setTimeout(() => { isManualChangeRef.current = false; }, 100);
+    
+    setTimeout(() => { isManualChangeRef.current = false; }, 200);
   }, [selectedDriverId]);
 
   const refreshPayrollRecords = useCallback(async () => {
@@ -562,7 +567,11 @@ export default function DriverPayroll() {
                </Button>
             </div>
             {/* City Filter */}
-            <Select value={selectedCityId} onValueChange={setSelectedCityId} disabled={isDriver}>
+            <Select value={selectedCityId} onValueChange={(v) => {
+              React.startTransition(() => {
+                setSelectedCityId(v);
+              });
+            }} disabled={isDriver}>
               <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 <SelectValue placeholder="City" />
               </SelectTrigger>
@@ -577,7 +586,11 @@ export default function DriverPayroll() {
             </Select>
 
             {/* Year Filter */}
-            <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+            <Select value={String(selectedYear)} onValueChange={(v) => {
+              React.startTransition(() => {
+                setSelectedYear(Number(v));
+              });
+            }}>
               <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 <SelectValue />
               </SelectTrigger>
@@ -592,17 +605,22 @@ export default function DriverPayroll() {
 
             {/* Driver Filter - filtered by pay cycle type */}
             <Select value={selectedDriverId} onValueChange={(v) => { 
-              isManualChangeRef.current = true; 
-              setSelectedDriverId(v);
-              if (v === 'all') {
-                setPayPeriod('semimonthly');
-              } else {
-                const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === v);
-                if (driverAppUser?.pay_cycle_type) {
-                  setPayPeriod(driverAppUser.pay_cycle_type);
+              isManualChangeRef.current = true;
+              
+              // Batch all state updates in a single transition
+              React.startTransition(() => {
+                setSelectedDriverId(v);
+                if (v === 'all') {
+                  setPayPeriod('semimonthly');
+                } else {
+                  const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === v);
+                  if (driverAppUser?.pay_cycle_type) {
+                    setPayPeriod(driverAppUser.pay_cycle_type);
+                  }
                 }
-              }
-              setTimeout(() => { isManualChangeRef.current = false; }, 100); 
+              });
+              
+              setTimeout(() => { isManualChangeRef.current = false; }, 200); 
             }} disabled={isDriver}>
                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                  <SelectValue placeholder="Driver" />
