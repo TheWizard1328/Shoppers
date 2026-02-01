@@ -168,6 +168,7 @@ export default function DriverPayroll() {
   const prevDriverIdRef = useRef(selectedDriverId);
   const prevPayPeriodRef = useRef(payPeriod);
   const prevYearRef = useRef(selectedYear);
+  const isManualChangeRef = useRef(false);
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
@@ -247,6 +248,7 @@ export default function DriverPayroll() {
   }, [payrollData?.deliveries, selectedCityId, filteredStores]);
 
   const handlePayPeriodChange = useCallback(async (newPayPeriod) => {
+    isManualChangeRef.current = true;
     setPayPeriod(newPayPeriod);
     setPayrollData(prev => {
       if (selectedDriverId && selectedDriverId !== 'all' && prev?.appUsers) {
@@ -263,6 +265,7 @@ export default function DriverPayroll() {
       }
       return prev;
     });
+    setTimeout(() => { isManualChangeRef.current = false; }, 100);
   }, [selectedDriverId]);
 
   const refreshPayrollRecords = useCallback(async () => {
@@ -494,7 +497,7 @@ export default function DriverPayroll() {
   // Auto-select pay cycle type when driver selection changes
   // Only run when driver actually changes (not when payrollData updates)
   useEffect(() => {
-    if (!hasInitialized) return;
+    if (!hasInitialized || isManualChangeRef.current) return;
     // Only update pay period if driver actually changed
     if (prevDriverIdRef.current === selectedDriverId) return;
     prevDriverIdRef.current = selectedDriverId;
@@ -617,7 +620,7 @@ export default function DriverPayroll() {
             </Select>
 
             {/* Driver Filter - filtered by pay cycle type */}
-             <Select value={selectedDriverId} onValueChange={setSelectedDriverId} disabled={isDriver}>
+            <Select value={selectedDriverId} onValueChange={(v) => { isManualChangeRef.current = true; setSelectedDriverId(v); setTimeout(() => { isManualChangeRef.current = false; }, 100); }} disabled={isDriver}>
                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                  <SelectValue placeholder="Driver" />
                </SelectTrigger>
