@@ -907,7 +907,7 @@ export default function RouteImport({
         status: statusFromColumns,
         extra_time: 0,
         ampm_deliveries: ampmValue,
-        paid_km_override: paidKmOverride, // Column 8 - imported directly
+        paid_km_override: (paidKmOverride && paidKmOverride > (selectedDriver.extra_km_limit || 0)) ? paidKmOverride : null, // Only set if > extra_km_limit
         travel_dist: travelDist, // Column 9 - imported directly
         cod_total_amount_required: 0, // CRITICAL: Set to 0 - processDeliveryNotes will extract from notes
         cod_payments: [],
