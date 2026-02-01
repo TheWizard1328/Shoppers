@@ -60,29 +60,10 @@ class DriverLocationPoller {
    * @param {Array} stores - Array of store objects
    * @param {Array} appUsers - Array of AppUser objects with location data (fallback if offline DB fails)
    * @param {Date} selectedDate - Currently selected date
-   * @param {String} currentPageName - Current page name to check if on Dashboard
    */
-  async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false, currentPageName = null) {
+  async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false) {
     // Skip processing if paused (e.g., during imports)
     if (this.isPaused) {
-      return;
-    }
-
-    // NEW RULE: Do not check for other drivers' locations when not on Dashboard
-    if (currentPageName !== 'Dashboard') {
-      this.notifySubscribers([]);
-      return;
-    }
-
-    // NEW RULE: Do not check for other drivers' locations when date is not today (device local time)
-    const todayLocal = new Date();
-    const todayLocalStr = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}-${String(todayLocal.getDate()).padStart(2, '0')}`;
-    const selectedDateStr = selectedDate ? 
-      (typeof selectedDate === 'string' ? selectedDate : selectedDate.toISOString().split('T')[0]) : 
-      todayLocalStr;
-    
-    if (selectedDateStr !== todayLocalStr) {
-      this.notifySubscribers([]);
       return;
     }
 
@@ -136,7 +117,7 @@ class DriverLocationPoller {
     const isDriver = this.currentUser && userHasRole(this.currentUser, 'driver');
     const currentUserCityId = this.currentUser?.city_id;
     
-    const currentDayStr = new Date().toISOString().split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
 
     // CRITICAL: Filter to drivers with location data using the new rules
     // NEW RULE: Current user sees their OWN shared location from OTHER devices
@@ -204,7 +185,7 @@ class DriverLocationPoller {
         const hasAssignedStops = (deliveries || []).some(delivery => {
           if (!delivery) return false;
           if (delivery.driver_id !== driverId) return false;
-          if (delivery.delivery_date !== currentDayStr) return false;
+          if (delivery.delivery_date !== todayStr) return false;
           if (!dispatcherStoreIds.has(delivery.store_id)) return false;
           // Include all non-terminal statuses (pending, en_route, in_transit)
           if (['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status)) return false;
