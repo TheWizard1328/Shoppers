@@ -1721,8 +1721,13 @@ export default function PayrollSummaryCard({
   }, []);
 
   // Calculate AppFeeAmount for a driver - distribute from total monthly app fee pool
+  // CRITICAL: Use CALENDAR MONTH, not pay cycle, since app fees are collected monthly
   const calculateAppFeeAmount = useCallback((driverId, appFeePercent) => {
     if (appFeePercent <= 0 || appFeesPerDelivery === 0) return 0;
+    
+    // CRITICAL: Get calendar month (1st to last day), not pay period
+    const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+    const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
     
     // CRITICAL: Check ALL stores first, then count deliveries for each
     const storeBreakdown = {};
@@ -1751,11 +1756,11 @@ export default function PayrollSummaryCard({
       };
     });
     
-    // Count deliveries for each store
+    // Count deliveries for each store - using CALENDAR MONTH
     deliveries.forEach((d) => {
       if (!d || !d.store_id) return;
       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-      if (deliveryDate < currentPeriod.start || deliveryDate > currentPeriod.end) return;
+      if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
       
       const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
       if (!validStatus) return;
@@ -1771,7 +1776,8 @@ export default function PayrollSummaryCard({
     });
     
     // Debug log - show ALL stores
-    console.log(`🧮 [AppFee Debug] Period: ${periodStartStr} to ${periodEndStr}, Fee/Del: $${appFeesPerDelivery}`);
+    const monthStr = calendarMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    console.log(`🧮 [AppFee Debug] CALENDAR MONTH: ${monthStr}, Fee/Del: $${appFeesPerDelivery}`);
     console.log(`📊 Store Summary (${Object.values(storeBreakdown).length} total stores):`);
     Object.values(storeBreakdown).forEach(s => {
       console.log(`   ${s.abbreviation}: ${s.count} deliveries ${s.pays ? '✅ PAYS' : '❌ NO PAY'}`);
@@ -1786,7 +1792,7 @@ export default function PayrollSummaryCard({
     console.log(`   Driver ${driverId}: ${appFeePercent}% of $${totalMonthlyAppFees.toFixed(2)} = $${driverAppFee.toFixed(2)}`);
     
     return (totalMonthlyAppFees * appFeePercent) / 100;
-  }, [deliveries, stores, currentPeriod, appFeesPerDelivery, periodStartStr]);
+  }, [deliveries, stores, currentPeriod, appFeesPerDelivery]);
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
