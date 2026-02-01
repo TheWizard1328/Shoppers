@@ -2675,6 +2675,48 @@ export default function PayrollSummaryCard({
 
           })}
           
+          {/* App Owner App Fee % Row */}
+          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) &&
+          <div className="pt-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-slate-50)', borderLeft: '3px solid #8b5cf6' }}>
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+                App Owner App Fee % &amp; YTD
+              </div>
+              <div className="flex gap-6 items-start">
+                {/* Period Column */}
+                <div className="flex flex-col items-end gap-0.5">
+                  <div className="text-xs text-center font-bold mb-1" style={{ color: 'var(--text-slate-500)' }}>Period</div>
+                  <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                    <span className="text-xs mr-1">App Fee %:</span>
+                    <button 
+                      onClick={() => setAppFeeOverlayAllDriversId('all')}
+                      className="font-semibold text-blue-600 hover:text-blue-700 cursor-pointer">
+                      {appOwnerAppFeePercent.toFixed(2)}%
+                    </button>
+                  </div>
+                  <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                    <span className="text-xs mr-1">App Fee $:</span>
+                    <span className="font-semibold">${(calculateAppFeeAmount('app-owner', appOwnerAppFeePercent) || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* YTD Column */}
+                <div className="flex flex-col items-end gap-0.5">
+                  <div className="text-xs text-center font-bold mb-1" style={{ color: 'var(--text-slate-500)' }}>YTD</div>
+                  <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                    <span className="text-xs mr-1">App Fee %:</span>
+                    <span className="font-semibold">{appOwnerAppFeePercent.toFixed(2)}%</span>
+                  </div>
+                  <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                    <span className="text-xs mr-1">App Fee $:</span>
+                    <span className="font-semibold">${(calculateAppFeeAmount('app-owner', appOwnerAppFeePercent) || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          }
+
           {/* Grand Total for All Drivers */}
           {payrollData.length > 1 &&
           <div className="pt-4" style={{ borderTop: '2px solid var(--border-slate-300)' }}>
