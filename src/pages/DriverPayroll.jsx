@@ -170,6 +170,9 @@ export default function DriverPayroll() {
   const prevPayPeriodRef = useRef(payPeriod);
   const prevYearRef = useRef(selectedYear);
 
+  // Determine if current user is a driver (not admin) - must be before useMemo that use it
+  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
+
   // CRITICAL: Declare ALL hooks BEFORE any early returns
   const years = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -394,9 +397,6 @@ export default function DriverPayroll() {
     setIsRefreshing(false);
     toast.success('Payroll data refreshed');
   };
-
-  // Determine if current user is a driver (not admin) - moved after all state declarations
-  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
   // Fetch payroll data - only refetch when year or city changes, NOT when driver changes
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
