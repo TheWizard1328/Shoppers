@@ -2286,7 +2286,7 @@ export default function PayrollSummaryCard({
            <p className="text-xs text-slate-600">Configure the extra app fee percentage reserved for operational costs.</p>
            <p className="text-xs text-slate-500">Formula: App Owner % = 100% - [Sum of All Drivers App Fee %] - [Extra App Fee %]</p>
 
-           {/* Two fields side by side */}
+           {/* Extra App Fee & Other App Fee - 2x2 grid */}
            <div className="grid grid-cols-2 gap-3">
              {/* Extra App Fee % */}
              <div>
@@ -2310,7 +2310,7 @@ export default function PayrollSummaryCard({
 
              {/* Extra App Fee Amount */}
              <div>
-               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Extra App Fee Amount</label>
+               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Extra App Fee $</label>
                <div className="flex gap-1">
                  <span className="flex items-center text-slate-500">$</span>
                  <input
@@ -2352,6 +2352,78 @@ export default function PayrollSummaryCard({
                      const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
                      const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
                      setExtraAppFeePercent(newPercent);
+                   }}
+                   placeholder="0.00"
+                   className="flex-1 px-2 py-1 text-sm border rounded"
+                   step="0.01"
+                   min="0" />
+               </div>
+             </div>
+
+             {/* Other App Fee % */}
+             <div>
+               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Other App Fee %</label>
+               <div className="flex gap-1">
+                 <input
+                   type="number"
+                   value={otherAppFeePercent}
+                   onChange={(e) => {
+                     const newPercent = parseFloat(e.target.value) || 0;
+                     setOtherAppFeePercent(Math.max(0, Math.min(100, newPercent)));
+                   }}
+                   placeholder="0"
+                   className="flex-1 px-2 py-1 text-sm border rounded"
+                   step="0.01"
+                   min="0"
+                   max="100" />
+                 <span className="flex items-center text-slate-500">%</span>
+               </div>
+             </div>
+
+             {/* Other App Fee Amount */}
+             <div>
+               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Other App Fee $</label>
+               <div className="flex gap-1">
+                 <span className="flex items-center text-slate-500">$</span>
+                 <input
+                   type="number"
+                   value={calculateAppFeeAmount('other-app-fee', otherAppFeePercent)}
+                   onChange={(e) => {
+                     const newAmount = parseFloat(e.target.value) || 0;
+                     let totalBillableCount = 0;
+                     const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                     const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+
+                     deliveries.forEach((d) => {
+                       if (!d || !d.store_id) return;
+                       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                       if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+
+                       const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+                       if (!validStatus) return;
+                       if (!d.patient_id && !d.after_hours_pickup) return;
+
+                       const store = stores.find((s) => s?.id === d.store_id);
+                       if (!store) return;
+
+                       let paysAppFees = store.pays_app_fees || false;
+                       if (store.app_fee_history && store.app_fee_history.length > 0) {
+                         const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                           new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                         );
+                         if (sortedHistory[0]) {
+                           paysAppFees = sortedHistory[0].pays_app_fees;
+                         }
+                       }
+
+                       if (paysAppFees) {
+                         totalBillableCount++;
+                       }
+                     });
+
+                     const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                     const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
+                     setOtherAppFeePercent(newPercent);
                    }}
                    placeholder="0.00"
                    className="flex-1 px-2 py-1 text-sm border rounded"
