@@ -1727,10 +1727,12 @@ export default function PayrollSummaryCard({
         return recordEnd >= yearStart && recordEnd <= currentPeriodEnd;
       });
       
-      console.log(`📋 [Payroll YTD Debug] Driver ${data.driver.user_name}: Checking payroll records from ${yearStart} to ${currentPeriodEnd}`);
-      console.log(`   Total payroll records found: ${ytdRecords.length}`);
+      console.log(`📋 [Payroll YTD Debug] Driver ${data.driver.user_name}: Period End=${currentPeriodEnd}`);
+      console.log(`   Filtering records from ${yearStart} to ${currentPeriodEnd}`);
+      console.log(`   Total payroll records available: ${payrollRecords.length}`);
+      console.log(`   YTD records found: ${ytdRecords.length}`);
       ytdRecords.forEach(r => {
-        console.log(`     - ${r.pay_period_start} to ${r.pay_period_end}: net=$${r.net_pay}, bonus=$${r.bonus_pay}, deductions=$${r.total_deductions}, app_fee=$${r.app_fee_amount}`);
+        console.log(`     ✓ ${r.pay_period_start} to ${r.pay_period_end}: net=$${r.net_pay}, bonus=$${r.bonus_pay}, deductions=$${r.total_deductions}, app_fee=$${r.app_fee_amount}`);
       });
       
       // Use shared utility to calculate YTD values
