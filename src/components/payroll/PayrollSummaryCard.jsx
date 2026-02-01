@@ -263,7 +263,7 @@ export default function PayrollSummaryCard({
       return;
     }
 
-    if (!periodStartStr || !periodEndStr) return;
+    if (!currentPeriod) return;
 
     const fetchPayrollRecords = async (force = false) => {
       const now = Date.now();
@@ -272,15 +272,22 @@ export default function PayrollSummaryCard({
 
       setIsLoadingRecords(true);
       try {
-        // CRITICAL: Fetch ALL payroll records from Jan 1 to current period end (don't filter by driver yet)
+        // CRITICAL: Fetch ALL payroll records from Jan 1 to current period end (inclusive)
+        // This ensures we get all prior periods + current period for YTD calculations
         const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
+        const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+        
+        console.log(`📥 [Payroll] Fetching records from ${yearStart} to ${periodEnd} (current period: ${periodStartStr} - ${periodEndStr})`);
+        
         const records = await base44.entities.Payroll.filter({
-          pay_period_end: { $gte: yearStart, $lte: periodEndStr }
+          pay_period_end: { $gte: yearStart, $lte: periodEnd }
         });
-        console.log(`📥 [Payroll] Fetched ${records?.length || 0} total payroll records from ${yearStart} to ${periodEndStr}`);
+        
+        console.log(`📥 [Payroll] Fetched ${records?.length || 0} total payroll records from ${yearStart} to ${periodEnd}`);
         records?.forEach(r => {
           console.log(`   - Driver: ${r.driver_id}, Period: ${r.pay_period_start} to ${r.pay_period_end}, Net: $${r.net_pay}`);
         });
+        
         setPayrollRecords(records || []);
         if (onPayrollRecordsChange) {
           onPayrollRecordsChange(records || []);
@@ -300,7 +307,7 @@ export default function PayrollSummaryCard({
     const interval = setInterval(() => fetchPayrollRecords(), 15000);
 
     return () => clearInterval(interval);
-  }, [periodStartStr, periodEndStr, externalPayrollRecords]);
+  }, [currentPeriod, externalPayrollRecords];
 
   // Auto-create missing Payroll records - ONLY when period changes
   useEffect(() => {
