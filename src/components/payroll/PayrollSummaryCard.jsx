@@ -446,6 +446,7 @@ export default function PayrollSummaryCard({
           deductions: driverData.deductionsArray,
           bonus_pay: 0,
           app_fee_percentage: 0,
+          tax_amount: driverData.taxAmount,
           pay_rate_per_delivery: driverData.payRate,
           extra_km_rate: driverData.extraKmRate,
           extra_km_limit: driverData.extraKmLimit,
