@@ -1740,7 +1740,10 @@ export default function PayrollSummaryCard({
       const appUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
       const ytdValues = calculateYtdPayroll(ytdRecords, data, cities, appUser);
       
-      console.log(`🧮 [Payroll] YTD Summary for ${data.driver.user_name}: Net=$${ytdValues.ytdNetPay}, Tax=$${ytdValues.ytdTaxAmount}, Bonus=$${ytdValues.ytdBonusAmount}, Deductions=$${ytdValues.ytdDeductionsAmount}, AppFee=$${ytdValues.ytdAppFeeAmount}, Gross=$${ytdValues.ytdGrossPay}`);
+      const ytdNetTotal = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
+      const ytdGrossTotal = ytdRecords.reduce((sum, r) => sum + (r.gross_pay || 0), 0);
+      const ytdAppFeeTotal = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
+      console.log(`🧮 [Payroll] YTD Summary for ${data.driver.user_name}: Net=$${ytdNetTotal.toFixed(2)} (calc: $${ytdValues.ytdNetPay.toFixed(2)}), Tax=$${ytdValues.ytdTaxAmount.toFixed(2)}, Bonus=$${ytdValues.ytdBonusAmount.toFixed(2)}, Deductions=$${ytdValues.ytdDeductionsAmount.toFixed(2)}, AppFee=$${ytdAppFeeTotal.toFixed(2)} (calc: $${ytdValues.ytdAppFeeAmount.toFixed(2)}), Gross=$${ytdGrossTotal.toFixed(2)} (calc: $${ytdValues.ytdGrossPay.toFixed(2)})`);
       
       ytdMap[data.driver.id] = ytdValues;
     });
