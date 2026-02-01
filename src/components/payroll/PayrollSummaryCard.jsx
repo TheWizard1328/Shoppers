@@ -71,6 +71,9 @@ export default function PayrollSummaryCard({
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [appFeesPerDelivery, setAppFeesPerDelivery] = useState(0);
+  const [extraAppFeePercent, setExtraAppFeePercent] = useState(0);
+  const [appFeeOverlayAllDriversId, setAppFeeOverlayAllDriversId] = useState(null);
   const contentRef = useRef(null);
 
   const isAdmin = currentUser && userHasRole(currentUser, 'admin');
