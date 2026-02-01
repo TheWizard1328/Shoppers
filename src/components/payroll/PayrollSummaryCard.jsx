@@ -2472,7 +2472,24 @@ export default function PayrollSummaryCard({
                    {/* App Owner Row */}
                    <tr style={{ background: 'var(--bg-slate-100)', borderTop: '2px solid var(--border-slate-300)' }}>
                      <td className="px-2 py-1.5 font-semibold">App Owner</td>
-                     <td className="text-right px-1 py-1.5 font-semibold">{appOwnerAppFeePercent.toFixed(2)}%</td>
+                     <td className="text-right px-1 py-1.5">
+                       <input
+                         type="number"
+                         value={appOwnerAppFeePercent}
+                         onChange={(e) => {
+                           const newAppOwnerPercent = parseFloat(e.target.value) || 0;
+                           const newOtherPercent = Math.max(0, 100 - sumAllDriversAppFeePercent - newAppOwnerPercent);
+                           setOtherAppFeePercent(newOtherPercent);
+                         }}
+                         onBlur={(e) => {
+                           const value = parseFloat(e.target.value) || 0;
+                           const clampedAppOwner = Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent);
+                         }}
+                         className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner font-semibold"
+                         step="any"
+                         min="0"
+                         max="100" />
+                     </td>
                      <td className="text-right px-1 py-1.5 font-semibold">${(calculateAppFeeAmount('app-owner', appOwnerAppFeePercent) || 0).toFixed(2)}</td>
                    </tr>
                  </tbody>
