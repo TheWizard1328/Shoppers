@@ -469,6 +469,42 @@ export default function PayrollSummaryCard({
           return;
         }
 
+        // Calculate app fee amount for this period
+        let saveAppFeeDeliveries = 0;
+        deliveries.forEach((d) => {
+          if (!d || d.driver_id !== driverId) return;
+          const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+          const periodStart = new Date(periodStartStr + 'T00:00:00');
+          const periodEnd = new Date(periodEndStr + 'T00:00:00');
+          if (deliveryDate < periodStart || deliveryDate > periodEnd) return;
+          
+          const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+          if (!validStatus) return;
+          if (!d.patient_id && !d.after_hours_pickup) return;
+          
+          const store = stores.find((s) => s?.id === d.store_id);
+          if (!store) return;
+          
+          let paysAppFees = store.pays_app_fees || false;
+          if (store.app_fee_history && store.app_fee_history.length > 0) {
+            const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+            );
+            const applicableEntry = sortedHistory.find((entry) =>
+              new Date(entry.effective_date) <= deliveryDate
+            );
+            if (applicableEntry) {
+              paysAppFees = applicableEntry.pays_app_fees;
+            }
+          }
+          
+          if (paysAppFees) {
+            saveAppFeeDeliveries++;
+          }
+        });
+        
+        const saveAppFeeAmount = (saveAppFeeDeliveries * (driverData.appFeePercentage || 0)) / 100;
+        
         const newRecord = await base44.entities.Payroll.create({
           driver_id: driverId,
           city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : null,
@@ -484,6 +520,7 @@ export default function PayrollSummaryCard({
           deductions: driverData.deductionsArray,
           bonus_pay: 0,
           app_fee_percentage: 0,
+          app_fee_amount: saveAppFeeAmount,
           tax_amount: driverData.taxAmount,
           pay_rate_per_delivery: driverData.payRate,
           extra_km_rate: driverData.extraKmRate,
