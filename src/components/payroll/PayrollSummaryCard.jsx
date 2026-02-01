@@ -1715,13 +1715,15 @@ export default function PayrollSummaryCard({
     const ytdMap = {};
     
     payrollData.forEach((data) => {
-      const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
+      const year = currentPeriod.start.getFullYear();
+      const yearStart = `${year}-01-01`;
       const currentPeriodEnd = currentPeriod.end.toISOString().split('T')[0];
       
-      // CRITICAL: Include ALL payroll records from Jan 1 to current period end (inclusive) for this driver
+      // CRITICAL: Include ONLY payroll records from Jan 1 to current period end (inclusive) for this driver
       const ytdRecords = payrollRecords.filter((r) => {
         if (!r || r.driver_id !== data.driver.id) return false;
         const recordEnd = r.pay_period_end;
+        // Filter: recordEnd must be >= Jan 1 AND <= selected period end
         return recordEnd >= yearStart && recordEnd <= currentPeriodEnd;
       });
       
