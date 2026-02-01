@@ -17,7 +17,12 @@ export default function PayrollMobileCard({
   formatCurrency,
   deliveries = [],
   patients = [],
-  currentPeriod = null
+  currentPeriod = null,
+  bonusAmount = 0,
+  appFeeAmount = 0,
+  appFeePercent = 0,
+  ytdDataByDriver = {},
+  isPeriodEndOfMonth = false
 }) {
   const [expandedSection, setExpandedSection] = useState(null);
 
