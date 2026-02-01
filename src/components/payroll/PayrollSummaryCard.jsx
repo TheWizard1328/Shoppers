@@ -2388,7 +2388,7 @@ export default function PayrollSummaryCard({
                                  ...prev,
                                  [driver.driver.id]: { 
                                    ...prev[driver.driver.id], 
-                                   appFeePercent: newPercent,
+                                   appFeePercent: Math.round(newPercent * 100) / 100,
                                    appFeeAmount: newAmount
                                  }
                                }));
