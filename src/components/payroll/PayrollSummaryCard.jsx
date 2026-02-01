@@ -1550,16 +1550,18 @@ export default function PayrollSummaryCard({
         return recordEnd >= yearStart && recordEnd <= currentPeriodEnd;
       });
       
-      // Simply sum the stored values from all payroll records
+      // Sum the stored values from all payroll records
       const ytdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
-      const ytdGrossPay = ytdRecords.reduce((sum, r) => sum + (r.gross_pay || 0), 0);
       const ytdBonusAmount = ytdRecords.reduce((sum, r) => sum + (r.bonus_pay || 0), 0);
       const ytdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
-      const ytdTaxAmount = ytdRecords.reduce((sum, r) => sum + (r.tax_amount || 0), 0);
       const ytdAppFeeAmount = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
       
+      // Calculate tax and gross
+      const ytdTaxAmount = data.gstHstEnabled ? ytdNetPay * data.taxRate : 0;
+      const ytdGrossPay = ytdNetPay + ytdTaxAmount + ytdBonusAmount - ytdDeductionsAmount;
+      
       console.log(`🧮 [Payroll] YTD for ${data.driver.user_name} (${data.driver.id}): Found ${ytdRecords.length} periods from ${yearStart} to ${currentPeriodEnd}`);
-      console.log(`  YTD Net: $${ytdNetPay}, YTD Gross: $${ytdGrossPay}, YTD Bonus: $${ytdBonusAmount}, YTD Deductions: $${ytdDeductionsAmount}`);
+      console.log(`  YTD Net: $${ytdNetPay}, YTD Bonus: $${ytdBonusAmount}, YTD Deductions: $${ytdDeductionsAmount}, YTD App Fee: $${ytdAppFeeAmount}, YTD Tax: $${ytdTaxAmount}, YTD Gross: $${ytdGrossPay}`);
       
       ytdMap[data.driver.id] = { 
         ytdNetPay,
