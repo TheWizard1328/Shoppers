@@ -1535,65 +1535,44 @@ export default function PayrollSummaryCard({
     });
   }, [driversWithDeliveriesIds, payrollRecords]);
 
-  // Calculate YTD data from payroll records - accumulate all periods from start of year to current period
+  // Calculate YTD data from payroll records - sum stored values from all periods including current
   const ytdDataByDriver = useMemo(() => {
     const ytdMap = {};
     
     payrollData.forEach((data) => {
-      // Sum payroll records for this driver from Jan 1 to current period end
       const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
-      const currentPeriodStart = currentPeriod.start.toISOString().split('T')[0];
       const currentPeriodEnd = currentPeriod.end.toISOString().split('T')[0];
       
-      // CRITICAL: Filter payrollRecords to ONLY include PRIOR periods (before current period)
-      // Exclude the current period being viewed to avoid double-counting
+      // CRITICAL: Include ALL payroll records from Jan 1 to current period end (inclusive) for this driver
       const ytdRecords = payrollRecords.filter((r) => {
         if (!r || r.driver_id !== data.driver.id) return false;
-        // Include records from Jan 1 through BEFORE current period start
         const recordEnd = r.pay_period_end;
-        return recordEnd >= yearStart && recordEnd < currentPeriodStart;
+        return recordEnd >= yearStart && recordEnd <= currentPeriodEnd;
       });
       
-      console.log(`🧮 [Payroll] YTD for ${data.driver.user_name} (${data.driver.id}): Found ${ytdRecords.length} prior periods`);
-      ytdRecords.forEach((r, idx) => {
-        console.log(`  Period ${idx+1}: ${r.pay_period_start} to ${r.pay_period_end}, Net: $${r.net_pay}, Bonus: $${r.bonus_pay}, Deductions: $${r.total_deductions}`);
-      });
-      
-      // YTD Net Pay: Sum of net_pay from all PRIOR periods + current period's deliveries
-      const priorYtdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
-      const ytdNetPay = priorYtdNetPay + (data.grandTotal || 0); // Add current period's net pay
-      
-      console.log(`  Prior YTD Net: $${priorYtdNetPay}, Current Period Net: $${data.grandTotal || 0}, Total YTD Net: $${ytdNetPay}`);
-      
-      // YTD Tax: YTD Net Pay * the driver's current tax rate (if GST/HST enabled)
-      const ytdTaxAmount = data.gstHstEnabled ? ytdNetPay * data.taxRate : 0;
-      
-      // YTD Deductions: Sum of total_deductions from all PRIOR periods + current period
-      const priorYtdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
-      const ytdDeductionsAmount = priorYtdDeductionsAmount + (data.deductions || 0); // Add current period's deductions
-      
-      // YTD Bonus: Sum of bonus_pay from all PRIOR periods + current period
-      const priorYtdBonusAmount = ytdRecords.reduce((sum, r) => sum + (r.bonus_pay || 0), 0);
-      const ytdBonusAmount = priorYtdBonusAmount + (driverEdits[data.driver.id]?.bonusPay || 0); // Add current period's bonus
-      
-      // YTD App Fee: Sum of app_fee_amount from all periods
+      // Simply sum the stored values from all payroll records
+      const ytdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
+      const ytdGrossPay = ytdRecords.reduce((sum, r) => sum + (r.gross_pay || 0), 0);
+      const ytdBonusAmount = ytdRecords.reduce((sum, r) => sum + (r.bonus_pay || 0), 0);
+      const ytdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
+      const ytdTaxAmount = ytdRecords.reduce((sum, r) => sum + (r.tax_amount || 0), 0);
       const ytdAppFeeAmount = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
       
-      // YTD Gross Pay: Net + Tax + Bonus - Deductions
-      const ytdGrossPay = ytdNetPay + ytdTaxAmount + ytdBonusAmount - ytdDeductionsAmount;
+      console.log(`🧮 [Payroll] YTD for ${data.driver.user_name} (${data.driver.id}): Found ${ytdRecords.length} periods from ${yearStart} to ${currentPeriodEnd}`);
+      console.log(`  YTD Net: $${ytdNetPay}, YTD Gross: $${ytdGrossPay}, YTD Bonus: $${ytdBonusAmount}, YTD Deductions: $${ytdDeductionsAmount}`);
       
       ytdMap[data.driver.id] = { 
         ytdNetPay,
-        ytdTaxAmount,
-        ytdDeductionsAmount,
+        ytdGrossPay,
         ytdBonusAmount,
-        ytdAppFeeAmount,
-        ytdGrossPay
+        ytdDeductionsAmount,
+        ytdTaxAmount,
+        ytdAppFeeAmount
       };
     });
     
     return ytdMap;
-  }, [payrollData, payrollRecords, currentPeriod, driverEdits]);
+  }, [payrollData, payrollRecords, currentPeriod]);
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
