@@ -501,6 +501,10 @@ export default function DriverPayroll() {
   useEffect(() => {
     if (!hasInitialized) return;
     
+    // Invalidate caches to force fresh calculations
+    invalidate('Payroll');
+    invalidate('Delivery');
+    
     const today = new Date();
     if (selectedYear === today.getFullYear()) {
       const idx = findCurrentPeriodIndex(allPeriods, today);
