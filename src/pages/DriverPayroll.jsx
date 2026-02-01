@@ -146,34 +146,29 @@ const findCurrentPeriodIndex = (periods, today) => {
 };
 
 export default function DriverPayroll() {
-   const { currentUser } = useUser();
-   const { smartRefreshActivity, setSmartRefreshActivity } = useAppData();
-   
-  const currentDate = new Date();
-  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+  // CRITICAL: ALL hooks must be at the top, before any conditional logic
+  const { currentUser } = useUser();
+  const { smartRefreshActivity, setSmartRefreshActivity } = useAppData();
+  
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
   const [selectedCityId, setSelectedCityId] = useState('all');
   const [selectedDriverId, setSelectedDriverId] = useState('all');
   const [payPeriod, setPayPeriod] = useState('monthly');
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
   const [hasInitialized, setHasInitialized] = useState(false);
-   const [payrollData, setPayrollData] = useState(null);
-   const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
-   const [payrollRecords, setPayrollRecords] = useState([]);
-   const [isRefreshing, setIsRefreshing] = useState(false);
-   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
-   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
-   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
-   const contentRef = useRef(null);
-
-  // Refs for tracking previous values (must be declared with other hooks at top)
+  const [payrollData, setPayrollData] = useState(null);
+  const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
+  const [payrollRecords, setPayrollRecords] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
+  const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  
+  const contentRef = useRef(null);
   const prevDriverIdRef = useRef(selectedDriverId);
   const prevPayPeriodRef = useRef(payPeriod);
   const prevYearRef = useRef(selectedYear);
 
-  // Determine if current user is a driver (not admin) - must be before useMemo that use it
-  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
-
-  // CRITICAL: Declare ALL hooks BEFORE any early returns
   const years = useMemo(() => {
     const currentYear = new Date().getFullYear();
     return [currentYear, currentYear - 1, currentYear - 2];
@@ -242,21 +237,15 @@ export default function DriverPayroll() {
     return filtered;
   }, [payrollData?.deliveries, selectedCityId, filteredStores]);
 
-  // Save pay cycle type to driver's AppUser when changed
   const handlePayPeriodChange = useCallback(async (newPayPeriod) => {
     setPayPeriod(newPayPeriod);
-
-    // Use functional update to access latest payrollData without adding to dependencies
     setPayrollData(prev => {
       if (selectedDriverId && selectedDriverId !== 'all' && prev?.appUsers) {
         const driverAppUser = prev.appUsers.find(au => au.user_id === selectedDriverId);
         if (driverAppUser) {
-          // Update in background
           base44.entities.AppUser.update(driverAppUser.id, {
             pay_cycle_type: newPayPeriod
           }).catch(error => console.error('Failed to save pay cycle type:', error));
-
-          // Update local state
           return {
             ...prev,
             appUsers: prev.appUsers.map(au => au.id === driverAppUser.id ? { ...au, pay_cycle_type: newPayPeriod } : au)
@@ -267,7 +256,6 @@ export default function DriverPayroll() {
     });
   }, [selectedDriverId]);
 
-  // Function to refresh payroll records (called after finalization)
   const refreshPayrollRecords = useCallback(async () => {
     if (!currentPeriod) return;
     const periodStartStr = currentPeriod.start.toISOString().split('T')[0];
@@ -398,7 +386,6 @@ export default function DriverPayroll() {
     toast.success('Payroll data refreshed');
   };
 
-  // Fetch payroll data - only refetch when year or city changes, NOT when driver changes
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
     if (!currentUser) return;
     if (!isAutoRefresh) setIsLoadingPayroll(true);
@@ -443,6 +430,9 @@ export default function DriverPayroll() {
       }
     }
   }, [selectedYear, selectedCityId, currentUser, setSmartRefreshActivity]);
+
+  // Determine if current user is a driver (after all hooks)
+  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
   // Trigger fetch when filters change (after initialization)
   useEffect(() => {
