@@ -2167,7 +2167,61 @@ export default function PayrollSummaryCard({
                 </Button>
               </DialogFooter>
            </DialogContent>
-         </Dialog>
+        </Dialog>
+      }
+
+      {/* App Fee Manager Overlay Dialog */}
+      {appFeeOverlayDriverId && driverEdits[appFeeOverlayDriverId] &&
+      <Dialog open={true} onOpenChange={(open) => !open && setAppFeeOverlayDriverId(null)}>
+       <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+         <DialogHeader>
+           <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Fee %</DialogTitle>
+         </DialogHeader>
+
+         <div className="space-y-3">
+           <div>
+             <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee % for {payrollData.find((d) => d.driver.id === appFeeOverlayDriverId)?.driver.user_name}:</label>
+             <div className="flex gap-2">
+               <input
+                 type="number"
+                 value={driverEdits[appFeeOverlayDriverId]?.appFeePercent || 0}
+                 onChange={(e) => {
+                   const newValue = parseFloat(e.target.value) || 0;
+                   setDriverEdits((prev) => ({
+                     ...prev,
+                     [appFeeOverlayDriverId]: { ...prev[appFeeOverlayDriverId], appFeePercent: newValue }
+                   }));
+                   // Save immediately
+                   savePayrollChanges(appFeeOverlayDriverId, { app_fee_percentage: newValue });
+                 }}
+                 onKeyDown={(e) => {
+                   if (e.key === 'Enter') {
+                     const closeButton = document.querySelector('[data-dialog-close="appfee"]');
+                     if (closeButton) closeButton.click();
+                   }
+                 }}
+                 placeholder="0"
+                 className="flex-1 px-2 py-1 text-sm border rounded"
+                 step="0.01"
+                 min="0"
+                 max="100" />
+               <span className="flex items-center">%</span>
+             </div>
+             <p className="text-xs text-slate-500 mt-2">Enter the app fee percentage (0-100) for {currentPeriod?.label}.</p>
+           </div>
+         </div>
+
+         <DialogFooter>
+           <Button
+             variant="outline"
+             data-dialog-close="appfee"
+             onClick={() => setAppFeeOverlayDriverId(null)}
+             style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+             Close
+           </Button>
+         </DialogFooter>
+       </DialogContent>
+      </Dialog>
       }
 
       {/* Admin Confirmation Dialog - but NOT for admin-drivers viewing their own payroll */}
