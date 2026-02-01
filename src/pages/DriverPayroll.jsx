@@ -390,24 +390,26 @@ export default function DriverPayroll() {
    const handlePayPeriodChange = useCallback(async (newPayPeriod) => {
     setPayPeriod(newPayPeriod);
 
-    // Only save if a specific driver is selected
-    if (selectedDriverId && selectedDriverId !== 'all' && payrollData?.appUsers) {
-      const driverAppUser = payrollData.appUsers.find(au => au.user_id === selectedDriverId);
-      if (driverAppUser) {
-        try {
-          await base44.entities.AppUser.update(driverAppUser.id, {
+    // Use functional update to access latest payrollData without adding to dependencies
+    setPayrollData(prev => {
+      if (selectedDriverId && selectedDriverId !== 'all' && prev?.appUsers) {
+        const driverAppUser = prev.appUsers.find(au => au.user_id === selectedDriverId);
+        if (driverAppUser) {
+          // Update in background
+          base44.entities.AppUser.update(driverAppUser.id, {
             pay_cycle_type: newPayPeriod
-          });
-          setPayrollData(prev => prev ? {
+          }).catch(error => console.error('Failed to save pay cycle type:', error));
+
+          // Update local state
+          return {
             ...prev,
             appUsers: prev.appUsers.map(au => au.id === driverAppUser.id ? { ...au, pay_cycle_type: newPayPeriod } : au)
-          } : null);
-        } catch (error) {
-          console.error('Failed to save pay cycle type:', error);
+          };
         }
       }
-    }
-  }, [selectedDriverId, payrollData?.appUsers]);
+      return prev;
+    });
+  }, [selectedDriverId]);
 
   // Get available years (current year and 2 years back)
   const years = useMemo(() => {
