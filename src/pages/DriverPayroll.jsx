@@ -148,6 +148,14 @@ const findCurrentPeriodIndex = (periods, today) => {
 export default function DriverPayroll() {
    const { currentUser } = useUser();
    const { smartRefreshActivity, setSmartRefreshActivity } = useAppData();
+   
+  const currentDate = new Date();
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+  const [selectedCityId, setSelectedCityId] = useState('all');
+  const [selectedDriverId, setSelectedDriverId] = useState('all');
+  const [payPeriod, setPayPeriod] = useState('monthly');
+  const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
+  const [hasInitialized, setHasInitialized] = useState(false);
    const [payrollData, setPayrollData] = useState(null);
    const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
    const [payrollRecords, setPayrollRecords] = useState([]);
@@ -156,22 +164,11 @@ export default function DriverPayroll() {
    const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
    const [showScreenshotModal, setShowScreenshotModal] = useState(false);
    const contentRef = useRef(null);
-  
-  const currentDate = new Date();
-  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
-  const [selectedCityId, setSelectedCityId] = useState('all');
-  const [selectedDriverId, setSelectedDriverId] = useState('all');
-  const [payPeriod, setPayPeriod] = useState('monthly');
-  const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
-  const [hasInitialized, setHasInitialized] = useState(false);
 
   // Refs for tracking previous values (must be declared with other hooks at top)
   const prevDriverIdRef = useRef(selectedDriverId);
   const prevPayPeriodRef = useRef(payPeriod);
   const prevYearRef = useRef(selectedYear);
-
-  // Determine if current user is a driver (not admin)
-  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
   // CRITICAL: Declare ALL hooks BEFORE any early returns
   const years = useMemo(() => {
@@ -183,7 +180,7 @@ export default function DriverPayroll() {
     return calculateAllPeriods(selectedYear, payPeriod);
   }, [selectedYear, payPeriod]);
 
-  const currentPeriod = allPeriods[selectedPeriodIndex] || allPeriods[0];
+  const currentPeriod = useMemo(() => allPeriods[selectedPeriodIndex] || allPeriods[0], [allPeriods, selectedPeriodIndex]);
 
   const sortedCities = useMemo(() => {
     if (!payrollData?.cities) return [];
@@ -397,6 +394,9 @@ export default function DriverPayroll() {
     setIsRefreshing(false);
     toast.success('Payroll data refreshed');
   };
+
+  // Determine if current user is a driver (not admin) - moved after all state declarations
+  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
   // Fetch payroll data - only refetch when year or city changes, NOT when driver changes
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
