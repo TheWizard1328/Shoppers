@@ -237,6 +237,31 @@ export default function DriverPayroll() {
     return filtered;
   }, [payrollData?.deliveries, selectedCityId, filteredStores]);
 
+  // Save pay cycle type to driver's AppUser when changed
+  const handlePayPeriodChange = useCallback(async (newPayPeriod) => {
+    setPayPeriod(newPayPeriod);
+
+    // Use functional update to access latest payrollData without adding to dependencies
+    setPayrollData(prev => {
+      if (selectedDriverId && selectedDriverId !== 'all' && prev?.appUsers) {
+        const driverAppUser = prev.appUsers.find(au => au.user_id === selectedDriverId);
+        if (driverAppUser) {
+          // Update in background
+          base44.entities.AppUser.update(driverAppUser.id, {
+            pay_cycle_type: newPayPeriod
+          }).catch(error => console.error('Failed to save pay cycle type:', error));
+
+          // Update local state
+          return {
+            ...prev,
+            appUsers: prev.appUsers.map(au => au.id === driverAppUser.id ? { ...au, pay_cycle_type: newPayPeriod } : au)
+          };
+        }
+      }
+      return prev;
+    });
+  }, [selectedDriverId]);
+
   const handleCaptureScreenshot = async () => {
     setIsCapturingScreenshot(true);
     toast.info('Capturing screenshot...');
