@@ -1625,6 +1625,14 @@ export default function PayrollSummaryCard({
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + d.deductions, 0);
   const grandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + d.grossPay, 0);
 
+  // YTD grand totals across all displayed drivers
+  const ytdGrandTotalNet = driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0);
+  const ytdGrandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0);
+  const ytdGrandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0);
+  const ytdGrandTotalBonus = driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0);
+  const ytdGrandTotalAppFee = driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdAppFeeAmount ?? 0), 0);
+  const ytdGrandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0);
+
   // Count finalized drivers for admin view
   const driversWithDeliveriesIds = useMemo(() => {
     return driversWithDeliveries.map((d) => d.driver.id);
