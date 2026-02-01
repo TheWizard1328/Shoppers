@@ -2228,6 +2228,12 @@ export default function PayrollSummaryCard({
                              <td className="text-right">+$</td>
                              <td className="text-right font-semibold">0.00</td>
                            </tr>
+                           {isAdmin &&
+                           <tr style={{ color: 'var(--text-slate-600)' }}>
+                             <td className="text-right">-$</td>
+                             <td className="text-right font-semibold">0.00</td>
+                           </tr>
+                           }
                            <tr className="text-lg font-bold text-emerald-600">
                              <td className="text-right pt-1">$</td>
                              <td className="text-right pt-1">{(ytdDataByDriver[data.driver.id]?.ytdGrossPay || 0).toFixed(2)}</td>
