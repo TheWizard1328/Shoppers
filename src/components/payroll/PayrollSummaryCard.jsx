@@ -2589,35 +2589,73 @@ export default function PayrollSummaryCard({
           <div className="pt-4" style={{ borderTop: '2px solid var(--border-slate-300)' }}>
               <div className="flex items-center justify-between">
                 <div className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
-                <div className="flex flex-col items-end gap-0.5">
-                  {grandTotalTax > 0 || grandTotalDeductions > 0 ?
-                <>
-                      <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
-                        <span className="text-xs mr-1">Net:</span>
-                        <span className="font-semibold">{formatCurrency(grandTotalAllDrivers)}</span>
-                      </div>
-                      {grandTotalTax > 0 &&
-                  <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
-                          <span className="text-xs mr-1">Tax:</span>
-                          <span className="font-semibold">{formatCurrency(grandTotalTax)}</span>
+                <div className="flex gap-8 items-start">
+                  {/* Period Column */}
+                  <div className="flex flex-col items-end gap-0.5">
+                    {grandTotalTax > 0 || grandTotalDeductions > 0 ?
+                  <>
+                        <div className="text-xs text-center font-bold mb-1" style={{ color: 'var(--text-slate-500)' }}>Period</div>
+                        <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                          <span className="text-xs mr-1">Net:</span>
+                          <span className="font-semibold">{formatCurrency(grandTotalAllDrivers)}</span>
                         </div>
-                  }
-                      {grandTotalDeductions > 0 &&
-                  <div className="text-sm" style={{ color: '#ef4444' }}>
-                          <span className="text-xs mr-1">Deductions:</span>
-                          <span className="font-semibold">-{formatCurrency(grandTotalDeductions)}</span>
+                        {grandTotalTax > 0 &&
+                    <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                            <span className="text-xs mr-1">Tax:</span>
+                            <span className="font-semibold">{formatCurrency(grandTotalTax)}</span>
+                          </div>
+                    }
+                        {grandTotalDeductions > 0 &&
+                    <div className="text-sm" style={{ color: '#ef4444' }}>
+                            <span className="text-xs mr-1">Deductions:</span>
+                            <span className="font-semibold">-{formatCurrency(grandTotalDeductions)}</span>
+                          </div>
+                    }
+                        <div className="text-lg font-bold text-emerald-700 mt-1">
+                          <span className="text-lg font-bold mr-1">Gross:</span>
+                          {formatCurrency(grandTotalGross)}
                         </div>
-                  }
-                      <div className="text-2xl font-bold text-emerald-700 mt-1">
-                        <span className="text-2xl font-bold mr-1">Gross:</span>
+                      </> :
+
+                  <div className="text-lg font-bold text-emerald-700">
                         {formatCurrency(grandTotalGross)}
                       </div>
-                    </> :
+                  }
+                  </div>
 
-                <div className="text-2xl font-bold text-emerald-700">
-                      {formatCurrency(grandTotalGross)}
-                    </div>
-                }
+                  {/* YTD Column */}
+                  <div className="flex flex-col items-end gap-0.5">
+                    {ytdGrandTotalTax > 0 || ytdGrandTotalDeductions > 0 ?
+                  <>
+                        <div className="text-xs text-center font-bold mb-1" style={{ color: 'var(--text-slate-500)' }}>YTD</div>
+                        <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                          <span className="text-xs mr-1">Net:</span>
+                          <span className="font-semibold">{formatCurrency(ytdGrandTotalNet)}</span>
+                        </div>
+                        {ytdGrandTotalTax > 0 &&
+                    <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                            <span className="text-xs mr-1">Tax:</span>
+                            <span className="font-semibold">{formatCurrency(ytdGrandTotalTax)}</span>
+                          </div>
+                    }
+                        {ytdGrandTotalDeductions > 0 &&
+                    <div className="text-sm" style={{ color: '#ef4444' }}>
+                            <span className="text-xs mr-1">Deductions:</span>
+                            <span className="font-semibold">-{formatCurrency(ytdGrandTotalDeductions)}</span>
+                          </div>
+                    }
+                        <div className="text-lg font-bold text-emerald-700 mt-1">
+                          <span className="text-lg font-bold mr-1">Gross:</span>
+                          {formatCurrency(ytdGrandTotalGross)}
+                        </div>
+                      </> :
+
+                  <div className="text-lg font-bold text-emerald-700">
+                        <div className="text-xs text-center font-bold mb-1" style={{ color: 'var(--text-slate-500)' }}>YTD</div>
+                        {formatCurrency(ytdGrandTotalGross)}
+                      </div>
+                  }
+                  </div>
                 </div>
               </div>
             </div>
