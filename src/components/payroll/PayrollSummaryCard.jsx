@@ -2323,7 +2323,7 @@ export default function PayrollSummaryCard({
                          <td className="text-right px-1 py-1.5">
                            <input
                              type="number"
-                             value={driverAppFeePercent.toFixed(2)}
+                             value={driverAppFeePercent}
                              onChange={(e) => {
                                const newPercent = parseFloat(e.target.value) || 0;
                                setDriverEdits((prev) => ({
