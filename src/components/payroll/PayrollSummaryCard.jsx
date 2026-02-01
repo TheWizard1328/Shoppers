@@ -73,6 +73,7 @@ export default function PayrollSummaryCard({
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const [appFeesPerDelivery, setAppFeesPerDelivery] = useState(0);
   const [extraAppFeePercent, setExtraAppFeePercent] = useState(0);
+  const [otherAppFeePercent, setOtherAppFeePercent] = useState(0);
   const [appFeeOverlayAllDriversId, setAppFeeOverlayAllDriversId] = useState(null);
   const contentRef = useRef(null);
 
