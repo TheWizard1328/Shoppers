@@ -2357,19 +2357,24 @@ export default function PayrollSummaryCard({
             if (isMobile) {
               return (
                 <PayrollMobileCard
-                  key={data.driver.id}
-                  data={data}
-                  isAdmin={isAdmin}
-                  driverHasConfirmed={driverHasConfirmed}
-                  adminHasFinalized={adminHasFinalized}
-                  showBadge={showBadge}
-                  canShowConfirmButton={canShowConfirmButton}
-                  onConfirmClick={() => handleDriverFinalize(data)}
-                  isFinalizing={isFinalizing}
-                  formatCurrency={formatCurrency}
-                  deliveries={deliveries}
-                  patients={patients}
-                  currentPeriod={currentPeriod} />);
+                   key={data.driver.id}
+                   data={data}
+                   isAdmin={isAdmin}
+                   driverHasConfirmed={driverHasConfirmed}
+                   adminHasFinalized={adminHasFinalized}
+                   showBadge={showBadge}
+                   canShowConfirmButton={canShowConfirmButton}
+                   onConfirmClick={() => handleDriverFinalize(data)}
+                   isFinalizing={isFinalizing}
+                   formatCurrency={formatCurrency}
+                   deliveries={deliveries}
+                   patients={patients}
+                   currentPeriod={currentPeriod}
+                   bonusAmount={driverEdits[data.driver.id]?.bonusPay || 0}
+                   appFeeAmount={calculateAppFeeAmount(data.driver.id, driverEdits[data.driver.id]?.appFeePercent || 0)}
+                   appFeePercent={driverEdits[data.driver.id]?.appFeePercent || 0}
+                   ytdDataByDriver={ytdDataByDriver}
+                   isPeriodEndOfMonth={isPeriodEndOfMonth} />);
 
 
             }
