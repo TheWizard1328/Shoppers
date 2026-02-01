@@ -637,7 +637,7 @@ export default function PayrollSummaryCard({
       });
       
       const finalizeAppFeeAmount = (finalizeAppFeeDeliveries * (edit.appFeePercent || 0)) / 100;
-      
+
       const payrollRecord = {
         driver_id: driverData.driver.id,
         city_id: selectedCityId || null,
@@ -666,7 +666,7 @@ export default function PayrollSummaryCard({
 
       let savedRecord;
       if (existingRecord) {
-        savedRecord = await base44.entities.Payroll.update(existingRecord.id, payrollRecord);
+        savedRecord = await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(payrollRecord));
         console.log('✅ [Payroll] Updated existing record:', existingRecord.id, savedRecord);
       } else {
         savedRecord = await base44.entities.Payroll.create(payrollRecord);
