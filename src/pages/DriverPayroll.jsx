@@ -480,9 +480,6 @@ export default function DriverPayroll() {
     }
   }, [selectedDriverId, payrollData?.appUsers, hasInitialized]);
 
-  // Get available years (current year and 2 years back)
-
-
   // Auto-select current period when pay period type or year changes
   // Track previous values to only reset when necessary
   const prevPayPeriodRef = React.useRef(payPeriod);
