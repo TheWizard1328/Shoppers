@@ -2463,7 +2463,7 @@ export default function PayrollSummaryCard({
            </div>
            </div>
 
-         <DialogFooter>
+           <DialogFooter>
            <Button
              variant="outline"
              onClick={async () => {
