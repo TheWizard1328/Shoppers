@@ -484,7 +484,6 @@ export default function DriverPayroll() {
 
   // Auto-select pay cycle type when driver selection changes
   // Only run when driver actually changes (not when payrollData updates)
-  const prevDriverIdRef = useRef(selectedDriverId);
   useEffect(() => {
     if (!hasInitialized) return;
     // Only update pay period if driver actually changed
