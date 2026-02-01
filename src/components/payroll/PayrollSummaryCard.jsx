@@ -2415,13 +2415,17 @@ export default function PayrollSummaryCard({
                      <td className="text-right px-1 py-1.5">
                        <input
                          type="number"
-                         value={otherAppFeePercent.toFixed(2)}
+                         value={otherAppFeePercent}
                          onChange={(e) => {
                            const newPercent = parseFloat(e.target.value) || 0;
                            setOtherAppFeePercent(Math.max(0, newPercent));
                          }}
+                         onBlur={(e) => {
+                           const value = parseFloat(e.target.value) || 0;
+                           setOtherAppFeePercent(Math.round(value * 100) / 100);
+                         }}
                          className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
-                         step="0.01"
+                         step="any"
                          min="0" />
                      </td>
                      <td className="text-right px-1 py-1.5">
