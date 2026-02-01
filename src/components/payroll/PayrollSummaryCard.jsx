@@ -2335,8 +2335,18 @@ export default function PayrollSummaryCard({
                                  }
                                }));
                              }}
+                             onBlur={(e) => {
+                               const value = parseFloat(e.target.value) || 0;
+                               setDriverEdits((prev) => ({
+                                 ...prev,
+                                 [driver.driver.id]: { 
+                                   ...prev[driver.driver.id], 
+                                   appFeePercent: Math.round(value * 100) / 100
+                                 }
+                               }));
+                             }}
                              className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
-                             step="0.01"
+                             step="any"
                              min="0"
                              max="100" />
                          </td>
