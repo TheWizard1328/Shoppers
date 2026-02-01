@@ -1762,7 +1762,7 @@ export default function PayrollSummaryCard({
     
     // Driver gets their percentage of the total pool
     return (totalMonthlyAppFees * appFeePercent) / 100;
-  }, [deliveries, stores, currentPeriod, appFeesPerDelivery, payrollRecords]);
+  }, [deliveries, stores, currentPeriod, appFeesPerDelivery]);
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
