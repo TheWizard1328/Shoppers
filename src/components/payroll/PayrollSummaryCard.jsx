@@ -405,21 +405,73 @@ export default function PayrollSummaryCard({
   // Handle immediate save to Payroll entity and offline DB
   const savePayrollChanges = async (driverId, updates) => {
     try {
-      // CRITICAL: Only update existing records - never create on edit operations
-      const existingRecord = getDriverPayrollRecord(driverId);
+      // Get or create payroll record
+      let existingRecord = getDriverPayrollRecord(driverId);
 
+      // If no record exists, create it first with current data
       if (!existingRecord) {
-        console.warn('⚠️ [Payroll] No existing record found for driver:', driverId, '- skipping save');
-        return;
+        console.log('ℹ️ [Payroll] No existing record - creating new record for driver:', driverId);
+        const driverData = payrollData.find((d) => d.driver.id === driverId);
+        if (!driverData) {
+          console.warn('⚠️ [Payroll] No driver data found for:', driverId);
+          return;
+        }
+
+        const newRecord = await base44.entities.Payroll.create({
+          driver_id: driverId,
+          city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : null,
+          pay_period_start: periodStartStr,
+          pay_period_end: periodEndStr,
+          pay_period_type: payPeriod,
+          total_deliveries: driverData.totalDeliveries,
+          total_extra_km: driverData.totalExtraKm,
+          total_oversized_deliveries: driverData.oversizedCount,
+          gross_pay: driverData.grossPay,
+          net_pay: driverData.grandTotal,
+          total_deductions: driverData.deductions,
+          deductions: driverData.deductionsArray,
+          bonus_pay: 0,
+          app_fee_percentage: 0,
+          pay_rate_per_delivery: driverData.payRate,
+          extra_km_rate: driverData.extraKmRate,
+          extra_km_limit: driverData.extraKmLimit,
+          oversized_item_rate: driverData.oversizedRate,
+          gst_hst_enabled: driverData.gstHstEnabled,
+          status: 'draft'
+        });
+
+        setPayrollRecords((prev) => [...prev, newRecord]);
+        if (onPayrollRecordsChange) {
+          onPayrollRecordsChange([...payrollRecords, newRecord]);
+        }
+        existingRecord = newRecord;
       }
 
-      // Update existing record with explicit field handling
-      const updateData = {
-        ...updates,
-        app_fee_percentage: updates.app_fee_percentage !== undefined ? updates.app_fee_percentage : existingRecord.app_fee_percentage
-      };
-      const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, updateData);
-      console.log('✅ [Payroll] Updated record for driver:', driverId, updateData);
+      // Recalculate totals if deductions or bonus changed
+      const driverData = payrollData.find((d) => d.driver.id === driverId);
+      let recalculatedUpdates = { ...updates };
+
+      if (updates.deductions !== undefined || updates.bonus_pay !== undefined) {
+        const newDeductions = updates.total_deductions !== undefined ? updates.total_deductions : existingRecord.total_deductions || 0;
+        const newBonus = updates.bonus_pay !== undefined ? updates.bonus_pay : existingRecord.bonus_pay || 0;
+        
+        // Recalculate gross_pay = net_pay + tax - deductions + bonus
+        const netPay = driverData?.grandTotal || existingRecord.net_pay || 0;
+        const taxAmount = driverData?.taxAmount || 0;
+        const newGrossPay = netPay + taxAmount - newDeductions + newBonus;
+        
+        recalculatedUpdates.gross_pay = newGrossPay;
+      }
+
+      // Update existing record
+      const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, recalculatedUpdates);
+      console.log('✅ [Payroll] Updated record for driver:', driverId, recalculatedUpdates);
+
+      // Update local state
+      setPayrollRecords((prev) => prev.map((r) => r.id === existingRecord.id ? { ...r, ...updatedRecord } : r));
+      if (onPayrollRecordsChange) {
+        onPayrollRecordsChange(payrollRecords.map((r) => r.id === existingRecord.id ? { ...r, ...updatedRecord } : r));
+      }
 
       // Sync to offline DB
       try {
