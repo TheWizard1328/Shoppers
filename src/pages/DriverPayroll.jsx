@@ -481,18 +481,7 @@ export default function DriverPayroll() {
   }, [selectedDriverId]);
 
   // Get available years (current year and 2 years back)
-  const years = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    return [currentYear, currentYear - 1, currentYear - 2];
-  }, []);
 
-  // Calculate all periods for selected year and pay period type
-  const allPeriods = useMemo(() => {
-    return calculateAllPeriods(selectedYear, payPeriod);
-  }, [selectedYear, payPeriod]);
-
-  // Current selected period
-  const currentPeriod = allPeriods[selectedPeriodIndex] || allPeriods[0];
 
   // Auto-select current period when pay period type or year changes
   // Track previous values to only reset when necessary
