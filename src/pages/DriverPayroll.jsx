@@ -516,6 +516,15 @@ export default function DriverPayroll() {
     refreshPayrollRecords();
   }, [currentPeriod, hasInitialized, refreshPayrollRecords]);
 
+  // Auto-select previous period if current has no data
+  useEffect(() => {
+    if (!hasInitialized || payrollRecords.length > 0) return;
+    if (selectedPeriodIndex === 0) return; // Can't go back further
+    
+    console.log(`⚠️ [DriverPayroll] No payroll data for current period, switching to previous...`);
+    setSelectedPeriodIndex(selectedPeriodIndex - 1);
+  }, [payrollRecords, hasInitialized, selectedPeriodIndex]);
+
   // Conditional rendering without early return to maintain hook order
   return !currentUser ? (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
