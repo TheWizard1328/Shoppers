@@ -3569,51 +3569,20 @@ export default function Layout({ children, currentPageName }) {
                 className="mobile-header border-b px-4 py-3 sticky top-0"
                 style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
 
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <button
+                  <div className="w-full flex items-center justify-between gap-2">
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setSidebarOpen(!sidebarOpen);
                       }}
-                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-
+                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0">
                         {sidebarOpen ?
-                      <X className="w-6 h-6 text-slate-700" /> :
+                          <X className="w-6 h-6 text-slate-700" /> :
+                          <Menu className="w-6 h-6 text-slate-700" />
+                        }
+                    </button>
 
-                      <Menu className="w-6 h-6 text-slate-700" />
-                      }
-                      </button>
-                    </div>
-
-                    <div
-                    className="flex items-center gap-2 flex-shrink-0 relative cursor-pointer"
-                    onClick={() => {
-                      if (unreadMessageCount > 0) {
-                        setShowMessaging(true);
-                        setUnreadMessageCount(0);
-                      }
-                    }}>
-
-                      <img
-                      src="https://cdn-icons-png.flaticon.com/512/3843/3843479.png"
-                      alt="RxDeliver"
-                      className="w-8 h-8 rounded object-contain"
-                      style={{ filter: 'var(--image-filter, none)' }} />
-                      {unreadMessageCount > 0 &&
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
-                          {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
-                        </span>
-                    }
-                    </div>
-
-                    <div className="flex-1"></div>
-
-                    <div className="flex items-center gap-2">
-                    </div>
-                    </div>
-
-                    {/* Centered Controls Container - Admins and Drivers */}
+                    {/* Centered Controls - Only on narrow mobile */}
                     {isMobile && screenWidth < 768 && currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
                     <div className="flex-1 flex items-center justify-center gap-2">
                       {/* Menu - Left */}
