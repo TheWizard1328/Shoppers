@@ -165,7 +165,7 @@ export default function DriverPayroll() {
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   
   const contentRef = useRef(null);
-  const prevDriverIdRef = useRef(selectedDriverId);
+  const prevDriverIdRef = useRef(null); // Start as null to detect first assignment
   const prevPayPeriodRef = useRef(payPeriod);
   const prevYearRef = useRef(selectedYear);
   const isManualChangeRef = useRef(false);
@@ -468,6 +468,9 @@ export default function DriverPayroll() {
   useEffect(() => {
     if (!currentUser || hasInitialized) return;
 
+    // Mark initialization as starting BEFORE state updates
+    isInitialMountRef.current = false;
+
     // Set city to user's assigned city if available
     if (currentUser.city_id && !isDriver) {
       setSelectedCityId(currentUser.city_id);
@@ -483,12 +486,12 @@ export default function DriverPayroll() {
       setPayPeriod('semimonthly');
     }
     setHasInitialized(true);
-    isInitialMountRef.current = false;
   }, [currentUser, isDriver, hasInitialized]);
 
-  // Update pay period when payrollData loads (for drivers) - only on initial data load
+  // Update pay period when payrollData loads (for drivers) - only ONCE after initial data load
   useEffect(() => {
-    if (!hasInitialized || !payrollData?.appUsers || selectedDriverId === 'all' || isManualChangeRef.current || isInitialMountRef.current) return;
+    if (!hasInitialized || !payrollData?.appUsers || selectedDriverId === 'all' || isManualChangeRef.current) return;
+    if (prevDriverIdRef.current !== null) return; // Only run on first driver assignment
     
     const driverAppUser = payrollData.appUsers.find(au => au.user_id === selectedDriverId);
     if (driverAppUser?.pay_cycle_type && driverAppUser.pay_cycle_type !== payPeriod) {
@@ -498,7 +501,11 @@ export default function DriverPayroll() {
 
   // Auto-select pay cycle type when driver selection changes (manual changes only)
   useEffect(() => {
-    if (!hasInitialized || isManualChangeRef.current || isInitialMountRef.current) return;
+    if (!hasInitialized || isManualChangeRef.current) return;
+    if (prevDriverIdRef.current === null) {
+      prevDriverIdRef.current = selectedDriverId;
+      return; // Skip first assignment
+    }
     if (prevDriverIdRef.current === selectedDriverId) return;
     prevDriverIdRef.current = selectedDriverId;
 
