@@ -1540,21 +1540,28 @@ export default function PayrollSummaryCard({
     payrollData.forEach((data) => {
       // Sum payroll records for this driver from Jan 1 to current period end
       const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
+      const currentPeriodStart = currentPeriod.start.toISOString().split('T')[0];
       const currentPeriodEnd = currentPeriod.end.toISOString().split('T')[0];
       
-      // CRITICAL: Filter payrollRecords to ONLY include periods up to and including current period end
+      // CRITICAL: Filter payrollRecords to ONLY include PRIOR periods (before current period)
       // Exclude the current period being viewed to avoid double-counting
       const ytdRecords = payrollRecords.filter((r) => {
         if (!r || r.driver_id !== data.driver.id) return false;
-        // Include records from Jan 1 through current period end
-        // But EXCLUDE the current period itself (we'll count deliveries from payrollData instead)
+        // Include records from Jan 1 through BEFORE current period start
         const recordEnd = r.pay_period_end;
-        return recordEnd >= yearStart && recordEnd < currentPeriodEnd;
+        return recordEnd >= yearStart && recordEnd < currentPeriodStart;
+      });
+      
+      console.log(`🧮 [Payroll] YTD for ${data.driver.user_name} (${data.driver.id}): Found ${ytdRecords.length} prior periods`);
+      ytdRecords.forEach((r, idx) => {
+        console.log(`  Period ${idx+1}: ${r.pay_period_start} to ${r.pay_period_end}, Net: $${r.net_pay}, Bonus: $${r.bonus_pay}, Deductions: $${r.total_deductions}`);
       });
       
       // YTD Net Pay: Sum of net_pay from all PRIOR periods + current period's deliveries
       const priorYtdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
       const ytdNetPay = priorYtdNetPay + (data.grandTotal || 0); // Add current period's net pay
+      
+      console.log(`  Prior YTD Net: $${priorYtdNetPay}, Current Period Net: $${data.grandTotal || 0}, Total YTD Net: $${ytdNetPay}`);
       
       // YTD Tax: YTD Net Pay * the driver's current tax rate (if GST/HST enabled)
       const ytdTaxAmount = data.gstHstEnabled ? ytdNetPay * data.taxRate : 0;
