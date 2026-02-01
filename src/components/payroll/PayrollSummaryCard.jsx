@@ -2139,90 +2139,62 @@ export default function PayrollSummaryCard({
                      <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
 
                      {/* YTD Column */}
-                     {useMemo(() => {
-                        const ytdDeliveries = deliveries?.filter((d) => {
-                          if (!d || d.driver_id !== data.driver.id) return false;
-                          const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                          if (!validStatus) return false;
-                          if (!d.patient_id && !d.after_hours_pickup) return false;
-                          const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                          const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-                          return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
-                        }) || [];
+                     <div className="flex flex-col">
+                       <div className="font-bold text-center mb-1 pb-1 border-b">YTD</div>
+                       <table className="border-collapse">
+                         <tbody>
+                           <tr style={{ color: 'var(--text-slate-600)' }}>
+                             <td className="text-right">$</td>
+                             <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdGrossPay || 0).toFixed(2)}</td>
+                           </tr>
+                           <tr style={{ color: 'var(--text-slate-600)' }}>
+                             <td className="text-right">$</td>
+                             <td className="text-right font-semibold">0.00</td>
+                           </tr>
+                           <tr style={{ color: 'var(--text-slate-600)' }}>
+                             <td className="text-right">-$</td>
+                             <td className="text-right font-semibold">0.00</td>
+                           </tr>
+                           <tr style={{ color: 'var(--text-slate-600)' }}>
+                             <td className="text-right">+$</td>
+                             <td className="text-right font-semibold">0.00</td>
+                           </tr>
+                           <tr className="text-lg font-bold text-emerald-600">
+                             <td className="text-right pt-1">$</td>
+                             <td className="text-right pt-1">{(ytdDataByDriver[data.driver.id]?.ytdGrossPay || 0).toFixed(2)}</td>
+                           </tr>
+                         {isAppOwner(currentUser) &&
+                            <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
+                           <td className="text-right pr-1">App Fee %:</td>
+                           <td colSpan="2" className="text-right">
+                             <div className="flex items-center justify-end gap-1">
+                               <input
+                                    type="number"
+                                    value={edit.appFeePercent}
+                                    onChange={(e) => {
+                                      const newValue = parseFloat(e.target.value) || 0;
+                                      updateEdit({ appFeePercent: newValue });
+                                    }}
+                                    className="w-12 px-1 py-0.5 text-xs border rounded"
+                                    style={{ borderColor: 'var(--border-slate-300)' }}
+                                    step="0.1"
+                                    min="0"
+                                    max="100" />
 
-                        const ytdTotalDeliveries = ytdDeliveries.length;
-                        const ytdTotalBasePay = ytdTotalDeliveries * data.payRate;
-                        const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
-                          const patient = patients?.find((p) => p?.id === d.patient_id);
-                          if (!patient?.distance_from_store) return sum;
-                          const distance = d.paid_km_override ?? patient.distance_from_store;
-                          const extraKm = Math.max(0, distance - data.extraKmLimit);
-                          return sum + extraKm;
-                        }, 0);
-                        const ytdExtraKmPay = ytdExtraKm * data.extraKmRate;
-                        const ytdOversizedCount = ytdDeliveries.filter((d) => d.oversized).length;
-                        const ytdOversizedPay = ytdOversizedCount * data.oversizedRate;
-                        const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
+                               <button
+                                    onClick={() => savePayrollChanges(driverKey, { app_fee_percentage: edit.appFeePercent })}
+                                    className="p-1 text-emerald-600 hover:text-emerald-700"
+                                    title="Save">
 
-                        return (
-                          <div className="flex flex-col">
-                           <div className="font-bold text-center mb-1 pb-1 border-b">YTD</div>
-                           <table className="border-collapse">
-                             <tbody>
-                               <tr style={{ color: 'var(--text-slate-600)' }}>
-                                 <td className="text-right">$</td>
-                                 <td className="text-right font-semibold">{ytdGrossPay.toFixed(2)}</td>
-                               </tr>
-                               <tr style={{ color: 'var(--text-slate-600)' }}>
-                                 <td className="text-right">$</td>
-                                 <td className="text-right font-semibold">0.00</td>
-                               </tr>
-                               <tr style={{ color: 'var(--text-slate-600)' }}>
-                                 <td className="text-right">-$</td>
-                                 <td className="text-right font-semibold">0.00</td>
-                               </tr>
-                               <tr style={{ color: 'var(--text-slate-600)' }}>
-                                 <td className="text-right">+$</td>
-                                 <td className="text-right font-semibold">0.00</td>
-                               </tr>
-                               <tr className="text-lg font-bold text-emerald-600">
-                                 <td className="text-right pt-1">$</td>
-                                 <td className="text-right pt-1">{ytdGrossPay.toFixed(2)}</td>
-                               </tr>
-                             {isAppOwner(currentUser) &&
-                                <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
-                               <td className="text-right pr-1">App Fee %:</td>
-                               <td colSpan="2" className="text-right">
-                                 <div className="flex items-center justify-end gap-1">
-                                   <input
-                                        type="number"
-                                        value={edit.appFeePercent}
-                                        onChange={(e) => {
-                                          const newValue = parseFloat(e.target.value) || 0;
-                                          updateEdit({ appFeePercent: newValue });
-                                        }}
-                                        className="w-12 px-1 py-0.5 text-xs border rounded"
-                                        style={{ borderColor: 'var(--border-slate-300)' }}
-                                        step="0.1"
-                                        min="0"
-                                        max="100" />
-
-                                   <button
-                                        onClick={() => savePayrollChanges(driverKey, { app_fee_percentage: edit.appFeePercent })}
-                                        className="p-1 text-emerald-600 hover:text-emerald-700"
-                                        title="Save">
-
-                                     <Save className="w-4 h-4" />
-                                   </button>
-                                 </div>
-                               </td>
-                             </tr>
-                                }
-                             </tbody>
-                             </table>
-                             </div>);
-
-                      }, [data, deliveries, currentPeriod, patients])}
+                                 <Save className="w-4 h-4" />
+                               </button>
+                             </div>
+                           </td>
+                         </tr>
+                            }
+                         </tbody>
+                         </table>
+                         </div>
                              </div>
                              </div>
                              </div>
