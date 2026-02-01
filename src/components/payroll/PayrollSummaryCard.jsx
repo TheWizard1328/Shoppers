@@ -2234,9 +2234,14 @@ export default function PayrollSummaryCard({
                              <td className="text-right">+$</td>
                              <td className="text-right font-semibold">0.00</td>
                            </tr>
-                           {isAdmin &&
+                           {isAdmin && currentPeriod?.end && (() => {
+                             const nextDay = new Date(currentPeriod.end);
+                             nextDay.setDate(nextDay.getDate() + 1);
+                             const isEndOfMonth = nextDay.getMonth() !== currentPeriod.end.getMonth();
+                             return isEndOfMonth;
+                           })() &&
                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                             <td className="text-right">-$</td>
+                             <td className="text-right">+$</td>
                              <td className="text-right font-semibold">0.00</td>
                            </tr>
                            }
