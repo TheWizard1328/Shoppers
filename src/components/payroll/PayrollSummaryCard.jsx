@@ -2327,6 +2327,27 @@ export default function PayrollSummaryCard({
                              onChange={(e) => {
                                const newPercent = parseFloat(e.target.value) || 0;
                                const calculatedAmount = calculateAppFeeAmount(driver.driver.id, newPercent);
+
+                               // If editing App Owner's app fee %, recalculate Other App Fee %
+                               if (isCurrentUser && isAppOwner(currentUser)) {
+                                 const sumOtherDriversPercent = driversWithDeliveries.reduce((sum, d) => {
+                                   if (d.driver.id === currentUser.id) return sum;
+                                   return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                                 }, 0);
+                                 const newOtherPercent = Math.max(0, 100 - sumOtherDriversPercent - newPercent);
+                                 setOtherAppFeePercent(newOtherPercent);
+                               } else {
+                                 // Editing non-App Owner driver: recalculate App Owner %
+                                 const appOwnerDriver = driversWithDeliveries.find(d => d.driver.id === currentUser?.id);
+                                 if (appOwnerDriver) {
+                                   const sumAllOthersPercent = driversWithDeliveries.reduce((sum, d) => {
+                                     if (d.driver.id === currentUser.id) return sum;
+                                     if (d.driver.id === driver.driver.id) return sum + newPercent;
+                                     return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                                   }, 0);
+                                 }
+                               }
+
                                setDriverEdits((prev) => ({
                                  ...prev,
                                  [driver.driver.id]: { 
