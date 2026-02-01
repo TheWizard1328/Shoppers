@@ -1562,14 +1562,55 @@ export default function PayrollSummaryCard({
       const ytdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
       const ytdBonusAmount = ytdRecords.reduce((sum, r) => sum + (r.bonus_pay || 0), 0);
       const ytdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
-      const ytdAppFeeAmount = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
       
-      // Calculate tax and gross
-      const ytdTaxAmount = data.gstHstEnabled ? ytdNetPay * data.taxRate : 0;
-      const ytdGrossPay = ytdNetPay + ytdTaxAmount + ytdBonusAmount - ytdDeductionsAmount;
+      // CRITICAL: Sum stored tax_amount from payroll records (not recalculated)
+      const ytdTaxAmount = ytdRecords.reduce((sum, r) => sum + (r.tax_amount || 0), 0);
+      
+      // Calculate YTD App Fees = Total Billable Deliveries from YTD * App Fee % / 100
+      const yearStartDate = new Date(yearStart + 'T00:00:00');
+      const periodEndDate = new Date(currentPeriodEnd + 'T00:00:00');
+      
+      let ytdAppFeeDeliveries = 0;
+      deliveries.forEach((d) => {
+        if (!d || d.driver_id !== data.driver.id) return;
+        const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+        if (deliveryDate < yearStartDate || deliveryDate > periodEndDate) return;
+        
+        const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+        if (!validStatus) return;
+        if (!d.patient_id && !d.after_hours_pickup) return;
+        
+        const store = stores.find((s) => s?.id === d.store_id);
+        if (!store) return;
+        
+        // Check if store pays app fees during this delivery date
+        let paysAppFees = store.pays_app_fees || false;
+        if (store.app_fee_history && store.app_fee_history.length > 0) {
+          const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+            new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+          );
+          const applicableEntry = sortedHistory.find((entry) =>
+            new Date(entry.effective_date) <= deliveryDate
+          );
+          if (applicableEntry) {
+            paysAppFees = applicableEntry.pays_app_fees;
+          }
+        }
+        
+        if (paysAppFees) {
+          ytdAppFeeDeliveries++;
+        }
+      });
+      
+      // Get app fee percentage from current payroll record or driver settings
+      const currentPayrollRecord = payrollRecords.find((r) => r.driver_id === data.driver.id && r.pay_period_start === periodStartStr && r.pay_period_end === periodEndStr);
+      const appFeePercent = currentPayrollRecord?.app_fee_percentage ?? data.appFeePercentage ?? 0;
+      const ytdAppFeeAmount = (ytdAppFeeDeliveries * appFeePercent) / 100;
+      
+      const ytdGrossPay = ytdNetPay + ytdTaxAmount + ytdBonusAmount - ytdDeductionsAmount + ytdAppFeeAmount;
       
       console.log(`🧮 [Payroll] YTD for ${data.driver.user_name} (${data.driver.id}): Found ${ytdRecords.length} periods from ${yearStart} to ${currentPeriodEnd}`);
-      console.log(`  YTD Net: $${ytdNetPay}, YTD Bonus: $${ytdBonusAmount}, YTD Deductions: $${ytdDeductionsAmount}, YTD App Fee: $${ytdAppFeeAmount}, YTD Tax: $${ytdTaxAmount}, YTD Gross: $${ytdGrossPay}`);
+      console.log(`  YTD Net: $${ytdNetPay}, YTD Tax: $${ytdTaxAmount}, YTD Bonus: $${ytdBonusAmount}, YTD Deductions: $${ytdDeductionsAmount}, YTD App Fee: $${ytdAppFeeAmount} (${ytdAppFeeDeliveries} billable x ${appFeePercent}%), YTD Gross: $${ytdGrossPay}`);
       
       ytdMap[data.driver.id] = { 
         ytdNetPay,
@@ -1582,7 +1623,7 @@ export default function PayrollSummaryCard({
     });
     
     return ytdMap;
-  }, [payrollData, payrollRecords, currentPeriod]);
+  }, [payrollData, payrollRecords, currentPeriod, deliveries, stores, periodStartStr, periodEndStr]);
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
