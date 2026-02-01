@@ -58,17 +58,8 @@ export const calculateYtdPayroll = (ytdRecords, driverData, cities = [], appUser
   // Sum all app fees from payroll records, rounding to 2 decimals
   const ytdAppFeeAmount = Math.round(ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0) * 100) / 100;
 
-  // Calculate YTD Tax based on YTD Net with current period's tax rate
-  let ytdTaxAmount = 0;
-  if (driverData?.gstHstEnabled && appUser && cities?.length > 0) {
-    const driverCityId = appUser.city_id;
-    const driverCity = driverCityId ? cities.find((c) => c && c.id === driverCityId) : null;
-    
-    if (driverCity) {
-      const taxRate = getTaxRateForDriver(driverCity);
-      ytdTaxAmount = Math.round(ytdNetPay * taxRate * 100) / 100;
-    }
-  }
+  // Sum all tax amounts from payroll records (not calculated), rounding to 2 decimals
+  const ytdTaxAmount = Math.round(ytdRecords.reduce((sum, r) => sum + (r.tax_amount || 0), 0) * 100) / 100;
 
   // Calculate YTD Gross = YTD Net + YTD Tax - YTD Deductions + YTD Bonus + YTD App Fees
   const ytdGrossPay = Math.round((ytdNetPay + ytdTaxAmount - ytdDeductionsAmount + ytdBonusAmount + ytdAppFeeAmount) * 100) / 100;
