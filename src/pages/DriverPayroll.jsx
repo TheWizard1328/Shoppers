@@ -167,6 +167,7 @@ export default function DriverPayroll() {
   const contentRef = useRef(null);
   const isManualChangeRef = useRef(false);
   const hasLoadedInitialDataRef = useRef(false);
+  const triedPreviousPeriodRef = useRef(false);
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
