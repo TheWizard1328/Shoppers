@@ -780,24 +780,10 @@ export default function PayrollSummaryCard({
         controlsElement.style.display = 'none';
       }
 
-      // Show/hide App Fee % rows based on conditions:
-      // Only show if: driver > 0, single driver mode, and user is AppOwner or actual driver
-      const isSingleDriver = selectedDriverId && selectedDriverId !== 'all';
-      const isOwnerOrDriver = isAppOwner(currentUser) || (isDriver && selectedDriverId === currentUser?.id);
-      const shouldShowAppFees = isSingleDriver && isOwnerOrDriver;
-
+      // Hide all App Fee % rows before capturing
       const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
       appFeeRows.forEach((row) => {
-        // Hide if conditions not met OR if app fee value is 0
-        const appFeeValue = parseFloat(row.getAttribute('data-app-fee-value') || '0');
-        const shouldHide = !shouldShowAppFees || appFeeValue === 0;
-        row.style.display = shouldHide ? 'none' : '';
-      });
-
-      // Add labels to YTD column headers if needed
-      const ytdHeaders = document.querySelectorAll('[data-ytd-header="true"]');
-      ytdHeaders.forEach((header) => {
-        header.style.display = '';
+        row.style.display = 'none';
       });
 
       // Capture the content
@@ -817,8 +803,9 @@ export default function PayrollSummaryCard({
         controlsElement.style.display = 'flex';
       }
 
-      // Restore App Fee % rows display
-      appFeeRows.forEach((row) => {
+      // Show App Fee % rows again
+      const appFeeRowsToShow = document.querySelectorAll('[data-app-fee-row="true"]');
+      appFeeRowsToShow.forEach((row) => {
         row.style.display = '';
       });
     } catch (error) {
@@ -2486,7 +2473,7 @@ export default function PayrollSummaryCard({
                          <td className="text-right">$</td>
                          <td className="text-right font-semibold">{(data.taxAmount || 0).toFixed(2)}</td>
                        </tr>
-                       <tr style={{ color: 'var(--text-slate-600)' }} data-ytd-header="deductions">
+                       <tr style={{ color: 'var(--text-slate-600)' }}>
                          <td className="text-right pr-1">
                            {isAdmin ?
                                 <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
@@ -2499,7 +2486,7 @@ export default function PayrollSummaryCard({
                          <td className="text-right">-$</td>
                          <td className="text-right font-semibold">{(edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0).toFixed(2)}</td>
                        </tr>
-                       <tr style={{ color: 'var(--text-slate-600)' }} data-ytd-header="bonus">
+                       <tr style={{ color: 'var(--text-slate-600)' }}>
                          <td className="text-right pr-1">
                            {isAdmin ?
                                 <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
@@ -2513,7 +2500,7 @@ export default function PayrollSummaryCard({
                          <td className="text-right font-semibold">{(edit.bonusPay || 0).toFixed(2)}</td>
                        </tr>
                        {isAdmin && isPeriodEndOfMonth &&
-                       <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true" data-app-fee-value={calculateAppFeeAmount(driverKey, edit.appFeePercent)}>
+                       <tr style={{ color: 'var(--text-slate-600)' }}>
                          <td className="text-right pr-1">
                            <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
                              App Fee %:
@@ -2541,28 +2528,23 @@ export default function PayrollSummaryCard({
                        <table className="border-collapse">
                          <tbody>
                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                             <td className="text-right pr-1">Net:</td>
                              <td className="text-right">$</td>
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdNetPay ?? 0).toFixed(2)}</td>
                            </tr>
                            <tr style={{ color: 'var(--text-slate-600)' }}>
-                             <td className="text-right pr-1">Tax:</td>
                              <td className="text-right">$</td>
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount ?? 0).toFixed(2)}</td>
                            </tr>
-                           <tr style={{ color: 'var(--text-slate-600)' }} data-ytd-header="deductions">
-                             <td className="text-right pr-1">Deductions:</td>
+                           <tr style={{ color: 'var(--text-slate-600)' }}>
                              <td className="text-right">-$</td>
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount ?? 0).toFixed(2)}</td>
                            </tr>
-                           <tr style={{ color: 'var(--text-slate-600)' }} data-ytd-header="bonus">
-                             <td className="text-right pr-1">Bonus:</td>
+                           <tr style={{ color: 'var(--text-slate-600)' }}>
                              <td className="text-right">+$</td>
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0).toFixed(2)}</td>
                            </tr>
                            {isAdmin && isPeriodEndOfMonth && driverEdits[data.driver.id]?.appFeePercent > 0 &&
-                           <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true" data-app-fee-value={ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0}>
-                             <td className="text-right pr-1">App Fee %:</td>
+                           <tr style={{ color: 'var(--text-slate-600)' }}>
                              <td className="text-right">+$</td>
                              <td className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0).toFixed(2)}</td>
                            </tr>
