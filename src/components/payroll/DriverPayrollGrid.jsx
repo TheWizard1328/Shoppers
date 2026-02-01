@@ -137,7 +137,7 @@ export default function DriverPayrollGrid({
   };
 
   // Generate days array from the current period's start to end date
-  const getDaysInPeriod = useCallback(() => {
+  const periodDays = useMemo(() => {
      if (!currentPeriod) return [];
      const days = [];
      const start = new Date(currentPeriod.start);
@@ -150,8 +150,6 @@ export default function DriverPayrollGrid({
      }
      return days;
    }, [currentPeriod]);
-
-   const periodDays = useMemo(() => getDaysInPeriod(), [getDaysInPeriod]);
 
   // Sort stores by sort_order
   const allSortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
