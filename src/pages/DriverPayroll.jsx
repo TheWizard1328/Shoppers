@@ -156,27 +156,17 @@ export default function DriverPayroll() {
    const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
    const [showScreenshotModal, setShowScreenshotModal] = useState(false);
    const contentRef = useRef(null);
+  
+  const currentDate = new Date();
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+  const [selectedCityId, setSelectedCityId] = useState('all');
+  const [selectedDriverId, setSelectedDriverId] = useState('all');
+  const [payPeriod, setPayPeriod] = useState('monthly');
+  const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
-   const currentDate = new Date();
-   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
-   const [selectedCityId, setSelectedCityId] = useState('all');
-   const [selectedDriverId, setSelectedDriverId] = useState('all');
-   const [payPeriod, setPayPeriod] = useState('monthly');
-   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
-   const [hasInitialized, setHasInitialized] = useState(false);
-
-   // Determine if current user is a driver (not admin)
-   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
-
-   // Guard clause after all hooks declared
-   if (isLoadingPayroll) {
-     return (
-       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-         <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
-         <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
-       </div>
-     );
-   }
+  // Determine if current user is a driver (not admin)
+  const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
   const handleCaptureScreenshot = async () => {
     setIsCapturingScreenshot(true);
@@ -665,6 +655,16 @@ export default function DriverPayroll() {
     // This ensures all driver data is available for calculations
     return filtered;
   }, [payrollData?.deliveries, selectedCityId, filteredStores]);
+
+  // Guard clause AFTER all hooks have been declared
+  if (isLoadingPayroll) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+        <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
+        <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
