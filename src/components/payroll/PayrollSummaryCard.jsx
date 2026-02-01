@@ -272,13 +272,15 @@ export default function PayrollSummaryCard({
 
       setIsLoadingRecords(true);
       try {
-        // CRITICAL: Fetch ALL payroll records from Jan 1 to current period end for YTD calculations
+        // CRITICAL: Fetch ALL payroll records from Jan 1 to current period end (don't filter by driver yet)
         const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
         const records = await base44.entities.Payroll.filter({
-          pay_period_end: { $gte: yearStart, $lte: periodEndStr },
-          driver_id: selectedDriverId === 'all' ? undefined : selectedDriverId // Only fetch for selected driver if not 'all'
+          pay_period_end: { $gte: yearStart, $lte: periodEndStr }
         });
-        console.log(`📥 [Payroll] Fetched ${records?.length || 0} payroll records from ${yearStart} to ${periodEndStr} for driver ${selectedDriverId}`);
+        console.log(`📥 [Payroll] Fetched ${records?.length || 0} total payroll records from ${yearStart} to ${periodEndStr}`);
+        records?.forEach(r => {
+          console.log(`   - Driver: ${r.driver_id}, Period: ${r.pay_period_start} to ${r.pay_period_end}, Net: $${r.net_pay}`);
+        });
         setPayrollRecords(records || []);
         if (onPayrollRecordsChange) {
           onPayrollRecordsChange(records || []);
