@@ -1548,8 +1548,9 @@ export default function PayrollSummaryCard({
       });
       
       const ytdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
-      const ytdTaxAmount = ytdRecords.reduce((sum, r) => sum + (r.taxAmount || 0), 0);
+      const ytdTaxAmount = ytdRecords.reduce((sum, r) => sum + (r.tax_amount || 0), 0);
       const ytdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
+      const ytdBonusAmount = ytdRecords.reduce((sum, r) => sum + (r.bonus_pay || 0), 0);
       const ytdGrossPay = ytdRecords.reduce((sum, r) => sum + (r.gross_pay || 0), 0);
       
       ytdMap[data.driver.id] = { 
