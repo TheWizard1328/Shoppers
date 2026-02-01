@@ -165,6 +165,11 @@ export default function DriverPayroll() {
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
   const [hasInitialized, setHasInitialized] = useState(false);
 
+  // Refs for tracking previous values (must be declared with other hooks at top)
+  const prevDriverIdRef = useRef(selectedDriverId);
+  const prevPayPeriodRef = useRef(payPeriod);
+  const prevYearRef = useRef(selectedYear);
+
   // Determine if current user is a driver (not admin)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
