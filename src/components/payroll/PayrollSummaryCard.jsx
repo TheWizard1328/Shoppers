@@ -1729,11 +1729,12 @@ export default function PayrollSummaryCard({
       
       console.log(`📋 [Payroll YTD Debug] Driver ${data.driver.user_name}: Period End=${currentPeriodEnd}`);
       console.log(`   Filtering records from ${yearStart} to ${currentPeriodEnd}`);
-      console.log(`   Total payroll records available: ${payrollRecords.length}`);
-      console.log(`   YTD records found: ${ytdRecords.length}`);
-      ytdRecords.forEach(r => {
-        console.log(`     ✓ ${r.pay_period_start} to ${r.pay_period_end}: net=$${r.net_pay}, bonus=$${r.bonus_pay}, deductions=$${r.total_deductions}, app_fee=$${r.app_fee_amount}`);
+      console.log(`   ALL payroll records available (${payrollRecords.length} total):`);
+      payrollRecords.filter(r => r.driver_id === data.driver.id).forEach(r => {
+        const isIncluded = r.pay_period_end >= yearStart && r.pay_period_end <= currentPeriodEnd;
+        console.log(`     ${isIncluded ? '✓' : '✗'} ${r.pay_period_start} to ${r.pay_period_end}: net=$${(r.net_pay || 0).toFixed(2)}, bonus=$${(r.bonus_pay || 0).toFixed(2)}, deductions=$${(r.total_deductions || 0).toFixed(2)}, app_fee=$${(r.app_fee_amount || 0).toFixed(2)}`);
       });
+      console.log(`   YTD records included: ${ytdRecords.length}`);
       
       // Use shared utility to calculate YTD values
       const appUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
