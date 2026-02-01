@@ -2360,13 +2360,123 @@ export default function PayrollSummaryCard({
              </div>
            </div>
 
+           {/* Drivers Breakdown Table */}
+           <div className="mt-4">
+             <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Driver App Fee Breakdown</h3>
+             <div className="overflow-x-auto border rounded" style={{ borderColor: 'var(--border-slate-200)', maxHeight: '400px', overflowY: 'auto' }}>
+               <table className="w-full text-xs">
+                 <thead style={{ background: 'var(--bg-slate-100)', position: 'sticky', top: 0 }}>
+                   <tr style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+                     <th className="text-left px-3 py-2">Driver</th>
+                     <th className="text-right px-2 py-2">App Fee %</th>
+                     <th className="text-right px-2 py-2">App Fee $</th>
+                     <th className="text-right px-2 py-2">Other App Fee %</th>
+                     <th className="text-right px-2 py-2">Other App Fee $</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {driversWithDeliveries.map((driver, idx) => {
+                     const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
+                     const driverAppFeeAmount = calculateAppFeeAmount(driver.driver.id, driverAppFeePercent);
+                     // Other App Fee is the balance after this driver's percentage
+                     const otherAppFeePercent = Math.max(0, 100 - driverAppFeePercent - extraAppFeePercent);
+                     const otherAppFeeAmount = calculateAppFeeAmount(driver.driver.id, otherAppFeePercent);
+
+                     return (
+                       <tr key={driver.driver.id} style={{ borderBottom: '1px solid var(--border-slate-200)', background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
+                         <td className="px-3 py-2">{driver.driver.user_name || driver.driver.full_name}</td>
+                         <td className="text-right px-2 py-2">
+                           <input
+                             type="number"
+                             value={driverAppFeePercent}
+                             onChange={(e) => {
+                               const newPercent = parseFloat(e.target.value) || 0;
+                               setDriverEdits((prev) => ({
+                                 ...prev,
+                                 [driver.driver.id]: { 
+                                   ...prev[driver.driver.id], 
+                                   appFeePercent: newPercent,
+                                   appFeeAmount: calculateAppFeeAmount(driver.driver.id, newPercent)
+                                 }
+                               }));
+                             }}
+                             className="w-16 px-1 py-0.5 border rounded text-right"
+                             step="0.01"
+                             min="0"
+                             max="100" />
+                           %
+                         </td>
+                         <td className="text-right px-2 py-2">
+                           <input
+                             type="number"
+                             value={driverAppFeeAmount.toFixed(2)}
+                             onChange={(e) => {
+                               const newAmount = parseFloat(e.target.value) || 0;
+                               let totalBillableCount = 0;
+                               const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                               const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                               deliveries.forEach((d) => {
+                                 if (!d || !d.store_id) return;
+                                 const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                                 if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+                                 const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+                                 if (!validStatus) return;
+                                 if (!d.patient_id && !d.after_hours_pickup) return;
+                                 const store = stores.find((s) => s?.id === d.store_id);
+                                 if (!store) return;
+                                 let paysAppFees = store.pays_app_fees || false;
+                                 if (store.app_fee_history && store.app_fee_history.length > 0) {
+                                   const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                                     new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                                   );
+                                   if (sortedHistory[0]) {
+                                     paysAppFees = sortedHistory[0].pays_app_fees;
+                                   }
+                                 }
+                                 if (paysAppFees) {
+                                   totalBillableCount++;
+                                 }
+                               });
+                               const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                               const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
+                               setDriverEdits((prev) => ({
+                                 ...prev,
+                                 [driver.driver.id]: { 
+                                   ...prev[driver.driver.id], 
+                                   appFeePercent: newPercent,
+                                   appFeeAmount: newAmount
+                                 }
+                               }));
+                             }}
+                             className="w-20 px-1 py-0.5 border rounded text-right"
+                             step="0.01"
+                             min="0" />
+                         </td>
+                         <td className="text-right px-2 py-2">{otherAppFeePercent.toFixed(2)}%</td>
+                         <td className="text-right px-2 py-2">${otherAppFeeAmount.toFixed(2)}</td>
+                       </tr>
+                     );
+                   })}
+                   {/* App Owner Row */}
+                   <tr style={{ background: 'var(--bg-slate-100)', borderTop: '2px solid var(--border-slate-300)' }}>
+                     <td className="px-3 py-2 font-semibold">App Owner</td>
+                     <td className="text-right px-2 py-2 font-semibold">{appOwnerAppFeePercent.toFixed(2)}%</td>
+                     <td className="text-right px-2 py-2 font-semibold">${(calculateAppFeeAmount('app-owner', appOwnerAppFeePercent) || 0).toFixed(2)}</td>
+                     <td className="text-right px-2 py-2 font-semibold">Extra: {extraAppFeePercent.toFixed(2)}%</td>
+                     <td className="text-right px-2 py-2 font-semibold">${(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) || 0).toFixed(2)}</td>
+                   </tr>
+                 </tbody>
+               </table>
+             </div>
+           </div>
+
            {/* Summary */}
-           <div className="text-xs p-2 bg-slate-50 rounded">
+           <div className="text-xs p-2 bg-slate-50 rounded mt-3">
              <div>Sum of Driver App Fees: <strong>{sumAllDriversAppFeePercent.toFixed(2)}%</strong></div>
              <div>Extra App Fee: <strong>{extraAppFeePercent.toFixed(2)}%</strong></div>
              <div className="text-blue-600 font-semibold mt-1">App Owner App Fee: <strong>{appOwnerAppFeePercent.toFixed(2)}%</strong></div>
            </div>
-         </div>
+           </div>
 
          <DialogFooter>
            <Button
