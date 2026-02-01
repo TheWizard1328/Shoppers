@@ -521,10 +521,17 @@ export default function DriverPayroll() {
   useEffect(() => {
     if (!hasInitialized || payrollRecords.length > 0) return;
     if (selectedPeriodIndex === 0) return; // Can't go back further
+    if (triedPreviousPeriodRef.current) return; // Already tried going back
     
     console.log(`⚠️ [DriverPayroll] No payroll data for current period, switching to previous...`);
+    triedPreviousPeriodRef.current = true;
     setSelectedPeriodIndex(selectedPeriodIndex - 1);
   }, [payrollRecords, hasInitialized, selectedPeriodIndex]);
+
+  // Reset the flag when period is manually changed
+  useEffect(() => {
+    triedPreviousPeriodRef.current = false;
+  }, [selectedYear, payPeriod]);
 
   // Conditional rendering without early return to maintain hook order
   return !currentUser ? (
