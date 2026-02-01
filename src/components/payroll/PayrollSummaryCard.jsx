@@ -2476,8 +2476,18 @@ export default function PayrollSummaryCard({
            <Button
              variant="outline"
              onClick={async () => {
-               // Save Extra_App_Fee_Percentage to AppSettings
                try {
+                 // Save each driver's app fee percentage and amount to payroll records
+                 for (const driver of driversWithDeliveries) {
+                   const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
+                   const driverAppFeeAmount = calculateAppFeeAmount(driver.driver.id, driverAppFeePercent);
+                   await savePayrollChanges(driver.driver.id, {
+                     app_fee_percentage: driverAppFeePercent,
+                     app_fee_amount: driverAppFeeAmount
+                   });
+                 }
+
+                 // Save Extra_App_Fee_Percentage to AppSettings
                  const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
                  if (settings?.[0]) {
                    await base44.entities.AppSettings.update(settings[0].id, {
@@ -2489,7 +2499,7 @@ export default function PayrollSummaryCard({
                  }
                  setAppFeeOverlayAllDriversId(null);
                } catch (error) {
-                 console.error('Failed to save Extra App Fee %:', error);
+                 console.error('Failed to save App Fee changes:', error);
                }
              }}
              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
