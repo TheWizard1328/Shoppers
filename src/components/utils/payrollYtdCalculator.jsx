@@ -64,6 +64,8 @@ export const calculateYtdPayroll = (ytdRecords, driverData, cities = [], appUser
   // Calculate YTD Gross = YTD Net + YTD Tax - YTD Deductions + YTD Bonus + YTD App Fees
   const ytdGrossPay = Math.round((ytdNetPay + ytdTaxAmount - ytdDeductionsAmount + ytdBonusAmount + ytdAppFeeAmount) * 100) / 100;
 
+  console.log(`🧮 [YTD Calculator] ytdAppFeeAmount before return: $${ytdAppFeeAmount.toFixed(2)}`);
+  
   return {
     ytdNetPay,
     ytdTaxAmount,
