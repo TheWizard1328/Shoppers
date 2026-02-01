@@ -2274,8 +2274,12 @@ export default function PayrollSummaryCard({
                      ...prev,
                      [appFeeOverlayDriverId]: { ...prev[appFeeOverlayDriverId], appFeePercent: newValue }
                    }));
-                   // Save immediately
-                   savePayrollChanges(appFeeOverlayDriverId, { app_fee_percentage: newValue });
+                   // Calculate and save app fee amount along with percentage
+                   const calculatedAmount = calculateAppFeeAmount(appFeeOverlayDriverId, newValue);
+                   savePayrollChanges(appFeeOverlayDriverId, { 
+                     app_fee_percentage: newValue,
+                     app_fee_amount: calculatedAmount
+                   });
                  }}
                  onKeyDown={(e) => {
                    if (e.key === 'Enter') {
