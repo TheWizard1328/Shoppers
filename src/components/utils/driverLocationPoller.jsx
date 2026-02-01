@@ -76,12 +76,12 @@ class DriverLocationPoller {
 
     // NEW RULE: Do not check for other drivers' locations when date is not today (device local time)
     const todayLocal = new Date();
-    const todayStr = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}-${String(todayLocal.getDate()).padStart(2, '0')}`;
+    const todayLocalStr = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}-${String(todayLocal.getDate()).padStart(2, '0')}`;
     const selectedDateStr = selectedDate ? 
       (typeof selectedDate === 'string' ? selectedDate : selectedDate.toISOString().split('T')[0]) : 
-      todayStr;
+      todayLocalStr;
     
-    if (selectedDateStr !== todayStr) {
+    if (selectedDateStr !== todayLocalStr) {
       this.notifySubscribers([]);
       return;
     }
