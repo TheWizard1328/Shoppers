@@ -395,12 +395,15 @@ export default function DriverPayroll() {
     invalidate('Patient');
     invalidate('Payroll');
     
-    // Force fresh fetch
+    // Force fresh fetch of all data
     await fetchPayroll(false, true);
+    
+    // Refresh payroll records to recalculate YTD totals
+    await refreshPayrollRecords();
     
     setIsRefreshing(false);
     toast.success('Payroll data refreshed');
-  }, [selectedYear, selectedCityId]);
+  }, [selectedYear, selectedCityId, refreshPayrollRecords]);
 
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
     if (!currentUser) return;
