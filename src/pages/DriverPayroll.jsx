@@ -165,11 +165,8 @@ export default function DriverPayroll() {
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   
   const contentRef = useRef(null);
-  const prevDriverIdRef = useRef(null); // Start as null to detect first assignment
-  const prevPayPeriodRef = useRef(payPeriod);
-  const prevYearRef = useRef(selectedYear);
   const isManualChangeRef = useRef(false);
-  const isInitialMountRef = useRef(true);
+  const hasLoadedInitialDataRef = useRef(false);
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
@@ -468,81 +465,44 @@ export default function DriverPayroll() {
   useEffect(() => {
     if (!currentUser || hasInitialized) return;
 
-    // Mark initialization as starting BEFORE state updates
-    isInitialMountRef.current = false;
-
-    // Set city to user's assigned city if available
     if (currentUser.city_id && !isDriver) {
       setSelectedCityId(currentUser.city_id);
     }
 
     if (isDriver) {
-      // Drivers default to viewing their own payroll
       setSelectedDriverId(currentUser.id);
-      setPayPeriod('monthly'); // Default, will be overwritten when payrollData loads
+      setPayPeriod('monthly');
     } else {
-      // Admins default to Semi-Monthly view with All Drivers
       setSelectedDriverId('all');
       setPayPeriod('semimonthly');
     }
     setHasInitialized(true);
   }, [currentUser, isDriver, hasInitialized]);
 
-  // Update pay period when payrollData loads (for drivers) - only ONCE after initial data load
+  // Load driver's pay cycle ONCE when data first loads
   useEffect(() => {
-    if (!hasInitialized || !payrollData?.appUsers || selectedDriverId === 'all' || isManualChangeRef.current) return;
-    if (prevDriverIdRef.current !== null) return; // Only run on first driver assignment
+    if (!payrollData?.appUsers || hasLoadedInitialDataRef.current || isManualChangeRef.current) return;
+    if (selectedDriverId === 'all') return;
     
     const driverAppUser = payrollData.appUsers.find(au => au.user_id === selectedDriverId);
-    if (driverAppUser?.pay_cycle_type && driverAppUser.pay_cycle_type !== payPeriod) {
+    if (driverAppUser?.pay_cycle_type) {
       setPayPeriod(driverAppUser.pay_cycle_type);
     }
-  }, [payrollData?.appUsers, selectedDriverId, hasInitialized, payPeriod]);
+    hasLoadedInitialDataRef.current = true;
+  }, [payrollData?.appUsers, selectedDriverId]);
 
-  // Auto-select pay cycle type when driver selection changes (manual changes only)
+  // Reset period index when pay period or year changes
   useEffect(() => {
-    if (!hasInitialized || isManualChangeRef.current) return;
-    if (prevDriverIdRef.current === null) {
-      prevDriverIdRef.current = selectedDriverId;
-      return; // Skip first assignment
-    }
-    if (prevDriverIdRef.current === selectedDriverId) return;
-    prevDriverIdRef.current = selectedDriverId;
-
-    if (selectedDriverId === 'all') {
-      setPayPeriod('semimonthly');
-    } else {
-      const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === selectedDriverId);
-      if (driverAppUser?.pay_cycle_type) {
-        setPayPeriod(driverAppUser.pay_cycle_type);
-      }
-    }
-  }, [selectedDriverId, payrollData?.appUsers, hasInitialized]);
-
-  // Auto-select current period when pay period type or year changes
-  // Track previous values to only reset when necessary
-  useEffect(() => {
-    // Only reset period index if payPeriod or year actually changed
-    if (prevPayPeriodRef.current === payPeriod && prevYearRef.current === selectedYear) return;
+    if (!hasInitialized) return;
     
-    // Batch the ref updates and state update together to prevent cascading renders
-    const oldPayPeriod = prevPayPeriodRef.current;
-    const oldYear = prevYearRef.current;
-    prevPayPeriodRef.current = payPeriod;
-    prevYearRef.current = selectedYear;
-
-    // Skip if this is the first render (both were undefined)
-    if (oldPayPeriod === undefined && oldYear === undefined) return;
-
     const today = new Date();
     if (selectedYear === today.getFullYear()) {
       const idx = findCurrentPeriodIndex(allPeriods, today);
       setSelectedPeriodIndex(idx);
     } else {
-      // If viewing past year, default to last period
       setSelectedPeriodIndex(allPeriods.length - 1);
     }
-  }, [payPeriod, selectedYear, allPeriods]);
+  }, [payPeriod, selectedYear, allPeriods, hasInitialized]);
 
   // Load payroll records when period changes (initial load and period navigation)
   useEffect(() => {
@@ -631,7 +591,19 @@ export default function DriverPayroll() {
             </Select>
 
             {/* Driver Filter - filtered by pay cycle type */}
-            <Select value={selectedDriverId} onValueChange={(v) => { isManualChangeRef.current = true; setSelectedDriverId(v); setTimeout(() => { isManualChangeRef.current = false; }, 100); }} disabled={isDriver}>
+            <Select value={selectedDriverId} onValueChange={(v) => { 
+              isManualChangeRef.current = true; 
+              setSelectedDriverId(v);
+              if (v === 'all') {
+                setPayPeriod('semimonthly');
+              } else {
+                const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === v);
+                if (driverAppUser?.pay_cycle_type) {
+                  setPayPeriod(driverAppUser.pay_cycle_type);
+                }
+              }
+              setTimeout(() => { isManualChangeRef.current = false; }, 100); 
+            }} disabled={isDriver}>
                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                  <SelectValue placeholder="Driver" />
                </SelectTrigger>
