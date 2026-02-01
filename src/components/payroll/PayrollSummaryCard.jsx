@@ -1547,10 +1547,22 @@ export default function PayrollSummaryCard({
         return recordEnd >= yearStart && recordEnd <= currentPeriodEnd;
       });
       
+      // YTD Net Pay: Sum of net_pay from all periods
       const ytdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
+      
+      // YTD Tax: Sum of tax_amount from all periods (actual tax calculated)
       const ytdTaxAmount = ytdRecords.reduce((sum, r) => sum + (r.tax_amount || 0), 0);
+      
+      // YTD Deductions: Sum of total_deductions from all periods
       const ytdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
+      
+      // YTD Bonus: Sum of bonus_pay from all periods
       const ytdBonusAmount = ytdRecords.reduce((sum, r) => sum + (r.bonus_pay || 0), 0);
+      
+      // YTD App Fee: Sum of app_fee_amount from all periods
+      const ytdAppFeeAmount = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
+      
+      // YTD Gross Pay: Sum of gross_pay from all periods
       const ytdGrossPay = ytdRecords.reduce((sum, r) => sum + (r.gross_pay || 0), 0);
       
       ytdMap[data.driver.id] = { 
@@ -1558,6 +1570,7 @@ export default function PayrollSummaryCard({
         ytdTaxAmount,
         ytdDeductionsAmount,
         ytdBonusAmount,
+        ytdAppFeeAmount,
         ytdGrossPay
       };
     });
