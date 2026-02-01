@@ -1565,30 +1565,28 @@ export default function PayrollSummaryCard({
     return ytdMap;
   }, [payrollData, deliveries, currentPeriod, patients]);
 
-  // Initialize driver edits on mount
+  // Initialize and sync driver edits with payroll records
   useEffect(() => {
     const driversWithDeliveries = payrollData.filter((d) => d.totalDeliveries > 0);
     const newEdits = {};
 
     driversWithDeliveries.forEach((data) => {
       const driverKey = data.driver.id;
-      if (!driverEdits[driverKey]) {
-        const payrollRecord = getDriverPayrollRecord(driverKey);
-        newEdits[driverKey] = {
-          deductions: data.deductionsArray || [],
-          bonusPay: payrollRecord?.bonus_pay || data.bonusPay || 0,
-          appFeePercent: payrollRecord?.app_fee_percentage !== undefined ? payrollRecord.app_fee_percentage : data.appFeePercent !== undefined ? data.appFeePercent : 0,
-          showDeductionManager: false,
-          newDeductionName: '',
-          newDeductionAmount: ''
-        };
-      }
+      const payrollRecord = getDriverPayrollRecord(driverKey);
+      
+      // CRITICAL: Always sync from payroll record if it exists, otherwise use defaults
+      newEdits[driverKey] = {
+        deductions: payrollRecord?.deductions || data.deductionsArray || [],
+        bonusPay: payrollRecord?.bonus_pay !== undefined ? payrollRecord.bonus_pay : 0,
+        appFeePercent: payrollRecord?.app_fee_percentage !== undefined ? payrollRecord.app_fee_percentage : 0,
+        showDeductionManager: false,
+        newDeductionName: '',
+        newDeductionAmount: ''
+      };
     });
 
-    if (Object.keys(newEdits).length > 0) {
-      setDriverEdits((prev) => ({ ...prev, ...newEdits }));
-    }
-  }, [payrollData]);
+    setDriverEdits(newEdits);
+  }, [payrollData, payrollRecords]);
 
   // Guard clause AFTER all hooks
   if (payrollData.length === 0) {
