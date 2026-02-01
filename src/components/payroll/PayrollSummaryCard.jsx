@@ -2534,7 +2534,7 @@ export default function PayrollSummaryCard({
                            </button>
                          </td>
                          <td className="text-right">+$</td>
-                         <td className="text-right font-semibold">{calculateAppFeeAmount(driverKey, edit.appFeePercent).toFixed(2)}</td>
+                         <td className="text-right font-semibold">{(edit.recalculatedAppFeeAmount || 0).toFixed(2)}</td>
                          </tr>
                        }
                        <tr className="text-lg font-bold text-emerald-600">
