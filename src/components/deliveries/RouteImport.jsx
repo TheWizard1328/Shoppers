@@ -1021,7 +1021,9 @@ export default function RouteImport({
 
       // CRITICAL: Use shared notes processor for consistency (AFTER checking for first delivery flag)
       // This will extract COD amount from notes and set cod_total_amount_required
-      const cleanedNotes = processDeliveryNotes(rawNotes, newDeliveryData, patient, isPickup, true);
+      // Pass correct isCompleted flag based on status
+      const isCompletedForNotes = statusFromColumns === 'completed';
+      const cleanedNotes = processDeliveryNotes(rawNotes, newDeliveryData, patient, isPickup, isCompletedForNotes);
       newDeliveryData.delivery_notes = cleanedNotes;
 
       // CRITICAL: If this PID has duplicates in the import, ONLY match by exact SID
