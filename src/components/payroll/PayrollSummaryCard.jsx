@@ -2568,7 +2568,7 @@ export default function PayrollSummaryCard({
                            }
                            <tr className="text-lg font-bold text-emerald-600">
                              <td className="text-right pt-1">$</td>
-                             <td className="text-right pt-1">{(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0).toFixed(2)}</td>
+                             <td className="text-right pt-1">{(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0 + ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0).toFixed(2)}</td>
                            </tr>
 
                          </tbody>
