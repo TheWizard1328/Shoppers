@@ -46,17 +46,17 @@ const getTaxRateForDriver = (driverCity) => {
  * @returns {Object} YTD totals
  */
 export const calculateYtdPayroll = (ytdRecords, driverData, cities = [], appUser = null) => {
-  // Sum all net pay from payroll records
-  const ytdNetPay = ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0);
+  // Sum all net pay from payroll records, rounding to 2 decimals
+  const ytdNetPay = Math.round(ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0) * 100) / 100;
   
-  // Sum all deductions from payroll records
-  const ytdDeductionsAmount = ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0);
+  // Sum all deductions from payroll records, rounding to 2 decimals
+  const ytdDeductionsAmount = Math.round(ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0) * 100) / 100;
   
-  // Sum all bonus pay from payroll records
-  const ytdBonusAmount = ytdRecords.reduce((sum, r) => sum + (r.bonus_pay || 0), 0);
+  // Sum all bonus pay from payroll records, rounding to 2 decimals
+  const ytdBonusAmount = Math.round(ytdRecords.reduce((sum, r) => sum + (r.bonus_pay || 0), 0) * 100) / 100;
   
-  // Sum all app fees from payroll records
-  const ytdAppFeeAmount = ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0);
+  // Sum all app fees from payroll records, rounding to 2 decimals
+  const ytdAppFeeAmount = Math.round(ytdRecords.reduce((sum, r) => sum + (r.app_fee_amount || 0), 0) * 100) / 100;
 
   // Calculate YTD Tax based on YTD Net with current period's tax rate
   let ytdTaxAmount = 0;
@@ -66,12 +66,12 @@ export const calculateYtdPayroll = (ytdRecords, driverData, cities = [], appUser
     
     if (driverCity) {
       const taxRate = getTaxRateForDriver(driverCity);
-      ytdTaxAmount = ytdNetPay * taxRate;
+      ytdTaxAmount = Math.round(ytdNetPay * taxRate * 100) / 100;
     }
   }
 
   // Calculate YTD Gross = YTD Net + YTD Tax - YTD Deductions + YTD Bonus + YTD App Fees
-  const ytdGrossPay = ytdNetPay + ytdTaxAmount - ytdDeductionsAmount + ytdBonusAmount + ytdAppFeeAmount;
+  const ytdGrossPay = Math.round((ytdNetPay + ytdTaxAmount - ytdDeductionsAmount + ytdBonusAmount + ytdAppFeeAmount) * 100) / 100;
 
   return {
     ytdNetPay,
