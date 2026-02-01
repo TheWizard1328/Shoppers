@@ -2378,9 +2378,64 @@ export default function PayrollSummaryCard({
                        </tr>
                      );
                    })}
+                   {/* Other App Fee Row */}
+                   <tr style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
+                     <td className="px-2 py-1.5 text-left">Other App Fee</td>
+                     <td className="text-right px-1 py-1.5">
+                       <input
+                         type="number"
+                         value={otherAppFeePercent.toFixed(2)}
+                         onChange={(e) => {
+                           const newPercent = parseFloat(e.target.value) || 0;
+                           setOtherAppFeePercent(Math.max(0, newPercent));
+                         }}
+                         className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
+                         step="0.01"
+                         min="0" />
+                     </td>
+                     <td className="text-right px-1 py-1.5">
+                       <input
+                         type="number"
+                         value={calculateAppFeeAmount('other-app-fee', otherAppFeePercent).toFixed(2)}
+                         onChange={(e) => {
+                           const newAmount = parseFloat(e.target.value) || 0;
+                           let totalBillableCount = 0;
+                           const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                           const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                           deliveries.forEach((d) => {
+                             if (!d || !d.store_id) return;
+                             const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                             if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+                             const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+                             if (!validStatus) return;
+                             if (!d.patient_id && !d.after_hours_pickup) return;
+                             const store = stores.find((s) => s?.id === d.store_id);
+                             if (!store) return;
+                             let paysAppFees = store.pays_app_fees || false;
+                             if (store.app_fee_history && store.app_fee_history.length > 0) {
+                               const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                                 new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                               );
+                               if (sortedHistory[0]) {
+                                 paysAppFees = sortedHistory[0].pays_app_fees;
+                               }
+                             }
+                             if (paysAppFees) {
+                               totalBillableCount++;
+                             }
+                           });
+                           const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                           const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
+                           setOtherAppFeePercent(newPercent);
+                         }}
+                         className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
+                         step="0.01"
+                         min="0" />
+                     </td>
+                   </tr>
                    {/* App Owner Row */}
                    <tr style={{ background: 'var(--bg-slate-100)', borderTop: '2px solid var(--border-slate-300)' }}>
-                     <td className="px-2 py-1.5 font-semibold">App Owner + Extra</td>
+                     <td className="px-2 py-1.5 font-semibold">App Owner</td>
                      <td className="text-right px-1 py-1.5 font-semibold">{appOwnerAppFeePercent.toFixed(2)}%</td>
                      <td className="text-right px-1 py-1.5 font-semibold">${(calculateAppFeeAmount('app-owner', appOwnerAppFeePercent) || 0).toFixed(2)}</td>
                    </tr>
