@@ -505,8 +505,6 @@ export default function DriverPayroll() {
 
   // Auto-select current period when pay period type or year changes
   // Track previous values to only reset when necessary
-  const prevPayPeriodRef = useRef(payPeriod);
-  const prevYearRef = useRef(selectedYear);
   useEffect(() => {
     // Only reset period index if payPeriod or year actually changed
     if (prevPayPeriodRef.current === payPeriod && prevYearRef.current === selectedYear) return;
