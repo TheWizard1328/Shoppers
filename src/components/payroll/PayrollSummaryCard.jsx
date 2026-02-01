@@ -1557,9 +1557,26 @@ export default function PayrollSummaryCard({
       const ytdExtraKmPay = ytdExtraKm * data.extraKmRate;
       const ytdOversizedCount = ytdDeliveries.filter((d) => d.oversized).length;
       const ytdOversizedPay = ytdOversizedCount * data.oversizedRate;
-      const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
+      const ytdNetPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
       
-      ytdMap[data.driver.id] = { ytdGrossPay };
+      // Calculate YTD Tax (using same tax rate and logic)
+      let ytdTaxAmount = 0;
+      if (data.gstHstEnabled && data.taxRate > 0) {
+        ytdTaxAmount = ytdNetPay * data.taxRate;
+      }
+      
+      // YTD Deductions (from AppUser deductions array, same as Period)
+      const ytdDeductionsAmount = data.deductions || 0;
+      
+      // YTD Gross = Net + Tax - Deductions (no bonus in YTD, bonuses are period-specific)
+      const ytdGrossPay = ytdNetPay + ytdTaxAmount - ytdDeductionsAmount;
+      
+      ytdMap[data.driver.id] = { 
+        ytdNetPay,
+        ytdTaxAmount,
+        ytdDeductionsAmount,
+        ytdGrossPay
+      };
     });
     
     return ytdMap;
