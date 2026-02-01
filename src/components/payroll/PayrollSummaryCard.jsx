@@ -2405,12 +2405,23 @@ export default function PayrollSummaryCard({
                                });
                                const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
                                const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
+
+                               // If editing App Owner's app fee $, recalculate Other App Fee %
+                               if (isCurrentUser && isAppOwner(currentUser)) {
+                                 const sumOtherDriversPercent = driversWithDeliveries.reduce((sum, d) => {
+                                   if (d.driver.id === currentUser.id) return sum;
+                                   return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                                 }, 0);
+                                 const newOtherPercent = Math.max(0, 100 - sumOtherDriversPercent - Math.round(newPercent * 100) / 100);
+                                 setOtherAppFeePercent(newOtherPercent);
+                               }
+
                                setDriverEdits((prev) => ({
                                  ...prev,
                                  [driver.driver.id]: { 
                                    ...prev[driver.driver.id], 
                                    appFeePercent: Math.round(newPercent * 100) / 100,
-                                   appFeeAmount: newAmount
+                                   appFeeAmount: Math.round(newAmount * 100) / 100
                                  }
                                }));
                              }}
