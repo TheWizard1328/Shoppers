@@ -1601,6 +1601,16 @@ export default function PayrollSummaryCard({
 
   const allDriversFinalized = finalizedDriversCount === driversWithDeliveriesIds.length && driversWithDeliveriesIds.length > 0;
 
+  // Check if current pay period includes the last day of the month (for AppFee% editing)
+  const isPeriodEndOfMonth = useMemo(() => {
+    if (!currentPeriod?.end) return false;
+    const periodEndDate = new Date(currentPeriod.end);
+    const nextDay = new Date(periodEndDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    // If next day is in a different month, current period ends on last day of month
+    return nextDay.getMonth() !== periodEndDate.getMonth();
+  }, [currentPeriod?.end]);
+
   // Check if finalization is allowed (6pm local time on last day of pay period, or after)
   const canFinalize = useMemo(() => {
     if (!currentPeriod?.end || !cities || !currentUser) return false;
