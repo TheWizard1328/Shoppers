@@ -486,13 +486,13 @@ export default function DriverPayroll() {
 
   // Update pay period when payrollData loads (for drivers)
   useEffect(() => {
-    if (!hasInitialized || !payrollData?.appUsers || selectedDriverId === 'all') return;
+    if (!hasInitialized || !payrollData?.appUsers || selectedDriverId === 'all' || isManualChangeRef.current) return;
     
     const driverAppUser = payrollData.appUsers.find(au => au.user_id === selectedDriverId);
-    if (driverAppUser?.pay_cycle_type) {
+    if (driverAppUser?.pay_cycle_type && driverAppUser.pay_cycle_type !== payPeriod) {
       setPayPeriod(driverAppUser.pay_cycle_type);
     }
-  }, [payrollData?.appUsers, selectedDriverId, hasInitialized]);
+  }, [payrollData?.appUsers, selectedDriverId, hasInitialized, payPeriod]);
 
   // Auto-select pay cycle type when driver selection changes
   // Only run when driver actually changes (not when payrollData updates)
@@ -520,8 +520,15 @@ export default function DriverPayroll() {
   useEffect(() => {
     // Only reset period index if payPeriod or year actually changed
     if (prevPayPeriodRef.current === payPeriod && prevYearRef.current === selectedYear) return;
+    
+    // Batch the ref updates and state update together to prevent cascading renders
+    const oldPayPeriod = prevPayPeriodRef.current;
+    const oldYear = prevYearRef.current;
     prevPayPeriodRef.current = payPeriod;
     prevYearRef.current = selectedYear;
+
+    // Skip if this is the first render (both were undefined)
+    if (oldPayPeriod === undefined && oldYear === undefined) return;
 
     const today = new Date();
     if (selectedYear === today.getFullYear()) {
