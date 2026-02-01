@@ -488,7 +488,7 @@ export default function DriverPayroll() {
 
   // Update pay period when payrollData loads (for drivers) - only on initial data load
   useEffect(() => {
-    if (!hasInitialized || !payrollData?.appUsers || selectedDriverId === 'all' || isManualChangeRef.current || !isInitialMountRef.current) return;
+    if (!hasInitialized || !payrollData?.appUsers || selectedDriverId === 'all' || isManualChangeRef.current || isInitialMountRef.current) return;
     
     const driverAppUser = payrollData.appUsers.find(au => au.user_id === selectedDriverId);
     if (driverAppUser?.pay_cycle_type && driverAppUser.pay_cycle_type !== payPeriod) {
