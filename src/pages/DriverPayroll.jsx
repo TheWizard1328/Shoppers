@@ -169,6 +169,7 @@ export default function DriverPayroll() {
   const prevPayPeriodRef = useRef(payPeriod);
   const prevYearRef = useRef(selectedYear);
   const isManualChangeRef = useRef(false);
+  const isInitialMountRef = useRef(true);
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
@@ -482,11 +483,12 @@ export default function DriverPayroll() {
       setPayPeriod('semimonthly');
     }
     setHasInitialized(true);
+    isInitialMountRef.current = false;
   }, [currentUser, isDriver, hasInitialized]);
 
-  // Update pay period when payrollData loads (for drivers)
+  // Update pay period when payrollData loads (for drivers) - only on initial data load
   useEffect(() => {
-    if (!hasInitialized || !payrollData?.appUsers || selectedDriverId === 'all' || isManualChangeRef.current) return;
+    if (!hasInitialized || !payrollData?.appUsers || selectedDriverId === 'all' || isManualChangeRef.current || !isInitialMountRef.current) return;
     
     const driverAppUser = payrollData.appUsers.find(au => au.user_id === selectedDriverId);
     if (driverAppUser?.pay_cycle_type && driverAppUser.pay_cycle_type !== payPeriod) {
@@ -494,24 +496,19 @@ export default function DriverPayroll() {
     }
   }, [payrollData?.appUsers, selectedDriverId, hasInitialized, payPeriod]);
 
-  // Auto-select pay cycle type when driver selection changes
-  // Only run when driver actually changes (not when payrollData updates)
+  // Auto-select pay cycle type when driver selection changes (manual changes only)
   useEffect(() => {
-    if (!hasInitialized || isManualChangeRef.current) return;
-    // Only update pay period if driver actually changed
+    if (!hasInitialized || isManualChangeRef.current || isInitialMountRef.current) return;
     if (prevDriverIdRef.current === selectedDriverId) return;
     prevDriverIdRef.current = selectedDriverId;
 
     if (selectedDriverId === 'all') {
-      // Default to semi-monthly when "All Drivers" is selected
       setPayPeriod('semimonthly');
     } else {
-      // Load the selected driver's pay cycle type
       const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === selectedDriverId);
       if (driverAppUser?.pay_cycle_type) {
         setPayPeriod(driverAppUser.pay_cycle_type);
       }
-      // Don't change pay period if driver doesn't have one set - keep current
     }
   }, [selectedDriverId, payrollData?.appUsers, hasInitialized]);
 
