@@ -558,8 +558,8 @@ export default function PayrollSummaryCard({
         recalculatedUpdates.gross_pay = newGrossPay;
       }
 
-      // Update existing record
-      const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, recalculatedUpdates);
+      // Update existing record (round currency values)
+      const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(recalculatedUpdates));
       console.log('✅ [Payroll] Updated record for driver:', driverId, recalculatedUpdates);
 
       // Update local state
