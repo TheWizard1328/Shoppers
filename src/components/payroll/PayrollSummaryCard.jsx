@@ -1754,12 +1754,6 @@ export default function PayrollSummaryCard({
     return ytdMap;
   }, [payrollData, payrollRecords, currentPeriod, appUsers, cities]);
 
-  // YTD grand totals across all displayed drivers (calculated AFTER ytdDataByDriver)
-  const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-  const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-  const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-  const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-
   // Load app fees per delivery setting and Extra_App_Fee_Percentage
   useEffect(() => {
     const loadAppFeesSetting = async () => {
@@ -1787,6 +1781,12 @@ export default function PayrollSummaryCard({
   const appOwnerAppFeePercent = useMemo(() => {
     return Math.max(0, 100 - sumAllDriversAppFeePercent - extraAppFeePercent);
   }, [sumAllDriversAppFeePercent, extraAppFeePercent]);
+
+  // YTD grand totals across all displayed drivers (calculated AFTER ytdDataByDriver)
+  const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
 
   // Calculate AppFeeAmount for a driver - distribute from total monthly app fee pool
   // CRITICAL: Use CALENDAR MONTH, not pay cycle, since app fees are collected monthly
