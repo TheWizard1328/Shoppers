@@ -2515,8 +2515,8 @@ export default function PayrollSummaryCard({
                          <td className="text-right">+$</td>
                          <td className="text-right font-semibold">{(edit.bonusPay || 0).toFixed(2)}</td>
                        </tr>
-                       {isAdmin && isPeriodEndOfMonth &&
-                       <tr style={{ color: 'var(--text-slate-600)' }}>
+                       {isAdmin && isPeriodEndOfMonth && (edit.appFeePercent || 0) > 0 &&
+                       <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
                          <td className="text-right pr-1">
                            <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
                              App Fee %:
