@@ -538,18 +538,13 @@ export default function DriverPayroll() {
     refreshPayrollRecords();
   }, [currentPeriod, hasInitialized, refreshPayrollRecords]);
 
-  // Guard clause AFTER all hooks have been declared
-  // Render loading state without early return to maintain hook order
-  if (isLoadingPayroll) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
-        <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
-      </div>
-    );
-  }
-
-  return (
+  // Conditional rendering without early return to maintain hook order
+  return isLoadingPayroll ? (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+      <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
+      <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
+    </div>
+  ) : (
     <div className="p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl mx-auto" ref={contentRef}>
         {/* Header */}
