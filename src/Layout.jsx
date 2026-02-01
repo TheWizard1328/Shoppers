@@ -3649,9 +3649,30 @@ export default function Layout({ children, currentPageName }) {
                     </div>
                     }
 
+                    {/* Center logo + message badge */}
+                    <div
+                      className="flex items-center gap-2 flex-shrink-0 relative cursor-pointer"
+                      onClick={() => {
+                        if (unreadMessageCount > 0) {
+                          setShowMessaging(true);
+                          setUnreadMessageCount(0);
+                        }
+                      }}>
+                      <img
+                        src="https://cdn-icons-png.flaticon.com/512/3843/3843479.png"
+                        alt="RxDeliver"
+                        className="w-8 h-8 rounded object-contain"
+                        style={{ filter: 'var(--image-filter, none)' }} />
+                      {unreadMessageCount > 0 &&
+                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
+                          {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                        </span>
+                      }
+                    </div>
+
                     {/* Battery + User Avatar on far right (all users, narrow mobile) */}
                     {isMobile && screenWidth < 768 && currentUser &&
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-shrink-0">
                       <BatteryIndicator vertical={true} />
                       <div className="flex flex-col items-center gap-1">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
