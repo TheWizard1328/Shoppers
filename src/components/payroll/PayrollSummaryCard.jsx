@@ -2174,8 +2174,27 @@ export default function PayrollSummaryCard({
                                 }
                          </td>
                          <td className="text-right">+$</td>
-                         <td className="text-right font-semibold">${(edit.bonusPay || 0).toFixed(2)}</td>
+                         <td className="text-right font-semibold">{(edit.bonusPay || 0).toFixed(2)}</td>
                        </tr>
+                       {isAdmin &&
+                       <tr style={{ color: 'var(--text-slate-600)' }}>
+                         <td className="text-right pr-1">
+                           <button onClick={() => {
+                             const currentPercent = edit.appFeePercent || 0;
+                             const newPercent = prompt(`Enter App Fee % for ${data.driver.user_name}:`, currentPercent);
+                             if (newPercent !== null && !isNaN(parseFloat(newPercent))) {
+                               const value = parseFloat(newPercent);
+                               updateEdit({ appFeePercent: value });
+                               savePayrollChanges(driverKey, { app_fee_percentage: value });
+                             }
+                           }} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                             App Fee %:
+                           </button>
+                         </td>
+                         <td className="text-right">-$</td>
+                         <td className="text-right font-semibold">{((data.grandTotal || 0) * (edit.appFeePercent || 0)).toFixed(2)}</td>
+                       </tr>
+                       }
                        <tr className="text-lg font-bold text-emerald-600">
                          <td className="text-right pr-1 pt-1">Gross:</td>
                          <td className="text-right pt-1">$</td>
