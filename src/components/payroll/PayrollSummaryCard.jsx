@@ -2376,10 +2376,14 @@ export default function PayrollSummaryCard({
                    {driversWithDeliveries.map((driver, idx) => {
                      const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
                      const driverAppFeeAmount = calculateAppFeeAmount(driver.driver.id, driverAppFeePercent);
+                     const isCurrentUser = driver.driver.id === currentUser?.id;
 
                      return (
-                       <tr key={driver.driver.id} style={{ borderBottom: '1px solid var(--border-slate-200)', background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
-                         <td className="px-2 py-1.5 truncate text-left">{driver.driver.user_name || driver.driver.full_name}</td>
+                       <tr key={driver.driver.id} style={{ borderBottom: '1px solid var(--border-slate-200)', background: isCurrentUser ? 'var(--bg-blue-50)' : idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
+                         <td className="px-2 py-1.5 truncate text-left">
+                           {driver.driver.user_name || driver.driver.full_name}
+                           {isCurrentUser && isAppOwner(currentUser) && <span className="text-xs font-semibold text-blue-600 ml-1">(App Owner)</span>}
+                         </td>
                          <td className="text-right px-1 py-1.5">
                            <input
                              type="number"
