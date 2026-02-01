@@ -2335,7 +2335,7 @@ export default function PayrollSummaryCard({
                                  }
                                }));
                              }}
-                             className="w-full px-1 py-0.5 border rounded text-right text-xs"
+                             className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
                              step="0.01"
                              min="0"
                              max="100" />
@@ -2382,7 +2382,7 @@ export default function PayrollSummaryCard({
                                  }
                                }));
                              }}
-                             className="w-full px-1 py-0.5 border rounded text-right text-xs"
+                             className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
                              step="0.01"
                              min="0" />
                          </td>
