@@ -2864,6 +2864,10 @@ export default function PayrollSummaryCard({
                             <span className="font-semibold">-{formatCurrency(ytdGrandTotalDeductions)}</span>
                           </div>
                     }
+                        <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                          <span className="text-xs mr-1">Extra App Fee Cut:</span>
+                          <span className="font-semibold">-{formatCurrency(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent))}</span>
+                        </div>
                         <div className="text-lg font-bold text-emerald-700 mt-1">
                           <span className="text-lg font-bold mr-1">Gross:</span>
                           {formatCurrency(ytdGrandTotalGross)}
