@@ -136,7 +136,7 @@ class DriverLocationPoller {
     const isDriver = this.currentUser && userHasRole(this.currentUser, 'driver');
     const currentUserCityId = this.currentUser?.city_id;
     
-    const todayStr = new Date().toISOString().split('T')[0];
+    const currentDayStr = new Date().toISOString().split('T')[0];
 
     // CRITICAL: Filter to drivers with location data using the new rules
     // NEW RULE: Current user sees their OWN shared location from OTHER devices
@@ -204,7 +204,7 @@ class DriverLocationPoller {
         const hasAssignedStops = (deliveries || []).some(delivery => {
           if (!delivery) return false;
           if (delivery.driver_id !== driverId) return false;
-          if (delivery.delivery_date !== todayStr) return false;
+          if (delivery.delivery_date !== currentDayStr) return false;
           if (!dispatcherStoreIds.has(delivery.store_id)) return false;
           // Include all non-terminal statuses (pending, en_route, in_transit)
           if (['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status)) return false;
