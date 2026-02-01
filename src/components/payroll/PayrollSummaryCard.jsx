@@ -780,10 +780,23 @@ export default function PayrollSummaryCard({
         controlsElement.style.display = 'none';
       }
 
-      // Hide all App Fee % rows before capturing
+      // Determine if user can see App Fee % (AppOwner or the driver themselves)
+      const userCanSeeAppFee = isAppOwner(currentUser) || (isDriver && selectedDriverId === currentUser?.id);
+
+      // Hide App Fee % rows if user doesn't have permission
       const appFeeRows = document.querySelectorAll('[data-app-fee-row="true"]');
       appFeeRows.forEach((row) => {
-        row.style.display = 'none';
+        if (!userCanSeeAppFee) {
+          row.style.display = 'none';
+        }
+      });
+
+      // Hide App Fee % YTD rows if user doesn't have permission
+      const appFeeYtdRows = document.querySelectorAll('[data-app-fee-ytd-row="true"]');
+      appFeeYtdRows.forEach((row) => {
+        if (!userCanSeeAppFee) {
+          row.style.display = 'none';
+        }
       });
 
       // Capture the content
@@ -804,8 +817,11 @@ export default function PayrollSummaryCard({
       }
 
       // Show App Fee % rows again
-      const appFeeRowsToShow = document.querySelectorAll('[data-app-fee-row="true"]');
-      appFeeRowsToShow.forEach((row) => {
+      appFeeRows.forEach((row) => {
+        row.style.display = '';
+      });
+
+      appFeeYtdRows.forEach((row) => {
         row.style.display = '';
       });
     } catch (error) {
