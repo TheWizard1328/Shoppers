@@ -93,16 +93,6 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
             >
               Extra Km
             </Button>
-            {selectedMonth &&
-              <Button
-                onClick={() => onResetView?.()}
-                variant="outline"
-                size="sm"
-                className="whitespace-nowrap"
-              >
-                Reset View
-              </Button>
-            }
           </div>
         </div>
         <div className="overflow-x-auto w-full">
