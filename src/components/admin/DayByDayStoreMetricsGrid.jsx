@@ -130,7 +130,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                           className="text-center px-1 py-0.5 tabular-nums"
                           style={{ color: value > 0 ? (store.color || '#64748b') : '#94a3b8' }}
                         >
-                          {value > 0 ? (viewMode === 'extra_km' ? value.toFixed(1) : value) : ''}
+                          {value > 0 ? (viewMode === 'extra_km' ? value.toFixed(2) : value) : ''}
                         </td>
                       );
                     })}
