@@ -243,7 +243,10 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                     <td
                       className="p-2 font-medium sticky left-0 bg-white z-10 cursor-pointer hover:bg-emerald-100"
                       style={{ color: isMonthSelected ? '#059669' : '#475569', backgroundColor: isMonthSelected ? '#d1fae5' : 'white' }}
-                      onClick={() => onMonthClick?.(month)}>
+                      onClick={() => {
+                        // Allow filtering even if month total is 0/blank
+                        onMonthClick?.(isMonthSelected ? null : month);
+                      }}>
 
                       {monthName}
                     </td>
