@@ -14,13 +14,13 @@ import MonthlyStoreMetricsGrid from '../components/admin/MonthlyStoreMetricsGrid
 import DayByDayStoreMetricsGrid from '../components/admin/DayByDayStoreMetricsGrid';
 
 const MONTH_NAMES = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-];
+'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 
 const COLORS = {
-  billable: '#10b981',    // Green
-  nonBillable: '#f97316'  // Orange
+  billable: '#10b981', // Green
+  nonBillable: '#f97316' // Orange
 };
 
 export default function AdminMetrics() {
@@ -52,12 +52,12 @@ export default function AdminMetrics() {
         const user = await getEffectiveUser();
         setCurrentUser(user);
         setHasAccess(isAppOwner(user) || userHasRole(user, 'admin'));
-        
+
         // Load cities for filter
         const citiesData = await base44.entities.City.list();
         const sortedCities = citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(sortedCities);
-        
+
         // Default to user's city_id, or first city if not set
         const defaultCityId = user?.city_id || sortedCities[0]?.id || null;
         if (defaultCityId) {
@@ -75,7 +75,7 @@ export default function AdminMetrics() {
   // Fetch metrics from backend - only when year or city changes or on initial load
   const fetchMetrics = useCallback(async (year, cityId, isInitial = false) => {
     if (!hasAccess) return;
-    
+
     // Only show full loading screen on initial load
     if (isInitial) {
       setIsLoading(true);
@@ -83,18 +83,18 @@ export default function AdminMetrics() {
       setIsFetching(true);
     }
     setError(null);
-    
+
     try {
-      const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', { 
+      const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         adminMetricsYear: parseInt(year),
         adminMetricsCityId: cityId === 'all' ? null : cityId
       });
       const data = response?.data?.adminMetrics || response?.adminMetrics;
-      
+
       if (data?.error) {
         throw new Error(data.error);
       }
-      
+
       setMetricsData(data);
       setSelectedMonth(null); // Reset month selection when year changes
     } catch (err) {
@@ -150,29 +150,29 @@ export default function AdminMetrics() {
   // Filter data based on selected month and store (client-side filtering)
   const filteredData = useMemo(() => {
     if (!metricsData) return null;
-    
+
     // Store + Month selected: show day-by-day breakdown for that store
     if (selectedStoreMonth) {
       // Build day-by-day data for the selected store in selected month
       const dailyData = metricsData.dailyStoreData?.[selectedStoreMonth.month]?.[selectedStoreMonth.storeId] || [];
-      
+
       // Get app fee rate and calculate fees per day based on billable deliveries
       const appFeeRate = metricsData.storeFeeTotals?.app_fee_rate || 0;
-      
+
       // Add fees to each day (fees = billable deliveries * rate)
       // Billable = completed + afterHours for stores paying fees
-      const dailyDataWithFees = dailyData.map(day => ({
+      const dailyDataWithFees = dailyData.map((day) => ({
         ...day,
         fees: ((day.completed || 0) + (day.afterHours || 0)) * appFeeRate
       }));
-      
+
       return {
         ...metricsData,
         storeData: dailyDataWithFees, // Daily breakdown for the store with fees
         isDailyBreakdown: true
       };
     }
-    
+
     // Only month selected: filter all graphs by month
     if (selectedMonth) {
       // For fees mode, use monthlyStoreData which has pre-calculated fees per store
@@ -182,8 +182,8 @@ export default function AdminMetrics() {
       const monthFees = metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0;
 
       // Merge fees from monthlyStoreData into storeData
-      const mergedStoreData = monthStoreData.map(store => {
-        const feeData = monthStoreDataWithFees.find(s => s.abbreviation === store.abbreviation);
+      const mergedStoreData = monthStoreData.map((store) => {
+        const feeData = monthStoreDataWithFees.find((s) => s.abbreviation === store.abbreviation);
         return {
           ...store,
           fees: feeData?.fees || 0
@@ -197,25 +197,25 @@ export default function AdminMetrics() {
         isDailyBreakdown: false
       };
     }
-    
+
     // Nothing selected: return all year data with fees merged
     // Aggregate fees across all months per store for full year view
     const allMonthsStoreFees = {};
     for (let m = 1; m <= 12; m++) {
       const monthData = metricsData.monthlyStoreData?.[m] || [];
-      monthData.forEach(s => {
+      monthData.forEach((s) => {
         if (!allMonthsStoreFees[s.abbreviation]) {
           allMonthsStoreFees[s.abbreviation] = 0;
         }
         allMonthsStoreFees[s.abbreviation] += s.fees || 0;
       });
     }
-    
-    const storeDataWithFees = (metricsData.storeData || []).map(store => ({
+
+    const storeDataWithFees = (metricsData.storeData || []).map((store) => ({
       ...store,
       fees: allMonthsStoreFees[store.abbreviation] || 0
     }));
-    
+
     return {
       ...metricsData,
       storeData: storeDataWithFees
@@ -236,8 +236,8 @@ export default function AdminMetrics() {
           <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-slate-900)' }}>Access Denied</h2>
           <p style={{ color: 'var(--text-slate-600)' }}>Only app owners can access this page.</p>
         </Card>
-      </div>
-    );
+      </div>);
+
   }
 
   if (isLoading) {
@@ -245,8 +245,8 @@ export default function AdminMetrics() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
         <span className="ml-3 text-lg" style={{ color: 'var(--text-slate-600)' }}>Loading metrics...</span>
-      </div>
-    );
+      </div>);
+
   }
 
   if (error) {
@@ -257,16 +257,16 @@ export default function AdminMetrics() {
           <p style={{ color: 'var(--text-slate-600)', marginBottom: '1rem' }}>{error}</p>
           <Button onClick={fetchMetrics}>Retry</Button>
         </Card>
-      </div>
-    );
+      </div>);
+
   }
 
   if (!metricsData) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <p style={{ color: 'var(--text-slate-600)' }}>No metrics data available.</p>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -285,9 +285,9 @@ export default function AdminMetrics() {
                 <SelectValue placeholder="Select City" />
               </SelectTrigger>
               <SelectContent>
-                {cities.map(city => (
-                  <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
-                ))}
+                {cities.map((city) =>
+                <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
+                )}
               </SelectContent>
             </Select>
 
@@ -296,9 +296,9 @@ export default function AdminMetrics() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {availableYears.map(year => (
-                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                ))}
+                {availableYears.map((year) =>
+                <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                )}
               </SelectContent>
             </Select>
             <Button variant="outline" size="icon" onClick={() => fetchMetrics(selectedYear, selectedCityId, false)} disabled={isFetching}>
@@ -320,16 +320,16 @@ export default function AdminMetrics() {
                   <Package className="w-5 h-5" style={{ color: '#059669' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                  {(selectedMonth 
-                    ? (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics 
-                        ? (metricsData.envelopeMetrics.yearTotals.adjustedDeliveries / 12)
-                        : metricsData.monthlyData?.[selectedMonth - 1]?.billable
-                      )
-                    : (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics
-                        ? metricsData.envelopeMetrics.yearTotals.adjustedDeliveries 
-                        : metricsData.yearTotals?.billable
-                      )
-                  )?.toLocaleString() || 0}
+                  {(selectedMonth ?
+                  showEnvelopeAdjustedTotals && metricsData.envelopeMetrics ?
+                  metricsData.envelopeMetrics.yearTotals.adjustedDeliveries / 12 :
+                  metricsData.monthlyData?.[selectedMonth - 1]?.billable :
+
+                  showEnvelopeAdjustedTotals && metricsData.envelopeMetrics ?
+                  metricsData.envelopeMetrics.yearTotals.adjustedDeliveries :
+                  metricsData.yearTotals?.billable)?.
+
+                  toLocaleString() || 0}
                 </p>
               </div>
             </CardContent>
@@ -343,10 +343,10 @@ export default function AdminMetrics() {
                   <TrendingUp className="w-5 h-5" style={{ color: '#b45309' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                  {(selectedMonth 
-                    ? metricsData.monthlyData?.[selectedMonth - 1]?.nonBillable 
-                    : metricsData.yearTotals?.nonBillable
-                  )?.toLocaleString() || 0}
+                  {(selectedMonth ?
+                  metricsData.monthlyData?.[selectedMonth - 1]?.nonBillable :
+                  metricsData.yearTotals?.nonBillable)?.
+                  toLocaleString() || 0}
                 </p>
               </div>
             </CardContent>
@@ -401,9 +401,9 @@ export default function AdminMetrics() {
                 </div>
                 <p className="text-2xl font-bold" style={{ color: '#78350f' }}>
                   {formatCurrency(
-                    selectedMonth 
-                      ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
-                      : (metricsData.storeFeeTotals?.total_fees_owed || 0)
+                    selectedMonth ?
+                    metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0 :
+                    metricsData.storeFeeTotals?.total_fees_owed || 0
                   )}
                 </p>
               </div>
@@ -413,8 +413,8 @@ export default function AdminMetrics() {
 
         {/* Row 1: Monthly Store App Fees */}
         <div>
-          <MonthlyStoreMetricsGrid 
-            metricsData={metricsData} 
+          <MonthlyStoreMetricsGrid
+            metricsData={metricsData}
             selectedYear={selectedYear}
             selectedMonth={selectedMonth}
             selectedStoreMonth={selectedStoreMonth}
@@ -439,8 +439,8 @@ export default function AdminMetrics() {
               setSelectedMonth(null);
             }}
             onViewModeChange={(mode) => setMetricsViewMode(mode)}
-            onEnvelopeToggleChange={setShowEnvelopeAdjustedTotals}
-          />
+            onEnvelopeToggleChange={setShowEnvelopeAdjustedTotals} />
+
         </div>
 
         {/* Row 2: Store Breakdown or Day-by-Day Breakdown */}
@@ -448,9 +448,9 @@ export default function AdminMetrics() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
-              {selectedStoreMonth 
-                ? `${selectedStoreMonth.storeName || selectedStoreMonth.storeAbbr} - ${MONTH_NAMES[selectedStoreMonth.month - 1]} ${selectedYear} (Day-by-Day)`
-                : `Store ${metricsViewMode === 'fees' ? 'App Fees' : 'Breakdown'} (${selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} ${selectedYear})`
+              {selectedStoreMonth ?
+              `${selectedStoreMonth.storeName || selectedStoreMonth.storeAbbr} - ${MONTH_NAMES[selectedStoreMonth.month - 1]} ${selectedYear} (Day-by-Day)` :
+              `Store ${metricsViewMode === 'fees' ? 'App Fees' : 'Breakdown'} (${selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} ${selectedYear})`
               }
             </CardTitle>
 
@@ -461,8 +461,8 @@ export default function AdminMetrics() {
                 disabled={!selectedMonth || selectedStoreMonth !== null}
                 variant={!showDayByDay ? "default" : "outline"}
                 size="sm"
-                className="whitespace-nowrap"
-              >
+                className="whitespace-nowrap">
+
                 By Store
               </Button>
               <Button
@@ -470,26 +470,26 @@ export default function AdminMetrics() {
                 disabled={!selectedMonth || selectedStoreMonth !== null || metricsViewMode === 'fees'}
                 variant={showDayByDay ? "default" : "outline"}
                 size="sm"
-                className="whitespace-nowrap"
-              >
+                className="whitespace-nowrap">
+
                 Day by Day
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
-            {showDayByDay && selectedMonth && !selectedStoreMonth ? (
-               // Day-by-Day Grid View - Use dailyDeliveryData billable/non-billable values
-               <DayByDayStoreMetricsGrid
-                 metricsData={{
-                   ...metricsData,
-                   dailyDeliveryData: metricsData.dailyDeliveryData // Pass the already-calculated daily data
-                 }}
-                 selectedMonth={selectedMonth}
-                 selectedYear={selectedYear}
-                 selectedCityId={selectedCityId}
-               />
-            ) : (
-              // Bar Chart View
+          <CardContent className="py-3">
+            {showDayByDay && selectedMonth && !selectedStoreMonth ?
+            // Day-by-Day Grid View - Use dailyDeliveryData billable/non-billable values
+            <DayByDayStoreMetricsGrid
+              metricsData={{
+                ...metricsData,
+                dailyDeliveryData: metricsData.dailyDeliveryData // Pass the already-calculated daily data
+              }}
+              selectedMonth={selectedMonth}
+              selectedYear={selectedYear}
+              selectedCityId={selectedCityId} /> :
+
+
+            // Bar Chart View
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={(() => {
@@ -498,10 +498,10 @@ export default function AdminMetrics() {
                     // Get days in the selected month for the selected year
                     const daysInMonth = new Date(parseInt(selectedYear), selectedStoreMonth.month, 0).getDate();
                     const rawDailyData = filteredData.storeData || [];
-                    
+
                     // Create a map of existing data
-                    const dataByDay = new Map(rawDailyData.map(d => [d.day, d]));
-                    
+                    const dataByDay = new Map(rawDailyData.map((d) => [d.day, d]));
+
                     // Fill in all days of the month, sorted 1 to N
                     const fullDailyData = [];
                     for (let day = 1; day <= daysInMonth; day++) {
@@ -518,55 +518,55 @@ export default function AdminMetrics() {
                     }
                     return fullDailyData;
                   }
-                  
+
                   // For store breakdown (year or month view)
-                  return (filteredData?.storeData || metricsData.storeData || [])
-                    .slice()
-                    .filter(item => {
-                      // Only show stores with data
-                      const total = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0);
-                      return total > 0 || (item.fees || 0) > 0;
-                    })
-                    .sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
-                    .map(item => {
-                      // Get envelope data for this store - aggregate across all months if no specific month selected
-                      let envelopeValue = 0;
-                      if (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics?.byStoreAndMonth?.[item.storeId]) {
-                        if (selectedMonth) {
-                          // Specific month selected
-                          envelopeValue = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId][selectedMonth]?.totalEnvelopeValue || 0;
-                        } else {
-                          // All year - sum across all months for this store
-                          const storeMonthData = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId];
-                          for (const month in storeMonthData) {
-                            envelopeValue += storeMonthData[month]?.totalEnvelopeValue || 0;
-                          }
+                  return (filteredData?.storeData || metricsData.storeData || []).
+                  slice().
+                  filter((item) => {
+                    // Only show stores with data
+                    const total = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0);
+                    return total > 0 || (item.fees || 0) > 0;
+                  }).
+                  sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)).
+                  map((item) => {
+                    // Get envelope data for this store - aggregate across all months if no specific month selected
+                    let envelopeValue = 0;
+                    if (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics?.byStoreAndMonth?.[item.storeId]) {
+                      if (selectedMonth) {
+                        // Specific month selected
+                        envelopeValue = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId][selectedMonth]?.totalEnvelopeValue || 0;
+                      } else {
+                        // All year - sum across all months for this store
+                        const storeMonthData = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId];
+                        for (const month in storeMonthData) {
+                          envelopeValue += storeMonthData[month]?.totalEnvelopeValue || 0;
                         }
                       }
-                      // Completed (Green) = Completed Deliveries + After Hours Pickups
-                      const baseCompleted = (item.completed || 0) + (item.afterHours || 0);
-                      
-                      return {
-                        ...item,
-                        totalCompleted: baseCompleted,
-                        envelopeCount: envelopeValue,
-                        // Failed (Red) = Failed Deliveries only
-                        totalFailed: item.failed || 0,
-                        fees: item.fees || 0
-                      };
-                    });
+                    }
+                    // Completed (Green) = Completed Deliveries + After Hours Pickups
+                    const baseCompleted = (item.completed || 0) + (item.afterHours || 0);
+
+                    return {
+                      ...item,
+                      totalCompleted: baseCompleted,
+                      envelopeCount: envelopeValue,
+                      // Failed (Red) = Failed Deliveries only
+                      totalFailed: item.failed || 0,
+                      fees: item.fees || 0
+                    };
+                  });
                 })()}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey={selectedStoreMonth ? "day" : "abbreviation"} 
+                  <XAxis
+                    dataKey={selectedStoreMonth ? "day" : "abbreviation"}
                     tick={selectedStoreMonth ? { fill: 'var(--text-slate-600)', fontSize: 11 } : (props) => {
                       const { x, y, payload } = props;
-                      const storeData = (filteredData?.storeData || metricsData.storeData)?.find(s => s.abbreviation === payload.value);
+                      const storeData = (filteredData?.storeData || metricsData.storeData)?.find((s) => s.abbreviation === payload.value);
                       // Total = Completed Deliveries + After Hours + Failed
                       const totalDeliveries = storeData ? (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0) : 0;
-                      const displayValue = metricsViewMode === 'fees' 
-                        ? `$${(storeData?.fees || 0).toFixed(0)}`
-                        : totalDeliveries;
+                      const displayValue = metricsViewMode === 'fees' ?
+                      `$${(storeData?.fees || 0).toFixed(0)}` :
+                      totalDeliveries;
                       return (
                         <g transform={`translate(${x},${y})`}>
                           <text x={0} y={0} dy={12} textAnchor="middle" fill="var(--text-slate-600)" fontSize={11}>
@@ -575,45 +575,45 @@ export default function AdminMetrics() {
                           <text x={0} y={0} dy={26} textAnchor="middle" fill={metricsViewMode === 'fees' ? '#f59e0b' : '#10b981'} fontSize={10} fontWeight="600">
                             {displayValue}
                           </text>
-                        </g>
-                      );
+                        </g>);
+
                     }}
                     interval={0}
-                    height={50}
-                  />
+                    height={50} />
+
                   <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
-                  <Tooltip 
-                     contentStyle={{ 
-                       background: 'var(--bg-white)', 
-                       border: '1px solid var(--border-slate-200)',
-                       borderRadius: '8px',
-                       color: 'var(--text-slate-900)'
-                     }}
+                  <Tooltip
+                    contentStyle={{
+                      background: 'var(--bg-white)',
+                      border: '1px solid var(--border-slate-200)',
+                      borderRadius: '8px',
+                      color: 'var(--text-slate-900)'
+                    }}
                     formatter={(value, name) => [metricsViewMode === 'fees' ? `$${value.toFixed(2)}` : value, name]}
                     labelFormatter={(label) => {
                       if (selectedStoreMonth) {
                         return `Day ${label}`;
                       }
-                      const store = metricsData.storeData?.find(s => s.abbreviation === label);
+                      const store = metricsData.storeData?.find((s) => s.abbreviation === label);
                       return store?.name || label;
-                    }}
-                  />
+                    }} />
+
                   <Legend />
-                  {metricsViewMode === 'fees' ? (
-                    <Bar dataKey="fees" fill="#f59e0b" name="App Fees" radius={[4, 4, 0, 0]} />
-                  ) : (
-                    <>
+                  {metricsViewMode === 'fees' ?
+                  <Bar dataKey="fees" fill="#f59e0b" name="App Fees" radius={[4, 4, 0, 0]} /> :
+
+                  <>
                       <Bar dataKey="totalCompleted" stackId="completed" fill="#10b981" name="Completed" radius={showEnvelopeAdjustedTotals ? [0, 0, 0, 0] : [4, 4, 0, 0]} />
-                      {showEnvelopeAdjustedTotals && (
-                        <Bar dataKey="envelopeCount" stackId="completed" fill="#3b82f6" name="Envelope" radius={[4, 4, 0, 0]} />
-                      )}
+                      {showEnvelopeAdjustedTotals &&
+                    <Bar dataKey="envelopeCount" stackId="completed" fill="#3b82f6" name="Envelope" radius={[4, 4, 0, 0]} />
+                    }
                       <Bar dataKey="totalFailed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
                     </>
-                  )}
+                  }
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            )}
+            }
           </CardContent>
         </Card>
 
@@ -624,9 +624,9 @@ export default function AdminMetrics() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 <BarChart3 className="w-5 h-5" />
-                {selectedMonth 
-                  ? `Daily Deliveries - ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`
-                  : `Monthly Deliveries (${selectedYear})`
+                {selectedMonth ?
+                `Daily Deliveries - ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}` :
+                `Monthly Deliveries (${selectedYear})`
                 }
               </CardTitle>
             </CardHeader>
@@ -635,14 +635,14 @@ export default function AdminMetrics() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={(() => {
                     if (!selectedMonth) return metricsData.monthlyData;
-                    
+
                     // Get days in the selected month for the selected year
                     const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
                     const rawDailyData = metricsData.dailyDeliveryData?.[selectedMonth] || [];
-                    
+
                     // Create a map of existing data
-                    const dataByDay = new Map(rawDailyData.map(d => [d.day, d]));
-                    
+                    const dataByDay = new Map(rawDailyData.map((d) => [d.day, d]));
+
                     // Fill in all days of the month, sorted 1 to N
                     const fullDailyData = [];
                     for (let day = 1; day <= daysInMonth; day++) {
@@ -657,11 +657,11 @@ export default function AdminMetrics() {
                     return fullDailyData;
                   })()}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-slate-200)" />
-                    <XAxis 
-                      dataKey={selectedMonth ? "day" : "month"} 
+                    <XAxis
+                      dataKey={selectedMonth ? "day" : "month"}
                       tick={selectedMonth ? (props) => {
                         const { x, y, payload } = props;
-                        const dayData = metricsData.dailyDeliveryData?.[selectedMonth]?.find(d => d.day === payload.value);
+                        const dayData = metricsData.dailyDeliveryData?.[selectedMonth]?.find((d) => d.day === payload.value);
                         const total = (dayData?.billable || 0) + (dayData?.nonBillable || 0);
                         return (
                           <g transform={`translate(${x},${y})`}>
@@ -671,27 +671,27 @@ export default function AdminMetrics() {
                             <text x={0} y={0} dy={24} textAnchor="middle" fill="#10b981" fontSize={9} fontWeight="600">
                               {total > 0 ? total : ''}
                             </text>
-                          </g>
-                        );
-                      } : { fill: 'var(--text-slate-600)', fontSize: 12 }} 
+                          </g>);
+
+                      } : { fill: 'var(--text-slate-600)', fontSize: 12 }}
                       interval={selectedMonth ? 0 : 0}
-                      height={selectedMonth ? 40 : 30}
-                    />
+                      height={selectedMonth ? 40 : 30} />
+
                     <YAxis tick={{ fill: 'var(--text-slate-600)', fontSize: 12 }} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        background: 'white', 
+                    <Tooltip
+                      contentStyle={{
+                        background: 'white',
                         border: '1px solid #e2e8f0',
                         borderRadius: '8px'
                       }}
-                      labelFormatter={(label) => selectedMonth ? `Day ${label}` : label}
-                    />
+                      labelFormatter={(label) => selectedMonth ? `Day ${label}` : label} />
+
                     <Legend />
-                    {metricsViewMode === 'deliveries' && showEnvelopeAdjustedTotals ? (
-                      <Bar dataKey="adjustedDeliveries" fill="#10b981" name="Adjusted Deliveries" radius={[4, 4, 0, 0]} />
-                    ) : (
-                      <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[4, 4, 0, 0]} />
-                    )}
+                    {metricsViewMode === 'deliveries' && showEnvelopeAdjustedTotals ?
+                    <Bar dataKey="adjustedDeliveries" fill="#10b981" name="Adjusted Deliveries" radius={[4, 4, 0, 0]} /> :
+
+                    <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[4, 4, 0, 0]} />
+                    }
                     <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -705,69 +705,69 @@ export default function AdminMetrics() {
               <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 <Users className="w-5 h-5" />
                 Driver Breakdown 
-                {selectedStoreMonth 
-                  ? ` - ${selectedStoreMonth.storeName || selectedStoreMonth.storeAbbr}`
-                  : selectedMonth 
-                    ? ` (${MONTH_NAMES[selectedMonth - 1]} ${selectedYear})`
-                    : ` (All ${selectedYear})`
+                {selectedStoreMonth ?
+                ` - ${selectedStoreMonth.storeName || selectedStoreMonth.storeAbbr}` :
+                selectedMonth ?
+                ` (${MONTH_NAMES[selectedMonth - 1]} ${selectedYear})` :
+                ` (All ${selectedYear})`
                 }
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
-                   data={
-                     (selectedStoreMonth 
-                       ? Object.values(metricsData.dailyDriverData?.[selectedStoreMonth.month] || {})
-                           .flat()
-                           .reduce((acc, entry) => {
-                             const existing = acc.find(d => d.driverId === entry.driverId);
-                             if (existing) {
-                               existing.billable += entry.billable;
-                               existing.nonBillable += entry.nonBillable;
-                             } else {
-                               acc.push({...entry});
-                             }
-                             return acc;
-                           }, [])
-                       : selectedMonth 
-                         ? Object.values(metricsData.dailyDriverData?.[selectedMonth] || {})
-                             .flat()
-                             .reduce((acc, entry) => {
-                               const existing = acc.find(d => d.driverId === entry.driverId);
-                               if (existing) {
-                                 existing.billable += entry.billable;
-                                 existing.nonBillable += entry.nonBillable;
-                               } else {
-                                 acc.push({...entry});
-                               }
-                               return acc;
-                             }, [])
-                         : metricsData.driverData
-                     )?.slice()
-                       .filter(driver => (driver.billable || 0) + (driver.nonBillable || 0) > 0)
-                       .sort((a, b) => ((b.billable || 0) + (b.nonBillable || 0)) - ((a.billable || 0) + (a.nonBillable || 0)))
-                   } 
-                   barCategoryGap="15%"
-                  >
+                  <BarChart
+                    data={
+                    (selectedStoreMonth ?
+                    Object.values(metricsData.dailyDriverData?.[selectedStoreMonth.month] || {}).
+                    flat().
+                    reduce((acc, entry) => {
+                      const existing = acc.find((d) => d.driverId === entry.driverId);
+                      if (existing) {
+                        existing.billable += entry.billable;
+                        existing.nonBillable += entry.nonBillable;
+                      } else {
+                        acc.push({ ...entry });
+                      }
+                      return acc;
+                    }, []) :
+                    selectedMonth ?
+                    Object.values(metricsData.dailyDriverData?.[selectedMonth] || {}).
+                    flat().
+                    reduce((acc, entry) => {
+                      const existing = acc.find((d) => d.driverId === entry.driverId);
+                      if (existing) {
+                        existing.billable += entry.billable;
+                        existing.nonBillable += entry.nonBillable;
+                      } else {
+                        acc.push({ ...entry });
+                      }
+                      return acc;
+                    }, []) :
+                    metricsData.driverData)?.
+                    slice().
+                    filter((driver) => (driver.billable || 0) + (driver.nonBillable || 0) > 0).
+                    sort((a, b) => (b.billable || 0) + (b.nonBillable || 0) - ((a.billable || 0) + (a.nonBillable || 0)))
+                    }
+                    barCategoryGap="15%">
+
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-slate-200)" />
-                    <XAxis 
-                      dataKey="name" 
-                      tick={{ fill: 'var(--text-slate-600)', fontSize: 11 }} 
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fill: 'var(--text-slate-600)', fontSize: 11 }}
                       interval={0}
                       angle={-45}
                       textAnchor="end"
-                      height={80}
-                    />
+                      height={80} />
+
                     <YAxis tick={{ fill: 'var(--text-slate-600)', fontSize: 12 }} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        background: 'white', 
+                    <Tooltip
+                      contentStyle={{
+                        background: 'white',
                         border: '1px solid #e2e8f0',
                         borderRadius: '8px'
-                      }}
-                    />
+                      }} />
+
                     <Legend wrapperStyle={{ fontSize: '11px' }} />
                     <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[2, 2, 0, 0]} />
                     <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[2, 2, 0, 0]} />
@@ -780,6 +780,6 @@ export default function AdminMetrics() {
 
 
       </div>
-    </div>
-  );
+    </div>);
+
 }
