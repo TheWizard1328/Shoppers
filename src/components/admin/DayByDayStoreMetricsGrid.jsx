@@ -5,8 +5,8 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 
 /**
  * Day-by-Day Store Metrics Grid
- * Shows billable deliveries per store per day for an entire selected month
- * Similar to payroll grid but for all drivers and filtered by city
+ * Shows billable + non-billable deliveries per day for the entire selected month
+ * Uses the daily delivery data aggregated across all stores and drivers
  */
 export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, selectedYear, selectedCityId }) {
   if (!metricsData || !selectedMonth) {
@@ -19,65 +19,17 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
     );
   }
 
-  // Build stores list and day-by-day data from metricsData
-  const dailyStoreData = metricsData.dailyStoreData?.[selectedMonth] || {};
-  const storeMap = new Map();
-  const storeDataByDay = new Map(); // { storeId: { day: value, ... }, ... }
-  
-  // Get all stores and their data from the nested structure
-  Object.entries(dailyStoreData).forEach(([storeId, dayArray]) => {
-    if (!Array.isArray(dayArray)) return;
-    
-    // Get store info from first record
-    const firstRecord = dayArray[0];
-    if (firstRecord?.abbreviation && !storeMap.has(storeId)) {
-      storeMap.set(storeId, {
-        storeId,
-        abbreviation: firstRecord.abbreviation,
-        name: firstRecord.name,
-        color: firstRecord.color,
-        sortOrder: firstRecord.sortOrder || 999
-      });
-    }
-    
-    // Build day-by-day map for this store
-    const dayMap = {};
-    dayArray.forEach(dayRecord => {
-      if (dayRecord?.day) {
-        // Billable = Completed + After Hours
-        dayMap[dayRecord.day] = (dayRecord.completed || 0) + (dayRecord.afterHours || 0);
-      }
-    });
-    storeDataByDay.set(storeId, dayMap);
-  });
-
-  const stores = Array.from(storeMap.values()).sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
+  // Use the pre-calculated daily delivery data (billable + non-billable)
+  const dailyDeliveryData = metricsData.dailyDeliveryData?.[selectedMonth] || [];
   const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
 
-  // Get billable value for a store on a specific day
-  // Billable = Completed + Failed + After Hours Pickups (Completed & Cancelled)
-  const getBillableValue = (storeId, day) => {
-    const dayData = dailyStoreData[storeId];
-    if (!dayData || !Array.isArray(dayData)) return null;
-    
-    const dayRecord = dayData.find(d => d.day === day);
-    if (!dayRecord) return null;
-    
-    // All billable: Completed + Failed + After Hours
-    const billable = (dayRecord.completed || 0) + (dayRecord.failed || 0) + (dayRecord.afterHours || 0);
-    return billable || null; // Show 0 values as empty, only non-zero as numbers
-  };
+  // Create a map of day -> { billable, nonBillable }
+  const dataByDay = new Map(dailyDeliveryData.map(d => [d.day, d]));
 
-  // Calculate totals per store (sum of billable deliveries across all days in month)
-  const getStoreTotal = (storeId) => {
-    const dayData = dailyStoreData[storeId];
-    if (!Array.isArray(dayData)) return 0;
-    
-    return dayData.reduce((sum, dayRecord) => {
-      const billable = (dayRecord.completed || 0) + (dayRecord.failed || 0) + (dayRecord.afterHours || 0);
-      return sum + billable;
-    }, 0);
-  };
+  // Calculate totals
+  const totalBillable = dailyDeliveryData.reduce((sum, d) => sum + (d.billable || 0), 0);
+  const totalNonBillable = dailyDeliveryData.reduce((sum, d) => sum + (d.nonBillable || 0), 0);
+  const grandTotal = totalBillable + totalNonBillable;
 
   // Calculate daily totals
   const getDayTotal = (day) => {
