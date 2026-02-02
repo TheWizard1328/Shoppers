@@ -260,6 +260,7 @@ export default function PayrollSummaryCard({
 
   // Track last period we auto-created for to prevent duplicates on effect reruns
   const lastAutoCreatePeriodRef = React.useRef(null);
+  const autoCreateInProgressRef = React.useRef(false);
 
   // Use external payroll records if provided, otherwise fetch locally with 15-sec refresh
   useEffect(() => {
@@ -320,14 +321,15 @@ export default function PayrollSummaryCard({
   useEffect(() => {
     if (!periodStartStr || !periodEndStr || !payrollData || payrollData.length === 0) return;
 
-    // CRITICAL: Skip if we've already processed this exact period
+    // CRITICAL: Skip if we've already processed this exact period OR if auto-create is in progress
     const currentPeriodKey = `${periodStartStr}-${periodEndStr}`;
-    if (lastAutoCreatePeriodRef.current === currentPeriodKey) {
+    if (lastAutoCreatePeriodRef.current === currentPeriodKey || autoCreateInProgressRef.current) {
       return;
     }
 
     // Mark IMMEDIATELY to prevent concurrent auto-creates
     lastAutoCreatePeriodRef.current = currentPeriodKey;
+    autoCreateInProgressRef.current = true;
 
     const autoCreateMissingRecords = async () => {
       try {
@@ -438,6 +440,8 @@ export default function PayrollSummaryCard({
         }
       } catch (error) {
         console.error('❌ [Payroll] Failed to auto-create payroll records:', error);
+      } finally {
+        autoCreateInProgressRef.current = false;
       }
     };
 
