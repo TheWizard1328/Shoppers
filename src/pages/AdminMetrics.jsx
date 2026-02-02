@@ -476,7 +476,7 @@ export default function AdminMetrics() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="py-3">
+          <CardContent className="px-1 py-3">
             {showDayByDay && selectedMonth && !selectedStoreMonth ?
             // Day-by-Day Grid View - Use dailyDeliveryData billable/non-billable values
             <DayByDayStoreMetricsGrid
