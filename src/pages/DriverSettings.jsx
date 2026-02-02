@@ -7,6 +7,7 @@ import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit, Navigation
 import { formatDistanceToNow } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppData } from '../components/utils/AppDataContext';
+import { useUser } from '../components/utils/UserContext';
 import { formatPhoneNumber } from '../components/utils/phoneFormatter';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
 import { sortUsers } from '../components/utils/sorting';
