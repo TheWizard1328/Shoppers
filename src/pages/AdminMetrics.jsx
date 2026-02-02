@@ -454,6 +454,20 @@ export default function AdminMetrics() {
               }
             </CardTitle>
 
+            {/* Day-by-Day Toggle - Only when month selected (and not viewing a specific store) */}
+            {selectedMonth && !selectedStoreMonth && (
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="day-by-day-toggle"
+                  checked={showDayByDay}
+                  onCheckedChange={setShowDayByDay}
+                  disabled={metricsViewMode === 'fees'} // Only works for deliveries mode
+                />
+                <Label htmlFor="day-by-day-toggle" className="text-xs whitespace-nowrap cursor-pointer">
+                  Day-by-Day by Store
+                </Label>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
