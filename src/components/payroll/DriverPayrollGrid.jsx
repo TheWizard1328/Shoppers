@@ -154,6 +154,25 @@ export default function DriverPayrollGrid({
   // Sort stores by sort_order
   const allSortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
+  // Get drivers with matching pay cycle
+  const driversWithMatchingPayCycle = useMemo(() => {
+    if (!appUsers || !payPeriod) return [];
+
+    const payCycleMap = {
+      'weekly': 'weekly',
+      'biweekly': 'biweekly',
+      'semimonthly': 'semimonthly',
+      'monthly': 'monthly'
+    };
+
+    const targetCycle = payCycleMap[payPeriod];
+    const matching = appUsers.filter(au => au?.pay_cycle_type === targetCycle);
+
+    console.log(`🔄 [PayCycle Filter] Pay period: ${payPeriod}, Drivers with matching cycle: ${matching.length}`);
+
+    return matching.map(au => au.user_id).filter(Boolean);
+  }, [appUsers, payPeriod]);
+
   // Filter deliveries for current period and driver
   // Exclude pickups (no patient_id) UNLESS it's an after_hours_pickup
   const filteredDeliveries = useMemo(() => {
@@ -161,15 +180,15 @@ export default function DriverPayrollGrid({
       console.log(`⚠️ [Payroll Grid Filter] Missing data - deliveries: ${!!deliveries}, currentPeriod: ${!!currentPeriod}`);
       return [];
     }
-    
+
     console.log(`🔍 [Payroll Grid Filter] Input - Total deliveries: ${deliveries.length}, Period: ${currentPeriod.label}, Driver: ${selectedDriverId}`);
-    
+
     // Debug: Show unique driver IDs in the deliveries
     const uniqueDriverIds = [...new Set(deliveries.map(d => d.driver_id).filter(Boolean))];
     console.log(`   Available driver IDs in data:`, uniqueDriverIds);
     console.log(`   Looking for driver ID: "${selectedDriverId}"`);
     console.log(`   Match exists: ${uniqueDriverIds.includes(selectedDriverId)}`);
-    
+
     const filtered = deliveries.filter(d => {
       if (!d || !d.delivery_date) return false;
       const date = new Date(d.delivery_date + 'T00:00:00');
@@ -177,24 +196,27 @@ export default function DriverPayrollGrid({
       // Count completed, failed, and cancelled (for after_hours_pickup)
       const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
       if (!validStatus) return false;
-      
+
+      // CRITICAL: Filter by drivers with matching pay cycle
+      if (!driversWithMatchingPayCycle.includes(d.driver_id)) return false;
+
       // CRITICAL: Only filter by driver if selectedDriverId is set AND not 'all'
       if (selectedDriverId && selectedDriverId !== 'all') {
         if (d.driver_id !== selectedDriverId) return false;
       }
-      
+
       // Exclude pickups (no patient_id) unless it's an after_hours_pickup
       if (!d.patient_id && !d.after_hours_pickup) return false;
       return true;
     });
-    
+
     console.log(`✅ [Payroll Grid Filter] Filtered to ${filtered.length} deliveries`);
     if (filtered.length > 0) {
       console.log(`   Sample delivery:`, filtered[0]);
     }
-    
+
     return filtered;
-  }, [deliveries, currentPeriod, selectedDriverId]);
+  }, [deliveries, currentPeriod, selectedDriverId, driversWithMatchingPayCycle]);
 
   // Get extra km limit for a driver
   const getDriverExtraKmLimit = (driverId) => {
