@@ -3833,7 +3833,7 @@ export default function DeliveryMap({
                     <div className="text-xs mt-2 space-y-1">
                       <p>
                         <a href={`tel:${location.driver.phone}`} className="text-blue-600 hover:text-blue-700 underline font-medium">
-                          📞 {location.driver.phone}
+                          📞 {formatPhoneNumber(location.driver.phone)}
                         </a>
                       </p>
                       {isMobile && (
