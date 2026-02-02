@@ -3789,13 +3789,22 @@ export default function DeliveryMap({
               position={[location.latitude, location.longitude]}
               icon={createDriverIcon(location.driver_status, location.driverInitial, location.isStaleLocation, isOnBreakSelf)}
               zIndexOffset={3000}
+              data-driver-location-id={location.id}
               eventHandlers={{
                 click: () => onMarkerClick && onMarkerClick(location, 'driver'),
                 mouseover: (e) => {
+                  // Clear any pending timeout
+                  if (popupTimeoutsRef.current[location.id]) {
+                    clearTimeout(popupTimeoutsRef.current[location.id]);
+                    popupTimeoutsRef.current[location.id] = null;
+                  }
                   e.target.openPopup();
                 },
                 mouseout: (e) => {
-                  e.target.closePopup();
+                  // Delay closing by 2 seconds to allow popup interaction
+                  popupTimeoutsRef.current[location.id] = setTimeout(() => {
+                    e.target.closePopup();
+                  }, 2000);
                 }
               }}>
 
@@ -3803,7 +3812,15 @@ export default function DeliveryMap({
                 autoPan={false}
                 closeButton={false}
                 offset={[0, -20]}
-                className="custom-popup">
+                className="custom-popup"
+                onOpen={() => {
+                  // Keep popup open when hovering over it
+                  const popup = document.querySelector(`[data-driver-location-id="${location.id}"] + .leaflet-popup`);
+                  if (popup) {
+                    popup.addEventListener('mouseenter', () => handleDriverLocationPopupHover(location.id, true));
+                    popup.addEventListener('mouseleave', () => handleDriverLocationPopupHover(location.id, false));
+                  }
+                }}>
 
                 <div className="min-w-[150px]">
                   <div className="flex items-center gap-1.5">
