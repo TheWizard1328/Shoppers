@@ -16,11 +16,16 @@ import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { globalFilters } from '../components/utils/globalFilters';
 
 export default function DriverSettings() {
-  const { users, appUsers, stores, refreshData } = useAppData();
+  const { users, appUsers, stores, cities = [], refreshData } = useAppData();
   const [searchQuery, setSearchQuery] = useState('');
   const [freshAppUsers, setFreshAppUsers] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingDriver, setEditingDriver] = useState(null);
+  const selectedCityId = globalFilters.getSelectedCityId();
+
+  const sortedCities = useMemo(() => {
+    return [...cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+  }, [cities]);
 
   // Fetch fresh AppUser data on mount and periodically for accurate driver_status
   useEffect(() => {
