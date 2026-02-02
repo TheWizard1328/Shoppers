@@ -1,344 +1,721 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { base44 } from '@/api/base44Client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart3, DollarSign, Store, Package, RefreshCw, Loader2, Settings, MapPin, FileText, Activity, Share2 } from 'lucide-react';
-import { useAppData } from '@/components/utils/AppDataContext';
-import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
+import { BarChart3, DollarSign, Store, Package, RefreshCw, TrendingUp, Users, Truck } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { getEffectiveUser } from '@/components/utils/auth';
+import { isAppOwner, userHasRole } from '../components/utils/userRoles';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import MonthlyStoreMetricsGrid from '../components/admin/MonthlyStoreMetricsGrid';
-import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
-import AppSettingsPanel from '../components/admin/AppSettingsPanel';
-import PolylineViewer from '../components/admin/PolylineViewer';
-import DeliveryDataTable from '../components/admin/DeliveryDataTable';
-import PatientDataTable from '../components/admin/PatientDataTable';
-import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
-import html2canvas from 'html2canvas';
-import { toast } from 'sonner';
-import { useUser } from '@/components/utils/UserContext';
-import { isAppOwner } from '@/components/utils/userRoles';
+
+const MONTH_NAMES = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
+
+const COLORS = {
+  billable: '#10b981',    // Green
+  nonBillable: '#f97316'  // Orange
+};
 
 export default function AdminMetrics() {
-  const { currentUser } = useUser();
-  const appData = useAppData();
-  const deliveries = appData?.deliveries || [];
-  const patients = appData?.patients || [];
-  const stores = appData?.stores || [];
-  const users = appData?.users || [];
-  const drivers = appData?.drivers || [];
+  const [currentUser, setCurrentUser] = useState(null);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false); // For year changes (doesn't hide content)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
-  const [selectedCityId, setSelectedCityId] = useState(() => currentUser?.city_id || 'all');
-  const [selectedMonth, setSelectedMonth] = useState(null); // null = show yearly grid
-  const [selectedStoreMonth, setSelectedStoreMonth] = useState(null); // {month, storeId, storeName, storeAbbr}
-  const [metricsData, setMetricsData] = useState(null);
-  const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState(null); // null = all year, 1-12 = specific month
+  const [selectedStoreMonth, setSelectedStoreMonth] = useState(null); // { month, storeId, storeAbbr } for day-by-day breakdown
   const [metricsViewMode, setMetricsViewMode] = useState('deliveries'); // 'deliveries' or 'fees'
   const [showEnvelopeAdjustedTotals, setShowEnvelopeAdjustedTotals] = useState(false);
-  const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
-  const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
-  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
-  const contentRef = React.useRef(null);
+  const [selectedCityId, setSelectedCityId] = useState(null); // Will be set to user's city
+  const [cities, setCities] = useState([]);
+  const [metricsData, setMetricsData] = useState(null);
+  const [error, setError] = useState(null);
+  const [initialCitySet, setInitialCitySet] = useState(false);
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
-    return [currentYear, currentYear - 1, currentYear - 2].map(y => y.toString());
+    return [currentYear, currentYear - 1, currentYear - 2];
   }, []);
 
-  // Load metrics for the grid
-  const loadMetrics = async () => {
-    setIsLoadingMetrics(true);
-    try {
-      const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
-        adminMetricsYear: parseInt(selectedYear),
-        adminMetricsCityId: selectedCityId
-      });
-      const data = response?.data || response;
-      setMetricsData(data?.adminMetrics || null);
-    } catch (error) {
-      console.error('Failed to load admin metrics:', error);
-      setMetricsData(null);
-    } finally {
-      setIsLoadingMetrics(false);
-    }
-  };
-
+  // Check access and load cities
   useEffect(() => {
-    loadMetrics();
-  }, [selectedYear, selectedCityId]);
-
-  const handleMonthClick = (month) => {
-    if (selectedMonth === month) {
-      setSelectedMonth(null);
-      setSelectedStoreMonth(null);
-    } else {
-      setSelectedMonth(month);
-      setSelectedStoreMonth(null);
-    }
-  };
-
-  const handleStoreMonthClick = (month, storeId, storeAbbr, storeName) => {
-    if (selectedStoreMonth?.month === month && selectedStoreMonth?.storeId === storeId) {
-      setSelectedStoreMonth(null);
-    } else {
-      setSelectedStoreMonth({ month, storeId, storeAbbr, storeName });
-    }
-  };
-
-  const handleResetView = () => {
-    setSelectedMonth(null);
-    setSelectedStoreMonth(null);
-  };
-
-  const handleCaptureScreenshot = async () => {
-     const elem = contentRef.current;
-
-     setIsCapturingScreenshot(true);
-     toast.info('Capturing screenshot...');
-
-     if (!elem) {
-       toast.error('Content not found');
-       setIsCapturingScreenshot(false);
-       return;
-     }
-
-     try {
-
-      // Hide the controls temporarily
-      const controlsElement = document.getElementById('screenshot-controls');
-      if (controlsElement) {
-        controlsElement.style.display = 'none';
+    const checkAccess = async () => {
+      try {
+        const user = await getEffectiveUser();
+        setCurrentUser(user);
+        setHasAccess(isAppOwner(user) || userHasRole(user, 'admin'));
+        
+        // Load cities for filter
+        const citiesData = await base44.entities.City.list();
+        const sortedCities = citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        setCities(sortedCities);
+        
+        // Default to user's city_id, or first city if not set
+        const defaultCityId = user?.city_id || sortedCities[0]?.id || null;
+        if (defaultCityId) {
+          setSelectedCityId(defaultCityId);
+          setInitialCitySet(true);
+        }
+      } catch (error) {
+        console.error('Access check failed:', error);
+        setHasAccess(false);
       }
+    };
+    checkAccess();
+  }, []);
 
-      // Small delay to ensure UI updates
-      await new Promise(resolve => setTimeout(resolve, 100));
+  // Fetch metrics from backend - only when year or city changes or on initial load
+  const fetchMetrics = useCallback(async (year, cityId, isInitial = false) => {
+    if (!hasAccess) return;
+    
+    // Only show full loading screen on initial load
+    if (isInitial) {
+      setIsLoading(true);
+    } else {
+      setIsFetching(true);
+    }
+    setError(null);
+    
+    try {
+      const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', { 
+        adminMetricsYear: parseInt(year),
+        adminMetricsCityId: cityId === 'all' ? null : cityId
+      });
+      const data = response?.data?.adminMetrics || response?.adminMetrics;
+      
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+      
+      setMetricsData(data);
+      setSelectedMonth(null); // Reset month selection when year changes
+    } catch (err) {
+      console.error('Failed to fetch metrics:', err);
+      setError(err.message || 'Failed to load metrics');
+    } finally {
+      setIsLoading(false);
+      setIsFetching(false);
+    }
+  }, [hasAccess]);
 
-      // Capture only the content area
-      const canvas = await html2canvas(elem, {
-        allowTaint: true,
-        useCORS: true,
-        scale: 2,
-        backgroundColor: '#f8fafc'
+  // Initial load - wait for city to be set
+  useEffect(() => {
+    if (hasAccess && initialCitySet && selectedCityId) {
+      fetchMetrics(selectedYear, selectedCityId, true); // isInitial = true
+    }
+  }, [hasAccess, initialCitySet, selectedCityId]); // Wait for city selection
+
+  // Listen for delivery updates from smart refresh and refresh metrics
+  useEffect(() => {
+    const handleDeliveriesUpdated = () => {
+      // Only refresh if currently viewing this page and viewing current year
+      const currentYear = new Date().getFullYear();
+      if (selectedYear === currentYear.toString() && hasAccess && selectedCityId) {
+        console.log('📊 [AdminMetrics] Deliveries updated - refreshing metrics');
+        fetchMetrics(selectedYear, selectedCityId, false);
+      }
+    };
+
+    window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+    window.addEventListener('deliveriesImported', handleDeliveriesUpdated);
+    window.addEventListener('refreshDeliveryStats', handleDeliveriesUpdated);
+
+    return () => {
+      window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+      window.removeEventListener('deliveriesImported', handleDeliveriesUpdated);
+      window.removeEventListener('refreshDeliveryStats', handleDeliveriesUpdated);
+    };
+  }, [selectedYear, hasAccess, selectedCityId, fetchMetrics]);
+
+  // Handle year change without full refresh
+  const handleYearChange = (newYear) => {
+    setSelectedYear(newYear);
+    fetchMetrics(newYear, selectedCityId, false); // isInitial = false - keeps content visible
+  };
+
+  // Handle city change
+  const handleCityChange = (newCityId) => {
+    setSelectedCityId(newCityId);
+    fetchMetrics(selectedYear, newCityId, false);
+  };
+
+  // Filter data based on selected month and store (client-side filtering)
+  const filteredData = useMemo(() => {
+    if (!metricsData) return null;
+    
+    // Store + Month selected: show day-by-day breakdown for that store
+    if (selectedStoreMonth) {
+      // Build day-by-day data for the selected store in selected month
+      const dailyData = metricsData.dailyStoreData?.[selectedStoreMonth.month]?.[selectedStoreMonth.storeId] || [];
+      
+      // Get app fee rate and calculate fees per day based on billable deliveries
+      const appFeeRate = metricsData.storeFeeTotals?.app_fee_rate || 0;
+      
+      // Add fees to each day (fees = billable deliveries * rate)
+      // Billable = completed + afterHours for stores paying fees
+      const dailyDataWithFees = dailyData.map(day => ({
+        ...day,
+        fees: ((day.completed || 0) + (day.afterHours || 0)) * appFeeRate
+      }));
+      
+      return {
+        ...metricsData,
+        storeData: dailyDataWithFees, // Daily breakdown for the store with fees
+        isDailyBreakdown: true
+      };
+    }
+    
+    // Only month selected: filter all graphs by month
+    if (selectedMonth) {
+      // For fees mode, use monthlyStoreData which has pre-calculated fees per store
+      // For deliveries mode, use storeDataByMonth which has completed/failed counts
+      const monthStoreData = metricsData.storeDataByMonth?.[selectedMonth] || metricsData.storeData;
+      const monthStoreDataWithFees = metricsData.monthlyStoreData?.[selectedMonth] || [];
+      const monthFees = metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0;
+
+      // Merge fees from monthlyStoreData into storeData
+      const mergedStoreData = monthStoreData.map(store => {
+        const feeData = monthStoreDataWithFees.find(s => s.abbreviation === store.abbreviation);
+        return {
+          ...store,
+          fees: feeData?.fees || 0
+        };
       });
 
-      // Show controls again
-      if (controlsElement) {
-        controlsElement.style.display = 'flex';
-      }
-
-      const dataUrl = canvas.toDataURL('image/png');
-      setScreenshotDataUrl(dataUrl);
-      setShowScreenshotModal(true);
-      toast.success('Screenshot captured!');
-    } catch (error) {
-      console.error('Screenshot error:', error);
-      toast.error('Failed to capture screenshot');
-      
-      // Make sure controls are visible again even if error
-      const controlsElement = document.getElementById('screenshot-controls');
-      if (controlsElement) {
-        controlsElement.style.display = 'flex';
-      }
-    } finally {
-      setIsCapturingScreenshot(false);
+      return {
+        ...metricsData,
+        storeData: mergedStoreData,
+        displayedFees: monthFees,
+        isDailyBreakdown: false
+      };
     }
+    
+    // Nothing selected: return all year data with fees merged
+    // Aggregate fees across all months per store for full year view
+    const allMonthsStoreFees = {};
+    for (let m = 1; m <= 12; m++) {
+      const monthData = metricsData.monthlyStoreData?.[m] || [];
+      monthData.forEach(s => {
+        if (!allMonthsStoreFees[s.abbreviation]) {
+          allMonthsStoreFees[s.abbreviation] = 0;
+        }
+        allMonthsStoreFees[s.abbreviation] += s.fees || 0;
+      });
+    }
+    
+    const storeDataWithFees = (metricsData.storeData || []).map(store => ({
+      ...store,
+      fees: allMonthsStoreFees[store.abbreviation] || 0
+    }));
+    
+    return {
+      ...metricsData,
+      storeData: storeDataWithFees
+    };
+  }, [metricsData, selectedMonth, selectedStoreMonth]);
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount || 0);
   };
+
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+        <Card className="p-8 text-center">
+          <h2 className="text-xl font-bold mb-2">Access Denied</h2>
+          <p className="text-slate-600">Only app owners can access this page.</p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+        <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
+        <span className="ml-3 text-lg text-slate-600">Loading metrics...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+        <Card className="p-8 text-center">
+          <h2 className="text-xl font-bold mb-2 text-red-600">Error Loading Metrics</h2>
+          <p className="text-slate-600 mb-4">{error}</p>
+          <Button onClick={fetchMetrics}>Retry</Button>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!metricsData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+        <p className="text-slate-600">No metrics data available.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen p-6" style={{ background: 'var(--bg-slate-50)' }}>
+    <div className="min-h-screen p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <BarChart3 className="w-8 h-8 text-slate-700" />
-            <div>
-              <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                Admin Metrics
-              </h1>
-              <p className="text-sm text-slate-600">
-                System-wide analytics, metrics, and data management
-              </p>
-            </div>
+            <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+              Admin Metrics
+            </h1>
           </div>
-
-          <div id="screenshot-controls" className="flex items-center gap-3">
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-28">
-                <SelectValue />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={selectedCityId || ''} onValueChange={handleCityChange}>
+              <SelectTrigger className="w-[120px] md:w-[140px]">
+                <SelectValue placeholder="Select City" />
               </SelectTrigger>
               <SelectContent>
-                {availableYears.map((year) => (
-                  <SelectItem key={year} value={year}>
-                    {year}
-                  </SelectItem>
+                {cities.map(city => (
+                  <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            <Select value={selectedCityId} onValueChange={setSelectedCityId}>
-              <SelectTrigger className="w-40">
+            <Select value={selectedYear} onValueChange={handleYearChange}>
+              <SelectTrigger className="w-[120px] md:w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Cities</SelectItem>
-                {appData?.cities?.map((city) => (
-                  <SelectItem key={city.id} value={city.id}>
-                    {city.name}
-                  </SelectItem>
+                {availableYears.map(year => (
+                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-
-            <Button 
-              onClick={handleCaptureScreenshot} 
-              variant="outline" 
-              disabled={isCapturingScreenshot}
-              className="gap-2"
-            >
-              {isCapturingScreenshot ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Share2 className="w-4 h-4" />
-              )}
-              Share
-            </Button>
-
-            <Button onClick={loadMetrics} variant="outline" size="icon">
-              <RefreshCw className={`w-4 h-4 ${isLoadingMetrics ? 'animate-spin' : ''}`} />
+            <Button variant="outline" onClick={() => fetchMetrics(selectedYear, selectedCityId, false)} disabled={isFetching} className="w-[120px] md:w-[140px]">
+              <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
           </div>
         </div>
 
-        {/* Tabs for different admin sections */}
-         <Tabs defaultValue="deliveries" className="w-full" ref={contentRef}>
-           <TabsList className={`flex flex-wrap gap-1 w-full bg-slate-100 p-2 rounded-lg h-auto`}>
-            <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
-            <TabsTrigger value="store-fees">Store Fees</TabsTrigger>
-            {currentUser && isAppOwner(currentUser) && (
-              <>
-                <TabsTrigger value="api-logs">API Logs</TabsTrigger>
-                <TabsTrigger value="polylines">Polylines</TabsTrigger>
-                <TabsTrigger value="settings">Settings</TabsTrigger>
-                <TabsTrigger value="data">Data Tables</TabsTrigger>
-              </>
-            )}
-          </TabsList>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-slate-500 mb-2">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Deliveries</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                  <Package className="w-5 h-5 text-emerald-600" />
+                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {(selectedMonth 
+                    ? (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics 
+                        ? (metricsData.envelopeMetrics.yearTotals.adjustedDeliveries / 12)
+                        : metricsData.monthlyData?.[selectedMonth - 1]?.billable
+                      )
+                    : (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics
+                        ? metricsData.envelopeMetrics.yearTotals.adjustedDeliveries 
+                        : metricsData.yearTotals?.billable
+                      )
+                  )?.toLocaleString() || 0}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-          {/* Deliveries Grid */}
-          <TabsContent value="deliveries" className="space-y-6">
-            {isLoadingMetrics ? (
-              <Card>
-                <CardContent className="flex items-center justify-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mr-2" />
-                  <span className="text-slate-600">Loading metrics...</span>
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                <MonthlyStoreMetricsGrid
-                  metricsData={metricsData}
-                  selectedYear={selectedYear}
-                  onMonthClick={handleMonthClick}
-                  onStoreMonthClick={handleStoreMonthClick}
-                  selectedMonth={selectedMonth}
-                  selectedStoreMonth={selectedStoreMonth}
-                  onResetView={handleResetView}
-                  onViewModeChange={setMetricsViewMode}
-                  metricsViewMode={metricsViewMode}
-                  showEnvelopeAdjustedTotals={showEnvelopeAdjustedTotals}
-                  onEnvelopeToggleChange={setShowEnvelopeAdjustedTotals}
-                />
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-slate-500 mb-2">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Non-Billable</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <TrendingUp className="w-5 h-5 text-orange-600" />
+                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {(selectedMonth 
+                    ? metricsData.monthlyData?.[selectedMonth - 1]?.nonBillable 
+                    : metricsData.yearTotals?.nonBillable
+                  )?.toLocaleString() || 0}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-                {/* Month-specific delivery table */}
-                {selectedMonth && !selectedStoreMonth && (
-                  <DeliveryDataTable
-                    deliveries={deliveries}
-                    patients={patients}
-                    stores={stores}
-                    users={users}
-                    selectedYear={selectedYear}
-                    selectedMonth={selectedMonth}
-                  />
-                )}
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-slate-500 mb-2">Active Drivers</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Truck className="w-5 h-5 text-purple-600" />
+                </div>
+                <p className="text-2xl font-bold text-slate-900">{metricsData.yearTotals?.activeDrivers || 0}</p>
+              </div>
+            </CardContent>
+          </Card>
 
-                {/* Store-month specific delivery table */}
-                {selectedStoreMonth && (
-                  <DeliveryDataTable
-                    deliveries={deliveries}
-                    patients={patients}
-                    stores={stores}
-                    users={users}
-                    selectedYear={selectedYear}
-                    selectedMonth={selectedStoreMonth.month}
-                    selectedStoreId={selectedStoreMonth.storeId}
-                    storeFilterLabel={`${selectedStoreMonth.storeAbbr} - ${selectedStoreMonth.storeName}`}
-                  />
-                )}
-              </>
-            )}
-          </TabsContent>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-slate-500 mb-2">Stores Paying</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Store className="w-5 h-5 text-blue-600" />
+                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {metricsData.storeFeeTotals?.stores_paying_fees || 0} / {metricsData.storeFeeTotals?.total_stores || 0}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-          {/* Store App Fees */}
-          <TabsContent value="store-fees" className="space-y-6">
-            <StoreMetricsPanel />
-          </TabsContent>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-slate-500 mb-2">Fee Rate</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-slate-100 rounded-lg">
+                  <DollarSign className="w-5 h-5 text-slate-600" />
+                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {formatCurrency(metricsData.storeFeeTotals?.app_fee_rate || 0)}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-          {currentUser && isAppOwner(currentUser) && (
-            <>
-              {/* Google API Logs */}
-              <TabsContent value="api-logs" className="space-y-6">
-                <GoogleAPILogViewer />
-              </TabsContent>
+          <Card className="bg-amber-50 border-amber-200">
+            <CardContent className="pt-4 pb-4">
+              <p className="text-sm text-amber-700 mb-2">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Fees</p>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-500 rounded-lg">
+                  <DollarSign className="w-5 h-5 text-white" />
+                </div>
+                <p className="text-2xl font-bold text-amber-900">
+                  {formatCurrency(
+                    selectedMonth 
+                      ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
+                      : (metricsData.storeFeeTotals?.total_fees_owed || 0)
+                  )}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-              {/* Polylines Viewer */}
-              <TabsContent value="polylines" className="space-y-6">
-                <PolylineViewer users={users} />
-              </TabsContent>
+        {/* Row 1: Monthly Store App Fees */}
+        <div>
+          <MonthlyStoreMetricsGrid 
+            metricsData={metricsData} 
+            selectedYear={selectedYear}
+            selectedMonth={selectedMonth}
+            selectedStoreMonth={selectedStoreMonth}
+            metricsViewMode={metricsViewMode}
+            showEnvelopeAdjustedTotals={showEnvelopeAdjustedTotals}
+            onMonthClick={(month) => {
+              // If clicking same month that's already selected, just toggle month off (keep store cleared)
+              // If clicking different month, set it and clear store selection
+              if (selectedMonth === month && !selectedStoreMonth) {
+                setSelectedMonth(null);
+              } else {
+                setSelectedMonth(month);
+                setSelectedStoreMonth(null);
+              }
+            }}
+            onStoreMonthClick={(month, storeId, storeAbbr, storeName) => {
+              setSelectedStoreMonth({ month, storeId, storeAbbr, storeName });
+              setSelectedMonth(month); // Also set month filter
+            }}
+            onResetView={() => {
+              setSelectedStoreMonth(null);
+              setSelectedMonth(null);
+            }}
+            onViewModeChange={(mode) => setMetricsViewMode(mode)}
+            onEnvelopeToggleChange={setShowEnvelopeAdjustedTotals}
+          />
+        </div>
 
-              {/* App Settings */}
-              <TabsContent value="settings" className="space-y-6">
-                <AppSettingsPanel />
-              </TabsContent>
+        {/* Row 2: Store Breakdown or Day-by-Day Breakdown */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Store className="w-5 h-5" />
+              {selectedStoreMonth 
+                ? `${selectedStoreMonth.storeName || selectedStoreMonth.storeAbbr} - ${MONTH_NAMES[selectedStoreMonth.month - 1]} ${selectedYear} (Day-by-Day)`
+                : `Store ${metricsViewMode === 'fees' ? 'App Fees' : 'Breakdown'} (${selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} ${selectedYear})`
+              }
+            </CardTitle>
 
-              {/* Data Tables */}
-              <TabsContent value="data" className="space-y-6">
-                <Tabs defaultValue="deliveries" className="w-full">
-                  <TabsList>
-                    <TabsTrigger value="deliveries">All Deliveries</TabsTrigger>
-                    <TabsTrigger value="patients">All Patients</TabsTrigger>
-                  </TabsList>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={(() => {
+                  // For daily breakdown (store+month selected), use daily data directly
+                  if (filteredData?.isDailyBreakdown) {
+                    // Get days in the selected month for the selected year
+                    const daysInMonth = new Date(parseInt(selectedYear), selectedStoreMonth.month, 0).getDate();
+                    const rawDailyData = filteredData.storeData || [];
+                    
+                    // Create a map of existing data
+                    const dataByDay = new Map(rawDailyData.map(d => [d.day, d]));
+                    
+                    // Fill in all days of the month, sorted 1 to N
+                    const fullDailyData = [];
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const existing = dataByDay.get(day);
+                      fullDailyData.push({
+                        day,
+                        // Completed (Green) = Completed Deliveries + After Hours Pickups
+                        totalCompleted: (existing?.completed || 0) + (existing?.afterHours || 0),
+                        // Failed (Red) = Failed Deliveries only
+                        totalFailed: existing?.failed || 0,
+                        envelopeCount: 0,
+                        fees: existing?.fees || 0
+                      });
+                    }
+                    return fullDailyData;
+                  }
                   
-                  <TabsContent value="deliveries">
-                    <DeliveryDataTable
-                      deliveries={deliveries}
-                      patients={patients}
-                      stores={stores}
-                      users={users}
-                      selectedYear={selectedYear}
-                      showAllData={true}
+                  // For store breakdown (year or month view)
+                  return (filteredData?.storeData || metricsData.storeData || [])
+                    .slice()
+                    .filter(item => {
+                      // Only show stores with data
+                      const total = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0);
+                      return total > 0 || (item.fees || 0) > 0;
+                    })
+                    .sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
+                    .map(item => {
+                      // Get envelope data for this store - aggregate across all months if no specific month selected
+                      let envelopeValue = 0;
+                      if (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics?.byStoreAndMonth?.[item.storeId]) {
+                        if (selectedMonth) {
+                          // Specific month selected
+                          envelopeValue = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId][selectedMonth]?.totalEnvelopeValue || 0;
+                        } else {
+                          // All year - sum across all months for this store
+                          const storeMonthData = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId];
+                          for (const month in storeMonthData) {
+                            envelopeValue += storeMonthData[month]?.totalEnvelopeValue || 0;
+                          }
+                        }
+                      }
+                      // Completed (Green) = Completed Deliveries + After Hours Pickups
+                      const baseCompleted = (item.completed || 0) + (item.afterHours || 0);
+                      
+                      return {
+                        ...item,
+                        totalCompleted: baseCompleted,
+                        envelopeCount: envelopeValue,
+                        // Failed (Red) = Failed Deliveries only
+                        totalFailed: item.failed || 0,
+                        fees: item.fees || 0
+                      };
+                    });
+                })()}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey={selectedStoreMonth ? "day" : "abbreviation"} 
+                    tick={selectedStoreMonth ? { fill: '#64748b', fontSize: 11 } : (props) => {
+                      const { x, y, payload } = props;
+                      const storeData = (filteredData?.storeData || metricsData.storeData)?.find(s => s.abbreviation === payload.value);
+                      // Total = Completed Deliveries + After Hours + Failed
+                      const totalDeliveries = storeData ? (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0) : 0;
+                      const displayValue = metricsViewMode === 'fees' 
+                        ? `$${(storeData?.fees || 0).toFixed(0)}`
+                        : totalDeliveries;
+                      return (
+                        <g transform={`translate(${x},${y})`}>
+                          <text x={0} y={0} dy={12} textAnchor="middle" fill="#64748b" fontSize={11}>
+                            {payload.value}
+                          </text>
+                          <text x={0} y={0} dy={26} textAnchor="middle" fill={metricsViewMode === 'fees' ? '#f59e0b' : '#10b981'} fontSize={10} fontWeight="600">
+                            {displayValue}
+                          </text>
+                        </g>
+                      );
+                    }}
+                    interval={0}
+                    height={50}
+                  />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'white', 
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px'
+                    }}
+                    formatter={(value, name) => [metricsViewMode === 'fees' ? `$${value.toFixed(2)}` : value, name]}
+                    labelFormatter={(label) => {
+                      if (selectedStoreMonth) {
+                        return `Day ${label}`;
+                      }
+                      const store = metricsData.storeData?.find(s => s.abbreviation === label);
+                      return store?.name || label;
+                    }}
+                  />
+                  <Legend />
+                  {metricsViewMode === 'fees' ? (
+                    <Bar dataKey="fees" fill="#f59e0b" name="App Fees" radius={[4, 4, 0, 0]} />
+                  ) : (
+                    <>
+                      <Bar dataKey="totalCompleted" stackId="completed" fill="#10b981" name="Completed" radius={showEnvelopeAdjustedTotals ? [0, 0, 0, 0] : [4, 4, 0, 0]} />
+                      {showEnvelopeAdjustedTotals && (
+                        <Bar dataKey="envelopeCount" stackId="completed" fill="#3b82f6" name="Envelope" radius={[4, 4, 0, 0]} />
+                      )}
+                      <Bar dataKey="totalFailed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
+                    </>
+                  )}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Row 3: Monthly Deliveries + Driver Breakdown */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Monthly Deliveries Chart - Shows daily breakdown when month selected */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                {selectedMonth 
+                  ? `Daily Deliveries - ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`
+                  : `Monthly Deliveries (${selectedYear})`
+                }
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={(() => {
+                    if (!selectedMonth) return metricsData.monthlyData;
+                    
+                    // Get days in the selected month for the selected year
+                    const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
+                    const rawDailyData = metricsData.dailyDeliveryData?.[selectedMonth] || [];
+                    
+                    // Create a map of existing data
+                    const dataByDay = new Map(rawDailyData.map(d => [d.day, d]));
+                    
+                    // Fill in all days of the month, sorted 1 to N
+                    const fullDailyData = [];
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const existing = dataByDay.get(day);
+                      fullDailyData.push({
+                        day,
+                        billable: existing?.billable || 0,
+                        nonBillable: existing?.nonBillable || 0,
+                        adjustedDeliveries: existing?.adjustedDeliveries || 0
+                      });
+                    }
+                    return fullDailyData;
+                  })()}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis 
+                      dataKey={selectedMonth ? "day" : "month"} 
+                      tick={selectedMonth ? (props) => {
+                        const { x, y, payload } = props;
+                        const dayData = metricsData.dailyDeliveryData?.[selectedMonth]?.find(d => d.day === payload.value);
+                        const total = (dayData?.billable || 0) + (dayData?.nonBillable || 0);
+                        return (
+                          <g transform={`translate(${x},${y})`}>
+                            <text x={0} y={0} dy={12} textAnchor="middle" fill="#64748b" fontSize={10}>
+                              {payload.value}
+                            </text>
+                            <text x={0} y={0} dy={24} textAnchor="middle" fill="#10b981" fontSize={9} fontWeight="600">
+                              {total > 0 ? total : ''}
+                            </text>
+                          </g>
+                        );
+                      } : { fill: '#64748b', fontSize: 12 }} 
+                      interval={selectedMonth ? 0 : 0}
+                      height={selectedMonth ? 40 : 30}
                     />
-                  </TabsContent>
-                  
-                  <TabsContent value="patients">
-                    <PatientDataTable
-                      patients={patients}
-                      stores={stores}
+                    <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        background: 'white', 
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px'
+                      }}
+                      labelFormatter={(label) => selectedMonth ? `Day ${label}` : label}
                     />
-                  </TabsContent>
-                </Tabs>
-              </TabsContent>
-            </>
-          )}
-        </Tabs>
+                    <Legend />
+                    {metricsViewMode === 'deliveries' && showEnvelopeAdjustedTotals ? (
+                      <Bar dataKey="adjustedDeliveries" fill="#10b981" name="Adjusted Deliveries" radius={[4, 4, 0, 0]} />
+                    ) : (
+                      <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[4, 4, 0, 0]} />
+                    )}
+                    <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Driver Performance Chart - Breakdown by Driver */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Driver Breakdown 
+                {selectedStoreMonth 
+                  ? ` - ${selectedStoreMonth.storeName || selectedStoreMonth.storeAbbr}`
+                  : selectedMonth 
+                    ? ` (${MONTH_NAMES[selectedMonth - 1]} ${selectedYear})`
+                    : ` (All ${selectedYear})`
+                }
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={
+                      (selectedStoreMonth 
+                        ? metricsData.driverDataByStore?.[selectedStoreMonth.storeId]
+                        : selectedMonth 
+                          ? metricsData.driverDataByMonth?.[selectedMonth] 
+                          : metricsData.driverData
+                      )?.slice().sort((a, b) => (b.billable || 0) - (a.billable || 0))
+                    } 
+                    barCategoryGap="15%"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fill: '#64748b', fontSize: 11 }} 
+                      interval={0}
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        background: 'white', 
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[2, 2, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+
       </div>
-
-      {/* Screenshot Share Modal */}
-      <ScreenshotShareModal
-        isOpen={showScreenshotModal}
-        onClose={() => setShowScreenshotModal(false)}
-        imageDataUrl={screenshotDataUrl}
-        filename={`admin-metrics-${selectedYear}.png`}
-      />
     </div>
   );
 }
