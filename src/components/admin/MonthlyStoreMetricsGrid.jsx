@@ -219,18 +219,18 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b bg-slate-50">
-                <th className="text-left p-2 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10">Mon</th>
+                <th className="text-left px-1.5 py-0.5 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10">Mon</th>
                 {stores.map((store) =>
                 <th
                   key={store.abbreviation}
-                  className="text-center p-2 font-bold min-w-[50px]"
+                  className="text-center px-1 py-0.5 font-bold min-w-[38px]"
                   style={{ color: getStoreColor(store) }}
                   title={store.name}>
 
                     {store.abbreviation}
                   </th>
                 )}
-                <th className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 min-w-[60px]">Tot</th>
+                <th className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-purple-300 min-w-[45px]">Tot</th>
               </tr>
             </thead>
             <tbody>
