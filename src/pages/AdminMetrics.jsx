@@ -352,14 +352,14 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="pt-4 pb-4">
-              <p className="text-sm text-slate-500 mb-2">Active Drivers</p>
+              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>Active Drivers</p>
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Truck className="w-5 h-5 text-purple-600" />
+                <div className="p-2 rounded-lg" style={{ background: '#e9d5ff' }}>
+                  <Truck className="w-5 h-5" style={{ color: '#7e22ce' }} />
                 </div>
-                <p className="text-2xl font-bold text-slate-900">{metricsData.yearTotals?.activeDrivers || 0}</p>
+                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{metricsData.yearTotals?.activeDrivers || 0}</p>
               </div>
             </CardContent>
           </Card>
