@@ -174,7 +174,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
               <tr className="bg-slate-50">
                 <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">Avg</td>
                 {stores.map(store => {
-                  const total = getStoreTotal(store);
+                  const total = getStoreTotal(store, viewMode);
                   const avg = total > 0 ? (total / daysInMonth).toFixed(1) : '';
                   return (
                     <td key={store.storeId || store.id} className="text-center px-1 py-0.5 tabular-nums text-slate-600">
