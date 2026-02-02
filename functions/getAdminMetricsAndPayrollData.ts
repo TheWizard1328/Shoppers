@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       const appFeeRate = parseFloat(appSettings[0]?.setting_value?.app_fees_per_delivery) || 0;
       console.log('📊 [AdminMetrics] App Fee Rate:', appFeeRate);
 
-      const metrics = processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate);
+      const metrics = processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate, patients);
       
       // Add envelope metrics - checks delivery_notes (driver notes)
       const envelopeMetrics = calculateEnvelopeMetrics(deliveries, stores);
