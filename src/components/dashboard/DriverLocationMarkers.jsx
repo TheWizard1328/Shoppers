@@ -365,9 +365,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
               <div className="text-sm">
                 <p className="font-semibold">{displayName}</p>
                 {user.phone && (
-                  <p className="text-xs mt-1">
-                    <a href={`tel:${user.phone}`} className="text-blue-600 hover:text-blue-700 underline">
-                      {user.phone}
+                  <p className="text-xs mt-2">
+                    <a href={`tel:${user.phone}`} className="text-blue-600 hover:text-blue-700 underline font-medium">
+                      📞 {user.phone}
                     </a>
                   </p>
                 )}
@@ -376,14 +376,14 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                 </p>
                 <button
                   onClick={() => {
-                    // Center map on driver location
-                    const mapEvent = new CustomEvent('centerOnDriver', { detail: { lat: user.current_latitude, lng: user.current_longitude } });
-                    window.dispatchEvent(mapEvent);
+                    // Open native navigation app
+                    const url = `https://www.google.com/maps/dir/?api=1&destination=${user.current_latitude},${user.current_longitude}`;
+                    window.open(url, '_blank');
                   }}
-                  className="w-full mt-2 px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded flex items-center justify-center gap-1"
-                  title="Navigate to driver location"
+                  className="w-full mt-3 px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded flex items-center justify-center gap-2 transition-colors"
+                  title={`Navigate to ${firstName}'s location`}
                 >
-                  📍 Go to Location
+                  📍 Go to {firstName}
                 </button>
               </div>
             </Popup>
