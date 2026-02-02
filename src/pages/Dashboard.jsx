@@ -2200,6 +2200,17 @@ function Dashboard() {
     if (setIsFormOverlayOpen) {
       setIsFormOverlayOpen(isAnyFormOpen);
     }
+    
+    // CRITICAL: Pause route optimization when delivery form is open
+    if (showDeliveryForm) {
+      console.log('⏸️ [Dashboard] Delivery form opened - pausing route optimization');
+      pauseOfflineMutations();
+      smartRefreshManager.pause();
+    } else {
+      console.log('▶️ [Dashboard] Delivery form closed - resuming route optimization');
+      resumeOfflineMutations();
+      smartRefreshManager.resume();
+    }
   }, [showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant, setIsFormOverlayOpen]);
 
   /**
