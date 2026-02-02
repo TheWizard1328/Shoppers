@@ -12,13 +12,15 @@ import { userHasRole } from "../components/utils/userRoles";
 import { useUser } from "../components/utils/UserContext";
 import { useAppData } from "../components/utils/AppDataContext";
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
+import StoreOnlineStatusBanner from '../components/stores/StoreOnlineStatusBanner';
 
 export default function StoresPage() {
   const { currentUser } = useUser();
   const { 
     stores: contextStores = [], 
     cities: contextCities = [], 
-    users: contextUsers = [], 
+    users: contextUsers = [],
+    appUsers: contextAppUsers = [],
     isDataLoaded: contextDataLoaded 
   } = useAppData();
   const [stores, setStores] = useState([]);
@@ -215,6 +217,9 @@ export default function StoresPage() {
             </Button>
           )}
         </div>
+
+        {/* Online Status Banner */}
+        <StoreOnlineStatusBanner stores={stores} appUsers={contextAppUsers} />
 
         {stores.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
