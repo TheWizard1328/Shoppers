@@ -124,9 +124,10 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
             <tbody>
               {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                 const dayTotal = getDayTotal(day, viewMode);
+                const weekend = isWeekend(day);
                 return (
-                  <tr key={day} className="border-b hover:bg-slate-50">
-                    <td className="px-1.5 py-0.5 font-medium sticky left-0 bg-white z-10 text-slate-700">
+                  <tr key={day} className={`border-b hover:bg-slate-50 ${weekend ? 'bg-slate-100' : ''}`}>
+                    <td className={`px-1.5 py-0.5 font-medium sticky left-0 border-r border-slate-300 z-10 text-slate-700 ${weekend ? 'bg-slate-100' : 'bg-white'}`}>
                       {day}
                     </td>
                     {stores.map(store => {
