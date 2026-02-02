@@ -232,9 +232,9 @@ export default function AdminMetrics() {
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Card className="p-8 text-center">
-          <h2 className="text-xl font-bold mb-2">Access Denied</h2>
-          <p className="text-slate-600">Only app owners can access this page.</p>
+        <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-slate-900)' }}>Access Denied</h2>
+          <p style={{ color: 'var(--text-slate-600)' }}>Only app owners can access this page.</p>
         </Card>
       </div>
     );
@@ -244,7 +244,7 @@ export default function AdminMetrics() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
-        <span className="ml-3 text-lg text-slate-600">Loading metrics...</span>
+        <span className="ml-3 text-lg" style={{ color: 'var(--text-slate-600)' }}>Loading metrics...</span>
       </div>
     );
   }
@@ -252,9 +252,9 @@ export default function AdminMetrics() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Card className="p-8 text-center">
-          <h2 className="text-xl font-bold mb-2 text-red-600">Error Loading Metrics</h2>
-          <p className="text-slate-600 mb-4">{error}</p>
+        <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+          <h2 className="text-xl font-bold mb-2" style={{ color: '#ef4444' }}>Error Loading Metrics</h2>
+          <p style={{ color: 'var(--text-slate-600)', marginBottom: '1rem' }}>{error}</p>
           <Button onClick={fetchMetrics}>Retry</Button>
         </Card>
       </div>
@@ -264,7 +264,7 @@ export default function AdminMetrics() {
   if (!metricsData) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <p className="text-slate-600">No metrics data available.</p>
+        <p style={{ color: 'var(--text-slate-600)' }}>No metrics data available.</p>
       </div>
     );
   }
