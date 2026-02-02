@@ -1789,9 +1789,11 @@ export default function PayrollSummaryCard({
   }, [sumAllDriversAppFeePercent, otherAppFeePercent]);
 
   // YTD grand totals across all displayed drivers (calculated AFTER ytdDataByDriver)
+  // CRITICAL: ytdDataByDriver already includes current period data, so just sum the YTD values directly
   const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
 
   // Calculate AppFeeAmount for a driver - distribute from total monthly app fee pool
@@ -3149,7 +3151,7 @@ export default function PayrollSummaryCard({
                           </div>
                     }
                         <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-600)' }}>
-                          +{formatCurrency(driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0))}
+                          +{formatCurrency(ytdGrandTotalBonus)}
                         </div>
                         {isPeriodEndOfMonth &&
                         <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-600)' }}>
