@@ -602,6 +602,7 @@ export default function AdminMetrics() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            )}
           </CardContent>
         </Card>
 
