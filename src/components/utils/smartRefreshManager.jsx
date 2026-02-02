@@ -1835,14 +1835,16 @@ class SmartRefreshManager {
       }
       
       // STEP 2: ALWAYS fetch today's deliveries from API (not offline DB)
+      // CRITICAL: When showAllDrivers is true, fetch deliveries for ALL drivers
       await this.waitForRateLimit();
       const cityOnlyFilter = { delivery_date: todayStr };
-      
-      if (!showAllDrivers && filters.deliveryFilter?.driver_id) {
+
+      if (showAllDrivers) {
+        // Show All mode - fetch all drivers' deliveries (no driver_id filter)
+        console.log(`📦 [ActiveRoute] Fetching deliveries for ALL drivers from API for ${todayStr}`);
+      } else if (filters.deliveryFilter?.driver_id) {
         cityOnlyFilter.driver_id = filters.deliveryFilter.driver_id;
-        console.log(`📦 [ActiveRoute] Fetching driver ${filters.deliveryFilter.driver_id} from API`);
-      } else if (showAllDrivers) {
-        console.log(`📦 [ActiveRoute] Fetching ALL drivers from API for ${todayStr}`);
+        console.log(`📦 [ActiveRoute] Fetching deliveries for driver ${filters.deliveryFilter.driver_id} from API`);
       }
       
       if (filters.deliveryFilter?.store_id) {
