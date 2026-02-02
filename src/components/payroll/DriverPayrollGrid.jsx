@@ -8,6 +8,8 @@ import { useAppData } from '@/components/utils/AppDataContext';
 import { smartRefreshManager } from '@/components/utils/smartRefreshManager';
 import { globalFilters } from '@/components/utils/globalFilters';
 import { createPageUrl } from '../../utils';
+import { useUser } from '@/components/utils/UserContext';
+import { isAppOwner } from '@/components/utils/userRoles';
 
 /**
  * Driver Payroll Grid
@@ -33,6 +35,8 @@ export default function DriverPayrollGrid({
   const [headerLayout, setHeaderLayout] = useState('single'); // 'single', 'title-viewmode', 'title-paycycle', 'viewmode-paycycle', 'three'
   const { smartRefreshActivity } = useAppData();
   const navigate = useNavigate();
+  const { currentUser } = useUser();
+  const isOwner = currentUser && isAppOwner(currentUser);
   
   // Refs for measuring section widths
   const containerRef = useRef(null);
@@ -371,14 +375,16 @@ export default function DriverPayrollGrid({
                   <Ruler className="w-3 h-3" />Extra KM
                 </Button>
               </div>
-              {/* Pay Cycle Buttons - filtered by available cycles with drivers */}
-              <div className="flex gap-1 flex-shrink-0">
-                {/* Note: All cycles shown - parent page filters drivers by cycle */}
-                <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
-                <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
-                <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Monthly</Button>
-                <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
-              </div>
+              {/* Pay Cycle Buttons - AppOwner only */}
+              {isOwner && (
+                <div className="flex gap-1 flex-shrink-0">
+                  {/* Note: All cycles shown - parent page filters drivers by cycle */}
+                  <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
+                  <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
+                  <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Monthly</Button>
+                  <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+                </div>
+              )}
             </div>
           )}
           
@@ -401,14 +407,16 @@ export default function DriverPayrollGrid({
                   </Button>
                 </div>
               </div>
-              <div className="flex justify-center">
-                <div className="flex gap-1 flex-shrink-0">
-                  <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
-                  <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
-                  <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Monthly</Button>
-                  <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+              {isOwner && (
+                <div className="flex justify-center">
+                  <div className="flex gap-1 flex-shrink-0">
+                    <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
+                    <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
+                    <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Monthly</Button>
+                    <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
           
@@ -462,12 +470,14 @@ export default function DriverPayrollGrid({
                     <Ruler className="w-3 h-3" />Extra KM
                   </Button>
                 </div>
-                <div className="flex gap-1 flex-shrink-0">
-                  <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
-                  <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
-                  <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Mo</Button>
-                  <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
-                </div>
+                {isOwner && (
+                  <div className="flex gap-1 flex-shrink-0">
+                    <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
+                    <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
+                    <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Mo</Button>
+                    <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -493,14 +503,16 @@ export default function DriverPayrollGrid({
                   </Button>
                 </div>
               </div>
-              <div className="flex justify-center">
-                <div className="flex gap-1 flex-shrink-0 flex-wrap justify-center">
-                  <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
-                  <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Wkly</Button>
-                  <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Mo</Button>
-                  <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+              {isOwner && (
+                <div className="flex justify-center">
+                  <div className="flex gap-1 flex-shrink-0 flex-wrap justify-center">
+                    <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
+                    <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Wkly</Button>
+                    <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Mo</Button>
+                    <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
           
