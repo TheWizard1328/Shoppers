@@ -3424,12 +3424,10 @@ export default function DeliveryMap({
               {pickup.isOtherDriver && (
                 <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
                   <div className="min-w-[150px] space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                      <Truck className="w-3.5 h-3.5" />
+                    <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       {pickup.driver?.user_name || 'Unknown'}
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                      <Home className="w-3.5 h-3.5" />
+                    <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>
                       {pickup.store?.name || 'Store'}
                     </div>
                     {(() => {
@@ -3438,15 +3436,16 @@ export default function DeliveryMap({
                       
                       if (isFinished && finishedTime) {
                         return (
-                          <div className="flex items-center gap-1 text-xs text-emerald-600">
-                            <Clock className="w-3.5 h-3.5" />
-                            {finishedTime}
+                          <div className="text-xs flex items-center justify-between">
+                            <span style={{ color: 'var(--text-slate-900)' }}>Store Pickup</span>
+                            <span className="text-emerald-600">{finishedTime}</span>
                           </div>
                         );
                       } else if (pickup.delivery_time_eta) {
                         return (
-                          <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                            ETA: {pickup.delivery_time_eta}
+                          <div className="text-xs flex items-center justify-between">
+                            <span style={{ color: 'var(--text-slate-900)' }}>Store Pickup</span>
+                            <span style={{ color: 'var(--text-slate-600)' }}>ETA: {pickup.delivery_time_eta}</span>
                           </div>
                         );
                       }
@@ -3724,16 +3723,10 @@ export default function DeliveryMap({
               {delivery.isOtherDriver && (
                 <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
                   <div className="min-w-[150px] space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                      <Truck className="w-3.5 h-3.5" />
+                    <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       {delivery.driver?.user_name || 'Unknown'}
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                      <Package className="w-3.5 h-3.5" />
-                      {delivery.patient?.full_name || 'Patient'}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                      <Home className="w-3.5 h-3.5" />
+                    <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>
                       {delivery.store?.name || 'Store'}
                     </div>
                     {(() => {
@@ -3742,15 +3735,16 @@ export default function DeliveryMap({
                       
                       if (isFinished && finishedTime) {
                         return (
-                          <div className="flex items-center gap-1 text-xs text-emerald-600">
-                            <Clock className="w-3.5 h-3.5" />
-                            {finishedTime}
+                          <div className="text-xs flex items-center justify-between">
+                            <span style={{ color: 'var(--text-slate-900)' }}>{delivery.patient?.full_name || 'Patient'}</span>
+                            <span className="text-emerald-600">{finishedTime}</span>
                           </div>
                         );
                       } else if (delivery.delivery_time_eta) {
                         return (
-                          <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                            ETA: {delivery.delivery_time_eta}
+                          <div className="text-xs flex items-center justify-between">
+                            <span style={{ color: 'var(--text-slate-900)' }}>{delivery.patient?.full_name || 'Patient'}</span>
+                            <span style={{ color: 'var(--text-slate-600)' }}>ETA: {delivery.delivery_time_eta}</span>
                           </div>
                         );
                       }
