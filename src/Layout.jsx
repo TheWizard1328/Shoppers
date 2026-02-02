@@ -2263,6 +2263,7 @@ export default function Layout({ children, currentPageName }) {
   }, [appUsers, stores]);
 
   const adminNavigationItems = useMemo(() => {
+    const isAdmin = realUser && userHasRole(realUser, 'admin');
     const items = [
     {
       title: 'Cities',
@@ -2274,21 +2275,21 @@ export default function Layout({ children, currentPageName }) {
     {
       title: 'Stores',
       pageName: 'Stores',
-      count: `${onlineCounts.onlineStoresCount}/${stores.length}`,
+      count: isAdmin ? `${onlineCounts.onlineStoresCount}/${stores.length}` : entityCounts.stores,
       url: createPageUrl("Stores"),
       icon: Building
     },
     {
       title: 'Drivers',
       pageName: 'DriverSettings',
-      count: `${onlineCounts.onlineDriversCount}/${drivers.length}`,
+      count: isAdmin ? `${onlineCounts.onlineDriversCount}/${drivers.length}` : drivers.length,
       url: createPageUrl("DriverSettings"),
       icon: Truck
     },
     {
       title: 'Users',
       pageName: 'AppUsers',
-      count: `${onlineCounts.onlineNonDriverNonDispatcherUsersCount}/${users.length}`,
+      count: isAdmin ? `${onlineCounts.onlineNonDriverNonDispatcherUsersCount}/${users.length}` : entityCounts.users,
       url: createPageUrl("AppUsers"),
       icon: Users2
     }];
