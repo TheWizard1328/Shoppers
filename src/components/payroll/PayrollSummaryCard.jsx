@@ -2981,13 +2981,13 @@ export default function PayrollSummaryCard({
                            </button>
                          </td>
                          <td className="text-right">+$</td>
-                         <td className="text-right font-semibold">{(edit.recalculatedAppFeeAmount || 0).toFixed(2)}</td>
+                         <td className="text-right font-semibold">{(edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0)).toFixed(2)}</td>
                          </tr>
                        }
                        <tr className="text-lg font-bold text-emerald-600">
                          <td className="text-right pr-1 pt-1">Gross:</td>
                          <td className="text-right pt-1">$</td>
-                         <td className="text-right pt-1">{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + calculateAppFeeAmount(driverKey, edit.appFeePercent)).toFixed(2)}</td>
+                         <td className="text-right pt-1">{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
                        </tr>
                      </tbody>
                      </table>
