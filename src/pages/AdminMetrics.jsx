@@ -473,7 +473,7 @@ export default function AdminMetrics() {
             {showDayByDay && selectedMonth && !selectedStoreMonth ? (
               // Day-by-Day Grid View
               <DayByDayStoreMetricsGrid
-                metricsData={metricsData}
+                metricsData={filteredData || metricsData}
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
                 selectedCityId={selectedCityId}
