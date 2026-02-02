@@ -289,12 +289,15 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
 
     // --- MONTHLY DELIVERIES & DRIVER BREAKDOWN ---
     // Billable = Completed + Failed + Returns (all patient deliveries or after-hours) from stores that pay fees
+    //           + After Hours Pickups (Completed & Cancelled)
     // Non-Billable = Completed + Failed + Returns (all patient deliveries or after-hours) from stores that DON'T pay fees
     const isBillableDelivery = (d) => {
       if (!d) return false;
-      const isPatientOrAfterHours = d.patient_id || d.after_hours_pickup;
-      if (!isPatientOrAfterHours) return false;
-      return (d.status === 'completed' || d.status === 'failed' || isReturn(d));
+      // After-hours pickups (completed or cancelled) are billable
+      if (d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled')) return true;
+      // Regular patient deliveries (completed, failed, or returns)
+      if (d.patient_id && (d.status === 'completed' || d.status === 'failed' || isReturn(d))) return true;
+      return false;
     };
     
     if (isBillableDelivery(delivery)) {
