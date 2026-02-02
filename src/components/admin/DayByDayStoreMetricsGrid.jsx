@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -94,7 +94,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                 </td>
               </tr>
 
-              {/* Projection Row - scale average to full month */}
+              {/* Projection Row */}
               <tr className="bg-slate-50">
                 <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">Proj/Mo</td>
                 <td className="text-center p-2 tabular-nums font-medium text-emerald-600">
@@ -107,10 +107,10 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                   {grandTotal > 0 ? grandTotal : ''}
                 </td>
               </tr>
-              </tbody>
-              </table>
-              </div>
-              </CardContent>
-              </Card>
-              );
-              }
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
