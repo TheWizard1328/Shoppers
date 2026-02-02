@@ -55,10 +55,17 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
   const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
 
   // Get billable value for a store on a specific day
+  // Billable = Completed + Failed + After Hours Pickups (Completed & Cancelled)
   const getBillableValue = (storeId, day) => {
-    const dayMap = storeDataByDay.get(storeId);
-    const value = dayMap?.[day];
-    return value && value > 0 ? value : null;
+    const dayData = dailyStoreData[storeId];
+    if (!dayData || !Array.isArray(dayData)) return null;
+    
+    const dayRecord = dayData.find(d => d.day === day);
+    if (!dayRecord) return null;
+    
+    // All billable: Completed + Failed + After Hours
+    const billable = (dayRecord.completed || 0) + (dayRecord.failed || 0) + (dayRecord.afterHours || 0);
+    return billable > 0 ? billable : null;
   };
 
   // Calculate totals per store
