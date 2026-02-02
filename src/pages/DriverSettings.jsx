@@ -58,17 +58,28 @@ export default function DriverSettings() {
     return sortUsers(driverUsers);
   }, [users]);
 
-  // Filter drivers based on search
+  // Filter drivers based on search and city
   const filteredDrivers = useMemo(() => {
-    if (!searchQuery.trim()) return drivers;
+    let result = drivers;
+    
+    // Filter by city
+    if (selectedCityId && selectedCityId !== 'waiting-for-selection') {
+      result = result.filter((driver) => {
+        const cityIds = Array.isArray(driver.city_ids) ? driver.city_ids : (driver.city_id ? [driver.city_id] : []);
+        return cityIds.includes(selectedCityId);
+      });
+    }
+    
+    // Filter by search query
+    if (!searchQuery.trim()) return result;
     const query = searchQuery.toLowerCase();
-    return drivers.filter((driver) => {
+    return result.filter((driver) => {
       const name = getDriverDisplayName(driver)?.toLowerCase() || '';
       const phone = driver.phone?.toLowerCase() || '';
       const email = driver.email?.toLowerCase() || '';
       return name.includes(query) || phone.includes(query) || email.includes(query);
     });
-  }, [drivers, searchQuery]);
+  }, [drivers, searchQuery, selectedCityId]);
 
   // Get store name helper
   const getStoreName = (storeId) => {
