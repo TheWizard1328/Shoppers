@@ -39,8 +39,6 @@ export default function AdminMetrics() {
   const [error, setError] = useState(null);
   const [initialCitySet, setInitialCitySet] = useState(false);
   const [showDayByDay, setShowDayByDay] = useState(false); // Toggle for day-by-day view
-  const [dayByDayData, setDayByDayData] = useState(null);
-  const [loadingDayByDay, setLoadingDayByDay] = useState(false);
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -114,59 +112,6 @@ export default function AdminMetrics() {
       fetchMetrics(selectedYear, selectedCityId, true); // isInitial = true
     }
   }, [hasAccess, initialCitySet, selectedCityId]); // Wait for city selection
-
-  // Load day-by-day data directly from Deliveries entity when month is selected
-  useEffect(() => {
-    if (!selectedMonth || !selectedStoreMonth || !metricsData) return;
-
-    const loadDayByDayData = async () => {
-      setLoadingDayByDay(true);
-      try {
-        const monthStart = new Date(parseInt(selectedYear), selectedMonth - 1, 1);
-        const monthEnd = new Date(parseInt(selectedYear), selectedMonth, 0);
-        
-        // Fetch deliveries for the selected month
-        const deliveries = await base44.entities.Delivery.filter({
-          delivery_date: {
-            $gte: monthStart.toISOString().split('T')[0],
-            $lte: monthEnd.toISOString().split('T')[0]
-          }
-        });
-
-        // Group by day and store
-        const dataByDay = {};
-        deliveries.forEach(d => {
-          if (!d.delivery_date) return;
-          const day = parseInt(d.delivery_date.split('-')[2]);
-          
-          if (!dataByDay[day]) {
-            dataByDay[day] = {};
-          }
-          if (!dataByDay[day][d.store_id]) {
-            dataByDay[day][d.store_id] = { completed: 0, failed: 0, afterHours: 0 };
-          }
-
-          if (d.status === 'completed') {
-            dataByDay[day][d.store_id].completed += 1;
-          } else if (d.status === 'failed') {
-            dataByDay[day][d.store_id].failed += 1;
-          }
-          if (d.after_hours_pickup) {
-            dataByDay[day][d.store_id].afterHours += 1;
-          }
-        });
-
-        setDayByDayData(dataByDay);
-      } catch (error) {
-        console.error('Failed to load day-by-day data:', error);
-        setDayByDayData({});
-      } finally {
-        setLoadingDayByDay(false);
-      }
-    };
-
-    loadDayByDayData();
-  }, [selectedMonth, selectedStoreMonth, selectedYear]);
 
   // Listen for delivery updates from smart refresh and refresh metrics
   useEffect(() => {
@@ -526,19 +471,13 @@ export default function AdminMetrics() {
           </CardHeader>
           <CardContent>
             {showDayByDay && selectedMonth && !selectedStoreMonth ? (
-               // Day-by-Day Grid View
-               loadingDayByDay ? (
-                 <div className="flex items-center justify-center h-[300px]">
-                   <p className="text-slate-500">Loading day-by-day data...</p>
-                 </div>
-               ) : (
-                 <DayByDayStoreMetricsGrid
-                   metricsData={{ dailyStoreData: { [selectedMonth]: dayByDayData || {} } }}
-                   selectedMonth={selectedMonth}
-                   selectedYear={selectedYear}
-                   selectedCityId={selectedCityId}
-                 />
-               )
+              // Day-by-Day Grid View
+              <DayByDayStoreMetricsGrid
+                metricsData={filteredData || metricsData}
+                selectedMonth={selectedMonth}
+                selectedYear={selectedYear}
+                selectedCityId={selectedCityId}
+              />
             ) : (
               // Bar Chart View
             <div className="h-[300px]">
