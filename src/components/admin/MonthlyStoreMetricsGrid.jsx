@@ -161,6 +161,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
   return (
     <Card>
       <CardHeader className="pb-3">
+        <p className="text-xs text-slate-500 mb-2">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             {metricsViewMode === 'deliveries' ?
