@@ -672,7 +672,12 @@ export default function AdminMetrics() {
 
                     // Get days in the selected month for the selected year
                     const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
-                    const rawDailyData = metricsData.dailyDeliveryData?.[selectedMonth] || [];
+                    let rawDailyData = metricsData.dailyDeliveryData?.[selectedMonth] || [];
+
+                    // Filter by selected driver if not 'all'
+                    if (selectedDriverId !== 'all') {
+                      rawDailyData = rawDailyData.filter(d => d.driverId === selectedDriverId);
+                    }
 
                     // Create a map of existing data
                     const dataByDay = new Map(rawDailyData.map((d) => [d.day, d]));
