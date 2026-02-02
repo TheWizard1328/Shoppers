@@ -470,6 +470,16 @@ export default function AdminMetrics() {
             )}
           </CardHeader>
           <CardContent>
+            {showDayByDay && selectedMonth && !selectedStoreMonth ? (
+              // Day-by-Day Grid View
+              <DayByDayStoreMetricsGrid
+                metricsData={metricsData}
+                selectedMonth={selectedMonth}
+                selectedYear={selectedYear}
+                selectedCityId={selectedCityId}
+              />
+            ) : (
+              // Bar Chart View
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={(() => {
