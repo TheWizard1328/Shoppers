@@ -1662,6 +1662,10 @@ export default function Layout({ children, currentPageName }) {
 
   // CRITICAL: Background sync moved to useEffect with proper dependencies
 
+  // Track when app loses focus to trigger refresh if a cycle was missed
+  const appFocusLostAtRef = useRef(null);
+  const SMART_REFRESH_CYCLE = 15000; // 15 seconds in milliseconds
+
   // Wake Lock API and visibility change handler
   useEffect(() => {
     // Wake Lock API - keep screen on when app is focused
@@ -1684,18 +1688,37 @@ export default function Layout({ children, currentPageName }) {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         await requestWakeLock();
-        if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
-          // Force immediate refresh when app becomes visible
-          smartRefreshManager.lastRefreshTimes = {
-            driverLocation: 0,
-            activeDeliveries: 0,
-            todayDeliveries: 0,
-            appUsers: 0,
-            patients: 0,
-            stores: 0
-          };
+        
+        // CRITICAL: Check if smart refresh cycle was missed while app was hidden
+        if (appFocusLostAtRef.current) {
+          const hiddenDuration = Date.now() - appFocusLostAtRef.current;
+          appFocusLostAtRef.current = null;
+          
+          // If app was hidden longer than a smart refresh cycle, trigger refresh immediately
+          if (hiddenDuration >= SMART_REFRESH_CYCLE) {
+            console.log(`🔄 [Focus Recovery] App was hidden for ${hiddenDuration}ms (${(hiddenDuration / 1000).toFixed(1)}s) - triggering smart refresh and background sync`);
+            
+            if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
+              // Reset smart refresh timers to force immediate refresh
+              smartRefreshManager.lastRefreshTimes = {
+                driverLocation: 0,
+                activeDeliveries: 0,
+                todayDeliveries: 0,
+                appUsers: 0,
+                patients: 0,
+                stores: 0
+              };
+              
+              // Trigger background sync for any missed mutations
+              const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+              const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
+              performBackgroundSync(selectedDateStr, cityStoreIds).catch(() => {});
+            }
+          }
         }
       } else {
+        // Record timestamp when app loses focus
+        appFocusLostAtRef.current = Date.now();
         releaseWakeLock();
       }
     };
@@ -1710,7 +1733,7 @@ export default function Layout({ children, currentPageName }) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       releaseWakeLock();
     };
-  }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen]);
+  }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen, stores]);
 
   // Trigger smart refresh when navigating to Dashboard
   useEffect(() => {
