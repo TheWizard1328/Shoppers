@@ -658,7 +658,7 @@ export default function AdminMetrics() {
                         const total = (dayData?.billable || 0) + (dayData?.nonBillable || 0);
                         return (
                           <g transform={`translate(${x},${y})`}>
-                            <text x={0} y={0} dy={12} textAnchor="middle" fill="#64748b" fontSize={10}>
+                            <text x={0} y={0} dy={12} textAnchor="middle" fill="var(--text-slate-600)" fontSize={10}>
                               {payload.value}
                             </text>
                             <text x={0} y={0} dy={24} textAnchor="middle" fill="#10b981" fontSize={9} fontWeight="600">
