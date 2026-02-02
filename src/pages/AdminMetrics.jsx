@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BarChart3, DollarSign, Store, Package, RefreshCw, TrendingUp, Users, Truck, Share2 } from 'lucide-react';
+import { BarChart3, DollarSign, Store, Package, RefreshCw, TrendingUp, Users, Truck } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getEffectiveUser } from '@/components/utils/auth';
@@ -299,11 +299,9 @@ export default function AdminMetrics() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" onClick={() => fetchMetrics(selectedYear, selectedCityId, false)} disabled={isFetching}>
-              <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button variant="outline" size="icon">
-              <Share2 className="w-4 h-4" />
+            <Button variant="outline" onClick={() => fetchMetrics(selectedYear, selectedCityId, false)} disabled={isFetching} className="w-[120px] md:w-[140px]">
+              <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
           </div>
         </div>
@@ -718,6 +716,13 @@ export default function AdminMetrics() {
 
 
       </div>
-    </div>
+      {/* Screenshot Share Modal */}
+      <ScreenshotShareModal
+        isOpen={showScreenshotModal}
+        onClose={() => setShowScreenshotModal(false)}
+        imageDataUrl={screenshotDataUrl}
+        filename={`admin-metrics-${selectedYear}.png`}
+      />
+   </div>
   );
 }
