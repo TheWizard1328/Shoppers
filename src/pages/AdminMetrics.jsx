@@ -612,9 +612,9 @@ export default function AdminMetrics() {
         {/* Row 3: Monthly Deliveries + Driver Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Monthly Deliveries Chart - Shows daily breakdown when month selected */}
-          <Card>
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 <BarChart3 className="w-5 h-5" />
                 {selectedMonth 
                   ? `Daily Deliveries - ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`
