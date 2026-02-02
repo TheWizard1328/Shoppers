@@ -155,24 +155,44 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                 <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
                 {stores.map((store) => {
                   const total = getStoreTotal(store.storeId);
-                  const avg = total > 0 ? Math.round(total / daysInMonth) : 0;
+                  const avg = total > 0 ? (total / daysInMonth).toFixed(2) : '';
                   return (
                     <td
                       key={store.storeId}
                       className="text-center p-2 tabular-nums text-slate-600"
                     >
-                      {avg > 0 ? avg : ''}
+                      {avg}
                     </td>
                   );
                 })}
                 <td className="text-center p-2 font-semibold text-slate-700 border-l-2 border-purple-300 tabular-nums">
-                  {grandTotal > 0 ? Math.round(grandTotal / daysInMonth) : ''}
+                  {grandTotal > 0 ? (grandTotal / daysInMonth).toFixed(2) : ''}
                 </td>
               </tr>
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+
+              {/* Projection Row - same as totals */}
+              <tr className="bg-slate-50">
+                <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">Proj</td>
+                {stores.map((store) => {
+                  const total = getStoreTotal(store.storeId);
+                  return (
+                    <td
+                      key={store.storeId}
+                      className="text-center p-2 tabular-nums font-medium"
+                      style={{ color: store.color || '#64748b' }}
+                    >
+                      {total > 0 ? total : ''}
+                    </td>
+                  );
+                })}
+                <td className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                  {grandTotal > 0 ? grandTotal : ''}
+                </td>
+              </tr>
+              </tbody>
+              </table>
+              </div>
+              </CardContent>
+              </Card>
+              );
+              }
