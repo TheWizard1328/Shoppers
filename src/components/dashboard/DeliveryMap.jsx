@@ -3443,10 +3443,22 @@ export default function DeliveryMap({
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
                           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                         
+                        let lastDriver = null;
+                        let lastStore = null;
+                        
                         return allMarkersAtLocation.map((m, idx) => {
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
                           const itemName = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
+                          
+                          const driverId = m.driver?.user_name || 'Unknown';
+                          const storeId = m.store?.name || 'Store';
+                          
+                          const showDriver = idx === 0 || driverId !== lastDriver;
+                          const showStore = idx === 0 || storeId !== lastStore;
+                          
+                          lastDriver = driverId;
+                          lastStore = storeId;
                           
                           return (
                             <div 
@@ -3462,14 +3474,18 @@ export default function DeliveryMap({
                                 }
                               }}
                             >
-                              <div className="flex items-center gap-1.5 font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                <Truck className="w-3.5 h-3.5" />
-                                {m.driver?.user_name || 'Unknown'}
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
-                                <Home className="w-3.5 h-3.5" />
-                                {m.store?.name || 'Store'}
-                              </div>
+                              {showDriver && (
+                                <div className="flex items-center gap-1.5 font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                                  <Truck className="w-3.5 h-3.5" />
+                                  {driverId}
+                                </div>
+                              )}
+                              {showStore && (
+                                <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                                  <Home className="w-3.5 h-3.5" />
+                                  {storeId}
+                                </div>
+                              )}
                               {isFinished && finishedTime ? (
                                 <div className="flex items-center justify-between text-[11px]">
                                   <span style={{ color: 'var(--text-slate-900)' }}>{itemName}</span>
@@ -3818,10 +3834,22 @@ export default function DeliveryMap({
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
                           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                         
+                        let lastDriver = null;
+                        let lastStore = null;
+                        
                         return allMarkersAtLocation.map((m, idx) => {
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
                           const itemName = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
+                          
+                          const driverId = m.driver?.user_name || 'Unknown';
+                          const storeId = m.store?.name || 'Store';
+                          
+                          const showDriver = idx === 0 || driverId !== lastDriver;
+                          const showStore = idx === 0 || storeId !== lastStore;
+                          
+                          lastDriver = driverId;
+                          lastStore = storeId;
                           
                           return (
                             <div 
@@ -3837,14 +3865,18 @@ export default function DeliveryMap({
                                 }
                               }}
                             >
-                              <div className="flex items-center gap-1.5 font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                <Truck className="w-3.5 h-3.5" />
-                                {m.driver?.user_name || 'Unknown'}
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
-                                <Home className="w-3.5 h-3.5" />
-                                {m.store?.name || 'Store'}
-                              </div>
+                              {showDriver && (
+                                <div className="flex items-center gap-1.5 font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                                  <Truck className="w-3.5 h-3.5" />
+                                  {driverId}
+                                </div>
+                              )}
+                              {showStore && (
+                                <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                                  <Home className="w-3.5 h-3.5" />
+                                  {storeId}
+                                </div>
+                              )}
                               {isFinished && finishedTime ? (
                                 <div className="flex items-center justify-between text-[11px]">
                                   <span style={{ color: 'var(--text-slate-900)' }}>{itemName}</span>
