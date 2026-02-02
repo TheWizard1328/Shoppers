@@ -3087,8 +3087,8 @@ export default function PayrollSummaryCard({
 
           })}
           
-          {/* App Owner App Fee % Row */}
-          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) &&
+          {/* App Owner App Fee % Row - App Owner Only */}
+          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) && isAppOwner(currentUser) &&
           <div className="pt-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-slate-50)', borderLeft: '3px solid #8b5cf6' }}>
             <div className="flex items-center justify-between">
               <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
