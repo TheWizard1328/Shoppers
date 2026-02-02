@@ -1008,31 +1008,33 @@ class SmartRefreshManager {
       }
   
   /**
-   * Fast driver location refresh with adaptive intervals
-   * OFFLINE-FIRST: Loads from offline DB, only fetches API when stale or missing
-   * @param currentAppUsers - Current AppUser data
-   * @param forceRefresh - If true, bypasses offline DB and forces API fetch
-   * @param currentPage - Current page name (to check if on Dashboard)
-   * @param selectedDate - Selected date (to check if today)
-   * CRITICAL: Never throws - always returns null on error to prevent stuck refresh
-   */
-  async refreshDriverLocations(currentAppUsers, forceRefresh = false, currentPage = null, selectedDate = null) {
-    try {
-      // Check if disabled or paused - silently skip automatic polling (unless forced)
-      if ((!this._enabled || this._paused) && !forceRefresh) {
-        return null;
-      }
-      
-      // CRITICAL: Only check driver locations when on Dashboard AND date is today
-      if (!forceRefresh && currentPage && selectedDate) {
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        
-        if (currentPage !== 'Dashboard' || selectedDateStr !== todayStr) {
-          console.log(`⏭️ [SmartRefresh] Skipping driver location refresh - not on Dashboard today (page: ${currentPage}, date: ${selectedDateStr})`);
-          return null;
-        }
-      }
+    * Fast driver location refresh with adaptive intervals
+    * OFFLINE-FIRST: Loads from offline DB, only fetches API when stale or missing
+    * CRITICAL: When showAllDrivers is true, ALWAYS fetches ALL drivers from API and updates all markers
+    * @param currentAppUsers - Current AppUser data
+    * @param forceRefresh - If true, bypasses offline DB and forces API fetch
+    * @param currentPage - Current page name (to check if on Dashboard)
+    * @param selectedDate - Selected date (to check if today)
+    * @param showAllDrivers - If true, fetches ALL drivers regardless of page/date checks
+    * CRITICAL: Never throws - always returns null on error to prevent stuck refresh
+    */
+   async refreshDriverLocations(currentAppUsers, forceRefresh = false, currentPage = null, selectedDate = null, showAllDrivers = false) {
+     try {
+       // Check if disabled or paused - silently skip automatic polling (unless forced)
+       if ((!this._enabled || this._paused) && !forceRefresh) {
+         return null;
+       }
+
+       // CRITICAL: When showAllDrivers is true, ALWAYS fetch - skip page/date checks
+       if (!showAllDrivers && !forceRefresh && currentPage && selectedDate) {
+         const todayStr = format(new Date(), 'yyyy-MM-dd');
+         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+
+         if (currentPage !== 'Dashboard' || selectedDateStr !== todayStr) {
+           console.log(`⏭️ [SmartRefresh] Skipping driver location refresh - not on Dashboard today (page: ${currentPage}, date: ${selectedDateStr})`);
+           return null;
+         }
+       }
       
       // CRITICAL: Use adaptive interval based on user activity
       const adaptiveInterval = this.getAdaptiveDriverLocationInterval();
