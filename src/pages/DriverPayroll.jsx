@@ -428,6 +428,14 @@ export default function DriverPayroll() {
     }
 
     try {
+      // CRITICAL: Preload Cities and AppUsers from entities FIRST to ensure dropdowns populate
+      console.log('📥 [DriverPayroll] Preloading Cities and AppUsers...');
+      const [freshCities, freshAppUsers] = await Promise.all([
+        base44.entities.City.list(),
+        base44.entities.AppUser.list()
+      ]);
+      console.log(`✅ [DriverPayroll] Preloaded ${freshCities?.length || 0} cities, ${freshAppUsers?.length || 0} appUsers`);
+
       // CRITICAL: Invalidate caches before fetching to ensure fresh data
       if (forceFresh) {
         console.log('🔄 [DriverPayroll] Invalidating caches before fetch');
@@ -443,14 +451,23 @@ export default function DriverPayroll() {
         payrollDriverId: null // Always fetch all drivers, filter locally
       });
       const data = response?.data?.payrollData || response?.payrollData;
+      
+      // CRITICAL: Merge fresh entity data with backend data to ensure integrity
+      const mergedData = {
+        ...data,
+        cities: freshCities || data?.cities || [],
+        appUsers: freshAppUsers || data?.appUsers || []
+      };
+      
       console.log(`✅ [DriverPayroll] Received payroll data:`, {
-        deliveries: data?.deliveries?.length || 0,
-        drivers: data?.drivers?.length || 0,
-        stores: data?.stores?.length || 0,
-        appUsers: data?.appUsers?.length || 0,
-        patients: data?.patients?.length || 0
+        deliveries: mergedData?.deliveries?.length || 0,
+        drivers: mergedData?.drivers?.length || 0,
+        stores: mergedData?.stores?.length || 0,
+        appUsers: mergedData?.appUsers?.length || 0,
+        patients: mergedData?.patients?.length || 0,
+        cities: mergedData?.cities?.length || 0
       });
-      setPayrollData(data);
+      setPayrollData(mergedData);
     } catch (error) {
       console.error('Failed to fetch payroll data:', error);
       toast.error('Failed to refresh payroll data');
