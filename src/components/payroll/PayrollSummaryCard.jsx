@@ -3108,6 +3108,7 @@ export default function PayrollSummaryCard({
                           <span className="text-xs mr-1">Bonus:</span>
                           <span className="font-semibold">+{formatCurrency(driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0))}</span>
                         </div>
+                        {isPeriodEndOfMonth &&
                         <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
                           <button 
                             onClick={() => setAppFeeOverlayAllDriversId('all')}
@@ -3116,6 +3117,7 @@ export default function PayrollSummaryCard({
                           </button>
                           <span className="font-semibold">-{formatCurrency(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent))}</span>
                         </div>
+                        }
                         <div className="text-lg font-bold text-emerald-700 mt-1">
                           <span className="text-lg font-bold mr-1">Gross:</span>
                           {formatCurrency(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0))}
@@ -3149,9 +3151,11 @@ export default function PayrollSummaryCard({
                         <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-600)' }}>
                           +{formatCurrency(driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0))}
                         </div>
+                        {isPeriodEndOfMonth &&
                         <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-600)' }}>
                          -{formatCurrency(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent))}
                        </div>
+                        }
                         <div className="text-lg font-bold text-emerald-700 mt-1">
                           {formatCurrency(ytdGrandTotalGross)}
                         </div>
