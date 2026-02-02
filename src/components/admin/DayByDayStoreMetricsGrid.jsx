@@ -65,7 +65,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
     
     // All billable: Completed + Failed + After Hours
     const billable = (dayRecord.completed || 0) + (dayRecord.failed || 0) + (dayRecord.afterHours || 0);
-    return billable > 0 ? billable : null;
+    return billable || null; // Show 0 values as empty, only non-zero as numbers
   };
 
   // Calculate totals per store (sum of billable deliveries across all days in month)
