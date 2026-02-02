@@ -28,6 +28,7 @@ export default function AdminMetrics() {
   const users = appData?.users || [];
   const drivers = appData?.drivers || [];
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [selectedCityId, setSelectedCityId] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(null); // null = show yearly grid
   const [selectedStoreMonth, setSelectedStoreMonth] = useState(null); // {month, storeId, storeName, storeAbbr}
   const [metricsData, setMetricsData] = useState(null);
