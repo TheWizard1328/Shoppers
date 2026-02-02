@@ -2953,6 +2953,34 @@ function Dashboard() {
       return;
     }
 
+    console.log('✅ [Render Sequence 8] All elements rendered - syncing offline DB and activating FAB phase');
+    
+    // CRITICAL: Quick offline DB sync for selected date before activating FAB
+    const syncOfflineDB = async () => {
+      try {
+        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+        console.log(`🔄 [Initial Sync] Syncing offline DB for ${selectedDateStr}...`);
+        
+        // Fetch fresh deliveries from API
+        const freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+        
+        // Save to offline DB
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        console.log(`✅ [Initial Sync] Saved ${freshDeliveries.length} deliveries to offline DB`);
+        
+        // Update UI with fresh data
+        if (updateDeliveriesLocally && freshDeliveries.length > 0) {
+          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+          updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+          console.log(`✅ [Initial Sync] UI updated with ${freshDeliveries.length} deliveries`);
+        }
+      } catch (error) {
+        console.warn('⚠️ [Initial Sync] Failed:', error);
+      }
+    };
+    
+    syncOfflineDB();
+
     console.log('✅ [Render Sequence 8] All elements rendered - activating FAB phase');
     console.log(`   - deliveries count: ${deliveries.length}`);
     console.log(`   - allDriverLocations count: ${allDriverLocations.length}`);
