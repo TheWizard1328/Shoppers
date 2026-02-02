@@ -156,6 +156,22 @@ Deno.serve(async (req) => {
 
 
 function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate) {
+  
+  // Helper to calculate extra_km for a delivery
+  const calculateExtraKm = (delivery, patientList) => {
+    if (!delivery) return 0;
+    
+    let distance = delivery.paid_km_override;
+    if (distance === undefined || distance === null) {
+      const patient = patientList?.find(p => p.id === delivery.patient_id);
+      distance = patient?.distance_from_store || 0;
+    }
+    
+    const driver = appUsers.find(au => au.user_id === delivery.driver_id);
+    const extraKmLimit = driver?.extra_km_limit || 0;
+    const extraKm = distance - extraKmLimit;
+    return extraKm > 0 ? extraKm : 0;
+  };
   const metrics = {
     monthlyData: Array(12).fill(null).map((_, i) => ({ 
       month: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i], 
