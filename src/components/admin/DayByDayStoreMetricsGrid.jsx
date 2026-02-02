@@ -101,7 +101,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                       {day}
                     </td>
                     {stores.map(store => {
-                      const value = getDayValue(store, day);
+                      const value = getDayValue(store.storeId || store.id, day);
                       return (
                         <td
                           key={store.storeId || store.id}
