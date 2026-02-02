@@ -666,7 +666,7 @@ export default function AdminMetrics() {
                             </text>
                           </g>
                         );
-                      } : { fill: '#64748b', fontSize: 12 }} 
+                      } : { fill: 'var(--text-slate-600)', fontSize: 12 }} 
                       interval={selectedMonth ? 0 : 0}
                       height={selectedMonth ? 40 : 30}
                     />
