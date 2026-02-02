@@ -3948,10 +3948,10 @@ function Dashboard() {
   };
 
   const handleSaveDelivery = async (deliveryData) => {
-    // Pause ALL update systems for any delivery save
-    console.log('⏸️ [SAVE] Pausing ALL update systems...');
+    // Pause ONLY smart refresh and offline sync, NOT mutations
+    // Mutations are needed to save deliveries
+    console.log('⏸️ [SAVE] Pausing smart refresh and offline sync...');
     setIsEntityUpdating(true);
-    pauseOfflineMutations();
     pauseOfflineSync();
     smartRefreshManager.pause();
     
@@ -5128,12 +5128,11 @@ function Dashboard() {
       alert(`Failed to save delivery: ${error.message}`);
       throw error;
     } finally {
-      // Resume all systems
+      // Resume smart refresh and offline sync only
       console.log('⏳ [SAVE] Waiting 1s before resuming...');
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      console.log('▶️ [SAVE] Resuming ALL update systems');
-      resumeOfflineMutations();
+      console.log('▶️ [SAVE] Resuming smart refresh and offline sync');
       resumeOfflineSync();
       smartRefreshManager.resume();
       
