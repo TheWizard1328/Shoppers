@@ -692,9 +692,9 @@ export default function AdminMetrics() {
           </Card>
 
           {/* Driver Performance Chart - Breakdown by Driver */}
-          <Card>
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 <Users className="w-5 h-5" />
                 Driver Breakdown 
                 {selectedStoreMonth 
