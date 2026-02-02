@@ -118,6 +118,21 @@ export default function AppUsers() {
     return status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800';
   };
 
+  const getUserStatusIndicator = (user) => {
+    const status = user.driver_status || 'off_duty';
+    
+    if (status === 'online' || status === 'on_duty') {
+      // Check if stale (no location update in 5+ minutes)
+      if (!user.location_updated_at) return '#f97316'; // orange (stale)
+      const now = Date.now();
+      const lastUpdate = new Date(user.location_updated_at).getTime();
+      const isStale = (now - lastUpdate) > 5 * 60 * 1000;
+      return isStale ? '#f97316' : '#10b981'; // orange (stale) : green (online)
+    }
+    
+    return '#cbd5e1'; // grey (offline)
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -199,7 +214,15 @@ export default function AppUsers() {
                         className="border-b hover:bg-slate-50 cursor-pointer transition-colors"
                         onClick={() => handleEdit(user)}
                       >
-                        <td className="p-3 font-medium">{getDriverDisplayName(user)}</td>
+                        <td className="p-3 font-medium">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: getUserStatusIndicator(user) }}
+                            />
+                            {getDriverDisplayName(user)}
+                          </div>
+                        </td>
                         <td className="p-3 text-slate-600">{user.full_name}</td>
                         <td className="p-3 text-slate-600">{user.email}</td>
                         <td className="p-3">
