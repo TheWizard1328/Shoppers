@@ -1908,42 +1908,81 @@ export default function RouteImport({
         currentFile: ''
       }));
       
-      // CRITICAL: REPLACE OFFLINE DB - For each driver/date combination, fetch fresh online data
-      // (driverDatePairs already defined above)
+      // CRITICAL: Sync imported dates to offline DB - starting with active date
+      const allImportedDates = [...new Set(driverDatePairs.map(p => p.date))].sort();
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const activeDateStr = globalFilters?.getSelectedDate?.() || todayStr;
       
-      console.log(`🔄 [RouteImport] Replacing offline DB for ${driverDatePairs.length} driver/date pairs`);
-      setProgressMessage(`Syncing offline database (${driverDatePairs.length} combinations)...`);
+      // CRITICAL: Prioritize active date FIRST
+      const sortedDates = allImportedDates.sort((a, b) => {
+        if (a === activeDateStr) return -1;
+        if (b === activeDateStr) return 1;
+        if (a === todayStr) return -1;
+        if (b === todayStr) return 1;
+        return b.localeCompare(a); // Most recent first
+      });
       
-      // For each driver/date pair, fetch fresh online data and replace offline DB
-      for (let i = 0; i < driverDatePairs.length; i++) {
-        const { driverId, date } = driverDatePairs[i];
+      console.log(`🔄 [RouteImport] Syncing offline DB for ${driverDatePairs.length} driver/date pairs`);
+      console.log(`📅 [RouteImport] Prioritized dates: ${sortedDates.slice(0, 3).join(', ')}...`);
+      setProgressMessage(`Syncing offline database (prioritizing active date)...`);
+      
+      // STEP 1: Group pairs by date for efficient processing
+      const pairsByDate = new Map();
+      driverDatePairs.forEach(({ driverId, date }) => {
+        if (!pairsByDate.has(date)) {
+          pairsByDate.set(date, []);
+        }
+        pairsByDate.get(date).push(driverId);
+      });
+      
+      // STEP 2: Process dates in priority order (active date first)
+      let syncedCount = 0;
+      for (const date of sortedDates) {
+        const driverIds = pairsByDate.get(date);
+        if (!driverIds || driverIds.length === 0) continue;
         
         try {
-          // PURGE: Delete offline deliveries for this driver/date
+          // PURGE: Delete offline deliveries for all drivers on this date
           const existingOffline = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date);
-          const toDelete = existingOffline?.filter(d => d.driver_id === driverId) || [];
+          const toDelete = existingOffline?.filter(d => driverIds.includes(d.driver_id)) || [];
           for (const d of toDelete) {
             await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
           }
-          console.log(`🗑️ [RouteImport] Purged ${toDelete.length} offline deliveries for ${driverId} on ${date}`);
+          console.log(`🗑️ [RouteImport] Purged ${toDelete.length} offline deliveries for ${driverIds.length} drivers on ${date}`);
           
-          // RESYNC: Fetch fresh deliveries from online DB for this driver/date
+          // RESYNC: Fetch fresh deliveries from online DB for all drivers on this date
           const freshDeliveries = await base44.entities.Delivery.filter({ 
-            driver_id: driverId, 
+            driver_id: { $in: driverIds },
             delivery_date: date 
           });
           
           // Save to offline DB
           if (freshDeliveries && freshDeliveries.length > 0) {
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-            console.log(`✅ [RouteImport] Resynced ${freshDeliveries.length} deliveries for ${driverId} on ${date}`);
+            console.log(`✅ [RouteImport] Resynced ${freshDeliveries.length} deliveries for ${driverIds.length} drivers on ${date}`);
           }
+          
+          // Collect unique patient IDs from this date's deliveries
+          const patientIds = [...new Set(freshDeliveries.map(d => d.patient_id).filter(Boolean))];
+          if (patientIds.length > 0) {
+            const patientsForDate = await base44.entities.Patient.filter({
+              id: { $in: patientIds }
+            });
+            if (patientsForDate && patientsForDate.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsForDate);
+              console.log(`✅ [RouteImport] Synced ${patientsForDate.length} patients for ${date}`);
+            }
+          }
+          
+          syncedCount += driverIds.length;
         } catch (syncError) {
-          console.warn(`⚠️ [RouteImport] Sync failed for ${driverId}/${date}:`, syncError.message);
+          console.warn(`⚠️ [RouteImport] Sync failed for ${date}:`, syncError.message);
         }
         
-        setProgressMessage(`Syncing offline database (${i + 1}/${driverDatePairs.length} combinations)...`);
+        setProgressMessage(`Syncing offline database (${syncedCount}/${driverDatePairs.length} completed)...`);
       }
+      
+      console.log(`✅ [RouteImport] Offline DB sync complete for ${sortedDates.length} dates`);
 
       setImportProgress((prev) => ({
         ...prev,

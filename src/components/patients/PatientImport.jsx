@@ -1100,6 +1100,30 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
         console.log("PatientImport: Import complete via data operation manager");
 
+        // CRITICAL: Sync imported/updated patients to offline DB
+        console.log("💾 [PatientImport] Syncing imported patients to offline DB...");
+        const patientsToSync = [];
+        
+        // Collect all created patients (already have temp/real IDs)
+        previewChanges.toCreate.forEach((item) => {
+          if (item.data) patientsToSync.push(item.data);
+        });
+        
+        // Collect all updated patients (need to fetch from backend)
+        for (const item of previewChanges.toUpdate) {
+          try {
+            const updated = await base44.entities.Patient.get(item.id);
+            if (updated) patientsToSync.push(updated);
+          } catch (e) {
+            console.warn(`Failed to fetch updated patient ${item.id}:`, e);
+          }
+        }
+        
+        if (patientsToSync.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsToSync);
+          console.log(`✅ [PatientImport] Synced ${patientsToSync.length} patients to offline DB`);
+        }
+        
         // CRITICAL: Trigger immediate backend sync after import
         console.log("📤 [PatientImport] Triggering immediate backend sync...");
         const { processPendingMutations } = await import('../utils/offlineSync');
