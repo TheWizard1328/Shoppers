@@ -378,14 +378,14 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="pt-4 pb-4">
-              <p className="text-sm text-slate-500 mb-2">Fee Rate</p>
+              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>Fee Rate</p>
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-slate-100 rounded-lg">
-                  <DollarSign className="w-5 h-5 text-slate-600" />
+                <div className="p-2 rounded-lg" style={{ background: 'var(--bg-slate-200)' }}>
+                  <DollarSign className="w-5 h-5" style={{ color: 'var(--text-slate-600)' }} />
                 </div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {formatCurrency(metricsData.storeFeeTotals?.app_fee_rate || 0)}
                 </p>
               </div>
