@@ -2201,14 +2201,13 @@ function Dashboard() {
       setIsFormOverlayOpen(isAnyFormOpen);
     }
     
-    // CRITICAL: Pause route optimization when delivery form is open
+    // CRITICAL: Only pause smart refresh (route optimization) when form is open
+    // DO NOT pause mutations - the form needs them to save deliveries
     if (showDeliveryForm) {
-      console.log('⏸️ [Dashboard] Delivery form opened - pausing route optimization');
-      pauseOfflineMutations();
+      console.log('⏸️ [Dashboard] Delivery form opened - pausing smart refresh only');
       smartRefreshManager.pause();
     } else {
-      console.log('▶️ [Dashboard] Delivery form closed - resuming route optimization');
-      resumeOfflineMutations();
+      console.log('▶️ [Dashboard] Delivery form closed - resuming smart refresh');
       smartRefreshManager.resume();
     }
   }, [showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant, setIsFormOverlayOpen]);
