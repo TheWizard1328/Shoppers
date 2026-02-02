@@ -6,7 +6,7 @@ import L from "leaflet";
 import { getStoreColor, hexToRgba } from '../utils/colorGenerator';
 import { sortUsers } from '../utils/sorting';
 import MapModeControl from "./MapModeControl";
-import { MapPin, Phone, Clock, Package, Truck, StickyNote, UserRoundSearch, Car, Home, Navigation, Activity } from 'lucide-react';
+import { MapPin, Phone, Clock, Package, Truck, StickyNote, UserRoundSearch, Car, Home, Navigation, Activity, User, CheckCircle2, XCircle } from 'lucide-react';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -3427,13 +3427,13 @@ export default function DeliveryMap({
                   </div>
                 </Popup>
               )}
-              {/* NEW: Popup for other drivers' pickups - with unified cluster view */}
+              {/* NEW: Popup for other drivers' pickups - grouped by driver+store */}
               {pickup.isOtherDriver && (
                 isClustered && !isFanned ? (
-                  // Clustered other driver pickups - show all stops with icons
+                  // Clustered other driver pickups - grouped by driver+store
                   <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                    <div className="min-w-[200px] max-w-[300px] space-y-2">
-                      <div className="font-semibold text-sm pb-1 border-b" style={{ color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className="min-w-[200px] max-w-[300px] space-y-0">
+                      <div className="font-semibold text-sm pb-1 border-b mb-1" style={{ color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-200)' }}>
                         {pickup.duplicateCount} stops at this location
                       </div>
                       {(() => {
@@ -3443,67 +3443,85 @@ export default function DeliveryMap({
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
                           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                         
-                        let lastDriver = null;
-                        let lastStore = null;
+                        // Group by driver + store
+                        const groups = [];
+                        let currentGroup = null;
                         
-                        return allMarkersAtLocation.map((m, idx) => {
-                          const isFinished = FINISHED_STATUSES.includes(m.status);
-                          const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
-                          const itemName = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
-                          
+                        allMarkersAtLocation.forEach((m) => {
                           const driverId = m.driver?.user_name || 'Unknown';
                           const storeId = m.store?.name || 'Store';
+                          const key = `${driverId}|${storeId}`;
                           
-                          const showDriver = idx === 0 || driverId !== lastDriver;
-                          const showStore = idx === 0 || storeId !== lastStore;
-                          
-                          lastDriver = driverId;
-                          lastStore = storeId;
-                          
-                          return (
-                            <div 
-                              key={`cluster-item-${m.id}`} 
-                              className="text-xs py-1.5 border-b last:border-0 cursor-pointer hover:bg-slate-50 transition-colors px-1 -mx-1 rounded space-y-0.5"
-                              style={{ borderColor: 'var(--border-slate-200)' }}
-                              onClick={() => {
-                                const popups = document.querySelectorAll('.leaflet-popup');
-                                popups.forEach(p => p.remove());
-                                const cardElement = document.getElementById(`stop-card-${m.id}`);
-                                if (cardElement) {
-                                  cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                                }
-                              }}
-                            >
-                              {showDriver && (
-                                <div className="flex items-center gap-1.5 font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                  <Truck className="w-3.5 h-3.5" />
-                                  {driverId}
-                                </div>
-                              )}
-                              {showStore && (
-                                <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
-                                  <Home className="w-3.5 h-3.5" />
-                                  {storeId}
-                                </div>
-                              )}
-                              {isFinished && finishedTime ? (
-                                <div className="flex items-center justify-between text-[11px]">
-                                  <span style={{ color: 'var(--text-slate-900)' }}>{itemName}</span>
-                                  <span className="text-emerald-600">{finishedTime}</span>
-                                </div>
-                              ) : m.delivery_time_eta ? (
-                                <div className="flex items-center justify-between text-[11px]">
-                                  <span style={{ color: 'var(--text-slate-900)' }}>{itemName}</span>
-                                  <span style={{ color: 'var(--text-slate-600)' }}>ETA: {m.delivery_time_eta}</span>
-                                </div>
-                              ) : (
-                                <div className="text-[11px]" style={{ color: 'var(--text-slate-900)' }}>
-                                  {itemName}
-                                </div>
-                              )}
-                            </div>
-                          );
+                          if (!currentGroup || currentGroup.key !== key) {
+                            currentGroup = { key, driver: driverId, store: storeId, items: [] };
+                            groups.push(currentGroup);
+                          }
+                          currentGroup.items.push(m);
                         });
+                        
+                        return groups.map((group, groupIdx) => (
+                          <div key={`group-${groupIdx}`}>
+                            <div className="px-1 pt-1 pb-1.5 space-y-0.5">
+                              <div className="flex items-center gap-1.5 font-medium text-xs" style={{ color: 'var(--text-slate-900)' }}>
+                                <Truck className="w-3.5 h-3.5 flex-shrink-0" />
+                                {group.driver}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                                <Home className="w-3.5 h-3.5 flex-shrink-0" />
+                                {group.store}
+                              </div>
+                            </div>
+                            <div className="border-b" style={{ borderColor: 'var(--border-slate-200)' }} />
+                            <div className="px-1 py-1.5 space-y-1">
+                              {group.items.map((m) => {
+                                const isFinished = FINISHED_STATUSES.includes(m.status);
+                                const isFailed = m.status === 'failed' || m.status === 'cancelled';
+                                const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
+                                const itemName = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
+                                
+                                return (
+                                  <div 
+                                    key={`item-${m.id}`} 
+                                    className="text-xs cursor-pointer hover:bg-slate-50 transition-colors px-1 py-0.5 rounded flex items-center justify-between"
+                                    onClick={() => {
+                                      const popups = document.querySelectorAll('.leaflet-popup');
+                                      popups.forEach(p => p.remove());
+                                      const cardElement = document.getElementById(`stop-card-${m.id}`);
+                                      if (cardElement) {
+                                        cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                      }
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-1.5" style={{ color: 'var(--text-slate-900)' }}>
+                                      <User className="w-3 h-3 flex-shrink-0" />
+                                      <span>{itemName}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {isFinished && finishedTime ? (
+                                        <>
+                                          <span className="text-emerald-600">{finishedTime}</span>
+                                          {isFailed ? (
+                                            <XCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                                          ) : (
+                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                          )}
+                                        </>
+                                      ) : m.delivery_time_eta ? (
+                                        <>
+                                          <span style={{ color: 'var(--text-slate-600)' }}>{m.delivery_time_eta}</span>
+                                          <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }} />
+                                        </>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {groupIdx < groups.length - 1 && (
+                              <div className="border-b" style={{ borderColor: 'var(--border-slate-200)' }} />
+                            )}
+                          </div>
+                        ));
                       })()}
                     </div>
                   </Popup>
@@ -3821,10 +3839,10 @@ export default function DeliveryMap({
               {/* NEW: Popup for other drivers' deliveries - with unified cluster view */}
               {delivery.isOtherDriver && (
                 isClustered && !isFanned ? (
-                  // Clustered other driver markers - show all stops with icons
+                  // Clustered other driver markers - grouped by driver+store
                   <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                    <div className="min-w-[200px] max-w-[300px] space-y-2">
-                      <div className="font-semibold text-sm pb-1 border-b" style={{ color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className="min-w-[200px] max-w-[300px] space-y-0">
+                      <div className="font-semibold text-sm pb-1 border-b mb-1" style={{ color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-200)' }}>
                         {delivery.duplicateCount} stops at this location
                       </div>
                       {(() => {
@@ -3834,67 +3852,85 @@ export default function DeliveryMap({
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
                           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                         
-                        let lastDriver = null;
-                        let lastStore = null;
+                        // Group by driver + store
+                        const groups = [];
+                        let currentGroup = null;
                         
-                        return allMarkersAtLocation.map((m, idx) => {
-                          const isFinished = FINISHED_STATUSES.includes(m.status);
-                          const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
-                          const itemName = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
-                          
+                        allMarkersAtLocation.forEach((m) => {
                           const driverId = m.driver?.user_name || 'Unknown';
                           const storeId = m.store?.name || 'Store';
+                          const key = `${driverId}|${storeId}`;
                           
-                          const showDriver = idx === 0 || driverId !== lastDriver;
-                          const showStore = idx === 0 || storeId !== lastStore;
-                          
-                          lastDriver = driverId;
-                          lastStore = storeId;
-                          
-                          return (
-                            <div 
-                              key={`cluster-item-${m.id}`} 
-                              className="text-xs py-1.5 border-b last:border-0 cursor-pointer hover:bg-slate-50 transition-colors px-1 -mx-1 rounded space-y-0.5"
-                              style={{ borderColor: 'var(--border-slate-200)' }}
-                              onClick={() => {
-                                const popups = document.querySelectorAll('.leaflet-popup');
-                                popups.forEach(p => p.remove());
-                                const cardElement = document.getElementById(`stop-card-${m.id}`);
-                                if (cardElement) {
-                                  cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                                }
-                              }}
-                            >
-                              {showDriver && (
-                                <div className="flex items-center gap-1.5 font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                  <Truck className="w-3.5 h-3.5" />
-                                  {driverId}
-                                </div>
-                              )}
-                              {showStore && (
-                                <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
-                                  <Home className="w-3.5 h-3.5" />
-                                  {storeId}
-                                </div>
-                              )}
-                              {isFinished && finishedTime ? (
-                                <div className="flex items-center justify-between text-[11px]">
-                                  <span style={{ color: 'var(--text-slate-900)' }}>{itemName}</span>
-                                  <span className="text-emerald-600">{finishedTime}</span>
-                                </div>
-                              ) : m.delivery_time_eta ? (
-                                <div className="flex items-center justify-between text-[11px]">
-                                  <span style={{ color: 'var(--text-slate-900)' }}>{itemName}</span>
-                                  <span style={{ color: 'var(--text-slate-600)' }}>ETA: {m.delivery_time_eta}</span>
-                                </div>
-                              ) : (
-                                <div className="text-[11px]" style={{ color: 'var(--text-slate-900)' }}>
-                                  {itemName}
-                                </div>
-                              )}
-                            </div>
-                          );
+                          if (!currentGroup || currentGroup.key !== key) {
+                            currentGroup = { key, driver: driverId, store: storeId, items: [] };
+                            groups.push(currentGroup);
+                          }
+                          currentGroup.items.push(m);
                         });
+                        
+                        return groups.map((group, groupIdx) => (
+                          <div key={`group-${groupIdx}`}>
+                            <div className="px-1 pt-1 pb-1.5 space-y-0.5">
+                              <div className="flex items-center gap-1.5 font-medium text-xs" style={{ color: 'var(--text-slate-900)' }}>
+                                <Truck className="w-3.5 h-3.5 flex-shrink-0" />
+                                {group.driver}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                                <Home className="w-3.5 h-3.5 flex-shrink-0" />
+                                {group.store}
+                              </div>
+                            </div>
+                            <div className="border-b" style={{ borderColor: 'var(--border-slate-200)' }} />
+                            <div className="px-1 py-1.5 space-y-1">
+                              {group.items.map((m) => {
+                                const isFinished = FINISHED_STATUSES.includes(m.status);
+                                const isFailed = m.status === 'failed' || m.status === 'cancelled';
+                                const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
+                                const itemName = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
+                                
+                                return (
+                                  <div 
+                                    key={`item-${m.id}`} 
+                                    className="text-xs cursor-pointer hover:bg-slate-50 transition-colors px-1 py-0.5 rounded flex items-center justify-between"
+                                    onClick={() => {
+                                      const popups = document.querySelectorAll('.leaflet-popup');
+                                      popups.forEach(p => p.remove());
+                                      const cardElement = document.getElementById(`stop-card-${m.id}`);
+                                      if (cardElement) {
+                                        cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                      }
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-1.5" style={{ color: 'var(--text-slate-900)' }}>
+                                      <User className="w-3 h-3 flex-shrink-0" />
+                                      <span>{itemName}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {isFinished && finishedTime ? (
+                                        <>
+                                          <span className="text-emerald-600">{finishedTime}</span>
+                                          {isFailed ? (
+                                            <XCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                                          ) : (
+                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                          )}
+                                        </>
+                                      ) : m.delivery_time_eta ? (
+                                        <>
+                                          <span style={{ color: 'var(--text-slate-600)' }}>{m.delivery_time_eta}</span>
+                                          <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }} />
+                                        </>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {groupIdx < groups.length - 1 && (
+                              <div className="border-b" style={{ borderColor: 'var(--border-slate-200)' }} />
+                            )}
+                          </div>
+                        ));
                       })()}
                     </div>
                   </Popup>
