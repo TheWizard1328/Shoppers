@@ -115,6 +115,59 @@ export default function AdminMetrics() {
     }
   }, [hasAccess, initialCitySet, selectedCityId]); // Wait for city selection
 
+  // Load day-by-day data directly from Deliveries entity when month is selected
+  useEffect(() => {
+    if (!selectedMonth || !selectedStoreMonth || !metricsData) return;
+
+    const loadDayByDayData = async () => {
+      setLoadingDayByDay(true);
+      try {
+        const monthStart = new Date(parseInt(selectedYear), selectedMonth - 1, 1);
+        const monthEnd = new Date(parseInt(selectedYear), selectedMonth, 0);
+        
+        // Fetch deliveries for the selected month
+        const deliveries = await base44.entities.Delivery.filter({
+          delivery_date: {
+            $gte: monthStart.toISOString().split('T')[0],
+            $lte: monthEnd.toISOString().split('T')[0]
+          }
+        });
+
+        // Group by day and store
+        const dataByDay = {};
+        deliveries.forEach(d => {
+          if (!d.delivery_date) return;
+          const day = parseInt(d.delivery_date.split('-')[2]);
+          
+          if (!dataByDay[day]) {
+            dataByDay[day] = {};
+          }
+          if (!dataByDay[day][d.store_id]) {
+            dataByDay[day][d.store_id] = { completed: 0, failed: 0, afterHours: 0 };
+          }
+
+          if (d.status === 'completed') {
+            dataByDay[day][d.store_id].completed += 1;
+          } else if (d.status === 'failed') {
+            dataByDay[day][d.store_id].failed += 1;
+          }
+          if (d.after_hours_pickup) {
+            dataByDay[day][d.store_id].afterHours += 1;
+          }
+        });
+
+        setDayByDayData(dataByDay);
+      } catch (error) {
+        console.error('Failed to load day-by-day data:', error);
+        setDayByDayData({});
+      } finally {
+        setLoadingDayByDay(false);
+      }
+    };
+
+    loadDayByDayData();
+  }, [selectedMonth, selectedStoreMonth, selectedYear]);
+
   // Listen for delivery updates from smart refresh and refresh metrics
   useEffect(() => {
     const handleDeliveriesUpdated = () => {
