@@ -671,7 +671,15 @@ export default function DriverPayrollGrid({
                     return dayValue > 0;
                   }).length;
                   const average = activeDays > 0 ? storeTotal / activeDays : 0;
-                  const projected = average * periodDays.length;
+                  
+                  // Calculate remaining days
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const remainingDays = periodDays.filter(day => day > today).length;
+                  
+                  // If no remaining days, show actual total; otherwise project based on remaining days
+                  const projected = remainingDays === 0 ? storeTotal : storeTotal + (average * remainingDays);
+                  
                   const displayValueMobile = viewMode === 'extraKm' 
                     ? (projected > 0 ? projected.toFixed(1) : '')
                     : (projected > 0 ? Math.round(projected) : '');
@@ -696,7 +704,15 @@ export default function DriverPayrollGrid({
                       return getDayTotal(dateKey) > 0;
                     }).length;
                     const average = activeDays > 0 ? grandTotal / activeDays : 0;
-                    const projected = average * periodDays.length;
+                    
+                    // Calculate remaining days
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const remainingDays = periodDays.filter(day => day > today).length;
+                    
+                    // If no remaining days, show actual total; otherwise project based on remaining days
+                    const projected = remainingDays === 0 ? grandTotal : grandTotal + (average * remainingDays);
+                    
                     return (
                       <>
                         <span className="md:hidden">{viewMode === 'extraKm' ? (projected > 0 ? projected.toFixed(1) : '') : (projected > 0 ? Math.round(projected) : '')}</span>
