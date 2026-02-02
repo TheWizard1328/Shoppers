@@ -70,6 +70,13 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
 
   const grandTotal = stores.reduce((sum, store) => sum + getStoreTotal(store, viewMode), 0);
 
+  // Helper: Check if a day is a weekend (Saturday=6 or Sunday=0)
+  const isWeekend = (day) => {
+    const date = new Date(parseInt(selectedYear), selectedMonth - 1, day);
+    const dayOfWeek = date.getDay();
+    return dayOfWeek === 0 || dayOfWeek === 6;
+  };
+
   return (
     <Card>
       <CardContent className="p-0">
