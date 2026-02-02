@@ -304,7 +304,7 @@ export default function AdminMetrics() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Drivers</SelectItem>
-                {metricsData?.driverData?.map((driver) =>
+                {metricsData?.driverData?.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((driver) =>
                 <SelectItem key={driver.driverId} value={driver.driverId}>{driver.name}</SelectItem>
                 )}
               </SelectContent>
