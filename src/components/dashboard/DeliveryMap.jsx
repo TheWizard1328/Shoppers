@@ -3830,11 +3830,20 @@ export default function DeliveryMap({
                     </h3>
                   </div>
                   {location.driver?.phone && (
-                    <p className="text-xs mt-2">
-                      <a href={`tel:${location.driver.phone}`} className="text-blue-600 hover:text-blue-700 underline font-medium">
-                        📞 {location.driver.phone}
-                      </a>
-                    </p>
+                    <div className="text-xs mt-2 space-y-1">
+                      <p>
+                        <a href={`tel:${location.driver.phone}`} className="text-blue-600 hover:text-blue-700 underline font-medium">
+                          📞 {location.driver.phone}
+                        </a>
+                      </p>
+                      {isMobile && (
+                        <p>
+                          <a href={`sms:${location.driver.phone}`} className="text-green-600 hover:text-green-700 underline font-medium">
+                            💬 Message
+                          </a>
+                        </p>
+                      )}
+                    </div>
                   )}
                   <div className={`text-[10px] mt-1 font-medium flex items-center gap-1 ${statusColor}`}>
                     <Activity className="w-3 h-3 animate-pulse" />
