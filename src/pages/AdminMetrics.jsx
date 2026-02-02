@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import MonthlyStoreMetricsGrid from '../components/admin/MonthlyStoreMetricsGrid';
 import DayByDayStoreMetricsGrid from '../components/admin/DayByDayStoreMetricsGrid';
+import DayByDayDeliveryTable from '../components/admin/DayByDayDeliveryTable';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
