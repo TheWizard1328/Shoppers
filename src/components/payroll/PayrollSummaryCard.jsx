@@ -2320,7 +2320,7 @@ export default function PayrollSummaryCard({
                          <td className="text-right px-1 py-1.5">
                            <input
                              type="number"
-                             value={(driverAppFeePercent || 0).toFixed(2)}
+                             value={driverAppFeePercent}
                              onChange={(e) => {
                                const newPercent = parseFloat(e.target.value) || 0;
                                const calculatedAmount = calculateAppFeeAmount(driver.driver.id, newPercent);
@@ -2330,7 +2330,7 @@ export default function PayrollSummaryCard({
                                  [driver.driver.id]: { 
                                    ...prev[driver.driver.id], 
                                    appFeePercent: newPercent,
-                                   appFeeAmount: calculatedAmount
+                                   appFeeAmount: Math.round(calculatedAmount * 100) / 100
                                  }
                                }));
 
@@ -2342,7 +2342,7 @@ export default function PayrollSummaryCard({
                                    return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
                                  }, 0);
                                  const newOtherPercent = Math.max(0, 100 - sumAllDrivers);
-                                 setOtherAppFeePercent(newOtherPercent);
+                                 setOtherAppFeePercent(Math.round(newOtherPercent * 100) / 100);
                                } else {
                                  // Editing regular driver → recalc App Owner fee
                                  const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
@@ -2355,11 +2355,21 @@ export default function PayrollSummaryCard({
                                    ...prev,
                                    [currentUser.id]: {
                                      ...prev[currentUser.id],
-                                     appFeePercent: newAppOwnerPercent,
-                                     appFeeAmount: calculateAppFeeAmount(currentUser.id, newAppOwnerPercent)
+                                     appFeePercent: Math.round(newAppOwnerPercent * 100) / 100,
+                                     appFeeAmount: Math.round(calculateAppFeeAmount(currentUser.id, newAppOwnerPercent) * 100) / 100
                                    }
                                  }));
                                }
+                             }}
+                             onBlur={(e) => {
+                               const value = parseFloat(e.target.value) || 0;
+                               setDriverEdits((prev) => ({
+                                 ...prev,
+                                 [driver.driver.id]: { 
+                                   ...prev[driver.driver.id], 
+                                   appFeePercent: Math.round(value * 100) / 100
+                                 }
+                               }));
                              }}
                              className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
                              step="any"
@@ -2459,10 +2469,10 @@ export default function PayrollSummaryCard({
                      <td className="text-right px-1 py-1.5">
                        <input
                          type="number"
-                         value={(otherAppFeePercent || 0).toFixed(2)}
+                         value={otherAppFeePercent}
                          onChange={(e) => {
                            const newPercent = parseFloat(e.target.value) || 0;
-                           setOtherAppFeePercent(newPercent);
+                           setOtherAppFeePercent(Math.round(newPercent * 100) / 100);
 
                            // RULE 3: Editing Other App Fee → recalc App Owner fee
                            const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
@@ -2474,10 +2484,14 @@ export default function PayrollSummaryCard({
                              ...prev,
                              [currentUser.id]: {
                                ...prev[currentUser.id],
-                               appFeePercent: newAppOwnerPercent,
-                               appFeeAmount: calculateAppFeeAmount(currentUser.id, newAppOwnerPercent)
+                               appFeePercent: Math.round(newAppOwnerPercent * 100) / 100,
+                               appFeeAmount: Math.round(calculateAppFeeAmount(currentUser.id, newAppOwnerPercent) * 100) / 100
                              }
                            }));
+                         }}
+                         onBlur={(e) => {
+                           const value = parseFloat(e.target.value) || 0;
+                           setOtherAppFeePercent(Math.round(value * 100) / 100);
                          }}
                          className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
                          step="any"
@@ -2545,7 +2559,7 @@ export default function PayrollSummaryCard({
                      <td className="text-right px-1 py-1.5">
                        <input
                          type="number"
-                         value={(driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}
+                         value={driverEdits[currentUser?.id]?.appFeePercent || 0}
                          onChange={(e) => {
                            const newAppOwnerPercent = parseFloat(e.target.value) || 0;
                            const calculatedAmount = calculateAppFeeAmount(currentUser.id, newAppOwnerPercent);
@@ -2556,7 +2570,7 @@ export default function PayrollSummaryCard({
                              [currentUser.id]: { 
                                ...prev[currentUser.id], 
                                appFeePercent: newAppOwnerPercent,
-                               appFeeAmount: calculatedAmount
+                               appFeeAmount: Math.round(calculatedAmount * 100) / 100
                              }
                            }));
 
@@ -2566,7 +2580,7 @@ export default function PayrollSummaryCard({
                              return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
                            }, 0);
                            const newOtherPercent = Math.max(0, 100 - sumAllDriversIncludingAppOwner);
-                           setOtherAppFeePercent(newOtherPercent);
+                           setOtherAppFeePercent(Math.round(newOtherPercent * 100) / 100);
                          }}
                          className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner font-semibold"
                          step="any"
