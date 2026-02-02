@@ -418,14 +418,19 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
 
         if (!metrics.dailyStoreData[monthIndex + 1]) metrics.dailyStoreData[monthIndex + 1] = {};
         if (!metrics.dailyStoreData[monthIndex + 1][delivery.store_id]) metrics.dailyStoreData[monthIndex + 1][delivery.store_id] = [];
-        let dailyStoreEntry = metrics.dailyStoreData[monthIndex + 1][delivery.store_id].find(d => d.day === dayOfMonth);
-        if (!dailyStoreEntry) {
-          dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0 };
-          metrics.dailyStoreData[monthIndex + 1][delivery.store_id].push(dailyStoreEntry);
-        }
-        if (isCompletedPatientForStore(delivery)) dailyStoreEntry.completed++;
-        if (isFailedPatientForStore(delivery)) dailyStoreEntry.failed++;
-        if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
+         let dailyStoreEntry = metrics.dailyStoreData[monthIndex + 1][delivery.store_id].find(d => d.day === dayOfMonth);
+         if (!dailyStoreEntry) {
+           dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0, extra_km: 0 };
+           metrics.dailyStoreData[monthIndex + 1][delivery.store_id].push(dailyStoreEntry);
+         }
+         if (isCompletedPatientForStore(delivery)) dailyStoreEntry.completed++;
+         if (isFailedPatientForStore(delivery)) dailyStoreEntry.failed++;
+         if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
+
+         // Add extra_km for patient deliveries
+         if (delivery.patient_id && (isCompletedPatientForStore(delivery) || isFailedPatientForStore(delivery))) {
+           dailyStoreEntry.extra_km += calculateExtraKm(delivery, patients);
+         }
 
         // --- APP FEES ---
         // Fees apply only for stores with pays_app_fees and only for completed + failed + returns (patient/after-hours)
