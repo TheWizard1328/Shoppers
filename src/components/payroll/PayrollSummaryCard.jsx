@@ -2519,7 +2519,7 @@ export default function PayrollSummaryCard({
                            });
                            const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
                            const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
-                           setOtherAppFeePercent(Math.round(newPercent * 100) / 100);
+                           setOtherAppFeePercent(newPercent);
 
                            // RULE 3: Editing Other App Fee → recalc App Owner fee
                            const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
