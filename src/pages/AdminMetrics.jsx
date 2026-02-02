@@ -364,14 +364,14 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="pt-4 pb-4">
-              <p className="text-sm text-slate-500 mb-2">Stores Paying</p>
+              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>Stores Paying</p>
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Store className="w-5 h-5 text-blue-600" />
+                <div className="p-2 rounded-lg" style={{ background: '#dbeafe' }}>
+                  <Store className="w-5 h-5" style={{ color: '#1e40af' }} />
                 </div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {metricsData.storeFeeTotals?.stores_paying_fees || 0} / {metricsData.storeFeeTotals?.total_stores || 0}
                 </p>
               </div>
