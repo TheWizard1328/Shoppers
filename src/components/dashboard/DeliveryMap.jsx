@@ -3326,9 +3326,6 @@ export default function DeliveryMap({
                         // Find first incomplete stop
                         const firstIncomplete = allMarkersAtLocation.find(m => !FINISHED_STATUSES.includes(m.status));
                         
-                        // Find first incomplete stop
-                        const firstIncomplete = allMarkersAtLocation.find(m => !FINISHED_STATUSES.includes(m.status));
-                        
                         return allMarkersAtLocation.map((m, idx) => {
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
