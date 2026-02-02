@@ -167,6 +167,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     storeDataByMonth: {},
     driverDataByMonth: {},
     driverDataByStore: {},
+    dailyDriverData: {},
     storeData: [],
     driverData: [],
     dailyDeliveryData: {},
