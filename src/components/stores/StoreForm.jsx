@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
-import { Building, MapPin, X, CreditCard } from 'lucide-react';
+import { Building, MapPin, X, CreditCard, Plus, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { sortUsers } from '../utils/sorting';
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -91,6 +91,8 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
       dispatcher_id: null,
       square_location_config_id: null,
       status: "active",
+      pays_app_fees: false,
+      app_fee_history: [],
       // Weekday fields
       weekday_am_start: "09:00",
       weekday_am_end: "12:00",
@@ -354,9 +356,10 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
                     </div>
 
-                    <div>
-                        <Label htmlFor="address" style={{ color: 'var(--text-slate-900)' }}>Address *</Label>
-                        <Input
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <Label htmlFor="address" style={{ color: 'var(--text-slate-900)' }}>Address *</Label>
+                            <Input
               id="address"
               name="address"
               value={formData.address}
@@ -364,9 +367,8 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
               required
               style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        </div>
+                        
                         <div>
                             <Label htmlFor="phone" style={{ color: 'var(--text-slate-900)' }}>Phone Number *</Label>
                             <PhoneInput
@@ -493,6 +495,100 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                             </SelectContent>
                           </Select>
                         </div>
+                    </div>
+
+                    {/* App Fee History Manager */}
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <Label style={{ color: 'var(--text-slate-900)' }}>App Fee Status & History</Label>
+                            <div className="flex items-center gap-2">
+                                <Switch
+                                    id="pays_app_fees"
+                                    checked={formData.pays_app_fees || false}
+                                    onCheckedChange={(checked) => setFormData({ ...formData, pays_app_fees: checked })}
+                                />
+                                <Label htmlFor="pays_app_fees" className={`text-sm font-medium ${formData.pays_app_fees ? 'text-green-600' : 'text-slate-500'}`}>
+                                    {formData.pays_app_fees ? 'Currently Paying Fees' : 'Not Paying Fees'}
+                                </Label>
+                            </div>
+                        </div>
+
+                        {/* App Fee History List */}
+                        {formData.app_fee_history && formData.app_fee_history.length > 0 && (
+                            <div className="border rounded-lg p-3 space-y-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+                                <p className="text-xs font-semibold text-slate-600 mb-2">Fee Payment History:</p>
+                                {formData.app_fee_history
+                                    .slice()
+                                    .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))
+                                    .map((entry, idx) => (
+                                        <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border" style={{ borderColor: 'var(--border-slate-200)' }}>
+                                            <div className="flex items-center gap-3">
+                                                <Input
+                                                    type="date"
+                                                    value={entry.effective_date}
+                                                    onChange={(e) => {
+                                                        const updated = [...formData.app_fee_history];
+                                                        updated[idx] = { ...entry, effective_date: e.target.value };
+                                                        setFormData({ ...formData, app_fee_history: updated });
+                                                    }}
+                                                    className="w-36 h-8 text-xs"
+                                                    style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)' }}
+                                                />
+                                                <Select
+                                                    value={entry.pays_app_fees ? 'true' : 'false'}
+                                                    onValueChange={(value) => {
+                                                        const updated = [...formData.app_fee_history];
+                                                        updated[idx] = { ...entry, pays_app_fees: value === 'true' };
+                                                        setFormData({ ...formData, app_fee_history: updated });
+                                                    }}>
+                                                    <SelectTrigger className="w-32 h-8" style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)' }}>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="z-[10001]">
+                                                        <SelectItem value="true">Paying</SelectItem>
+                                                        <SelectItem value="false">Not Paying</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                {entry.changed_by && (
+                                                    <span className="text-xs text-slate-500">by {entry.changed_by}</span>
+                                                )}
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    const updated = formData.app_fee_history.filter((_, i) => i !== idx);
+                                                    setFormData({ ...formData, app_fee_history: updated });
+                                                }}
+                                                className="h-7 w-7 p-0">
+                                                <Trash2 className="w-4 h-4 text-red-500" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
+
+                        {/* Add New History Entry */}
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                                const newEntry = {
+                                    effective_date: new Date().toISOString().split('T')[0],
+                                    pays_app_fees: formData.pays_app_fees || false,
+                                    changed_by: 'Admin'
+                                };
+                                setFormData({
+                                    ...formData,
+                                    app_fee_history: [...(formData.app_fee_history || []), newEntry]
+                                });
+                            }}
+                            className="gap-2">
+                            <Plus className="w-4 h-4" />
+                            Add History Entry
+                        </Button>
                     </div>
                 </div>
 
