@@ -714,15 +714,7 @@ export default function AdminMetrics() {
           </Card>
         </div>
 
-
       </div>
-      {/* Screenshot Share Modal */}
-      <ScreenshotShareModal
-        isOpen={showScreenshotModal}
-        onClose={() => setShowScreenshotModal(false)}
-        imageDataUrl={screenshotDataUrl}
-        filename={`admin-metrics-${selectedYear}.png`}
-      />
    </div>
   );
 }
