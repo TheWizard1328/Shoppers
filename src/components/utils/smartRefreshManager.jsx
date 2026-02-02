@@ -1811,43 +1811,116 @@ class SmartRefreshManager {
     }
   }
 
-  // CRITICAL: Trigger immediate backend sync after import
-  console.log("📤 [PatientImport] Triggering immediate backend sync...");
-  const { processPendingMutations } = await import('../utils/offlineSync');
-  processPendingMutations().catch((err) => console.warn('Backend sync error:', err));
+  /**
+   * Refresh ACTIVE route data (today's deliveries + driver locations)
+   * CRITICAL: 15-second cycle for real-time updates
+   * CRITICAL: ALWAYS fetches from API for today for cross-device sync
+   * CRITICAL: When showAllDrivers is true, fetch ALL drivers and refresh their delivery data
+   * @param {boolean} showAllDrivers - If true, refreshes ALL drivers' data regardless of selected driver
+   * @param {string} currentPage - Current page name (to check if on Dashboard)
+   * @param {Date} selectedDate - Selected date (to check if today)
+   */
+  async refreshActiveRoute(currentData, filters, showAllDrivers = false, currentPage = null, selectedDate = null) {
+    const updates = {};
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const activeDateStr = globalFilters?.getSelectedDate?.() || todayStr;
 
-  // CRITICAL: Sync imported/updated patients to offline DB
-  console.log("💾 [PatientImport] Syncing imported patients to offline DB...");
-  const patientsToSync = [];
-
-  // Collect all created patients (already have temp/real IDs)
-  previewChanges.toCreate.forEach((item) => {
-    if (item.data) patientsToSync.push(item.data);
-  });
-
-  // Collect all updated patients (need to fetch from backend)
-  for (const item of previewChanges.toUpdate) {
     try {
-      const updated = await base44.entities.Patient.get(item.id);
-      if (updated) patientsToSync.push(updated);
-    } catch (e) {
-      console.warn(`Failed to fetch updated patient ${item.id}:`, e);
-    }
-  }
+      // STEP 1: Refresh driver locations (pass showAllDrivers flag)
+      // CRITICAL: When showAllDrivers is true, this ALWAYS fetches and updates ALL drivers' data
+      await this.waitForRateLimit();
+      const locationResult = await this.refreshDriverLocations(currentData.appUsers, true, currentPage, selectedDate, showAllDrivers);
+      if (locationResult?.hasChanges) {
+        updates.appUsers = locationResult.appUsers;
+        console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
+      }
+      
+      // STEP 2: ALWAYS fetch active date's deliveries from API (not offline DB)
+      // CRITICAL: When showAllDrivers is true, fetch deliveries for ALL drivers
+      await this.waitForRateLimit();
+      const cityOnlyFilter = { delivery_date: activeDateStr };
 
-  if (patientsToSync.length > 0) {
-    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsToSync);
-    console.log(`✅ [PatientImport] Synced ${patientsToSync.length} patients to offline DB`);
-  }
+      if (showAllDrivers) {
+        // Show All mode - fetch all drivers' deliveries (no driver_id filter)
+        console.log(`📦 [ActiveRoute] Fetching deliveries for ALL drivers from API for ${activeDateStr}`);
+      } else if (filters.deliveryFilter?.driver_id) {
+        cityOnlyFilter.driver_id = filters.deliveryFilter.driver_id;
+        console.log(`📦 [ActiveRoute] Fetching deliveries for driver ${filters.deliveryFilter.driver_id} from API`);
+      }
+      
+      if (filters.deliveryFilter?.store_id) {
+        cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
+      }
+      
+      const fetchedDeliveries = await queueEntityRequest(
+        () => base44.entities.Delivery.filter(cityOnlyFilter),
+        `Delivery filter [active, ${activeDateStr}]`
+      );
+      
+      if (fetchedDeliveries && fetchedDeliveries.length > 0) {
+        const { offlineDB } = await import('./offlineDatabase');
 
-  // CRITICAL: Force immediate smart refresh to sync UI with imported data
-  console.log('🔄 [PatientImport] Triggering immediate smart refresh...');
-  const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-  smartRefreshManager.restart(); // Reset all timers to force immediate refresh
+        // Sync to offline DB for this device
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
+        console.log(`✅ [ActiveRoute] Synced ${fetchedDeliveries.length} deliveries from API to offline DB`);
+        
+        // CRITICAL: Sync patients for active date deliveries
+        const patientIds = [...new Set(fetchedDeliveries.map(d => d.patient_id).filter(Boolean))];
+        if (patientIds.length > 0) {
+          await this.waitForRateLimit();
+          const patientsForActiveDate = await queueEntityRequest(
+            () => base44.entities.Patient.filter({ id: { $in: patientIds } }),
+            `Patient filter [active date patients]`
+          );
+          
+          if (patientsForActiveDate && patientsForActiveDate.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsForActiveDate);
+            console.log(`✅ [ActiveRoute] Synced ${patientsForActiveDate.length} patients for active date to offline DB`);
+            
+            // Update patients in state
+            const diff = diffEntityArrays(currentData.patients || [], patientsForActiveDate);
+            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+              const merged = mergeEntityChanges(currentData.patients || [], diff);
+              updates.patients = merged;
+            }
+          }
+        }
 
-  if (onImportComplete) {
-    onImportComplete(aggregatedResults);
-  }
+        const currentActiveDateDeliveries = currentData.deliveries.filter(d => d && d.delivery_date === activeDateStr);
+        const otherDeliveries = currentData.deliveries.filter(d => d && d.delivery_date !== activeDateStr);
+
+        // Merge API data with current state
+        const diff = diffEntityArrays(currentActiveDateDeliveries, fetchedDeliveries);
+        if (diff.toUpdate.length > 0 || diff.toAdd.length > 0 || diff.toRemove.length > 0) {
+          const mergedActiveDate = mergeEntityChanges(currentActiveDateDeliveries, diff);
+          
+          // Preserve items with pending local updates (just created/edited)
+          const filteredMerged = mergedActiveDate.map(d => {
+            if (this.hasPendingUpdate(d.id)) {
+              const localVersion = currentActiveDateDeliveries.find(cd => cd.id === d.id);
+              return localVersion || d;
+            }
+            return d;
+          });
+          
+          updates.deliveries = [...otherDeliveries, ...filteredMerged];
+          console.log(`✨ [ActiveRoute] Delivery updates from API: +${diff.toAdd.length} ~${diff.toUpdate.length} -${diff.toRemove.length}`);
+
+          // CRITICAL: If incomplete delivery count changed, dispatch event for auto-centering
+          const incompleteDeliveries = updates.deliveries.filter(d => 
+            d && d.delivery_date === activeDateStr && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+          );
+          if (incompleteDeliveries.length !== this._lastIncompleteDeliveriesCount) {
+            this._lastIncompleteDeliveriesCount = incompleteDeliveries.length;
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('incompleteDeliveriesCountChanged'));
+            }
+          }
+        }
+      }
+      
+      this.recordSuccess();
+      return Object.keys(updates).length > 0 ? updates : null;
       
     } catch (error) {
       this.recordError();
