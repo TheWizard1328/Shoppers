@@ -53,13 +53,17 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
   };
 
   // Calculate day totals (sum across all stores for each day)
-  const getDayTotal = (day) => {
-    return stores.reduce((sum, store) => sum + getDayValue(store.storeId || store.id, day), 0);
+  const getDayTotal = (day, mode = 'deliveries') => {
+    return stores.reduce((sum, store) => sum + getDayValue(store.storeId || store.id, day, mode), 0);
   };
 
   // Calculate store totals (sum across all days for each store)
-  const getStoreTotal = (store) => {
+  const getStoreTotal = (store, mode = 'deliveries') => {
     const storeDaily = dailyStoreData[store.storeId || store.id] || [];
+    if (mode === 'extra_km') {
+      return storeDaily.reduce((sum, day) => sum + (day.extra_km || 0), 0);
+    }
+    // deliveries mode
     return storeDaily.reduce((sum, day) => sum + (day.completed || 0) + (day.failed || 0) + (day.afterHours || 0), 0);
   };
 
