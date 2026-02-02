@@ -3149,19 +3149,19 @@ export default function PayrollSummaryCard({
                   <div className="text-xs grid gap-1" style={{ gridTemplateColumns: '150px 140px 140px', rowGap: '0.125rem' }}>
                     {/* Row 1 */}
                     <div className="flex items-center">
-                      <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
+                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
                       <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
                         {driversWithDeliveries.reduce((sum, d) => sum + d.totalDeliveries, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalBasePay, 0).toFixed(2)}
                       </span>
                     </div>
                     <div className="flex items-center">
-                      <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
                       <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
                         {driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKm, 0).toFixed(2)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKmPay, 0).toFixed(2)}
                       </span>
                     </div>
                     <div className="flex items-center">
-                      <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
                       <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
                         {driversWithDeliveries.reduce((sum, d) => sum + d.oversizedCount, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalOversizedPay, 0).toFixed(2)}
                       </span>
@@ -3169,13 +3169,13 @@ export default function PayrollSummaryCard({
                     
                     {/* Row 2 */}
                     <div className="flex items-center">
-                      <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
+                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
                       <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">
                         {driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}
                       </span>
                     </div>
                     <div className="flex items-center">
-                      <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
+                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
                       <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">
                         {driversWithDeliveries.reduce((sum, d) => sum + d.storeReturnCount, 0)}
                       </span>
@@ -3183,7 +3183,7 @@ export default function PayrollSummaryCard({
                   </div>
 
                   {/* Right Column: Pay Totals with YTD */}
-                  <div className="flex items-start">
+                  <div className="flex items-start ml-auto">
                   {/* Period Column */}
                   <div className="flex flex-col">
                     {grandTotalTax > 0 || grandTotalDeductions > 0 ?
