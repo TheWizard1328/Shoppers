@@ -18,11 +18,25 @@ import { globalFilters } from '../components/utils/globalFilters';
 
 export default function DriverSettings() {
   const { users, appUsers, stores, cities = [], refreshData } = useAppData();
+  const { currentUser } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
   const [freshAppUsers, setFreshAppUsers] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingDriver, setEditingDriver] = useState(null);
-  const selectedCityId = globalFilters.getSelectedCityId();
+  let selectedCityId = globalFilters.getSelectedCityId();
+
+  // Default to user's assigned city if not set
+  useEffect(() => {
+    if (currentUser && (!selectedCityId || selectedCityId === 'waiting-for-selection')) {
+      const userCity = currentUser.city_id || (Array.isArray(currentUser.city_ids) && currentUser.city_ids[0]);
+      if (userCity) {
+        globalFilters.setSelectedCityId(userCity);
+      }
+    }
+  }, [currentUser]);
+
+  // Get fresh selected city after potential update
+  selectedCityId = globalFilters.getSelectedCityId();
 
   const sortedCities = useMemo(() => {
     return [...cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
