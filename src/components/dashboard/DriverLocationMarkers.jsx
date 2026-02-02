@@ -14,19 +14,57 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   // Listen for driverLocationsUpdated events to force marker refresh
   useEffect(() => {
     const handleLocationUpdates = (event) => {
-      const { appUsers: updatedAppUsers, forceAll } = event.detail || {};
+      const { appUsers: updatedAppUsers, singleUpdate, forceAll } = event.detail || {};
       
-      if (!updatedAppUsers || updatedAppUsers.length === 0) {
-        console.warn('⚠️ [DriverLocationMarkers] Empty AppUsers in event');
+      console.log(`📍 [DriverLocationMarkers] driverLocationsUpdated event:`, { 
+        appUsersCount: updatedAppUsers?.length || 0,
+        hasSingleUpdate: !!singleUpdate,
+        forceAll
+      });
+      
+      // Handle single driver update
+      if (singleUpdate) {
+        const { current_latitude, current_longitude, location_updated_at, user_id, id } = singleUpdate;
+        const userId = id || user_id;
+        
+        if (userId && current_latitude && current_longitude) {
+          console.log(`📍 [DriverLocationMarkers] Updating single driver: ${userId}`);
+          setVisibleDrivers(prev => {
+            const exists = prev.find(d => d && d.id === userId);
+            if (exists) {
+              return prev.map(d => d && d.id === userId ? {
+                ...d,
+                current_latitude,
+                current_longitude,
+                location_updated_at: location_updated_at || new Date().toISOString()
+              } : d);
+            }
+            return prev;
+          });
+        }
         return;
       }
       
-      console.log(`📍 [DriverLocationMarkers] Received location update event: ${updatedAppUsers.length} AppUsers (forceAll: ${forceAll})`);
-      
-      // Trigger a re-render by setting users state
-      // This will cause the main effect below to re-run with fresh data
-      if (forceAll) {
-        console.log('🔄 [DriverLocationMarkers] Force updating ALL driver markers');
+      // Handle bulk appUsers update
+      if (updatedAppUsers && updatedAppUsers.length > 0) {
+        console.log(`📍 [DriverLocationMarkers] Updating ${updatedAppUsers.length} drivers from appUsers`);
+        setVisibleDrivers(prev => {
+          const updated = [...prev];
+          for (const appUser of updatedAppUsers) {
+            if (!appUser) continue;
+            const existingIdx = updated.findIndex(d => d && d.id === appUser.id);
+            if (existingIdx >= 0) {
+              updated[existingIdx] = {
+                ...updated[existingIdx],
+                ...appUser,
+                current_latitude: appUser.current_latitude || updated[existingIdx]?.current_latitude,
+                current_longitude: appUser.current_longitude || updated[existingIdx]?.current_longitude,
+                location_updated_at: appUser.location_updated_at || new Date().toISOString()
+              };
+            }
+          }
+          return updated;
+        });
       }
     };
     
