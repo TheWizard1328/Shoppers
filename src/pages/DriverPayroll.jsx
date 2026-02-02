@@ -428,13 +428,15 @@ export default function DriverPayroll() {
     }
 
     try {
-      // CRITICAL: Preload Cities and AppUsers from entities FIRST to ensure dropdowns populate
-      console.log('📥 [DriverPayroll] Preloading Cities and AppUsers...');
+      // CRITICAL: Load Cities and AppUsers from offline DB to reduce API rate limit hits
+      // Offline DB is regularly refreshed, so data is always fresh
+      console.log('📥 [DriverPayroll] Loading Cities and AppUsers from offline DB...');
+      const { offlineDB } = await import('../components/utils/offlineDatabase');
       const [freshCities, freshAppUsers] = await Promise.all([
-        base44.entities.City.list(),
-        base44.entities.AppUser.list()
+        offlineDB.getAll(offlineDB.STORES.CITIES),
+        offlineDB.getAll(offlineDB.STORES.APP_USERS)
       ]);
-      console.log(`✅ [DriverPayroll] Preloaded ${freshCities?.length || 0} cities, ${freshAppUsers?.length || 0} appUsers`);
+      console.log(`✅ [DriverPayroll] Loaded ${freshCities?.length || 0} cities, ${freshAppUsers?.length || 0} appUsers from offline DB`);
 
       // CRITICAL: Invalidate caches before fetching to ensure fresh data
       if (forceFresh) {
@@ -452,7 +454,7 @@ export default function DriverPayroll() {
       });
       const data = response?.data?.payrollData || response?.payrollData;
       
-      // CRITICAL: Merge fresh entity data with backend data to ensure integrity
+      // CRITICAL: Merge offline DB data with backend data to ensure dropdown integrity
       const mergedData = {
         ...data,
         cities: freshCities || data?.cities || [],
