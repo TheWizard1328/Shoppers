@@ -312,14 +312,14 @@ export default function AdminMetrics() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <Card>
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="pt-4 pb-4">
-              <p className="text-sm text-slate-500 mb-2">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Deliveries</p>
+              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Deliveries</p>
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-emerald-100 rounded-lg">
-                  <Package className="w-5 h-5 text-emerald-600" />
+                <div className="p-2 rounded-lg" style={{ background: '#d1fae5' }}>
+                  <Package className="w-5 h-5" style={{ color: '#059669' }} />
                 </div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {(selectedMonth 
                     ? (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics 
                         ? (metricsData.envelopeMetrics.yearTotals.adjustedDeliveries / 12)
