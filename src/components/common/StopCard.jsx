@@ -1629,9 +1629,9 @@ export default function StopCard({
                   }
                   </AnimatePresence>
 
-                  {/* Patient Notes - Hide for driver-stripped (stripped item) */}
-                  {!isStrippedForDriver && isFinishedDelivery && !isPickup && patient?.notes &&
-                <div className="flex items-start gap-2">
+                  {/* Patient Notes - Hide for driver-stripped AND non-AppOwner on completed/past routes */}
+                  {!isStrippedForDriver && isFinishedDelivery && !isPickup && patient?.notes && (isAppOwner(currentUser) || (delivery.delivery_date === format(new Date(), 'yyyy-MM-dd'))) &&
+                  <div className="flex items-start gap-2">
                     <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="text-base md:text-xs font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>Patient Notes:</p>
@@ -1640,9 +1640,9 @@ export default function StopCard({
                       </div>
                     </div>
                   </div>
-                }
+                  }
 
-                  {/* Full Patient Info - Hide for driver-stripped (stripped item) */}
+                  {/* Full Patient Info - Only AppOwner on completed routes or dispatcher on active deliveries */}
                   {!isStrippedForDriver && !isFinishedDelivery && !isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
                 <div className="flex items-start gap-2">
                 <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
