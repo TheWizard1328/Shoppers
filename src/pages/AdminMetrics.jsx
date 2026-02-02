@@ -670,7 +670,7 @@ export default function AdminMetrics() {
                       interval={selectedMonth ? 0 : 0}
                       height={selectedMonth ? 40 : 30}
                     />
-                    <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <YAxis tick={{ fill: 'var(--text-slate-600)', fontSize: 12 }} />
                     <Tooltip 
                       contentStyle={{ 
                         background: 'white', 
@@ -753,7 +753,7 @@ export default function AdminMetrics() {
                       textAnchor="end"
                       height={80}
                     />
-                    <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <YAxis tick={{ fill: 'var(--text-slate-600)', fontSize: 12 }} />
                     <Tooltip 
                       contentStyle={{ 
                         background: 'white', 
