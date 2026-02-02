@@ -3310,7 +3310,7 @@ export default function PayrollSummaryCard({
                   </div>
 
                   {/* Vertical Divider */}
-                  <div className="mx-3" style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
+                  <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
 
                   {/* YTD Column */}
                   <div className="flex flex-col">
