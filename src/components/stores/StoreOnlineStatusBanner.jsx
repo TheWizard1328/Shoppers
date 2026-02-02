@@ -17,11 +17,28 @@ export default function StoreOnlineStatusBanner({ stores, appUsers }) {
                 au.store_ids?.includes(store.id)
         );
         
+        // Check if any online dispatcher has stale location (5+ minutes old)
+        let isStale = false;
+        if (onlineDispatchers.length > 0) {
+          const now = Date.now();
+          isStale = onlineDispatchers.some(au => {
+            if (!au.location_updated_at) return true; // No location = stale
+            const lastUpdate = new Date(au.location_updated_at).getTime();
+            return (now - lastUpdate) > 5 * 60 * 1000; // 5 minutes
+          });
+        }
+        
+        // Determine bullet color: green (online), orange (stale), grey (offline)
+        let bulletColor = '#cbd5e1'; // grey (offline)
+        if (onlineDispatchers.length > 0) {
+          bulletColor = isStale ? '#f97316' : '#10b981'; // orange (stale) : green (online)
+        }
+        
         return {
           id: store.id,
           name: store.name,
           abbreviation: store.abbreviation,
-          color: store.color || '#64748b',
+          bulletColor: bulletColor,
           isOnline: onlineDispatchers.length > 0
         };
       });
@@ -37,8 +54,8 @@ export default function StoreOnlineStatusBanner({ stores, appUsers }) {
             <div
               className="w-3 h-3 rounded-full flex-shrink-0"
               style={{ 
-                backgroundColor: store.isOnline ? store.color : '#cbd5e1',
-                boxShadow: store.isOnline ? `0 0 6px ${store.color}40` : 'none'
+                backgroundColor: store.bulletColor,
+                boxShadow: store.isOnline ? `0 0 6px ${store.bulletColor}40` : 'none'
               }}
             />
             <span 
