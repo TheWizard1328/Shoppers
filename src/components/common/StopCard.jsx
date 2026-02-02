@@ -2722,18 +2722,13 @@ export default function StopCard({
                           // Wait for smart refresh to fully pause
                           await new Promise((resolve) => setTimeout(resolve, 300));
 
-                          // CRITICAL: Update database directly instead of calling backend (avoids rate limits)
+                          // CRITICAL: Update database directly WITHOUT fetching
                           console.log('💾 [START] Writing isNextDelivery to database...');
 
-                          // Step 1: Clear ALL isNextDelivery flags for driver/date
-                          const allDriverDeliveriesForDate = await base44.entities.Delivery.filter({
-                            driver_id: delivery.driver_id,
-                            delivery_date: delivery.delivery_date
-                          });
-
-                          const resetPromises = allDriverDeliveriesForDate.
-                          filter((d) => d.isNextDelivery && d.id !== delivery.id).
-                          map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+                          // Step 1: Use LOCAL allDeliveries instead of fetching from backend
+                          const resetPromises = driverDeliveries
+                            .filter((d) => d.isNextDelivery && d.id !== delivery.id)
+                            .map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
 
                           if (resetPromises.length > 0) {
                             await Promise.all(resetPromises);
@@ -2742,7 +2737,7 @@ export default function StopCard({
 
                           // Step 2: Set this delivery as isNextDelivery with status update
                           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                          const completedStops = allDriverDeliveriesForDate.filter((d) => finishedStatuses.includes(d.status));
+                          const completedStops = driverDeliveries.filter((d) => finishedStatuses.includes(d.status));
                           const nextStopOrder = completedStops.length + 1;
 
                           await base44.entities.Delivery.update(delivery.id, {
@@ -2759,7 +2754,7 @@ export default function StopCard({
                             delivery_time_start: currentLocalTime
                           }, { skipSmartRefresh: true });
 
-                          // CRITICAL: Route optimization re-enabled for Start button
+                          // CRITICAL: Route optimization - don't refresh UI until complete
                           try {
                             console.log('🔄 [START] Running optimizeRouteRealTime...');
                             await base44.functions.invoke('optimizeRouteRealTime', {
@@ -2770,26 +2765,21 @@ export default function StopCard({
                             });
                             console.log('✅ [START] Route optimized');
 
-                            // Refresh UI with optimized stop orders
+                            // Wait before refreshing to let backend sync complete
+                            await new Promise((resolve) => setTimeout(resolve, 500));
+
+                            // NOW refresh UI with optimized stop orders
                             invalidate('Delivery');
                             await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                             // Wait for UI to fully update with new stop orders
                             await new Promise((resolve) => setTimeout(resolve, 500));
 
-                            // CRITICAL: Find and scroll to the card with isNextDelivery=true AFTER optimization
-                            const freshDeliveries = await base44.entities.Delivery.filter({
-                              driver_id: delivery.driver_id,
-                              delivery_date: delivery.delivery_date
-                            });
-
-                            const nextDelivery = freshDeliveries.find((d) => d && d.isNextDelivery === true);
-                            if (nextDelivery) {
-                              const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
-                              if (cardElement) {
-                                cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                                console.log('📍 [START] Scrolled to optimized next delivery card');
-                              }
+                            // Find and scroll to the card with isNextDelivery=true AFTER optimization
+                            const nextCardElement = document.getElementById(`stop-card-${delivery.id}`);
+                            if (nextCardElement) {
+                              nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                              console.log('📍 [START] Scrolled to started delivery card');
                             }
 
                             // Trigger final map update
@@ -2818,6 +2808,7 @@ export default function StopCard({
                         } finally {
                           setIsStarting(false);
                           setIsProcessingBackground(false);
+                          setIsEntityUpdating(false);
                         }
                       })();
 
