@@ -107,11 +107,25 @@ export const getEffectiveUser = async () => {
             if (impersonationId && authUser.role === 'admin' && impersonationId !== authUser.id) {
                 try {
                     const impersonatedAppUser = appUserList.find(au => au && au.user_id === impersonationId);
-                    const allAuthUsers = await withTimeout(User.list(), 8000);
-                    const impersonatedAuthUser = allAuthUsers.find(u => u && u.id === impersonationId);
                     
-                    if (impersonatedAuthUser && impersonatedAppUser) {
-                        const impersonatedMerged = createMergedUser(impersonatedAuthUser, impersonatedAppUser);
+                    // Try to get auth user, but gracefully handle if User.list() is forbidden
+                    let impersonatedAuthUser = null;
+                    try {
+                        const allAuthUsers = await withTimeout(User.list(), 8000);
+                        impersonatedAuthUser = allAuthUsers.find(u => u && u.id === impersonationId);
+                    } catch (userListError) {
+                        if (userListError.response?.status === 403) {
+                            console.warn('⚠️ [auth.js] User.list() forbidden - using AppUser data only for impersonation');
+                        } else {
+                            throw userListError;
+                        }
+                    }
+                    
+                    if (impersonatedAppUser) {
+                        // Use auth user if available, otherwise create merged user from AppUser only
+                        const impersonatedMerged = impersonatedAuthUser 
+                            ? createMergedUser(impersonatedAuthUser, impersonatedAppUser)
+                            : createMergedUser(null, impersonatedAppUser);
                         
                         if (impersonatedMerged) {
                           impersonatedMerged._isImpersonating = true;
@@ -124,14 +138,7 @@ export const getEffectiveUser = async () => {
                           return impersonatedMerged;
                         }
                     } else {
-                        console.warn('⚠️ [auth.js] Impersonation target not found or invalid, clearing impersonation.');
-                        console.warn('   Debug info:', {
-                          impersonationId,
-                          foundAuthUser: !!impersonatedAuthUser,
-                          foundAppUser: !!impersonatedAppUser,
-                          allAuthUsersCount: allAuthUsers?.length || 0,
-                          allAppUsersCount: appUserList?.length || 0
-                        });
+                        console.warn('⚠️ [auth.js] Impersonation target AppUser not found, clearing impersonation.');
                         sessionStorage.removeItem('impersonationId');
                     }
                 } catch (impersonationError) {
