@@ -157,7 +157,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                   );
                 })}
                 <td className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-slate-300 tabular-nums">
-                  {grandTotal > 0 ? (viewMode === 'extra_km' ? grandTotal.toFixed(1) : grandTotal) : ''}
+                  {grandTotal > 0 ? (viewMode === 'extra_km' ? grandTotal.toFixed(2) : grandTotal) : ''}
                 </td>
               </tr>
 
