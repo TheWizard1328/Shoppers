@@ -277,9 +277,9 @@ export default function DriverPayrollGrid({
       }
     });
 
-    // Filter out inactive stores only
+    // Filter to only stores with data AND active status
     const storesWithDataList = allSortedStores.filter(store => 
-      store.status !== 'inactive'
+      store.status !== 'inactive' && storeHasData[store.id]
     );
 
     console.log(`   - Stores with data: ${Object.keys(storeHasData).length}`);
