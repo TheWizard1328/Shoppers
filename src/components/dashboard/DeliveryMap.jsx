@@ -3326,6 +3326,9 @@ export default function DeliveryMap({
                         // Find first incomplete stop
                         const firstIncomplete = allMarkersAtLocation.find(m => !FINISHED_STATUSES.includes(m.status));
                         
+                        // Find first incomplete stop
+                        const firstIncomplete = allMarkersAtLocation.find(m => !FINISHED_STATUSES.includes(m.status));
+                        
                         return allMarkersAtLocation.map((m, idx) => {
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
@@ -3349,10 +3352,12 @@ export default function DeliveryMap({
                                 }
                               }}
                             >
-                              <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                              <div className="flex items-center gap-1.5 font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                                <Truck className="w-3.5 h-3.5" />
                                 {m.driver?.user_name || 'Unknown'}
                               </div>
-                              <div className="text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                              <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                                <Home className="w-3.5 h-3.5" />
                                 {m.store?.name || 'Store'}
                               </div>
                               {isFinished && finishedTime ? (
