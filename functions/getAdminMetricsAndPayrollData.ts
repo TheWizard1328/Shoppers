@@ -347,6 +347,19 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
         if (store?.pays_app_fees) monthlyDriverEntry.billable++;
         else monthlyDriverEntry.nonBillable++;
 
+        // Daily driver data for selected month (for day-by-day breakdown)
+        if (!metrics.dailyDriverData[monthIndex + 1]) metrics.dailyDriverData[monthIndex + 1] = {};
+        if (!metrics.dailyDriverData[monthIndex + 1][delivery.driver_id]) {
+          metrics.dailyDriverData[monthIndex + 1][delivery.driver_id] = [];
+        }
+        let dailyDriverEntry = metrics.dailyDriverData[monthIndex + 1][delivery.driver_id].find(d => d.day === dayOfMonth);
+        if (!dailyDriverEntry) {
+          dailyDriverEntry = { day: dayOfMonth, billable: 0, nonBillable: 0 };
+          metrics.dailyDriverData[monthIndex + 1][delivery.driver_id].push(dailyDriverEntry);
+        }
+        if (store?.pays_app_fees) dailyDriverEntry.billable++;
+        else dailyDriverEntry.nonBillable++;
+
         if (delivery.store_id) {
           if (!metrics.driverDataByStore[delivery.store_id]) metrics.driverDataByStore[delivery.store_id] = [];
           let storeDriverEntry = metrics.driverDataByStore[delivery.store_id].find(d => d.driverId === delivery.driver_id);
