@@ -196,13 +196,17 @@ export default function AdminMetrics() {
 
         {/* Tabs for different admin sections */}
         <Tabs defaultValue="deliveries" className="w-full" ref={contentRef}>
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6">
+          <TabsList className={`grid w-full ${currentUser && isAppOwner(currentUser) ? 'grid-cols-2 lg:grid-cols-6' : 'grid-cols-2'}`}>
             <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
             <TabsTrigger value="store-fees">Store Fees</TabsTrigger>
-            <TabsTrigger value="api-logs">API Logs</TabsTrigger>
-            <TabsTrigger value="polylines">Polylines</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-            <TabsTrigger value="data">Data Tables</TabsTrigger>
+            {currentUser && isAppOwner(currentUser) && (
+              <>
+                <TabsTrigger value="api-logs">API Logs</TabsTrigger>
+                <TabsTrigger value="polylines">Polylines</TabsTrigger>
+                <TabsTrigger value="settings">Settings</TabsTrigger>
+                <TabsTrigger value="data">Data Tables</TabsTrigger>
+              </>
+            )}
           </TabsList>
 
           {/* Deliveries Grid */}
