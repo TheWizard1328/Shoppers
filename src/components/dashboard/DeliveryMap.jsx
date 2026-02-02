@@ -2258,6 +2258,28 @@ export default function DeliveryMap({
     } catch (error) {}
   }, []);
 
+  // Track popup visibility timeouts for driver location markers
+  const popupTimeoutsRef = useRef({});
+  
+  const handleDriverLocationPopupHover = (locationId, isHovering) => {
+    if (isHovering) {
+      // Clear timeout when hovering over popup
+      if (popupTimeoutsRef.current[locationId]) {
+        clearTimeout(popupTimeoutsRef.current[locationId]);
+        popupTimeoutsRef.current[locationId] = null;
+      }
+    } else {
+      // Set 2-second delay before closing when leaving popup
+      popupTimeoutsRef.current[locationId] = setTimeout(() => {
+        const markers = document.querySelectorAll(`[data-driver-location-id="${locationId}"] .leaflet-popup`);
+        markers.forEach(m => {
+          const closeBtn = m.querySelector('.leaflet-popup-close-button');
+          if (closeBtn) closeBtn.click();
+        });
+      }, 2000);
+    }
+  };
+
   // CRITICAL FIX: Simplified MapController - only sets map reference, no conditional hooks
   // NEW: Track zoom level changes and show overlay AND notify parent of map interactions
   // NEW: Double-tap detection for FAB activation
