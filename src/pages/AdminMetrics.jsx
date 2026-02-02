@@ -298,6 +298,18 @@ export default function AdminMetrics() {
               </SelectContent>
             </Select>
 
+            <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
+              <SelectTrigger className="w-[140px] md:w-[160px]">
+                <SelectValue placeholder="All Drivers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Drivers</SelectItem>
+                {metricsData?.driverData?.map((driver) =>
+                <SelectItem key={driver.driverId} value={driver.driverId}>{driver.name}</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+
             <Select value={selectedYear} onValueChange={handleYearChange}>
               <SelectTrigger className="w-[120px] md:w-[140px]">
                 <SelectValue />
