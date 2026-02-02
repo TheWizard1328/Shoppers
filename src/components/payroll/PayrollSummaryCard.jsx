@@ -3116,7 +3116,7 @@ export default function PayrollSummaryCard({
                             className="text-xs mr-1 text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
                             Extra App Fee Cut:
                           </button>
-                          <span className="font-semibold">-{formatCurrency(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent))}</span>
+                          <span className="font-semibold">-{formatCurrency(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent))}</span>
                         </div>
                         }
                         <div className="text-lg font-bold text-emerald-700 mt-1">
@@ -3154,8 +3154,8 @@ export default function PayrollSummaryCard({
                         </div>
                         {isPeriodEndOfMonth &&
                         <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-600)' }}>
-                         -{formatCurrency(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent))}
-                       </div>
+                          -{formatCurrency(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent))}
+                        </div>
                         }
                         <div className="text-lg font-bold text-emerald-700 mt-1">
                           {formatCurrency(ytdGrandTotalGross)}
