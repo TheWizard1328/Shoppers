@@ -821,7 +821,7 @@ export default function SquareManagement() {
                     }}
                   >
                     <div className="text-sm font-semibold mb-2 text-slate-900 dark:text-slate-50">
-                      {store ? store.name : config.name}
+                      {config?.name || store?.name || 'Unknown'}
                     </div>
                     <div className="text-xl font-bold mb-1 text-emerald-600 dark:text-emerald-400">
                       ${codTotal.toFixed(2)}
