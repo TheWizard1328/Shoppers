@@ -3726,9 +3726,12 @@ export default function Layout({ children, currentPageName }) {
                 </header>
                 }
 
-                    <main className="flex-1 overflow-y-auto relative" style={{ background: 'var(--bg-slate-50)' }}>
-                  {children}
-                </main>
+                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
+                    <MainCitySelector />
+                    <div className="flex-1 overflow-y-auto">
+                    {children}
+                    </div>
+                    </main>
               </div>
             </div>
           </AppDataProvider>
