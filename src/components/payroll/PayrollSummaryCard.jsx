@@ -2477,17 +2477,33 @@ export default function PayrollSummaryCard({
                      </td>
                    </tr>
 
-                   {/* App Owner Row */}
+                   {/* App Owner Row - Shows current user's app fee since they ARE the app owner */}
                    <tr style={{ background: 'var(--bg-slate-100)', borderTop: '2px solid var(--border-slate-300)' }}>
-                     <td className="px-2 py-1.5 font-semibold">App Owner</td>
+                     <td className="px-2 py-1.5 font-semibold">App Owner (You)</td>
                      <td className="text-right px-1 py-1.5">
                        <input
                          type="number"
-                         value={appOwnerAppFeePercent}
+                         value={driverEdits[currentUser?.id]?.appFeePercent || 0}
                          onChange={(e) => {
                            const newAppOwnerPercent = parseFloat(e.target.value) || 0;
-                           // Recalculate Other % = 100 - AppOwner - sum(all other drivers)
-                           const newOtherPercent = Math.max(0, 100 - sumAllDriversAppFeePercent - newAppOwnerPercent);
+                           const calculatedAmount = calculateAppFeeAmount(currentUser.id, newAppOwnerPercent);
+
+                           // Update App Owner's driver edit
+                           setDriverEdits((prev) => ({
+                             ...prev,
+                             [currentUser.id]: { 
+                               ...prev[currentUser.id], 
+                               appFeePercent: newAppOwnerPercent,
+                               appFeeAmount: Math.round(calculatedAmount * 100) / 100
+                             }
+                           }));
+
+                           // Recalculate Other % = 100 - sum(ALL drivers including app owner)
+                           const sumAllDriversIncludingAppOwner = driversWithDeliveries.reduce((sum, d) => {
+                             if (d.driver.id === currentUser.id) return sum + newAppOwnerPercent;
+                             return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                           }, 0);
+                           const newOtherPercent = Math.max(0, 100 - sumAllDriversIncludingAppOwner);
                            setOtherAppFeePercent(Math.round(newOtherPercent * 100) / 100);
                          }}
                          className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner font-semibold"
@@ -2495,7 +2511,7 @@ export default function PayrollSummaryCard({
                          min="0"
                          max="100" />
                      </td>
-                     <td className="text-right px-1 py-1.5 font-semibold">${(calculateAppFeeAmount('app-owner', appOwnerAppFeePercent) || 0).toFixed(2)}</td>
+                     <td className="text-right px-1 py-1.5 font-semibold">${(driverEdits[currentUser?.id]?.appFeeAmount || calculateAppFeeAmount(currentUser?.id, driverEdits[currentUser?.id]?.appFeePercent || 0) || 0).toFixed(2)}</td>
                    </tr>
                  </tbody>
                </table>
@@ -2505,9 +2521,9 @@ export default function PayrollSummaryCard({
            {/* Summary */}
            <div className="text-xs p-2 bg-slate-50 rounded mt-3">
              <div>Sum of Other Drivers: <strong>{sumAllDriversAppFeePercent.toFixed(2)}%</strong></div>
+             <div>App Owner (You): <strong>{(driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}%</strong></div>
              <div>Other App Fee: <strong>{otherAppFeePercent.toFixed(2)}%</strong></div>
-             <div className="text-blue-600 font-semibold mt-1">App Owner (auto): <strong>{appOwnerAppFeePercent.toFixed(2)}%</strong></div>
-             <div className="text-xs text-slate-500 mt-1">Total: {(sumAllDriversAppFeePercent + otherAppFeePercent + appOwnerAppFeePercent).toFixed(2)}% / 100%</div>
+             <div className="text-xs text-slate-500 mt-1 font-semibold">Total: {(sumAllDriversAppFeePercent + (driverEdits[currentUser?.id]?.appFeePercent || 0) + otherAppFeePercent).toFixed(2)}% / 100%</div>
            </div>
            </div>
 
