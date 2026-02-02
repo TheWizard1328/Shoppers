@@ -3526,36 +3526,54 @@ export default function DeliveryMap({
                     </div>
                   </Popup>
                 ) : (
-                  // Non-clustered other driver pickup - simple popup
+                  // Non-clustered other driver pickup - same layout as clustered
                   <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                    <div className="min-w-[150px] space-y-1.5">
-                      <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                        {pickup.driver?.user_name || 'Unknown'}
+                    <div className="min-w-[200px] max-w-[300px] space-y-0">
+                      <div className="px-1 pt-1 pb-1.5 space-y-0.5">
+                        <div className="flex items-center gap-1.5 font-medium text-xs" style={{ color: 'var(--text-slate-900)' }}>
+                          <Truck className="w-3.5 h-3.5 flex-shrink-0" />
+                          {pickup.driver?.user_name || 'Unknown'}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                          <Home className="w-3.5 h-3.5 flex-shrink-0" />
+                          {pickup.store?.name || 'Store'}
+                        </div>
                       </div>
-                      <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                        {pickup.store?.name || 'Store'}
-                      </div>
-                      {(() => {
-                        const isFinished = FINISHED_STATUSES.includes(pickup.status);
-                        const finishedTime = pickup.actual_delivery_time ? format(new Date(pickup.actual_delivery_time), 'HH:mm') : null;
-                        
-                        if (isFinished && finishedTime) {
+                      <div className="border-b" style={{ borderColor: 'var(--border-slate-200)' }} />
+                      <div className="px-1 py-1.5">
+                        {(() => {
+                          const isFinished = FINISHED_STATUSES.includes(pickup.status);
+                          const isFailed = pickup.status === 'failed' || pickup.status === 'cancelled';
+                          const finishedTime = pickup.actual_delivery_time ? format(new Date(pickup.actual_delivery_time), 'HH:mm') : null;
+                          const itemName = 'Store Pickup';
+                          
                           return (
                             <div className="text-xs flex items-center justify-between">
-                              <span style={{ color: 'var(--text-slate-900)' }}>Store Pickup</span>
-                              <span className="text-emerald-600">{finishedTime}</span>
+                              <div className="flex items-center gap-1.5" style={{ color: 'var(--text-slate-900)' }}>
+                                <User className="w-3 h-3 flex-shrink-0" />
+                                <span>{itemName}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {isFinished && finishedTime ? (
+                                  <>
+                                    <span className="text-emerald-600">{finishedTime}</span>
+                                    {isFailed ? (
+                                      <XCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                                    ) : (
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                    )}
+                                  </>
+                                ) : pickup.delivery_time_eta ? (
+                                  <>
+                                    <span style={{ color: 'var(--text-slate-600)' }}>{pickup.delivery_time_eta}</span>
+                                    <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }} />
+                                  </>
+                                ) : null}
+                              </div>
                             </div>
                           );
-                        } else if (pickup.delivery_time_eta) {
-                          return (
-                            <div className="text-xs flex items-center justify-between">
-                              <span style={{ color: 'var(--text-slate-900)' }}>Store Pickup</span>
-                              <span style={{ color: 'var(--text-slate-600)' }}>ETA: {pickup.delivery_time_eta}</span>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                        })()}
+                      </div>
                     </div>
                   </Popup>
                 )
@@ -3935,36 +3953,54 @@ export default function DeliveryMap({
                     </div>
                   </Popup>
                 ) : (
-                  // Non-clustered other driver delivery - simple popup
+                  // Non-clustered other driver delivery - same layout as clustered
                   <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                    <div className="min-w-[150px] space-y-1.5">
-                      <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                        {delivery.driver?.user_name || 'Unknown'}
+                    <div className="min-w-[200px] max-w-[300px] space-y-0">
+                      <div className="px-1 pt-1 pb-1.5 space-y-0.5">
+                        <div className="flex items-center gap-1.5 font-medium text-xs" style={{ color: 'var(--text-slate-900)' }}>
+                          <Truck className="w-3.5 h-3.5 flex-shrink-0" />
+                          {delivery.driver?.user_name || 'Unknown'}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                          <Home className="w-3.5 h-3.5 flex-shrink-0" />
+                          {delivery.store?.name || 'Store'}
+                        </div>
                       </div>
-                      <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                        {delivery.store?.name || 'Store'}
-                      </div>
-                      {(() => {
-                        const isFinished = FINISHED_STATUSES.includes(delivery.status);
-                        const finishedTime = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : null;
-                        
-                        if (isFinished && finishedTime) {
+                      <div className="border-b" style={{ borderColor: 'var(--border-slate-200)' }} />
+                      <div className="px-1 py-1.5">
+                        {(() => {
+                          const isFinished = FINISHED_STATUSES.includes(delivery.status);
+                          const isFailed = delivery.status === 'failed' || delivery.status === 'cancelled';
+                          const finishedTime = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : null;
+                          const itemName = delivery.patient?.full_name || 'Patient';
+                          
                           return (
                             <div className="text-xs flex items-center justify-between">
-                              <span style={{ color: 'var(--text-slate-900)' }}>{delivery.patient?.full_name || 'Patient'}</span>
-                              <span className="text-emerald-600">{finishedTime}</span>
+                              <div className="flex items-center gap-1.5" style={{ color: 'var(--text-slate-900)' }}>
+                                <User className="w-3 h-3 flex-shrink-0" />
+                                <span>{itemName}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {isFinished && finishedTime ? (
+                                  <>
+                                    <span className="text-emerald-600">{finishedTime}</span>
+                                    {isFailed ? (
+                                      <XCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                                    ) : (
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                    )}
+                                  </>
+                                ) : delivery.delivery_time_eta ? (
+                                  <>
+                                    <span style={{ color: 'var(--text-slate-600)' }}>{delivery.delivery_time_eta}</span>
+                                    <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }} />
+                                  </>
+                                ) : null}
+                              </div>
                             </div>
                           );
-                        } else if (delivery.delivery_time_eta) {
-                          return (
-                            <div className="text-xs flex items-center justify-between">
-                              <span style={{ color: 'var(--text-slate-900)' }}>{delivery.patient?.full_name || 'Patient'}</span>
-                              <span style={{ color: 'var(--text-slate-600)' }}>ETA: {delivery.delivery_time_eta}</span>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                        })()}
+                      </div>
                     </div>
                   </Popup>
                 )
