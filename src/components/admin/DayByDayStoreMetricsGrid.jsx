@@ -67,7 +67,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
     return storeDaily.reduce((sum, day) => sum + (day.completed || 0) + (day.failed || 0) + (day.afterHours || 0), 0);
   };
 
-  const grandTotal = stores.reduce((sum, store) => sum + getStoreTotal(store), 0);
+  const grandTotal = stores.reduce((sum, store) => sum + getStoreTotal(store, viewMode), 0);
 
   return (
     <Card>
