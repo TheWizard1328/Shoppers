@@ -1869,16 +1869,14 @@ export default function PayrollSummaryCard({
       const driverKey = data.driver.id;
       const payrollRecord = getDriverPayrollRecord(driverKey);
       const appFeePercent = payrollRecord?.app_fee_percentage !== undefined ? payrollRecord.app_fee_percentage : 0;
+      const appFeeAmount = payrollRecord?.app_fee_amount !== undefined ? payrollRecord.app_fee_amount : 0;
       
-      // CRITICAL: Recalculate app_fee_amount based on current deliveries and stored percentage
-      const recalculatedAppFeeAmount = calculateAppFeeAmount(driverKey, appFeePercent);
-      
-      // CRITICAL: Always sync from payroll record if it exists, otherwise use defaults
+      // CRITICAL: Load saved values from payroll record, keep full precision
       newEdits[driverKey] = {
         deductions: payrollRecord?.deductions || data.deductionsArray || [],
         bonusPay: payrollRecord?.bonus_pay !== undefined ? payrollRecord.bonus_pay : 0,
         appFeePercent: appFeePercent,
-        recalculatedAppFeeAmount: recalculatedAppFeeAmount,
+        appFeeAmount: appFeeAmount,
         showDeductionManager: false,
         newDeductionName: '',
         newDeductionAmount: ''
@@ -2333,7 +2331,7 @@ export default function PayrollSummaryCard({
                                  [driver.driver.id]: { 
                                    ...prev[driver.driver.id], 
                                    appFeePercent: newPercent,
-                                   appFeeAmount: Math.round(calculatedAmount * 100) / 100
+                                   appFeeAmount: calculatedAmount
                                  }
                                }));
 
@@ -2359,7 +2357,7 @@ export default function PayrollSummaryCard({
                                    [currentUser.id]: {
                                      ...prev[currentUser.id],
                                      appFeePercent: newAppOwnerPercent,
-                                     appFeeAmount: Math.round(calculateAppFeeAmount(currentUser.id, newAppOwnerPercent) * 100) / 100
+                                     appFeeAmount: calculateAppFeeAmount(currentUser.id, newAppOwnerPercent)
                                    }
                                  }));
                                }
@@ -2407,8 +2405,8 @@ export default function PayrollSummaryCard({
                                  ...prev,
                                  [driver.driver.id]: { 
                                    ...prev[driver.driver.id], 
-                                   appFeePercent: Math.round(newPercent * 100) / 100,
-                                   appFeeAmount: Math.round(newAmount * 100) / 100
+                                   appFeePercent: newPercent,
+                                   appFeeAmount: newAmount
                                  }
                                }));
 
@@ -2433,8 +2431,8 @@ export default function PayrollSummaryCard({
                                    ...prev,
                                    [currentUser.id]: {
                                      ...prev[currentUser.id],
-                                     appFeePercent: Math.round(newAppOwnerPercent * 100) / 100,
-                                     appFeeAmount: Math.round(calculateAppFeeAmount(currentUser.id, newAppOwnerPercent) * 100) / 100
+                                     appFeePercent: newAppOwnerPercent,
+                                     appFeeAmount: calculateAppFeeAmount(currentUser.id, newAppOwnerPercent)
                                    }
                                  }));
                                }
@@ -2480,7 +2478,7 @@ export default function PayrollSummaryCard({
                              [currentUser.id]: {
                                ...prev[currentUser.id],
                                appFeePercent: newAppOwnerPercent,
-                               appFeeAmount: Math.round(calculateAppFeeAmount(currentUser.id, newAppOwnerPercent) * 100) / 100
+                               appFeeAmount: calculateAppFeeAmount(currentUser.id, newAppOwnerPercent)
                              }
                            }));
                          }}
@@ -2533,8 +2531,8 @@ export default function PayrollSummaryCard({
                              ...prev,
                              [currentUser.id]: {
                                ...prev[currentUser.id],
-                               appFeePercent: Math.round(newAppOwnerPercent * 100) / 100,
-                               appFeeAmount: Math.round(calculateAppFeeAmount(currentUser.id, newAppOwnerPercent) * 100) / 100
+                               appFeePercent: newAppOwnerPercent,
+                               appFeeAmount: calculateAppFeeAmount(currentUser.id, newAppOwnerPercent)
                              }
                            }));
                          }}
@@ -2563,7 +2561,7 @@ export default function PayrollSummaryCard({
                              [currentUser.id]: { 
                                ...prev[currentUser.id], 
                                appFeePercent: newAppOwnerPercent,
-                               appFeeAmount: Math.round(calculatedAmount * 100) / 100
+                               appFeeAmount: calculatedAmount
                              }
                            }));
 
