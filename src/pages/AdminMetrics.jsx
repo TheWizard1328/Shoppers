@@ -444,7 +444,7 @@ export default function AdminMetrics() {
         </div>
 
         {/* Row 2: Store Breakdown or Day-by-Day Breakdown */}
-        <Card>
+        <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
