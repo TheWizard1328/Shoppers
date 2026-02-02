@@ -1773,15 +1773,20 @@ export default function PayrollSummaryCard({
     loadAppFeesSetting();
   }, []);
 
-  // Calculate sum of all drivers' app fee percentages
+  // Calculate sum of all NON-App Owner drivers' app fee percentages
   const sumAllDriversAppFeePercent = useMemo(() => {
-    return driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.appFeePercent || 0), 0);
-  }, [driversWithDeliveries, driverEdits]);
+    return driversWithDeliveries.reduce((sum, d) => {
+      // Exclude App Owner from this sum
+      if (d.driver.id === currentUser?.id && isAppOwner(currentUser)) return sum;
+      return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+    }, 0);
+  }, [driversWithDeliveries, driverEdits, currentUser]);
 
-  // Calculate App Owner's app fee % = 100% - Sum of all drivers - Extra App Fee % - Other App Fee %
+  // Calculate App Owner's app fee % = 100% - Sum of all OTHER drivers - Other App Fee %
+  // (sumAllDriversAppFeePercent already excludes App Owner)
   const appOwnerAppFeePercent = useMemo(() => {
-    return Math.max(0, 100 - sumAllDriversAppFeePercent - extraAppFeePercent - otherAppFeePercent);
-  }, [sumAllDriversAppFeePercent, extraAppFeePercent, otherAppFeePercent]);
+    return Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent);
+  }, [sumAllDriversAppFeePercent, otherAppFeePercent]);
 
   // YTD grand totals across all displayed drivers (calculated AFTER ytdDataByDriver)
   const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
@@ -2328,26 +2333,6 @@ export default function PayrollSummaryCard({
                                const newPercent = parseFloat(e.target.value) || 0;
                                const calculatedAmount = calculateAppFeeAmount(driver.driver.id, newPercent);
 
-                               // If editing App Owner's app fee %, recalculate Other App Fee %
-                               if (isCurrentUser && isAppOwner(currentUser)) {
-                                 const sumOtherDriversPercent = driversWithDeliveries.reduce((sum, d) => {
-                                   if (d.driver.id === currentUser.id) return sum;
-                                   return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
-                                 }, 0);
-                                 const newOtherPercent = Math.max(0, 100 - sumOtherDriversPercent - newPercent);
-                                 setOtherAppFeePercent(newOtherPercent);
-                               } else {
-                                 // Editing non-App Owner driver: recalculate App Owner %
-                                 const appOwnerDriver = driversWithDeliveries.find(d => d.driver.id === currentUser?.id);
-                                 if (appOwnerDriver) {
-                                   const sumAllOthersPercent = driversWithDeliveries.reduce((sum, d) => {
-                                     if (d.driver.id === currentUser.id) return sum;
-                                     if (d.driver.id === driver.driver.id) return sum + newPercent;
-                                     return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
-                                   }, 0);
-                                 }
-                               }
-
                                setDriverEdits((prev) => ({
                                  ...prev,
                                  [driver.driver.id]: { 
@@ -2406,16 +2391,6 @@ export default function PayrollSummaryCard({
                                const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
                                const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
 
-                               // If editing App Owner's app fee $, recalculate Other App Fee %
-                               if (isCurrentUser && isAppOwner(currentUser)) {
-                                 const sumOtherDriversPercent = driversWithDeliveries.reduce((sum, d) => {
-                                   if (d.driver.id === currentUser.id) return sum;
-                                   return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
-                                 }, 0);
-                                 const newOtherPercent = Math.max(0, 100 - sumOtherDriversPercent - Math.round(newPercent * 100) / 100);
-                                 setOtherAppFeePercent(newOtherPercent);
-                               }
-
                                setDriverEdits((prev) => ({
                                  ...prev,
                                  [driver.driver.id]: { 
@@ -2424,7 +2399,7 @@ export default function PayrollSummaryCard({
                                    appFeeAmount: Math.round(newAmount * 100) / 100
                                  }
                                }));
-                             }}
+                               }}
                              onBlur={(e) => {
                                const value = parseFloat(e.target.value) || 0;
                                setDriverEdits((prev) => ({
@@ -2451,7 +2426,7 @@ export default function PayrollSummaryCard({
                          value={otherAppFeePercent}
                          onChange={(e) => {
                            const newPercent = parseFloat(e.target.value) || 0;
-                           setOtherAppFeePercent(Math.max(0, newPercent));
+                           setOtherAppFeePercent(Math.round(newPercent * 100) / 100);
                          }}
                          onBlur={(e) => {
                            const value = parseFloat(e.target.value) || 0;
@@ -2494,35 +2469,12 @@ export default function PayrollSummaryCard({
                            });
                            const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
                            const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
-                           setOtherAppFeePercent(newPercent);
+                           setOtherAppFeePercent(Math.round(newPercent * 100) / 100);
                          }}
                          className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
                          step="0.01"
                          min="0" />
                      </td>
-                   </tr>
-                   {/* App Owner Row */}
-                   <tr style={{ background: 'var(--bg-slate-100)', borderTop: '2px solid var(--border-slate-300)' }}>
-                     <td className="px-2 py-1.5 font-semibold">App Owner</td>
-                     <td className="text-right px-1 py-1.5">
-                       <input
-                         type="number"
-                         value={appOwnerAppFeePercent}
-                         onChange={(e) => {
-                           const newAppOwnerPercent = parseFloat(e.target.value) || 0;
-                           const newOtherPercent = Math.max(0, 100 - sumAllDriversAppFeePercent - newAppOwnerPercent);
-                           setOtherAppFeePercent(newOtherPercent);
-                         }}
-                         onBlur={(e) => {
-                           const value = parseFloat(e.target.value) || 0;
-                           const clampedAppOwner = Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent);
-                         }}
-                         className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner font-semibold"
-                         step="any"
-                         min="0"
-                         max="100" />
-                     </td>
-                     <td className="text-right px-1 py-1.5 font-semibold">${(calculateAppFeeAmount('app-owner', appOwnerAppFeePercent) || 0).toFixed(2)}</td>
                    </tr>
                  </tbody>
                </table>
@@ -2531,9 +2483,10 @@ export default function PayrollSummaryCard({
 
            {/* Summary */}
            <div className="text-xs p-2 bg-slate-50 rounded mt-3">
-             <div>Sum of Driver App Fees: <strong>{sumAllDriversAppFeePercent.toFixed(2)}%</strong></div>
+             <div>Sum of Other Drivers: <strong>{sumAllDriversAppFeePercent.toFixed(2)}%</strong></div>
              <div>Other App Fee: <strong>{otherAppFeePercent.toFixed(2)}%</strong></div>
-             <div className="text-blue-600 font-semibold mt-1">App Owner App Fee: <strong>{appOwnerAppFeePercent.toFixed(2)}%</strong></div>
+             <div className="text-blue-600 font-semibold mt-1">App Owner (auto): <strong>{appOwnerAppFeePercent.toFixed(2)}%</strong></div>
+             <div className="text-xs text-slate-500 mt-1">Total: {(sumAllDriversAppFeePercent + otherAppFeePercent + appOwnerAppFeePercent).toFixed(2)}% / 100%</div>
            </div>
            </div>
 
