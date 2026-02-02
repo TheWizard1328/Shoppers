@@ -39,6 +39,8 @@ export default function AdminMetrics() {
   const [error, setError] = useState(null);
   const [initialCitySet, setInitialCitySet] = useState(false);
   const [showDayByDay, setShowDayByDay] = useState(false); // Toggle for day-by-day view
+  const [dayByDayData, setDayByDayData] = useState(null);
+  const [loadingDayByDay, setLoadingDayByDay] = useState(false);
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
