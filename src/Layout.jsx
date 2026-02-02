@@ -2233,6 +2233,35 @@ export default function Layout({ children, currentPageName }) {
 
   const todayInProgressTotal = filteredDeliveries.filter((delivery) => delivery && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && delivery.status === 'in_transit').length;
 
+  // Calculate online user counts
+  const onlineCounts = useMemo(() => {
+    const onlineDispatchers = appUsers.filter(
+      (au) => au?.app_roles?.includes('dispatcher') && au.driver_status === 'online'
+    );
+
+    const onlineStores = new Set();
+    onlineDispatchers.forEach((dispatcher) => {
+      dispatcher.store_ids?.forEach((storeId) => onlineStores.add(storeId));
+    });
+
+    const onlineDrivers = appUsers.filter(
+      (au) => au?.app_roles?.includes('driver') && (au.driver_status === 'online' || au.driver_status === 'on_duty')
+    );
+
+    const onlineNonDriverNonDispatcherUsers = appUsers.filter(
+      (au) =>
+        !au?.app_roles?.includes('driver') &&
+        !au?.app_roles?.includes('dispatcher') &&
+        au.driver_status === 'online'
+    );
+
+    return {
+      onlineStoresCount: onlineStores.size,
+      onlineDriversCount: onlineDrivers.length,
+      onlineNonDriverNonDispatcherUsersCount: onlineNonDriverNonDispatcherUsers.length,
+    };
+  }, [appUsers, stores]);
+
   const adminNavigationItems = useMemo(() => {
     const items = [
     {
@@ -2245,21 +2274,21 @@ export default function Layout({ children, currentPageName }) {
     {
       title: 'Stores',
       pageName: 'Stores',
-      count: entityCounts.stores,
+      count: `${onlineCounts.onlineStoresCount}/${stores.length}`,
       url: createPageUrl("Stores"),
       icon: Building
     },
     {
       title: 'Drivers',
       pageName: 'DriverSettings',
-      count: drivers.length,
+      count: `${onlineCounts.onlineDriversCount}/${drivers.length}`,
       url: createPageUrl("DriverSettings"),
       icon: Truck
     },
     {
       title: 'Users',
       pageName: 'AppUsers',
-      count: entityCounts.users,
+      count: `${onlineCounts.onlineNonDriverNonDispatcherUsersCount}/${users.length}`,
       url: createPageUrl("AppUsers"),
       icon: Users2
     }];
