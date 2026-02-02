@@ -706,17 +706,39 @@ export default function AdminMetrics() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart 
-                    data={
-                      (selectedStoreMonth 
-                        ? metricsData.driverDataByStore?.[selectedStoreMonth.storeId]
-                        : selectedMonth 
-                          ? metricsData.driverDataByMonth?.[selectedMonth] 
-                          : metricsData.driverData
-                      )?.slice()
-                        .filter(driver => (driver.billable || 0) + (driver.nonBillable || 0) > 0)
-                        .sort((a, b) => ((b.billable || 0) + (b.nonBillable || 0)) - ((a.billable || 0) + (a.nonBillable || 0)))
-                    } 
-                    barCategoryGap="15%"
+                   data={
+                     (selectedStoreMonth 
+                       ? Object.values(metricsData.dailyDriverData?.[selectedStoreMonth.month] || {})
+                           .flat()
+                           .reduce((acc, entry) => {
+                             const existing = acc.find(d => d.driverId === entry.driverId);
+                             if (existing) {
+                               existing.billable += entry.billable;
+                               existing.nonBillable += entry.nonBillable;
+                             } else {
+                               acc.push({...entry});
+                             }
+                             return acc;
+                           }, [])
+                       : selectedMonth 
+                         ? Object.values(metricsData.dailyDriverData?.[selectedMonth] || {})
+                             .flat()
+                             .reduce((acc, entry) => {
+                               const existing = acc.find(d => d.driverId === entry.driverId);
+                               if (existing) {
+                                 existing.billable += entry.billable;
+                                 existing.nonBillable += entry.nonBillable;
+                               } else {
+                                 acc.push({...entry});
+                               }
+                               return acc;
+                             }, [])
+                         : metricsData.driverData
+                     )?.slice()
+                       .filter(driver => (driver.billable || 0) + (driver.nonBillable || 0) > 0)
+                       .sort((a, b) => ((b.billable || 0) + (b.nonBillable || 0)) - ((a.billable || 0) + (a.nonBillable || 0)))
+                   } 
+                   barCategoryGap="15%"
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis 
