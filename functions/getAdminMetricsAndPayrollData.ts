@@ -230,47 +230,42 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     return returnRegex.test(notes) || returnRegex.test(patientName);
   };
   
-  // Check if delivery is a completed delivery (status=completed, not a return)
-  // INCLUDES after-hours pickups only (not regular store pickups)
-  const isCompletedDelivery = (d) => {
+  // Deliveries that are billable: completed/failed patient deliveries (excluding returns), completed/cancelled after-hours
+  const isCompletedPatientDelivery = (d) => {
     if (!d) return false;
     if (d.status !== 'completed') return false;
     if (isReturn(d)) return false;
-    // Must be a patient delivery OR after-hours pickup
-    return d.patient_id || d.after_hours_pickup;
+    return d.patient_id;
   };
   
-  // Check if delivery is a failed delivery (status=failed, not a return)
-  // INCLUDES after-hours pickups only (not regular store pickups)
-  const isFailedDelivery = (d) => {
+  const isFailedPatientDelivery = (d) => {
     if (!d) return false;
-    if (isReturn(d)) return false;
     if (d.status !== 'failed') return false;
-    // Must be a patient delivery OR after-hours pickup
-    return d.patient_id || d.after_hours_pickup;
+    if (isReturn(d)) return false;
+    return d.patient_id;
   };
   
-  // For store breakdown: count finished deliveries INCLUDING returns
-  // Finished = Completed OR Failed (both include returns) + must be patient/after-hours
-  const isFinishedCompletedDelivery = (d) => {
+  const isCompletedAfterHoursPickup = (d) => {
+    if (!d) return false;
+    return d.after_hours_pickup && d.status === 'completed';
+  };
+  
+  const isCancelledAfterHoursPickup = (d) => {
+    if (!d) return false;
+    return d.after_hours_pickup && d.status === 'cancelled';
+  };
+  
+  // Store breakdown: include returns but separate out after-hours
+  const isCompletedPatientForStore = (d) => {
     if (!d) return false;
     if (d.status !== 'completed') return false;
-    // Must be a patient delivery OR after-hours pickup (no return exclusion)
-    return d.patient_id || d.after_hours_pickup;
+    return d.patient_id; // Include returns
   };
   
-  const isFinishedFailedDelivery = (d) => {
+  const isFailedPatientForStore = (d) => {
     if (!d) return false;
     if (d.status !== 'failed') return false;
-    // Must be a patient delivery OR after-hours pickup (no return exclusion)
-    return d.patient_id || d.after_hours_pickup;
-  };
-  
-  // Check if it's a completed or cancelled after-hours pickup
-  const isAfterHoursPickup = (d) => {
-    if (!d) return false;
-    if (!d.after_hours_pickup) return false;
-    return d.status === 'completed' || d.status === 'cancelled';
+    return d.patient_id; // Include returns
   };
   
   // Check if store pays fees
