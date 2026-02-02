@@ -1793,9 +1793,18 @@ export default function StopCard({
                           // Step 4: Sort by delivery_time_start and group by store for staged optimization
                           console.log('🟢 [Assign All] Step 4: Sorting by delivery_time_start and optimizing in stages...');
 
+                          // CRITICAL: Sort all pending deliveries by delivery_time_start BEFORE grouping
+                          const sortedPendingDeliveries = [...allPendingDeliveries].sort((a, b) => {
+                            const timeA = a.delivery_time_start ? parseInt(a.delivery_time_start.split(':')[0]) * 60 + parseInt(a.delivery_time_start.split(':')[1]) : Infinity;
+                            const timeB = b.delivery_time_start ? parseInt(b.delivery_time_start.split(':')[0]) * 60 + parseInt(b.delivery_time_start.split(':')[1]) : Infinity;
+                            return timeA - timeB;
+                          });
+
+                          console.log(`  Sorted ${sortedPendingDeliveries.length} deliveries by delivery_time_start`);
+
                           // Group deliveries by store_id for staged optimization
                           const deliveriesByStore = new Map();
-                          for (const d of allPendingDeliveries) {
+                          for (const d of sortedPendingDeliveries) {
                             const storeId = d.store_id;
                             if (!deliveriesByStore.has(storeId)) {
                               deliveriesByStore.set(storeId, []);
