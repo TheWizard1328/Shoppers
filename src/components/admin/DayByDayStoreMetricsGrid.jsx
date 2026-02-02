@@ -10,6 +10,7 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  * Top row: Store abbreviations | Left column: Days 1-31
  */
 export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, selectedYear, onResetView }) {
+  const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extra_km'
   if (!metricsData || !selectedMonth) {
     return (
       <Card>
