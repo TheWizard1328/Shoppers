@@ -3118,7 +3118,7 @@ export default function PayrollSummaryCard({
                         </div>
                         <div className="text-lg font-bold text-emerald-700 mt-1">
                           <span className="text-lg font-bold mr-1">Gross:</span>
-                          {formatCurrency(grandTotalGross)}
+                          {formatCurrency(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0))}
                         </div>
                       </> :
 
