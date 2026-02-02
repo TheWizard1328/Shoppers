@@ -31,21 +31,6 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
   const totalNonBillable = dailyDeliveryData.reduce((sum, d) => sum + (d.nonBillable || 0), 0);
   const grandTotal = totalBillable + totalNonBillable;
 
-  // Calculate daily totals
-  const getDayTotal = (day) => {
-    let total = 0;
-    stores.forEach(store => {
-      const value = getBillableValue(store.storeId, day);
-      if (value !== null) {
-        total += value;
-      }
-    });
-    return total;
-  };
-
-  // Get grand total
-  const grandTotal = stores.reduce((sum, store) => sum + getStoreTotal(store.storeId), 0);
-
   return (
     <Card>
       <CardContent className="p-0">
@@ -54,41 +39,28 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
             <thead>
               <tr className="border-b bg-slate-50">
                 <th className="text-left p-2 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10">Day</th>
-                {stores.map((store) => (
-                  <th
-                    key={store.storeId}
-                    className="text-center p-2 font-bold min-w-[50px]"
-                    style={{ color: store.color || '#64748b' }}
-                    title={store.name}
-                  >
-                    {store.abbreviation}
-                  </th>
-                ))}
-                <th className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 min-w-[60px]">Tot</th>
+                <th className="text-center p-2 font-bold min-w-[60px] text-emerald-600">Billable</th>
+                <th className="text-center p-2 font-bold min-w-[60px] text-orange-600">Non-Billable</th>
+                <th className="text-center p-2 font-bold text-slate-900 border-l-2 border-slate-300 min-w-[60px]">Total</th>
               </tr>
             </thead>
             <tbody>
               {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-                const dayTotal = getDayTotal(day);
+                const dayData = dataByDay.get(day) || { billable: 0, nonBillable: 0 };
+                const total = (dayData.billable || 0) + (dayData.nonBillable || 0);
                 return (
                   <tr key={day} className="border-b hover:bg-slate-50">
                     <td className="p-2 font-medium sticky left-0 bg-white z-10 text-slate-700">
                       {day}
                     </td>
-                    {stores.map((store) => {
-                      const value = getBillableValue(store.storeId, day);
-                      return (
-                        <td
-                          key={store.storeId}
-                          className="text-center p-2 tabular-nums"
-                          style={{ color: value !== null && value > 0 ? (store.color || '#64748b') : '#94a3b8' }}
-                        >
-                          {value !== null ? value : ''}
-                        </td>
-                      );
-                    })}
-                    <td className="text-center p-2 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
-                      {dayTotal > 0 ? dayTotal : ''}
+                    <td className="text-center p-2 tabular-nums text-emerald-600 font-medium">
+                      {dayData.billable || ''}
+                    </td>
+                    <td className="text-center p-2 tabular-nums text-orange-600 font-medium">
+                      {dayData.nonBillable || ''}
+                    </td>
+                    <td className="text-center p-2 font-semibold text-slate-900 border-l-2 border-slate-300 tabular-nums">
+                      {total > 0 ? total : ''}
                     </td>
                   </tr>
                 );
@@ -96,60 +68,42 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
               
               {/* Totals Row */}
               <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
-                <td className="p-2 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
-                {stores.map((store) => {
-                  const total = getStoreTotal(store.storeId);
-                  return (
-                    <td
-                      key={store.storeId}
-                      className="text-center p-2 tabular-nums"
-                      style={{ color: store.color || '#64748b' }}
-                    >
-                      {total > 0 ? total : ''}
-                    </td>
-                  );
-                })}
-                <td className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                <td className="p-2 text-slate-700 sticky left-0 bg-slate-100 z-10">Total</td>
+                <td className="text-center p-2 tabular-nums text-emerald-600">
+                  {totalBillable > 0 ? totalBillable : ''}
+                </td>
+                <td className="text-center p-2 tabular-nums text-orange-600">
+                  {totalNonBillable > 0 ? totalNonBillable : ''}
+                </td>
+                <td className="text-center p-2 font-bold text-slate-900 border-l-2 border-slate-300 tabular-nums">
                   {grandTotal > 0 ? grandTotal : ''}
                 </td>
               </tr>
 
               {/* Average Row */}
               <tr className="bg-slate-50">
-                <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
-                {stores.map((store) => {
-                  const total = getStoreTotal(store.storeId);
-                  const avg = total > 0 ? (total / daysInMonth).toFixed(2) : '';
-                  return (
-                    <td
-                      key={store.storeId}
-                      className="text-center p-2 tabular-nums text-slate-600"
-                    >
-                      {avg}
-                    </td>
-                  );
-                })}
-                <td className="text-center p-2 font-semibold text-slate-700 border-l-2 border-purple-300 tabular-nums">
-                  {grandTotal > 0 ? (grandTotal / daysInMonth).toFixed(2) : ''}
+                <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">Avg/Day</td>
+                <td className="text-center p-2 tabular-nums text-slate-600">
+                  {totalBillable > 0 ? (totalBillable / daysInMonth).toFixed(1) : ''}
+                </td>
+                <td className="text-center p-2 tabular-nums text-slate-600">
+                  {totalNonBillable > 0 ? (totalNonBillable / daysInMonth).toFixed(1) : ''}
+                </td>
+                <td className="text-center p-2 font-semibold text-slate-700 border-l-2 border-slate-300 tabular-nums">
+                  {grandTotal > 0 ? (grandTotal / daysInMonth).toFixed(1) : ''}
                 </td>
               </tr>
 
-              {/* Projection Row - same as totals */}
+              {/* Projection Row - scale average to full month */}
               <tr className="bg-slate-50">
-                <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">Proj</td>
-                {stores.map((store) => {
-                  const total = getStoreTotal(store.storeId);
-                  return (
-                    <td
-                      key={store.storeId}
-                      className="text-center p-2 tabular-nums font-medium"
-                      style={{ color: store.color || '#64748b' }}
-                    >
-                      {total > 0 ? total : ''}
-                    </td>
-                  );
-                })}
-                <td className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">Proj/Mo</td>
+                <td className="text-center p-2 tabular-nums font-medium text-emerald-600">
+                  {totalBillable > 0 ? totalBillable : ''}
+                </td>
+                <td className="text-center p-2 tabular-nums font-medium text-orange-600">
+                  {totalNonBillable > 0 ? totalNonBillable : ''}
+                </td>
+                <td className="text-center p-2 font-bold text-slate-900 border-l-2 border-slate-300 tabular-nums">
                   {grandTotal > 0 ? grandTotal : ''}
                 </td>
               </tr>
