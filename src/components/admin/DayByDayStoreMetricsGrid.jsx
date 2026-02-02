@@ -40,10 +40,15 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
   }
 
   // Helper: Get daily value (total) for a store and day
-  const getDayValue = (storeId, day) => {
+  const getDayValue = (storeId, day, mode = 'deliveries') => {
     const storeDaily = dailyStoreData[storeId] || [];
     const dayData = storeDaily.find(d => d.day === day);
     if (!dayData) return 0;
+    
+    if (mode === 'extra_km') {
+      return dayData.extra_km || 0;
+    }
+    // deliveries mode
     return (dayData.completed || 0) + (dayData.failed || 0) + (dayData.afterHours || 0);
   };
 
