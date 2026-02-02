@@ -94,7 +94,7 @@ import PatientImport from './components/patients/PatientImport';
   import { QrCode } from 'lucide-react';
 import { initializeDailyCleanup } from './components/utils/messageCleaner';
 import { toast } from 'sonner';
-import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
+import { performInitialSync, processPendingMutations, performBackgroundSync } from './components/utils/offlineSync';
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 import ConnectionRecoveryBanner from './components/layout/ConnectionRecoveryBanner';
 import { subscribeMutations } from './components/utils/entityMutations';
