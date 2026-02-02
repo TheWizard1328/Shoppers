@@ -576,11 +576,12 @@ export default function AdminMetrics() {
                   />
                   <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
                   <Tooltip 
-                    contentStyle={{ 
-                      background: 'white', 
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px'
-                    }}
+                     contentStyle={{ 
+                       background: 'var(--bg-white)', 
+                       border: '1px solid var(--border-slate-200)',
+                       borderRadius: '8px',
+                       color: 'var(--text-slate-900)'
+                     }}
                     formatter={(value, name) => [metricsViewMode === 'fees' ? `$${value.toFixed(2)}` : value, name]}
                     labelFormatter={(label) => {
                       if (selectedStoreMonth) {
