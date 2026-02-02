@@ -152,7 +152,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                       className="text-center px-1 py-0.5 tabular-nums"
                       style={{ color: store.color || '#64748b' }}
                     >
-                      {total > 0 ? (viewMode === 'extra_km' ? total.toFixed(1) : total) : ''}
+                      {total > 0 ? (viewMode === 'extra_km' ? total.toFixed(2) : total) : ''}
                     </td>
                   );
                 })}
