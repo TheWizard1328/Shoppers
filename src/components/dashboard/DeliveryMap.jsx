@@ -17,6 +17,7 @@ import { isMobileDevice } from '../utils/deviceUtils';
 import MapCrosshair from './MapCrosshair';
 import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { base44 } from '@/api/base44Client';
+import { formatPhoneNumber } from '../utils/phoneFormatter';
 
 // Fix for default icon issue with Webpack
 delete L.Icon.Default.prototype._getIconUrl;
