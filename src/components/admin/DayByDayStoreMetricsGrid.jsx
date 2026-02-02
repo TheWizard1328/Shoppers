@@ -77,22 +77,22 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
           <h3 className="font-semibold text-slate-900">
             {viewMode === 'deliveries' ? 'Daily Deliveries' : 'Daily Extra Km'} - {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
           </h3>
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setViewMode('deliveries')}
-              variant={viewMode === 'deliveries' ? 'default' : 'outline'}
-              size="sm"
-              className="whitespace-nowrap"
+          <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+            <Button 
+              size="sm" 
+              variant={viewMode === 'deliveries' ? 'default' : 'ghost'} 
+              onClick={() => setViewMode('deliveries')} 
+              className="text-xs h-6 px-2 gap-1"
             >
-              Deliveries
+              <Package className="w-3 h-3" />Deliveries
             </Button>
-            <Button
-              onClick={() => setViewMode('extra_km')}
-              variant={viewMode === 'extra_km' ? 'default' : 'outline'}
-              size="sm"
-              className="whitespace-nowrap"
+            <Button 
+              size="sm" 
+              variant={viewMode === 'extra_km' ? 'default' : 'ghost'} 
+              onClick={() => setViewMode('extra_km')} 
+              className="text-xs h-6 px-2 gap-1"
             >
-              Extra Km
+              <Ruler className="w-3 h-3" />Extra KM
             </Button>
           </div>
         </div>
