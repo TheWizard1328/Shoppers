@@ -648,7 +648,7 @@ export default function AdminMetrics() {
                     }
                     return fullDailyData;
                   })()}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-slate-200)" />
                     <XAxis 
                       dataKey={selectedMonth ? "day" : "month"} 
                       tick={selectedMonth ? (props) => {
@@ -743,7 +743,7 @@ export default function AdminMetrics() {
                    } 
                    barCategoryGap="15%"
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-slate-200)" />
                     <XAxis 
                       dataKey="name" 
                       tick={{ fill: '#64748b', fontSize: 11 }} 
