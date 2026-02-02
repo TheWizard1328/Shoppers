@@ -78,18 +78,18 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b bg-slate-50">
-                <th className="text-left px-1.5 py-1 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10 min-w-[35px]">Day</th>
+                <th className="text-left px-1.5 py-0.5 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10 min-w-[35px]">Day</th>
                 {stores.map(store => (
                   <th
                     key={store.storeId || store.id}
-                    className="text-center px-1 py-1 font-bold min-w-[40px]"
+                    className="text-center px-1 py-0.5 font-bold min-w-[40px]"
                     style={{ color: store.color || '#64748b' }}
                     title={store.name}
                   >
                     {store.abbreviation}
                   </th>
                 ))}
-                <th className="text-center px-1 py-1 font-bold text-slate-900 border-l-2 border-slate-300 min-w-[45px]">Tot</th>
+                <th className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-slate-300 min-w-[45px]">Tot</th>
               </tr>
             </thead>
             <tbody>
