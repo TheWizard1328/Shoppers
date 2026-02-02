@@ -252,6 +252,12 @@ export default function DriverPayroll() {
     // Batch all state updates together in a single synchronous block
     React.startTransition(() => {
       setPayPeriod(newPayPeriod);
+      
+      // Reset selected driver to 'all' to force refresh with new pay cycle filter
+      if (selectedDriverId !== 'all') {
+        setSelectedDriverId('all');
+      }
+      
       setPayrollData(prev => {
         if (selectedDriverId && selectedDriverId !== 'all' && prev?.appUsers) {
           const driverAppUser = prev.appUsers.find(au => au.user_id === selectedDriverId);
