@@ -20,9 +20,8 @@ import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
 
 export default function AdminMetrics() {
-  const { user: currentUserFromContext } = useUser();
+  const { currentUser } = useUser();
   const appData = useAppData();
-  const currentUser = currentUserFromContext;
   const deliveries = appData?.deliveries || [];
   const patients = appData?.patients || [];
   const stores = appData?.stores || [];
