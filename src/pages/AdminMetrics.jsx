@@ -747,7 +747,7 @@ export default function AdminMetrics() {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-slate-200)" />
                     <XAxis 
                       dataKey="name" 
-                      tick={{ fill: '#64748b', fontSize: 11 }} 
+                      tick={{ fill: 'var(--text-slate-600)', fontSize: 11 }} 
                       interval={0}
                       angle={-45}
                       textAnchor="end"
