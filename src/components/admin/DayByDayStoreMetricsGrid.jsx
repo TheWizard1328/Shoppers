@@ -125,26 +125,26 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
             </thead>
             <tbody>
               {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                const dayTotal = getDayTotal(day);
+                const dayTotal = getDayTotal(day, viewMode);
                 return (
                   <tr key={day} className="border-b hover:bg-slate-50">
                     <td className="px-1.5 py-0.5 font-medium sticky left-0 bg-white z-10 text-slate-700">
                       {day}
                     </td>
                     {stores.map(store => {
-                      const value = getDayValue(store.storeId || store.id, day);
+                      const value = getDayValue(store.storeId || store.id, day, viewMode);
                       return (
                         <td
                           key={store.storeId || store.id}
                           className="text-center px-1 py-0.5 tabular-nums"
                           style={{ color: value > 0 ? (store.color || '#64748b') : '#94a3b8' }}
                         >
-                          {value > 0 ? value : ''}
+                          {value > 0 ? (viewMode === 'extra_km' ? value.toFixed(1) : value) : ''}
                         </td>
                       );
                     })}
                     <td className="text-center px-1 py-0.5 font-semibold text-slate-900 border-l-2 border-slate-300 tabular-nums">
-                      {dayTotal > 0 ? dayTotal : ''}
+                      {dayTotal > 0 ? (viewMode === 'extra_km' ? dayTotal.toFixed(1) : dayTotal) : ''}
                     </td>
                   </tr>
                 );
