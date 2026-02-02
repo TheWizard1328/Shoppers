@@ -51,7 +51,7 @@ export default function AdminMetrics() {
     try {
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         adminMetricsYear: parseInt(selectedYear),
-        adminMetricsCityId: 'all'
+        adminMetricsCityId: selectedCityId
       });
       const data = response?.data || response;
       setMetricsData(data?.adminMetrics || null);
@@ -65,7 +65,7 @@ export default function AdminMetrics() {
 
   useEffect(() => {
     loadMetrics();
-  }, [selectedYear]);
+  }, [selectedYear, selectedCityId]);
 
   const handleMonthClick = (month) => {
     if (selectedMonth === month) {
