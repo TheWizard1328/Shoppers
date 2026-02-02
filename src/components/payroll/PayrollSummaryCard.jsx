@@ -3105,6 +3105,10 @@ export default function PayrollSummaryCard({
                           </div>
                     }
                         <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                          <span className="text-xs mr-1">Bonus:</span>
+                          <span className="font-semibold">+{formatCurrency(driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0))}</span>
+                        </div>
+                        <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
                           <button 
                             onClick={() => setAppFeeOverlayAllDriversId('all')}
                             className="text-xs mr-1 text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
@@ -3142,6 +3146,9 @@ export default function PayrollSummaryCard({
                             -{formatCurrency(ytdGrandTotalDeductions)}
                           </div>
                     }
+                        <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-600)' }}>
+                          +{formatCurrency(driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0))}
+                        </div>
                         <div className="text-sm font-semibold" style={{ color: 'var(--text-slate-600)' }}>
                          -{formatCurrency(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent))}
                        </div>
