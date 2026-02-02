@@ -2604,7 +2604,7 @@ export default function PayrollSummaryCard({
                  // Save each driver's app fee percentage and amount to payroll records
                  for (const driver of driversWithDeliveries) {
                    const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
-                   const driverAppFeeAmount = calculateAppFeeAmount(driver.driver.id, driverAppFeePercent);
+                   const driverAppFeeAmount = driverEdits[driver.driver.id]?.appFeeAmount || 0;
                    await savePayrollChanges(driver.driver.id, {
                      app_fee_percentage: driverAppFeePercent,
                      app_fee_amount: driverAppFeeAmount
