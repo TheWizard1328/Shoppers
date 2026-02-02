@@ -3087,7 +3087,53 @@ export default function PayrollSummaryCard({
 
           })}
           
+          {/* App Owner App Fee % Row */}
+          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) &&
+          <div className="pt-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-slate-50)', borderLeft: '3px solid #8b5cf6' }}>
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+                App Owner App Fee % &amp; YTD
+              </div>
+              <div className="flex gap-6 items-start">
+                {/* Period Column */}
+                <div className="flex flex-col">
+                  <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>Period</div>
+                  <table className="border-collapse">
+                    <tbody>
+                      <tr style={{ color: 'var(--text-slate-600)' }}>
+                        <td className="text-left pr-2">
+                          <button 
+                            onClick={() => setAppFeeOverlayAllDriversId('all')}
+                            className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                            App Fee %:
+                          </button>
+                        </td>
+                        <td className="text-right pr-0.5">+$</td>
+                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('app-owner', appOwnerAppFeePercent) || 0).toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
+                {/* Vertical Divider */}
+                <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
+
+                {/* YTD Column */}
+                <div className="flex flex-col">
+                  <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>YTD</div>
+                  <table className="border-collapse">
+                    <tbody>
+                      <tr style={{ color: 'var(--text-slate-600)' }}>
+                        <td className="text-right pr-0.5">+$</td>
+                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('app-owner', appOwnerAppFeePercent) || 0).toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          }
 
           {/* Grand Total for All Drivers */}
           {payrollData.length > 1 &&
