@@ -1854,32 +1854,8 @@ export default function PayrollSummaryCard({
     const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
     const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
     
-    // CRITICAL: Check ALL stores first, then count deliveries for each
-    const storeBreakdown = {};
+    // CRITICAL: Count only deliveries from stores that were PAYING FEES during those delivery dates
     let totalBillableCount = 0;
-    
-    // Initialize all stores that pay app fees
-    stores.forEach((store) => {
-      if (!store) return;
-      
-      let paysAppFees = store.pays_app_fees || false;
-      if (store.app_fee_history && store.app_fee_history.length > 0) {
-        const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-          new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-        );
-        // Get most recent history entry (for current month)
-        if (sortedHistory[0]) {
-          paysAppFees = sortedHistory[0].pays_app_fees;
-        }
-      }
-      
-      storeBreakdown[store.id] = { 
-        abbreviation: store.abbreviation || store.name?.substring(0, 2),
-        name: store.name, 
-        count: 0, 
-        pays: paysAppFees 
-      };
-    });
     
     // Count deliveries for each store - using CALENDAR MONTH
     deliveries.forEach((d) => {
@@ -1891,12 +1867,26 @@ export default function PayrollSummaryCard({
       if (!validStatus) return;
       if (!d.patient_id && !d.after_hours_pickup) return;
       
-      // Only count if store is in breakdown (handles edge case of deleted stores)
-      if (storeBreakdown[d.store_id]) {
-        storeBreakdown[d.store_id].count++;
-        if (storeBreakdown[d.store_id].pays) {
-          totalBillableCount++;
+      const store = stores.find((s) => s?.id === d.store_id);
+      if (!store) return;
+      
+      // CRITICAL: Check if store was paying app fees at the time of delivery
+      let paysAppFees = store.pays_app_fees || false;
+      if (store.app_fee_history && store.app_fee_history.length > 0) {
+        const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+          new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+        );
+        // Find the history entry that applies to this delivery date
+        const applicableEntry = sortedHistory.find((entry) =>
+          new Date(entry.effective_date) <= deliveryDate
+        );
+        if (applicableEntry) {
+          paysAppFees = applicableEntry.pays_app_fees;
         }
+      }
+      
+      if (paysAppFees) {
+        totalBillableCount++;
       }
     });
     
