@@ -16,8 +16,11 @@ import PatientDataTable from '../components/admin/PatientDataTable';
 import ScreenshotShareModal from '../components/common/ScreenshotShareModal';
 import html2canvas from 'html2canvas';
 import { toast } from 'sonner';
+import { useUser } from '@/components/utils/UserContext';
+import { isAppOwner } from '@/components/utils/userRoles';
 
 export default function AdminMetrics() {
+  const { user: currentUser } = useUser();
   const appData = useAppData();
   const deliveries = appData?.deliveries || [];
   const patients = appData?.patients || [];
