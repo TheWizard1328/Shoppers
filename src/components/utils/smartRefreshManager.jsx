@@ -1094,13 +1094,23 @@ class SmartRefreshManager {
       }
       
       // Fetch from API (either forceRefresh or offline data is stale/missing)
+      // CRITICAL: When showAllDrivers is true, fetch ALL AppUsers (not just drivers)
       await this.waitForRateLimit();
-      const allAppUsers = await queueEntityRequest(
-        () => base44.entities.AppUser.filter({
-          app_roles: { $in: ['driver'] }
-        }),
-        'AppUser list [drivers]'
-      );
+      let allAppUsers;
+      if (showAllDrivers) {
+        console.log(`📡 [SmartRefresh] Fetching ALL AppUsers for "Show All" mode`);
+        allAppUsers = await queueEntityRequest(
+          () => base44.entities.AppUser.list(),
+          'AppUser list [ALL for Show All]'
+        );
+      } else {
+        allAppUsers = await queueEntityRequest(
+          () => base44.entities.AppUser.filter({
+            app_roles: { $in: ['driver'] }
+          }),
+          'AppUser list [drivers only]'
+        );
+      }
       
       this.recordSuccess();
       
