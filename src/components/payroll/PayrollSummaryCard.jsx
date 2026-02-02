@@ -2303,12 +2303,13 @@ export default function PayrollSummaryCard({
                      const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
                      const driverAppFeeAmount = driverEdits[driver.driver.id]?.appFeeAmount !== undefined ? driverEdits[driver.driver.id].appFeeAmount : calculateAppFeeAmount(driver.driver.id, driverAppFeePercent);
                      const isCurrentUser = driver.driver.id === currentUser?.id;
+                     const isAppOwnerRow = isCurrentUser && isAppOwner(currentUser);
 
                      return (
                        <tr key={driver.driver.id} style={{ borderBottom: '1px solid var(--border-slate-200)', background: isCurrentUser ? 'var(--bg-blue-50)' : idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
                          <td className="px-2 py-1.5 truncate text-left">
                            {driver.driver.user_name || driver.driver.full_name}
-                           {isCurrentUser && isAppOwner(currentUser) && <span className="text-xs font-semibold text-blue-600 ml-1">(App Owner)</span>}
+                           {isAppOwnerRow && <span className="text-xs font-semibold text-blue-600 ml-1">(App Owner)</span>}
                          </td>
                          <td className="text-right px-1 py-1.5">
                            <input
@@ -2326,6 +2327,33 @@ export default function PayrollSummaryCard({
                                    appFeeAmount: Math.round(calculatedAmount * 100) / 100
                                  }
                                }));
+
+                               // RULE 1 & 2: Recalculate based on who is being edited
+                               if (isAppOwnerRow) {
+                                 // Editing App Owner → recalc Other App Fee
+                                 const sumAllDrivers = driversWithDeliveries.reduce((sum, d) => {
+                                   if (d.driver.id === driver.driver.id) return sum + newPercent;
+                                   return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                                 }, 0);
+                                 const newOtherPercent = Math.max(0, 100 - sumAllDrivers);
+                                 setOtherAppFeePercent(Math.round(newOtherPercent * 100) / 100);
+                               } else {
+                                 // Editing regular driver → recalc App Owner fee
+                                 const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
+                                   if (d.driver.id === currentUser?.id) return sum; // Skip App Owner
+                                   if (d.driver.id === driver.driver.id) return sum + newPercent; // Use new value
+                                   return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                                 }, 0);
+                                 const newAppOwnerPercent = Math.max(0, 100 - sumNonAppOwnerDrivers - otherAppFeePercent);
+                                 setDriverEdits((prev) => ({
+                                   ...prev,
+                                   [currentUser.id]: {
+                                     ...prev[currentUser.id],
+                                     appFeePercent: Math.round(newAppOwnerPercent * 100) / 100,
+                                     appFeeAmount: Math.round(calculateAppFeeAmount(currentUser.id, newAppOwnerPercent) * 100) / 100
+                                   }
+                                 }));
+                               }
                              }}
                              onBlur={(e) => {
                                const value = parseFloat(e.target.value) || 0;
@@ -2384,6 +2412,33 @@ export default function PayrollSummaryCard({
                                    appFeeAmount: Math.round(newAmount * 100) / 100
                                  }
                                }));
+
+                               // RULE 1 & 2: Recalculate based on who is being edited
+                               if (isAppOwnerRow) {
+                                 // Editing App Owner → recalc Other App Fee
+                                 const sumAllDrivers = driversWithDeliveries.reduce((sum, d) => {
+                                   if (d.driver.id === driver.driver.id) return sum + newPercent;
+                                   return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                                 }, 0);
+                                 const newOtherPercent = Math.max(0, 100 - sumAllDrivers);
+                                 setOtherAppFeePercent(Math.round(newOtherPercent * 100) / 100);
+                               } else {
+                                 // Editing regular driver → recalc App Owner fee
+                                 const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
+                                   if (d.driver.id === currentUser?.id) return sum; // Skip App Owner
+                                   if (d.driver.id === driver.driver.id) return sum + newPercent; // Use new value
+                                   return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                                 }, 0);
+                                 const newAppOwnerPercent = Math.max(0, 100 - sumNonAppOwnerDrivers - otherAppFeePercent);
+                                 setDriverEdits((prev) => ({
+                                   ...prev,
+                                   [currentUser.id]: {
+                                     ...prev[currentUser.id],
+                                     appFeePercent: Math.round(newAppOwnerPercent * 100) / 100,
+                                     appFeeAmount: Math.round(calculateAppFeeAmount(currentUser.id, newAppOwnerPercent) * 100) / 100
+                                   }
+                                 }));
+                               }
                                }}
                              onBlur={(e) => {
                                const value = parseFloat(e.target.value) || 0;
@@ -2401,7 +2456,7 @@ export default function PayrollSummaryCard({
                          </td>
                        </tr>
                      );
-                   })}
+                     })}
                    {/* Other App Fee Row */}
                    <tr style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
                      <td className="px-2 py-1.5 text-left">Other App Fee</td>
@@ -2412,6 +2467,21 @@ export default function PayrollSummaryCard({
                          onChange={(e) => {
                            const newPercent = parseFloat(e.target.value) || 0;
                            setOtherAppFeePercent(Math.round(newPercent * 100) / 100);
+
+                           // RULE 3: Editing Other App Fee → recalc App Owner fee
+                           const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
+                             if (d.driver.id === currentUser?.id) return sum; // Skip App Owner
+                             return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                           }, 0);
+                           const newAppOwnerPercent = Math.max(0, 100 - sumNonAppOwnerDrivers - newPercent);
+                           setDriverEdits((prev) => ({
+                             ...prev,
+                             [currentUser.id]: {
+                               ...prev[currentUser.id],
+                               appFeePercent: Math.round(newAppOwnerPercent * 100) / 100,
+                               appFeeAmount: Math.round(calculateAppFeeAmount(currentUser.id, newAppOwnerPercent) * 100) / 100
+                             }
+                           }));
                          }}
                          onBlur={(e) => {
                            const value = parseFloat(e.target.value) || 0;
@@ -2455,6 +2525,21 @@ export default function PayrollSummaryCard({
                            const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
                            const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
                            setOtherAppFeePercent(Math.round(newPercent * 100) / 100);
+
+                           // RULE 3: Editing Other App Fee → recalc App Owner fee
+                           const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
+                             if (d.driver.id === currentUser?.id) return sum; // Skip App Owner
+                             return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                           }, 0);
+                           const newAppOwnerPercent = Math.max(0, 100 - sumNonAppOwnerDrivers - newPercent);
+                           setDriverEdits((prev) => ({
+                             ...prev,
+                             [currentUser.id]: {
+                               ...prev[currentUser.id],
+                               appFeePercent: Math.round(newAppOwnerPercent * 100) / 100,
+                               appFeeAmount: Math.round(calculateAppFeeAmount(currentUser.id, newAppOwnerPercent) * 100) / 100
+                             }
+                           }));
                          }}
                          className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
                          step="0.01"
