@@ -335,14 +335,14 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="pt-4 pb-4">
-              <p className="text-sm text-slate-500 mb-2">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Non-Billable</p>
+              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Non-Billable</p>
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <TrendingUp className="w-5 h-5 text-orange-600" />
+                <div className="p-2 rounded-lg" style={{ background: '#fed7aa' }}>
+                  <TrendingUp className="w-5 h-5" style={{ color: '#b45309' }} />
                 </div>
-                <p className="text-2xl font-bold text-slate-900">
+                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {(selectedMonth 
                     ? metricsData.monthlyData?.[selectedMonth - 1]?.nonBillable 
                     : metricsData.yearTotals?.nonBillable
