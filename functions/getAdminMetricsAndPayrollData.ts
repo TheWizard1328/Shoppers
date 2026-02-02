@@ -328,11 +328,14 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
         const driverAppUser = appUserMap.get(delivery.driver_id);
         const driverName = driverAppUser?.user_name || driverAppUser?.full_name || 'Unknown Driver';
         
-        const annualDriverEntry = metrics.driverData.find(d => d.driverId === delivery.driver_id);
-        if (annualDriverEntry) {
-          if (store?.pays_app_fees) annualDriverEntry.billable++;
-          else annualDriverEntry.nonBillable++;
+        // Create annual driver entry if it doesn't exist
+        let annualDriverEntry = metrics.driverData.find(d => d.driverId === delivery.driver_id);
+        if (!annualDriverEntry) {
+          annualDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
+          metrics.driverData.push(annualDriverEntry);
         }
+        if (store?.pays_app_fees) annualDriverEntry.billable++;
+        else annualDriverEntry.nonBillable++;
 
         if (!metrics.driverDataByMonth[monthIndex + 1]) metrics.driverDataByMonth[monthIndex + 1] = [];
         let monthlyDriverEntry = metrics.driverDataByMonth[monthIndex + 1].find(d => d.driverId === delivery.driver_id);
