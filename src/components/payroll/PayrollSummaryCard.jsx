@@ -262,6 +262,40 @@ export default function PayrollSummaryCard({
   // Track last period we auto-created for to prevent duplicates on effect reruns
   const lastAutoCreatePeriodRef = React.useRef(null);
   const autoCreateInProgressRef = React.useRef(false);
+  
+  // Track if initial YTD calculation has run
+  const initialYtdCalculationDone = React.useRef(false);
+
+  // CRITICAL: Calculate initial YTD values BEFORE first render
+  useEffect(() => {
+    if (!currentPeriod || initialYtdCalculationDone.current) return;
+    
+    const calculateInitialYtd = async () => {
+      try {
+        initialYtdCalculationDone.current = true;
+        
+        // Fetch all payroll records from year start to current period end
+        const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
+        const periodEnd = currentPeriod.end.toISOString().split('T')[0];
+        
+        console.log(`🧮 [Payroll] Initial YTD calculation - fetching from ${yearStart} to ${periodEnd}`);
+        
+        const records = await base44.entities.Payroll.filter({
+          pay_period_end: { $gte: yearStart, $lte: periodEnd }
+        });
+        
+        console.log(`✅ [Payroll] Initial YTD fetch complete: ${records?.length || 0} records`);
+        setPayrollRecords(records || []);
+        if (onPayrollRecordsChange) {
+          onPayrollRecordsChange(records || []);
+        }
+      } catch (error) {
+        console.error('❌ [Payroll] Initial YTD calculation failed:', error);
+      }
+    };
+    
+    calculateInitialYtd();
+  }, [currentPeriod]);
 
   // Use external payroll records if provided, otherwise fetch locally with 15-sec refresh
   useEffect(() => {
