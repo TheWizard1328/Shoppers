@@ -284,15 +284,14 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const store = delivery.store_id ? storeMap.get(delivery.store_id) : null;
 
     // --- MONTHLY DELIVERIES & DRIVER BREAKDOWN ---
-    // Billable = Completed + Failed + Returns (all patient deliveries or after-hours) from stores that pay fees
-    //           + After Hours Pickups (Completed & Cancelled)
-    // Non-Billable = Completed + Failed + Returns (all patient deliveries or after-hours) from stores that DON'T pay fees
+    // Billable = Completed + Failed patient deliveries (excluding returns) + all returns (patient) + after-hours (completed/cancelled)
+    // Non-Billable = same from stores that DON'T pay fees
     const isBillableDelivery = (d) => {
       if (!d) return false;
       // After-hours pickups (completed or cancelled) are billable
-      if (d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled')) return true;
-      // Regular patient deliveries (completed, failed, or returns)
-      if (d.patient_id && (d.status === 'completed' || d.status === 'failed' || isReturn(d))) return true;
+      if (isCompletedAfterHoursPickup(d) || isCancelledAfterHoursPickup(d)) return true;
+      // Patient deliveries (completed, failed, or returns)
+      if (d.patient_id && (isCompletedPatientDelivery(d) || isFailedPatientDelivery(d) || isReturn(d))) return true;
       return false;
     };
     
@@ -369,15 +368,17 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     }
 
     // --- STORE BREAKDOWN ---
-    // Completed = Finished Completed + After Hours Completed/Cancelled (includes returns)
-    // Failed = Finished Failed (includes returns)
+    // Completed = Patient deliveries (completed status, includes returns)
+    // Failed = Patient deliveries (failed status, includes returns)
+    // After Hours = After-hours pickups (completed or cancelled)
     if (delivery.store_id && store) {
       const storeAbbr = store.abbreviation;
       if (storeAbbr) {
         const annualStoreEntry = metrics.storeData.find(s => s.storeId === delivery.store_id);
         if (annualStoreEntry) {
-          if (isFinishedCompletedDelivery(delivery)) annualStoreEntry.completed++;
-          if (isFinishedFailedDelivery(delivery)) annualStoreEntry.failed++;
+          if (isCompletedPatientForStore(delivery)) annualStoreEntry.completed++;
+          if (isFailedPatientForStore(delivery)) annualStoreEntry.failed++;
+          if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) annualStoreEntry.afterHours++;
         }
 
         if (!metrics.storeDataByMonth[monthIndex + 1]) metrics.storeDataByMonth[monthIndex + 1] = [];
@@ -395,8 +396,9 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           };
           metrics.storeDataByMonth[monthIndex + 1].push(monthlyStoreEntry);
         }
-        if (isFinishedCompletedDelivery(delivery)) monthlyStoreEntry.completed++;
-        if (isFinishedFailedDelivery(delivery)) monthlyStoreEntry.failed++;
+        if (isCompletedPatientForStore(delivery)) monthlyStoreEntry.completed++;
+        if (isFailedPatientForStore(delivery)) monthlyStoreEntry.failed++;
+        if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) monthlyStoreEntry.afterHours++;
 
         if (!metrics.dailyStoreData[monthIndex + 1]) metrics.dailyStoreData[monthIndex + 1] = {};
         if (!metrics.dailyStoreData[monthIndex + 1][delivery.store_id]) metrics.dailyStoreData[monthIndex + 1][delivery.store_id] = [];
@@ -405,8 +407,9 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0 };
           metrics.dailyStoreData[monthIndex + 1][delivery.store_id].push(dailyStoreEntry);
         }
-        if (isFinishedCompletedDelivery(delivery)) dailyStoreEntry.completed++;
-        if (isFinishedFailedDelivery(delivery)) dailyStoreEntry.failed++;
+        if (isCompletedPatientForStore(delivery)) dailyStoreEntry.completed++;
+        if (isFailedPatientForStore(delivery)) dailyStoreEntry.failed++;
+        if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
 
         // --- APP FEES ---
         // Fees apply only for stores with pays_app_fees and only for completed + failed + returns (patient/after-hours)
