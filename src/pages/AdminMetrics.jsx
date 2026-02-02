@@ -552,7 +552,7 @@ export default function AdminMetrics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
                     dataKey={selectedStoreMonth ? "day" : "abbreviation"} 
-                    tick={selectedStoreMonth ? { fill: '#64748b', fontSize: 11 } : (props) => {
+                    tick={selectedStoreMonth ? { fill: 'var(--text-slate-600)', fontSize: 11 } : (props) => {
                       const { x, y, payload } = props;
                       const storeData = (filteredData?.storeData || metricsData.storeData)?.find(s => s.abbreviation === payload.value);
                       // Total = Completed Deliveries + After Hours + Failed
