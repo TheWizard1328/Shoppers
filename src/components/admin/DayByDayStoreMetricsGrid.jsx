@@ -68,10 +68,15 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
     return billable > 0 ? billable : null;
   };
 
-  // Calculate totals per store
+  // Calculate totals per store (sum of billable deliveries across all days in month)
   const getStoreTotal = (storeId) => {
-    const dayMap = storeDataByDay.get(storeId);
-    return dayMap ? Object.values(dayMap).reduce((sum, v) => sum + (v || 0), 0) : 0;
+    const dayData = dailyStoreData[storeId];
+    if (!Array.isArray(dayData)) return 0;
+    
+    return dayData.reduce((sum, dayRecord) => {
+      const billable = (dayRecord.completed || 0) + (dayRecord.failed || 0) + (dayRecord.afterHours || 0);
+      return sum + billable;
+    }, 0);
   };
 
   // Calculate daily totals
