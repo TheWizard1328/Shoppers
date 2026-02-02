@@ -151,7 +151,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
 
               {/* Totals Row */}
               <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
-                <td className="px-1.5 py-0.5 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
+                <td className="px-1.5 py-0.5 text-slate-700 sticky left-0 bg-slate-100 z-10 border-r border-slate-300">Tot</td>
                 {stores.map(store => {
                   const total = getStoreTotal(store, viewMode);
                   return (
