@@ -22,6 +22,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
   const monthlyStoreData = metricsData.monthlyStoreData || {};
   const monthData = monthlyStoreData[selectedMonth] || [];
   const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
+  const dailyStoreData = metricsData.dailyStoreData?.[selectedMonth] || {};
 
   // Build stores list from this month's data
   const stores = monthData.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
@@ -36,22 +37,23 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
     );
   }
 
-  // Helper: Get daily data for a store and day
-  const getDayValue = (store, day) => {
-    if (!store.dailyBreakdown) return 0;
-    const dayData = store.dailyBreakdown.find(d => d.day === day);
+  // Helper: Get daily value (total) for a store and day
+  const getDayValue = (storeId, day) => {
+    const storeDaily = dailyStoreData[storeId] || [];
+    const dayData = storeDaily.find(d => d.day === day);
     if (!dayData) return 0;
-    return (dayData.billable || 0) + (dayData.nonBillable || 0);
+    return (dayData.completed || 0) + (dayData.failed || 0) + (dayData.afterHours || 0);
   };
 
   // Calculate day totals (sum across all stores for each day)
   const getDayTotal = (day) => {
-    return stores.reduce((sum, store) => sum + getDayValue(store, day), 0);
+    return stores.reduce((sum, store) => sum + getDayValue(store.storeId || store.id, day), 0);
   };
 
   // Calculate store totals (sum across all days for each store)
   const getStoreTotal = (store) => {
-    return (store.billable || 0) + (store.nonBillable || 0);
+    const storeDaily = dailyStoreData[store.storeId || store.id] || [];
+    return storeDaily.reduce((sum, day) => sum + (day.completed || 0) + (day.failed || 0) + (day.afterHours || 0), 0);
   };
 
   const grandTotal = stores.reduce((sum, store) => sum + getStoreTotal(store), 0);
