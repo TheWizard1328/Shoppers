@@ -277,7 +277,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                         </td>);
 
                     })}
-                    <td className="text-center p-2 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                    <td className="text-center px-1 py-0.5 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
                       {monthTotal === 0 ? '' : formatValue(monthTotal)}
                     </td>
                   </tr>);
