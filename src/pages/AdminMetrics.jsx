@@ -195,8 +195,8 @@ export default function AdminMetrics() {
         </div>
 
         {/* Tabs for different admin sections */}
-        <Tabs defaultValue="deliveries" className="w-full" ref={contentRef}>
-          <TabsList className={`grid w-full ${currentUser && isAppOwner(currentUser) ? 'grid-cols-3 lg:grid-cols-6' : 'grid-cols-2'}`}>
+         <Tabs defaultValue="deliveries" className="w-full" ref={contentRef}>
+           <TabsList className={`flex flex-wrap gap-1 w-full bg-slate-100 p-2 rounded-lg h-auto`}>
             <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
             <TabsTrigger value="store-fees">Store Fees</TabsTrigger>
             {currentUser && isAppOwner(currentUser) && (
