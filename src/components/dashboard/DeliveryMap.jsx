@@ -17,7 +17,6 @@ import { isMobileDevice } from '../utils/deviceUtils';
 import MapCrosshair from './MapCrosshair';
 import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { base44 } from '@/api/base44Client';
-import DriverLocationMarkers from './DriverLocationMarkers';
 
 // Fix for default icon issue with Webpack
 delete L.Icon.Default.prototype._getIconUrl;
@@ -3741,13 +3740,98 @@ export default function DeliveryMap({
           ];
         })}
 
-        {/* Shared Driver Location Markers - Handled by separate component */}
-        <DriverLocationMarkers 
-          users={driverLocationMarkers}
-          currentUser={currentUser}
-          activeDriver={safeUsers.find(u => u && u.id === selectedDriverId)}
-          deliveries={safeDeliveries}
-        />
+        {/* Driver Location Markers - Green for on_duty, Orange for on_break, with driver initial */}
+        {/* Orange outer ring indicates stale location (>5 minutes old) */}
+        {/* Blue outer ring for drivers on break viewing their own location from other devices */}
+        {driverLocationMarkers.map((location, locationIndex) => {
+          // CRITICAL: Validate coordinates before rendering marker
+          if (!location.latitude || !location.longitude ||
+              typeof location.latitude !== 'number' || typeof location.longitude !== 'number' ||
+              isNaN(location.latitude) || isNaN(location.longitude)) {
+            console.warn('[DeliveryMap] Invalid driver location coordinates:', location);
+            return null;
+          }
+          
+          const statusLabel = location.driver_status === 'on_duty' ? 'On Duty' : 'On Break';
+          const statusColor = location.driver_status === 'on_duty' ? 'text-emerald-600' : 'text-orange-600';
+          const isOnBreakSelf = location.isOnBreak === true;
+          const driverName = location.driverName || 'Unknown Driver';
+          const firstName = driverName.split(' ')[0];
+          
+          // CRITICAL: Use unique key with index to prevent duplicate key errors
+          const uniqueKey = `driver-location-${location.id || location.user_id}-${locationIndex}`;
+          
+          return (
+            <Marker
+              key={uniqueKey}
+              position={[location.latitude, location.longitude]}
+              icon={createDriverIcon(location.driver_status, location.driverInitial, location.isStaleLocation, isOnBreakSelf)}
+              zIndexOffset={3000}
+              eventHandlers={{
+                click: () => onMarkerClick && onMarkerClick(location, 'driver'),
+                mouseover: (e) => {
+                  e.target.openPopup();
+                },
+                mouseout: (e) => {
+                  e.target.closePopup();
+                }
+              }}>
+
+              <Popup
+                autoPan={false}
+                closeButton={false}
+                offset={[0, -20]}
+                className="custom-popup">
+
+                <div className="min-w-[150px]">
+                  <div className="flex items-center gap-1.5">
+                    <Car className="w-3.5 h-3.5 text-indigo-600" />
+                    <h3 className="font-semibold text-xs">
+                      {location.isSelf ? 'Your Phone' : driverName}
+                    </h3>
+                  </div>
+                  {location.driver?.phone && (
+                    <p className="text-xs mt-2">
+                      <a href={`tel:${location.driver.phone}`} className="text-blue-600 hover:text-blue-700 underline font-medium">
+                        📞 {location.driver.phone}
+                      </a>
+                    </p>
+                  )}
+                  <div className={`text-[10px] mt-1 font-medium flex items-center gap-1 ${statusColor}`}>
+                    <Activity className="w-3 h-3 animate-pulse" />
+                    {statusLabel}
+                  </div>
+                  {isOnBreakSelf && (
+                    <div className="text-[10px] mt-1 font-medium text-blue-600">
+                      ☕ Viewing from other device
+                    </div>
+                  )}
+                  {location.isStaleLocation && (
+                    <div className="text-[10px] mt-1 font-medium text-orange-600">
+                      ⚠️ Location stale (&gt;5 min)
+                    </div>
+                  )}
+                  {location.location_updated_at &&
+                    <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-600">
+                      <Clock className="w-3 h-3" />
+                      {format(new Date(location.location_updated_at), 'HH:mm:ss')}
+                    </div>
+                  }
+                  <button
+                    onClick={() => {
+                      const url = `https://www.google.com/maps/dir/?api=1&destination=${location.latitude},${location.longitude}`;
+                      window.open(url, '_blank');
+                    }}
+                    className="w-full mt-3 px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded flex items-center justify-center gap-2 transition-colors"
+                    title={`Navigate to ${firstName}'s location`}
+                  >
+                    📍 Go to {firstName}
+                  </button>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
 
 
 
