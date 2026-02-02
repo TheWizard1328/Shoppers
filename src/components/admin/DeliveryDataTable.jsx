@@ -261,7 +261,14 @@ export default function DeliveryDataTable({ deliveries, patients, stores, driver
               {paginatedDeliveries.map(delivery => (
                 <tr key={delivery.id} className="border-b hover:bg-slate-50">
                   <td className="p-3 text-sm">
-                    {format(new Date(delivery.delivery_date), 'MMM d, yyyy')}
+                    <div className="space-y-1">
+                      <div>{format(new Date(delivery.delivery_date + 'T00:00:00Z'), 'MMM d, yyyy')}</div>
+                      {delivery.actual_delivery_time && (
+                        <div className="text-xs text-slate-500">
+                          {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3 font-mono text-sm">{delivery.tracking_number || "—"}</td>
                   <td className="p-3 text-sm">{getPatientName(delivery.patient_id)}</td>
