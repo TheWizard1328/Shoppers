@@ -526,13 +526,19 @@ export default function AdminMetrics() {
           </CardHeader>
           <CardContent>
             {showDayByDay && selectedMonth && !selectedStoreMonth ? (
-              // Day-by-Day Grid View
-              <DayByDayStoreMetricsGrid
-                metricsData={filteredData || metricsData}
-                selectedMonth={selectedMonth}
-                selectedYear={selectedYear}
-                selectedCityId={selectedCityId}
-              />
+               // Day-by-Day Grid View
+               loadingDayByDay ? (
+                 <div className="flex items-center justify-center h-[300px]">
+                   <p className="text-slate-500">Loading day-by-day data...</p>
+                 </div>
+               ) : (
+                 <DayByDayStoreMetricsGrid
+                   metricsData={{ dailyStoreData: { [selectedMonth]: dayByDayData || {} } }}
+                   selectedMonth={selectedMonth}
+                   selectedYear={selectedYear}
+                   selectedCityId={selectedCityId}
+                 />
+               )
             ) : (
               // Bar Chart View
             <div className="h-[300px]">
