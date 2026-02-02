@@ -3144,7 +3144,7 @@ export default function PayrollSummaryCard({
                 </div>
 
                 {/* Two Column Layout */}
-                <div className="flex gap-6 items-start">
+                <div className="flex gap-6 items-start justify-between">
                   {/* Left Column: Period Stats Summary */}
                   <div className="text-xs grid gap-1" style={{ gridTemplateColumns: '150px 140px 140px', rowGap: '0.125rem' }}>
                     {/* Row 1 */}
@@ -3183,7 +3183,7 @@ export default function PayrollSummaryCard({
                   </div>
 
                   {/* Right Column: Pay Totals with YTD */}
-                  <div className="flex gap-6 items-start">
+                  <div className="flex items-start">
                   {/* Period Column */}
                   <div className="flex flex-col">
                     {grandTotalTax > 0 || grandTotalDeductions > 0 ?
@@ -3247,7 +3247,7 @@ export default function PayrollSummaryCard({
                   </div>
 
                   {/* Vertical Divider */}
-                  <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
+                  <div className="mx-3" style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
 
                   {/* YTD Column */}
                   <div className="flex flex-col">
