@@ -18,6 +18,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
     app_roles: ['driver'],
     user_name: '',
     status: 'active',
+    driver_status: 'off_duty',
     phone: '',
     city_id: '',
     city_ids: [],
@@ -41,6 +42,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
         app_roles: appUser.app_roles || ['driver'],
         user_name: appUser.user_name || '',
         status: appUser.status || 'active',
+        driver_status: appUser.driver_status || 'off_duty',
         phone: appUser.phone || '',
         city_id: appUser.city_id || '',
         city_ids: cityIds,
@@ -57,6 +59,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
         app_roles: ['driver'],
         user_name: '',
         status: 'active',
+        driver_status: 'off_duty',
         phone: '',
         city_id: '',
         city_ids: [],
@@ -207,14 +210,33 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
 
             </div>
 
-            {/* Sort Order */}
-            <div className="w-1/2">
-              <Label>Sort Order</Label>
-              <Input
-                type="number"
-                value={formData.sort_order}
-                onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })} />
+            {/* Sort Order and User Status on same row */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Sort Order</Label>
+                <Input
+                  type="number"
+                  value={formData.sort_order}
+                  onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
+                  className="h-9" />
+              </div>
 
+              <div>
+                <Label>User Status</Label>
+                <Select 
+                  value={formData.driver_status} 
+                  onValueChange={(value) => setFormData({ ...formData, driver_status: value })}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10003]">
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="on_duty">On Duty</SelectItem>
+                    <SelectItem value="on_break">On Break</SelectItem>
+                    <SelectItem value="off_duty">Off Duty</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Home GPS Coordinates on same row */}
