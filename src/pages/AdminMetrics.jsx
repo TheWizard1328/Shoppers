@@ -148,7 +148,7 @@ export default function AdminMetrics() {
     fetchMetrics(selectedYear, newCityId, false);
   };
 
-  // Filter data based on selected month and store (client-side filtering)
+  // Filter data based on selected month, store, and driver (client-side filtering)
   const filteredData = useMemo(() => {
     if (!metricsData) return null;
 
@@ -221,7 +221,13 @@ export default function AdminMetrics() {
       ...metricsData,
       storeData: storeDataWithFees
     };
-  }, [metricsData, selectedMonth, selectedStoreMonth]);
+  }, [metricsData, selectedMonth, selectedStoreMonth, selectedDriverId]);
+
+  // Filter driver data based on selected driver
+  const getFilteredDriverData = useCallback((driverData) => {
+    if (selectedDriverId === 'all' || !driverData) return driverData;
+    return driverData.filter((d) => d.driverId === selectedDriverId);
+  }, [selectedDriverId]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
