@@ -19,7 +19,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
 
   const monthlyStoreData = metricsData.monthlyStoreData || {};
   const monthlyStoreFees = metricsData.monthlyStoreFees || {};
-  
+
   // Default metricsViewMode if not provided
   const viewMode = metricsViewMode || 'deliveries';
 
@@ -63,9 +63,9 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
             const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0);
             // Only add envelope adjustment if toggle is on AND this store has envelope data
             const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
-            const envelopeAdjustment = (showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0) 
-              ? (envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount) 
-              : 0;
+            const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?
+            envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
+            0;
             value = totalDeliveries + envelopeAdjustment;
           } else {
             value = storeData.fees || 0;
@@ -94,9 +94,9 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
         const totalDeliveries = (store.completed || 0) + (store.afterHours || 0) + (store.failed || 0);
         // Only add envelope adjustment if toggle is on AND this store has envelope data
         const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[store.storeId]?.[month];
-        const envelopeAdjustment = (showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0) 
-          ? (envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount) 
-          : 0;
+        const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?
+        envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
+        0;
         value = totalDeliveries + envelopeAdjustment;
       } else {
         value = store.fees || 0;
@@ -110,18 +110,18 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     const monthData = monthlyStoreData[month] || [];
     const storeData = monthData.find((s) => s.abbreviation === storeAbbr);
     if (!storeData) return null;
-    
+
     let value;
     if (metricsViewMode === 'deliveries') {
       // Total = Completed Deliveries + After Hours + Failed
       const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0);
-      
+
       if (showEnvelopeAdjustedTotals) {
         // When toggle is ON: combine deliveries + envelope adjustment into single value
         const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
-        const envelopeAdjustment = (envelopeInfo?.totalEnvelopeValue > 0) 
-          ? (envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount) 
-          : 0;
+        const envelopeAdjustment = envelopeInfo?.totalEnvelopeValue > 0 ?
+        envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
+        0;
         value = totalDeliveries + envelopeAdjustment;
       } else {
         // When toggle is OFF: show base deliveries (formatValue will add envelope in brackets)
@@ -149,7 +149,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
         return `${value.toLocaleString()}(${envelopeInfo.totalEnvelopeValue})`;
       }
     }
-    
+
     return value.toLocaleString();
   };
 
@@ -159,7 +159,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
   };
 
   return (
-    <Card>
+    <Card className="bg-card text-card-foreground rounded-xl border shadow">
       <CardHeader className="pb-3">
         <p className="text-xs text-slate-500 mb-2">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
         <div className="flex items-center justify-between">
@@ -177,8 +177,8 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
             <Switch
               id="envelope-totals-grid"
               checked={showEnvelopeAdjustedTotals}
-              onCheckedChange={onEnvelopeToggleChange}
-            />
+              onCheckedChange={onEnvelopeToggleChange} />
+
             <Label htmlFor="envelope-totals-grid" className="text-xs whitespace-nowrap">Envelope Totals</Label>
           </div>
           
@@ -254,15 +254,15 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                       const storeId = getStoreId(store.abbreviation, month);
                       const value = getValue(store.abbreviation, month);
                       const isStoreMonthSelected = selectedStoreMonth?.month === month && selectedStoreMonth?.storeId === storeId;
-                      
+
                       // Leave blank if value is 0, null, or undefined
                       const shouldShowBlank = value === null || value === undefined || value === 0;
-                      
+
                       return (
                         <td
                           key={store.abbreviation}
                           className={`text-center px-1 py-0.5 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''}`}
-                          style={{ color: (value !== null && value !== undefined && value > 0) ? getStoreColor(store) : '#94a3b8' }}
+                          style={{ color: value !== null && value !== undefined && value > 0 ? getStoreColor(store) : '#94a3b8' }}
                           onClick={() => {
                             if (value !== null && value !== undefined && value > 0) {
                               // Get the actual storeId from the store object, not from getStoreId
