@@ -175,6 +175,20 @@ export default function AdminMetrics() {
               </SelectContent>
             </Select>
 
+            <Select value={selectedCityId} onValueChange={setSelectedCityId}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Cities</SelectItem>
+                {appData?.cities?.map((city) => (
+                  <SelectItem key={city.id} value={city.id}>
+                    {city.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Button 
               onClick={handleCaptureScreenshot} 
               variant="outline" 
