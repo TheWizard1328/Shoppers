@@ -19,49 +19,52 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
     );
   }
 
-  // Build stores list from daily store data
-  const storeMap = new Map();
+  // Build stores list and day-by-day data from metricsData
   const dailyStoreData = metricsData.dailyStoreData?.[selectedMonth] || {};
+  const storeMap = new Map();
+  const storeDataByDay = new Map(); // { storeId: { day: value, ... }, ... }
   
-  Object.values(dailyStoreData).forEach(storeData => {
-    if (storeData?.abbreviation && !storeMap.has(storeData.abbreviation)) {
-      storeMap.set(storeData.abbreviation, {
-        abbreviation: storeData.abbreviation,
-        storeId: storeData.storeId,
-        name: storeData.name,
-        sortOrder: storeData.sortOrder
+  // Get all stores and their data from the nested structure
+  Object.entries(dailyStoreData).forEach(([storeId, dayArray]) => {
+    if (!Array.isArray(dayArray)) return;
+    
+    // Get store info from first record
+    const firstRecord = dayArray[0];
+    if (firstRecord?.abbreviation && !storeMap.has(storeId)) {
+      storeMap.set(storeId, {
+        storeId,
+        abbreviation: firstRecord.abbreviation,
+        name: firstRecord.name,
+        color: firstRecord.color,
+        sortOrder: firstRecord.sortOrder || 999
       });
     }
+    
+    // Build day-by-day map for this store
+    const dayMap = {};
+    dayArray.forEach(dayRecord => {
+      if (dayRecord?.day) {
+        // Billable = Completed + After Hours
+        dayMap[dayRecord.day] = (dayRecord.completed || 0) + (dayRecord.afterHours || 0);
+      }
+    });
+    storeDataByDay.set(storeId, dayMap);
   });
 
   const stores = Array.from(storeMap.values()).sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
-
-  // Get number of days in selected month
   const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
 
   // Get billable value for a store on a specific day
   const getBillableValue = (storeId, day) => {
-    const dayData = dailyStoreData[storeId];
-    if (!dayData || !Array.isArray(dayData)) return null;
-    
-    const dayRecord = dayData.find(d => d.day === day);
-    if (!dayRecord) return null;
-    
-    // Billable = Completed + After Hours
-    const billable = (dayRecord.completed || 0) + (dayRecord.afterHours || 0);
-    return billable > 0 ? billable : null;
+    const dayMap = storeDataByDay.get(storeId);
+    const value = dayMap?.[day];
+    return value && value > 0 ? value : null;
   };
 
   // Calculate totals per store
   const getStoreTotal = (storeId) => {
-    let total = 0;
-    for (let day = 1; day <= daysInMonth; day++) {
-      const value = getBillableValue(storeId, day);
-      if (value !== null) {
-        total += value;
-      }
-    }
-    return total;
+    const dayMap = storeDataByDay.get(storeId);
+    return dayMap ? Object.values(dayMap).reduce((sum, v) => sum + (v || 0), 0) : 0;
   };
 
   // Calculate daily totals
@@ -78,11 +81,6 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
 
   // Get grand total
   const grandTotal = stores.reduce((sum, store) => sum + getStoreTotal(store.storeId), 0);
-
-  // Get store color
-  const getStoreColor = (store) => {
-    return store.color || '#64748b';
-  };
 
   return (
     <Card>
