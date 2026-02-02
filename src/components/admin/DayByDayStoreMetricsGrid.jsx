@@ -121,37 +121,37 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
 
               {/* Totals Row */}
               <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
-                <td className="px-1.5 py-1 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
+                <td className="px-1.5 py-0.5 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
                 {stores.map(store => {
                   const total = getStoreTotal(store);
                   return (
                     <td
                       key={store.storeId || store.id}
-                      className="text-center px-1 py-1 tabular-nums"
+                      className="text-center px-1 py-0.5 tabular-nums"
                       style={{ color: store.color || '#64748b' }}
                     >
                       {total > 0 ? total : ''}
                     </td>
                   );
                 })}
-                <td className="text-center px-1 py-1 font-bold text-slate-900 border-l-2 border-slate-300 tabular-nums">
+                <td className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-slate-300 tabular-nums">
                   {grandTotal > 0 ? grandTotal : ''}
                 </td>
               </tr>
 
               {/* Average Row */}
               <tr className="bg-slate-50">
-                <td className="px-1.5 py-1 text-slate-600 sticky left-0 bg-slate-50 z-10">Avg</td>
+                <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">Avg</td>
                 {stores.map(store => {
                   const total = getStoreTotal(store);
                   const avg = total > 0 ? (total / daysInMonth).toFixed(1) : '';
                   return (
-                    <td key={store.storeId || store.id} className="text-center px-1 py-1 tabular-nums text-slate-600">
+                    <td key={store.storeId || store.id} className="text-center px-1 py-0.5 tabular-nums text-slate-600">
                       {avg}
                     </td>
                   );
                 })}
-                <td className="text-center px-1 py-1 font-semibold text-slate-700 border-l-2 border-slate-300 tabular-nums">
+                <td className="text-center px-1 py-0.5 font-semibold text-slate-700 border-l-2 border-slate-300 tabular-nums">
                   {grandTotal > 0 ? (grandTotal / daysInMonth).toFixed(1) : ''}
                 </td>
               </tr>
