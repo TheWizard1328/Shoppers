@@ -97,7 +97,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                 const dayTotal = getDayTotal(day);
                 return (
                   <tr key={day} className="border-b hover:bg-slate-50">
-                    <td className="p-2 font-medium sticky left-0 bg-white z-10 text-slate-700">
+                    <td className="px-1.5 py-1 font-medium sticky left-0 bg-white z-10 text-slate-700">
                       {day}
                     </td>
                     {stores.map(store => {
@@ -105,14 +105,14 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                       return (
                         <td
                           key={store.storeId || store.id}
-                          className="text-center p-2 tabular-nums"
+                          className="text-center px-1 py-1 tabular-nums"
                           style={{ color: value > 0 ? (store.color || '#64748b') : '#94a3b8' }}
                         >
                           {value > 0 ? value : ''}
                         </td>
                       );
                     })}
-                    <td className="text-center p-2 font-semibold text-slate-900 border-l-2 border-slate-300 tabular-nums">
+                    <td className="text-center px-1 py-1 font-semibold text-slate-900 border-l-2 border-slate-300 tabular-nums">
                       {dayTotal > 0 ? dayTotal : ''}
                     </td>
                   </tr>
