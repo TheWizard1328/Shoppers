@@ -644,8 +644,8 @@ export default function AdminMetrics() {
               <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 <BarChart3 className="w-5 h-5" />
                 {selectedMonth ?
-                `Daily Deliveries - ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}` :
-                `Monthly Deliveries (${selectedYear})`
+                `Daily Deliveries - ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}${selectedDriverId !== 'all' ? ` - ${metricsData.driverData?.find(d => d.driverId === selectedDriverId)?.name}` : ''}` :
+                `Monthly Deliveries (${selectedYear})${selectedDriverId !== 'all' ? ` - ${metricsData.driverData?.find(d => d.driverId === selectedDriverId)?.name}` : ''}`
                 }
               </CardTitle>
             </CardHeader>
@@ -653,7 +653,22 @@ export default function AdminMetrics() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={(() => {
-                    if (!selectedMonth) return metricsData.monthlyData;
+                    if (!selectedMonth) {
+                      // Filter monthly data by driver
+                      if (selectedDriverId === 'all') return metricsData.monthlyData;
+                      return metricsData.dailyDeliveryData ? 
+                        Object.values(metricsData.dailyDeliveryData).flat().filter(d => d.driverId === selectedDriverId).reduce((acc, entry) => {
+                          const existing = acc[entry.month - 1];
+                          if (existing) {
+                            existing.billable += entry.billable;
+                            existing.nonBillable += entry.nonBillable;
+                          } else {
+                            acc[entry.month - 1] = { billable: entry.billable, nonBillable: entry.nonBillable, month: entry.month };
+                          }
+                          return acc;
+                        }, Array(12).fill(null).map((_, i) => ({ billable: 0, nonBillable: 0, month: i + 1 }))) 
+                        : metricsData.monthlyData;
+                    }
 
                     // Get days in the selected month for the selected year
                     const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
