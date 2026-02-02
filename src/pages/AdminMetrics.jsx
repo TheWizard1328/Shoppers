@@ -392,14 +392,14 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          <Card className="bg-amber-50 border-amber-200">
+          <Card style={{ background: '#fef3c7', borderColor: '#fcd34d' }}>
             <CardContent className="pt-4 pb-4">
-              <p className="text-sm text-amber-700 mb-2">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Fees</p>
+              <p className="text-sm mb-2" style={{ color: '#b45309' }}>{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Fees</p>
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-amber-500 rounded-lg">
-                  <DollarSign className="w-5 h-5 text-white" />
+                <div className="p-2 rounded-lg" style={{ background: '#f59e0b' }}>
+                  <DollarSign className="w-5 h-5" style={{ color: 'white' }} />
                 </div>
-                <p className="text-2xl font-bold text-amber-900">
+                <p className="text-2xl font-bold" style={{ color: '#78350f' }}>
                   {formatCurrency(
                     selectedMonth 
                       ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
