@@ -104,7 +104,7 @@ import PWAInstallPrompt from './components/common/PWAInstallPrompt';
 import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
 import BatteryIndicator from './components/layout/BatteryIndicator';
 import SettingsMenu from './components/layout/SettingsMenu';
-import MainCitySelector from './components/layout/MainCitySelector';
+
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -3727,7 +3727,6 @@ export default function Layout({ children, currentPageName }) {
                 }
 
                     <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
-                    <MainCitySelector />
                     <div className="flex-1 overflow-y-auto">
                     {children}
                     </div>
