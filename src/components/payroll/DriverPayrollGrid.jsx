@@ -325,7 +325,7 @@ export default function DriverPayrollGrid({
           )}
           
           {headerLayout === 'title-viewmode' && (
-            <>
+            <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="flex items-center gap-2 text-base flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>
                   <Table className="w-5 h-5" />
@@ -343,7 +343,7 @@ export default function DriverPayrollGrid({
                   </Button>
                 </div>
               </div>
-            </>
+            </div>
           )}
           
           {/* Period Navigation */}
