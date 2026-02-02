@@ -285,17 +285,17 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
               })}
               {/* Totals Row */}
               <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
-                <td className="p-2 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
+                <td className="px-1.5 py-0.5 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
                 {stores.map((store) =>
                 <td
                   key={store.abbreviation}
-                  className="text-center p-2 tabular-nums"
+                  className="text-center px-1 py-0.5 tabular-nums"
                   style={{ color: getStoreColor(store) }}>
 
                     {formatValue(totals[store.abbreviation])}
                   </td>
                 )}
-                <td className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                <td className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
                   {formatValue(grandTotal)}
                 </td>
               </tr>
