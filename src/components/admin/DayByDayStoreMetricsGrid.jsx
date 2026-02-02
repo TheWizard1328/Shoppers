@@ -74,16 +74,36 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
       <CardContent className="p-0">
         <div className="mb-2 px-4 pt-4 flex items-center justify-between">
           <h3 className="font-semibold text-slate-900">
-            Daily Deliveries - {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+            {viewMode === 'deliveries' ? 'Daily Deliveries' : 'Daily Extra Km'} - {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
           </h3>
-          {selectedMonth &&
-            <button
-              onClick={() => onResetView?.()}
-              className="text-xs px-3 py-1 border border-slate-300 rounded hover:bg-slate-100 transition-colors"
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setViewMode('deliveries')}
+              variant={viewMode === 'deliveries' ? 'default' : 'outline'}
+              size="sm"
+              className="whitespace-nowrap"
             >
-              Reset View
-            </button>
-          }
+              Deliveries
+            </Button>
+            <Button
+              onClick={() => setViewMode('extra_km')}
+              variant={viewMode === 'extra_km' ? 'default' : 'outline'}
+              size="sm"
+              className="whitespace-nowrap"
+            >
+              Extra Km
+            </Button>
+            {selectedMonth &&
+              <Button
+                onClick={() => onResetView?.()}
+                variant="outline"
+                size="sm"
+                className="whitespace-nowrap"
+              >
+                Reset View
+              </Button>
+            }
+          </div>
         </div>
         <div className="overflow-x-auto w-full">
           <table className="w-full text-xs">
