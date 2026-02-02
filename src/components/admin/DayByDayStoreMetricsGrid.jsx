@@ -20,30 +20,36 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
   }
 
   const stores = metricsData.stores || [];
-  const dailyDeliveryData = metricsData.dailyDeliveryData?.[selectedMonth] || [];
+  const monthlyByStore = metricsData.monthlyByStore?.[selectedMonth] || {};
   const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
 
-  // Create a map of day -> store -> { billable, nonBillable }
+  // Create a map of day -> store -> total
   const dataByDayAndStore = new Map();
-  dailyDeliveryData.forEach(d => {
-    if (!dataByDayAndStore.has(d.day)) {
-      dataByDayAndStore.set(d.day, new Map());
+  
+  // Organize data by day and store
+  stores.forEach(store => {
+    const storeData = monthlyByStore[store.id];
+    if (storeData && storeData.dailyBreakdown) {
+      storeData.dailyBreakdown.forEach(dayData => {
+        if (!dataByDayAndStore.has(dayData.day)) {
+          dataByDayAndStore.set(dayData.day, new Map());
+        }
+        const total = (dayData.billable || 0) + (dayData.nonBillable || 0);
+        dataByDayAndStore.get(dayData.day).set(store.id, total);
+      });
     }
-    dataByDayAndStore.get(d.day).set(d.storeId, d);
   });
 
   // Calculate totals per store
   const getStoreTotal = (storeId) => {
-    let total = 0;
-    dailyDeliveryData.forEach(d => {
-      if (d.storeId === storeId) {
-        total += (d.billable || 0) + (d.nonBillable || 0);
-      }
-    });
-    return total;
+    const storeData = monthlyByStore[storeId];
+    if (storeData) {
+      return (storeData.billable || 0) + (storeData.nonBillable || 0);
+    }
+    return 0;
   };
 
-  const grandTotal = dailyDeliveryData.reduce((sum, d) => sum + (d.billable || 0) + (d.nonBillable || 0), 0);
+  const grandTotal = stores.reduce((sum, store) => sum + getStoreTotal(store.id), 0);
 
   return (
     <Card>
