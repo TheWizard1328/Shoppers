@@ -1771,6 +1771,7 @@ export default function Layout({ children, currentPageName }) {
 
   const handleImpersonate = useCallback(async (userId) => {
     sessionStorage.setItem('impersonationId', userId);
+    clearUserCache(); // Force refresh on impersonate
     window.location.reload();
   }, []);
 
