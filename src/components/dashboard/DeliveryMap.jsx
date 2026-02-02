@@ -3322,16 +3322,12 @@ export default function DeliveryMap({
                         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
                           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-                        
-                        // Find first incomplete stop
-                        const firstIncomplete = allMarkersAtLocation.find(m => !FINISHED_STATUSES.includes(m.status));
-                        
+
                         return allMarkersAtLocation.map((m, idx) => {
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
-                          const isFirstIncomplete = m.id === firstIncomplete?.id;
                           const itemName = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
-                          
+
                           return (
                             <div 
                               key={`cluster-item-${m.id}`} 
@@ -3341,7 +3337,7 @@ export default function DeliveryMap({
                                 // CRITICAL: Close cluster popup immediately
                                 const popups = document.querySelectorAll('.leaflet-popup');
                                 popups.forEach(p => p.remove());
-                                
+
                                 // Center card for clicked stop
                                 const cardElement = document.getElementById(`stop-card-${m.id}`);
                                 if (cardElement) {
