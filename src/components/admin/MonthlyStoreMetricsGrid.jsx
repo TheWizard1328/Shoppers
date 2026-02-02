@@ -322,7 +322,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
               {/* Percentage Row (only for fees view) */}
               {viewMode === 'fees' && grandTotal > 0 &&
               <tr className="bg-slate-50 border-t">
-                  <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">%</td>
+                  <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">%</td>
                   {stores.map((store) => {
                   const pct = grandTotal > 0 ?
                   totals[store.abbreviation] / grandTotal * 100 :
@@ -330,13 +330,13 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                   return (
                     <td
                       key={store.abbreviation}
-                      className="text-center p-2 tabular-nums text-slate-500">
+                      className="text-center px-1 py-0.5 tabular-nums text-slate-500">
 
                         {pct > 0 ? `${pct.toFixed(0)}%` : ''}
                       </td>);
 
                 })}
-                  <td className="text-center p-2 text-slate-500 border-l-2 border-purple-300">100%</td>
+                  <td className="text-center px-1 py-0.5 text-slate-500 border-l-2 border-purple-300">100%</td>
                 </tr>
               }
             </tbody>
