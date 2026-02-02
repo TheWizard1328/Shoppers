@@ -562,7 +562,7 @@ export default function AdminMetrics() {
                         : totalDeliveries;
                       return (
                         <g transform={`translate(${x},${y})`}>
-                          <text x={0} y={0} dy={12} textAnchor="middle" fill="#64748b" fontSize={11}>
+                          <text x={0} y={0} dy={12} textAnchor="middle" fill="var(--text-slate-600)" fontSize={11}>
                             {payload.value}
                           </text>
                           <text x={0} y={0} dy={26} textAnchor="middle" fill={metricsViewMode === 'fees' ? '#f59e0b' : '#10b981'} fontSize={10} fontWeight="600">
