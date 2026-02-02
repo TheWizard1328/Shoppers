@@ -268,48 +268,52 @@ export default function AdminMetrics() {
             <StoreMetricsPanel />
           </TabsContent>
 
-          {/* Google API Logs */}
-          <TabsContent value="api-logs" className="space-y-6">
-            <GoogleAPILogViewer />
-          </TabsContent>
-
-          {/* Polylines Viewer */}
-          <TabsContent value="polylines" className="space-y-6">
-            <PolylineViewer users={users} />
-          </TabsContent>
-
-          {/* App Settings */}
-          <TabsContent value="settings" className="space-y-6">
-            <AppSettingsPanel />
-          </TabsContent>
-
-          {/* Data Tables */}
-          <TabsContent value="data" className="space-y-6">
-            <Tabs defaultValue="deliveries" className="w-full">
-              <TabsList>
-                <TabsTrigger value="deliveries">All Deliveries</TabsTrigger>
-                <TabsTrigger value="patients">All Patients</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="deliveries">
-                <DeliveryDataTable
-                  deliveries={deliveries}
-                  patients={patients}
-                  stores={stores}
-                  users={users}
-                  selectedYear={selectedYear}
-                  showAllData={true}
-                />
+          {currentUser && isAppOwner(currentUser) && (
+            <>
+              {/* Google API Logs */}
+              <TabsContent value="api-logs" className="space-y-6">
+                <GoogleAPILogViewer />
               </TabsContent>
-              
-              <TabsContent value="patients">
-                <PatientDataTable
-                  patients={patients}
-                  stores={stores}
-                />
+
+              {/* Polylines Viewer */}
+              <TabsContent value="polylines" className="space-y-6">
+                <PolylineViewer users={users} />
               </TabsContent>
-            </Tabs>
-          </TabsContent>
+
+              {/* App Settings */}
+              <TabsContent value="settings" className="space-y-6">
+                <AppSettingsPanel />
+              </TabsContent>
+
+              {/* Data Tables */}
+              <TabsContent value="data" className="space-y-6">
+                <Tabs defaultValue="deliveries" className="w-full">
+                  <TabsList>
+                    <TabsTrigger value="deliveries">All Deliveries</TabsTrigger>
+                    <TabsTrigger value="patients">All Patients</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="deliveries">
+                    <DeliveryDataTable
+                      deliveries={deliveries}
+                      patients={patients}
+                      stores={stores}
+                      users={users}
+                      selectedYear={selectedYear}
+                      showAllData={true}
+                    />
+                  </TabsContent>
+                  
+                  <TabsContent value="patients">
+                    <PatientDataTable
+                      patients={patients}
+                      stores={stores}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </TabsContent>
+            </>
+          )}
         </Tabs>
       </div>
 
