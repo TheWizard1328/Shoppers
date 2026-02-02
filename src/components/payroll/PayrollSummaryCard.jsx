@@ -1801,7 +1801,7 @@ export default function PayrollSummaryCard({
     return ytdMap;
   }, [payrollData, payrollRecords, currentPeriod, appUsers, cities]);
 
-  // Load app fees per delivery setting and Extra_App_Fee_Percentage
+  // Load app fees per delivery setting, Extra_App_Fee_Percentage, and Other_App_Fee_Percentage
   useEffect(() => {
     const loadAppFeesSetting = async () => {
       try {
@@ -1811,6 +1811,9 @@ export default function PayrollSummaryCard({
         }
         if (settings?.[0]?.setting_value?.Extra_App_Fee_Percentage !== undefined) {
           setExtraAppFeePercent(parseFloat(settings[0].setting_value.Extra_App_Fee_Percentage));
+        }
+        if (settings?.[0]?.setting_value?.Other_App_Fee_Percentage !== undefined) {
+          setOtherAppFeePercent(parseFloat(settings[0].setting_value.Other_App_Fee_Percentage));
         }
       } catch (error) {
         console.warn('Failed to load app fees setting:', error);
@@ -2654,13 +2657,14 @@ export default function PayrollSummaryCard({
                    }
                  }
 
-                 // Save Extra_App_Fee_Percentage to AppSettings
+                 // Save Extra_App_Fee_Percentage and Other_App_Fee_Percentage to AppSettings
                  const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
                  if (settings?.[0]) {
                    await base44.entities.AppSettings.update(settings[0].id, {
                      setting_value: {
                        ...settings[0].setting_value,
-                       Extra_App_Fee_Percentage: extraAppFeePercent
+                       Extra_App_Fee_Percentage: extraAppFeePercent,
+                       Other_App_Fee_Percentage: otherAppFeePercent
                      }
                    });
                  }
