@@ -301,7 +301,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
               </tr>
               {/* Average Row */}
               <tr className="bg-slate-50">
-                <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
+                <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
                 {stores.map((store) => {
                   const avg = counts[store.abbreviation] > 0 ?
                   totals[store.abbreviation] / 12 :
@@ -309,13 +309,13 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                   return (
                     <td
                       key={store.abbreviation}
-                      className="text-center p-2 tabular-nums text-slate-600">
+                      className="text-center px-1 py-0.5 tabular-nums text-slate-600">
 
                       {avg > 0 ? formatValue(Math.round(avg)) : ''}
                     </td>);
 
                 })}
-                <td className="text-center p-2 font-semibold text-slate-700 border-l-2 border-purple-300 tabular-nums">
+                <td className="text-center px-1 py-0.5 font-semibold text-slate-700 border-l-2 border-purple-300 tabular-nums">
                   {formatValue(Math.round(grandTotal / 12))}
                 </td>
               </tr>
