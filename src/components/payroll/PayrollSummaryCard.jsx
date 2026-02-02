@@ -75,6 +75,7 @@ export default function PayrollSummaryCard({
   const [extraAppFeePercent, setExtraAppFeePercent] = useState(0);
   const [otherAppFeePercent, setOtherAppFeePercent] = useState(0);
   const [appFeeOverlayAllDriversId, setAppFeeOverlayAllDriversId] = useState(null);
+  const [activeInputField, setActiveInputField] = useState(null);
   const contentRef = useRef(null);
 
   const isAdmin = currentUser && userHasRole(currentUser, 'admin');
@@ -2320,7 +2321,9 @@ export default function PayrollSummaryCard({
                          <td className="text-right px-1 py-1.5">
                            <input
                              type="number"
-                             value={driverAppFeePercent.toFixed(2)}
+                             value={activeInputField === `${driver.driver.id}-percent` ? driverAppFeePercent : driverAppFeePercent.toFixed(2)}
+                             onFocus={() => setActiveInputField(`${driver.driver.id}-percent`)}
+                             onBlur={() => setActiveInputField(null)}
                              onChange={(e) => {
                                const newPercent = parseFloat(e.target.value) || 0;
                                const calculatedAmount = calculateAppFeeAmount(driver.driver.id, newPercent);
@@ -2459,7 +2462,9 @@ export default function PayrollSummaryCard({
                      <td className="text-right px-1 py-1.5">
                        <input
                          type="number"
-                         value={otherAppFeePercent.toFixed(2)}
+                         value={activeInputField === 'other-percent' ? otherAppFeePercent : otherAppFeePercent.toFixed(2)}
+                         onFocus={() => setActiveInputField('other-percent')}
+                         onBlur={() => setActiveInputField(null)}
                          onChange={(e) => {
                            const newPercent = parseFloat(e.target.value) || 0;
                            setOtherAppFeePercent(newPercent);
@@ -2545,7 +2550,9 @@ export default function PayrollSummaryCard({
                      <td className="text-right px-1 py-1.5">
                        <input
                          type="number"
-                         value={(driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}
+                         value={activeInputField === `${currentUser?.id}-appowner-percent` ? (driverEdits[currentUser?.id]?.appFeePercent || 0) : (driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}
+                         onFocus={() => setActiveInputField(`${currentUser?.id}-appowner-percent`)}
+                         onBlur={() => setActiveInputField(null)}
                          onChange={(e) => {
                            const newAppOwnerPercent = parseFloat(e.target.value) || 0;
                            const calculatedAmount = calculateAppFeeAmount(currentUser.id, newAppOwnerPercent);
