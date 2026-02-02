@@ -1849,22 +1849,7 @@ export default function PayrollSummaryCard({
       }
     });
     
-    // Debug log - show ALL stores
-    const monthStr = calendarMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    console.log(`🧮 [AppFee Debug] CALENDAR MONTH: ${monthStr}, Fee/Del: $${appFeesPerDelivery}`);
-    console.log(`📊 Store Summary (${Object.values(storeBreakdown).length} total stores):`);
-    Object.values(storeBreakdown).forEach(s => {
-      console.log(`   ${s.abbreviation}: ${s.count} deliveries ${s.pays ? '✅ PAYS' : '❌ NO PAY'}`);
-    });
-    const payingStores = Object.values(storeBreakdown).filter(s => s.pays).length;
-    console.log(`✅ ${payingStores} stores pay app fees, ${Object.values(storeBreakdown).length - payingStores} don't`);
-    console.log(`   Total Billable: ${totalBillableCount} deliveries`);
-    
     const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
-    console.log(`   Pool Calculation: ${totalBillableCount} × $${appFeesPerDelivery} = $${totalMonthlyAppFees.toFixed(2)}`);
-    const driverAppFee = (totalMonthlyAppFees * appFeePercent) / 100;
-    console.log(`   Driver ${driverId}: ${appFeePercent}% of $${totalMonthlyAppFees.toFixed(2)} = $${driverAppFee.toFixed(2)}`);
-    
     return (totalMonthlyAppFees * appFeePercent) / 100;
   }, [deliveries, stores, currentPeriod, appFeesPerDelivery]);
 
