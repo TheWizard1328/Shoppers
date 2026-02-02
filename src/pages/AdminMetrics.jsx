@@ -454,16 +454,27 @@ export default function AdminMetrics() {
               }
             </CardTitle>
 
-            {/* Day-by-Day Toggle Button - Always visible, activated when month selected */}
-            <Button
-              onClick={() => setShowDayByDay(!showDayByDay)}
-              disabled={!selectedMonth || selectedStoreMonth !== null || metricsViewMode === 'fees'}
-              variant={showDayByDay ? "default" : "outline"}
-              size="sm"
-              className="whitespace-nowrap"
-            >
-              Day-by-Day by Store
-            </Button>
+            {/* View Mode Toggle Buttons - Always visible, activated when month selected */}
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setShowDayByDay(false)}
+                disabled={!selectedMonth || selectedStoreMonth !== null}
+                variant={!showDayByDay ? "default" : "outline"}
+                size="sm"
+                className="whitespace-nowrap"
+              >
+                By Store
+              </Button>
+              <Button
+                onClick={() => setShowDayByDay(true)}
+                disabled={!selectedMonth || selectedStoreMonth !== null || metricsViewMode === 'fees'}
+                variant={showDayByDay ? "default" : "outline"}
+                size="sm"
+                className="whitespace-nowrap"
+              >
+                Day by Day
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {showDayByDay && selectedMonth && !selectedStoreMonth ? (
