@@ -261,7 +261,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                       return (
                         <td
                           key={store.abbreviation}
-                          className={`text-center p-2 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''}`}
+                          className={`text-center px-1 py-0.5 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''}`}
                           style={{ color: (value !== null && value !== undefined && value > 0) ? getStoreColor(store) : '#94a3b8' }}
                           onClick={() => {
                             if (value !== null && value !== undefined && value > 0) {
