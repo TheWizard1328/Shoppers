@@ -154,19 +154,19 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
               <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
                 <td className="px-1.5 py-0.5 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
                 {stores.map(store => {
-                  const total = getStoreTotal(store);
+                  const total = getStoreTotal(store, viewMode);
                   return (
                     <td
                       key={store.storeId || store.id}
                       className="text-center px-1 py-0.5 tabular-nums"
                       style={{ color: store.color || '#64748b' }}
                     >
-                      {total > 0 ? total : ''}
+                      {total > 0 ? (viewMode === 'extra_km' ? total.toFixed(1) : total) : ''}
                     </td>
                   );
                 })}
                 <td className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-slate-300 tabular-nums">
-                  {grandTotal > 0 ? grandTotal : ''}
+                  {grandTotal > 0 ? (viewMode === 'extra_km' ? grandTotal.toFixed(1) : grandTotal) : ''}
                 </td>
               </tr>
 
