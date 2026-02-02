@@ -1812,21 +1812,23 @@ class SmartRefreshManager {
   }
 
   /**
-   * Refresh ACTIVE route data (today's deliveries + driver locations)
-   * CRITICAL: 15-second cycle for real-time updates
-   * CRITICAL: ALWAYS fetches from API for today for cross-device sync
-   * @param {boolean} showAllDrivers - If true, refreshes ALL drivers' data regardless of selected driver
-   * @param {string} currentPage - Current page name (to check if on Dashboard)
-   * @param {Date} selectedDate - Selected date (to check if today)
-   */
-  async refreshActiveRoute(currentData, filters, showAllDrivers = false, currentPage = null, selectedDate = null) {
-    const updates = {};
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    
-    try {
-      // STEP 1: Refresh driver locations (only on Dashboard when viewing today)
-      await this.waitForRateLimit();
-      const locationResult = await this.refreshDriverLocations(currentData.appUsers, true, currentPage, selectedDate);
+    * Refresh ACTIVE route data (today's deliveries + driver locations)
+    * CRITICAL: 15-second cycle for real-time updates
+    * CRITICAL: ALWAYS fetches from API for today for cross-device sync
+    * CRITICAL: When showAllDrivers is true, fetch ALL drivers and refresh their delivery data
+    * @param {boolean} showAllDrivers - If true, refreshes ALL drivers' data regardless of selected driver
+    * @param {string} currentPage - Current page name (to check if on Dashboard)
+    * @param {Date} selectedDate - Selected date (to check if today)
+    */
+   async refreshActiveRoute(currentData, filters, showAllDrivers = false, currentPage = null, selectedDate = null) {
+     const updates = {};
+     const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+     try {
+       // STEP 1: Refresh driver locations (pass showAllDrivers flag)
+       // CRITICAL: When showAllDrivers is true, this ALWAYS fetches and updates ALL drivers' data
+       await this.waitForRateLimit();
+       const locationResult = await this.refreshDriverLocations(currentData.appUsers, true, currentPage, selectedDate, showAllDrivers);
       if (locationResult?.hasChanges) {
         updates.appUsers = locationResult.appUsers;
         console.log(`📍 [ActiveRoute] Driver locations refreshed: ${locationResult.appUsers.length} AppUsers`);
