@@ -3643,11 +3643,12 @@ export default function DeliveryMap({
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
                           const isFirstIncomplete = m.id === firstIncomplete?.id;
+                          const itemName = m.markerType === 'pickup' ? 'Store Pickup' : (m.patient?.full_name || 'Patient');
                           
                           return (
                             <div 
                               key={`cluster-item-${m.id}`} 
-                              className="text-xs py-1 border-b last:border-0 cursor-pointer hover:bg-slate-50 transition-colors px-1 -mx-1 rounded"
+                              className="text-xs py-1.5 border-b last:border-0 cursor-pointer hover:bg-slate-50 transition-colors px-1 -mx-1 rounded space-y-0.5"
                               style={{ borderColor: 'var(--border-slate-200)' }}
                               onClick={() => {
                                 // CRITICAL: Close cluster popup immediately
@@ -3661,19 +3662,29 @@ export default function DeliveryMap({
                                 }
                               }}
                             >
-                              <div className="font-medium" style={{ color: isFirstIncomplete ? '#3B82F6' : 'var(--text-slate-900)' }}>
-                                #{m.number || m.stop_order} - {m.markerType === 'pickup' ? m.store?.name : m.patient?.full_name}
+                              <div className="flex items-center gap-1.5 font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                                <Truck className="w-3.5 h-3.5" />
+                                {m.driver?.user_name || 'Unknown'}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                                <Home className="w-3.5 h-3.5" />
+                                {m.store?.name || 'Store'}
                               </div>
                               {isFinished && finishedTime ? (
-                                <div className="flex items-center gap-1 text-[11px] text-emerald-600">
-                                  <Clock className="w-3 h-3" />
-                                  {finishedTime}
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span style={{ color: 'var(--text-slate-900)' }}>{itemName}</span>
+                                  <span className="text-emerald-600">{finishedTime}</span>
                                 </div>
                               ) : m.delivery_time_eta ? (
-                                <div className="text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
-                                  ETA: {m.delivery_time_eta}
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span style={{ color: 'var(--text-slate-900)' }}>{itemName}</span>
+                                  <span style={{ color: 'var(--text-slate-600)' }}>ETA: {m.delivery_time_eta}</span>
                                 </div>
-                              ) : null}
+                              ) : (
+                                <div className="text-[11px]" style={{ color: 'var(--text-slate-900)' }}>
+                                  {itemName}
+                                </div>
+                              )}
                             </div>
                           );
                         });
