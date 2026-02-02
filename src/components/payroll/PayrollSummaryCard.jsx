@@ -2601,14 +2601,18 @@ export default function PayrollSummaryCard({
              variant="outline"
              onClick={async () => {
                try {
-                 // Save each driver's app fee percentage and amount to payroll records
+                 // Save each driver's app fee percentage and amount - direct update without recalculation
                  for (const driver of driversWithDeliveries) {
                    const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
                    const driverAppFeeAmount = driverEdits[driver.driver.id]?.appFeeAmount || 0;
-                   await savePayrollChanges(driver.driver.id, {
-                     app_fee_percentage: driverAppFeePercent,
-                     app_fee_amount: driverAppFeeAmount
-                   });
+                   const existingRecord = getDriverPayrollRecord(driver.driver.id);
+                   
+                   if (existingRecord) {
+                     await base44.entities.Payroll.update(existingRecord.id, {
+                       app_fee_percentage: driverAppFeePercent,
+                       app_fee_amount: driverAppFeeAmount
+                     });
+                   }
                  }
 
                  // Save Extra_App_Fee_Percentage to AppSettings
