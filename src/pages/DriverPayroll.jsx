@@ -579,151 +579,152 @@ export default function DriverPayroll() {
           </div>
           
           {/* Filters */}
-           <div className="flex flex-wrap items-center gap-2 justify-between w-full md:w-auto">
-             {/* City, Year, Driver Dropdowns */}
-             <div className="flex items-center gap-2">
-               {/* City Filter */}
-               <Select value={selectedCityId} onValueChange={(v) => {
-                 React.startTransition(() => {
-                   setSelectedCityId(v);
-                 });
-               }} disabled={isDriver}>
-                 <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                   <SelectValue placeholder="City" />
-                 </SelectTrigger>
-                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                   <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Cities</SelectItem>
-                   {sortedCities.map(city => (
-                     <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
-                       {city.name}
-                     </SelectItem>
-                   ))}
-                 </SelectContent>
-               </Select>
+          <div className="flex flex-wrap items-center gap-2 justify-between w-full md:w-auto">
+            {/* City, Year, Driver Dropdowns */}
+            <div className="flex items-center gap-2">
+              {/* City Filter */}
+              <Select value={selectedCityId} onValueChange={(v) => {
+                React.startTransition(() => {
+                  setSelectedCityId(v);
+                });
+              }} disabled={isDriver}>
+                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <SelectValue placeholder="City" />
+                </SelectTrigger>
+                <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Cities</SelectItem>
+                  {sortedCities.map(city => (
+                    <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                      {city.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-               {/* Year Filter */}
-               <Select value={String(selectedYear)} onValueChange={(v) => {
-                 React.startTransition(() => {
-                   setSelectedYear(Number(v));
-                 });
-               }}>
-                 <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                   <SelectValue />
-                 </SelectTrigger>
-                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                   {years.map(year => (
-                     <SelectItem key={year} value={String(year)} style={{ color: 'var(--text-slate-900)' }}>
-                       {year}
-                     </SelectItem>
-                   ))}
-                 </SelectContent>
-               </Select>
+              {/* Year Filter */}
+              <Select value={String(selectedYear)} onValueChange={(v) => {
+                React.startTransition(() => {
+                  setSelectedYear(Number(v));
+                });
+              }}>
+                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  {years.map(year => (
+                    <SelectItem key={year} value={String(year)} style={{ color: 'var(--text-slate-900)' }}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-               {/* Driver Filter - filtered by pay cycle type */}
-               <Select value={selectedDriverId} onValueChange={(v) => { 
-                 isManualChangeRef.current = true;
+              {/* Driver Filter - filtered by pay cycle type */}
+              <Select value={selectedDriverId} onValueChange={(v) => { 
+                isManualChangeRef.current = true;
+                
+                // Batch all state updates in a single transition
+                React.startTransition(() => {
+                  setSelectedDriverId(v);
+                  if (v === 'all') {
+                    setPayPeriod('semimonthly');
+                  } else {
+                    const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === v);
+                    if (driverAppUser?.pay_cycle_type) {
+                      setPayPeriod(driverAppUser.pay_cycle_type);
+                    }
+                  }
+                });
+                
+                setTimeout(() => { isManualChangeRef.current = false; }, 200); 
+              }} disabled={isDriver}>
+                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <SelectValue placeholder="Driver" />
+                </SelectTrigger>
+                <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers ({driversInPayCycle.length})</SelectItem>
+                  {driversInPayCycle.map(driver => (
+                    <SelectItem key={driver.user_id} value={driver.user_id} style={{ color: 'var(--text-slate-900)' }}>
+                      {getDriverDisplayName(driver)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-                 // Batch all state updates in a single transition
-                 React.startTransition(() => {
-                   setSelectedDriverId(v);
-                   if (v === 'all') {
-                     setPayPeriod('semimonthly');
-                   } else {
-                     const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === v);
-                     if (driverAppUser?.pay_cycle_type) {
-                       setPayPeriod(driverAppUser.pay_cycle_type);
-                     }
-                   }
-                 });
+            {/* Icon Buttons - Far Right */}
+            <div id="payroll-controls" className="flex items-center gap-1">
+              <Button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing || isLoadingPayroll}
+                size="sm"
+                variant="ghost"
+                className="p-2 h-auto"
+                title="Refresh payroll data"
+                style={{ color: 'var(--text-slate-900)' }}
+              >
+                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button
+                onClick={handleCaptureScreenshot}
+                disabled={isCapturingScreenshot}
+                size="sm"
+                variant="ghost"
+                className="p-2 h-auto"
+                title="Capture and share screenshot"
+                style={{ color: 'var(--text-slate-900)' }}
+              >
+                {isCapturingScreenshot ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Share2 className="w-5 h-5" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
 
-                 setTimeout(() => { isManualChangeRef.current = false; }, 200); 
-               }} disabled={isDriver}>
-                  <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                    <SelectValue placeholder="Driver" />
-                  </SelectTrigger>
-                  <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                    <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers ({driversInPayCycle.length})</SelectItem>
-                    {driversInPayCycle.map(driver => (
-                      <SelectItem key={driver.user_id} value={driver.user_id} style={{ color: 'var(--text-slate-900)' }}>
-                        {getDriverDisplayName(driver)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-             </div>
-
-             {/* Icon Buttons - Far Right */}
-             <div id="payroll-controls" className="flex items-center gap-1">
-               <Button
-                  onClick={handleManualRefresh}
-                  disabled={isRefreshing || isLoadingPayroll}
-                  size="sm"
-                  variant="ghost"
-                  className="p-2 h-auto"
-                  title="Refresh payroll data"
-                  style={{ color: 'var(--text-slate-900)' }}
-                >
-                  <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                </Button>
-                <Button
-                  onClick={handleCaptureScreenshot}
-                  disabled={isCapturingScreenshot}
-                  size="sm"
-                  variant="ghost"
-                  className="p-2 h-auto"
-                  title="Capture and share screenshot"
-                  style={{ color: 'var(--text-slate-900)' }}
-                >
-                  {isCapturingScreenshot ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Share2 className="w-5 h-5" />
-                  )}
-                </Button>
-             </div>
-             </div>
-
-             {/* Content Area for Screenshot */}
-         <div>
+        {/* Content Area for Screenshot */}
+        <div>
           {/* Grid */}
           <DriverPayrollGrid
-          deliveries={cityFilteredDeliveries}
-          stores={filteredStores}
-          patients={payrollData?.patients || []}
-          appUsers={payrollData?.appUsers || []}
-          selectedYear={selectedYear}
-          selectedDriverId={selectedDriverId}
-          payPeriod={payPeriod}
-          onPayPeriodChange={handlePayPeriodChange}
-          currentPeriod={currentPeriod}
-          allPeriods={allPeriods}
-          selectedPeriodIndex={selectedPeriodIndex}
-          onPrevPeriod={goToPrevPeriod}
-          onNextPeriod={goToNextPeriod}
-        />
+            deliveries={cityFilteredDeliveries}
+            stores={filteredStores}
+            patients={payrollData?.patients || []}
+            appUsers={payrollData?.appUsers || []}
+            selectedYear={selectedYear}
+            selectedDriverId={selectedDriverId}
+            payPeriod={payPeriod}
+            onPayPeriodChange={handlePayPeriodChange}
+            currentPeriod={currentPeriod}
+            allPeriods={allPeriods}
+            selectedPeriodIndex={selectedPeriodIndex}
+            onPrevPeriod={goToPrevPeriod}
+            onNextPeriod={goToNextPeriod}
+          />
 
-        {/* Payroll Summary */}
-        <PayrollSummaryCard
-          deliveries={cityFilteredDeliveries}
-          drivers={sortedDrivers}
-          appUsers={payrollData?.appUsers || []}
-          patients={payrollData?.patients || []}
-          cities={sortedCities}
-          stores={filteredStores}
-          selectedYear={selectedYear}
-          selectedDriverId={selectedDriverId}
-          selectedCityId={selectedCityId}
-          payPeriod={payPeriod}
-          currentPeriod={currentPeriod}
-          onFinalizePayroll={(data) => {
-            console.log('Payroll finalized:', data);
-          }}
-          onPayrollRecordsChange={(records) => {
-            setPayrollRecords(records);
-          }}
-          payrollRecords={payrollRecords}
-          refreshPayrollRecords={refreshPayrollRecords}
-        />
+          {/* Payroll Summary */}
+          <PayrollSummaryCard
+            deliveries={cityFilteredDeliveries}
+            drivers={sortedDrivers}
+            appUsers={payrollData?.appUsers || []}
+            patients={payrollData?.patients || []}
+            cities={sortedCities}
+            stores={filteredStores}
+            selectedYear={selectedYear}
+            selectedDriverId={selectedDriverId}
+            selectedCityId={selectedCityId}
+            payPeriod={payPeriod}
+            currentPeriod={currentPeriod}
+            onFinalizePayroll={(data) => {
+              console.log('Payroll finalized:', data);
+            }}
+            onPayrollRecordsChange={(records) => {
+              setPayrollRecords(records);
+            }}
+            payrollRecords={payrollRecords}
+            refreshPayrollRecords={refreshPayrollRecords}
+          />
         </div>
         
         {/* Screenshot Share Modal */}
