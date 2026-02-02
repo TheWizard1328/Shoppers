@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit, Navigation } from 'lucide-react';
+import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit, Navigation, Building2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppData } from '../components/utils/AppDataContext';
 import { formatPhoneNumber } from '../components/utils/phoneFormatter';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
@@ -12,6 +13,7 @@ import { sortUsers } from '../components/utils/sorting';
 import { base44 } from '@/api/base44Client';
 import DriverEditForm from '../components/drivers/DriverEditForm';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
+import { globalFilters } from '../components/utils/globalFilters';
 
 export default function DriverSettings() {
   const { users, appUsers, stores, refreshData } = useAppData();
