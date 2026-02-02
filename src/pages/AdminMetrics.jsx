@@ -471,13 +471,16 @@ export default function AdminMetrics() {
           </CardHeader>
           <CardContent>
             {showDayByDay && selectedMonth && !selectedStoreMonth ? (
-              // Day-by-Day Grid View
-              <DayByDayStoreMetricsGrid
-                metricsData={filteredData || metricsData}
-                selectedMonth={selectedMonth}
-                selectedYear={selectedYear}
-                selectedCityId={selectedCityId}
-              />
+               // Day-by-Day Grid View - Use dailyDeliveryData billable/non-billable values
+               <DayByDayStoreMetricsGrid
+                 metricsData={{
+                   ...metricsData,
+                   dailyDeliveryData: metricsData.dailyDeliveryData // Pass the already-calculated daily data
+                 }}
+                 selectedMonth={selectedMonth}
+                 selectedYear={selectedYear}
+                 selectedCityId={selectedCityId}
+               />
             ) : (
               // Bar Chart View
             <div className="h-[300px]">
