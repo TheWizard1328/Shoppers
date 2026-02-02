@@ -3138,8 +3138,25 @@ export default function PayrollSummaryCard({
           {/* Grand Total for All Drivers */}
           {payrollData.length > 1 &&
           <div className="pt-4" style={{ borderTop: '2px solid var(--border-slate-300)' }}>
-              <div className="flex items-center justify-between">
-                <div className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
+                </div>
+
+                {/* Period Stats Summary */}
+                <div className="mb-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                  <div className="flex gap-4">
+                    <span>Del: <strong>{driversWithDeliveries.reduce((sum, d) => sum + d.totalDeliveries, 0)}</strong> = <strong>${driversWithDeliveries.reduce((sum, d) => sum + d.totalBasePay, 0).toFixed(2)}</strong></span>
+                    <span>KM: <strong>{driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKm, 0).toFixed(2)}</strong> = <strong>${driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKmPay, 0).toFixed(2)}</strong></span>
+                    <span>OS: <strong>{driversWithDeliveries.reduce((sum, d) => sum + d.oversizedCount, 0)}</strong> = <strong>${driversWithDeliveries.reduce((sum, d) => sum + d.totalOversizedPay, 0).toFixed(2)}</strong></span>
+                  </div>
+                  <div className="flex gap-4 mt-1">
+                    <span>Failed: <strong className="text-red-600">{driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}</strong></span>
+                    <span>Returns: <strong className="text-orange-600">{driversWithDeliveries.reduce((sum, d) => sum + d.storeReturnCount, 0)}</strong></span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end">
                 <div className="flex gap-6 items-start">
                   {/* Period Column */}
                   <div className="flex flex-col">
@@ -3256,13 +3273,14 @@ export default function PayrollSummaryCard({
                       </div>
                   }
                   </div>
-                </div>
-              </div>
-            </div>
-          }
-        </div>
-        </CardContent>
-        </Card>
+                  </div>
+                  </div>
+                  </div>
+                  </div>
+                  }
+                  </div>
+                  </CardContent>
+                  </Card>
         </>
         );
         }
