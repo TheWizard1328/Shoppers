@@ -3144,7 +3144,7 @@ export default function PayrollSummaryCard({
                 </div>
 
                 {/* Two Column Layout */}
-                <div className="flex gap-6 items-start justify-between">
+                <div className="flex gap-3 items-start justify-between">
                   {/* Left Column: Period Stats Summary */}
                   <div className="text-xs grid gap-1" style={{ gridTemplateColumns: '150px 140px 140px', rowGap: '0.125rem' }}>
                     {/* Row 1 */}
