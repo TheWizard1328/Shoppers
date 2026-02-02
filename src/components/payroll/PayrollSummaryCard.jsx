@@ -3144,15 +3144,40 @@ export default function PayrollSummaryCard({
                 </div>
 
                 {/* Period Stats Summary */}
-                <div className="mb-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                  <div className="flex gap-4">
-                    <span>Del: <strong>{driversWithDeliveries.reduce((sum, d) => sum + d.totalDeliveries, 0)}</strong> = <strong>${driversWithDeliveries.reduce((sum, d) => sum + d.totalBasePay, 0).toFixed(2)}</strong></span>
-                    <span>KM: <strong>{driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKm, 0).toFixed(2)}</strong> = <strong>${driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKmPay, 0).toFixed(2)}</strong></span>
-                    <span>OS: <strong>{driversWithDeliveries.reduce((sum, d) => sum + d.oversizedCount, 0)}</strong> = <strong>${driversWithDeliveries.reduce((sum, d) => sum + d.totalOversizedPay, 0).toFixed(2)}</strong></span>
+                <div className="mb-3 text-xs inline-flex flex-col gap-1">
+                  <div className="flex gap-3">
+                    <div className="flex items-center">
+                      <span className="text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
+                      <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
+                        {driversWithDeliveries.reduce((sum, d) => sum + d.totalDeliveries, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalBasePay, 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                      <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
+                        {driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKm, 0).toFixed(2)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKmPay, 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                      <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
+                        {driversWithDeliveries.reduce((sum, d) => sum + d.oversizedCount, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalOversizedPay, 0).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex gap-4 mt-1">
-                    <span>Failed: <strong className="text-red-600">{driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}</strong></span>
-                    <span>Returns: <strong className="text-orange-600">{driversWithDeliveries.reduce((sum, d) => sum + d.storeReturnCount, 0)}</strong></span>
+                  <div className="flex gap-3">
+                    <div className="flex items-center">
+                      <span className="text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
+                      <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">
+                        {driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
+                      <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">
+                        {driversWithDeliveries.reduce((sum, d) => sum + d.storeReturnCount, 0)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
