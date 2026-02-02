@@ -135,17 +135,36 @@ export default function DriverSettings() {
         <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Manage drivers and configure driver app settings</p>
       </div>
 
-      {/* Search */}
-      <div className="mb-4">
-        <div className="relative">
+      {/* Search and City Selector */}
+      <div className="mb-4 flex gap-3 items-center">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
             placeholder="Search drivers by name, phone, or email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10" />
-
         </div>
+        {sortedCities.length > 0 && (
+          <Select 
+            value={selectedCityId} 
+            onValueChange={(cityId) => globalFilters.setSelectedCityId(cityId)}
+          >
+            <SelectTrigger className="w-[150px] h-10" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                <SelectValue placeholder="City" />
+              </div>
+            </SelectTrigger>
+            <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+              {sortedCities.map(city => (
+                <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                  {city.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Driver Count */}
