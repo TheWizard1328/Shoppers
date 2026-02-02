@@ -472,12 +472,11 @@ export default function AdminMetrics() {
           </CardHeader>
           <CardContent>
             {showDayByDay && selectedMonth && !selectedStoreMonth ? (
-              // Day-by-Day Grid View
-              <DayByDayStoreMetricsGrid
+              // Day-by-Day Table View
+              <DayByDayDeliveryTable
                 metricsData={metricsData}
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
-                selectedCityId={selectedCityId}
               />
             ) : (
               // Bar Chart View
