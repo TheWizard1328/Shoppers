@@ -26,7 +26,6 @@ import { getUserAgentInfo } from '../utils/deviceUtils';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import { sendDeliveryMessage } from '../utils/deliveryMessaging';
 import { reorderStops } from '../utils/stopReorderer';
-import { globalFilters } from '../utils/globalFilters';
 import {
   createPatientLocal,
   updatePatientLocal,
@@ -1138,6 +1137,7 @@ export default function DeliveryForm({
       });
 
       // Get current selected city for admin filtering
+      const { globalFilters } = await import('../utils/globalFilters');
       const selectedCityId = globalFilters.getSelectedCityId();
       console.log('🏙️ [DeliveryForm] Selected city:', selectedCityId);
 
@@ -1289,6 +1289,7 @@ export default function DeliveryForm({
         console.log('✅ [DeliveryForm] Base64 conversion complete');
 
         // Get current selected city
+        const { globalFilters } = await import('../utils/globalFilters');
         const selectedCityId = globalFilters.getSelectedCityId();
 
         // Call backend function
