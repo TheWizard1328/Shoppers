@@ -187,7 +187,8 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         onAddressSelect({
           full_address: prediction.description,
           street_address: streetAddress,
-          place_id: prediction.place_id
+          place_id: prediction.place_id,
+          distance: prediction.distance
         });
       }
       
