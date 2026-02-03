@@ -275,23 +275,10 @@ export default function PatientForm({
     // Use street_address which preserves directionals (NW, SE, etc.)
     const abbreviatedAddress = abbreviateAddress(addressData.street_address || addressData.full_address);
 
-    // Calculate distance from assigned store if store is selected
-    let distanceFromStore = null;
-    if (formData.store_id && stores) {
-      const assignedStore = stores.find((s) => s && s.id === formData.store_id);
-
-      if (assignedStore?.latitude && assignedStore?.longitude && addressData.latitude && addressData.longitude) {
-        // Haversine formula for distance
-        const R = 6371; // Earth's radius in km
-        const dLat = (addressData.latitude - assignedStore.latitude) * Math.PI / 180;
-        const dLon = (addressData.longitude - assignedStore.longitude) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(assignedStore.latitude * Math.PI / 180) * Math.cos(addressData.latitude * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        distanceFromStore = parseFloat((R * c).toFixed(2)); // Round to 2 decimal places
-      }
-    }
+    // Use distance from Google Places API if available (it's calculated from store location)
+    const distanceFromStore = addressData.distance !== null && addressData.distance !== undefined 
+      ? parseFloat(addressData.distance.toFixed(2))
+      : null;
 
     const newFormData = {
       ...formData,
