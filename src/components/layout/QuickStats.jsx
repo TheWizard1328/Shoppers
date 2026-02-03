@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Patient } from "@/entities/Patient";
-import { Delivery } from "@/entities/Delivery";
-import { Store } from "@/entities/Store";
-import { User } from "@/entities/User";
+import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
 import { 
   Package, 
@@ -28,16 +25,16 @@ export default function QuickStats({ currentUser }) {
 
   const loadData = async () => {
     try {
-      const [patientsData, deliveriesData, storesData, usersData] = await Promise.all([
-        Patient.list(),
-        Delivery.list(),
-        Store.list(),
-        User.list()
+      const [patientsData, deliveriesData, storesData, appUsersData] = await Promise.all([
+        base44.entities.Patient.list(),
+        base44.entities.Delivery.list(),
+        base44.entities.Store.list(),
+        base44.entities.AppUser.list()
       ]);
       setPatients(patientsData);
       setDeliveries(deliveriesData);
       setStores(storesData);
-      setDrivers(usersData.filter(u => u.user_role === 'driver'));
+      setDrivers(appUsersData.filter(u => u && u.app_roles && u.app_roles.includes('driver')));
     } catch (error) {
       console.error("Error loading stats data:", error);
     }
