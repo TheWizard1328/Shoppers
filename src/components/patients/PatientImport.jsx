@@ -794,6 +794,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     let totalUpdated = 0;
     let totalGeocoded = 0;
     let importErrors = [...previewChanges.errors];
+    let aggregatedResults = null; // Initialize variable
 
     try {
       // CRITICAL: Use centralized data operation manager
@@ -1072,7 +1073,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
           }
         }
 
-        const aggregatedResults = {
+        aggregatedResults = {
           created: totalCreated,
           updated: totalUpdated,
           geocoded: totalGeocoded,
