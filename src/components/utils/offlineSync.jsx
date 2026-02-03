@@ -182,22 +182,34 @@ const syncPatientsBatched = async (Entity, filter, latestServerTimestamp) => {
  * Order: 1) ALL AppUsers (entire entity) 2) Active date deliveries (by city) 3) Associated patients
  * @param {string} selectedDateStr - The active/current date (YYYY-MM-DD)
  * @param {string} cityId - Optional city ID to filter by (for city-specific sync)
+ * @param {object} smartRefreshMgr - SmartRefreshManager instance for rate limiting
  */
-export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId = null) => {
+export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId = null, smartRefreshMgr = null) => {
   if (syncPaused) return { skipped: true };
   
   try {
     notifySyncStatus({ status: 'priority_sync', phase: 'appusers' });
+    
+    // CRITICAL: Wait for rate limit before fetching
+    if (smartRefreshMgr) {
+      await smartRefreshMgr.waitForRateLimit();
+    }
     
     // STEP 1: Fetch and sync ENTIRE AppUser entity (all drivers)
     const allAppUsers = await AppUser.list();
     if (allAppUsers && allAppUsers.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
       await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
+      if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
     }
     
     await new Promise(r => setTimeout(r, 500));
     notifySyncStatus({ status: 'priority_sync', phase: 'deliveries' });
+    
+    // CRITICAL: Wait for rate limit before next fetch
+    if (smartRefreshMgr) {
+      await smartRefreshMgr.waitForRateLimit();
+    }
     
     // STEP 2: Fetch and sync Deliveries for active date (filtered by city if provided)
     const deliveryFilter = { delivery_date: selectedDateStr };
@@ -209,6 +221,7 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     if (deliveries && deliveries.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
       await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString(), new Date().toISOString());
+      if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
     }
     
     await new Promise(r => setTimeout(r, 500));
@@ -227,12 +240,18 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
       const PATIENT_BATCH_SIZE = 50;
       
       for (let i = 0; i < patientIdList.length; i += PATIENT_BATCH_SIZE) {
+        // CRITICAL: Wait for rate limit before each patient batch
+        if (smartRefreshMgr) {
+          await smartRefreshMgr.waitForRateLimit();
+        }
+        
         const batchIds = patientIdList.slice(i, i + PATIENT_BATCH_SIZE);
         const batchPatients = await Patient.filter({ id: { $in: batchIds } });
         
         if (batchPatients && batchPatients.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
           patients = [...patients, ...batchPatients];
+          if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
         }
         await new Promise(r => setTimeout(r, 200));
       }
@@ -246,6 +265,7 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     
     return { success: true, appUsers: allAppUsers?.length || 0, deliveries: deliveries?.length || 0, patients: patients.length };
   } catch (error) {
+    if (smartRefreshMgr) smartRefreshMgr.recordError();
     notifySyncStatus({ status: 'priority_sync_error', error: error.message });
     return { error: error.message };
   }
