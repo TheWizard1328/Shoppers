@@ -5,9 +5,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { MapPin } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
-// Unabbreviate street names
+// Unabbreviate street names and abbreviate directionals
 const unabbreviateAddress = (address) => {
   if (!address) return '';
+
+  const abbreviations = {
+    'Northwest': 'NW',
+    'Northeast': 'NE',
+    'Southwest': 'SW',
+    'Southeast': 'SE'
+  };
 
   const unabbreviations = {
     'St\\b': 'Street',
@@ -18,24 +25,24 @@ const unabbreviateAddress = (address) => {
     'Ln\\b': 'Lane',
     'Ct\\b': 'Court',
     'Pl\\b': 'Place',
-    'Ter\\b': 'Terrace',
-    'NW\\b': 'Northwest',
-    'NE\\b': 'Northeast',
-    'SW\\b': 'Southwest',
-    'SE\\b': 'Southeast',
-    '\\bN\\b': 'North',
-    '\\bS\\b': 'South',
-    '\\bE\\b': 'East',
-    '\\bW\\b': 'West'
+    'Ter\\b': 'Terrace'
   };
 
-  let unabbreviated = address;
+  let result = address;
+  
+  // First abbreviate directionals
+  Object.entries(abbreviations).forEach(([full, abbrev]) => {
+    const regex = new RegExp(`\\b${full}\\b`, 'gi');
+    result = result.replace(regex, abbrev);
+  });
+  
+  // Then unabbreviate street types
   Object.entries(unabbreviations).forEach(([abbrev, full]) => {
     const regex = new RegExp(abbrev, 'gi');
-    unabbreviated = unabbreviated.replace(regex, full);
+    result = result.replace(regex, full);
   });
 
-  return unabbreviated;
+  return result;
 };
 
 /**
