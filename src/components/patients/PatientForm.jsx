@@ -521,6 +521,18 @@ export default function PatientForm({
     }
   }, [patient, formData.store_id]);
 
+  // Auto-focus address field after store is selected (non-mobile only)
+  useEffect(() => {
+    const isMobile = isMobileDevice();
+    
+    // Only auto-focus on non-mobile devices when store is selected
+    if (!isMobile && formData.store_id && addressInputRef.current) {
+      setTimeout(() => {
+        addressInputRef.current?.focus();
+      }, 300);
+    }
+  }, [formData.store_id]);
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       const target = e.target;
