@@ -5,6 +5,39 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { MapPin } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
+// Unabbreviate street names
+const unabbreviateAddress = (address) => {
+  if (!address) return '';
+
+  const unabbreviations = {
+    'St\\b': 'Street',
+    'Ave\\b': 'Avenue',
+    'Blvd\\b': 'Boulevard',
+    'Dr\\b': 'Drive',
+    'Rd\\b': 'Road',
+    'Ln\\b': 'Lane',
+    'Ct\\b': 'Court',
+    'Pl\\b': 'Place',
+    'Ter\\b': 'Terrace',
+    'NW\\b': 'Northwest',
+    'NE\\b': 'Northeast',
+    'SW\\b': 'Southwest',
+    'SE\\b': 'Southeast',
+    '\\bN\\b': 'North',
+    '\\bS\\b': 'South',
+    '\\bE\\b': 'East',
+    '\\bW\\b': 'West'
+  };
+
+  let unabbreviated = address;
+  Object.entries(unabbreviations).forEach(([abbrev, full]) => {
+    const regex = new RegExp(abbrev, 'gi');
+    unabbreviated = unabbreviated.replace(regex, full);
+  });
+
+  return unabbreviated;
+};
+
 /**
  * Google Address Autocomplete Component
  * Provides address suggestions within 75km of a specified city center
