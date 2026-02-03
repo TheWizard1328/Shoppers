@@ -172,10 +172,10 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
 
   return (
     <Dialog open={showDialog} onOpenChange={() => {}}>
-      <DialogContent className="max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent className="max-w-md" onPointerDownOutside={(e) => e.preventDefault()} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
         <DialogHeader>
-          <DialogTitle>Device Registration</DialogTitle>
-          <DialogDescription>
+          <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Device Registration</DialogTitle>
+          <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
             {existingDevices.length > 0 
               ? 'Select your device or register a new one'
               : 'Register this device to enable location tracking'}
@@ -186,46 +186,62 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
           {existingDevices.length > 0 && !isCreatingNew && (
             <>
               <div className="space-y-2">
-                <Label>Your Registered Devices</Label>
-                <RadioGroup value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
+                <Label style={{ color: 'var(--text-slate-700)' }}>Your Registered Devices</Label>
+                <div className="space-y-2">
                   {existingDevices.map((device) => (
                     <div
                       key={device.id}
-                      className="flex items-center space-x-3 border rounded-lg p-3 hover:bg-slate-50 cursor-pointer"
-                      onClick={() => setSelectedDeviceId(device.id)}
+                      className="flex items-center space-x-3 border rounded-lg p-3 cursor-pointer transition-all hover:shadow-md"
+                      style={{ 
+                        background: 'var(--bg-slate-50)', 
+                        borderColor: 'var(--border-slate-300)'
+                      }}
+                      onClick={async () => {
+                        if (isSaving) return;
+                        setIsSaving(true);
+                        try {
+                          localStorage.setItem(DEVICE_ID_KEY, device.device_identifier);
+                          await base44.entities.UserDevice.update(device.id, {
+                            last_active_at: new Date().toISOString()
+                          });
+                          setShowDialog(false);
+                          if (onDeviceRegistered) onDeviceRegistered(device);
+                        } catch (error) {
+                          console.error('Failed to select device:', error);
+                          alert('Failed to select device. Please try again.');
+                          setIsSaving(false);
+                        }
+                      }}
                     >
-                      <RadioGroupItem value={device.id} id={device.id} />
-                      <Label htmlFor={device.id} className="flex items-center gap-2 flex-1 cursor-pointer">
+                      <div className="flex items-center gap-2 flex-1">
                         {getDeviceIcon(device.device_info?.device_type)}
                         <div className="flex-1">
-                          <div className="font-medium">{device.device_name}</div>
-                          <div className="text-xs text-slate-500">
+                          <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{device.device_name}</div>
+                          <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                             {device.device_info?.os} • {device.device_info?.browser}
                           </div>
                         </div>
                         {device.is_primary_tracker && (
                           <CheckCircle className="w-4 h-4 text-green-600" />
                         )}
-                      </Label>
+                      </div>
                     </div>
                   ))}
-                </RadioGroup>
+                </div>
               </div>
 
               <Button
                 variant="outline"
                 onClick={() => setIsCreatingNew(true)}
                 className="w-full"
+                disabled={isSaving}
+                style={{ 
+                  background: 'var(--bg-white)', 
+                  borderColor: 'var(--border-slate-300)',
+                  color: 'var(--text-slate-900)'
+                }}
               >
                 Register New Device
-              </Button>
-
-              <Button
-                onClick={handleSelectExistingDevice}
-                disabled={!selectedDeviceId || isSaving}
-                className="w-full"
-              >
-                {isSaving ? 'Selecting...' : 'Continue with Selected Device'}
               </Button>
             </>
           )}
@@ -233,16 +249,21 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
           {(isCreatingNew || existingDevices.length === 0) && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="deviceName">Device Name</Label>
+                <Label htmlFor="deviceName" style={{ color: 'var(--text-slate-700)' }}>Device Name</Label>
                 <Input
                   id="deviceName"
                   value={newDeviceName}
                   onChange={(e) => setNewDeviceName(e.target.value)}
                   placeholder="e.g., My iPhone 15 Pro"
+                  style={{ 
+                    background: 'var(--bg-white)', 
+                    borderColor: 'var(--border-slate-300)',
+                    color: 'var(--text-slate-900)'
+                  }}
                 />
               </div>
 
-              <div className="flex items-center space-x-2 bg-slate-50 p-3 rounded-lg">
+              <div className="flex items-center space-x-2 p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
                 <input
                   type="checkbox"
                   id="isPrimary"
@@ -250,9 +271,9 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                   onChange={(e) => setIsPrimaryTracker(e.target.checked)}
                   className="h-4 w-4"
                 />
-                <Label htmlFor="isPrimary" className="text-sm cursor-pointer">
+                <Label htmlFor="isPrimary" className="text-sm cursor-pointer" style={{ color: 'var(--text-slate-700)' }}>
                   Set as primary tracker
-                  <span className="block text-xs text-slate-500 mt-1">
+                  <span className="block text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>
                     Only the primary device updates your location on the map
                   </span>
                 </Label>
@@ -266,6 +287,11 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                     setSelectedDeviceId(null);
                   }}
                   className="w-full"
+                  style={{ 
+                    background: 'var(--bg-white)', 
+                    borderColor: 'var(--border-slate-300)',
+                    color: 'var(--text-slate-900)'
+                  }}
                 >
                   Back to Device List
                 </Button>
