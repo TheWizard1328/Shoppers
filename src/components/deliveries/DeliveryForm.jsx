@@ -301,11 +301,11 @@ export default function DeliveryForm({
           let driverIdField = '';
           if (dayOfWeek === 6) {
             driverIdField = 'saturday_am_driver_id';
-          } else if (dayOfWeek === 0) {
+            } else if (dayOfWeek === 0) {
             driverIdField = 'sunday_am_driver_id';
-          } else {
+            } else {
             driverIdField = 'weekday_am_driver_id';
-          }
+            }
           const driverId = dispatcherStore[driverIdField];
           if (driverId) {
             const driver = drivers.find((d) => d && d.id === driverId);
@@ -5064,8 +5064,6 @@ export default function DeliveryForm({
           </motion.div>
         </AnimatePresence>
       }
-
-
 
       {/* Debug Patient Data Popup - App Owner Only */}
       {debugPatientData && isAppOwner(currentUser) &&
