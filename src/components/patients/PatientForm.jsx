@@ -526,10 +526,19 @@ export default function PatientForm({
     const isMobile = isMobileDevice();
     
     // Only auto-focus on non-mobile devices when store is selected
-    if (!isMobile && formData.store_id && addressInputRef.current) {
+    if (!isMobile && formData.store_id) {
       setTimeout(() => {
-        addressInputRef.current?.focus();
-      }, 300);
+        if (addressInputRef.current) {
+          const inputElement = addressInputRef.current instanceof HTMLInputElement 
+            ? addressInputRef.current 
+            : addressInputRef.current?.querySelector('input');
+          
+          if (inputElement) {
+            inputElement.focus();
+            inputElement.select?.();
+          }
+        }
+      }, 100);
     }
   }, [formData.store_id]);
 
