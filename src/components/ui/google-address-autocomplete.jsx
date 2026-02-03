@@ -74,6 +74,7 @@ export const GoogleAddressAutocomplete = React.forwardRef(({
         console.log('[GoogleAddressAutocomplete] Got predictions:', data.predictions.length, data.predictions);
         setSuggestions(data.predictions);
         setOpen(true);
+        setSelectedIndex(-1);
         console.log('[GoogleAddressAutocomplete] State updated - open:', true, 'suggestions:', data.predictions);
       } else {
         console.log('[GoogleAddressAutocomplete] No predictions found');
