@@ -1750,13 +1750,13 @@ export default function StopCard({
                           const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
                           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-                          // Update all pending deliveries to in_transit with delivery_time_start
-                          for (const pendingDelivery of allPendingDeliveries) {
-                            await updateDeliveryLocal(pendingDelivery.id, {
-                              status: 'in_transit',
-                              delivery_time_start: deliveryTimeStart
-                            }, { skipSmartRefresh: true });
-                            console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, delivery_time_start: ${deliveryTimeStart}`);
+                          // Update all pending deliveries to in_transit with delivery_time_start (locally only - skip API)
+                           for (const pendingDelivery of allPendingDeliveries) {
+                             updateDeliveryLocal(pendingDelivery.id, {
+                               status: 'in_transit',
+                               delivery_time_start: deliveryTimeStart
+                             }, { skipSmartRefresh: true });
+                             console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, delivery_time_start: ${deliveryTimeStart}`);
 
                             // SQUARE INTEGRATION: Create COD item if applicable
                             if (pendingDelivery.cod_total_amount_required > 0 && pendingDelivery.patient_id) {
