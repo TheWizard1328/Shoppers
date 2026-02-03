@@ -229,8 +229,20 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
           selectedDate: selectedDateStr,
           driverId: driverId,
           storeIds: filteredStoreIds.length > 0 ? filteredStoreIds : null
+        }).catch(error => {
+          // Silently catch 401 errors - likely auth hasn't stabilized yet
+          if (error?.response?.status === 401) {
+            console.warn('QuickStats auth not ready, will retry on next cycle');
+            return null;
+          }
+          throw error;
         });
 
+        if (!response) {
+          // Auth not ready yet - skip this fetch
+          return;
+        }
+        
         const data = response?.data || response;
         if (data && data.today) {
           setStats(data);
