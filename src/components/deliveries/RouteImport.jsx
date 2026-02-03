@@ -21,6 +21,7 @@ import { smartRefreshManager } from '../utils/smartRefreshManager';
 import { driverLocationPoller } from '../utils/driverLocationPoller';
 import { processDeliveryNotes } from '../utils/notesProcessor';
 import { executeDataOperation } from '../utils/dataOperationManager';
+import { globalFilters } from '../utils/globalFilters';
 
 // Utility function for delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
