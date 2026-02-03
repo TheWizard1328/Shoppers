@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -9,7 +9,7 @@ import { base44 } from '@/api/base44Client';
  * Google Address Autocomplete Component
  * Provides address suggestions within 75km of a specified city center
  */
-export function GoogleAddressAutocomplete({ 
+export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutocomplete({ 
   value, 
   onChange, 
   onAddressSelect,
@@ -17,7 +17,7 @@ export function GoogleAddressAutocomplete({
   placeholder = "Search address...",
   className = "",
   disabled = false
-}) {
+}, ref) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
