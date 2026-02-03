@@ -145,21 +145,27 @@ class DriverLocationPoller {
       }
 
       // ========================================
-      // RULE 1: Own location marker - always visible (except on current mobile device)
+      // RULE 1: Own location marker - always visible (except on current mobile device with active GPS)
       // ========================================
       if (isSelf) {
         // Skip inactive check for self - always show own marker if active location exists
-        // EXCEPTION: On mobile, hide shared marker on CURRENT device (blue GPS dot shows instead)
-        const locationAge = user.location_updated_at ? now - new Date(user.location_updated_at).getTime() : Infinity;
-        const isFromCurrentDevice = locationAge < 30000; // Updated within 30 seconds = likely this device
+        // EXCEPTION: On mobile, hide shared marker ONLY if THIS device is actively tracking GPS
+        // Use locationTracker.isTracking to detect if GPS is running on THIS specific device
+        let isTrackingOnThisDevice = false;
+        try {
+          const { locationTracker } = await import('./locationTracker');
+          isTrackingOnThisDevice = locationTracker.isTracking === true;
+        } catch (e) {
+          console.warn('⚠️ [DriverLocationPoller] Could not check locationTracker status');
+        }
         
-        if (isMobileDevice && isFromCurrentDevice) {
-          console.log(`🚫 [DriverLocationPoller] Hiding self marker on current mobile device (blue GPS dot active)`);
+        if (isMobileDevice && isTrackingOnThisDevice) {
+          console.log(`🚫 [DriverLocationPoller] Hiding self marker - GPS actively tracking on THIS device (blue dot shows)`);
           return false;
         }
         
-        // Show own marker on all other devices (desktop or other phones/tablets)
-        console.log(`✅ [DriverLocationPoller] Showing self marker - other device or desktop view`);
+        // Show own marker on all other devices OR if GPS is not actively running
+        console.log(`✅ [DriverLocationPoller] Showing self marker - other device or GPS inactive (status: ${user.driver_status})`);
         return true;
       }
 
