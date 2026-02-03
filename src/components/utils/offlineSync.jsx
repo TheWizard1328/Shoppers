@@ -178,6 +178,80 @@ const syncPatientsBatched = async (Entity, filter, latestServerTimestamp) => {
 // ==================== PRIORITY DATA LOADING ====================
 
 /**
+ * CRITICAL: Priority sync that runs before every smart refresh cycle
+ * Order: 1) ALL AppUsers (entire entity) 2) Active date deliveries (by city) 3) Associated patients
+ * @param {string} selectedDateStr - The active/current date (YYYY-MM-DD)
+ * @param {string} cityId - Optional city ID to filter by (for city-specific sync)
+ */
+export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId = null) => {
+  if (syncPaused) return { skipped: true };
+  
+  try {
+    notifySyncStatus({ status: 'priority_sync', phase: 'appusers' });
+    
+    // STEP 1: Fetch and sync ENTIRE AppUser entity (all drivers)
+    const allAppUsers = await AppUser.list();
+    if (allAppUsers && allAppUsers.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+      await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
+    }
+    
+    await new Promise(r => setTimeout(r, 500));
+    notifySyncStatus({ status: 'priority_sync', phase: 'deliveries' });
+    
+    // STEP 2: Fetch and sync Deliveries for active date (filtered by city if provided)
+    const deliveryFilter = { delivery_date: selectedDateStr };
+    if (cityId) {
+      // If city is provided, we'd need to filter by stores in that city
+      // For now, fetch all - smartRefreshManager will handle city filtering
+    }
+    const deliveries = await Delivery.filter(deliveryFilter);
+    if (deliveries && deliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+      await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString(), new Date().toISOString());
+    }
+    
+    await new Promise(r => setTimeout(r, 500));
+    notifySyncStatus({ status: 'priority_sync', phase: 'patients' });
+    
+    // STEP 3: Extract unique patient IDs from these deliveries and sync them immediately
+    const patientIds = new Set(
+      (deliveries || [])
+        .filter(d => d && d.patient_id)
+        .map(d => d.patient_id)
+    );
+    
+    let patients = [];
+    if (patientIds.size > 0) {
+      const patientIdList = Array.from(patientIds);
+      const PATIENT_BATCH_SIZE = 50;
+      
+      for (let i = 0; i < patientIdList.length; i += PATIENT_BATCH_SIZE) {
+        const batchIds = patientIdList.slice(i, i + PATIENT_BATCH_SIZE);
+        const batchPatients = await Patient.filter({ id: { $in: batchIds } });
+        
+        if (batchPatients && batchPatients.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+          patients = [...patients, ...batchPatients];
+        }
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+    
+    // Clean patients
+    patients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+    await offlineDB.updateSyncMetadata('Patient', new Date().toISOString(), new Date().toISOString());
+    
+    notifySyncStatus({ status: 'priority_sync_complete', appUsers: allAppUsers?.length || 0, deliveries: deliveries?.length || 0, patients: patients.length });
+    
+    return { success: true, appUsers: allAppUsers?.length || 0, deliveries: deliveries?.length || 0, patients: patients.length };
+  } catch (error) {
+    notifySyncStatus({ status: 'priority_sync_error', error: error.message });
+    return { error: error.message };
+  }
+};
+
+/**
  * Load priority data for initial display
  * Order: Cities → AppUsers → Deliveries (selected date) → ALL Patients (critical for map markers)
  */
