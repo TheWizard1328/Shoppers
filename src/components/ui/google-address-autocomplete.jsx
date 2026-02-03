@@ -197,16 +197,31 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
   return (
     <div className="relative">
       <Input
+        ref={(el) => {
+          inputRef.current = el;
+          if (ref) {
+            if (typeof ref === 'function') ref(el);
+            else ref.current = el;
+          }
+        }}
         value={value}
         onChange={(e) => {
           hasUserTyped.current = true;
           onChange(e.target.value);
         }}
         onKeyDown={(e) => {
-          // Prevent Enter from submitting the form when autocomplete is open
-          if (e.key === 'Enter' && open && suggestions.length > 0) {
+          if (!open || suggestions.length === 0) return;
+
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setSelectedIndex((prev) => (prev + 1) % suggestions.length);
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+          } else if (e.key === 'Enter') {
             e.preventDefault();
             e.stopPropagation();
+            handleSelectAddress(suggestions[selectedIndex]);
           }
         }}
         placeholder={placeholder}
