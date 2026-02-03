@@ -3471,6 +3471,32 @@ export default function Layout({ children, currentPageName }) {
                       </Link>
                     }
 
+                    {(userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
+                    <Link
+                    to={createPageUrl('DeviceSettings')}
+                    onClick={(e) => {
+                      if (isSnapshotModeActive) {
+                        e.preventDefault();
+                        return;
+                      }
+                      setSidebarOpen(false);
+                    }}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    currentPageName === 'DeviceSettings' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
+                    }
+                    style={currentPageName === 'DeviceSettings' ? {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)'
+                    } : {
+                      color: 'var(--text-slate-600)'
+                    }}>
+                        <Smartphone className="w-5 h-5" />
+                        <span className="font-semibold">Device Settings</span>
+                      </Link>
+                    }
+
                     </div>
 
                   {userHasRole(currentUser, 'admin') &&

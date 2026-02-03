@@ -64,6 +64,7 @@ import SquareManagement from './pages/SquareManagement';
 import StoreInvoices from './pages/StoreInvoices';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
+import DeviceSettings from './pages/DeviceSettings';
 import __Layout from './Layout.jsx';
 
 
@@ -85,6 +86,7 @@ export const PAGES = {
     "StoreInvoices": StoreInvoices,
     "Stores": Stores,
     "Users": Users,
+    "DeviceSettings": DeviceSettings,
 }
 
 export const pagesConfig = {
