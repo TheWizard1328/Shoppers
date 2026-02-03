@@ -328,6 +328,11 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
 
   }
 
+  // CRITICAL: Add null check for stats to prevent crashes
+  if (!stats || !stats.today || !stats.month) {
+    return null;
+  }
+
   return (
     <div className="px-3 py-2 space-y-3">
       <div>
