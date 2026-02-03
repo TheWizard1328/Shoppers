@@ -1923,16 +1923,21 @@ export default function DeliveryMap({
     JSON.stringify(safeUsers.map(u => ({ id: u?.id, hLat: u?.home_latitude, hLon: u?.home_longitude })))
   ]);
 
-  // CRITICAL: Pass home markers and driver locations to Dashboard for FAB phase 1 bounds calculation
+  // CRITICAL: Pass home markers, driver locations, AND delivery markers to Dashboard for FAB phase 1 bounds calculation
   useEffect(() => {
     window.__mapHomeMarkers = driverHomeMarkers;
     window.__mapDriverLocationMarkers = driverLocationMarkers;
+    // Also pass delivery and pickup markers with their coordinates for bounds calculation
+    window.__mapDeliveryMarkers = deliveryMarkers;
+    window.__mapPickupMarkers = pickupMarkers;
     
     return () => {
       delete window.__mapHomeMarkers;
       delete window.__mapDriverLocationMarkers;
+      delete window.__mapDeliveryMarkers;
+      delete window.__mapPickupMarkers;
     };
-  }, [driverHomeMarkers, driverLocationMarkers]);
+  }, [driverHomeMarkers, driverLocationMarkers, deliveryMarkers, pickupMarkers]);
 
   // CRITICAL: Store previous driverRoutes to prevent unnecessary recalculations
   const prevDriverRoutesRef = useRef([]);
