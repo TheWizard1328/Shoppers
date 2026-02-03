@@ -2,6 +2,7 @@ import { base44 } from '@/api/base44Client';
 import { isMobileDevice as checkIsMobileDevice } from './deviceUtils';
 import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSettings';
 import { liveDistanceTracker } from './liveDistanceTracker';
+import { getCurrentDevice, updateDeviceLastActive } from './deviceManager';
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
@@ -209,12 +210,14 @@ class LocationTracker {
         return;
       }
 
-      if (!this.appUserId) {
+      if (!this.appUserId || !this.currentUser) {
         return;
       }
 
-      // CRITICAL: ALWAYS update coordinates and timestamp when tracking is active
-      // This ensures location is visible on other devices regardless of driver_status or route status
+      // Get current device to check if it's the primary tracker
+      const currentDevice = await getCurrentDevice(this.currentUser.id);
+      const isPrimaryTracker = currentDevice?.is_primary_tracker || false;
+
       const nowFormatted = new Date();
       const year = nowFormatted.getFullYear();
       const month = String(nowFormatted.getMonth() + 1).padStart(2, '0');
@@ -223,19 +226,31 @@ class LocationTracker {
       const minutes = String(nowFormatted.getMinutes()).padStart(2, '0');
       const seconds = String(nowFormatted.getSeconds()).padStart(2, '0');
       
-      const updateData = {
-        current_latitude: latitude,
-        current_longitude: longitude,
-        location_updated_at: `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
-      };
+      console.log(`📤 [LocationTracker] Device isPrimary: ${isPrimaryTracker} - lat: ${latitude.toFixed(6)}, lng: ${longitude.toFixed(6)}`);
       
-      console.log(`📤 [LocationTracker] Sending location update to server - lat: ${latitude.toFixed(6)}, lng: ${longitude.toFixed(6)}, status: ${this.driverStatus}`);
+      // CRITICAL: Only update AppUser location if this is the primary tracker device
+      let updatedAppUser = null;
+      if (isPrimaryTracker) {
+        const updateData = {
+          current_latitude: latitude,
+          current_longitude: longitude,
+          location_updated_at: `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+        };
+        
+        updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
+        console.log(`✅ [LocationTracker] Primary device - updated AppUser location`);
+        
+        // Broadcast location update to other devices
+        broadcastMutation('AppUser', 'update', this.appUserId, updatedAppUser);
+      } else {
+        console.log(`ℹ️ [LocationTracker] Non-primary device - skipped AppUser location update`);
+      }
       
-      // Update AppUser entity
-      const updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
-      
-      // Broadcast location update to other devices
-      broadcastMutation('AppUser', 'update', this.appUserId, updatedAppUser);
+      // CRITICAL: Always update UserDevice last_active_at regardless of primary status
+      if (currentDevice) {
+        await updateDeviceLastActive(this.currentUser.id);
+        console.log(`✅ [LocationTracker] Updated device last_active_at`);
+      }
       
       // Update currentUser reference
       if (this.currentUser) {
