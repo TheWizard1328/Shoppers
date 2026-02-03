@@ -1492,6 +1492,16 @@ export default function DeliveryMap({
       onMarkerClick(marker);
     }
     
+    // Auto-open popup for other driver markers
+    if (marker.isOtherDriver && markerRefs.current[`${markerType}-${marker.id}`]) {
+      setTimeout(() => {
+        const markerElement = markerRefs.current[`${markerType}-${marker.id}`];
+        if (markerElement && markerElement.openPopup) {
+          markerElement.openPopup();
+        }
+      }, 300);
+    }
+    
     // Auto-center marker on screen slightly below center for balloon visibility
     if (map) {
       // Get marker element to check if popup is open
