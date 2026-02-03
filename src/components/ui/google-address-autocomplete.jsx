@@ -20,7 +20,6 @@ export function GoogleAddressAutocomplete({
 }) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
-  const [focusedIndex, setFocusedIndex] = useState(-1);
   const [isLoading, setIsLoading] = useState(false);
   const debounceTimer = useRef(null);
   const justSelected = useRef(false);
