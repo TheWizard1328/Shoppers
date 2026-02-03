@@ -2580,321 +2580,59 @@ export default function DeliveryMap({
 
         }
 
-        {/* STRAIGHT BLUE DASHED LINE - From driver location (or fallback) to NEXT stop only */}
-        {/* For drivers: show when on_duty or on_break */}
-        {/* For dispatchers: show for assigned drivers who are on_duty or on_break */}
-        {/* For "Show All" mode: show for ALL drivers with shared location markers */}
+        {/* TYPE 1 POLYLINE: Blue dotted line from driver location to next stop */}
         {isViewingCurrentDate && (() => {
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+          const polylines = [];
           
-          const isCurrentUserDriver = currentUser && userHasRole(currentUser, 'driver');
-          const isCurrentUserDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
-          const isCurrentUserAdmin = currentUser && userHasRole(currentUser, 'admin');
+          // Get all unique driver IDs that have incomplete stops
+          const driversWithIncompleteStops = new Set();
+          [...deliveryMarkers, ...pickupMarkers].forEach(m => {
+            if (!m || !m.driver_id) return;
+            if (finishedStatuses.includes(m.status) || m.status === 'pending') return;
+            driversWithIncompleteStops.add(m.driver_id);
+          });
           
-          // CRITICAL: For drivers viewing their own route (including driver-dispatchers and driver-admins)
-          if (isCurrentUserDriver) {
-            // CRITICAL: Don't show polyline when driver is on break
-            const driverAppUser = realtimeAppUsers.find(u => u && u.id === currentUser?.id);
-            if (driverAppUser?.driver_status === 'on_break') {
-              return null;
-            }
+          driversWithIncompleteStops.forEach(driverId => {
+            // Skip driver on break
+            const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
+            if (driverAppUser?.driver_status === 'on_break') return;
             
-            // Get next stop (isNextDelivery=true), exclude pending
+            // Get next stop for this driver
             const nextStop = deliveryMarkers.find(d => 
               d && 
-              d.driver_id === currentUser?.id &&
+              d.driver_id === driverId &&
               d.isNextDelivery === true &&
               !finishedStatuses.includes(d.status) &&
               d.status !== 'pending'
             ) || pickupMarkers.find(p => 
               p && 
-              p.driver_id === currentUser?.id &&
+              p.driver_id === driverId &&
               p.isNextDelivery === true &&
               !finishedStatuses.includes(p.status) &&
               p.status !== 'pending'
             );
-
-            if (!nextStop) return null;
             
-            // CRITICAL: Determine the starting point for the polylines
-            // Priority: 1) Live driver location, 2) Last completed stop, 3) Driver's home location
+            if (!nextStop) return;
+            
+            // Determine start point (priority: live location > shared marker > last completed > home)
             let startPoint = null;
             
-            // 1) Check for live driver location (blue dot)
-            if (currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
+            // 1) Live driver location (current user only)
+            if (driverId === currentUser?.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
               startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
             }
             
-            // 2) If no live location, check for shared driver marker (driverLocationMarkers)
+            // 2) Shared location marker
             if (!startPoint) {
-              const sharedDriverMarker = driverLocationMarkers.find(m => m.driver?.id === currentUser?.id);
-              if (sharedDriverMarker?.latitude && sharedDriverMarker?.longitude) {
-                startPoint = [sharedDriverMarker.latitude, sharedDriverMarker.longitude];
+              const sharedMarker = driverLocationMarkers.find(m => m.driver_id === driverId);
+              if (sharedMarker?.latitude && sharedMarker?.longitude) {
+                startPoint = [sharedMarker.latitude, sharedMarker.longitude];
               }
             }
             
-            // 3) If still no location, check for completed stops (use last completed)
+            // 3) Last completed stop
             if (!startPoint) {
-              const allDriverStops = [...deliveryMarkers, ...pickupMarkers].filter(d => 
-                d && d.driver_id === currentUser?.id
-              );
-              const completedStops = allDriverStops
-                .filter(s => finishedStatuses.includes(s.status) && s.actual_delivery_time)
-                .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
-              
-              if (completedStops.length > 0) {
-                const lastCompleted = completedStops[0];
-                startPoint = [lastCompleted.latitude, lastCompleted.longitude];
-              }
-            }
-            
-            // 4) If no completed stops, use driver's home location
-            if (!startPoint && currentUser?.home_latitude && currentUser?.home_longitude) {
-              startPoint = [currentUser.home_latitude, currentUser.home_longitude];
-            }
-            
-            // If we still don't have a start point, don't draw the lines
-            if (!startPoint) return null;
-            
-            const driverColor = getDriverColor(currentUser);
-            
-            const polylines = [];
-            
-            // Draw blue polyline only to next stop - NO other polylines
-            polylines.push(
-              <Polyline
-                key={`driver-to-next-${nextStop.id}`}
-                positions={[
-                  startPoint,
-                  [nextStop.latitude, nextStop.longitude]
-                ]}
-                pathOptions={{
-                  color: '#3B82F6',
-                  weight: 4,
-                  opacity: 0.7,
-                  dashArray: '10, 5',
-                  lineJoin: 'round',
-                  lineCap: 'round'
-                }}
-                pane="overlayPane"
-              />
-            );
-            
-            return polylines;
-          }
-          
-          // CRITICAL: For pure dispatchers (not drivers) viewing assigned drivers
-          // Show blue dashed polyline for drivers who are on_duty OR on_break (NOT off_duty)
-          if (isCurrentUserDispatcher && !isCurrentUserDriver && !isCurrentUserAdmin) {
-            const dispatcherStoreIds = new Set(currentUser.store_ids || []);
-            
-            // Find all drivers with active deliveries in dispatcher's stores who are on_duty or on_break
-            const polylines = [];
-            
-            // Get unique driver IDs from current deliveries
-            const driverIdsWithActiveStops = new Set();
-            deliveryMarkers.forEach(d => {
-              if (!d || !d.driver_id) return;
-              if (!dispatcherStoreIds.has(d.store_id)) return;
-              if (finishedStatuses.includes(d.status)) return;
-              if (d.status === 'pending') return;
-              driverIdsWithActiveStops.add(d.driver_id);
-            });
-            pickupMarkers.forEach(p => {
-              if (!p || !p.driver_id) return;
-              if (!dispatcherStoreIds.has(p.store_id)) return;
-              if (finishedStatuses.includes(p.status)) return;
-              if (p.status === 'pending') return;
-              driverIdsWithActiveStops.add(p.driver_id);
-            });
-            
-            driverIdsWithActiveStops.forEach(driverId => {
-              // Find driver's AppUser to check status
-              const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
-
-              // CRITICAL: Show polyline for on_duty drivers only
-              // Dispatchers can only see polylines for on_duty drivers (not on_break)
-              if (!driverAppUser) return;
-              if (driverAppUser.driver_status !== 'on_duty') return; // Skip on_break and off_duty
-              
-              // Get ALL active stops (in_transit, en_route), exclude pending and finished
-              const activeDeliveries = deliveryMarkers.filter(d => 
-                d && 
-                d.driver_id === driverId &&
-                (d.status === 'in_transit' || d.status === 'en_route') &&
-                !finishedStatuses.includes(d.status) &&
-                d.status !== 'pending'
-              );
-              
-              const activePickups = pickupMarkers.filter(p => 
-                p && 
-                p.driver_id === driverId &&
-                (p.status === 'in_transit' || p.status === 'en_route') &&
-                !finishedStatuses.includes(p.status) &&
-                p.status !== 'pending'
-              );
-              
-              const allActiveStops = [...activePickups, ...activeDeliveries]
-                .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-              
-              if (allActiveStops.length === 0) return;
-              
-              // Determine start point - use driver's current location or last completed stop
-              let startPoint = null;
-              
-              // 1) Try driver's current location (if sharing is enabled)
-              if (driverAppUser.current_latitude && driverAppUser.current_longitude && driverAppUser.location_tracking_enabled) {
-                startPoint = [driverAppUser.current_latitude, driverAppUser.current_longitude];
-              }
-              
-              // 2) Fall back to last completed stop
-              if (!startPoint) {
-                const allDriverStops = [...deliveryMarkers, ...pickupMarkers].filter(d => 
-                  d && d.driver_id === driverId
-                );
-                const completedStops = allDriverStops
-                  .filter(s => finishedStatuses.includes(s.status) && s.actual_delivery_time)
-                  .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
-                
-                if (completedStops.length > 0) {
-                  startPoint = [completedStops[0].latitude, completedStops[0].longitude];
-                }
-              }
-              
-              if (!startPoint) return;
-              
-              // ONLY draw polyline to next stop, no full route
-              polylines.push(
-                <Polyline
-                  key={`dispatcher-driver-to-next-${driverId}-${nextStop.id}`}
-                  positions={[
-                    startPoint,
-                    [nextStop.latitude, nextStop.longitude]
-                  ]}
-                  pathOptions={{
-                    color: '#3B82F6', // Blue
-                    weight: 4,
-                    opacity: 0.7,
-                    dashArray: '10, 5', // Dashed line
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                  }}
-                  pane="overlayPane"
-                />
-              );
-            });
-            
-            return polylines.length > 0 ? polylines : null;
-          }
-          
-          return null;
-        })()}
-
-        {/* Polylines for shared driver routes (with or without visible location markers) */}
-        {/* CRITICAL: Re-render when polylineRenderKey changes to update positions */}
-        {isViewingCurrentDate && (isAllDriversMode || showOtherDriverDeliveries) && (() => {
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          const polylines = [];
-          
-          // CRITICAL: Always exclude current driver - their polylines are rendered in the driver-specific section above
-          const processedDrivers = new Set([currentUser?.id]);
-          
-          // If we have driver location markers, use them
-          if (driverLocationMarkers.length > 0) {
-            driverLocationMarkers.forEach(location => {
-              const driverId = location.driver_id || location.id;
-              if (processedDrivers.has(driverId)) return;
-              processedDrivers.add(driverId);
-
-              // CRITICAL: Don't show polyline when driver is on break
-              const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
-              if (driverAppUser?.driver_status === 'on_break') {
-                return;
-              }
-
-              // Get next stop (isNextDelivery=true), exclude pending
-              const nextStop = deliveryMarkers.find(d => 
-                d && 
-                d.driver_id === driverId &&
-                d.isNextDelivery === true &&
-                !finishedStatuses.includes(d.status) &&
-                d.status !== 'pending'
-              ) || pickupMarkers.find(p => 
-                p && 
-                p.driver_id === driverId &&
-                p.isNextDelivery === true &&
-                !finishedStatuses.includes(p.status) &&
-                p.status !== 'pending'
-              );
-
-              if (!nextStop) return;
-
-              const driverObj = safeUsers.find(u => u && u.id === driverId);
-              const driverColor = driverObj ? getDriverColor(driverObj) : '#607D8B';
-
-              // Blue polyline from driver to next stop
-              // CRITICAL: Add polylineRenderKey to force re-render when driver moves
-              polylines.push(
-                <Polyline
-                  key={`driver-to-next-${driverId}-${nextStop.id}-${polylineRenderKey}`}
-                  positions={[[location.latitude, location.longitude], [nextStop.latitude, nextStop.longitude]]}
-                  pathOptions={{
-                    color: '#3B82F6',
-                    weight: 4,
-                    opacity: 0.7,
-                    dashArray: '10, 5',
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                  }}
-                  pane="overlayPane"
-                />
-              );
-
-              // NO additional polylines - only blue line to next stop
-            });
-          } else {
-            // No location markers visible - still draw polylines from last completed stop or home location
-            const otherDriverIds = new Set(
-              [...deliveryMarkers, ...pickupMarkers]
-                .filter(m => m && m.driver_id !== currentUser?.id && !processedDrivers.has(m.driver_id))
-                .map(m => m.driver_id)
-            );
-            
-            otherDriverIds.forEach(driverId => {
-              // CRITICAL: Don't show polyline when driver is on break or off_duty
-              const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
-              if (driverAppUser?.driver_status === 'on_break' || driverAppUser?.driver_status === 'off_duty') {
-                return;
-              }
-              
-              // CRITICAL: Check staleness - use cached polyline if stale (>5 min old), don't skip
-              const locationAge = driverAppUser?.location_updated_at 
-                ? (Date.now() - new Date(driverAppUser.location_updated_at).getTime())
-                : Infinity;
-              const isStaleLocation = locationAge > (5 * 60 * 1000);
-              
-              // Get next stop (isNextDelivery=true), exclude pending
-              const nextStop = deliveryMarkers.find(d => 
-                d && 
-                d.driver_id === driverId &&
-                d.isNextDelivery === true &&
-                !finishedStatuses.includes(d.status) &&
-                d.status !== 'pending'
-              ) || pickupMarkers.find(p => 
-                p && 
-                p.driver_id === driverId &&
-                p.isNextDelivery === true &&
-                !finishedStatuses.includes(p.status) &&
-                p.status !== 'pending'
-              );
-              
-              if (!nextStop) return;
-              
-              const driverObj = safeUsers.find(u => u && u.id === driverId);
-              const driverColor = driverObj ? getDriverColor(driverObj) : '#607D8B';
-              
-              // Find last completed stop or use home location as start point
-              let startPoint = null;
               const allDriverStops = [...deliveryMarkers, ...pickupMarkers].filter(m => m && m.driver_id === driverId);
               const completedStops = allDriverStops
                 .filter(s => finishedStatuses.includes(s.status) && s.actual_delivery_time)
@@ -2902,207 +2640,107 @@ export default function DeliveryMap({
               
               if (completedStops.length > 0) {
                 startPoint = [completedStops[0].latitude, completedStops[0].longitude];
-              } else {
-                const driver = safeUsers.find(u => u && u.id === driverId);
-                if (driver?.home_latitude && driver?.home_longitude) {
-                  startPoint = [driver.home_latitude, driver.home_longitude];
-                }
               }
+            }
+            
+            // 4) Driver home location
+            if (!startPoint) {
+              const driver = safeUsers.find(u => u && u.id === driverId);
+              if (driver?.home_latitude && driver?.home_longitude) {
+                startPoint = [driver.home_latitude, driver.home_longitude];
+              }
+            }
+            
+            if (!startPoint) return;
+            
+            // TYPE 1: Blue dotted line to next stop
+            polylines.push(
+              <Polyline
+                key={`type1-${driverId}-${nextStop.id}-${polylineRenderKey}`}
+                positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
+                pathOptions={{
+                  color: '#3B82F6',
+                  weight: 4,
+                  opacity: 0.7,
+                  dashArray: '2, 8',
+                  lineJoin: 'round',
+                  lineCap: 'round'
+                }}
+                pane="overlayPane"
+              />
+            );
+          });
+          
+          return polylines.length > 0 ? polylines : null;
+        })()}
+        
+        {/* TYPE 2 & 3 POLYLINES: Colored lines connecting stops in stop_order sequence */}
+        {isViewingCurrentDate && showRoutes && (() => {
+          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+          const polylines = [];
+          
+          driverRoutes.forEach(route => {
+            if (!route.driverId) return;
+            
+            // Get all stops for this driver (pickups + deliveries)
+            const allDriverStops = [
+              ...pickupMarkers.filter(p => p && p.driver_id === route.driverId),
+              ...deliveryMarkers.filter(d => d && d.driver_id === route.driverId)
+            ].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+            
+            if (allDriverStops.length < 2) return;
+            
+            // Check if route is completed
+            const isRouteCompleted = allDriverStops.every(s => finishedStatuses.includes(s.status));
+            
+            // Filter stops based on route status
+            let stopsToConnect = isRouteCompleted 
+              ? allDriverStops // Type 3: All stops for completed routes
+              : allDriverStops.filter(s => !finishedStatuses.includes(s.status) && s.status !== 'pending'); // Type 2: Incomplete stops only
+            
+            // Find next stop to know where Type 2 starts
+            const nextStop = stopsToConnect.find(s => s.isNextDelivery === true);
+            const nextStopIndex = nextStop ? stopsToConnect.indexOf(nextStop) : -1;
+            
+            // Connect stops in sequence
+            for (let i = 0; i < stopsToConnect.length - 1; i++) {
+              const stop1 = stopsToConnect[i];
+              const stop2 = stopsToConnect[i + 1];
               
-              if (!startPoint) return;
+              if (!stop1 || !stop2) continue;
               
-              // Blue polyline from start point to next stop
-              // CRITICAL: Add polylineRenderKey to force re-render when positions change
+              // Determine line style based on destination stop's AM/PM
+              const isAM = stop2.ampm_deliveries === 'AM';
+              const dashArray = isAM ? '10, 5' : '2, 8'; // AM = dashed, PM = dotted
+              
+              // Type 2 polylines start from next stop (skip segments before next stop for active routes)
+              if (!isRouteCompleted && i < nextStopIndex) continue;
+              
               polylines.push(
                 <Polyline
-                  key={`start-to-next-no-marker-${driverId}-${nextStop.id}-${polylineRenderKey}`}
-                  positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
+                  key={`type2-3-${route.driverId}-${i}-${polylineRenderKey}`}
+                  positions={[
+                    [stop1.latitude, stop1.longitude],
+                    [stop2.latitude, stop2.longitude]
+                  ]}
                   pathOptions={{
-                    color: '#3B82F6',
+                    color: route.color,
                     weight: 4,
                     opacity: 0.7,
-                    dashArray: '10, 5',
+                    dashArray: dashArray,
                     lineJoin: 'round',
                     lineCap: 'round'
                   }}
                   pane="overlayPane"
                 />
               );
-              
-              // NO additional polylines - only blue line to next stop
-              });
-              }
+            }
+          });
+          
+          return polylines.length > 0 ? polylines : null;
+        })()}
 
-              return polylines.length > 0 ? polylines : null;
-              })()}
-
-        {/* Draw Routes - NOW WITH INTERACTIVE HIGHLIGHTING */}
-        {showRoutes && driverRoutes.map((route, index) => {
-          const isHighlighted = highlightedRouteId === route.driverId;
-          const isOtherDriverRoute = isDriverViewingSelfToday && route.driverId !== currentUser?.id; // NEW
-          const routeWeight = isHighlighted ? route.routeWeight * 2 : route.routeWeight;
-          const routeOpacity = isOtherDriverRoute ? 0.75 : (isHighlighted ? 1 : route.routeOpacity); // NEW: Fade other driver routes
-
-          return [
-            // Origin to first stop line - HIDDEN if currentToNextPolyline exists or route is completed
-            // CRITICAL: This internal origin line is now DEPRECATED - we use currentToNextPolyline from backend instead
-            null,
-
-            // Pre-route line - DEPRECATED - handled by separate blue dashed line section below
-            null,
-
-            // Main route line segments - NOW WITH AM/PM styling
-            route.coordinates.length >= 2 && (() => {
-              const segments = [];
-
-              // CRITICAL: Get ALL stops (pickups + deliveries) sorted by stop_order
-              const allRouteStops = [];
-
-              // Add pickups
-              pickupMarkers.filter(p => p && p.driver_id === route.driverId)
-                .forEach(p => allRouteStops.push({ ...p, type: 'pickup' }));
-
-              // Add deliveries
-              route.stops.forEach(d => allRouteStops.push({ ...d, type: 'delivery' }));
-
-              // Sort by stop_order
-              allRouteStops.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-              // Determine if route is completed (all stops finished)
-              const routeIsCompleted = route.isCompleted;
-
-              // Create segments based on AM/PM rules
-              for (let i = 0; i < allRouteStops.length - 1; i++) {
-                const stop1 = allRouteStops[i];
-                const stop2 = allRouteStops[i + 1];
-
-                // CRITICAL POLYLINE RULE FOR ACTIVE ROUTES: Only skip if BOTH stops are finished
-                  // Allow segments from completed stop to next pickup/delivery (don't skip the transition)
-                  if (!routeIsCompleted) {
-                    const stop1Finished = FINISHED_STATUSES.includes(stop1.status) || stop1.status === 'pending';
-                    const stop2Finished = FINISHED_STATUSES.includes(stop2.status) || stop2.status === 'pending';
-                    // Skip ONLY if both stops are finished - allows pickup→delivery transitions
-                    if (stop1Finished && stop2Finished) continue;
-                  }
-
-                const stop1IsPickup = stop1.type === 'pickup';
-                const stop2IsPickup = stop2.type === 'pickup';
-                const stop1IsDelivery = stop1.type === 'delivery';
-                const stop2IsDelivery = stop2.type === 'delivery';
-
-                const stop1IsAM = stop1.ampm_deliveries === 'AM';
-                const stop1IsPM = stop1.ampm_deliveries === 'PM';
-                const stop2IsAM = stop2.ampm_deliveries === 'AM';
-                const stop2IsPM = stop2.ampm_deliveries === 'PM';
-
-                // Determine line style based on rules
-                let dashArray = '10, 10'; // Default solid
-                
-                // DASHED (AM-related): 10, 5
-                if (
-                  (stop2IsPickup && stop2IsAM) || // Destination is AM pickup
-                  (stop2IsDelivery && stop2IsAM) || // Destination is AM delivery
-                  (stop1IsPickup && stop1IsAM && stop2IsDelivery && stop2IsAM) || // 1a: AM pickup → AM delivery
-                  (stop1IsPickup && stop1IsAM && stop2IsPickup && stop2IsAM) || // 1b: AM pickup → AM pickup
-                  (stop1IsPickup && stop1IsPM && stop2IsDelivery && stop2IsAM) || // 1c: PM pickup → AM delivery
-                  (stop1IsDelivery && stop1IsPM && stop2IsDelivery && stop2IsAM) // 1d: PM delivery → AM delivery
-                ) {
-                  dashArray = '10, 5'; // Dashed
-                }
-                // DOTTED (PM-related): 2, 8
-                else if (
-                  (stop2IsPickup && stop2IsPM) || // Destination is PM pickup
-                  (stop2IsDelivery && stop2IsPM) || // Destination is PM delivery
-                  (stop1IsPickup && stop1IsPM && stop2IsDelivery && stop2IsPM) || // 2a: PM pickup → PM delivery
-                  (stop1IsPickup && stop1IsPM && stop2IsPickup && stop2IsPM) || // 2b: PM pickup → PM pickup
-                  (stop1IsDelivery && stop1IsPM && stop2IsDelivery && stop2IsPM) || // 2c: PM delivery → PM delivery
-                  (stop1IsDelivery && stop1IsAM && stop2IsDelivery && stop2IsPM) // 2d: AM delivery → PM delivery
-                ) {
-                  dashArray = '2, 8'; // Dotted
-                }
-                
-                segments.push(
-                  <Polyline
-                    key={`route-segment-${route.driverId}-${i}`}
-                    positions={[
-                      [stop1.latitude, stop1.longitude],
-                      [stop2.latitude, stop2.longitude]
-                    ]}
-                    pathOptions={{
-                      color: route.color,
-                      weight: routeWeight,
-                      opacity: routeOpacity,
-                      dashArray: isOtherDriverRoute ? '5, 5' : dashArray,
-                      lineJoin: 'round',
-                      lineCap: 'round'
-                    }}
-                    eventHandlers={{
-                      click: () => setHighlightedRouteId(isHighlighted ? null : route.driverId),
-                      mouseover: () => setHighlightedRouteId(route.driverId),
-                      mouseout: () => setHighlightedRouteId(null)
-                    }}>
-                    {i === 0 && (
-                      <Popup autoPan={false} closeButton={false} className="route-popup">
-                        <div className="text-xs">
-                          <p className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{route.driverName}</p>
-                          <p style={{ color: 'var(--text-slate-600)' }}>{route.totalStops} stops</p>
-                          {route.isCompleted && <p className="text-emerald-600 font-medium">✓ Route Complete</p>}
-                        </div>
-                      </Popup>
-                    )}
-                  </Polyline>
-                );
-              }
-              
-              return segments;
-            })(),
-
-            // Waypoint circles
-            ...(route.showWaypoints && route.coordinates.length >= 2 ? route.coordinates.map((coord, idx) => {
-              if (idx === 0 || idx === route.coordinates.length - 1) return null;
-              return (
-                <Circle
-                  key={`route-point-${route.driverId}-${idx}`}
-                  center={coord}
-                  radius={3}
-                  pathOptions={{
-                    color: route.color,
-                    fillColor: route.color,
-                    fillOpacity: isHighlighted ? 1 : 0.8,
-                    weight: 1
-                  }} />);
-
-
-            }).filter(Boolean) : []),
-
-            // Home route line - INTERACTIVE - HIDE for other drivers when viewing self today
-            (() => {
-              if (!route.shouldShowHomeRoute || !route.lastStopCoordinates || !route.driver?.home_latitude || !route.driver?.home_longitude) return null;
-              
-              // NEW: Skip home route for other drivers when viewing self today
-              if (isOtherDriverRoute) return null;
-
-              const homeCoordinates = [route.driver.home_latitude, route.driver.home_longitude];
-              return (
-                <Polyline
-                  key={`home-route-${route.driverId}`}
-                  positions={[route.lastStopCoordinates, homeCoordinates]}
-                  pathOptions={{
-                    color: route.color,
-                    weight: routeWeight,
-                    opacity: (isHighlighted ? 1 : routeOpacity) * 0.75,
-                    dashArray: '5, 10',
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                  }}
-                  eventHandlers={{
-                    click: () => setHighlightedRouteId(isHighlighted ? null : route.driverId),
-                    mouseover: () => setHighlightedRouteId(route.driverId),
-                    mouseout: () => setHighlightedRouteId(null)
-                  }} />);
-            })()];
-
-        })}
+        {/* DEPRECATED: Old route drawing logic - replaced by Type 2 & 3 polylines above */}
 
         {/* NEW: Fanning radius lines (thick, solid, grey) - UNIFIED for all markers */}
         {fannedLocationKey && (() => {
