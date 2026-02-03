@@ -1858,12 +1858,12 @@ export default function StopCard({
                           }
                           console.log('  ✅ TR#s assigned sequentially');
 
-                          // Step 6 & 7: Update UI and sync offline/online DBs
-                          console.log('🟢 [Assign All] Step 6-7: Force refreshing data...');
-                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                          console.log('  ✅ Data refreshed and synced');
+                          // Step 6 & 7: Let smart refresh handle the sync
+                           console.log('🟢 [Assign All] Step 6-7: Smart refresh will sync data...');
+                           // Don't call forceRefreshDriverDeliveries here - it floods API
+                           // Smart refresh will pick up the changes automatically
 
-                          // Send notifications
+                           // Send notifications
                           const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
                           if (isDriverAction) {
                             await notifyDriverAcceptedAll({
