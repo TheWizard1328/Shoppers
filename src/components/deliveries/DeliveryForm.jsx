@@ -5076,8 +5076,8 @@ export default function DeliveryForm({
 
       {/* Debug Patient Data Popup - App Owner Only */}
       {debugPatientData && isAppOwner(currentUser) &&
-      <div className="fixed inset-0 z-[10040] bg-black/60 flex items-center justify-center p-4">
-          <div className="rounded-lg shadow-xl max-w-md w-full p-4 border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+      <div className="fixed inset-0 z-[10040] bg-black/60 flex items-center justify-center p-4" onClick={() => setDebugPatientData(null)}>
+          <div className="rounded-lg shadow-xl max-w-md w-full p-4 border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                 {debugPatientData.action}
