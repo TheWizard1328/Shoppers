@@ -1010,9 +1010,9 @@ function Dashboard() {
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids]);
 
   const isDateFinished = useMemo(() => {
-    const today = startOfDay(new Date());
+    const todayDate = startOfDay(new Date());
     const selected = startOfDay(selectedDate);
-    const isPastDate = selected < today;
+    const isPastDate = selected < todayDate;
 
     if (!isPastDate) return false;
 
