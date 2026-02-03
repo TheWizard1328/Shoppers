@@ -1001,7 +1001,7 @@ export default function PatientForm({
               </Button>
               <Button type="button" onClick={handleSubmit} disabled={!isFormValid} className="bg-emerald-600 hover:bg-emerald-700 gap-2 text-white">
                 <Save className="w-3 h-3" />
-                {patient ? 'Update Patient' : returnPatientOnSave ? 'Add Patient' : 'Create Patient'}
+                {returnPatientOnSave ? 'Add Patient' : patient ? 'Update Patient' : 'Create Patient'}
               </Button>
             </div>
           </CardFooter>
