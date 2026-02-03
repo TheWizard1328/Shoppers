@@ -1129,17 +1129,16 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         const { processPendingMutations } = await import('../utils/offlineSync');
         processPendingMutations().catch((err) => console.warn('Backend sync error:', err));
         
-        // CRITICAL: Force immediate smart refresh to sync UI with imported data
-        console.log('🔄 [PatientImport] Triggering immediate smart refresh...');
-        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-        smartRefreshManager.restart(); // Reset all timers to force immediate refresh
+        // CRITICAL: Don't trigger smart refresh restart here - let executeDataOperation handle it
+        console.log('✅ [PatientImport] Import complete - data operation manager will restart smart refresh');
 
+        return true; // Signal success
+      }, { restartDelay: 2000 }).then(() => {
+        // CRITICAL: Notify parent AFTER executeDataOperation completes and restarts refresh
         if (onImportComplete) {
           onImportComplete(aggregatedResults);
         }
-
-        return true; // Signal success
-      }, { restartDelay: 2000 }); // 2 second delay before restarting smart refresh
+      }); // 2 second delay before restarting smart refresh
 
     } catch (error) {
       console.error("PatientImport: Overall import error:", error);

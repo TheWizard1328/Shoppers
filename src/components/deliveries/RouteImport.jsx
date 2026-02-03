@@ -1999,20 +1999,23 @@ export default function RouteImport({
       // CRITICAL: NO route optimization after import - preserve imported stop order
       console.log('✅ [RouteImport] Import complete - stop order preserved from CSV');
       
-      // CRITICAL: Trigger immediate backend sync after import
-      console.log("📤 [RouteImport] Triggering immediate backend sync...");
-      const { processPendingMutations } = await import('../utils/offlineSync');
-      processPendingMutations().catch(err => console.warn('Backend sync error:', err));
+      // CRITICAL: Sync processes will be auto-resumed after brief delay
+      console.log('✅ [RouteImport] Import operation complete - waiting for stable state before refresh');
       
-      console.log('▶️ [RouteImport] Resuming all sync processes...');
-      driverLocationPoller.resume();
-      smartRefreshManager.resume();
-      
-      // CRITICAL: Force immediate smart refresh to sync UI with imported data
-      console.log('🔄 [RouteImport] Triggering immediate smart refresh...');
-      smartRefreshManager.restart();
-      
-      console.log('✅ [RouteImport] Import operation complete - NO auto-optimization applied');
+      // CRITICAL: Delay refresh restart to allow UI to stabilize
+      setTimeout(() => {
+        console.log('🔄 [RouteImport] Triggering smart refresh restart after stabilization...');
+        try {
+          smartRefreshManager.restart();
+          
+          // Trigger backend sync in background (non-blocking)
+          import('../utils/offlineSync').then(({ processPendingMutations }) => {
+            processPendingMutations().catch(err => console.warn('Backend sync error:', err));
+          });
+        } catch (e) {
+          console.warn('⚠️ [RouteImport] Restart error:', e);
+        }
+      }, 3000); // 3 second delay for stability
     } catch (error) {
       console.error("❌ Overall import error:", error);
       
