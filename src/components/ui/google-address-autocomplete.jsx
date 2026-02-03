@@ -77,7 +77,16 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       return;
     }
 
+    // CRITICAL: Skip duplicate searches (exact same text)
+    if (lastSearchText.current === searchText) {
+      console.log(`🚫 [GoogleAddressAutocomplete] Skipping duplicate search for: "${searchText}"`);
+      return;
+    }
+
     try {
+      lastSearchText.current = searchText;
+      requestCount.current++;
+      console.log(`📍 [GoogleAddressAutocomplete] Request #${requestCount.current} for: "${searchText}"`);
       setIsLoading(true);
       
       // CRITICAL: Log everything
