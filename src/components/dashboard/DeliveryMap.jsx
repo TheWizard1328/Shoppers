@@ -1492,16 +1492,6 @@ export default function DeliveryMap({
       onMarkerClick(marker);
     }
     
-    // Auto-open popup for other driver markers
-    if (marker.isOtherDriver && markerRefs.current[`${markerType}-${marker.id}`]) {
-      setTimeout(() => {
-        const markerElement = markerRefs.current[`${markerType}-${marker.id}`];
-        if (markerElement && markerElement.openPopup) {
-          markerElement.openPopup();
-        }
-      }, 300);
-    }
-    
     // Auto-center marker on screen slightly below center for balloon visibility
     if (map) {
       // Get marker element to check if popup is open
@@ -1523,15 +1513,15 @@ export default function DeliveryMap({
         [marker.latitude, marker.longitude]
       ]);
       
-      // Pan to position marker in upper-middle of screen, leaving space at bottom for balloon
-      if (map) {
-        const mapSize = map.getSize();
-        const mapCenter = map.project([marker.latitude, marker.longitude]);
-        // Position marker at 30% from top (70% from bottom for balloon)
-        const offset = mapSize.y * 0.3;
-        const newCenter = map.unproject([mapCenter.x, mapCenter.y - (mapSize.y * 0.2)]);
-        map.setView(newCenter, 15, { animate: true, duration: 0.6 });
-      }
+      // Center map with offset to show balloon fully
+      const panOptions = {
+        paddingTopLeft: [60, 60],
+        paddingBottomRight: [60, dynamicBottomPadding],
+        animate: true,
+        duration: 0.6
+      };
+      
+      map.fitBounds(markerBounds, panOptions);
       
       // Open the marker's popup if available
       if (markerElement && markerElement._popup) {
@@ -3449,20 +3439,6 @@ export default function DeliveryMap({
               eventHandlers={delivery.isOtherDriver ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
-                  e.target.openPopup();
-                  // Auto-center on marker with bottom padding for balloon
-                  if (map) {
-                    const messageBalloonsHeight = 120;
-                    const stopCardsFullContainer = document.querySelector('.horizontal-cards-container');
-                    let dynamicBottomPadding = messageBalloonsHeight + 20;
-                    if (stopCardsFullContainer) {
-                      const actualHeight = stopCardsFullContainer.getBoundingClientRect().height;
-                      dynamicBottomPadding = Math.max(actualHeight + messageBalloonsHeight + 20, messageBalloonsHeight + 20);
-                    }
-                    const panOptions = { paddingTopLeft: [60, 60], paddingBottomRight: [60, dynamicBottomPadding], maxZoom: 15, animate: true, duration: 0.6 };
-                    const markerBounds = L.latLngBounds([[delivery.latitude, delivery.longitude], [delivery.latitude, delivery.longitude]]);
-                    map.fitBounds(markerBounds, panOptions);
-                  }
                 },
                 mouseover: (e) => e.target.openPopup(),
                 mouseout: (e) => e.target.closePopup()
