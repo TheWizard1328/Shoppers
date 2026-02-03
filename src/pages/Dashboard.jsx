@@ -2081,7 +2081,7 @@ function Dashboard() {
 
         // CRITICAL: Only fetch polyline if driver is on_duty with location tracking enabled
         // Hide polyline when driver is on break
-        if (!driver || driver.driver_status !== 'on_duty' || driver.driver_status === 'on_break' || driver.location_tracking_enabled !== true) {
+        if (!driver || driver.driver_status === 'on_break' || driver.driver_status !== 'on_duty' || driver.location_tracking_enabled !== true) {
           setCurrentToNextPolyline(null);
           return;
         }
