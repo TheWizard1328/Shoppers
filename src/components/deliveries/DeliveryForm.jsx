@@ -5077,10 +5077,10 @@ export default function DeliveryForm({
       {/* Debug Patient Data Popup - App Owner Only */}
       {debugPatientData && isAppOwner(currentUser) &&
       <div className="fixed inset-0 z-[10040] bg-black/60 flex items-center justify-center p-4">
-          <div className="rounded-lg shadow-xl max-w-2xl w-full p-4 border max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+          <div className="rounded-lg shadow-xl max-w-md w-full p-4 border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                Patient Data - {debugPatientData.action}
+                {debugPatientData.action}
               </h3>
               <Button
                 variant="ghost"
@@ -5089,12 +5089,23 @@ export default function DeliveryForm({
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            <pre className="text-xs p-3 rounded-lg overflow-auto" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-900)' }}>
-              {JSON.stringify(debugPatientData.patient, null, 2)}
-            </pre>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
+                <span className="ml-2" style={{ color: 'var(--text-slate-900)' }}>{debugPatientData.patient?.full_name || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
+                <span className="ml-2" style={{ color: 'var(--text-slate-900)' }}>{debugPatientData.patient?.address || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Phone:</span>
+                <span className="ml-2" style={{ color: 'var(--text-slate-900)' }}>{formatPhoneNumber(debugPatientData.patient?.phone) || 'N/A'}</span>
+              </div>
+            </div>
             <Button
               size="sm"
-              className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700"
+              className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700"
               onClick={() => setDebugPatientData(null)}>
               Close
             </Button>
