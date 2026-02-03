@@ -2719,6 +2719,15 @@ export default function DeliveryMap({
               
               if (!stop1 || !stop2) continue;
               
+              // CRITICAL: Validate coordinates before creating polyline
+              if (typeof stop1.latitude !== 'number' || typeof stop1.longitude !== 'number' ||
+                  typeof stop2.latitude !== 'number' || typeof stop2.longitude !== 'number' ||
+                  isNaN(stop1.latitude) || isNaN(stop1.longitude) ||
+                  isNaN(stop2.latitude) || isNaN(stop2.longitude)) {
+                console.warn('[DeliveryMap] Skipping polyline with invalid coordinates:', { stop1, stop2 });
+                continue;
+              }
+              
               // Determine line style based on destination stop's AM/PM
               const isAM = stop2.ampm_deliveries === 'AM';
               const dashArray = isAM ? '10, 5' : '2, 8'; // AM = dashed, PM = dotted
