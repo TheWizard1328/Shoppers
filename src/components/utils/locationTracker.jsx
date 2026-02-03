@@ -176,10 +176,14 @@ class LocationTracker {
     const timeForHeartbeat = (now - this.lastUpdate) >= this.updateInterval;
     const timeForCoordinateUpdate = (now - this.lastCoordinateUpdate) >= this.coordinateUpdateInterval;
 
-    // Skip if neither movement nor time thresholds are met
+    // CRITICAL: Always update if time threshold is met (15 seconds), regardless of driver_status or movement
+    // This ensures location is visible on other devices even when off_duty or route complete
     if (!hasMovedEnough && !timeForHeartbeat && !timeForCoordinateUpdate) {
+      console.log(`⏭️ [LocationTracker] Skipping - no movement (${this.lastPosition ? Math.floor(this.calculateDistance(this.lastPosition.latitude, this.lastPosition.longitude, latitude, longitude)) : 0}m) and time threshold not met`);
       return;
     }
+
+    console.log(`📍 [LocationTracker] Updating location - moved: ${hasMovedEnough}, heartbeat: ${timeForHeartbeat}, coordinate: ${timeForCoordinateUpdate}, status: ${this.driverStatus}`);
 
     let distance = 0;
     if (this.lastPosition) {
