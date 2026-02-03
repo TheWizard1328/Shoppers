@@ -1979,6 +1979,27 @@ function Dashboard() {
       // Use updated AppUsers or fall back to current context
       const latestAppUsers = locationUpdates?.appUsers || appUsers;
 
+      // CRITICAL: Sync AppUsers to offline DB for cross-device consistency
+      if (latestAppUsers && latestAppUsers.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, latestAppUsers);
+        console.log(`✅ [Periodic Refresh] Synced ${latestAppUsers.length} AppUsers to offline DB`);
+      }
+
+      // CRITICAL: Sync patients for these deliveries to offline DB
+      const uniquePatientIds = [...new Set(freshDeliveries.filter(d => d?.patient_id).map(d => d.patient_id))];
+      if (uniquePatientIds.length > 0) {
+        try {
+          const { Patient } = await import('@/entities/Patient');
+          const freshPatients = await Patient.filter({ id: { $in: uniquePatientIds } });
+          if (freshPatients && freshPatients.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+            console.log(`✅ [Periodic Refresh] Synced ${freshPatients.length} patients to offline DB`);
+          }
+        } catch (patientError) {
+          console.warn(`⚠️ [Periodic Refresh] Failed to sync patients: ${patientError.message}`);
+        }
+      }
+
       // CRITICAL: Always process location data for ALL drivers to update markers
       driverLocationPoller.processLocationData(
         currentUser, 
