@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
         const description = placePrediction.text?.text || '';
         const place_id = placePrediction.placeId || '';
 
-        // Fetch place details to get coordinates for accurate distance calculation
+        // Fetch place details and calculate driving distance
         let distance = null;
         if (latitude && longitude) {
           try {
@@ -146,15 +146,20 @@ Deno.serve(async (req) => {
               const placeLocation = detailsData.location;
               
               if (placeLocation?.latitude && placeLocation?.longitude) {
-                // Calculate distance using Haversine formula
-                const R = 6371; // Earth's radius in km
-                const dLat = (placeLocation.latitude - latitude) * Math.PI / 180;
-                const dLon = (placeLocation.longitude - longitude) * Math.PI / 180;
-                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                          Math.cos(latitude * Math.PI / 180) * Math.cos(placeLocation.latitude * Math.PI / 180) *
-                          Math.sin(dLon / 2) * Math.sin(dLon / 2);
-                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                distance = R * c; // Distance in km
+                // Use Google Directions API to get driving distance
+                try {
+                  const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${placeLocation.latitude},${placeLocation.longitude}&key=${apiKey}`;
+                  const directionsResponse = await fetch(directionsUrl);
+                  
+                  if (directionsResponse.ok) {
+                    const directionsData = await directionsResponse.json();
+                    if (directionsData.routes?.[0]?.legs?.[0]?.distance?.value) {
+                      distance = directionsData.routes[0].legs[0].distance.value / 1000; // Convert meters to km
+                    }
+                  }
+                } catch (dirError) {
+                  console.warn('[googlePlacesAutocomplete] Directions API failed, skipping distance:', dirError.message);
+                }
               }
             }
           } catch (error) {
