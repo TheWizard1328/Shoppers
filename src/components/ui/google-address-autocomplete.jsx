@@ -67,6 +67,8 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
   const initialValue = useRef(value);
   const hasUserTyped = useRef(false);
   const inputRef = useRef(null);
+  const lastSearchText = useRef(null); // Cache last search to prevent duplicate API calls
+  const requestCount = useRef(0); // Track requests for debugging
 
   // Fetch suggestions from Google Places Autocomplete
   const fetchSuggestions = async (searchText) => {
