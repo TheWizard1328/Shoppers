@@ -302,6 +302,11 @@ export default function PatientForm({
     };
 
     setFormData(newFormData);
+
+    // Auto-focus unit number field after address selection
+    setTimeout(() => {
+      unitNumberRef.current?.focus();
+    }, 100);
   };
 
   const handleWeeklyDayToggle = (day) => {
