@@ -792,6 +792,7 @@ export default function PatientForm({
                   <div className="col-span-8 space-y-1">
                     <Label htmlFor="address" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Address *</Label>
                     <GoogleAddressAutocomplete
+                      ref={addressInputRef}
                       value={formData.address}
                       onChange={(value) => setFormData((prev) => ({ ...prev, address: value }))}
                       onAddressSelect={handleAddressSelect}
