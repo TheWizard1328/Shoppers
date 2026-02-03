@@ -1,4 +1,5 @@
 import { userHasRole } from './userRoles';
+import { locationTracker } from './locationTracker';
 
 class DriverLocationPoller {
   constructor() {
@@ -151,13 +152,7 @@ class DriverLocationPoller {
         // Skip inactive check for self - always show own marker if active location exists
         // EXCEPTION: On mobile, hide shared marker ONLY if THIS device is actively tracking GPS
         // Use locationTracker.isTracking to detect if GPS is running on THIS specific device
-        let isTrackingOnThisDevice = false;
-        try {
-          const { locationTracker } = await import('./locationTracker');
-          isTrackingOnThisDevice = locationTracker.isTracking === true;
-        } catch (e) {
-          console.warn('⚠️ [DriverLocationPoller] Could not check locationTracker status');
-        }
+        const isTrackingOnThisDevice = locationTracker.isTracking === true;
         
         if (isMobileDevice && isTrackingOnThisDevice) {
           console.log(`🚫 [DriverLocationPoller] Hiding self marker - GPS actively tracking on THIS device (blue dot shows)`);
