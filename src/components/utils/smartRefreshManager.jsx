@@ -1109,63 +1109,36 @@ class SmartRefreshManager {
         return null;
       }
       
-      // Merge server data with current state
+      // Merge offline data with current state (prefer offline if newer)
       const updatedAppUsers = currentAppUsers.map(au => {
-        const serverVersion = allAppUsers.find(ad => ad.user_id === au.user_id);
-        if (serverVersion) {
+        const offlineVersion = allAppUsers.find(ad => ad.user_id === au.user_id);
+        if (offlineVersion) {
           // CRITICAL: If this AppUser has a pending status change, preserve local value
           if (this.hasPendingAppUserUpdate(au.id)) {
             console.log(`🛡️ [SmartRefresh] Preserving local AppUser ${au.id} - has pending status change`);
-            return au; // Keep local version completely during protection window
+            return au;
           }
-          
+
           const localTime = new Date(au.updated_date || 0).getTime();
-          const serverTime = new Date(serverVersion.updated_date || 0).getTime();
-          
-          // CRITICAL: ALWAYS take server's location data to prevent marker disappearing
-          const merged = {
-            ...au,
-            current_latitude: serverVersion.current_latitude,
-            current_longitude: serverVersion.current_longitude,
-            location_updated_at: serverVersion.location_updated_at,
-            driver_status: serverVersion.driver_status,
-            location_tracking_enabled: serverVersion.location_tracking_enabled
-          };
-          
-          // For other fields, prefer server if newer
-          if (serverTime > localTime) {
-            return { ...merged, ...serverVersion };
+          const offlineTime = new Date(offlineVersion.updated_date || 0).getTime();
+
+          // CRITICAL: Always prefer offline DB version if it's newer or equal
+          // This prevents bouncing between old and new locations
+          if (offlineTime >= localTime) {
+            return offlineVersion;
           }
-          
-          return merged;
+
+          return au;
         }
         return au;
       });
-      
-      // Add any new AppUsers from server
-      allAppUsers.forEach(serverAu => {
-        if (!updatedAppUsers.find(au => au.user_id === serverAu.user_id)) {
-          updatedAppUsers.push(serverAu);
+
+      // Add any new AppUsers from offline DB
+      allAppUsers.forEach(offlineAu => {
+        if (!updatedAppUsers.find(au => au.user_id === offlineAu.user_id)) {
+          updatedAppUsers.push(offlineAu);
         }
       });
-      
-      // CRITICAL: Sync to offline DB and update sync status
-      try {
-        const { offlineDB } = await import('./offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updatedAppUsers);
-
-        // CRITICAL: Deduplicate after saving to ensure uniqueness
-        await offlineDB.deduplicateAppUsers();
-
-        await offlineDB.updateSyncStatus('AppUser', {
-          recordCount: updatedAppUsers.length,
-          status: 'synced',
-          lastSync: new Date().toISOString()
-        });
-        console.log(`✅ [SmartRefresh] Synced ${updatedAppUsers.length} AppUsers to offline DB`);
-      } catch (offlineError) {
-        console.warn('⚠️ [SmartRefresh] Failed to sync driver locations to offline DB:', offlineError);
-      }
       
       // Dispatch location update event
       if (typeof window !== 'undefined') {
