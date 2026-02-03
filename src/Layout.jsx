@@ -1722,6 +1722,9 @@ export default function Layout({ children, currentPageName }) {
       }
     };
 
+    // Initialize battery monitoring
+    setupBatteryMonitoring();
+
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         await requestWakeLock();
