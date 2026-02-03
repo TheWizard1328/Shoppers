@@ -100,6 +100,9 @@ class SmartRefreshManager {
 
     // CRITICAL: Track patients that have pending local updates
     this.pendingPatientUpdates = new Map(); // patientId -> { expiresAt }
+    
+    // CRITICAL: Track AppUsers with pending status changes
+    this.pendingAppUserUpdates = new Map(); // appUserId -> { expiresAt, field }
 
     // Setup user interaction tracking for adaptive refresh
     this._setupInteractionTracking();
@@ -198,6 +201,39 @@ class SmartRefreshManager {
    */
   clearPendingPatientUpdate(patientId) {
     this.pendingPatientUpdates.delete(patientId);
+  }
+  
+  /**
+   * Register a pending AppUser update (driver status change)
+   * This prevents smart refresh from overwriting it for 10 seconds
+   */
+  registerPendingAppUserUpdate(appUserId, field = 'driver_status') {
+    const expiresAt = Date.now() + 10000; // 10 second protection window
+    this.pendingAppUserUpdates.set(appUserId, { expiresAt, field });
+    console.log(`🛡️ [SmartRefresh] Protected AppUser ${appUserId} ${field} from overwrite for 10s`);
+  }
+  
+  /**
+   * Check if an AppUser has a pending local update
+   */
+  hasPendingAppUserUpdate(appUserId) {
+    const entry = this.pendingAppUserUpdates.get(appUserId);
+    if (!entry) return false;
+    
+    // Check if protection window expired
+    if (Date.now() > entry.expiresAt) {
+      this.pendingAppUserUpdates.delete(appUserId);
+      return false;
+    }
+    
+    return true;
+  }
+  
+  /**
+   * Clear pending AppUser update
+   */
+  clearPendingAppUserUpdate(appUserId) {
+    this.pendingAppUserUpdates.delete(appUserId);
   }
   
   /**
@@ -1122,6 +1158,12 @@ class SmartRefreshManager {
       const updatedAppUsers = currentAppUsers.map(au => {
         const serverVersion = allAppUsers.find(ad => ad.user_id === au.user_id);
         if (serverVersion) {
+          // CRITICAL: If this AppUser has a pending status change, preserve local value
+          if (this.hasPendingAppUserUpdate(au.id)) {
+            console.log(`🛡️ [SmartRefresh] Preserving local AppUser ${au.id} - has pending status change`);
+            return au; // Keep local version completely during protection window
+          }
+          
           const localTime = new Date(au.updated_date || 0).getTime();
           const serverTime = new Date(serverVersion.updated_date || 0).getTime();
           

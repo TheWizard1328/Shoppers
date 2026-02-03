@@ -211,6 +211,10 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       // CRITICAL: Broadcast status change to other devices via WebSocket
       broadcastMutation('AppUser', 'update', appUserId, updatedAppUser);
       
+      // CRITICAL: Protect this AppUser from smart refresh overwrites for 10 seconds
+      const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+      smartRefreshManager.registerPendingAppUserUpdate(appUserId, 'driver_status');
+      
       // CRITICAL: Call backend function to enforce single active device
       console.log('📱 Calling setDriverStatus backend function...');
       const result = await base44.functions.invoke('setDriverStatus', {
