@@ -193,21 +193,41 @@ export const GoogleAddressAutocomplete = React.forwardRef(({
     };
   }, [value]);
 
+  const handleKeyDown = (e) => {
+    // Prevent Enter from submitting the form when autocomplete is open
+    if (e.key === 'Enter' && open && suggestions.length > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+        handleSelectAddress(suggestions[selectedIndex]);
+      }
+      return;
+    }
+
+    if (!open || suggestions.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => 
+        prev < suggestions.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
+    }
+  };
+
   return (
     <div className="relative">
       <Input
+        ref={ref}
         value={value}
         onChange={(e) => {
           hasUserTyped.current = true;
           onChange(e.target.value);
         }}
-        onKeyDown={(e) => {
-          // Prevent Enter from submitting the form when autocomplete is open
-          if (e.key === 'Enter' && open && suggestions.length > 0) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={className}
         disabled={disabled}
@@ -229,7 +249,10 @@ export const GoogleAddressAutocomplete = React.forwardRef(({
                 e.stopPropagation();
                 handleSelectAddress(prediction);
               }}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100 flex items-start gap-2 border-b border-slate-100 last:border-b-0"
+              onMouseEnter={() => setSelectedIndex(index)}
+              className={`w-full px-3 py-2 text-left text-sm flex items-start gap-2 border-b border-slate-100 last:border-b-0 transition-colors
+                ${index === selectedIndex ? 'bg-slate-100' : 'hover:bg-slate-100'}
+              `}
             >
               <MapPin className="w-4 h-4 mt-0.5 text-slate-500 flex-shrink-0" />
               <div className="flex-1 flex items-center justify-between gap-2">
@@ -246,4 +269,5 @@ export const GoogleAddressAutocomplete = React.forwardRef(({
       )}
     </div>
   );
-}
+});
+GoogleAddressAutocomplete.displayName = "GoogleAddressAutocomplete";
