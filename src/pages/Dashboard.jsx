@@ -2077,7 +2077,7 @@ function Dashboard() {
     const fetchPolyline = async () => {
       try {
         const driverDeliveries = filteredDeliveries.filter((d) => d && d.driver_id === driverIdToFetch);
-        const driver = users.find((u) => u && u.id === driverIdToFetch);
+        const driver = appUsers.find((u) => u && u.user_id === driverIdToFetch);
 
         // CRITICAL: Only fetch polyline if driver is on_duty with location tracking enabled
         // Hide polyline when driver is on break
