@@ -2682,10 +2682,16 @@ export default function DeliveryMap({
           driverRoutes.forEach(route => {
             if (!route.driverId) return;
             
-            // Get all stops for this driver (pickups + deliveries)
+            // CRITICAL: Get ALL stops for this driver from BOTH sources
+            // otherDriverDeliveries for other drivers when "show all" is checked
+            // Use showOtherDriverDeliveries to include other drivers' deliveries+pickups
+            const sourceDeliveries = (showOtherDriverDeliveries && otherDriverDeliveries.length > 0 && route.driverId !== currentUser?.id)
+              ? [...deliveryMarkers, ...otherDriverDeliveries].filter(d => d && d.driver_id === route.driverId)
+              : deliveryMarkers.filter(d => d && d.driver_id === route.driverId);
+            
             const allDriverStops = [
               ...pickupMarkers.filter(p => p && p.driver_id === route.driverId),
-              ...deliveryMarkers.filter(d => d && d.driver_id === route.driverId)
+              ...sourceDeliveries
             ].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
             
             if (allDriverStops.length < 2) return;
