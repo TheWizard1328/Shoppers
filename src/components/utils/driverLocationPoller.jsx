@@ -109,7 +109,7 @@ class DriverLocationPoller {
     }
 
     const now = Date.now();
-    const maxStaleTime = 5 * 60 * 1000; // 5 minutes
+    const maxStaleTime = 5 * 60 * 1000; // 5 minutes - hide marker if no updates
     const thirtyMinutesInMs = 30 * 60 * 1000;
     
     const isAdmin = this.currentUser && userHasRole(this.currentUser, 'admin');
@@ -119,9 +119,7 @@ class DriverLocationPoller {
     
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // CRITICAL: Filter to drivers with location data using the new rules
-    // NEW RULE: Current user sees their OWN shared location from OTHER devices
-    // (on mobile, only hide location marker from the CURRENT device - blue GPS dot shows instead)
+    // CRITICAL: Filter drivers based on NEW visibility rules
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
 
@@ -131,118 +129,90 @@ class DriverLocationPoller {
                      user.user_id === currentUserUserId ||
                      user.id === currentUserUserId;
 
-      // Skip inactive users (but NOT for self - user should see own marker even if inactive)
-      if (user.status === 'inactive' && !isSelf) return false;
-
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) return false;
 
-      // CRITICAL: NEW LOGIC - Show current user's marker on ALL devices (including their own other devices)
-      // regardless of driver_status or location_tracking_enabled
+      // CRITICAL: 5-minute inactivity rule - applies to ALL markers (including own)
+      if (user.location_updated_at) {
+        const locationAge = now - new Date(user.location_updated_at).getTime();
+        if (locationAge > maxStaleTime) {
+          console.log(`⏰ [DriverLocationPoller] ${user.user_name} - location stale (${Math.floor(locationAge/60000)} min)`);
+          return false;
+        }
+      } else {
+        // No timestamp - hide marker
+        return false;
+      }
+
+      // ========================================
+      // RULE 1: Own location marker - always visible (except on current mobile device)
+      // ========================================
       if (isSelf) {
-        // EXCEPTION: On mobile, hide the shared marker for the CURRENT device
-        // (blue GPS dot shows instead to avoid duplicate markers)
-        // But other devices should still see this marker
-        
-        // To achieve this: we check if THIS device uploaded the location recently
-        // If location was updated within last 30 seconds, it's likely from THIS device
+        // Skip inactive check for self - always show own marker if active location exists
+        // EXCEPTION: On mobile, hide shared marker on CURRENT device (blue GPS dot shows instead)
         const locationAge = user.location_updated_at ? now - new Date(user.location_updated_at).getTime() : Infinity;
         const isFromCurrentDevice = locationAge < 30000; // Updated within 30 seconds = likely this device
         
         if (isMobileDevice && isFromCurrentDevice) {
-          // This is the current mobile device - hide shared marker (blue GPS dot shows)
           console.log(`🚫 [DriverLocationPoller] Hiding self marker on current mobile device (blue GPS dot active)`);
           return false;
         }
         
-        // This is either:
-        // 1. Desktop viewing own marker, OR
-        // 2. Another device (phone/tablet/desktop) viewing this device's marker
-        // Show the marker regardless of status or sharing settings
+        // Show own marker on all other devices (desktop or other phones/tablets)
         console.log(`✅ [DriverLocationPoller] Showing self marker - other device or desktop view`);
         return true;
       }
 
-      // RULE 4: All other drivers must be in same city
-      if (currentUserCityId && user.city_id !== currentUserCityId) {
-        return false;
-      }
+      // Skip inactive users for other drivers
+      if (user.status === 'inactive') return false;
 
-      // CRITICAL: Check location_updated_at to ensure location exists
-      if (!user.location_updated_at) {
-        return false;
-      }
+      // Must be in same city (admin exempted via city checks in parent)
+      if (currentUserCityId && user.city_id !== currentUserCityId) return false;
 
-      const locationAge = now - new Date(user.location_updated_at).getTime();
-
-      // RULE 3: Dispatcher special handling - check BEFORE location_tracking_enabled filter
-      // CRITICAL: Dispatchers see driver markers when driver has assigned stops AND (on_duty OR on_break)
+      // ========================================
+      // RULE 2: Dispatchers viewing assigned drivers
+      // ========================================
       if (isDispatcher && !isAdmin && !isDriver) {
         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
         
-        // For dispatchers: driver must have assigned stops (pickups OR deliveries)
         // Check if driver has ANY active stops for dispatcher's stores
         const hasAssignedStops = (deliveries || []).some(delivery => {
           if (!delivery) return false;
           if (delivery.driver_id !== driverId) return false;
           if (delivery.delivery_date !== todayStr) return false;
           if (!dispatcherStoreIds.has(delivery.store_id)) return false;
-          // Include all non-terminal statuses (pending, en_route, in_transit)
           if (['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status)) return false;
           return true;
         });
         
         if (!hasAssignedStops) {
-          console.log(`🚫 [DriverLocationPoller] Dispatcher: driver ${user.user_name} has no active stops in assigned stores`);
+          console.log(`🚫 [DriverLocationPoller] Dispatcher: driver ${user.user_name} has no active stops`);
           return false;
         }
         
-        // CRITICAL: Dispatchers see shared location marker when driver is on_duty OR on_break
-        // off_duty = show nothing
-        if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
-          console.log(`🚫 [DriverLocationPoller] Dispatcher: driver ${user.user_name} is ${user.driver_status}, not on_duty/on_break`);
-          return false;
-        }
-        
-        // CRITICAL: For dispatchers, also check that location_tracking_enabled is true
-        if (user.location_tracking_enabled !== true) {
-          console.log(`🚫 [DriverLocationPoller] Dispatcher: driver ${user.user_name} has location_tracking_enabled = ${user.location_tracking_enabled}`);
-          return false;
-        }
-        
-        // Driver is on_duty/on_break with assigned stops and sharing enabled - show shared location marker
-        console.log(`✅ [DriverLocationPoller] Dispatcher: showing driver ${user.user_name} - ${user.driver_status} with active stops`);
+        // Dispatchers see assigned driver markers regardless of driver_status or location_tracking_enabled
+        console.log(`✅ [DriverLocationPoller] Dispatcher: showing assigned driver ${user.user_name}`);
         return true;
       }
 
-      // CRITICAL: For non-dispatchers, location_tracking_enabled MUST be true
-      // This prevents showing markers when sharing is turned off
+      // ========================================
+      // RULE 3: Other drivers' markers (for drivers and admins)
+      // ========================================
+      // Must have location_tracking_enabled = true
       if (user.location_tracking_enabled !== true) {
-        console.log(`🚫 [DriverLocationPoller] ${user.user_name} - tracking disabled (${user.location_tracking_enabled})`);
+        console.log(`🚫 [DriverLocationPoller] ${user.user_name} - tracking disabled`);
         return false;
       }
       
-      // RULE 2: For other users (admin or driver viewing other drivers)
-      // Must be on_duty or on_break AND location_tracking_enabled = true
+      // Must be on_duty or on_break
       if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
         console.log(`🚫 [DriverLocationPoller] ${user.user_name} - not on duty/break (${user.driver_status})`);
         return false;
       }
 
-      // Admin: show all on_duty/on_break drivers with sharing enabled
-      if (isAdmin) {
-        console.log(`✅ [DriverLocationPoller] ${user.user_name} - admin view (${user.driver_status})`);
-        return true;
-      }
-
-      // Driver (non-dispatcher): show other drivers in same city with sharing enabled
-      if (isDriver && !isDispatcher) {
-        console.log(`✅ [DriverLocationPoller] ${user.user_name} - driver view (${user.driver_status})`);
-        return true;
-      }
-
-      console.log(`🚫 [DriverLocationPoller] ${user.user_name} - no permission match`);
-      return false;
+      // Admin or driver viewing other drivers - show if sharing enabled and on duty/break
+      console.log(`✅ [DriverLocationPoller] ${user.user_name} - visible to ${isAdmin ? 'admin' : 'driver'}`);
+      return true;
     });
 
     // CRITICAL: ALWAYS notify subscribers with current locations to prevent disappearing markers
