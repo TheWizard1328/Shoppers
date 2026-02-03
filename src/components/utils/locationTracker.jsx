@@ -213,7 +213,8 @@ class LocationTracker {
         return;
       }
 
-      // CRITICAL: Always update coordinates and timestamp when app is open and movement occurs
+      // CRITICAL: ALWAYS update coordinates and timestamp when tracking is active
+      // This ensures location is visible on other devices regardless of driver_status or route status
       const nowFormatted = new Date();
       const year = nowFormatted.getFullYear();
       const month = String(nowFormatted.getMonth() + 1).padStart(2, '0');
@@ -227,6 +228,8 @@ class LocationTracker {
         current_longitude: longitude,
         location_updated_at: `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
       };
+      
+      console.log(`📤 [LocationTracker] Sending location update to server - lat: ${latitude.toFixed(6)}, lng: ${longitude.toFixed(6)}, status: ${this.driverStatus}`);
       
       // Update AppUser entity
       const updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
