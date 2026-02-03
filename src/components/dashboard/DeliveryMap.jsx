@@ -2861,11 +2861,17 @@ export default function DeliveryMap({
             );
             
             otherDriverIds.forEach(driverId => {
-              // CRITICAL: Don't show polyline when driver is on break
+              // CRITICAL: Don't show polyline when driver is on break or off_duty
               const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
-              if (driverAppUser?.driver_status === 'on_break') {
+              if (driverAppUser?.driver_status === 'on_break' || driverAppUser?.driver_status === 'off_duty') {
                 return;
               }
+              
+              // CRITICAL: Check staleness - use cached polyline if stale (>5 min old), don't skip
+              const locationAge = driverAppUser?.location_updated_at 
+                ? (Date.now() - new Date(driverAppUser.location_updated_at).getTime())
+                : Infinity;
+              const isStaleLocation = locationAge > (5 * 60 * 1000);
               
               // Get next stop (isNextDelivery=true), exclude pending
               const nextStop = deliveryMarkers.find(d => 
