@@ -126,9 +126,8 @@ Deno.serve(async (req) => {
       };
     }).filter(p => p !== null);
 
-    // Filter out nulls and sort by distance (closest first)
-    const validPredictions = predictions.filter(p => p !== null);
-    validPredictions.sort((a, b) => {
+    // Sort by distance (closest first)
+    predictions.sort((a, b) => {
       // Predictions without distance go to the end
       if (a.distance === null && b.distance === null) return 0;
       if (a.distance === null) return 1;
@@ -136,8 +135,8 @@ Deno.serve(async (req) => {
       return a.distance - b.distance;
     });
 
-    console.log('[googlePlacesAutocomplete] Returning', validPredictions.length, 'predictions (sorted by distance)');
-    return Response.json({ predictions: validPredictions });
+    console.log('[googlePlacesAutocomplete] Returning', predictions.length, 'predictions (sorted by distance)');
+    return Response.json({ predictions });
 
   } catch (error) {
     console.error('[googlePlacesAutocomplete] Caught error:', error);
