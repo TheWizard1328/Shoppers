@@ -1572,7 +1572,7 @@ export default function DeliveryForm({
         _focusAddress: !isMobileDevice // Auto-focus address field only on non-mobile devices
       });
     }
-  }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect]);
+  }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect, patients, isMobileDevice]);
 
   const handleStagedDeliveryClick = useCallback((staged) => {
     console.log('📦 [DeliveryForm] Clicking staged item:', staged);
