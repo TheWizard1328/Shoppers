@@ -1083,53 +1083,8 @@ class SmartRefreshManager {
       
       this.lastRefreshTimes.driverLocation = now;
       
-      // OFFLINE-FIRST: Load from offline DB first unless forceRefresh
-      if (!forceRefresh) {
-        try {
-          const { offlineDB } = await import('./offlineDatabase');
-          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-          
-          if (offlineAppUsers && offlineAppUsers.length > 0) {
-            console.log(`💾 [SmartRefresh] Loaded ${offlineAppUsers.length} AppUsers from offline DB for driver locations`);
-            
-            // Check if offline data is fresh enough (< 15 seconds for real-time tracking)
-            const syncStatus = await offlineDB.getSyncStatus('AppUser');
-            const isFresh = syncStatus?.lastSync && 
-              (Date.now() - new Date(syncStatus.lastSync).getTime() < 15000);
-            
-            if (isFresh) {
-              // Offline data is fresh - use it directly
-              const diff = diffEntityArrays(currentAppUsers, offlineAppUsers);
-              
-              if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-                const mergedAppUsers = mergeEntityChanges(currentAppUsers, diff);
-                
-                // Dispatch location update event
-                if (typeof window !== 'undefined') {
-                  window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                    detail: { appUsers: mergedAppUsers }
-                  }));
-                }
-                
-                return {
-                  hasChanges: true,
-                  appUsers: mergedAppUsers
-                };
-              }
-              
-              // No changes - return null
-              return null;
-            }
-            
-            // Offline data is stale - fetch from API in background and return offline immediately
-            console.log(`⏰ [SmartRefresh] Offline AppUser data is stale - refreshing from API`);
-          }
-        } catch (offlineError) {
-          console.warn('⚠️ [SmartRefresh] Failed to load AppUsers from offline DB:', offlineError.message);
-        }
-      }
-      
-      // Fetch from API (either forceRefresh or offline data is stale/missing)
+      // CRITICAL: ALWAYS fetch from API for driver locations - offline DB can have stale location data
+      // Offline DB is only used as fallback when API fails
       // CRITICAL: When showAllDrivers is true, fetch ALL AppUsers (not just drivers)
       await this.waitForRateLimit();
       let allAppUsers;
