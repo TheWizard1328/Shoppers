@@ -9,7 +9,7 @@ import { base44 } from '@/api/base44Client';
  * Google Address Autocomplete Component
  * Provides address suggestions within 75km of a specified city center
  */
-export function GoogleAddressAutocomplete({ 
+export const GoogleAddressAutocomplete = React.forwardRef(({ 
   value, 
   onChange, 
   onAddressSelect,
@@ -17,10 +17,11 @@ export function GoogleAddressAutocomplete({
   placeholder = "Search address...",
   className = "",
   disabled = false
-}) {
+}, ref) => {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const debounceTimer = useRef(null);
   const justSelected = useRef(false);
   const initialValue = useRef(value);
