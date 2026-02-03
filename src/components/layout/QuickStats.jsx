@@ -61,28 +61,30 @@ export default function QuickStats({ currentUser }) {
 
   // Patients by store
   const patientsByStore = stores.map(store => {
-    const storePatients = patients.filter(p => p.store_id === store.id);
+    if (!store) return null;
+    const storePatients = patients.filter(p => p && p.store_id === store.id);
     return {
       name: store.name,
       count: storePatients.length
     };
-  }).filter(s => s.count > 0);
+  }).filter(s => s && s.count > 0);
 
   // Active routes by driver (drivers with active deliveries today)
   const activeRoutesByDriver = drivers.map(driver => {
-    const driverTodayDeliveries = todayDeliveries.filter(d => d.driver_name === driver.full_name);
-    const completed = driverTodayDeliveries.filter(d => d.status === 'delivered').length;
-    const failed = driverTodayDeliveries.filter(d => d.status === 'failed').length;
-    const pending = driverTodayDeliveries.filter(d => ['pending', 'in_transit'].includes(d.status)).length;
+    if (!driver) return null;
+    const driverTodayDeliveries = todayDeliveries.filter(d => d && d.driver_name === (driver.user_name || driver.full_name));
+    const completed = driverTodayDeliveries.filter(d => d && d.status === 'completed').length;
+    const failed = driverTodayDeliveries.filter(d => d && d.status === 'failed').length;
+    const pending = driverTodayDeliveries.filter(d => d && ['pending', 'in_transit'].includes(d.status)).length;
     
     return {
-      name: driver.full_name,
+      name: driver.user_name || driver.full_name || 'Unknown',
       completed,
       failed,
       pending,
       total: driverTodayDeliveries.length
     };
-  }).filter(d => d.total > 0);
+  }).filter(d => d && d.total > 0);
 
   const toggleExpanded = (statName) => {
     setExpandedStat(expandedStat === statName ? null : statName);
