@@ -3450,6 +3450,20 @@ export default function DeliveryMap({
               eventHandlers={delivery.isOtherDriver ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
+                  e.target.openPopup();
+                  // Auto-center on marker with bottom padding for balloon
+                  if (map) {
+                    const messageBalloonsHeight = 120;
+                    const stopCardsFullContainer = document.querySelector('.horizontal-cards-container');
+                    let dynamicBottomPadding = messageBalloonsHeight + 20;
+                    if (stopCardsFullContainer) {
+                      const actualHeight = stopCardsFullContainer.getBoundingClientRect().height;
+                      dynamicBottomPadding = Math.max(actualHeight + messageBalloonsHeight + 20, messageBalloonsHeight + 20);
+                    }
+                    const panOptions = { paddingTopLeft: [60, 60], paddingBottomRight: [60, dynamicBottomPadding], maxZoom: 15, animate: true, duration: 0.6 };
+                    const markerBounds = L.latLngBounds([[delivery.latitude, delivery.longitude], [delivery.latitude, delivery.longitude]]);
+                    map.fitBounds(markerBounds, panOptions);
+                  }
                 },
                 mouseover: (e) => e.target.openPopup(),
                 mouseout: (e) => e.target.closePopup()
