@@ -79,6 +79,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
 import { globalFilters } from './components/utils/globalFilters';
 import CitySelectionPopup from './components/cities/CitySelectionPopup';
 import { getActiveDriversForCity, getAvailableDrivers } from './components/utils/driverSelectors';
+import DeviceRegistration from './components/devices/DeviceRegistration';
 // Removed: getCitiesWithinRadius - no longer using geographic filtering
 import { getUserAgentInfo, isMobileDeviceForTheme } from './components/utils/deviceUtils';
 import PatientImport from './components/patients/PatientImport';
@@ -702,6 +703,8 @@ export default function Layout({ children, currentPageName }) {
           const [adminImportEnabled, setAdminImportEnabled] = useState(false);
           const [isSnapshotModeActive, setIsSnapshotModeActive] = useState(false);
           const [showInviteQRModal, setShowInviteQRModal] = useState(false);
+  const [showDeviceRegistration, setShowDeviceRegistration] = useState(false);
+  const [deviceRegistered, setDeviceRegistered] = useState(false);
 
   // Poll for adminImportEnabled changes (for Kyle J to see updates when toggle changes)
   useEffect(() => {
@@ -3009,6 +3012,17 @@ export default function Layout({ children, currentPageName }) {
         currentUser={currentUser}
         onCitySelected={handleCitySelected} />
 
+      }
+
+      {/* Device Registration - Show after city selection, for drivers only */}
+      {!showCitySelectionPopup && currentUser && userHasRole(currentUser, 'driver') && !deviceRegistered &&
+      <DeviceRegistration
+        currentUser={currentUser}
+        onDeviceRegistered={(device) => {
+          console.log('✅ Device registered:', device);
+          setDeviceRegistered(true);
+          setShowDeviceRegistration(false);
+        }} />
       }
 
       {showPatientImport &&
