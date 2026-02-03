@@ -31,12 +31,16 @@ export default function QuickStats({ currentUser }) {
         base44.entities.Store.list(),
         base44.entities.AppUser.list()
       ]);
-      setPatients(patientsData);
-      setDeliveries(deliveriesData);
-      setStores(storesData);
-      setDrivers(appUsersData.filter(u => u && u.app_roles && u.app_roles.includes('driver')));
+      setPatients(patientsData || []);
+      setDeliveries(deliveriesData || []);
+      setStores(storesData || []);
+      setDrivers((appUsersData || []).filter(u => u && u.app_roles && u.app_roles.includes('driver')));
     } catch (error) {
       console.error("Error loading stats data:", error);
+      setPatients([]);
+      setDeliveries([]);
+      setStores([]);
+      setDrivers([]);
     }
   };
 
