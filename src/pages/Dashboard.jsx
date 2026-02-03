@@ -1985,15 +1985,32 @@ function Dashboard() {
         console.log(`✅ [Periodic Refresh] Synced ${latestAppUsers.length} AppUsers to offline DB`);
       }
 
-      // CRITICAL: Sync patients for these deliveries to offline DB
+      // CRITICAL: Incremental patient sync - only fetch patients that changed since last refresh
       const uniquePatientIds = [...new Set(freshDeliveries.filter(d => d?.patient_id).map(d => d.patient_id))];
       if (uniquePatientIds.length > 0) {
         try {
-          const { Patient } = await import('@/entities/Patient');
-          const freshPatients = await Patient.filter({ id: { $in: uniquePatientIds } });
-          if (freshPatients && freshPatients.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-            console.log(`✅ [Periodic Refresh] Synced ${freshPatients.length} patients to offline DB`);
+          // Get existing patients from offline DB to check timestamps
+          const existingPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+          const existingPatientMap = new Map(existingPatients.map(p => [p.id, p.updated_date]));
+          
+          // Only fetch patients that don't exist or might have been updated
+          const patientIdsToFetch = uniquePatientIds.filter(id => {
+            const existingTimestamp = existingPatientMap.get(id);
+            // Fetch if: not in DB OR was updated in last hour (likely changed)
+            if (!existingTimestamp) return true;
+            const age = Date.now() - new Date(existingTimestamp).getTime();
+            return age < 3600000; // 1 hour
+          });
+          
+          if (patientIdsToFetch.length > 0) {
+            const { Patient } = await import('@/entities/Patient');
+            const freshPatients = await Patient.filter({ id: { $in: patientIdsToFetch } });
+            if (freshPatients && freshPatients.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+              console.log(`✅ [Periodic Refresh] Synced ${freshPatients.length}/${uniquePatientIds.length} changed patients to offline DB`);
+            }
+          } else {
+            console.log(`⏭️ [Periodic Refresh] All ${uniquePatientIds.length} patients already current in offline DB`);
           }
         } catch (patientError) {
           console.warn(`⚠️ [Periodic Refresh] Failed to sync patients: ${patientError.message}`);
