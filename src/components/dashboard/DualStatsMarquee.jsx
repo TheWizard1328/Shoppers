@@ -69,7 +69,8 @@ export default function DualStatsMarquee({
   const inTransitDeliveries = localStats?.inTransit || 0;
   
   // Driver counts for dispatchers (from backend stats)
-  const stats = deliveryStats?.today || {
+  // CRITICAL: Safely access nested property with null checks
+  const stats = (deliveryStats && deliveryStats.today) ? deliveryStats.today : {
     completed: 0,
     activeStops: 0,
     failed: 0,
