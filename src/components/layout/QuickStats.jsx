@@ -133,7 +133,7 @@ export default function QuickStats({ currentUser }) {
       </div>
 
       {/* Total Patients */}
-      {currentUser && (currentUser?.role === 'admin' || (currentUser?.app_roles && currentUser.app_roles.includes('dispatcher'))) && (
+      {currentUser && currentUser.id && (currentUser?.role === 'admin' || (currentUser?.app_roles && currentUser.app_roles.includes('dispatcher'))) && (
         <div>
           <div 
             className="flex items-center justify-between text-sm cursor-pointer hover:bg-slate-50 p-2 rounded-lg"
