@@ -281,8 +281,8 @@ class LiveDistanceTracker {
 
       const nextDelivery = nextDeliveries?.[0];
 
-      if (!nextDelivery) {
-        console.log('⏭️ [LiveDistanceTracker] No next delivery found');
+      if (!nextDelivery || !nextDelivery.id) {
+        console.log('⏭️ [LiveDistanceTracker] No next delivery found or missing ID');
         return;
       }
 
@@ -290,7 +290,7 @@ class LiveDistanceTracker {
       const currentTravelDist = nextDelivery.travel_dist || 0;
       const newTravelDist = currentTravelDist + distanceMoved;
 
-      console.log(`📏 [LiveDistanceTracker] Updating ${nextDelivery.patient_name || nextDelivery.delivery_notes}: ${currentTravelDist.toFixed(3)} + ${distanceMoved.toFixed(3)} = ${newTravelDist.toFixed(3)} km`);
+      console.log(`📏 [LiveDistanceTracker] Updating ${nextDelivery.patient_name || nextDelivery.delivery_id}: ${currentTravelDist.toFixed(3)} + ${distanceMoved.toFixed(3)} = ${newTravelDist.toFixed(3)} km`);
 
       await base44.entities.Delivery.update(nextDelivery.id, {
         travel_dist: Math.round(newTravelDist * 1000) / 1000 // Round to 3 decimals
