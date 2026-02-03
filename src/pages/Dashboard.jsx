@@ -2473,10 +2473,26 @@ function Dashboard() {
 
         // CRITICAL: Always include shared locations for desktop OR "show all" mode OR dispatchers
         const shouldIncludeSharedLocations = !isMobile || shouldShowAllMarkersForBounds || isDispatcher;
+        
+        // CRITICAL: Also load from window.__mapDriverLocationMarkers (rendered on map)
+        const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
+        console.log(`🗺️ [Phase 1] Map driver location markers count: ${mapDriverLocationMarkers.length}`);
 
-        if (isViewingToday && shouldIncludeSharedLocations && allDriverLocations.length > 0 && Array.isArray(allDriverLocations)) {
+        if (isViewingToday && shouldIncludeSharedLocations && (allDriverLocations.length > 0 || mapDriverLocationMarkers.length > 0) && (Array.isArray(allDriverLocations) || Array.isArray(mapDriverLocationMarkers))) {
           let addedCount = 0;
-          allDriverLocations.forEach((location) => {
+          
+          // Combine both sources for shared locations
+          const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
+          
+          // Deduplicate by driver_id
+          const uniqueLocations = new Map();
+          allLocationSources.forEach(loc => {
+            if (loc?.driver_id && !uniqueLocations.has(loc.driver_id)) {
+              uniqueLocations.set(loc.driver_id, loc);
+            }
+          });
+          
+          Array.from(uniqueLocations.values()).forEach((location) => {
             if (!location?.latitude || !location?.longitude || !location?.driver_id) {
               console.log('⏭️ [Phase 1] Skipping location - missing coords/id:', location);
               return;
@@ -2521,7 +2537,7 @@ function Dashboard() {
             addedCount++;
             console.log(`✅ [Phase 1] Added shared location: ${location.driver_id} (${location.driver_status})`);
           });
-          console.log(`🗺️ [Phase 1] Added ${addedCount} shared driver locations`);
+          console.log(`🗺️ [Phase 1] Added ${addedCount} shared driver locations (from ${uniqueLocations.size} unique sources)`);
         } else {
           console.log(`⏭️ [Phase 1] Not showing shared locations - conditions not met`);
         }
