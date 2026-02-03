@@ -2051,38 +2051,49 @@ class SmartRefreshManager {
       this.isRefreshing = false;
       return null;
     }
-    
+
     // CRITICAL: Skip if paused during mutations
     if (this._paused) {
       this.isRefreshing = false;
       return null;
     }
-    
+
     if (isEntityUpdating) {
       this.isRefreshing = false;
       return null;
     }
-    
+
     // CRITICAL: Auto-unlock if stuck for more than 30 seconds
     if (this.isRefreshing && this._refreshStartTime && (Date.now() - this._refreshStartTime > 30000)) {
       console.warn('🔓 [SmartRefresh] Auto-unlocking stuck refresh state (>30s)');
       this.isRefreshing = false;
     }
-    
+
     if (this.isRefreshing) {
       return null;
     }
-    
+
     // CRITICAL: Touch user cache on every refresh cycle to prevent session timeout
     try {
       touchUserCache();
     } catch (e) {
       // Ignore errors from touchUserCache
     }
-    
+
     this.isRefreshing = true;
     this._refreshStartTime = Date.now();
     const updates = {};
+
+    // CRITICAL: Run priority sync FIRST before any other refresh operations
+    // This ensures AppUsers, active date Deliveries, and associated Patients are always fresh
+    try {
+      const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+      const { performPrioritySyncBeforeRefresh } = await import('./offlineSync');
+      await performPrioritySyncBeforeRefresh(selectedDateStr, filters?.cityFilter?.city_id || null);
+    } catch (priorityError) {
+      console.warn('⚠️ [SmartRefresh] Priority sync failed:', priorityError.message);
+      // Continue with regular refresh even if priority sync fails
+    }
     
     try {
       // PRIORITY 1: Active route data (15-second cycle)
