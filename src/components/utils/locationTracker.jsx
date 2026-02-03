@@ -218,13 +218,7 @@ class LocationTracker {
       const currentDevice = await getCurrentDevice(this.currentUser.id);
       const isPrimaryTracker = currentDevice?.is_primary_tracker || false;
 
-      const nowFormatted = new Date();
-      const year = nowFormatted.getFullYear();
-      const month = String(nowFormatted.getMonth() + 1).padStart(2, '0');
-      const day = String(nowFormatted.getDate()).padStart(2, '0');
-      const hours = String(nowFormatted.getHours()).padStart(2, '0');
-      const minutes = String(nowFormatted.getMinutes()).padStart(2, '0');
-      const seconds = String(nowFormatted.getSeconds()).padStart(2, '0');
+      const nowISO = new Date().toISOString();
       
       console.log(`📤 [LocationTracker] Device isPrimary: ${isPrimaryTracker} - lat: ${latitude.toFixed(6)}, lng: ${longitude.toFixed(6)}`);
       
@@ -234,7 +228,7 @@ class LocationTracker {
         const updateData = {
           current_latitude: latitude,
           current_longitude: longitude,
-          location_updated_at: `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+          location_updated_at: nowISO
         };
         
         updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
@@ -256,7 +250,7 @@ class LocationTracker {
       if (this.currentUser) {
         this.currentUser.current_latitude = latitude;
         this.currentUser.current_longitude = longitude;
-        this.currentUser.location_updated_at = updateData.location_updated_at;
+        this.currentUser.location_updated_at = nowISO;
         
         // Update liveDistanceTracker's currentUser reference
         if (liveDistanceTracker.isTracking && liveDistanceTracker.currentUser) {
