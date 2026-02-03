@@ -314,13 +314,44 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     if (storeIds && storeIds.length > 0) {
       deliveryCheckFilter.store_id = { $in: storeIds };
     }
-    
+
     const deliveryFilter = { delivery_date: deliveryDateToSync };
     if (storeIds && storeIds.length > 0) {
       deliveryFilter.store_id = { $in: storeIds };
     }
-    
-    await syncEntityWithTimestampCheck('Delivery', Delivery, deliveryFilter, deliveryCheckFilter);
+
+    // Fetch deliveries first
+    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+    if (deliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+
+      // CRITICAL: Extract unique patient IDs from these deliveries and sync them immediately
+      // This ensures all patients referenced in current deliveries are up-to-date across all devices
+      const patientIds = new Set(
+        deliveries
+          .filter(d => d && d.patient_id)
+          .map(d => d.patient_id)
+      );
+
+      if (patientIds.size > 0) {
+        const patientIdList = Array.from(patientIds);
+        const PATIENT_BATCH_SIZE = 50;
+
+        for (let i = 0; i < patientIdList.length; i += PATIENT_BATCH_SIZE) {
+          const batchIds = patientIdList.slice(i, i + PATIENT_BATCH_SIZE);
+          const batchPatients = await Patient.filter({ id: { $in: batchIds } });
+
+          if (batchPatients && batchPatients.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+          }
+
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+    }
+
+    // Update delivery metadata
+    await offlineDB.updateSyncMetadata('Delivery', null, new Date().toISOString());
 
     notifySyncStatus({ status: 'complete' });
     window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
