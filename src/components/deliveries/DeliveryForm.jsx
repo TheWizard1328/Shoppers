@@ -5117,6 +5117,7 @@ export default function DeliveryForm({
                 setDebugPatientData(null);
                 // Execute pending action after closing debug popup
                 if (pendingAction) {
+                  setSelectedPatientForNewForm(pendingAction.patient);
                   setNewPatientMode(pendingAction.type);
                   setPendingAction(null);
                 }
