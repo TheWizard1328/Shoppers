@@ -7130,9 +7130,9 @@ function Dashboard() {
                                 <button
                                 type="button"
                                 onClick={() => {
-                                  const today = new Date();
-                                  setCalendarMonth(today);
-                                  handleDateChange(today);
+                                  const todayDate = new Date();
+                                  setCalendarMonth(todayDate);
+                                  handleDateChange(todayDate);
                                 }}
                                 className="w-full flex items-center justify-center gap-1 p-1.5 rounded text-xs"
                                 style={{
