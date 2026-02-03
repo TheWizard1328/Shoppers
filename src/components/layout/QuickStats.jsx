@@ -21,8 +21,10 @@ export default function QuickStats({ currentUser }) {
   const [expandedStat, setExpandedStat] = useState(null);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (currentUser) {
+      loadData();
+    }
+  }, [currentUser]);
 
   const loadData = async () => {
     try {
@@ -42,7 +44,7 @@ export default function QuickStats({ currentUser }) {
   };
 
   // CRITICAL: Add null check to prevent crashes during initialization
-  if (!currentUser || patients.length === 0 || deliveries.length === 0 || stores.length === 0) {
+  if (!currentUser) {
     return null;
   }
 
