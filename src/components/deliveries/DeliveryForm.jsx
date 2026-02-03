@@ -223,7 +223,6 @@ export default function DeliveryForm({
   const [isPayrollLocked, setIsPayrollLocked] = useState(false);
   const [payrollLockMessage, setPayrollLockMessage] = useState(null);
   const [debugPatientData, setDebugPatientData] = useState(null);
-  const [pendingAction, setPendingAction] = useState(null);
 
   // Camera state
   const videoRef = useRef(null);
@@ -1372,14 +1371,10 @@ export default function DeliveryForm({
   const handleDuplicatePatient = useCallback((patient) => {
     if (!patient) return;
     
-    // CRITICAL: Get full patient data
+    // CRITICAL: Get full patient data and show debug popup for app owner
     const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
-    
-    // Show debug popup for app owner BEFORE opening form
     if (isAppOwner(currentUser)) {
       setDebugPatientData({ action: 'Duplicate Patient', patient: fullPatient });
-      setPendingAction({ type: 'duplicate', patient: fullPatient });
-      return;
     }
     
     setNewPatientMode('duplicate');
@@ -1475,11 +1470,9 @@ export default function DeliveryForm({
     // CRITICAL: Get full patient data to ensure all fields are populated
     const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
     
-    // Show debug popup for app owner BEFORE opening form
+    // CRITICAL: Show debug popup for app owner
     if (isAppOwner(currentUser)) {
       setDebugPatientData({ action: 'New Address', patient: fullPatient });
-      setPendingAction({ type: 'new_address', patient: fullPatient });
-      return;
     }
     
     setNewPatientMode('new_address');
@@ -5113,15 +5106,7 @@ export default function DeliveryForm({
             <Button
               size="sm"
               className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => {
-                setDebugPatientData(null);
-                // Execute pending action after closing debug popup
-                if (pendingAction) {
-                  setSelectedPatientForNewForm(pendingAction.patient);
-                  setNewPatientMode(pendingAction.type);
-                  setPendingAction(null);
-                }
-              }}>
+              onClick={() => setDebugPatientData(null)}>
               Close
             </Button>
           </div>
