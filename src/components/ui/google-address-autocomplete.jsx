@@ -21,10 +21,12 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const debounceTimer = useRef(null);
   const justSelected = useRef(false);
   const initialValue = useRef(value);
   const hasUserTyped = useRef(false);
+  const inputRef = useRef(null);
 
   // Fetch suggestions from Google Places Autocomplete
   const fetchSuggestions = async (searchText) => {
