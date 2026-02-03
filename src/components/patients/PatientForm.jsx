@@ -820,6 +820,7 @@ export default function PatientForm({
                   <div className="col-span-4 space-y-1">
                     <Label htmlFor="unit_number" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Unit/Apt #</Label>
                     <Input
+                      ref={unitNumberRef}
                       id="unit_number"
                       value={formData.unit_number}
                       onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
