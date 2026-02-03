@@ -77,9 +77,9 @@ Deno.serve(async (req) => {
       console.log(`✅ [setDriverStatus] isNextDelivery flags cleared - delivery order preserved`);
     }
     
-    // When coming back on_duty from break, set isNextDelivery flag and update ETAs
+    // When coming back on_duty from break, find closest delivery and trigger re-optimization
     if (newStatus === 'on_duty') {
-      console.log(`🔄 [setDriverStatus] Driver back on duty - setting next delivery flag and updating ETAs`);
+      console.log(`🔄 [setDriverStatus] Driver back on duty - finding closest delivery and re-optimizing route`);
       
       const today = new Date().toISOString().split('T')[0];
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -90,15 +90,80 @@ Deno.serve(async (req) => {
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const incompleteDeliveries = allTodayDeliveries.filter(d => 
         !finishedStatuses.includes(d.status) && d.status !== 'pending'
-      ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      );
       
       if (incompleteDeliveries.length > 0) {
-        const nextDelivery = incompleteDeliveries[0];
+        // Find closest stop to driver's current location
+        let closestDelivery = null;
+        let minDistance = Infinity;
         
-        console.log(`📍 [setDriverStatus] Setting isNextDelivery=true for: ${nextDelivery.patient_name || 'Pickup'}`);
-        await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true });
+        const driverLat = appUser.current_latitude;
+        const driverLng = appUser.current_longitude;
         
-        // ETAs will be automatically recalculated by ETATracker component
+        if (driverLat && driverLng) {
+          // Calculate distance to each incomplete delivery
+          for (const delivery of incompleteDeliveries) {
+            let deliveryLat, deliveryLng;
+            
+            // Get coordinates based on delivery type
+            if (delivery.patient_id) {
+              // Patient delivery - fetch patient coordinates
+              const patients = await base44.asServiceRole.entities.Patient.filter({ id: delivery.patient_id });
+              if (patients && patients.length > 0) {
+                deliveryLat = patients[0].latitude;
+                deliveryLng = patients[0].longitude;
+              }
+            } else {
+              // Store pickup - fetch store coordinates
+              const stores = await base44.asServiceRole.entities.Store.filter({ id: delivery.store_id });
+              if (stores && stores.length > 0) {
+                deliveryLat = stores[0].latitude;
+                deliveryLng = stores[0].longitude;
+              }
+            }
+            
+            if (deliveryLat && deliveryLng) {
+              // Simple distance calculation (Haversine formula)
+              const R = 6371; // Earth radius in km
+              const dLat = (deliveryLat - driverLat) * Math.PI / 180;
+              const dLng = (deliveryLng - driverLng) * Math.PI / 180;
+              const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                        Math.cos(driverLat * Math.PI / 180) * Math.cos(deliveryLat * Math.PI / 180) *
+                        Math.sin(dLng/2) * Math.sin(dLng/2);
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+              const distance = R * c;
+              
+              if (distance < minDistance) {
+                minDistance = distance;
+                closestDelivery = delivery;
+              }
+            }
+          }
+        }
+        
+        // If we found closest delivery, set it as next and trigger re-optimization
+        if (closestDelivery) {
+          console.log(`📍 [setDriverStatus] Closest delivery: ${closestDelivery.patient_name || 'Pickup'} (${minDistance.toFixed(2)} km away)`);
+          
+          // Set isNextDelivery on closest delivery
+          await base44.asServiceRole.entities.Delivery.update(closestDelivery.id, { isNextDelivery: true });
+          
+          // Trigger route re-optimization from current location
+          console.log(`🤖 [setDriverStatus] Triggering route re-optimization from current location`);
+          await base44.asServiceRole.functions.invoke('optimizeDriverRoute', {
+            driverId: user.id,
+            deliveryDate: today,
+            currentLocation: driverLat && driverLng ? { latitude: driverLat, longitude: driverLng } : null,
+            generatePolyline: true
+          });
+          
+          console.log(`✅ [setDriverStatus] Route re-optimized with ${closestDelivery.patient_name || 'Pickup'} as next stop`);
+        } else {
+          // Fallback to first stop by stop_order if distance calculation failed
+          const nextDelivery = incompleteDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+          console.log(`📍 [setDriverStatus] Using first stop by order: ${nextDelivery.patient_name || 'Pickup'}`);
+          await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true });
+        }
       } else {
         console.log(`ℹ️ [setDriverStatus] No incomplete deliveries to mark as next`);
       }
