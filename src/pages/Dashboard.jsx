@@ -1919,22 +1919,22 @@ function Dashboard() {
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const isToday = selectedDateStr === todayStr;
-      
+
       // CRITICAL: ALWAYS load ALL drivers' deliveries for complete map marker data
       // This ensures markers update correctly in Single Driver, All Drivers, and Show All modes
-      const shouldLoadAllDrivers = true; // ALWAYS fetch all to ensure complete marker updates
-      
       console.log(`🔄 [Periodic Refresh] Loading ALL drivers for ${selectedDateStr} (isToday: ${isToday})`);
-      
+
       let freshDeliveries;
-      
+
       // CRITICAL: ALWAYS fetch from API for today's date (cross-device sync)
       // Only use dataSource preference for historical dates
       if (isToday || dataSource === 'online') {
         console.log(`🌐 [Periodic Refresh] Fetching ALL drivers from API (${isToday ? 'today - cross-device sync' : 'online mode'})`);
         try {
           freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(() => {});
+          // CRITICAL: ALWAYS sync to offline DB after API fetch to persist updates
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+          console.log(`✅ [Periodic Refresh] Synced ${freshDeliveries.length} deliveries to offline DB`);
         } catch (apiError) {
           console.warn(`⚠️ [Periodic Refresh] API fetch failed - using offline DB: ${apiError.message}`);
           freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr) || [];
@@ -1942,30 +1942,43 @@ function Dashboard() {
       } else {
         // Historical dates - try offline DB first
         freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        
+
         if (!freshDeliveries || freshDeliveries.length === 0) {
           console.log('📥 [Periodic Refresh] Offline DB empty - fetching ALL from API');
           freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
         } else {
           console.log(`📦 [Periodic Refresh] Loaded ${freshDeliveries.length} ALL drivers from offline DB`);
+          // CRITICAL: Even when using offline data, occasionally refresh from API to catch cross-device updates
+          // Refresh every 3 cycles (45 seconds) to stay current
+          if (Math.floor(Date.now() / 15000) % 3 === 0) {
+            console.log(`🔄 [Periodic Refresh] Syncing offline DB with API for cross-device updates...`);
+            try {
+              const apiDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, apiDeliveries);
+              freshDeliveries = apiDeliveries;
+              console.log(`✅ [Periodic Refresh] Synced ${apiDeliveries.length} deliveries from API to offline DB`);
+            } catch (syncError) {
+              console.warn(`⚠️ [Periodic Refresh] API sync failed - using cached offline data: ${syncError.message}`);
+            }
+          }
         }
       }
-      
+
       // Update context with fresh deliveries
       if (updateDeliveriesLocally && freshDeliveries.length > 0) {
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
         updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
         console.log(`✅ [Periodic Refresh] Updated UI with ${freshDeliveries.length} ALL drivers deliveries`);
       }
-      
+
       // CRITICAL: ALWAYS force full AppUser refresh to get ALL drivers' locations
       // This ensures ALL markers update regardless of selection mode
-      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
-      
+      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
+
       // Use updated AppUsers or fall back to current context
       const latestAppUsers = locationUpdates?.appUsers || appUsers;
-      
+
       // CRITICAL: Always process location data for ALL drivers to update markers
       driverLocationPoller.processLocationData(
         currentUser, 
@@ -1976,13 +1989,13 @@ function Dashboard() {
         selectedDate, 
         true
       );
-      
+
       // CRITICAL: ALWAYS dispatch for ALL drivers to ensure complete marker updates
       console.log(`📍 [Periodic Refresh] Dispatching location updates for ALL ${latestAppUsers.length} drivers`);
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
         detail: { appUsers: latestAppUsers, forceAll: true }
       }));
-      
+
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { deliveryDate: selectedDateStr, triggeredBy: 'periodicRefresh' }
       }));
