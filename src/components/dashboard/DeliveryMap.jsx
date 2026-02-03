@@ -1470,7 +1470,7 @@ export default function DeliveryMap({
       return;
     }
     
-    // Retract any expanded cluster and call onMarkerClick for non-clustered markers
+    // Retract any expanded cluster
     setFannedLocationKey(null);
     
     // Track marker click
@@ -1487,13 +1487,50 @@ export default function DeliveryMap({
       const assignedPickup = pickupMarkers.find(p => p && p.stop_id === marker.puid);
       if (assignedPickup && onMarkerClick) {
         onMarkerClick(assignedPickup);
-        return;
+      }
+    } else if (onMarkerClick) {
+      onMarkerClick(marker);
+    }
+    
+    // Auto-center marker on screen slightly below center for balloon visibility
+    if (map) {
+      // Get marker element to check if popup is open
+      const markerElement = markerRefs.current[`${markerType}-${marker.id}`];
+      
+      // Calculate dynamic bottom padding for message balloon
+      const messageBalloonsHeight = 120; // Approximate height of popup balloon + padding
+      const stopCardsFullContainer = document.querySelector('.horizontal-cards-container');
+      let dynamicBottomPadding = messageBalloonsHeight + 20; // Add buffer
+      
+      if (stopCardsFullContainer) {
+        const actualHeight = stopCardsFullContainer.getBoundingClientRect().height;
+        dynamicBottomPadding = Math.max(actualHeight + messageBalloonsHeight + 20, messageBalloonsHeight + 20);
+      }
+      
+      // Create a small bounds box centered on the marker
+      const markerBounds = L.latLngBounds([
+        [marker.latitude, marker.longitude],
+        [marker.latitude, marker.longitude]
+      ]);
+      
+      // Center map with offset to show balloon fully
+      const panOptions = {
+        paddingTopLeft: [60, 60],
+        paddingBottomRight: [60, dynamicBottomPadding],
+        animate: true,
+        duration: 0.6
+      };
+      
+      map.fitBounds(markerBounds, panOptions);
+      
+      // Open the marker's popup if available
+      if (markerElement && markerElement._popup) {
+        setTimeout(() => {
+          markerElement.openPopup();
+        }, 300);
       }
     }
     
-    if (onMarkerClick) {
-      onMarkerClick(marker);
-    }
     // Notify parent that map interaction occurred (marker click)
     if (onMapInteraction) {
       onMapInteraction();
