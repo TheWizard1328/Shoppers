@@ -147,6 +147,10 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       
       // CRITICAL: Pause smart refresh to prevent it from overwriting our changes
       const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+      
+      // CRITICAL: Protect this AppUser from smart refresh overwrites for 10 seconds
+      smartRefreshManager.registerPendingAppUserUpdate(appUserId, 'driver_status');
+      
       smartRefreshManager.pause();
       console.log('⏸️ [DriverStatusToggle] Smart refresh paused during status change');
       
@@ -210,10 +214,6 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       
       // CRITICAL: Broadcast status change to other devices via WebSocket
       broadcastMutation('AppUser', 'update', appUserId, updatedAppUser);
-      
-      // CRITICAL: Protect this AppUser from smart refresh overwrites for 10 seconds
-      const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-      smartRefreshManager.registerPendingAppUserUpdate(appUserId, 'driver_status');
       
       // CRITICAL: Call backend function to enforce single active device
       console.log('📱 Calling setDriverStatus backend function...');
