@@ -53,7 +53,14 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
           status: 'active'
         });
 
-        setExistingDevices(userDevices || []);
+        // Sort devices - primary tracker first
+        const sortedDevices = (userDevices || []).sort((a, b) => {
+          if (a.is_primary_tracker && !b.is_primary_tracker) return -1;
+          if (!a.is_primary_tracker && b.is_primary_tracker) return 1;
+          return 0;
+        });
+
+        setExistingDevices(sortedDevices);
 
         // Suggest default device name based on device info
         const { deviceType, os } = getUserAgentInfo();
