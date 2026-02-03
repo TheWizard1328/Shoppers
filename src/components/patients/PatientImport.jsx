@@ -57,7 +57,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
   const [missingPatients, setMissingPatients] = useState([]);
 
   useEffect(() => {
-    console.log("PatientImport: Component mounted, loading stores.");
+
     loadData();
     // loadSavedMapping is removed as mapping is fixed
     
@@ -74,9 +74,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       // Only fetching stores now
       const fetchedStores = await Store.list();
       setStores(fetchedStores || []);
-      console.log("PatientImport: Stores loaded successfully:", fetchedStores.length, "stores.");
+
     } catch (error) {
-      console.error("PatientImport: Error loading stores:", error);
+
     }
   };
 
@@ -87,7 +87,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
   // New function to find store by abbreviation with flexible matching
   const findStoreByAbbreviation = (storeAbbr) => {
     if (!storeAbbr) {
-      console.log("PatientImport: findStoreByAbbreviation called with empty abbreviation.");
+
       return null;
     }
 
@@ -98,7 +98,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     s.abbreviation && s.abbreviation.toLowerCase() === abbrLower
     );
     if (store) {
-      console.log(`PatientImport: Found store by exact abbreviation match: ${store.name} for "${storeAbbr}"`);
+
       return store.id;
     }
 
@@ -116,9 +116,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     });
 
     if (store) {
-      console.log(`PatientImport: Found store by flexible abbreviation match: ${store.name} for "${storeAbbr}"`);
+
     } else {
-      console.log(`PatientImport: No store found for abbreviation "${storeAbbr}"`);
+
     }
     return store ? store.id : null;
   };
@@ -199,15 +199,14 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         storeColor = matchedStore.color;
       } else {
         storeName = `N/A (${storeAbbrCsv})`;
-        console.warn(`PatientImport: Store not found for abbreviation in CSV: "${storeAbbrCsv}"`);
+
       }
     }
 
     // Parse address and notes to extract unit, preferences, and recurring patterns
-    console.log(`[PatientImport] Processing patient: ${fullName}, Original notes:`, notesStr);
+
     const { cleanedAddress, unitNumber, cleanedNotes, preferences, recurring } = cleanAddressAndNotes(addressStr, notesStr);
-    console.log(`[PatientImport] Extracted recurring for ${fullName}:`, recurring);
-    console.log(`[PatientImport] Extracted preferences for ${fullName}:`, preferences);
+
 
     // Determine if patient should be inactive based on:
     // 1. Col 19 = 'X' (explicit inactive flag)
@@ -246,29 +245,20 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       ...recurring
     };
 
-    console.log(`[PatientImport] Final patient data for ${fullName}:`, {
-      recurring_bimonthly: patientData.recurring_bimonthly,
-      recurring_biweekly: patientData.recurring_biweekly,
-      recurring_weekly_mon: patientData.recurring_weekly_mon,
-      recurring_weekly_tue: patientData.recurring_weekly_tue,
-      recurring_weekly_wed: patientData.recurring_weekly_wed,
-      recurring_weekly_thu: patientData.recurring_weekly_thu,
-      recurring_weekly_fri: patientData.recurring_weekly_fri,
-      status: patientData.status // Also log status for verification
-    });
+
 
     return patientData;
   };
 
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
-    console.log("PatientImport: Files selected:", selectedFiles.map((f) => f.name));
+
 
     if (selectedFiles.length === 0) {
       setFiles([]);
       setColumnCount(0);
       setPreviewData([]); // Clear processed patient preview
-      console.log("PatientImport: No files selected, clearing data.");
+
       return;
     }
 
@@ -295,7 +285,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         alert(`File ${firstFile.name} must have at least 2 rows (header + data).`);
         setColumnCount(0);
         setPreviewData([]); // Clear
-        console.warn(`PatientImport: File ${firstFile.name} too short for preview.`);
+
         return;
       }
 
@@ -305,7 +295,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         alert(`File ${firstFile.name} has no data rows after skipping the first line (header).`);
         setColumnCount(0);
         setPreviewData([]); // Clear
-        console.warn(`PatientImport: File ${firstFile.name} has no data rows.`);
+
         return;
       }
 
@@ -313,7 +303,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       const firstRowRawData = parseCSVLine(dataLines[0]);
       const newColumnCount = Math.min(firstRowRawData.length, 20); // Cap at 20 columns for practical purposes
       setColumnCount(newColumnCount);
-      console.log(`PatientImport: Column count set to ${newColumnCount} for first file ${firstFile.name}.`);
+
 
 
       // Initial population of previewData based on current mapping.
@@ -325,7 +315,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
           const patientObj = processCsvRowToPatient(values, fieldMapping, stores);
           processedPreviewPatients.push(patientObj);
         } catch (error) {
-          console.warn(`PatientImport: Error processing preview row ${i + 2} on file change:`, error);
+
           processedPreviewPatients.push({
             full_name: `Error in row ${i + 2}`,
             address: error.message,
@@ -335,7 +325,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         }
       }
       setPreviewData(processedPreviewPatients); // previewData now holds patient objects
-      console.log(`PatientImport: Initial preview data generated for ${processedPreviewPatients.length} rows.`);
+
     };
 
     reader.readAsText(firstFile);
@@ -351,7 +341,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
     // Only generate live preview if a file is selected and basic mapping is present (which it always is now)
     if (files.length > 0 && columnCount > 0) {// Removed fieldMapping checks as it's fixed
-      console.log("PatientImport: Triggering live preview update due to file/store change.");
+
       const firstFile = files[0];
       const reader = new FileReader();
 
@@ -361,13 +351,13 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         // IMPORTANT: Line 1 is ALWAYS the header and is ALWAYS skipped
         if (lines.length < 2) {
           setPreviewData([]);
-          console.warn(`PatientImport: Live preview: file ${firstFile.name} too short.`);
+
           return;
         }
         const dataLines = lines.slice(1); // Skip line 1 (header), start from line 2
         if (dataLines.length === 0) {
           setPreviewData([]);
-          console.warn(`PatientImport: Live preview: file ${firstFile.name} has no data rows.`);
+
           return;
         }
 
@@ -378,7 +368,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
             const patientObj = processCsvRowToPatient(values, fieldMapping, stores);
             processedPreviewPatients.push(patientObj);
           } catch (error) {
-            console.warn(`PatientImport: Error re-processing preview row ${i + 2} on mapping change:`, error);
+
             processedPreviewPatients.push({
               full_name: `Error in row ${i + 2}`,
               address: error.message,
@@ -388,17 +378,17 @@ export default function PatientImport({ onImportComplete, onImportStart, current
           }
         }
         setPreviewData(processedPreviewPatients);
-        console.log(`PatientImport: Live preview re-generated for ${processedPreviewPatients.length} rows.`);
+
       };
       reader.readAsText(firstFile);
     } else {
       setPreviewData([]); // Clear preview if incomplete or no files
-      console.log("PatientImport: Clearing live preview due to incomplete data or no files.");
+
     }
   }, [files, stores, columnCount]); // Dependencies for this effect
 
   const removeFile = (indexToRemove) => {
-    console.log(`PatientImport: Removing file at index ${indexToRemove}: ${files[indexToRemove]?.name}`);
+
     const updatedFiles = files.filter((_, index) => index !== indexToRemove);
     setFiles(updatedFiles);
 
@@ -406,11 +396,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       // If the first file was removed and others exist, re-preview the new first file
       // Trigger handleFileChange manually to update preview data and column count
       // Create a mock event object for handleFileChange
-      console.log("PatientImport: First file removed, re-triggering handleFileChange for new first file.");
+
       handleFileChange({ target: { files: updatedFiles } });
     } else if (updatedFiles.length === 0) {
       // If all files removed, clear preview
-      console.log("PatientImport: All files removed, clearing preview and column count.");
+
       setColumnCount(0);
       setPreviewData([]);
     }
@@ -427,10 +417,10 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
         if (isRateLimit && i < maxRetries - 1) {
           const waitTime = baseDelay * Math.pow(2, i);
-          console.warn(`PatientImport: Rate limit hit, waiting ${waitTime}ms before retry ${i + 1}/${maxRetries}`);
+
           await delay(waitTime);
         } else {
-          console.error(`PatientImport: RetryWithBackoff failed after ${i + 1} attempts.`, error);
+
           throw error;
         }
       }
@@ -522,10 +512,10 @@ export default function PatientImport({ onImportComplete, onImportStart, current
   };
 
   const generatePreview = async () => {
-    console.log("PatientImport: Starting preview generation...");
+
     if (files.length === 0) {
       alert('Please select at least one file');
-      console.warn("PatientImport: Preview failed: no files selected.");
+
       return;
     }
 
@@ -533,7 +523,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     // They will implicitly pass if `fieldMapping` const is correctly defined.
     if (!fieldMapping.store_abbreviation || !fieldMapping.full_name || !fieldMapping.address) {
       alert('Internal error: Essential fixed mappings are missing. Please contact support.');
-      console.error("PatientImport: Preview failed: Essential fixed mappings are missing.");
+
       return;
     }
 
@@ -542,16 +532,15 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     setPreviewChanges({ toCreate: [], toUpdate: [], errors: [] }); // Clear previous preview
 
     try {
-      console.log(`PatientImport: Processing ${files.length} file(s)`, stores.length, "stores loaded");
-      console.log("PatientImport: Fetching existing patients for preview comparison...");
+
       const existingPatients = await Patient.list();
-      console.log(`PatientImport: Found ${existingPatients.length} existing patients.`);
+
       const toCreate = [];
       const toUpdate = [];
       const errors = [];
 
       for (const file of files) {
-        console.log(`PatientImport: Processing file for preview: ${file.name}`);
+
         const text = await file.text();
         const lines = text.split('\n').filter((line) => line.trim());
         const dataLines = lines.slice(1); // Skip line 1 (header), start from line 2
@@ -563,19 +552,19 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
             // Use processCsvRowToPatient for consistency and avoid duplication
             const patientData = processCsvRowToPatient(values, fieldMapping, stores);
-            console.log(`PatientImport: Preview row ${rowNumber} (${file.name}): Patient data processed:`, patientData.full_name, patientData.address, patientData.store_name);
+
 
             if (!patientData.full_name) {
               const errorMsg = `${file.name} Row ${rowNumber}: Skipping - missing full name. Data: ${JSON.stringify(values.slice(0, 5))}`;
               errors.push(errorMsg);
-              console.warn(`PatientImport: ${errorMsg}`);
+
               continue;
             }
 
             if (!patientData.address) {
               const errorMsg = `${file.name} Row ${rowNumber}: Skipping - missing address for ${patientData.full_name}. Data: ${JSON.stringify(values.slice(0, 5))}`;
               errors.push(errorMsg);
-              console.warn(`PatientImport: ${errorMsg}`);
+
               continue;
             }
 
@@ -583,7 +572,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
               const storeAbbrCsv = values[parseInt(fieldMapping.store_abbreviation) - 1] || '';
               const errorMsg = `${file.name} Row ${rowNumber}: Skipping - store not found for abbreviation "${storeAbbrCsv}" (Patient: ${patientData.full_name}).`;
               errors.push(errorMsg);
-              console.warn(`PatientImport: ${errorMsg}`);
+
               continue;
             }
 
@@ -608,7 +597,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 return dbPid === csvPid; // Exact case-sensitive match
               });
 
-              console.log(`PatientImport: PID matching for "${patientData.full_name}" - CSV PID: "${csvPid}", Found: ${existingPatient ? 'YES (ID: ' + existingPatient.id + ')' : 'NO'}`);
+
             }
 
             // If no PID match and no patient_id was provided in CSV,
@@ -622,7 +611,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 return p.address.toLowerCase() === patientData.address.toLowerCase();
               });
 
-              console.log(`PatientImport: Fallback matching for "${patientData.full_name}" (no PID in CSV) - Found: ${existingPatient ? 'YES (ID: ' + existingPatient.id + ')' : 'NO'}`);
+
             }
 
             if (existingPatient) {
@@ -644,9 +633,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                   rowNumber: rowNumber,
                   willGeocode: willGeocode
                 });
-                console.log(`PatientImport: Preview: Patient ${patientDataForUpdate.full_name} (${existingPatient.id}) to be updated. Changes:`, changes);
+
               } else {
-                console.log(`PatientImport: Preview: Patient ${patientDataForUpdate.full_name} (${existingPatient.id}) found, no changes needed.`);
+
               }
             } else {
               toCreate.push({
@@ -655,11 +644,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 rowNumber: rowNumber,
                 willGeocode: willGeocode
               });
-              console.log(`PatientImport: Preview: Patient ${patientData.full_name} to be created.`);
+
             }
 
           } catch (error) {
-            console.error(`PatientImport: Error processing row ${rowNumber} in file ${file.name} for preview:`, error);
+
             errors.push(`${file.name} Row ${rowNumber}: ${error.message || 'Unknown error'}`);
           }
         }
@@ -740,7 +729,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
           return true;
         });
 
-      console.log(`PatientImport: Found ${missingFromImport.length} patients in database not in CSV`);
+
       setMissingPatients(missingFromImport);
 
       setPreviewChanges({ toCreate, toUpdate, errors });
@@ -756,20 +745,19 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       // Store missing patients for later if needed
       setMissingPatients(missingFromImport);
 
-      console.log(`PatientImport: Preview generation complete. To Create: ${toCreate.length}, To Update: ${toUpdate.length}, Errors: ${errors.length}, Missing: ${missingFromImport.length}`);
+
 
     } catch (error) {
-      console.error("PatientImport: Preview generation error:", error);
-      console.error("PatientImport: Full error stack:", error.stack);
+
       alert(`Preview failed: ${error.message}`);
     } finally {
       setIsProcessing(false);
-      console.log("PatientImport: Preview generation finished.");
+
     }
   };
 
   const confirmAndImport = async () => {
-    console.log("PatientImport: Starting confirmation and import process...");
+
 
     if (onImportStart) {
       onImportStart();
@@ -799,7 +787,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     try {
       // CRITICAL: Use centralized data operation manager
       await executeDataOperation(async () => {
-        console.log('📥 [PatientImport] Starting patient import with data operation manager');
+
 
         // Retry queue arrays
         const failedCreations = [];
@@ -807,7 +795,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
         // Process patients to create
         if (previewChanges.toCreate.length > 0) {
-          console.log(`PatientImport: Processing ${previewChanges.toCreate.length} new patients for creation.`);
+
           setImportProgress((prev) => ({
             ...prev,
             phase: 'creating',
@@ -845,7 +833,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                   totalGeocoded++;
                 }
               } catch (geocodeError) {
-                console.warn(`PatientImport: Geocoding failed for ${patientData.address}:`, geocodeError);
+
                 const errorMsg = `Geocoding failed for ${patientData.full_name} from ${item.fileName} Row ${item.rowNumber}: ${geocodeError.message}`;
                 importErrors.push(errorMsg);
                 setImportProgress((prev) => ({ ...prev, errors: importErrors.length }));
@@ -878,7 +866,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 current: prev.current + batch.length
               }));
             } catch (error) {
-              console.error("PatientImport: Batch creation failed:", error);
+
               batch.forEach((patientData, index) => {
                 const originalIndex = batchIndex * BATCH_SIZE + index;
                 const originalPreviewItem = previewChanges.toCreate[originalIndex];
@@ -898,7 +886,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
         // Process patients to update - with batching
         if (previewChanges.toUpdate.length > 0) {
-          console.log(`PatientImport: Processing ${previewChanges.toUpdate.length} patients for update.`);
+
           setImportProgress((prev) => ({
             ...prev,
             phase: 'updating',
@@ -972,7 +960,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
         // --- Retry failed creations (offline DB) ---
         if (failedCreations.length > 0) {
-          console.log(`PatientImport: Retrying ${failedCreations.length} failed offline saves...`);
+
           setImportProgress((prev) => ({
             ...prev,
             phase: 'retrying creations',
@@ -985,7 +973,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
             const patientData = item.data;
 
             try {
-              console.log(`PatientImport: Retrying offline save ${i + 1}/${failedCreations.length}: ${patientData.full_name}`);
+
 
               const patientWithTempId = {
                 ...patientData,
@@ -997,7 +985,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
               await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [patientWithTempId]);
               totalCreated++;
-              console.log(`PatientImport: Retry offline save successful for ${patientData.full_name}`);
+
 
               const errorIndex = importErrors.indexOf(item.errorMsg);
               if (errorIndex > -1) {
@@ -1011,7 +999,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 current: i + 1
               }));
             } catch (retryError) {
-              console.error(`PatientImport: Final offline save failed for ${patientData.full_name}:`, retryError);
+
               const newErrorMsg = `Final retry failed for ${patientData.full_name} (${patientData.address}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
               const errorIndex = importErrors.indexOf(item.errorMsg);
               if (errorIndex > -1) {
@@ -1027,7 +1015,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
         // --- Retry failed updates (offline DB) ---
         if (failedUpdates.length > 0) {
-          console.log(`PatientImport: Retrying ${failedUpdates.length} failed offline updates...`);
+
           setImportProgress((prev) => ({
             ...prev,
             phase: 'retrying updates',
@@ -1041,12 +1029,12 @@ export default function PatientImport({ onImportComplete, onImportStart, current
             const patientData = item.data;
 
             try {
-              console.log(`PatientImport: Retrying update ${i + 1}/${failedUpdates.length}: ${patientData.full_name} (ID: ${id})`);
+
 
               // CRITICAL: Retry with backend API
               await base44.entities.Patient.update(id, patientData);
               totalUpdated++;
-              console.log(`PatientImport: Retry update successful for ${patientData.full_name}`);
+
 
               const errorIndex = importErrors.indexOf(item.errorMsg);
               if (errorIndex > -1) {
@@ -1060,7 +1048,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 current: i + 1
               }));
             } catch (retryError) {
-              console.error(`PatientImport: Final update failed for ${patientData.full_name}:`, retryError);
+
               const newErrorMsg = `Final retry update failed for patient ID ${id} (${patientData.full_name}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
               const errorIndex = importErrors.indexOf(item.errorMsg);
               if (errorIndex > -1) {
@@ -1099,10 +1087,10 @@ export default function PatientImport({ onImportComplete, onImportStart, current
           errors: importErrors.length
         }));
 
-        console.log("PatientImport: Import complete via data operation manager");
+
 
         // CRITICAL: Sync imported/updated patients to offline DB
-        console.log("💾 [PatientImport] Syncing imported patients to offline DB...");
+
         const patientsToSync = [];
         
         // Collect all created patients (already have temp/real IDs)
@@ -1116,22 +1104,22 @@ export default function PatientImport({ onImportComplete, onImportStart, current
             const updated = await base44.entities.Patient.get(item.id);
             if (updated) patientsToSync.push(updated);
           } catch (e) {
-            console.warn(`Failed to fetch updated patient ${item.id}:`, e);
+
           }
         }
         
         if (patientsToSync.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsToSync);
-          console.log(`✅ [PatientImport] Synced ${patientsToSync.length} patients to offline DB`);
+
         }
         
         // CRITICAL: Trigger immediate backend sync after import
-        console.log("📤 [PatientImport] Triggering immediate backend sync...");
+
         const { processPendingMutations } = await import('../utils/offlineSync');
         processPendingMutations().catch((err) => console.warn('Backend sync error:', err));
         
         // CRITICAL: Don't trigger smart refresh restart here - let executeDataOperation handle it
-        console.log('✅ [PatientImport] Import complete - data operation manager will restart smart refresh');
+
 
         return true; // Signal success
       }, { restartDelay: 2000 }).then(() => {
@@ -1142,7 +1130,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       }); // 2 second delay before restarting smart refresh
 
     } catch (error) {
-      console.error("PatientImport: Overall import error:", error);
+
       alert(`Import failed: ${error.message}`);
       importErrors.push(`Overall import process failed: ${error.message}`);
 

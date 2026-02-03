@@ -34,11 +34,10 @@ const retryWithBackoff = async (fn, retries = 5, delayMs = 500, factor = 1.5) =>
     } catch (error) {
       if (i < retries - 1) {
         const waitTime = Math.round(delayMs * Math.pow(factor, i));
-        console.warn(`⚠️ Operation failed, retrying in ${waitTime}ms... (Attempt ${i + 1}/${retries})`);
-        console.warn(`Error: ${error.message}`);
+
         await delay(waitTime);
       } else {
-        console.error(`❌ All ${retries} retry attempts failed.`);
+
         throw error;
       }
     }
@@ -211,13 +210,12 @@ export default function RouteImport({
     // CRITICAL: Use storesOverride if provided (from handlePreview), else use ref, else fallback
     const storesToSearch = storesOverride || freshStoresRef.current || allStores || stores || [];
     if (!Array.isArray(storesToSearch) || storesToSearch.length === 0) {
-      console.warn(`[RouteImport] No stores available to search for abbreviation "${abbr}"`);
+
       return null;
     }
     const found = storesToSearch.find((s) => s.abbreviation?.toLowerCase() === abbr.toLowerCase());
     if (!found) {
-      console.warn(`[RouteImport] Store abbreviation "${abbr}" not found in ${storesToSearch.length} stores. Available abbreviations:`,
-      storesToSearch.map((s) => s.abbreviation).filter(Boolean).slice(0, 20));
+
     }
     return found;
   }, [allStores, stores]);
@@ -233,12 +231,12 @@ export default function RouteImport({
       if (dispatcher) {
         return dispatcher;
       } else {
-        console.warn(`[RouteImport] Store ${store.name} has dispatcher_id (${store.dispatcher_id}) but no matching user found. Falling back to name-based lookup.`);
+
       }
     }
 
     if (store.dispatcher_name) {
-      console.warn(`[RouteImport] Falling back to name-based dispatcher lookup for store ${store.name}`);
+
       const dispatcherNameLower = store.dispatcher_name.toLowerCase().trim();
       const dispatcher = usersToSearch.find((u) => {
         const userName = (u.user_name || u.full_name || '').toLowerCase().trim();
@@ -248,17 +246,17 @@ export default function RouteImport({
       if (dispatcher) {
         return dispatcher;
       } else {
-        console.warn(`[RouteImport] No dispatcher found by name "${store.dispatcher_name}" for store ${store.name}`);
+
       }
     }
 
-    console.warn(`[RouteImport] No dispatcher found for store ${store.name} after trying both ID and name.`);
+
     return null;
   }, [allDriverUsers, allUsers]);
 
   const matchDeliveryToExisting = useCallback((importedDelivery, existingDeliveries, patientsData) => {
     if (!importedDelivery || !existingDeliveries || !Array.isArray(existingDeliveries) || !patientsData || !Array.isArray(patientsData)) {
-      console.warn("[RouteImport] matchDeliveryToExisting called with invalid arguments.");
+
       return null;
     }
 
@@ -683,7 +681,7 @@ export default function RouteImport({
         try {
           handlePreview(selectedFiles, newFileDriverMap);
         } catch (error) {
-          console.error('[RouteImport] Auto-preview error:', error);
+
           setImportError({
             message: error.message,
             record: { files: selectedFiles.map(f => f.name).join(', ') },
@@ -759,8 +757,7 @@ export default function RouteImport({
         pidCountInImport.set(patientPID, (pidCountInImport.get(patientPID) || 0) + 1);
       }
     }
-    console.log(`[RouteImport] Import analysis: Found ${pidCountInImport.size} unique PIDs. Duplicates:`, 
-      Array.from(pidCountInImport.entries()).filter(([_, count]) => count > 1).map(([pid, count]) => `${pid}(${count}x)`).join(', '));
+
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -786,7 +783,7 @@ export default function RouteImport({
       const values = parseCSVLine(line);
 
       if (!currentDate) {
-        console.warn(`⚠️ Row ${lineNumber}: Skipping line as no delivery date has been set yet.`);
+
         skippedItems.push({
           lineNumber,
           reason: 'No delivery date set',
@@ -796,7 +793,7 @@ export default function RouteImport({
       }
 
       if (values.length < 17) {
-        console.warn(`⚠️ Row ${lineNumber}: Insufficient fields (${values.length} out of 17+ expected), skipping line.`);
+
         skippedItems.push({
           lineNumber,
           reason: `Insufficient fields (${values.length}/17)`,
@@ -839,7 +836,7 @@ export default function RouteImport({
           reason: `Store not found: "${storeAbbr}"`,
           rawData: `${storeAbbr}, ${ampmRawValue}, ${trackingNumber}, ${stopId}, ${patientPID}`
         });
-        console.warn(`⚠️ Row ${lineNumber}: Store not found for abbreviation "${storeAbbr}", skipping delivery.`);
+
         continue;
       }
 
@@ -852,7 +849,7 @@ export default function RouteImport({
         patient = patientsByPID.get(patientPID);
 
         if (!patient) {
-          console.warn(`⚠️ Row ${lineNumber}: Patient not found for PID: "${patientPID}".`);
+
           skippedItems.push({
             lineNumber,
             reason: `Patient not found: PID "${patientPID}"`,
@@ -868,7 +865,7 @@ export default function RouteImport({
       const dispatcherId = dispatcher ? dispatcher.id : null;
 
       if (!dispatcherId) {
-        console.warn(`⚠️ Row ${lineNumber}: Could not find dispatcher for store "${store.name}".`);
+
       }
 
       // CRITICAL: Determine status based on Column 4 and 5 values
@@ -890,7 +887,7 @@ export default function RouteImport({
       if (stopOrder === 0 && (statusFromColumns === 'in_transit' || statusFromColumns === 'en_route')) {
         inTransitStopCounter++;
         finalStopOrder = inTransitStopCounter;
-        console.log(`✅ [Import CSV Line ${lineNumber}] Assigned sequential stop_order ${finalStopOrder} to ${statusFromColumns} stop`);
+
       }
 
       // CRITICAL: COD amount extracted from notes, NOT from column 10 (which is ignored)
@@ -923,7 +920,7 @@ export default function RouteImport({
         puid: importedPuid || null // Use imported PUID from column 13
       };
       
-      console.log(`✅ [Import CSV Line ${lineNumber}] Final stop_order: ${finalStopOrder} (imported: ${stopOrder}, status: ${statusFromColumns})`);
+
 
       // CRITICAL: Use the imported AMPM value (column 2) to determine the correct time slot
       // Column 2: 1 = AM, 2 = PM
@@ -931,7 +928,7 @@ export default function RouteImport({
       const assignedAMPM = ampmValue || determineDeliveryAMPM(newDeliveryData, allDeliveriesData);
       newDeliveryData.ampm_deliveries = assignedAMPM;
       
-      console.log(`✅ [Import CSV Line ${lineNumber}] AMPM assignment: ${ampmRawValue} (raw) → ${assignedAMPM} (final)`);
+
       
       // CRITICAL: Verify store has matching time slot configured
       const dateObj = new Date(currentDate + 'T00:00:00');
@@ -947,7 +944,7 @@ export default function RouteImport({
       
       const slotEnabled = store[`${timeSlotPrefix}_enabled`];
       if (!slotEnabled) {
-        console.warn(`⚠️ Row ${lineNumber}: Store ${store.name} does not have ${timeSlotPrefix} slot enabled`);
+
       }
 
       // PUID assignment will be done after all rows are parsed (see below)
@@ -1044,7 +1041,7 @@ export default function RouteImport({
       // This prevents duplicate imports from overwriting each other
       if (existingDelivery && matchedExistingDeliveryIds.has(existingDelivery.id)) {
         existingDelivery = null;
-        console.log(`[RouteImport] Existing delivery ${existingDelivery?.id} was already matched earlier in this import - creating new instead`);
+
       }
 
       // CRITICAL: Import travel_dist ONLY if existing is 0
@@ -1089,7 +1086,7 @@ export default function RouteImport({
             updatedDeliveryData.cod_payment_type = existingDelivery.cod_payment_type;
             updatedDeliveryData.cod_payments = existingDelivery.cod_payments;
             updatedDeliveryData.cod_total_amount_required = 0; // Force to 0 for incomplete
-            console.log(`✅ [Import] Incomplete stop - COD amount forced to 0, preserved payment type: ${existingDelivery.cod_payment_type}`);
+
           } else if (updatedDeliveryData.status === 'completed') {
             // Completed stops: only update COD amount if not already collected
             const hasPaymentRecorded = existingDelivery.cod_payments && existingDelivery.cod_payments.length > 0;
@@ -1100,7 +1097,7 @@ export default function RouteImport({
               updatedDeliveryData.cod_total_amount_required = existingDelivery.cod_total_amount_required;
               updatedDeliveryData.cod_payment_type = existingDelivery.cod_payment_type;
               updatedDeliveryData.cod_payments = existingDelivery.cod_payments;
-              console.log(`✅ [Import] Completed stop already collected - preserving COD: $${existingDelivery.cod_total_amount_required}`);
+
             }
             // Otherwise, use imported COD amount (already set in newDeliveryData)
           }
@@ -1144,7 +1141,7 @@ export default function RouteImport({
     allParsedDeliveries.forEach((d) => {
       // If PUID was imported from column 13, keep it
       if (d.puid) {
-        console.log(`✅ [PUID] Using imported PUID: ${d.puid}`);
+
       } else if (!d.patient_id && d.stop_id) {
         // Pickup without imported PUID: PUID = own stop_id
         d.puid = d.stop_id;
@@ -1177,12 +1174,12 @@ export default function RouteImport({
   useEffect(() => {
     const loadAllDrivers = async () => {
       try {
-        console.log('📥 [RouteImport] Loading fresh AppUser data for ALL drivers...');
+
         
         // CRITICAL: ALWAYS fetch fresh AppUsers to ensure accurate driver_id matching
         // This prevents temporary IDs from being created during import
         const freshAppUsers = await base44.entities.AppUser.list();
-        console.log(`✅ [RouteImport] Loaded ${freshAppUsers.length} fresh AppUsers`);
+
         
         // CRITICAL: Only admins can list User entities
         const isAdmin = userHasRole(currentUser, 'admin');
@@ -1205,7 +1202,7 @@ export default function RouteImport({
             return authUser;
           });
 
-          console.log(`✅ [RouteImport] Created ${mergedUsers.length} merged users (admins can see full list)`);
+
           setAllDriverUsers(mergedUsers);
         } else {
           // Non-admins: Create pseudo-users from AppUser data
@@ -1218,11 +1215,11 @@ export default function RouteImport({
             status: au.status
           }));
           
-          console.log(`✅ [RouteImport] Created ${pseudoUsers.length} pseudo-users from AppUsers (non-admin)`);
+
           setAllDriverUsers(pseudoUsers);
         }
       } catch (error) {
-        console.error('[RouteImport] Error loading fresh drivers:', error);
+
         // Fallback to prop allUsers
         setAllDriverUsers(allUsers || []);
       }
@@ -1244,7 +1241,7 @@ export default function RouteImport({
     const usersToUse = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
 
     if (!Array.isArray(usersToUse) || usersToUse.length === 0) {
-      console.warn('[RouteImport] No users available for driver selection');
+
       return [];
     }
 
@@ -1370,9 +1367,9 @@ export default function RouteImport({
       setProgressPercent(3);
       
       try {
-        console.log('📥 [RouteImport Preview] Fetching fresh AppUser data...');
+
         const freshAppUsers = await base44.entities.AppUser.list();
-        console.log(`✅ [RouteImport Preview] Loaded ${freshAppUsers.length} fresh AppUsers`);
+
         
         const isAdmin = userHasRole(currentUser, 'admin');
         
@@ -1404,9 +1401,9 @@ export default function RouteImport({
           setAllDriverUsers(pseudoUsers);
         }
         
-        console.log('✅ [RouteImport Preview] Driver data refreshed successfully');
+
       } catch (driverError) {
-        console.error('[RouteImport Preview] Failed to refresh driver data:', driverError);
+
         // Continue with existing data
       }
 
@@ -1465,7 +1462,7 @@ export default function RouteImport({
       
       setProgressPercent(35);
 
-      console.log(`[RouteImport] Loaded ${freshDeliveries.length} existing deliveries for ${allDriverIds.length} drivers in date range ${minDate} to ${maxDate}`);
+
 
       let totalToCreate = [];
       let totalToUpdate = [];
@@ -1477,7 +1474,7 @@ export default function RouteImport({
         const fileDriver = activeDriverMap[file.name]?.driver;
         
         if (!fileDriver) {
-          console.warn(`[RouteImport] Skipping file ${file.name} - no driver matched`);
+
           continue;
         }
         
@@ -1517,7 +1514,7 @@ export default function RouteImport({
       }, 500);
 
     } catch (error) {
-      console.error("❌ Preview error:", error);
+
       setImportError({
         message: error.message,
         record: {
@@ -1565,11 +1562,11 @@ export default function RouteImport({
 
     try {
       // CRITICAL: Pause ALL sync processes before import
-      console.log('⏸️ [RouteImport] Pausing all sync processes...');
+
       smartRefreshManager.pause();
       driverLocationPoller.pause();
       
-      console.log('📥 [RouteImport] Starting import...');
+
       
       const { offlineDB } = await import('../utils/offlineDatabase');
 
@@ -1577,7 +1574,7 @@ export default function RouteImport({
       setProgressMessage('Fetching fresh AppUser data...');
       setProgressPercent(5);
       const freshAppUsers = await base44.entities.AppUser.list();
-      console.log(`✅ [RouteImport] Loaded ${freshAppUsers.length} fresh AppUsers`);
+
       setProgressPercent(8);
 
       // STEP 2: Filter preview deliveries FIRST
@@ -1595,7 +1592,7 @@ export default function RouteImport({
           .map(d => d.delivery_date)
           .filter(Boolean)
       )];
-      console.log(`📥 [RouteImport] Importing for drivers: ${importedDriverIds.length}, dates: ${importedDates.length}`);
+
 
       setProgressMessage('Loading latest patient and store data from cache...');
       setProgressPercent(10);
@@ -1619,7 +1616,7 @@ export default function RouteImport({
 
       // STEP 1: Conditionally purge based on checkbox
       if (purgeBeforeImport) {
-        console.log(`🗑️ [RouteImport] PURGING deliveries for ${driverDatePairs.length} driver/date combinations BEFORE import`);
+
         setProgressMessage(`Purging ${driverDatePairs.length} driver/date combinations...`);
 
         // Delete from ONLINE database FIRST
@@ -1634,10 +1631,10 @@ export default function RouteImport({
               for (const delivery of existingDeliveries) {
                 await base44.entities.Delivery.delete(delivery.id);
               }
-              console.log(`✅ [RouteImport] Deleted ${existingDeliveries.length} ONLINE deliveries for ${driverId} on ${date}`);
+
             }
           } catch (deleteError) {
-            console.error(`❌ [RouteImport] Failed to delete online deliveries for ${driverId}/${date}:`, deleteError.message);
+
             throw deleteError; // CRITICAL: Fail import if purge fails
           }
         }
@@ -1653,17 +1650,17 @@ export default function RouteImport({
               for (const d of driverOfflineDeliveries) {
                 await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
               }
-              console.log(`✅ [RouteImport] Deleted ${driverOfflineDeliveries.length} OFFLINE deliveries for ${driverId} on ${date}`);
+
             }
           } catch (offlineDeleteError) {
-            console.error(`❌ [RouteImport] Failed to delete offline deliveries for ${driverId}/${date}:`, offlineDeleteError.message);
+
             // Continue - offline DB errors shouldn't block import
           }
         }
 
-        console.log('✅ [RouteImport] Purge complete - all driver/date combinations cleared from both databases');
+
       } else {
-        console.log('⏭️ [RouteImport] Skipping purge - checkbox disabled by user');
+
       }
       setProgressPercent(15);
 
@@ -1719,7 +1716,7 @@ export default function RouteImport({
               current: totalCreated
             }));
           } catch (error) {
-            console.warn(`⚠️ Batch ${batchIndex + 1} bulkCreate failed:`, error.message);
+
 
             for (const cleanData of batch) {
               try {
@@ -1851,7 +1848,7 @@ export default function RouteImport({
               current: i + 1
             }));
           } catch (error) {
-            console.error(`❌ Retry create failed for delivery ${cleanData.delivery_id || 'unknown'}:`, error);
+
             overallResults.errors.push(`Failed to create ${cleanData.patient_name || 'Store Pickup'} (${cleanData.delivery_id || 'no ID'}): ${error.message}`);
             overallResults.failed++;
             setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: i + 1 }));
@@ -1892,7 +1889,7 @@ export default function RouteImport({
               current: failedUpdateOffset + i + 1
             }));
           } catch (error) {
-            console.error(`❌ Retry update failed for delivery ID ${id}:`, error);
+
             overallResults.errors.push(`Failed to update ${deliveryData.patient_name || 'Store Pickup'} (ID ${id}): ${error.message}`);
             overallResults.failed++;
             setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: failedUpdateOffset + i + 1 }));
@@ -1923,8 +1920,7 @@ export default function RouteImport({
         return b.localeCompare(a); // Most recent first
       });
       
-      console.log(`🔄 [RouteImport] Syncing offline DB for ${driverDatePairs.length} driver/date pairs`);
-      console.log(`📅 [RouteImport] Prioritized dates: ${sortedDates.slice(0, 3).join(', ')}...`);
+
       setProgressMessage(`Syncing offline database (prioritizing active date)...`);
       
       // STEP 1: Group pairs by date for efficient processing
@@ -1949,7 +1945,7 @@ export default function RouteImport({
           for (const d of toDelete) {
             await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
           }
-          console.log(`🗑️ [RouteImport] Purged ${toDelete.length} offline deliveries for ${driverIds.length} drivers on ${date}`);
+
           
           // RESYNC: Fetch fresh deliveries from online DB for all drivers on this date
           const freshDeliveries = await base44.entities.Delivery.filter({ 
@@ -1960,7 +1956,7 @@ export default function RouteImport({
           // Save to offline DB
           if (freshDeliveries && freshDeliveries.length > 0) {
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-            console.log(`✅ [RouteImport] Resynced ${freshDeliveries.length} deliveries for ${driverIds.length} drivers on ${date}`);
+
           }
           
           // Collect unique patient IDs from this date's deliveries
@@ -1971,19 +1967,19 @@ export default function RouteImport({
             });
             if (patientsForDate && patientsForDate.length > 0) {
               await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsForDate);
-              console.log(`✅ [RouteImport] Synced ${patientsForDate.length} patients for ${date}`);
+
             }
           }
           
           syncedCount += driverIds.length;
         } catch (syncError) {
-          console.warn(`⚠️ [RouteImport] Sync failed for ${date}:`, syncError.message);
+
         }
         
         setProgressMessage(`Syncing offline database (${syncedCount}/${driverDatePairs.length} completed)...`);
       }
       
-      console.log(`✅ [RouteImport] Offline DB sync complete for ${sortedDates.length} dates`);
+
 
       setImportProgress((prev) => ({
         ...prev,
@@ -1998,14 +1994,14 @@ export default function RouteImport({
       setProgressMessage('Import complete!');
       
       // CRITICAL: NO route optimization after import - preserve imported stop order
-      console.log('✅ [RouteImport] Import complete - stop order preserved from CSV');
+
       
       // CRITICAL: Sync processes will be auto-resumed after brief delay
-      console.log('✅ [RouteImport] Import operation complete - waiting for stable state before refresh');
+
       
       // CRITICAL: Delay refresh restart to allow UI to stabilize
       setTimeout(async () => {
-        console.log('🔄 [RouteImport] Triggering smart refresh restart after stabilization...');
+
         try {
           smartRefreshManager.restart();
           
@@ -2014,14 +2010,14 @@ export default function RouteImport({
             const { processPendingMutations } = await import('../utils/offlineSync');
             processPendingMutations().catch(err => console.warn('Backend sync error:', err));
           } catch (err) {
-            console.warn('⚠️ [RouteImport] Failed to import offlineSync:', err);
+
           }
         } catch (e) {
-          console.warn('⚠️ [RouteImport] Restart error:', e);
+
         }
       }, 3000); // 3 second delay for stability
     } catch (error) {
-      console.error("❌ Overall import error:", error);
+
       
       // Sync managers auto-resumed by executeDataOperation
       
@@ -2049,12 +2045,12 @@ export default function RouteImport({
       setTimeout(() => setShowProgress(false), 1000);
       
       // Resume sync processes
-      console.log('▶️ [RouteImport] Resuming sync processes...');
+
       try {
         smartRefreshManager.resume();
         driverLocationPoller.resume();
       } catch (e) {
-        console.warn('⚠️ [RouteImport] Error resuming sync:', e);
+
       }
     }
   };
