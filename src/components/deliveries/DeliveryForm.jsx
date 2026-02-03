@@ -222,6 +222,7 @@ export default function DeliveryForm({
   const [hasChanges, setHasChanges] = useState(false);
   const [isPayrollLocked, setIsPayrollLocked] = useState(false);
   const [payrollLockMessage, setPayrollLockMessage] = useState(null);
+  const [debugPatientData, setDebugPatientData] = useState(null);
 
   // Camera state
   const videoRef = useRef(null);
@@ -1370,6 +1371,12 @@ export default function DeliveryForm({
   const handleDuplicatePatient = useCallback((patient) => {
     if (!patient) return;
     
+    // CRITICAL: Get full patient data and show debug popup for app owner
+    const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
+    if (isAppOwner(currentUser)) {
+      setDebugPatientData({ action: 'Duplicate Patient', patient: fullPatient });
+    }
+    
     setNewPatientMode('duplicate');
     setSelectedPatient(null); // Clear selected patient since we're creating new
     setPatientSearch('');
@@ -1462,6 +1469,11 @@ export default function DeliveryForm({
     
     // CRITICAL: Get full patient data to ensure all fields are populated
     const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
+    
+    // CRITICAL: Show debug popup for app owner
+    if (isAppOwner(currentUser)) {
+      setDebugPatientData({ action: 'New Address', patient: fullPatient });
+    }
     
     setNewPatientMode('new_address');
     setSelectedPatient(null); // Clear selected patient since we're creating new
@@ -5061,6 +5073,34 @@ export default function DeliveryForm({
       }
 
 
+
+      {/* Debug Patient Data Popup - App Owner Only */}
+      {debugPatientData && isAppOwner(currentUser) &&
+      <div className="fixed inset-0 z-[10040] bg-black/60 flex items-center justify-center p-4">
+          <div className="rounded-lg shadow-xl max-w-2xl w-full p-4 border max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                Patient Data - {debugPatientData.action}
+              </h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setDebugPatientData(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <pre className="text-xs p-3 rounded-lg overflow-auto" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-900)' }}>
+              {JSON.stringify(debugPatientData.patient, null, 2)}
+            </pre>
+            <Button
+              size="sm"
+              className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => setDebugPatientData(null)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      }
 
       {/* Delete Pending Confirmation Dialog */}
       {deleteConfirmation.show && deleteConfirmation.staged &&
