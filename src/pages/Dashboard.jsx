@@ -2130,7 +2130,7 @@ function Dashboard() {
       clearInterval(interval);
       window.removeEventListener('driverLocationChanged', handleLocationChange);
     };
-  }, [currentUser?.id, selectedDriverId, selectedDate, filteredDeliveries, patients, stores, users]);
+  }, [currentUser?.id, selectedDriverId, selectedDate, filteredDeliveries, patients, stores, appUsers]);
 
   useEffect(() => {
     if (!currentUser || !userHasRole(currentUser, 'driver') || showAIAssistant || !isAIEnabled) {
