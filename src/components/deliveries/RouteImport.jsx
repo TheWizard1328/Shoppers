@@ -2004,15 +2004,18 @@ export default function RouteImport({
       console.log('✅ [RouteImport] Import operation complete - waiting for stable state before refresh');
       
       // CRITICAL: Delay refresh restart to allow UI to stabilize
-      setTimeout(() => {
+      setTimeout(async () => {
         console.log('🔄 [RouteImport] Triggering smart refresh restart after stabilization...');
         try {
           smartRefreshManager.restart();
           
           // Trigger backend sync in background (non-blocking)
-          import('../utils/offlineSync').then(({ processPendingMutations }) => {
+          try {
+            const { processPendingMutations } = await import('../utils/offlineSync');
             processPendingMutations().catch(err => console.warn('Backend sync error:', err));
-          });
+          } catch (err) {
+            console.warn('⚠️ [RouteImport] Failed to import offlineSync:', err);
+          }
         } catch (e) {
           console.warn('⚠️ [RouteImport] Restart error:', e);
         }
