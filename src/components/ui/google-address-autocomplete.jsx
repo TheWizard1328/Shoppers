@@ -74,6 +74,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       if (data?.predictions && data.predictions.length > 0) {
         console.log('[GoogleAddressAutocomplete] Got predictions:', data.predictions.length, data.predictions);
         setSuggestions(data.predictions);
+        setSelectedIndex(0);
         setOpen(true);
         console.log('[GoogleAddressAutocomplete] State updated - open:', true, 'suggestions:', data.predictions);
       } else {
