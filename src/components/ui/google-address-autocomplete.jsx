@@ -160,7 +160,8 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
         street_address: streetAddress,
         latitude: data.latitude,
         longitude: data.longitude,
-        place_id: prediction.place_id
+        place_id: prediction.place_id,
+        distance: prediction.distance
       };
 
       console.log('[GoogleAddressAutocomplete] Address data being sent to parent:', addressData);
