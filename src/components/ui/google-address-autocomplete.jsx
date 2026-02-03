@@ -265,3 +265,5 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
     </div>
   );
 });
+
+GoogleAddressAutocomplete.displayName = 'GoogleAddressAutocomplete';
