@@ -5360,8 +5360,8 @@ function Dashboard() {
     setShowPatientForm(true);
   };
 
-  const handleCreatePatientFromDelivery = (callback) => {
-    setEditingPatient(null);
+  const handleCreatePatientFromDelivery = (callback, initialData = null) => {
+    setEditingPatient(initialData);
     setPatientFormCallback(() => callback);
     setShowPatientForm(true);
   };
