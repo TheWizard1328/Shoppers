@@ -7687,6 +7687,8 @@ function Dashboard() {
               }, 150);
             }}>
 
+              {/* CRITICAL: Hide stop cards when in "All Drivers" mode */}
+              {!isAllDriversMode && (
               <HorizontalStopCards
               ref={horizontalStopCardsRef}
               pickupCards={deliveriesWithStopOrder.
