@@ -2733,22 +2733,22 @@ export default function DeliveryMap({
               if (!isRouteCompleted && i < nextStopIndex) continue;
               
               polylines.push(
-                <Polyline
-                  key={`type2-3-${route.driverId}-${i}-${polylineRenderKey}`}
-                  positions={[
-                    [stop1.latitude, stop1.longitude],
-                    [stop2.latitude, stop2.longitude]
-                  ]}
-                  pathOptions={{
-                    color: route.color,
-                    weight: 4,
-                    opacity: 0.7,
-                    dashArray: dashArray,
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                  }}
-                  pane="overlayPane"
-                />
+               <Polyline
+                 key={`type2-3-${route.driverId}-${i}-${polylineRenderKey}`}
+                 positions={[
+                   [stop1.latitude, stop1.longitude],
+                   [stop2.latitude, stop2.longitude]
+                 ]}
+                 pathOptions={{
+                   color: '#EC4899', // Pink instead of blue
+                   weight: 4,
+                   opacity: 0.7,
+                   dashArray: dashArray,
+                   lineJoin: 'round',
+                   lineCap: 'round'
+                 }}
+                 pane="overlayPane"
+               />
               );
             }
           });
