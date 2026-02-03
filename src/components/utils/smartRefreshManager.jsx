@@ -2089,7 +2089,7 @@ class SmartRefreshManager {
     try {
       const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
       const { performPrioritySyncBeforeRefresh } = await import('./offlineSync');
-      await performPrioritySyncBeforeRefresh(selectedDateStr, filters?.cityFilter?.city_id || null);
+      await performPrioritySyncBeforeRefresh(selectedDateStr, filters?.cityFilter?.city_id || null, this);
     } catch (priorityError) {
       console.warn('⚠️ [SmartRefresh] Priority sync failed:', priorityError.message);
       // Continue with regular refresh even if priority sync fails
