@@ -242,6 +242,12 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
           hasUserTyped.current = true;
           onChange(e.target.value);
         }}
+        onBlur={() => {
+          if (value) {
+            const unabbreviated = unabbreviateAddress(value);
+            onChange(unabbreviated);
+          }
+        }}
         onKeyDown={(e) => {
           if (!open || suggestions.length === 0) return;
 
