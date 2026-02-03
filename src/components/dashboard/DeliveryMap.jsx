@@ -2723,6 +2723,9 @@ export default function DeliveryMap({
           driverRoutes.forEach(route => {
             if (!route.driverId) return;
             
+            // CRITICAL: Use route.color for this driver's unique color
+            const driverPolylineColor = route.color;
+            
             // CRITICAL: Use ONLY deliveryMarkers for polylines (they have validated coordinates)
             // deliveryMarkers includes both own driver + other driver deliveries
             const sourceDeliveries = deliveryMarkers.filter(d => d && d.driver_id === route.driverId);
@@ -2777,7 +2780,7 @@ export default function DeliveryMap({
                    [stop2.latitude, stop2.longitude]
                  ]}
                  pathOptions={{
-                   color: '#EC4899', // Pink instead of blue
+                   color: driverPolylineColor,
                    weight: 4,
                    opacity: 0.7,
                    dashArray: dashArray,
