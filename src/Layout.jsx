@@ -46,7 +46,8 @@ import {
   MoreVertical,
   MessageCircle,
   DollarSign,
-  CreditCard } from
+  CreditCard,
+  Smartphone } from
 "lucide-react";
 import {
   Popover,
