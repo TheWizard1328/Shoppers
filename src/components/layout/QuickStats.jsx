@@ -41,8 +41,13 @@ export default function QuickStats({ currentUser }) {
     }
   };
 
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const todayDeliveries = deliveries.filter(d => d.delivery_date === today);
+  // CRITICAL: Add null check to prevent crashes during initialization
+  if (!currentUser || patients.length === 0 || deliveries.length === 0 || stores.length === 0) {
+    return null;
+  }
+
+  const todayDate = format(new Date(), 'yyyy-MM-dd');
+  const todayDeliveries = deliveries.filter(d => d.delivery_date === todayDate);
   const activeDeliveries = todayDeliveries.filter(d => ['pending', 'in_transit'].includes(d.status));
 
   // Active deliveries by driver
