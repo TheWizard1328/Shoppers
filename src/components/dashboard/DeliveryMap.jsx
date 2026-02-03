@@ -1492,10 +1492,10 @@ export default function DeliveryMap({
       onMarkerClick(marker);
     }
     
-    // Auto-center marker on screen slightly below center for balloon visibility
+    // Auto-center marker on screen with info balloon on first click
     if (map) {
-      // Get marker element to check if popup is open
-      const markerElement = markerRefs.current[`${markerType}-${marker.id}`];
+      // Calculate zoom level based on device type
+      const targetZoom = isMobile ? 15 : 16;
       
       // Calculate dynamic bottom padding for message balloon
       const messageBalloonsHeight = 120; // Approximate height of popup balloon + padding
@@ -1513,17 +1513,26 @@ export default function DeliveryMap({
         [marker.latitude, marker.longitude]
       ]);
       
-      // Center map with offset to show balloon fully
+      // Center map with proper zoom and offset to show balloon fully
       const panOptions = {
         paddingTopLeft: [60, 60],
         paddingBottomRight: [60, dynamicBottomPadding],
         animate: true,
-        duration: 0.6
+        duration: 0.6,
+        maxZoom: targetZoom
       };
       
       map.fitBounds(markerBounds, panOptions);
       
-      // Open the marker's popup if available
+      // Set the zoom to target zoom level
+      setTimeout(() => {
+        if (map.getZoom() < targetZoom) {
+          map.setZoom(targetZoom, { animate: true, duration: 0.3 });
+        }
+      }, 600);
+      
+      // Get marker element and open popup immediately
+      const markerElement = markerRefs.current[`${markerType}-${marker.id}`];
       if (markerElement && markerElement._popup) {
         setTimeout(() => {
           markerElement.openPopup();
@@ -1535,7 +1544,7 @@ export default function DeliveryMap({
     if (onMapInteraction) {
       onMapInteraction();
     }
-  }, [fannedLocationKey, onMarkerClick, currentZoom, map, groupedDeliveryMarkers, groupedPickupMarkers, calculateFannedPosition, onMapInteraction, stopCardsHeight]);
+  }, [fannedLocationKey, onMarkerClick, currentZoom, map, groupedDeliveryMarkers, groupedPickupMarkers, calculateFannedPosition, onMapInteraction, stopCardsHeight, isMobile]);
 
   // NEW: Auto-unfan when zooming below level 11
   useEffect(() => {
