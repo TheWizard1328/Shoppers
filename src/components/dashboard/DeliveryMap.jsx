@@ -2770,6 +2770,13 @@ export default function DeliveryMap({
           
           return allMarkersAtLocation.map((marker, idx) => {
             const [originalLat, originalLng] = fannedLocationKey.split(',').map(Number);
+            
+            // CRITICAL: Validate coordinates
+            if (typeof originalLat !== 'number' || typeof originalLng !== 'number' || 
+                isNaN(originalLat) || isNaN(originalLng)) {
+              return null;
+            }
+            
             const [fannedLat, fannedLng] = calculateFannedPosition(
               originalLat,
               originalLng,
@@ -2777,6 +2784,12 @@ export default function DeliveryMap({
               allMarkersAtLocation.length,
               marker.stop_order
             );
+            
+            if (typeof fannedLat !== 'number' || typeof fannedLng !== 'number' ||
+                isNaN(fannedLat) || isNaN(fannedLng)) {
+              return null;
+            }
+            
             return (
               <Polyline
                 key={`radius-${marker.markerType}-${marker.id}-${idx}`}
