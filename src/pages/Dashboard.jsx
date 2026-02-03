@@ -2505,17 +2505,9 @@ function Dashboard() {
               return;
             }
 
-            // CRITICAL: Must be on_duty OR on_break
-            if (location.driver_status !== 'on_duty' && location.driver_status !== 'on_break') {
-              console.log('⏭️ [Phase 1] Skipping location - not on duty/break:', location.driver_status);
-              return;
-            }
-
-            // CRITICAL: Location tracking must be enabled (unless viewing self - already blocked above for mobile)
-            if (location.location_tracking_enabled !== true && location.driver_id !== currentUser?.id) {
-              console.log('⏭️ [Phase 1] Skipping location - tracking disabled:', location.driver_id);
-              return;
-            }
+            // CRITICAL: Phase 1 "Show All" mode - include ALL rendered markers regardless of status
+            // No filtering by driver_status or location_tracking_enabled
+            // If the marker is rendered on the map, it should be in the bounds
 
             // Dispatcher filtering - check ALL date deliveries, not just selected driver
             if (isDispatcher && !isAdmin) {
@@ -2535,7 +2527,7 @@ function Dashboard() {
             allCoordinates.push([location.latitude, location.longitude]);
             hasDriverMarkers = true;
             addedCount++;
-            console.log(`✅ [Phase 1] Added shared location: ${location.driver_id} (${location.driver_status})`);
+            console.log(`✅ [Phase 1] Added shared location: ${location.driver_id} (status: ${location.driver_status}, tracking: ${location.location_tracking_enabled})`);
           });
           console.log(`🗺️ [Phase 1] Added ${addedCount} shared driver locations (from ${uniqueLocations.size} unique sources)`);
         } else {
