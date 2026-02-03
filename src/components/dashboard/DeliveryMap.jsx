@@ -1513,10 +1513,11 @@ export default function DeliveryMap({
         [marker.latitude, marker.longitude]
       ]);
       
-      // Center map with offset to show balloon fully
+      // Center map with offset to show balloon fully - with lower max zoom and bottom padding
       const panOptions = {
         paddingTopLeft: [60, 60],
         paddingBottomRight: [60, dynamicBottomPadding],
+        maxZoom: 15, // Reduced from default for better view
         animate: true,
         duration: 0.6
       };
