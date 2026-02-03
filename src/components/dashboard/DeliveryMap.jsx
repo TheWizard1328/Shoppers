@@ -2593,6 +2593,12 @@ export default function DeliveryMap({
           
           // CRITICAL: For drivers viewing their own route (including driver-dispatchers and driver-admins)
           if (isCurrentUserDriver) {
+            // CRITICAL: Don't show polyline when driver is on break
+            const driverAppUser = realtimeAppUsers.find(u => u && u.id === currentUser?.id);
+            if (driverAppUser?.driver_status === 'on_break') {
+              return null;
+            }
+            
             // Get next stop (isNextDelivery=true), exclude pending
             const nextStop = deliveryMarkers.find(d => 
               d && 
