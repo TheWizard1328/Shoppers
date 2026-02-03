@@ -75,7 +75,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
     };
 
     checkDevice();
-  }, [currentUser, onDeviceRegistered]);
+  }, [currentUser?.id]);
 
   const handleSelectExistingDevice = async () => {
     if (!selectedDeviceId) return;
