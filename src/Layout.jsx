@@ -703,9 +703,7 @@ export default function Layout({ children, currentPageName }) {
           const [adminImportEnabled, setAdminImportEnabled] = useState(false);
           const [isSnapshotModeActive, setIsSnapshotModeActive] = useState(false);
           const [showInviteQRModal, setShowInviteQRModal] = useState(false);
-  const [showDeviceRegistration, setShowDeviceRegistration] = useState(false);
   const [deviceRegistered, setDeviceRegistered] = useState(false);
-  const [isDeviceCheckLoading, setIsDeviceCheckLoading] = useState(true);
 
   // Poll for adminImportEnabled changes (for Kyle J to see updates when toggle changes)
   useEffect(() => {
@@ -917,27 +915,6 @@ export default function Layout({ children, currentPageName }) {
 
         setDataLoaded(true); // CRITICAL: Set data loaded to prevent bg sync re-triggering
         setIsLoadingLayout(false);
-
-        // CRITICAL: Check for existing registered device
-        if (userHasRole(fetchedUser, 'driver')) {
-          const { getDeviceIdentifier, getCurrentDevice } = await import('./components/utils/deviceManager');
-          try {
-            const existingDevice = await getCurrentDevice(fetchedUser.id);
-            if (existingDevice) {
-              setDeviceRegistered(true);
-              console.log('✅ [Layout] Existing device found:', existingDevice.device_name);
-            } else {
-              console.log('⚠️ [Layout] No device registered');
-            }
-          } catch (error) {
-            console.warn('⚠️ [Layout] Device check failed:', error);
-          } finally {
-            setIsDeviceCheckLoading(false);
-          }
-        } else {
-          // Not a driver - skip device check
-          setIsDeviceCheckLoading(false);
-        }
 
       } catch (error) {
         // CRITICAL: Only treat auth errors (401/403) as access issues
@@ -3036,14 +3013,13 @@ export default function Layout({ children, currentPageName }) {
 
       }
 
-      {/* Device Registration - Show after city selection and device check, for drivers only */}
-      {!showCitySelectionPopup && !isDeviceCheckLoading && currentUser && userHasRole(currentUser, 'driver') && !deviceRegistered &&
+      {/* Device Registration - Show after city selection, for drivers only */}
+      {!showCitySelectionPopup && currentUser && userHasRole(currentUser, 'driver') && !deviceRegistered &&
       <DeviceRegistration
         currentUser={currentUser}
         onDeviceRegistered={(device) => {
           console.log('✅ Device registered:', device);
           setDeviceRegistered(true);
-          setShowDeviceRegistration(false);
         }} />
       }
 
