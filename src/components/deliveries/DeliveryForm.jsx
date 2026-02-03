@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -9,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { X, Save, Package, Search, Clock, Plus, Trash2, CheckCircle, Edit2, Camera, Phone, Bell, BellOff, Mailbox, StickyNote, Copy, MapPin, AlertCircle } from "lucide-react";
+import { formatPhoneNumber } from '../utils/phoneFormatter';
 import PatientMatchPopup from './PatientMatchPopup';
 import { sortUsers } from "../utils/sorting";
 import { Badge } from "@/components/ui/badge";
@@ -3946,7 +3946,7 @@ export default function DeliveryForm({
                                 })()}
                                     </div>
                                     <div className="text-xs text-slate-600 truncate">{patient.address}</div>
-                                    {patient.phone && <div className="text-xs text-slate-500 truncate">{patient.phone}</div>}
+                                    {patient.phone && <div className="text-xs text-slate-500 truncate">{formatPhoneNumber(patient.phone)}</div>}
                                   </button>
                                   
                                   {/* Duplicate and New Address buttons */}
