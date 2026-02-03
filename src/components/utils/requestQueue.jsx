@@ -4,12 +4,14 @@
  */
 
 const MIN_REQUEST_INTERVAL = 50; // Minimum 50ms between requests - balanced for offline-first strategy
+const DEDUP_WINDOW = 500; // Deduplicate identical requests within 500ms window
 
 class RequestQueue {
   constructor() {
     this.lastRequestTime = 0;
     this.queue = [];
     this.processing = false;
+    this.pendingRequests = new Map(); // Key: request hash, Value: { promise, timestamp }
   }
 
   /**
