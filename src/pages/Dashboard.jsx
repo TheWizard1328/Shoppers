@@ -7794,7 +7794,8 @@ function Dashboard() {
               onDriverStatusChange={async (newStatus) => {
                 await refreshUser();
               }} />
-              )}
+              )
+              }
 
             </div>
           </div>
