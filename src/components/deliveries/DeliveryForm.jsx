@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -1554,10 +1555,19 @@ export default function DeliveryForm({
       recurring_bimonthly: fullPatient.recurring_bimonthly || false
     }));
     
-    // Store original patient data with cleared address for reference when creating new patient
-    setSelectedPatient({ ...fullPatient, address: '', _newAddressSource: true });
+    // Create patient object with all pre-filled data but empty address
+    const patientWithoutAddress = {
+      ...fullPatient,
+      address: '', // Empty address
+      unit_number: '', // Empty unit
+      _newAddressSource: true,
+      _isNew: true,
+      _focusAddress: !isMobileDevice
+    };
     
-    // Trigger patient form to open with the address field ready
+    setSelectedPatient(patientWithoutAddress);
+    
+    // Trigger patient form to open with pre-filled data
     if (onCreatePatient) {
       setIsPatientFormOpen(true);
       onCreatePatient((createdPatient) => {
@@ -1565,24 +1575,7 @@ export default function DeliveryForm({
         setNewPatientMode(null);
         // CRITICAL: Auto-add new patient to staged (true parameter)
         handlePatientSelect(createdPatient, true);
-      }, {
-        full_name: fullPatient.full_name || '',
-        phone: fullPatient.phone || '',
-        store_id: fullPatient.store_id || '',
-        address: '', // Empty address
-        unit_number: '', // Empty unit
-        notes: fullPatient.notes || '',
-        time_window_start: fullPatient.time_window_start || '',
-        time_window_end: fullPatient.time_window_end || '',
-        mailbox_ok: fullPatient.mailbox_ok || false,
-        call_upon_arrival: fullPatient.call_upon_arrival || false,
-        ring_bell: fullPatient.ring_bell || false,
-        dont_ring_bell: fullPatient.dont_ring_bell || false,
-        back_door: fullPatient.back_door || false,
-        signature_needed: fullPatient.signature_needed || false,
-        _isNew: true,
-        _focusAddress: !isMobileDevice // Auto-focus address field only on non-mobile devices
-      });
+      }, patientWithoutAddress);
     }
   }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect, patients, isMobileDevice]);
 
