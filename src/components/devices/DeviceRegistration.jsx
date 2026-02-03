@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+
 import { Smartphone, Tablet, Monitor, CheckCircle } from 'lucide-react';
 import { getUserAgentInfo } from '../utils/deviceUtils';
 
@@ -188,45 +188,50 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
               <div className="space-y-2">
                 <Label style={{ color: 'var(--text-slate-700)' }}>Your Registered Devices</Label>
                 <div className="space-y-2">
-                  {existingDevices.map((device) => (
-                    <div
-                      key={device.id}
-                      className="flex items-center space-x-3 border rounded-lg p-3 cursor-pointer transition-all hover:shadow-md"
-                      style={{ 
-                        background: 'var(--bg-slate-50)', 
-                        borderColor: 'var(--border-slate-300)'
-                      }}
-                      onClick={async () => {
-                        if (isSaving) return;
-                        setIsSaving(true);
-                        try {
-                          localStorage.setItem(DEVICE_ID_KEY, device.device_identifier);
-                          await base44.entities.UserDevice.update(device.id, {
-                            last_active_at: new Date().toISOString()
-                          });
-                          setShowDialog(false);
-                          if (onDeviceRegistered) onDeviceRegistered(device);
-                        } catch (error) {
-                          console.error('Failed to select device:', error);
-                          alert('Failed to select device. Please try again.');
-                          setIsSaving(false);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-2 flex-1">
-                        {getDeviceIcon(device.device_info?.device_type)}
-                        <div className="flex-1">
-                          <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{device.device_name}</div>
-                          <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                            {device.device_info?.os} • {device.device_info?.browser}
+                  {existingDevices.map((device) => {
+                    const displayOS = device.device_info?.os === 'Linux' ? 'Android' : device.device_info?.os;
+                    const lastActive = device.last_active_at ? new Date(device.last_active_at).toLocaleString() : 'Never';
+                    
+                    return (
+                      <div
+                        key={device.id}
+                        className="flex items-center space-x-3 border rounded-lg p-3 cursor-pointer transition-all hover:shadow-md"
+                        style={{ 
+                          background: 'var(--bg-slate-50)', 
+                          borderColor: 'var(--border-slate-300)'
+                        }}
+                        onClick={async () => {
+                          if (isSaving) return;
+                          setIsSaving(true);
+                          try {
+                            localStorage.setItem(DEVICE_ID_KEY, device.device_identifier);
+                            await base44.entities.UserDevice.update(device.id, {
+                              last_active_at: new Date().toISOString()
+                            });
+                            setShowDialog(false);
+                            if (onDeviceRegistered) onDeviceRegistered(device);
+                          } catch (error) {
+                            console.error('Failed to select device:', error);
+                            alert('Failed to select device. Please try again.');
+                            setIsSaving(false);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-2 flex-1">
+                          {getDeviceIcon(device.device_info?.device_type)}
+                          <div className="flex-1">
+                            <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{device.device_name}</div>
+                            <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                              {displayOS} • {lastActive}
+                            </div>
                           </div>
+                          {device.is_primary_tracker && (
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                          )}
                         </div>
-                        {device.is_primary_tracker && (
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -255,6 +260,7 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                   value={newDeviceName}
                   onChange={(e) => setNewDeviceName(e.target.value)}
                   placeholder="e.g., My iPhone 15 Pro"
+                  className="placeholder:text-slate-500"
                   style={{ 
                     background: 'var(--bg-white)', 
                     borderColor: 'var(--border-slate-300)',
