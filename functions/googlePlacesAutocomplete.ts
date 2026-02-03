@@ -104,71 +104,27 @@ Deno.serve(async (req) => {
       }, { status: 500 });
     }
 
-    // Convert new API format and fetch coordinates for distance sorting
-    const predictions = await Promise.all(
-      (data.suggestions || []).map(async suggestion => {
-        const placePrediction = suggestion.placePrediction;
-        if (!placePrediction) return null;
+    // Convert new API format - use Google's built-in distance if available
+    const predictions = (data.suggestions || []).map(suggestion => {
+      const placePrediction = suggestion.placePrediction;
+      if (!placePrediction) return null;
 
-        const description = placePrediction.text?.text || '';
-        const place_id = placePrediction.placeId || '';
+      const description = placePrediction.text?.text || '';
+      const place_id = placePrediction.placeId || '';
+      
+      // Google Places API v1 provides distanceMeters directly - convert to km
+      const distance = placePrediction.distanceMeters 
+        ? placePrediction.distanceMeters / 1000 
+        : null;
 
-        // Fetch place details to get coordinates for accurate distance calculation
-        let distance = null;
-        if (latitude && longitude) {
-          try {
-            // Log place details API call (for distance calculation)
-            await base44.asServiceRole.entities.GoogleAPILog.create({
-              timestamp: new Date().toISOString(),
-              api_type: 'Place Details',
-              purpose: 'Fetching coordinates for autocomplete distance sorting',
-              function_name: 'googlePlacesAutocomplete',
-              user_id: user.id,
-              user_name: userAppUser?.user_name || user.full_name,
-              metadata: {
-                place_id: place_id,
-                parent_search: input
-              }
-            });
+      console.log('[googlePlacesAutocomplete] Suggestion:', description, 'Distance:', distance?.toFixed(2), 'km');
 
-            const detailsUrl = `https://places.googleapis.com/v1/places/${place_id}`;
-            const detailsResponse = await fetch(detailsUrl, {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': apiKey,
-                'X-Goog-FieldMask': 'location'
-              }
-            });
-
-            if (detailsResponse.ok) {
-              const detailsData = await detailsResponse.json();
-              const placeLocation = detailsData.location;
-              
-              if (placeLocation?.latitude && placeLocation?.longitude) {
-                // Calculate distance using Haversine formula
-                const R = 6371; // Earth's radius in km
-                const dLat = (placeLocation.latitude - latitude) * Math.PI / 180;
-                const dLon = (placeLocation.longitude - longitude) * Math.PI / 180;
-                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                          Math.cos(latitude * Math.PI / 180) * Math.cos(placeLocation.latitude * Math.PI / 180) *
-                          Math.sin(dLon / 2) * Math.sin(dLon / 2);
-                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                distance = R * c; // Distance in km
-              }
-            }
-          } catch (error) {
-            console.warn('[googlePlacesAutocomplete] Failed to fetch coordinates for:', place_id, error.message);
-          }
-        }
-
-        return {
-          description,
-          place_id,
-          distance
-        };
-      })
-    );
+      return {
+        description,
+        place_id,
+        distance
+      };
+    }).filter(p => p !== null);
 
     // Filter out nulls and sort by distance (closest first)
     const validPredictions = predictions.filter(p => p !== null);
