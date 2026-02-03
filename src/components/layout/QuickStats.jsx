@@ -46,17 +46,18 @@ export default function QuickStats({ currentUser }) {
   }
 
   const todayDate = format(new Date(), 'yyyy-MM-dd');
-  const todayDeliveries = deliveries.filter(d => d.delivery_date === todayDate);
-  const activeDeliveries = todayDeliveries.filter(d => ['pending', 'in_transit'].includes(d.status));
+  const todayDeliveries = deliveries.filter(d => d && d.delivery_date === todayDate);
+  const activeDeliveries = todayDeliveries.filter(d => d && ['pending', 'in_transit'].includes(d.status));
 
   // Active deliveries by driver
   const activeDeliveriesByDriver = drivers.map(driver => {
-    const driverActiveDeliveries = activeDeliveries.filter(d => d.driver_name === driver.full_name);
+    if (!driver) return null;
+    const driverActiveDeliveries = activeDeliveries.filter(d => d && d.driver_name === driver.user_name);
     return {
-      name: driver.full_name,
+      name: driver.user_name || driver.full_name || 'Unknown',
       count: driverActiveDeliveries.length
     };
-  }).filter(d => d.count > 0);
+  }).filter(d => d && d.count > 0);
 
   // Patients by store
   const patientsByStore = stores.map(store => {
