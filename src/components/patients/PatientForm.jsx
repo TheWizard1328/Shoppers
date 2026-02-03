@@ -16,6 +16,7 @@ import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { GoogleAddressAutocomplete } from "@/components/ui/google-address-autocomplete";
 import { createPatientLocal, updatePatientLocal } from '../utils/offlineMutations';
+import { isMobileDevice } from '@/components/utils/deviceUtils';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
