@@ -1668,10 +1668,24 @@ export default function Layout({ children, currentPageName }) {
 
   // Wake Lock API and visibility change handler
   useEffect(() => {
-    // Wake Lock API - keep screen on when app is focused
+    let batteryRef = null;
+
+    // Wake Lock API - keep screen on when app is focused (battery-aware)
     const requestWakeLock = async () => {
       if ('wakeLock' in navigator && document.visibilityState === 'visible') {
         try {
+          // Check battery status before requesting wake lock
+          if ('getBattery' in navigator) {
+            const battery = await navigator.getBattery();
+            const batteryLevel = battery.level * 100;
+
+            // Don't request wake lock if battery < 25% and not charging
+            if (batteryLevel < 25 && !battery.charging) {
+              console.log('⚡ [Wake Lock] Battery low (<25%) and not charging - wake lock disabled');
+              return;
+            }
+          }
+
           wakeLockRef.current = await navigator.wakeLock.request('screen');
           wakeLockRef.current.addEventListener('release', () => {});
         } catch (err) {}
@@ -1682,6 +1696,29 @@ export default function Layout({ children, currentPageName }) {
       if (wakeLockRef.current) {
         wakeLockRef.current.release();
         wakeLockRef.current = null;
+      }
+    };
+
+    // Monitor battery changes and release wake lock if needed
+    const setupBatteryMonitoring = async () => {
+      if ('getBattery' in navigator) {
+        try {
+          batteryRef = await navigator.getBattery();
+
+          const checkBatteryAndWakeLock = () => {
+            const batteryLevel = batteryRef.level * 100;
+            if (batteryLevel < 25 && !batteryRef.charging && wakeLockRef.current) {
+              console.log('⚡ [Wake Lock] Battery dropped below 25% and not charging - releasing wake lock');
+              releaseWakeLock();
+            } else if ((batteryLevel >= 25 || batteryRef.charging) && !wakeLockRef.current && document.visibilityState === 'visible') {
+              console.log('⚡ [Wake Lock] Battery sufficient or charging - re-acquiring wake lock');
+              requestWakeLock();
+            }
+          };
+
+          batteryRef.addEventListener('levelchange', checkBatteryAndWakeLock);
+          batteryRef.addEventListener('chargingchange', checkBatteryAndWakeLock);
+        } catch (err) {}
       }
     };
 
