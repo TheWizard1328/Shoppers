@@ -2806,6 +2806,12 @@ export default function DeliveryMap({
               if (processedDrivers.has(driverId)) return;
               processedDrivers.add(driverId);
 
+              // CRITICAL: Don't show polyline when driver is on break
+              const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
+              if (driverAppUser?.driver_status === 'on_break') {
+                return;
+              }
+
               // Get next stop (isNextDelivery=true), exclude pending
               const nextStop = deliveryMarkers.find(d => 
                 d && 
@@ -2855,6 +2861,12 @@ export default function DeliveryMap({
             );
             
             otherDriverIds.forEach(driverId => {
+              // CRITICAL: Don't show polyline when driver is on break
+              const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
+              if (driverAppUser?.driver_status === 'on_break') {
+                return;
+              }
+              
               // Get next stop (isNextDelivery=true), exclude pending
               const nextStop = deliveryMarkers.find(d => 
                 d && 
