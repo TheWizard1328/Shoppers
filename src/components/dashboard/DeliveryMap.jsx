@@ -2712,10 +2712,10 @@ export default function DeliveryMap({
               // Find driver's AppUser to check status
               const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
               
-              // CRITICAL: Only show polyline if driver is on_duty OR on_break
-              // off_duty = no polyline
+              // CRITICAL: Only show polyline if driver is on_duty
+              // on_break or off_duty = no polyline
               if (!driverAppUser) return;
-              if (driverAppUser.driver_status !== 'on_duty' && driverAppUser.driver_status !== 'on_break') return;
+              if (driverAppUser.driver_status !== 'on_duty') return;
               
               // Get ALL active stops (in_transit, en_route), exclude pending and finished
               const activeDeliveries = deliveryMarkers.filter(d => 
