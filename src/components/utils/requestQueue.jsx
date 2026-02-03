@@ -15,13 +15,48 @@ class RequestQueue {
   }
 
   /**
+   * Generate a hash key for deduplication
+   */
+  generateRequestKey(requestName) {
+    return `${requestName}`;
+  }
+
+  /**
    * Queue a request and wait for appropriate spacing
    */
   async enqueue(requestFn, requestName = 'unknown') {
-    return new Promise((resolve, reject) => {
+    const requestKey = this.generateRequestKey(requestName);
+    const now = Date.now();
+
+    // Check if we have a pending identical request within dedup window
+    if (this.pendingRequests.has(requestKey)) {
+      const { promise, timestamp } = this.pendingRequests.get(requestKey);
+      if (now - timestamp < DEDUP_WINDOW) {
+        console.log(`🔄 [RequestQueue] Deduplicating request: "${requestName}" (merged with pending)`);
+        return promise;
+      } else {
+        // Old pending request timed out, remove it
+        this.pendingRequests.delete(requestKey);
+      }
+    }
+
+    // Create a new promise for this request
+    const promise = new Promise((resolve, reject) => {
       this.queue.push({ requestFn, requestName, resolve, reject });
       this.processQueue();
     });
+
+    // Store as pending
+    this.pendingRequests.set(requestKey, { promise, timestamp: now });
+
+    // Clean up after dedup window expires
+    setTimeout(() => {
+      if (this.pendingRequests.get(requestKey)?.timestamp === now) {
+        this.pendingRequests.delete(requestKey);
+      }
+    }, DEDUP_WINDOW);
+
+    return promise;
   }
 
   /**
