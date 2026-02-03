@@ -1460,13 +1460,16 @@ export default function DeliveryForm({
   const handleNewAddressPatient = useCallback((patient) => {
     if (!patient) return;
     
+    // CRITICAL: Get full patient data to ensure all fields are populated
+    const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
+    
     setNewPatientMode('new_address');
     setSelectedPatient(null); // Clear selected patient since we're creating new
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
     
     // Find patient's store
-    const patientStore = stores.find((s) => s && s.id === patient.store_id);
+    const patientStore = stores.find((s) => s && s.id === fullPatient.store_id);
     
     // Auto-select driver based on patient's store
     let autoSelectedDriverId = '';
@@ -1509,38 +1512,38 @@ export default function DeliveryForm({
     setFormData((prev) => ({
       ...prev,
       patient_id: '', // Empty to create new patient
-      patient_name: patient.full_name || '',
-      patient_phone: patient.phone || '',
+      patient_name: fullPatient.full_name || '',
+      patient_phone: fullPatient.phone || '',
       unit_number: '', // Clear unit number
-      time_window_start: patient.time_window_start || '',
-      time_window_end: patient.time_window_end || '',
-      mailbox_ok: patient.mailbox_ok || false,
-      call_upon_arrival: patient.call_upon_arrival || false,
-      ring_bell: patient.ring_bell || false,
-      dont_ring_bell: patient.dont_ring_bell || false,
-      back_door: patient.back_door || false,
-      signature_needed: patient.signature_needed || false,
-      delivery_instructions: patient.notes || '',
-      store_id: patient.store_id || '',
+      time_window_start: fullPatient.time_window_start || '',
+      time_window_end: fullPatient.time_window_end || '',
+      mailbox_ok: fullPatient.mailbox_ok || false,
+      call_upon_arrival: fullPatient.call_upon_arrival || false,
+      ring_bell: fullPatient.ring_bell || false,
+      dont_ring_bell: fullPatient.dont_ring_bell || false,
+      back_door: fullPatient.back_door || false,
+      signature_needed: fullPatient.signature_needed || false,
+      delivery_instructions: fullPatient.notes || '',
+      store_id: fullPatient.store_id || '',
       driver_id: autoSelectedDriverId,
       driver_name: autoSelectedDriverName,
-      recurring: patient.recurring || false,
-      recurring_daily: patient.recurring_daily || false,
-      recurring_weekly_mon: patient.recurring_weekly_mon || false,
-      recurring_weekly_tue: patient.recurring_weekly_tue || false,
-      recurring_weekly_wed: patient.recurring_weekly_wed || false,
-      recurring_weekly_thu: patient.recurring_weekly_thu || false,
-      recurring_weekly_fri: patient.recurring_weekly_fri || false,
-      recurring_weekly_sat: patient.recurring_weekly_sat || false,
-      recurring_weekly_sun: patient.recurring_weekly_sun || false,
-      recurring_biweekly: patient.recurring_biweekly || false,
-      recurring_weekly_x4: patient.recurring_weekly_x4 || false,
-      recurring_monthly: patient.recurring_monthly || false,
-      recurring_bimonthly: patient.recurring_bimonthly || false
+      recurring: fullPatient.recurring || false,
+      recurring_daily: fullPatient.recurring_daily || false,
+      recurring_weekly_mon: fullPatient.recurring_weekly_mon || false,
+      recurring_weekly_tue: fullPatient.recurring_weekly_tue || false,
+      recurring_weekly_wed: fullPatient.recurring_weekly_wed || false,
+      recurring_weekly_thu: fullPatient.recurring_weekly_thu || false,
+      recurring_weekly_fri: fullPatient.recurring_weekly_fri || false,
+      recurring_weekly_sat: fullPatient.recurring_weekly_sat || false,
+      recurring_weekly_sun: fullPatient.recurring_weekly_sun || false,
+      recurring_biweekly: fullPatient.recurring_biweekly || false,
+      recurring_weekly_x4: fullPatient.recurring_weekly_x4 || false,
+      recurring_monthly: fullPatient.recurring_monthly || false,
+      recurring_bimonthly: fullPatient.recurring_bimonthly || false
     }));
     
     // Store original patient data with cleared address for reference when creating new patient
-    setSelectedPatient({ ...patient, address: '', _newAddressSource: true });
+    setSelectedPatient({ ...fullPatient, address: '', _newAddressSource: true });
     
     // Trigger patient form to open with the address field ready
     if (onCreatePatient) {
@@ -1551,22 +1554,22 @@ export default function DeliveryForm({
         // CRITICAL: Auto-add new patient to staged (true parameter)
         handlePatientSelect(createdPatient, true);
       }, {
-        full_name: patient.full_name || '',
-        phone: patient.phone || '',
-        store_id: patient.store_id || '',
+        full_name: fullPatient.full_name || '',
+        phone: fullPatient.phone || '',
+        store_id: fullPatient.store_id || '',
         address: '', // Empty address
         unit_number: '', // Empty unit
-        notes: patient.notes || '',
-        time_window_start: patient.time_window_start || '',
-        time_window_end: patient.time_window_end || '',
-        mailbox_ok: patient.mailbox_ok || false,
-        call_upon_arrival: patient.call_upon_arrival || false,
-        ring_bell: patient.ring_bell || false,
-        dont_ring_bell: patient.dont_ring_bell || false,
-        back_door: patient.back_door || false,
-        signature_needed: patient.signature_needed || false,
+        notes: fullPatient.notes || '',
+        time_window_start: fullPatient.time_window_start || '',
+        time_window_end: fullPatient.time_window_end || '',
+        mailbox_ok: fullPatient.mailbox_ok || false,
+        call_upon_arrival: fullPatient.call_upon_arrival || false,
+        ring_bell: fullPatient.ring_bell || false,
+        dont_ring_bell: fullPatient.dont_ring_bell || false,
+        back_door: fullPatient.back_door || false,
+        signature_needed: fullPatient.signature_needed || false,
         _isNew: true,
-        _focusAddress: true // Signal to focus address field (non-mobile only)
+        _focusAddress: !isMobileDevice // Auto-focus address field only on non-mobile devices
       });
     }
   }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect]);
