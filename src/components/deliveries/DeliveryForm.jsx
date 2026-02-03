@@ -1557,13 +1557,16 @@ export default function DeliveryForm({
         address: '', // Empty address
         unit_number: '', // Empty unit
         notes: patient.notes || '',
+        time_window_start: patient.time_window_start || '',
+        time_window_end: patient.time_window_end || '',
         mailbox_ok: patient.mailbox_ok || false,
         call_upon_arrival: patient.call_upon_arrival || false,
         ring_bell: patient.ring_bell || false,
         dont_ring_bell: patient.dont_ring_bell || false,
         back_door: patient.back_door || false,
+        signature_needed: patient.signature_needed || false,
         _isNew: true,
-        _focusAddress: true // Signal to focus address field
+        _focusAddress: true // Signal to focus address field (non-mobile only)
       });
     }
   }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect]);
