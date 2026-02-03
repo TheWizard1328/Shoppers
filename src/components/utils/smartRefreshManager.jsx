@@ -1083,35 +1083,19 @@ class SmartRefreshManager {
       
       this.lastRefreshTimes.driverLocation = now;
       
-      // CRITICAL: ALWAYS fetch from API for driver locations - offline DB can have stale location data
-      // Offline DB is only used as fallback when API fails
-      // CRITICAL: When showAllDrivers is true, fetch ALL AppUsers (not just drivers)
-      await this.waitForRateLimit();
-      let allAppUsers;
-      if (showAllDrivers) {
-        console.log(`📡 [SmartRefresh] Fetching ALL AppUsers for "Show All" mode`);
-        allAppUsers = await queueEntityRequest(
-          () => base44.entities.AppUser.list(),
-          'AppUser list [ALL for Show All]'
-        );
-      } else {
-        allAppUsers = await queueEntityRequest(
-          () => base44.entities.AppUser.filter({
-            app_roles: { $in: ['driver'] }
-          }),
-          'AppUser list [drivers only]'
-        );
-      }
+      // CRITICAL: Load from offline DB (kept fresh by performPrioritySyncBeforeRefresh every 15s)
+      // This avoids duplicate API calls and uses the data that was just synced
+      const { offlineDB } = await import('./offlineDatabase');
+      const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
       
-      this.recordSuccess();
-      
-      if (!allAppUsers || allAppUsers.length === 0) {
+      if (!offlineAppUsers || offlineAppUsers.length === 0) {
+        console.log(`⚠️ [SmartRefresh] No AppUsers in offline DB - waiting for priority sync`);
         return null;
       }
       
-      // Merge offline data with current state (prefer offline if newer)
+      // Merge offline data with current state (always prefer offline since it's authoritative)
       const updatedAppUsers = currentAppUsers.map(au => {
-        const offlineVersion = allAppUsers.find(ad => ad.user_id === au.user_id);
+        const offlineVersion = offlineAppUsers.find(ad => ad.user_id === au.user_id);
         if (offlineVersion) {
           // CRITICAL: If this AppUser has a pending status change, preserve local value
           if (this.hasPendingAppUserUpdate(au.id)) {
@@ -1119,22 +1103,15 @@ class SmartRefreshManager {
             return au;
           }
 
-          const localTime = new Date(au.updated_date || 0).getTime();
-          const offlineTime = new Date(offlineVersion.updated_date || 0).getTime();
-
-          // CRITICAL: Always prefer offline DB version if it's newer or equal
-          // This prevents bouncing between old and new locations
-          if (offlineTime >= localTime) {
-            return offlineVersion;
-          }
-
-          return au;
+          // CRITICAL: Always use offline DB version (it's kept fresh by priority sync)
+          // This prevents bouncing between old/new data
+          return offlineVersion;
         }
         return au;
       });
 
       // Add any new AppUsers from offline DB
-      allAppUsers.forEach(offlineAu => {
+      offlineAppUsers.forEach(offlineAu => {
         if (!updatedAppUsers.find(au => au.user_id === offlineAu.user_id)) {
           updatedAppUsers.push(offlineAu);
         }
