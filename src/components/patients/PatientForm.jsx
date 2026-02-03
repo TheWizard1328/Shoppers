@@ -510,6 +510,7 @@ export default function PatientForm({
 
   const isFormValid = formData.full_name && formData.address && formData.store_id;
   const storeSelectRef = useRef(null);
+  const addressInputRef = useRef(null);
 
   // Auto-focus store dropdown if no store selected on new patient
   useEffect(() => {
