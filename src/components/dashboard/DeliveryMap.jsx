@@ -2604,13 +2604,17 @@ export default function DeliveryMap({
               d.driver_id === driverId &&
               d.isNextDelivery === true &&
               !finishedStatuses.includes(d.status) &&
-              d.status !== 'pending'
+              d.status !== 'pending' &&
+              typeof d.latitude === 'number' &&
+              typeof d.longitude === 'number'
             ) || pickupMarkers.find(p => 
               p && 
               p.driver_id === driverId &&
               p.isNextDelivery === true &&
               !finishedStatuses.includes(p.status) &&
-              p.status !== 'pending'
+              p.status !== 'pending' &&
+              typeof p.latitude === 'number' &&
+              typeof p.longitude === 'number'
             );
             
             if (!nextStop) return;
