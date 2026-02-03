@@ -2711,11 +2711,11 @@ export default function DeliveryMap({
             driverIdsWithActiveStops.forEach(driverId => {
               // Find driver's AppUser to check status
               const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
-              
-              // CRITICAL: Only show polyline if driver is on_duty
-              // on_break or off_duty = no polyline
+
+              // CRITICAL: Show polyline for on_duty drivers only
+              // Dispatchers can only see polylines for on_duty drivers (not on_break)
               if (!driverAppUser) return;
-              if (driverAppUser.driver_status !== 'on_duty') return;
+              if (driverAppUser.driver_status !== 'on_duty') return; // Skip on_break and off_duty
               
               // Get ALL active stops (in_transit, en_route), exclude pending and finished
               const activeDeliveries = deliveryMarkers.filter(d => 
@@ -2970,13 +2970,14 @@ export default function DeliveryMap({
                 const stop1 = allRouteStops[i];
                 const stop2 = allRouteStops[i + 1];
 
-                // CRITICAL POLYLINE RULE FOR ACTIVE ROUTES: Skip segments involving finished stops
-                // Only draw segments BETWEEN incomplete stops
-                if (!routeIsCompleted) {
-                  const stop1Finished = FINISHED_STATUSES.includes(stop1.status) || stop1.status === 'pending';
-                  const stop2Finished = FINISHED_STATUSES.includes(stop2.status) || stop2.status === 'pending';
-                  if (stop1Finished || stop2Finished) continue; // Skip this segment
-                }
+                // CRITICAL POLYLINE RULE FOR ACTIVE ROUTES: Only skip if BOTH stops are finished
+                  // Allow segments from completed stop to next pickup/delivery (don't skip the transition)
+                  if (!routeIsCompleted) {
+                    const stop1Finished = FINISHED_STATUSES.includes(stop1.status) || stop1.status === 'pending';
+                    const stop2Finished = FINISHED_STATUSES.includes(stop2.status) || stop2.status === 'pending';
+                    // Skip ONLY if both stops are finished - allows pickup→delivery transitions
+                    if (stop1Finished && stop2Finished) continue;
+                  }
 
                 const stop1IsPickup = stop1.type === 'pickup';
                 const stop2IsPickup = stop2.type === 'pickup';
