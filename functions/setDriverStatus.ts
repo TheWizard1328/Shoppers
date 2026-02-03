@@ -55,9 +55,9 @@ Deno.serve(async (req) => {
     // CRITICAL: Broadcast the change to all connected clients immediately
     console.log(`📡 [setDriverStatus] Broadcasting driver status change to all clients...`);
 
-    // When going on_break, ONLY clear isNextDelivery flags - DO NOT reorder deliveries
+    // When going on_break, clear ALL isNextDelivery flags for incomplete stops
     if (newStatus === 'on_break') {
-      console.log(`🔄 [setDriverStatus] Driver going on break - clearing isNextDelivery flags ONLY`);
+      console.log(`🔄 [setDriverStatus] Driver going on break - clearing ALL isNextDelivery flags`);
       
       const today = new Date().toISOString().split('T')[0];
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -65,21 +65,23 @@ Deno.serve(async (req) => {
         delivery_date: today
       });
       
-      const deliveriesWithNextFlag = allTodayDeliveries.filter(d => d.isNextDelivery === true);
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const incompleteDeliveries = allTodayDeliveries.filter(d => 
+        !finishedStatuses.includes(d.status) && d.status !== 'pending'
+      );
       
-      console.log(`📦 [setDriverStatus] Clearing isNextDelivery on ${deliveriesWithNextFlag.length} deliveries`);
-      console.log(`📦 [setDriverStatus] NOT modifying stop_order - deliveries will remain in current sequence`);
+      console.log(`📦 [setDriverStatus] Clearing isNextDelivery on ${incompleteDeliveries.length} incomplete deliveries`);
       
-      for (const delivery of deliveriesWithNextFlag) {
+      for (const delivery of incompleteDeliveries) {
         await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
       }
       
-      console.log(`✅ [setDriverStatus] isNextDelivery flags cleared - delivery order preserved`);
+      console.log(`✅ [setDriverStatus] All isNextDelivery flags cleared for incomplete stops`);
     }
     
-    // When coming back on_duty from break, find closest delivery and trigger re-optimization
+    // When coming back on_duty from break, find closest delivery and set it as isNextDelivery
     if (newStatus === 'on_duty') {
-      console.log(`🔄 [setDriverStatus] Driver back on duty - finding closest delivery and re-optimizing route`);
+      console.log(`🔄 [setDriverStatus] Driver back on duty - finding closest delivery`);
       
       const today = new Date().toISOString().split('T')[0];
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -141,23 +143,15 @@ Deno.serve(async (req) => {
           }
         }
         
-        // If we found closest delivery, set it as next and trigger re-optimization
+        // If we found closest delivery, set it as next (but don't optimize yet - "Start" will handle that)
         if (closestDelivery) {
           console.log(`📍 [setDriverStatus] Closest delivery: ${closestDelivery.patient_name || 'Pickup'} (${minDistance.toFixed(2)} km away)`);
+          console.log(`🎯 [setDriverStatus] Setting isNextDelivery=true - waiting for driver to click "Start"`);
           
-          // Set isNextDelivery on closest delivery
+          // ONLY set isNextDelivery flag - optimization happens when driver clicks "Start"
           await base44.asServiceRole.entities.Delivery.update(closestDelivery.id, { isNextDelivery: true });
           
-          // Trigger route re-optimization from current location
-          console.log(`🤖 [setDriverStatus] Triggering route re-optimization from current location`);
-          await base44.asServiceRole.functions.invoke('optimizeDriverRoute', {
-            driverId: user.id,
-            deliveryDate: today,
-            currentLocation: driverLat && driverLng ? { latitude: driverLat, longitude: driverLng } : null,
-            generatePolyline: true
-          });
-          
-          console.log(`✅ [setDriverStatus] Route re-optimized with ${closestDelivery.patient_name || 'Pickup'} as next stop`);
+          console.log(`✅ [setDriverStatus] Closest delivery marked as next - ready for driver to start`);
         } else {
           // Fallback to first stop by stop_order if distance calculation failed
           const nextDelivery = incompleteDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
