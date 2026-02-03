@@ -1523,16 +1523,15 @@ export default function DeliveryMap({
         [marker.latitude, marker.longitude]
       ]);
       
-      // Center map with offset to show balloon fully - with lower max zoom and bottom padding
-      const panOptions = {
-        paddingTopLeft: [60, 60],
-        paddingBottomRight: [60, dynamicBottomPadding],
-        maxZoom: 15, // Reduced from default for better view
-        animate: true,
-        duration: 0.6
-      };
-      
-      map.fitBounds(markerBounds, panOptions);
+      // Pan to position marker in upper-middle of screen, leaving space at bottom for balloon
+      if (map) {
+        const mapSize = map.getSize();
+        const mapCenter = map.project([marker.latitude, marker.longitude]);
+        // Position marker at 30% from top (70% from bottom for balloon)
+        const offset = mapSize.y * 0.3;
+        const newCenter = map.unproject([mapCenter.x, mapCenter.y - (mapSize.y * 0.2)]);
+        map.setView(newCenter, 15, { animate: true, duration: 0.6 });
+      }
       
       // Open the marker's popup if available
       if (markerElement && markerElement._popup) {
