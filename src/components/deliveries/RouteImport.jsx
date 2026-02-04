@@ -1885,9 +1885,9 @@ export default function RouteImport({
 
       setProgressPercent(8);
 
-      // STEP 2: Filter preview deliveries FIRST
-      const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
-      const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
+      // STEP 2: Use ALL preview deliveries (not filtered) - import entire CSV since we're deleting entire routes
+      const deliveriesToCreateFiltered = allPreviewDeliveries.filter((d) => d.action === 'create');
+      const deliveriesToUpdateFiltered = allPreviewDeliveries.filter((d) => d.action === 'update');
 
       // STEP 3: Get drivers being imported
       const importedDriverIds = [...new Set(
