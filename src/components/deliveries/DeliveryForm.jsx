@@ -4822,7 +4822,6 @@ export default function DeliveryForm({
                       </div>
                     </div>
                   }
-                </div>
 
                 {/* Staged Panel - STATIC - Show when screen is wide enough, regardless of device type */}
                 {!delivery && !useMobileLayout &&
