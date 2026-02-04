@@ -29,6 +29,7 @@ class SmartRefreshManager {
     this._enabled = true;
     this._initialized = false;
     this._paused = false; // CRITICAL: Pause during mutations to prevent race conditions
+    this._currentUser = null; // Store current user for location polling
     
     this.lastFetchTimestamps = new Map();
     this.isRefreshing = false;
