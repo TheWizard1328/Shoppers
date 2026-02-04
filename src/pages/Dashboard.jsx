@@ -2105,6 +2105,9 @@ function Dashboard() {
       return;
     }
 
+    // CRITICAL: Set current user in smart refresh manager for location polling
+    smartRefreshManager.setCurrentUser(currentUser);
+
     const runPeriodicSmartRefresh = async () => {
       if (showDeliveryForm || showPatientForm || showOptimizationSettings) {
         return; // Skip when forms are open
