@@ -2470,9 +2470,11 @@ class SmartRefreshManager {
 
    /**
     * NEW: Full AppUser sync - every 15 seconds, entire dataset in one API hit
+    * CRITICAL: Ensures offline DB is updated AND dispatches event with fresh location data
     */
    async refreshAllAppUsersFullSync(currentAppUsers) {
      try {
+       console.log('🔄 [SmartRefresh] Starting full AppUser sync - fetching from API...');
        await this.waitForRateLimit();
        const allAppUsers = await queueEntityRequest(
          () => base44.entities.AppUser.list(),
@@ -2482,39 +2484,57 @@ class SmartRefreshManager {
        this.recordSuccess();
 
        if (!allAppUsers || allAppUsers.length === 0) {
+         console.warn('⚠️ [SmartRefresh] No AppUsers returned from API');
          return null;
        }
 
-       // Sync entire dataset to offline DB
+       console.log(`📥 [SmartRefresh] Fetched ${allAppUsers.length} AppUsers from API`);
+
+       // CRITICAL: Sync entire dataset to offline DB FIRST
+       let offlineSaveSuccess = false;
        try {
          const { offlineDB } = await import('./offlineDatabase');
+         console.log(`💾 [SmartRefresh] Saving ${allAppUsers.length} AppUsers to offline DB...`);
          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+
+         // Verify save was successful
+         const verifyOfflineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+         if (verifyOfflineAppUsers && verifyOfflineAppUsers.length > 0) {
+           console.log(`✅ [SmartRefresh] Verified offline DB has ${verifyOfflineAppUsers.length} AppUsers (locations fresh)`);
+           offlineSaveSuccess = true;
+         } else {
+           console.warn('⚠️ [SmartRefresh] Offline DB save failed - returned empty on verify');
+         }
+
          await offlineDB.updateSyncStatus('AppUser', {
            recordCount: allAppUsers.length,
            status: 'synced',
            lastSync: new Date().toISOString()
          });
-         console.log(`✅ [SmartRefresh] Full AppUser sync: ${allAppUsers.length} records`);
        } catch (offlineError) {
-         console.warn('⚠️ [SmartRefresh] Failed to sync AppUsers to offline DB:', offlineError);
+         console.error('❌ [SmartRefresh] Failed to sync AppUsers to offline DB:', offlineError.message);
        }
 
        const diff = diffEntityArrays(currentAppUsers, allAppUsers);
 
+       console.log(`📊 [SmartRefresh] AppUser diff: +${diff.toAdd.length} ~${diff.toUpdate.length} -${diff.toRemove.length}`);
+
        if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+         console.log('ℹ️ [SmartRefresh] No AppUser changes detected');
          return null;
        }
 
        const merged = mergeEntityChanges(currentAppUsers, diff);
-       
-       // CRITICAL: Dispatch driver location update event to refresh map markers
+
+       // CRITICAL: ALWAYS dispatch driver location update event to refresh map markers
+       // Use fresh API data (allAppUsers), not just merged diff
        if (typeof window !== 'undefined') {
-         console.log('📍 [SmartRefresh] Dispatching driverLocationsUpdated event after full AppUser sync');
+         console.log(`📍 [SmartRefresh] Dispatching driverLocationsUpdated with ${allAppUsers.length} fresh locations`);
          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-           detail: { appUsers: merged }
+           detail: { appUsers: allAppUsers } // Use FRESH API data, not merged
          }));
        }
-       
+
        return {
          hasChanges: true,
          appUsers: merged
@@ -2522,6 +2542,7 @@ class SmartRefreshManager {
      } catch (error) {
        this.recordError();
        this.recordConnectionError(error);
+       console.error('❌ [SmartRefresh] Full AppUser sync error:', error.message);
        if (error.response?.status === 429 || error.message?.includes('429')) {
          console.warn('⏰ [SmartRefresh] Rate limit on full AppUser sync');
          this.notifyRateLimit(true);
