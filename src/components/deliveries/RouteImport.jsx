@@ -1570,16 +1570,31 @@ export default function RouteImport({
         console.warn('⚠️ [RouteImport] Failed to clear offline DB:', offlineError);
       }
       
-      // CRITICAL: ALWAYS use offline DB for validation, NEVER fetch from API during import preview
-      // API calls during import cause rate limits - use cached data only
-      let freshDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      freshDeliveries = freshDeliveries.filter(d => 
-        allDriverIds.includes(d.driver_id) &&
-        d.delivery_date >= minDate &&
-        d.delivery_date <= maxDate
-      );
-      
-      console.log(`✅ [RouteImport] Loaded ${freshDeliveries.length} deliveries from offline DB for validation (no API fetch)`);
+      // CRITICAL: Fetch fresh deliveries from BACKEND for accurate matching during preview
+      // We MUST have current data to prevent duplicate creation on re-imports
+      // API calls during preview are necessary to prevent creating duplicates
+      let freshDeliveries = [];
+      try {
+        const backendDeliveries = await base44.entities.Delivery.filter({
+          driver_id: { $in: allDriverIds },
+          delivery_date: { $gte: minDate, $lte: maxDate }
+        });
+        freshDeliveries = backendDeliveries || [];
+        console.log(`✅ [RouteImport] Loaded ${freshDeliveries.length} deliveries from backend for validation`);
+
+        // Sync to offline DB for future use
+        if (freshDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        }
+      } catch (fetchError) {
+        console.warn('⚠️ [RouteImport] Failed to fetch from backend, falling back to offline DB:', fetchError.message);
+        freshDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        freshDeliveries = freshDeliveries.filter(d => 
+          allDriverIds.includes(d.driver_id) &&
+          d.delivery_date >= minDate &&
+          d.delivery_date <= maxDate
+        );
+      }
       setProgressPercent(35);
 
 
