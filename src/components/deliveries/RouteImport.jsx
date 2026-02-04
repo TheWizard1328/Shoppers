@@ -2085,53 +2085,8 @@ export default function RouteImport({
         }
       }
 
-      // BATCH UPDATE - single pass for all updates (imports typically have <100 updates)
-      if (deliveriesToUpdateFiltered.length > 0) {
-        setImportProgress((prev) => ({
-          ...prev,
-          phase: 'updating',
-          total: deliveriesToUpdateFiltered.length,
-          current: 0
-        }));
-        setProgressMessage(`Updating ${deliveriesToUpdateFiltered.length} existing deliveries...`);
-
-        // CRITICAL: Process all updates in single pass with minimal delays
-        for (let i = 0; i < deliveriesToUpdateFiltered.length; i++) {
-          const deliveryData = deliveriesToUpdateFiltered[i];
-          try {
-            const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
-            if (!id) throw new Error('Missing delivery ID');
-
-            const cleanPayload = cleanDeliveryData(updatePayload);
-
-            const updatedDelivery = await retryWithBackoff(async () => {
-              return await base44.entities.Delivery.update(id, cleanPayload);
-            }, 5, 2000, 2);
-            
-            // CRITICAL: Update both online and offline simultaneously
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
-
-            overallResults.updated++;
-            if (cleanPayload.status === 'completed') {
-              overallResults.completed++;
-            }
-            if (cleanPayload.status === 'failed') {
-              overallResults.failed++;
-            }
-            if (isReturnDelivery(cleanPayload, freshPatients, freshStores)) {
-              overallResults.returned++;
-            }
-            setImportProgress((prev) => ({
-              ...prev,
-              updated: prev.updated + 1,
-              current: i + 1
-            }));
-            } catch (error) {
-            failedUpdates.push({ data: deliveryData, error: error.message });
-            setImportProgress((prev) => ({ ...prev, current: i + 1 }));
-          }
-        }
-      }
+      // BATCH UPDATE - SKIPPED - all deliveries are now creates after purge
+      // No update phase needed since we delete entire route before import
 
       // Retry failed operations - directly on backend
       const totalFailed = failedCreations.length + failedUpdates.length;
