@@ -189,6 +189,18 @@ export default function PullToSync({
         description: error.message
       });
     } finally {
+      // Resume all background managers after sync
+      console.log('▶️ [Pull to Sync] Resuming managers...');
+      if (window.smartRefreshManager?.resume) {
+        window.smartRefreshManager.resume();
+      }
+      if (window.realtimeSyncManager?.resume) {
+        window.realtimeSyncManager.resume();
+      }
+      if (window.backgroundSyncManager?.resume) {
+        window.backgroundSyncManager.resume();
+      }
+
       // Small delay before removing loading indicator
       setTimeout(() => {
         setIsSyncing(false);
