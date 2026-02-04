@@ -22,7 +22,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     // Load initial stats
     getSyncStats().then(setStats);
 
-    // Subscribe to sync updates
+    // Subscribe to sync updates (manual sync)
     const unsubscribe = subscribeSyncStatus((status) => {
       setSyncStatus(status);
       setIsSyncing(status.status === 'syncing' || status.status === 'force_syncing');
@@ -60,7 +60,40 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       }
     });
 
-    return unsubscribe;
+    // CRITICAL: Listen for periodic sync progress from smartRefreshManager
+    const handlePeriodicSync = (event) => {
+      const { entity, count, isComplete } = event.detail;
+      
+      // Show syncing state
+      setIsSyncing(true);
+      setSyncStatus({ status: 'syncing', entity, count, progress: isComplete ? 100 : 50 });
+      
+      // Update runtime stats
+      setRuntimeStats(prev => ({
+        ...prev,
+        [entity.toLowerCase()]: count
+      }));
+      
+      console.log(`🔄 [OfflineSyncIndicator] Periodic sync: ${entity} - count: ${count}`);
+      
+      // If sync complete, refresh stats after short delay
+      if (isComplete) {
+        setTimeout(() => {
+          getSyncStats().then(newStats => {
+            setStats(newStats);
+            setRuntimeStats({});
+            setIsSyncing(false);
+          });
+        }, 300);
+      }
+    };
+
+    window.addEventListener('periodicSyncProgress', handlePeriodicSync);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('periodicSyncProgress', handlePeriodicSync);
+    };
   }, [isVisible]);
 
   // Only show to app owners - MUST be after all hooks
