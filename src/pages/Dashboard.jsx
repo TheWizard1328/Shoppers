@@ -84,6 +84,7 @@ import SmartPrioritizationPanel from '../components/dashboard/SmartPrioritizatio
 import DualStatsMarquee from '../components/dashboard/DualStatsMarquee';
 import EndOfDayStatsDialog from '../components/dashboard/EndOfDayStatsDialog';
 import { toast } from 'sonner';
+import PullToSync from '../components/dashboard/PullToSync';
 
 // FIXED: StatBadge - simple component without hooks to avoid violations
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
@@ -7135,22 +7136,143 @@ function Dashboard() {
     });
   };
 
-  return (
-    <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
-      {/* Snapshot Timeline - Only visible when snapshot mode is active */}
-      {isSnapshotModeActive && isAppOwner(currentUser) &&
-        <div className="absolute left-0 top-0 bottom-0 z-[250]">
-          <SnapshotTimeline
-            selectedDate={selectedDate}
-            selectedDriverId={selectedDriverId}
-            onSnapshotSelect={handleSnapshotSelect}
-            onClose={() => {
-              setIsSnapshotModeActive(false);
-              setSnapshotData(null);
-            }}
-          />
-        </div>
+  // Pull-to-sync handler - mobile only
+  const handlePullToSync = async () => {
+    console.log('🔄 [Pull-to-Sync] Starting sync process...');
+    
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    const selectedCityId = globalFilters.getSelectedCityId();
+    
+    try {
+      // STEP 1: Purge deliveries for selected date and city from offline DB
+      console.log(`🗑️ [Pull-to-Sync] Purging deliveries for ${selectedDateStr} in city ${selectedCityId}...`);
+      
+      // Get all deliveries for this date
+      const allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+      
+      // Filter to only delete deliveries in the selected city
+      const cityStoreIds = stores
+        .filter(s => s?.city_id === selectedCityId)
+        .map(s => s.id);
+      
+      const deliveriesToDelete = allDateDeliveries.filter(d => 
+        d && cityStoreIds.includes(d.store_id)
+      );
+      
+      // Delete from offline DB
+      for (const delivery of deliveriesToDelete) {
+        await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);
       }
+      console.log(`✅ [Pull-to-Sync] Deleted ${deliveriesToDelete.length} deliveries from offline DB`);
+      
+      // STEP 2: Resync all deliveries for all drivers for selected date and city
+      console.log(`📥 [Pull-to-Sync] Fetching fresh deliveries from backend...`);
+      const freshDeliveries = await base44.entities.Delivery.filter({ 
+        delivery_date: selectedDateStr,
+        store_id: { $in: cityStoreIds }
+      });
+      console.log(`✅ [Pull-to-Sync] Fetched ${freshDeliveries.length} deliveries from backend`);
+      
+      // Save to offline DB
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+      console.log(`✅ [Pull-to-Sync] Saved deliveries to offline DB`);
+      
+      // STEP 3: Resync patients related to these deliveries
+      const patientIds = [...new Set(freshDeliveries
+        .filter(d => d?.patient_id)
+        .map(d => d.patient_id)
+      )];
+      
+      if (patientIds.length > 0) {
+        console.log(`📥 [Pull-to-Sync] Fetching ${patientIds.length} patients...`);
+        const freshPatients = await base44.entities.Patient.filter({
+          id: { $in: patientIds }
+        });
+        
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+        console.log(`✅ [Pull-to-Sync] Synced ${freshPatients.length} patients`);
+      }
+      
+      // STEP 4: Update UI with fresh data from offline DB
+      console.log(`🖥️ [Pull-to-Sync] Updating UI...`);
+      
+      // Reload from offline DB to ensure consistency
+      const finalDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+      
+      // Update context based on current selection mode
+      if (updateDeliveriesLocally) {
+        const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== selectedDateStr);
+        const mergedDeliveries = [...otherDateDeliveries, ...finalDeliveries];
+        updateDeliveriesLocally(mergedDeliveries, true);
+      }
+      
+      // STEP 5: Force refresh ALL AppUsers to update driver locations and markers
+      console.log(`📍 [Pull-to-Sync] Refreshing driver locations...`);
+      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
+      const latestAppUsers = locationUpdates?.appUsers || appUsers;
+      
+      // Sync AppUsers to offline DB
+      if (latestAppUsers && latestAppUsers.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, latestAppUsers);
+      }
+      
+      // STEP 6: Update map markers for all modes
+      console.log(`🗺️ [Pull-to-Sync] Updating map markers...`);
+      
+      // Dispatch location updates
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+        detail: { appUsers: latestAppUsers, forceAll: true }
+      }));
+      
+      // Dispatch deliveries update
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { 
+          deliveryDate: selectedDateStr, 
+          triggeredBy: 'pullToSync',
+          allDrivers: true 
+        }
+      }));
+      
+      // STEP 7: Reactivate FAB Phase 1 briefly
+      setIsMapViewLocked(true);
+      lastProgrammaticMapMoveRef.current = Date.now();
+      window._lastProgrammaticMapMove = Date.now();
+      setMapViewTrigger((prev) => prev + 1);
+      
+      setTimeout(() => setIsMapViewLocked(false), 500);
+      
+      console.log(`✅ [Pull-to-Sync] Sync complete!`);
+      
+      // Show success toast
+      toast.success('Data synced', {
+        description: `${freshDeliveries.length} deliveries updated`
+      });
+      
+    } catch (error) {
+      console.error('❌ [Pull-to-Sync] Sync failed:', error);
+      toast.error('Sync failed', {
+        description: error.message
+      });
+    }
+  };
+
+  return (
+    <PullToSync onSync={handlePullToSync} isActive={isMobile}>
+      <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
+        {/* Snapshot Timeline - Only visible when snapshot mode is active */}
+        {isSnapshotModeActive && isAppOwner(currentUser) &&
+          <div className="absolute left-0 top-0 bottom-0 z-[250]">
+            <SnapshotTimeline
+              selectedDate={selectedDate}
+              selectedDriverId={selectedDriverId}
+              onSnapshotSelect={handleSnapshotSelect}
+              onClose={() => {
+                setIsSnapshotModeActive(false);
+                setSnapshotData(null);
+              }}
+            />
+          </div>
+        }
 
 
       <div className={statsCardPositioning} style={{ zIndex: 600 }}>
@@ -8345,8 +8467,9 @@ function Dashboard() {
           </DialogContent>
         </Dialog>
       }
-    </div>);
-
+      </div>
+    </PullToSync>
+  );
 }
 
 async function geocodeAddress(address) {
