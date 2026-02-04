@@ -4,6 +4,12 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 // CRITICAL: Cache is now PER-YEAR to prevent past month data loss
 const statsCache = new Map();
 
+// Helper function to get today's date key for cache invalidation
+const getCacheDateKey = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
