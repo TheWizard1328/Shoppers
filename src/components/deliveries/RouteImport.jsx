@@ -1216,24 +1216,30 @@ export default function RouteImport({
       const cleanedNotes = processDeliveryNotes(rawNotes, newDeliveryData, patient, isPickup, isCompletedForNotes);
       newDeliveryData.delivery_notes = cleanedNotes;
 
-      // CRITICAL: If this PID has duplicates in the import, ONLY match by exact SID
-      // This prevents stop 13 from overwriting stop 10's data
-      const pidHasDuplicatesInImport = patientPID && pidCountInImport.get(patientPID) > 1;
-      
-      // CRITICAL: Always use selectedDriver.id to ensure consistent driver assignment
-      // This prevents creating deliveries with incorrect/duplicate driver_id values
-      const matchResult = pidHasDuplicatesInImport && stopId
-        ? { match: allDeliveriesData.find(d => d.stop_id === stopId && d.delivery_date === currentDate && d.driver_id === selectedDriver.id), reason: 'SID Match (PID has duplicates)' }
-        : matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
-      
-      let existingDelivery = matchResult?.match || null;
-      const matchReason = matchResult?.reason || 'Unknown';
+      // CRITICAL: If skipMatching is true (full purge), treat everything as create
+      // This ensures ALL CSV data is imported after purge, not just new/changed items
+      let existingDelivery = null;
+      const matchReason = skipMatching ? 'FULL_PURGE_IMPORT' : 'Unknown';
 
-      // CRITICAL: If we already matched this existing delivery in this import pass, don't match it again
-      // This prevents duplicate imports from overwriting each other
-      if (existingDelivery && matchedExistingDeliveryIds.has(existingDelivery.id)) {
-        existingDelivery = null;
+      if (!skipMatching) {
+       // CRITICAL: If this PID has duplicates in the import, ONLY match by exact SID
+       // This prevents stop 13 from overwriting stop 10's data
+       const pidHasDuplicatesInImport = patientPID && pidCountInImport.get(patientPID) > 1;
 
+       // CRITICAL: Always use selectedDriver.id to ensure consistent driver assignment
+       // This prevents creating deliveries with incorrect/duplicate driver_id values
+       const matchResult = pidHasDuplicatesInImport && stopId
+         ? { match: allDeliveriesData.find(d => d.stop_id === stopId && d.delivery_date === currentDate && d.driver_id === selectedDriver.id), reason: 'SID Match (PID has duplicates)' }
+         : matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
+
+       existingDelivery = matchResult?.match || null;
+       matchReason = matchResult?.reason || 'Unknown';
+
+       // CRITICAL: If we already matched this existing delivery in this import pass, don't match it again
+       // This prevents duplicate imports from overwriting each other
+       if (existingDelivery && matchedExistingDeliveryIds.has(existingDelivery.id)) {
+         existingDelivery = null;
+       }
       }
 
       // CRITICAL: Import travel_dist ONLY if existing is 0
