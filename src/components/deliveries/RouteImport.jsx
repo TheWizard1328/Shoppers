@@ -667,42 +667,64 @@ export default function RouteImport({
   }, []);
 
   const handleFileChange = (e) => {
-    const selectedFiles = Array.from(e.target.files);
-    setFiles(selectedFiles.length > 0 ? selectedFiles : []);
-    
-    // CRITICAL: Clear file input value to prevent re-triggering and allow same file selection
-    if (e.target) {
-      e.target.value = '';
-    }
-    
-    // Auto-assign drivers based on filenames
-    if (selectedFiles.length > 0) {
-      const newFileDriverMap = {};
-      const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
+    try {
+      const selectedFiles = Array.from(e.target.files);
       
-      selectedFiles.forEach((file) => {
-        // Extract driver name by removing " Route.csv" (or similar extensions)
+      // CRITICAL: Clear file input value immediately
+      if (e.target) {
+        e.target.value = '';
+      }
+      
+      if (selectedFiles.length === 0) {
+        setFiles([]);
+        setFileDriverMap({});
+        return;
+      }
+      
+      // CRITICAL: Limit file selection to prevent memory issues on tablets
+      if (selectedFiles.length > 10) {
+        alert('Maximum 10 files at a time. Please select fewer files.');
+        return;
+      }
+      
+      // Prevent state updates from accumulating - use minimal processing
+      const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
+      const newFileDriverMap = {};
+      
+      for (const file of selectedFiles) {
         const driverName = file.name
           .replace(/ Route\.(csv|tsv|txt)$/i, '')
           .replace(/\.(csv|tsv|txt)$/i, '')
           .trim();
         
-        // Find matching driver (case-insensitive)
-        const matchedDriver = usersToSearch.find((u) => {
-          const userName = (u.user_name || u.full_name || '').trim();
-          return userName.toLowerCase() === driverName.toLowerCase();
-        });
+        // Optimized search - break early
+        let matchedDriver = null;
+        for (const user of usersToSearch) {
+          const userName = (user.user_name || user.full_name || '').trim();
+          if (userName.toLowerCase() === driverName.toLowerCase()) {
+            matchedDriver = user;
+            break; // Stop searching after first match
+          }
+        }
         
         newFileDriverMap[file.name] = {
           extractedName: driverName,
-          driver: matchedDriver || null
+          driver: matchedDriver
         };
-      });
+      }
       
+      setFiles(selectedFiles);
       setFileDriverMap(newFileDriverMap);
-
-      // Show driver matching screen instead of auto-advancing
-      setShowDriverMatching(true);
+      setShowDriverMatching(true); // Always show matching screen
+      
+    } catch (error) {
+      console.error('[RouteImport] File selection error:', error);
+      setImportError({
+        message: `File selection error: ${error.message}`,
+        record: { phase: 'file-selection' },
+        lineNumber: null,
+        phase: 'file-selection'
+      });
     }
   };
 
