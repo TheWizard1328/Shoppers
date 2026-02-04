@@ -262,49 +262,90 @@ export default function DeviceSettings() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setEditingDevice(device);
-                      setShowForm(true);
-                    }}
-                    className="gap-2"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                    Edit
-                  </Button>
-                  
-                  {!device.is_primary_tracker && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSetPrimary(device)}
-                      className="gap-2"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Set as Primary
-                    </Button>
+                <div className="space-y-4">
+                  {/* Status Toggle */}
+                  {editingSettings[device.id] ? (
+                    <div className="flex items-center justify-between p-3 rounded" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <label className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                        Device Status
+                      </label>
+                      <select
+                        value={deviceSettings[device.id]?.status ?? device.status}
+                        onChange={(e) => handleSettingChange(device.id, 'status', e.target.value)}
+                        className="px-3 py-1 rounded text-sm border"
+                        style={{ borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)', background: 'var(--bg-white)' }}
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="text-sm p-3 rounded" style={{ background: 'var(--bg-slate-50)', color: 'var(--text-slate-700)' }}>
+                      Status: <span className="font-semibold">{device.status === 'active' ? 'Active' : 'Inactive'}</span>
+                    </div>
                   )}
 
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeleteDevice(device)}
-                    className="gap-2 ml-auto"
-                    disabled={devices.length === 1}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </Button>
-                </div>
+                  {/* Buttons */}
+                  <div className="flex gap-2 flex-wrap">
+                    {editingSettings[device.id] ? (
+                      <>
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+                          onClick={() => handleApplySettings(device)}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Apply
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingSettings(prev => ({ ...prev, [device.id]: false }));
+                            setDeviceSettings(prev => ({ ...prev, [device.id]: {} }));
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingSettings(prev => ({ ...prev, [device.id]: true }))}
+                          className="gap-2"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                          Edit Settings
+                        </Button>
 
-                {device.status === 'inactive' && (
-                  <div className="mt-3 text-sm p-2 rounded" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-600)' }}>
-                    This device is inactive and won't track location
+                        {!device.is_primary_tracker && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSetPrimary(device)}
+                            className="gap-2"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Set as Primary
+                          </Button>
+                        )}
+
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteDevice(device)}
+                          className="gap-2 ml-auto"
+                          disabled={devices.length === 1}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </Button>
+                      </>
+                    )}
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
           );
