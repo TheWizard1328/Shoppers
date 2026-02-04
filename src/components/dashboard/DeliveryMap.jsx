@@ -1497,6 +1497,10 @@ export default function DeliveryMap({
       // Calculate zoom level based on device type
       const targetZoom = isMobile ? 15 : 16;
       
+      // Calculate dynamic top padding for stats card
+      const statsCardHeight = isMobile ? (isStatsCardExpanded ? 216 : 116) : 0;
+      const dynamicTopPadding = statsCardHeight + 20; // Add buffer
+      
       // Calculate dynamic bottom padding for message balloon
       const messageBalloonsHeight = 120; // Approximate height of popup balloon + padding
       const stopCardsFullContainer = document.querySelector('.horizontal-cards-container');
@@ -1515,7 +1519,7 @@ export default function DeliveryMap({
       
       // Center map with proper zoom and offset to show balloon fully
       const panOptions = {
-        paddingTopLeft: [60, 60],
+        paddingTopLeft: [60, dynamicTopPadding],
         paddingBottomRight: [60, dynamicBottomPadding],
         animate: true,
         duration: 0.6,
