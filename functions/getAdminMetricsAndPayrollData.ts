@@ -1,23 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 // In-memory cache for expensive stats
-const statsCache = {
-  adminMetrics: { data: null, cacheDate: '', key: '' },
-  payrollData: { data: null, cacheDate: '', key: '' }
-};
-
-const REFRESH_HOUR_UTC = 11; // 4 AM Mountain (UTC-7) = 11:00 UTC
-
-const getCacheDateKey = () => {
-  const now = new Date();
-  const utcHour = now.getUTCHours();
-  if (utcHour < REFRESH_HOUR_UTC) {
-    const yesterday = new Date(now);
-    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-    return yesterday.toISOString().split('T')[0];
-  }
-  return now.toISOString().split('T')[0];
-};
+// CRITICAL: Cache is now PER-YEAR to prevent past month data loss
+const statsCache = new Map();
 
 Deno.serve(async (req) => {
   try {
