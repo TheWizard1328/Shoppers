@@ -71,6 +71,7 @@ import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
 import { offlineManager } from "@/components/utils/offlineManager";
 import { offlineDeliveryManager } from "@/components/utils/offlineDeliveryManager";
 import ConnectionIndicator from "@/components/dashboard/ConnectionIndicator";
+import ErrorFlagIndicator from "@/components/dashboard/ErrorFlagIndicator";
 // import OfflineIndicator from "@/components/dashboard/OfflineIndicator";
 // import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
@@ -7194,6 +7195,9 @@ function Dashboard() {
                   
                   {/* Connection Quality Indicator - App Owner Only */}
                   {isAppOwner(currentUser) && <ConnectionIndicator />}
+                  
+                  {/* Error Flag Indicator - App Owner Only */}
+                  {isAppOwner(currentUser) && <ErrorFlagIndicator />}
                 </div>
                 }
               </div>

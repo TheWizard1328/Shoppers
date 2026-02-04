@@ -413,6 +413,13 @@ class SmartRefreshManager {
       console.warn(`🛑 [SmartRefresh] ${this.consecutiveErrors} consecutive errors - entering 60s cooldown`);
       this.consecutiveErrors = 0;
       this.notifyRateLimit(true);
+      
+      // CRITICAL: Dispatch rate limit event for UI indicator
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('rateLimitDetected', {
+          detail: { hasError: true, timestamp: Date.now() }
+        }));
+      }
     }
   }
   
