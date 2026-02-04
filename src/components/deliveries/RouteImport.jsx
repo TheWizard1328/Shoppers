@@ -666,7 +666,7 @@ export default function RouteImport({
     return changes;
   }, []);
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     try {
       // CRITICAL: Prevent default to avoid any form submission or page reload
       if (e) {
