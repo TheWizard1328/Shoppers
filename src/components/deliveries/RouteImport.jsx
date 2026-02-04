@@ -2884,6 +2884,24 @@ export default function RouteImport({
           </div>
           }
 
+        {showPreview && !importResult &&
+          <div className="px-3 md:px-6 py-3 border-t" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-slate-700)' }}>Drivers Being Imported (for verification):</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {[...new Set(filteredPreviewDeliveries.map(d => d.driver_id).filter(Boolean))].map((driverId) => {
+                const driverName = filteredPreviewDeliveries.find(d => d.driver_id === driverId)?.driver_name || 'Unknown';
+                return (
+                  <div key={driverId} className="text-xs p-2 rounded border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                    <span style={{ color: 'var(--text-slate-600)' }}>Name:</span> <span style={{ color: 'var(--text-slate-900)', fontWeight: '500' }}>{driverName}</span>
+                    <br />
+                    <span style={{ color: 'var(--text-slate-600)' }}>ID:</span> <span style={{ color: 'var(--text-slate-900)', fontFamily: 'monospace' }}>{driverId}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        }
+
         <div className="px-3 md:px-6 py-2 flex flex-col gap-2 md:gap-3 border-t flex-shrink-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <div className="flex gap-2 md:gap-3">
             {!showPreview ?
