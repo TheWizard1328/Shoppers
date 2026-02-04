@@ -8010,7 +8010,7 @@ function Dashboard() {
           stopCardsHeight={stopCardsBaseHeight} />
 
         {/* Re-optimize Route FAB - Only for drivers viewing their own route */}
-        {isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
+        {isDriver && !isAdmin && !isDispatcher && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
