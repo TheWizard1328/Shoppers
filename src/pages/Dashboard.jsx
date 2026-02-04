@@ -364,6 +364,7 @@ function Dashboard() {
   const [endOfDayDriver, setEndOfDayDriver] = useState(null);
   const [snapshotData, setSnapshotData] = useState(null);
   const [pullToSyncKey, setPullToSyncKey] = useState(0);
+  const statsCardRef = useRef(null);
 
   // ==================== REAL-TIME SUBSCRIPTIONS ====================
   // Subscribe to Patient and Delivery entity changes via WebSockets
@@ -7139,16 +7140,15 @@ function Dashboard() {
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
-      {/* Pull to Sync - Mobile Only */}
-      {isMobile && (
-        <PullToSync
-          key={pullToSyncKey}
-          selectedDate={selectedDate}
-          selectedCityId={globalFilters.getSelectedCityId()}
-          selectedDriverId={selectedDriverId}
-          showAllDriverMarkers={showAllDriverMarkers}
-          isMobile={isMobile}
-          onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
+      {/* Pull to Sync - Works on any device */}
+      <PullToSync
+        key={pullToSyncKey}
+        selectedDate={selectedDate}
+        selectedCityId={globalFilters.getSelectedCityId()}
+        selectedDriverId={selectedDriverId}
+        showAllDriverMarkers={showAllDriverMarkers}
+        statsCardRef={statsCardRef}
+        onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
             console.log('🔄 [Dashboard] Pull to sync complete - updating UI...');
             
             // Update deliveries in context
@@ -7185,7 +7185,6 @@ function Dashboard() {
             console.log('✅ [Dashboard] Pull to sync UI update complete');
           }}
         />
-      )}
 
       {/* Snapshot Timeline - Only visible when snapshot mode is active */}
       {isSnapshotModeActive && isAppOwner(currentUser) &&
