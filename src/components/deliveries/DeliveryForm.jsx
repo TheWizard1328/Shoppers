@@ -4128,7 +4128,7 @@ export default function DeliveryForm({
                 </div>
               </div>
 
-              {isAppOwner(currentUser) && delivery &&
+              {isAppOwner(currentUser) && delivery && (
               <div className="space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Identifiers</Label>
                   <div className="flex gap-3">
@@ -4196,7 +4196,7 @@ export default function DeliveryForm({
                     </div>
                   </div>
                 </div>
-              }
+              )}
 
               {/* Scrollable container for Sections 4 & 5 on desktop */}
               <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
