@@ -776,7 +776,26 @@ export default function RouteImport({
     let currentDate = null;
     let expectedDeliveries = 0;
     let lineNumber = 0;
-    let inTransitStopCounter = 0; // Track sequential order for in_transit/en_route stops
+    
+    // CRITICAL: First pass - find highest stop_order in import to continue numbering from there
+    let maxStopOrder = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      
+      const dateMetaMatch = line.match(/^#(\d{4}-\d{2}-\d{2})#,(\d+),/);
+      if (dateMetaMatch) continue;
+      
+      const values = parseCSVLine(line);
+      if (values.length < 17) continue;
+      
+      const stopOrder = parseInt(values[3]?.trim()) || 0;
+      if (stopOrder > maxStopOrder) {
+        maxStopOrder = stopOrder;
+      }
+    }
+    
+    let inTransitStopCounter = maxStopOrder; // Start from highest imported stop_order
 
     const patientsByPID = new Map();
     let patientsWithoutPID = 0;
