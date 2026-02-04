@@ -684,6 +684,23 @@ class SmartRefreshManager {
   }
 
   /**
+   * Dispatch event when syncing entity to offline DB (for UI feedback)
+   * Used by OfflineSyncIndicator to show real-time sync progress
+   */
+  _dispatchPeriodicSyncEvent(entityName, count, isComplete = false) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('periodicSyncProgress', {
+        detail: {
+          entity: entityName,
+          count: count,
+          isComplete: isComplete,
+          timestamp: new Date().toISOString()
+        }
+      }));
+    }
+  }
+
+  /**
    * Smart refresh for SELECTED DATE deliveries only
    * CRITICAL: Now respects pending local updates from updateDeliveriesLocally
    * CRITICAL: Uses offline database first to minimize API calls
@@ -736,6 +753,9 @@ class SmartRefreshManager {
           const otherDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
           const protectedDeliveries = currentDateDeliveries.filter(d => this.hasPendingUpdate(d.id));
           const finalDeliveries = [...otherDateDeliveries, ...filteredDeliveries, ...protectedDeliveries];
+
+          // CRITICAL: Dispatch event for UI feedback
+          this._dispatchPeriodicSyncEvent('Deliveries', finalDeliveries.length, true);
 
           this.notifyRateLimit(false);
           return {
@@ -839,6 +859,9 @@ class SmartRefreshManager {
 
           const mergedRelevantDeliveries = mergeEntityChanges(relevantCurrentDeliveries, diff);
           const finalDeliveries = [...pastDeliveries, ...mergedRelevantDeliveries];
+
+          // CRITICAL: Dispatch event for UI feedback
+          this._dispatchPeriodicSyncEvent('Deliveries', finalDeliveries.length);
 
           return {
             hasChanges: true,
@@ -1304,10 +1327,13 @@ class SmartRefreshManager {
         const { offlineDB } = await import('./offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, mergedPatients);
         console.log(`✅ [SmartRefresh] Synced ${mergedPatients.length} patients to offline DB`);
+
+        // CRITICAL: Dispatch event for UI feedback
+        this._dispatchPeriodicSyncEvent('Patients', mergedPatients.length);
       } catch (offlineError) {
         console.warn('⚠️ [SmartRefresh] Failed to sync patients to offline DB:', offlineError);
       }
-      
+
       return {
         hasChanges: true,
         patients: mergedPatients
@@ -1434,7 +1460,10 @@ class SmartRefreshManager {
       }
       
       const mergedStores = mergeEntityChanges(currentStores, diff);
-      
+
+      // CRITICAL: Dispatch event for UI feedback
+      this._dispatchPeriodicSyncEvent('Stores', mergedStores.length);
+
       return {
         hasChanges: true,
         stores: mergedStores
@@ -2308,15 +2337,18 @@ class SmartRefreshManager {
       }
       
       const mergedTransactions = mergeEntityChanges(currentTransactions, diff);
-      
+
       // CRITICAL: Sync to offline database after changes
       try {
         const { offlineDB } = await import('./offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, mergedTransactions);
+
+        // CRITICAL: Dispatch event for UI feedback
+        this._dispatchPeriodicSyncEvent('Square TX', mergedTransactions.length);
       } catch (offlineError) {
         console.warn('⚠️ [SmartRefresh] Failed to sync Square Transactions to offline DB:', offlineError);
       }
-      
+
       return {
         hasChanges: true,
         squareTransactions: mergedTransactions
