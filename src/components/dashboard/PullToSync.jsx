@@ -172,7 +172,18 @@ export default function PullToSync({
         description: `${freshDeliveries.length} deliveries, ${uniquePatientIds.length} patients, ${freshAppUsers.length} users`
       });
 
-    } catch (error) {
+      } catch (error) {
+      // Resume managers even on error
+      console.log('⏸️ [Pull to Sync] Resuming managers after error...');
+      if (window.smartRefreshManager?.resume) {
+        window.smartRefreshManager.resume();
+      }
+      if (window.realtimeSyncManager?.resume) {
+        window.realtimeSyncManager.resume();
+      }
+      if (window.backgroundSyncManager?.resume) {
+        window.backgroundSyncManager.resume();
+      }
       console.error('❌ [Pull to Sync] Sync failed:', error);
       toast.error('Sync failed', {
         description: error.message
