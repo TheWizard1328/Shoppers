@@ -776,11 +776,11 @@ export default function Layout({ children, currentPageName }) {
         }
 
         // CRITICAL: Step 2 - Check if device is registered
-        // Use cached flag from sessionStorage to avoid repeated API checks
-        const deviceRegistrationChecked = sessionStorage.getItem('rxdeliver_device_checked');
+        // Use localStorage (persists across refreshes) to avoid repeated API checks
+        const deviceIdentifier = getDeviceIdentifier();
+        const cachedDeviceCheck = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
         
-        if (!deviceRegistrationChecked) {
-          const deviceIdentifier = getDeviceIdentifier();
+        if (!cachedDeviceCheck) {
           const existingDevices = await base44.entities.UserDevice.filter({
             user_id: fetchedUser.id,
             device_identifier: deviceIdentifier
@@ -796,8 +796,8 @@ export default function Layout({ children, currentPageName }) {
             return;
           }
 
-          // Device registered - cache this result to prevent re-checking
-          sessionStorage.setItem('rxdeliver_device_checked', 'true');
+          // Device registered - cache result to prevent re-checking on future refreshes
+          localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
           console.log('✅ [Layout] Device registered and cached, proceeding');
         } else {
           console.log('✅ [Layout] Device check cached, skipping API call');
