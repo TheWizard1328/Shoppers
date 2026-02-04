@@ -1851,6 +1851,15 @@ export default function DeliveryMap({
       if (!hasIncompletePickups) {
         driversToShowHome.add(driverId);
         driversToExcludeFromBounds.delete(driverId); // Re-include in bounds when heading home
+        
+        // NEW: Check if ALL patient deliveries are complete for this driver
+        const patientDeliveriesForDriver = stops.deliveries.filter(d => d && d.patient_id);
+        const allPatientDeliveriesComplete = patientDeliveriesForDriver.length > 0 && 
+          patientDeliveriesForDriver.every(d => finishedStatuses.includes(d.status));
+        
+        if (allPatientDeliveriesComplete) {
+          driversWithCompleteRoute.add(driverId);
+        }
       }
       // Otherwise, HIDE home marker (still working on pickups)
     });
