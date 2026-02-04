@@ -1498,24 +1498,31 @@ export default function RouteImport({
 
       // Get all unique driver IDs from the file mapping
       const allDriverIds = [...new Set(activeFiles.map(f => activeDriverMap[f.name]?.driver?.id).filter(Boolean))];
-      
+
       // CRITICAL: Clear offline DB for these drivers+dates FIRST to prevent stale data
       try {
         const { offlineDB } = await import('../utils/offlineDatabase');
-        for (const driverId of allDriverIds) {
-          // Get all deliveries in date range from offline DB
-          const allOfflineInRange = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          const toDelete = allOfflineInRange.filter(d => 
-            d.driver_id === driverId && 
-            d.delivery_date >= minDate && 
-            d.delivery_date <= maxDate
-          );
-          
-          for (const d of toDelete) {
-            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
-          }
-          console.log(`🗑️ [RouteImport] Cleared ${toDelete.length} offline deliveries for driver ${driverId} in date range`);
+
+        // NUCLEAR OPTION: Delete ALL deliveries for this date range from offline DB (all drivers)
+        // This prevents cross-driver contamination and ghost records
+        const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        const toDeleteAll = allOfflineDeliveries.filter(d => 
+          d.delivery_date >= minDate && 
+          d.delivery_date <= maxDate
+        );
+
+        console.log(`🗑️ [RouteImport] Purging ${toDeleteAll.length} offline deliveries for date range ${minDate} to ${maxDate}`);
+        for (const d of toDeleteAll) {
+          await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
         }
+
+        // Also clear the deleted tracking list
+        allDriverIds.forEach(driverId => {
+          smartRefreshManager.clearPendingUpdatesForDriver(driverId, minDate);
+          smartRefreshManager.clearPendingUpdatesForDriver(driverId, maxDate);
+        });
+        smartRefreshManager.deletedDeliveryIds.clear();
+        console.log(`✅ [RouteImport] Cleared offline DB and deleted tracking for date range`);
       } catch (offlineError) {
         console.warn('⚠️ [RouteImport] Failed to clear offline DB:', offlineError);
       }
