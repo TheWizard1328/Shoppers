@@ -5976,7 +5976,8 @@ function Dashboard() {
       if (newStatus === 'completed' && targetDelivery.cod_total_amount_required > 0) {
         const hasCODPayments = targetDelivery.cod_payments && 
                                Array.isArray(targetDelivery.cod_payments) && 
-                               targetDelivery.cod_payments.length > 0;
+                               targetDelivery.cod_payments.length > 0 &&
+                               targetDelivery.cod_payments.some(p => p?.amount > 0);
         
         if (!hasCODPayments) {
           console.log(`💰 [COD Auto-fill] Setting Cash collection for $${targetDelivery.cod_total_amount_required}`);
