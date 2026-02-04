@@ -212,11 +212,15 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                           setIsSaving(true);
                           try {
                             localStorage.setItem(DEVICE_ID_KEY, device.device_identifier);
+                            localStorage.setItem(`rxdeliver_device_registered_${device.device_identifier}`, 'true');
                             await base44.entities.UserDevice.update(device.id, {
                               last_active_at: new Date().toISOString()
                             });
+                            console.log('✅ Device selected:', device);
                             setShowDialog(false);
                             if (onDeviceRegistered) onDeviceRegistered(device);
+                            // CRITICAL: Reload page to complete initialization with registered device
+                            window.location.reload();
                           } catch (error) {
                             console.error('Failed to select device:', error);
                             alert('Failed to select device. Please try again.');
