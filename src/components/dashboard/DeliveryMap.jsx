@@ -3795,7 +3795,42 @@ export default function DeliveryMap({
               zIndexOffset={3000}
               data-driver-location-id={location.id}
               eventHandlers={{
-                click: () => onMarkerClick && onMarkerClick(location, 'driver'),
+                click: (e) => {
+                  if (onMarkerClick) onMarkerClick(location, 'driver');
+                  
+                  // Center marker on click
+                  if (map) {
+                    const targetZoom = isMobile ? 15 : 16;
+                    const messageBalloonsHeight = 120;
+                    const stopCardsFullContainer = document.querySelector('.horizontal-cards-container');
+                    let dynamicBottomPadding = messageBalloonsHeight + 20;
+                    
+                    if (stopCardsFullContainer) {
+                      const actualHeight = stopCardsFullContainer.getBoundingClientRect().height;
+                      dynamicBottomPadding = Math.max(actualHeight + messageBalloonsHeight + 20, messageBalloonsHeight + 20);
+                    }
+                    
+                    const markerBounds = L.latLngBounds([
+                      [location.latitude, location.longitude],
+                      [location.latitude, location.longitude]
+                    ]);
+                    
+                    map.fitBounds(markerBounds, {
+                      paddingTopLeft: [60, 60],
+                      paddingBottomRight: [60, dynamicBottomPadding],
+                      animate: true,
+                      duration: 0.6,
+                      maxZoom: targetZoom
+                    });
+                    
+                    setTimeout(() => {
+                      if (map.getZoom() < targetZoom) {
+                        map.setZoom(targetZoom, { animate: true, duration: 0.3 });
+                      }
+                      e.target.openPopup();
+                    }, 600);
+                  }
+                },
                 mouseover: (e) => {
                   // Clear any pending timeout
                   if (popupTimeoutsRef.current[location.id]) {
