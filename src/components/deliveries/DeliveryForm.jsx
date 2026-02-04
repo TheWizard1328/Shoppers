@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -3807,7 +3808,6 @@ export default function DeliveryForm({
                     // but was mentioned in the `handleCameraScan` finally block for resetting the input.
                     // Since this input element is `hidden` and the visible `Button` now triggers a live camera overlay,
                     // we'll keep the ref as it was, though its direct interaction with the UI is minimal.
-                    // Removed the implicit cameraInputRef.current assignment.
                     type="file"
                     accept="image/*"
                     capture="environment"
@@ -4012,16 +4012,16 @@ export default function DeliveryForm({
                                       title="New Address (same name, new address)">
                                       <MapPin className="w-3 h-3 text-purple-600" />
                                     </Button>
-                                    </div>
-                                    </div>
-                                    );
-                                    })}
-                                    </div>
-                                    }
-                                    </div>
-                                    }
+                                  </div>
+                                </div>
+                        );
+                      })}
+                    </div>
+                    }
+                  </div>
+                }
 
-                                    {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
+                {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
                 {isPickupMode && !delivery && (
                   <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
