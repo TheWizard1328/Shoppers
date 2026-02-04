@@ -316,9 +316,19 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Step 2: Cities with timestamp check
+    // Step 2: Cities with timestamp check (force if underpopulated)
     const cityResult = await syncEntityWithTimestampCheck('City', City, {}, {});
     const cities = await offlineDB.getAll(offlineDB.STORES.CITIES);
+    
+    // CRITICAL: If cities are empty after sync attempt, force full list
+    if (!cities || cities.length === 0) {
+      console.warn('⚠️ [LoadPriorityData] Cities empty after sync, forcing full fetch...');
+      const citiesFromAPI = await City.list();
+      if (citiesFromAPI && citiesFromAPI.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesFromAPI);
+      }
+      const updatedCities = await offlineDB.getAll(offlineDB.STORES.CITIES);
+    }
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
