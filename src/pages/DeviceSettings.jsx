@@ -178,7 +178,22 @@ export default function DeviceSettings() {
       )}
 
       <div className="grid gap-4">
-        {devices.map((device) => {
+         {devices
+           .sort((a, b) => {
+             // Current device first
+             if (a.id === currentDeviceId && b.id !== currentDeviceId) return -1;
+             if (a.id !== currentDeviceId && b.id === currentDeviceId) return 1;
+
+             // Primary device second
+             if (a.is_primary_tracker && !b.is_primary_tracker) return -1;
+             if (!a.is_primary_tracker && b.is_primary_tracker) return 1;
+
+             // Rest by last active (most recent first)
+             const timeA = a.last_active_at ? new Date(a.last_active_at).getTime() : 0;
+             const timeB = b.last_active_at ? new Date(b.last_active_at).getTime() : 0;
+             return timeB - timeA;
+           })
+           .map((device) => {
           const displayOS = device.device_info?.os === 'Linux' ? 'Android' : device.device_info?.os;
           const lastActive = device.last_active_at 
             ? new Date(device.last_active_at).toLocaleString() 
