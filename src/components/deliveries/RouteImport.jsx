@@ -700,30 +700,9 @@ export default function RouteImport({
       });
       
       setFileDriverMap(newFileDriverMap);
-      
-      // CRITICAL: Auto-generate preview for non-app-owners immediately after file selection
-      const isNotAppOwner = currentUser && currentUser.role !== 'App Owner';
-      if (isNotAppOwner && selectedFiles.length > 0) {
-        // Verify all files have matched drivers before auto-previewing
-        const hasUnmatchedFiles = selectedFiles.some(f => !newFileDriverMap[f.name]?.driver);
-        if (hasUnmatchedFiles) {
-          console.log('[RouteImport] Auto-preview skipped - some files have no matched driver');
-          return;
-        }
-        
-        // CRITICAL: Call handlePreview directly (no setTimeout) to avoid race conditions
-        try {
-          handlePreview(selectedFiles, newFileDriverMap);
-        } catch (error) {
 
-          setImportError({
-            message: error.message,
-            record: { files: selectedFiles.map(f => f.name).join(', ') },
-            lineNumber: null,
-            phase: 'auto-preview'
-          });
-        }
-      }
+      // Show driver matching screen instead of auto-advancing
+      setShowDriverMatching(true);
     }
   };
 
