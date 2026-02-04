@@ -3051,6 +3051,8 @@ function Dashboard() {
 
   // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence
+  const initialSyncCompletedRef = useRef(false);
+  
   useEffect(() => {
     // CRITICAL: Wait for full render sequence INCLUDING full deliveries before activating FAB phase
     if (!renderSequence.fullDeliveriesLoaded || renderSequence.fabPhaseReady) {
@@ -3062,33 +3064,12 @@ function Dashboard() {
       return;
     }
 
-    console.log('✅ [Render Sequence 8] All elements rendered - syncing offline DB and activating FAB phase');
+    console.log('✅ [Render Sequence 8] All elements rendered - activating FAB phase (skipping sync)');
     
-    // CRITICAL: Quick offline DB sync for selected date before activating FAB
-    const syncOfflineDB = async () => {
-      try {
-        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        console.log(`🔄 [Initial Sync] Syncing offline DB for ${selectedDateStr}...`);
-        
-        // Fetch fresh deliveries from API
-        const freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-        
-        // Save to offline DB
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        console.log(`✅ [Initial Sync] Saved ${freshDeliveries.length} deliveries to offline DB`);
-        
-        // Update UI with fresh data
-        if (updateDeliveriesLocally && freshDeliveries.length > 0) {
-          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-          updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-          console.log(`✅ [Initial Sync] UI updated with ${freshDeliveries.length} deliveries`);
-        }
-      } catch (error) {
-        console.warn('⚠️ [Initial Sync] Failed:', error);
-      }
-    };
-    
-    syncOfflineDB();
+    // DISABLED: Initial sync removed to prevent rate limit loops on F5
+    // Dashboard mount effect (line 6914) already handles loading deliveries on mount
+    // Periodic refresh (line 1957) keeps data current every 15 seconds
+    // This sync was redundant and causing rate limit loops when refreshing
 
     console.log('✅ [Render Sequence 8] All elements rendered - activating FAB phase');
     console.log(`   - deliveries count: ${deliveries.length}`);
