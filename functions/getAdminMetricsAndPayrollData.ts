@@ -126,7 +126,8 @@ Deno.serve(async (req) => {
         cities: payrollCities
       };
 
-      statsCache.payrollData = { data: payrollData, cacheDate, key: payrollKey };
+      statsCache.set(payrollKey, { data: payrollData, timestamp: Date.now() });
+      console.log(`✅ Cached PayrollData for ${year} (${payrollDeliveries.length} deliveries)`);
       return payrollData;
     };
 
