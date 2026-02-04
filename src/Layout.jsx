@@ -669,31 +669,12 @@ export default function Layout({ children, currentPageName }) {
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
   const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
 
-  // Apply theme class - mobile devices (by user agent) can use dark mode even with desktop layout
+  // Apply theme class - FORCE light mode for ALL desktop devices
   // CRITICAL: Apply theme IMMEDIATELY to prevent flash of light mode
   useEffect(() => {
-    // CRITICAL: Use isMobileDeviceForTheme() for theme decisions - ONLY based on user agent, ignores screen width
-    // This allows tablets/mobile devices to use dark mode regardless of screen size
-    const isMobileOrTablet = isMobileDeviceForTheme();
-    
-    if (!isMobileOrTablet) {
-      // Force light mode on actual desktop computers only
-      document.documentElement.classList.remove('auto-theme', 'dark-theme');
-      document.documentElement.classList.add('light-theme');
-      return;
-    }
-
-    // Mobile/tablet theme switching (works regardless of screen width or layout)
-    if (themePreference === 'dark') {
-      document.documentElement.classList.remove('auto-theme', 'light-theme');
-      document.documentElement.classList.add('dark-theme');
-    } else if (themePreference === 'light') {
-      document.documentElement.classList.remove('auto-theme', 'dark-theme');
-      document.documentElement.classList.add('light-theme');
-    } else {
-      document.documentElement.classList.remove('light-theme', 'dark-theme');
-      document.documentElement.classList.add('auto-theme');
-    }
+    // FORCE light mode on ALL devices - no dark mode support
+    document.documentElement.classList.remove('auto-theme', 'dark-theme');
+    document.documentElement.classList.add('light-theme');
   }, [themePreference]);
 
   const handleThemeChange = async (newTheme) => {
@@ -779,14 +760,8 @@ export default function Layout({ children, currentPageName }) {
             setSidebarWidth(settings.sidebar_width);
           }
 
-          // Apply theme preference (mobile devices only - desktop computers always light)
-          // CRITICAL: Check user agent for theme, not deviceType (which includes screen width)
-          const isMobileOrTablet = isMobileDeviceForTheme();
-          if (settings.theme_preference && isMobileOrTablet) {
-            setThemePreference(settings.theme_preference);
-          } else {
-            setThemePreference('light');
-          }
+          // FORCE light theme for ALL devices - no dark mode
+          setThemePreference('light');
 
           // Apply data source preference
           if (settings.data_source) {
@@ -2560,9 +2535,9 @@ export default function Layout({ children, currentPageName }) {
   return (
     <ErrorBoundary>
       <style>{`
-          /* CRITICAL: Set color-scheme in <html> element BEFORE page loads to prevent flash */
+          /* FORCE light mode color-scheme */
           html {
-            color-scheme: ${themePreference === 'dark' ? 'dark' : themePreference === 'light' ? 'light' : 'light dark'};
+            color-scheme: light;
           }
 
           :root {
@@ -2653,15 +2628,8 @@ export default function Layout({ children, currentPageName }) {
           --safe-area-inset-right: env(safe-area-inset-right, 0px);
           --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
           --safe-area-inset-left: env(safe-area-inset-left, 0px);
-          color-scheme: ${themePreference === 'auto' ? 'light dark' : themePreference};
+          color-scheme: light;
         }
-
-        ${themePreference === 'dark' ? `
-          body {
-            background-color: #0f172a;
-            color: #f1f5f9;
-          }
-        ` : ''}
 
         .app-container {
           display: flex;
