@@ -306,25 +306,24 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
 
 
-      // Initial population of previewData based on current mapping.
-      const processedPreviewPatients = [];
-      for (let i = 0; i < Math.min(dataLines.length, 5); i++) {// Process first 5 data rows for initial preview
+      // CRITICAL: Get first record per store instead of first 5 rows
+      const storeFirstRecords = new Map();
+      for (let i = 0; i < dataLines.length; i++) {
         try {
           const values = parseCSVLine(dataLines[i]);
-          // Process based on fixed fieldMapping.
           const patientObj = processCsvRowToPatient(values, fieldMapping, stores);
-          processedPreviewPatients.push(patientObj);
+          const storeId = patientObj.store_id || 'unknown';
+          
+          // Only add first record for each store
+          if (!storeFirstRecords.has(storeId)) {
+            storeFirstRecords.set(storeId, patientObj);
+          }
         } catch (error) {
-
-          processedPreviewPatients.push({
-            full_name: `Error in row ${i + 2}`,
-            address: error.message,
-            status: 'error',
-            unit_number: '', phone: '', notes: '', patient_id: '', store_id: null, store_name: 'Error', store_color: 'red'
-          });
+          // Skip error rows in preview
         }
       }
-      setPreviewData(processedPreviewPatients); // previewData now holds patient objects
+      const processedPreviewPatients = Array.from(storeFirstRecords.values());
+      setPreviewData(processedPreviewPatients);
 
     };
 
