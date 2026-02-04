@@ -4019,6 +4019,8 @@ export default function DeliveryForm({
                                       }
                                       </div>
                                       }
+                                      </div>
+                                      }
 
                                       {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
                 {isPickupMode && !delivery && (
