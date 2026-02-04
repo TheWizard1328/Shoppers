@@ -1239,6 +1239,15 @@ export default function Layout({ children, currentPageName }) {
 
     // CRITICAL: Listen for driver location updates and refresh ALL UI data from offline DB
     const handleDriverLocationUpdated = async (event) => {
+      // CRITICAL: Skip location processing if not on Dashboard or viewing past date
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const selectedDateStr = globalFilters.getSelectedDate() || todayStr;
+      
+      if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) {
+        console.log(`⏭️ [Layout] Skipping driver location update - not on Dashboard today (page: ${currentPageName}, date: ${selectedDateStr})`);
+        return;
+      }
+
       console.log('📍 [Layout] Driver location updated - refreshing ALL UI data from offline DB');
       
       // Load fresh data from offline DB (instant, no API calls)
