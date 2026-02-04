@@ -2084,7 +2084,7 @@ class SmartRefreshManager {
 
       // PRIORITY 3B: Throughout the day - Update patients for current date + selected date deliveries
       const selectedDateStr = globalFilters?.getSelectedDate?.() || todayStr;
-      if (selectedDateStr !== todayStr && currentData.deliveries && currentData.patients) {
+      if (selectedDateStr !== todayStr && currentData.deliveries && currentData.patients && Array.isArray(currentData.patients)) {
         try {
           console.log(`👥 [SmartRefresh] Syncing patients for current+selected dates (${todayStr}, ${selectedDateStr})`);
           const relevantDeliveries = currentData.deliveries.filter(d => 
