@@ -4123,8 +4123,8 @@ export default function DeliveryForm({
                 </div>
               </div>
 
-              {isAppOwner(currentUser) && delivery && (
-              <div className="space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
+{isAppOwner(currentUser) && delivery && (
+                <div className="space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Identifiers</Label>
                   <div className="flex gap-3">
                     <div className="flex-1 space-y-1">
@@ -4135,7 +4135,6 @@ export default function DeliveryForm({
                       onChange={(e) => setFormData((prev) => ({ ...prev, tracking_number: e.target.value }))}
                       className="h-9 text-sm"
                       disabled={isSaving} />
-
                     </div>
                     <div className="flex-1 space-y-1">
                       <Label htmlFor="stop_id" className="text-xs">SID</Label>
@@ -4145,7 +4144,6 @@ export default function DeliveryForm({
                       onChange={(e) => setFormData((prev) => ({ ...prev, stop_id: e.target.value }))}
                       className="h-9 text-sm"
                       disabled={isSaving} />
-
                     </div>
                     <div className="flex-1 space-y-1">
                       <Label htmlFor="puid" className="text-xs">PUID</Label>
@@ -4155,7 +4153,6 @@ export default function DeliveryForm({
                       onChange={(e) => setFormData((prev) => ({ ...prev, puid: e.target.value }))}
                       className="h-9 text-sm"
                       disabled={isSaving} />
-
                     </div>
                     <div className="flex-1 space-y-1">
                       <Label htmlFor="paid_km_override" className="text-xs">X-KM</Label>
@@ -4187,7 +4184,6 @@ export default function DeliveryForm({
                       placeholder={selectedPatient?.distance_from_store ? selectedPatient.distance_from_store.toFixed(2) : ''}
                       className="h-9 text-sm"
                       disabled={isSaving} />
-
                     </div>
                   </div>
                 </div>
