@@ -2249,6 +2249,17 @@ export default function RouteImport({
     if (onCancel) onCancel();
   };
 
+  const handleBackFromMatching = () => {
+    setShowDriverMatching(false);
+    setFiles([]);
+    setFileDriverMap({});
+  };
+
+  const handleProceedFromMatching = async () => {
+    await handlePreview(files, fileDriverMap);
+    setShowDriverMatching(false);
+  };
+
   return (
     <>
       {/* Error Popup Dialog */}
