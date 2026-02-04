@@ -1561,12 +1561,12 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                                                 <td className="p-2 text-xs">{patient.phone || '-'}</td>
                                                 <td className="p-2 text-xs">
                                                     {patient.store_name !== 'N/A' ?
-                      <Badge style={{ backgroundColor: patient.store_color, fontSize: '10px' }}>
-                                                            {patient.store_name}
-                                                        </Badge> :
-                      <span className="text-slate-400">{patient.store_name}</span>
-                      }
-                                                </td>
+                                                <Badge style={{ backgroundColor: patient.store_color, color: getContrastingTextColor(patient.store_color), fontSize: '10px' }}>
+                                                             {patient.store_name}
+                                                         </Badge> :
+                                                <span className="text-slate-400">{patient.store_name}</span>
+                                                }
+                                                 </td>
                                                 <td className="p-2 text-xs truncate text-slate-600" title={patient.notes}>
                                                     {patient.notes || '-'}
                                                 </td>
