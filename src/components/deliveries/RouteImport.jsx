@@ -2445,8 +2445,70 @@ export default function RouteImport({
           </div>
           }
 
-        {!showPreview ?
-          <div className="flex-1 overflow-y-auto p-2 md:p-6">
+        {showDriverMatching ?
+            <div className="flex-1 overflow-y-auto p-2 md:p-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-slate-900)' }}>Verify Driver Matching</h3>
+                  <p className="text-sm mb-4" style={{ color: 'var(--text-slate-600)' }}>Please review the driver assignments below. If any files have unmatched drivers, go back and ensure filenames match driver names (e.g., "John Smith Route.csv").</p>
+                </div>
+
+                <div className="space-y-2">
+                  {files.map((file, index) => {
+                    const fileInfo = fileDriverMap[file.name];
+                    const hasMatch = !!fileInfo?.driver;
+
+                    return (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center justify-between p-3 rounded border"
+                        style={{
+                          background: hasMatch ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                          borderColor: hasMatch ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)',
+                          borderWidth: '2px'
+                        }}>
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <span className="font-semibold truncate" style={{ color: 'var(--text-slate-900)' }}>{file.name}</span>
+                          <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Extracted: "{fileInfo?.extractedName || 'N/A'}"</span>
+                        </div>
+                        <div className="ml-3 flex-shrink-0">
+                          {hasMatch ? (
+                            <div className="flex flex-col items-end gap-1">
+                              <Badge className="whitespace-nowrap font-semibold text-xs" style={{ background: 'rgba(34, 197, 94, 0.2)', color: 'var(--text-green-700)' }}>
+                                ✓ Matched
+                              </Badge>
+                              <span className="text-xs font-mono text-slate-500">{getDriverDisplayName(fileInfo.driver)}</span>
+                            </div>
+                          ) : (
+                            <Badge className="whitespace-nowrap font-semibold text-xs" style={{ background: 'rgba(239, 68, 68, 0.2)', color: 'var(--text-red-700)' }}>
+                              ✗ No Match
+                            </Badge>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+
+                {files.some(f => !fileDriverMap[f.name]?.driver) && (
+                  <div className="mt-6 p-4 rounded-lg border-l-4" style={{
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    borderColor: '#ef4444'
+                  }}>
+                    <h4 className="font-semibold text-red-800 mb-2">⚠️ Driver Matching Issues</h4>
+                    <p className="text-sm text-red-700">Some files could not be automatically matched to drivers. File names should match driver names exactly (case-insensitive). For example:</p>
+                    <ul className="text-xs text-red-700 mt-2 list-disc list-inside space-y-1">
+                      <li><code className="font-mono bg-red-50 px-1">John Smith Route.csv</code> → matches driver "John Smith"</li>
+                      <li><code className="font-mono bg-red-50 px-1">jane_doe_route.csv</code> → matches driver "Jane Doe"</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div> :
+            !showPreview ?
+            <div className="flex-1 overflow-y-auto p-2 md:p-6">
             <div className="space-y-1">
               <div className="grid grid-cols-1 gap-3 md:gap-6">
                 <div className="space-y-4">
