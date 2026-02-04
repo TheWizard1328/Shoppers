@@ -91,9 +91,12 @@ Deno.serve(async (req) => {
 
     const fetchPayrollData = async (year, cityId, driverId) => {
       const payrollKey = `payroll_${year}_${cityId}_${driverId}`;
-      if (statsCache.payrollData.key === payrollKey && statsCache.payrollData.cacheDate === cacheDate) {
-        console.log('📊 Using CACHED PayrollData');
-        return statsCache.payrollData.data;
+      const cached = statsCache.get(payrollKey);
+      
+      // Cache is valid for 1 hour
+      if (cached && (Date.now() - cached.timestamp < 3600000)) {
+        console.log(`📊 Using CACHED PayrollData for ${year}`);
+        return cached.data;
       }
 
       let storeFilter = {};
