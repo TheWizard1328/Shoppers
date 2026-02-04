@@ -3951,6 +3951,9 @@ export default function DeliveryMap({
                   // Center marker on click
                   if (map) {
                     const targetZoom = isMobile ? 15 : 16;
+                    const statsCardHeight = isMobile ? (isStatsCardExpanded ? 216 : 116) : 0;
+                    const dynamicTopPadding = statsCardHeight + 20;
+                    
                     const messageBalloonsHeight = 120;
                     const stopCardsFullContainer = document.querySelector('.horizontal-cards-container');
                     let dynamicBottomPadding = messageBalloonsHeight + 20;
@@ -3966,7 +3969,7 @@ export default function DeliveryMap({
                     ]);
                     
                     map.fitBounds(markerBounds, {
-                      paddingTopLeft: [60, 60],
+                      paddingTopLeft: [60, dynamicTopPadding],
                       paddingBottomRight: [60, dynamicBottomPadding],
                       animate: true,
                       duration: 0.6,
