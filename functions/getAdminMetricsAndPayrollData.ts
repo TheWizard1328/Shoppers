@@ -52,9 +52,12 @@ Deno.serve(async (req) => {
 
     const fetchAdminMetrics = async (year, cityId) => {
       const metricsKey = `admin_${year}_${cityId}`;
-      if (statsCache.adminMetrics.key === metricsKey && statsCache.adminMetrics.cacheDate === cacheDate) {
-        console.log('📊 Using CACHED AdminMetrics');
-        return statsCache.adminMetrics.data;
+      const cached = statsCache.get(metricsKey);
+      
+      // Cache is valid for 1 hour
+      if (cached && (Date.now() - cached.timestamp < 3600000)) {
+        console.log(`📊 Using CACHED AdminMetrics for ${year}`);
+        return cached.data;
       }
 
       let storeFilter = {};
