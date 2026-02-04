@@ -1286,12 +1286,13 @@ function Dashboard() {
 
     setAreCardsVisible(show);
 
-    if (show && !isExpanded) {
+    // CRITICAL: Don't fade cards when route is complete
+    if (show && !isExpanded && !isRouteComplete) {
       fadeTimeoutRef.current = setTimeout(() => {
         setAreCardsVisible(false);
       }, 3000);
     }
-  }, [isExpanded]);
+  }, [isExpanded, isRouteComplete]);
 
   // Stats panel fade effect - fades to 50% opacity 3 seconds after mouse leaves (when not expanded)
   const handleStatsPanelInteraction = useCallback((isHovering) => {
