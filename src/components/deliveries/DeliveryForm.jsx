@@ -4013,13 +4013,13 @@ export default function DeliveryForm({
                                       <MapPin className="w-3 h-3 text-purple-600" />
                                     </Button>
                                   </div>
-                                </div>);
-
-                      })}
-                          </div>
-                    }
-                      </div>
-                  }
+                                </div>
+                                );
+                                })}
+                                </div>
+                                }
+                                </div>
+                                }
 
                 {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
                 {isPickupMode && !delivery && (
