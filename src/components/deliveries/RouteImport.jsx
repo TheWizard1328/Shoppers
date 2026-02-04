@@ -2264,6 +2264,19 @@ export default function RouteImport({
     setShowDriverMatching(false);
   };
 
+  // Auto-advance if all drivers matched
+  useEffect(() => {
+    if (showDriverMatching && files.length > 0) {
+      const allMatched = files.every(f => fileDriverMap[f.name]?.driver);
+      if (allMatched) {
+        const timer = setTimeout(() => {
+          handleProceedFromMatching();
+        }, 800); // Brief delay for visual feedback
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [showDriverMatching, files, fileDriverMap]);
+
   return (
     <>
       {/* Error Popup Dialog */}
