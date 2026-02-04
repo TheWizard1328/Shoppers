@@ -776,7 +776,7 @@ export default function Layout({ children, currentPageName }) {
         }
 
         // CRITICAL: Step 2 - Check if device is registered
-        // Use localStorage (persists across refreshes) to avoid repeated API checks
+        // Cache in localStorage (persists across refreshes) to avoid repeated checks
         const deviceIdentifier = getDeviceIdentifier();
         const cachedDeviceCheck = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
         
@@ -787,16 +787,15 @@ export default function Layout({ children, currentPageName }) {
           });
 
           if (existingDevices && existingDevices.length === 0) {
-            // Device not registered, show selection modal
-            console.log('📱 [Layout] Device not registered, showing selection modal');
-            setShowDeviceSelectionModal(true);
+            // Device not registered - show DeviceRegistration (shows existing devices or create new)
+            console.log('📱 [Layout] Device not registered, showing registration options');
             setCurrentUser(fetchedUser);
             setIsLoadingLayout(false);
             setDataLoaded(true);
             return;
           }
 
-          // Device registered - cache result to prevent re-checking on future refreshes
+          // Device registered - cache result to prevent re-checking
           localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
           console.log('✅ [Layout] Device registered and cached, proceeding');
         } else {
