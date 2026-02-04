@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { invalidate } from "./dataManager";
 import { touchUserCache } from "./auth";
 import { queueEntityRequest } from "./requestQueue";
+import { initializeAutoDarkMode, getSetting } from "./userSettingsManager";
 
 // Module-level cache for isOfflineDBLoadComplete (imported dynamically)
 let _isOfflineDBLoadComplete = null;
@@ -1983,6 +1984,16 @@ class SmartRefreshManager {
       touchUserCache();
     } catch (e) {
       // Ignore errors from touchUserCache
+    }
+    
+    // CRITICAL: Check and apply auto dark mode if theme is set to 'auto'
+    try {
+      const themePreference = getSetting('theme_preference');
+      if (themePreference === 'auto') {
+        initializeAutoDarkMode();
+      }
+    } catch (e) {
+      // Ignore errors from dark mode check
     }
 
     this.isRefreshing = true;
