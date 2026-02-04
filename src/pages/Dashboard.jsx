@@ -71,7 +71,6 @@ import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
 import { offlineManager } from "@/components/utils/offlineManager";
 import { offlineDeliveryManager } from "@/components/utils/offlineDeliveryManager";
 import ConnectionIndicator from "@/components/dashboard/ConnectionIndicator";
-import StatusFlagIndicator from "@/components/dashboard/StatusFlagIndicator";
 // import OfflineIndicator from "@/components/dashboard/OfflineIndicator";
 // import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
@@ -7199,11 +7198,7 @@ function Dashboard() {
                 }
               </div>
 
-              <div className="flex items-center gap-2">
-                {/* Status Flag Indicator - Shows system health */}
-                {isAppOwner(currentUser) && <StatusFlagIndicator />}
-                
-                <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
                 <Popover open={isCalendarOpen} onOpenChange={(open) => {
                   setIsCalendarOpen(open);
                   if (open) {
@@ -7308,9 +7303,8 @@ function Dashboard() {
                 }}
                 className="h-8 w-8 p-0 flex-shrink-0">
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </Button>
-                </div>
-                </div>
+              </Button>
+            </div>
 
 
             <AnimatePresence>
