@@ -2038,7 +2038,23 @@ class SmartRefreshManager {
     }
     
     try {
+      // PRIORITY 0 (CRITICAL): FULL AppUser dataset sync FIRST (before activeRoute)
+      // This ensures all driver locations are fresh in offline DB before map markers refresh
+      if (this.shouldRefresh('appUsers') && currentData.appUsers) {
+        try {
+          console.log('📡 [SmartRefresh] PRIORITY 0: Syncing FULL AppUser dataset (every 15s) - FRESH LOCATIONS FIRST');
+          const appUserResult = await this.refreshAllAppUsersFullSync(currentData.appUsers);
+          if (appUserResult?.hasChanges) {
+            updates.appUsers = appUserResult.appUsers;
+          }
+          this.markRefreshed('appUsers');
+        } catch (e) {
+          console.error('❌ [SmartRefresh] Critical AppUser sync failed:', e.message);
+        }
+      }
+
       // PRIORITY 1: Active route data (15-second cycle)
+      // Now uses fresh driver locations from offline DB (just synced above)
       if (this.shouldRefresh('activeRoute')) {
         const activeResult = await this.refreshActiveRoute(currentData, filters, showAllDrivers, currentPage, selectedDate);
         if (activeResult) {
@@ -2060,20 +2076,6 @@ class SmartRefreshManager {
         const historicalResult = await this.checkOneHistoricalDate(currentData.deliveries, historicalDates);
         if (historicalResult?.hasChanges) {
           updates.deliveries = historicalResult.deliveries;
-        }
-      }
-      
-      // PRIORITY 2B: Every 15 seconds - FULL AppUser dataset (entire sync, one hit)
-      if (this.shouldRefresh('appUsers') && currentData.appUsers) {
-        try {
-          console.log('📡 [SmartRefresh] Syncing FULL AppUser dataset (every 15s)');
-          const appUserResult = await this.refreshAllAppUsersFullSync(currentData.appUsers);
-          if (appUserResult?.hasChanges) {
-            updates.appUsers = appUserResult.appUsers;
-          }
-          this.markRefreshed('appUsers');
-        } catch (e) {
-          console.warn('⚠️ [SmartRefresh] Full AppUser sync failed:', e.message);
         }
       }
 
