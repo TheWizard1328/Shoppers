@@ -274,6 +274,7 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
 /**
  * Load priority data for initial display
  * Order: Cities → AppUsers → Deliveries (selected date) → ALL Patients (critical for map markers)
+ * CRITICAL: Validates offline DB is populated; forces full sync if underpopulated
  */
 export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   if (syncPaused) return { skipped: true };
@@ -283,9 +284,35 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   notifySyncStatus({ status: 'loading_priority', date: selectedDateStr });
   
   try {
-    // Step 1: AppUsers with timestamp check
+    // CRITICAL: Validate offline DB is actually populated
+    // If any core entity is missing/empty, force a full fresh sync
+    const [existingAppUsers, existingPatients, existingDeliveries, existingCities] = await Promise.all([
+      offlineDB.getAll(offlineDB.STORES.APP_USERS),
+      offlineDB.getAll(offlineDB.STORES.PATIENTS),
+      offlineDB.getAll(offlineDB.STORES.DELIVERIES),
+      offlineDB.getAll(offlineDB.STORES.CITIES)
+    ]);
+    
+    const isUnderPopulated = 
+      !existingAppUsers || existingAppUsers.length === 0 ||
+      !existingCities || existingCities.length === 0;
+    
+    console.log(`📊 [LoadPriorityData] DB Status: Users=${existingAppUsers?.length || 0}, Cities=${existingCities?.length || 0}, Patients=${existingPatients?.length || 0}, Deliveries=${existingDeliveries?.length || 0}, ForceSync=${isUnderPopulated}`);
+    
+    // CRITICAL: Clear sync metadata if DB is underpopulated to force fresh sync
+    if (isUnderPopulated) {
+      console.warn('⚠️ [LoadPriorityData] Offline DB underpopulated, forcing fresh sync...');
+      await Promise.all([
+        offlineDB.updateSyncMetadata('AppUser', null, null),
+        offlineDB.updateSyncMetadata('Patient', null, null),
+        offlineDB.updateSyncMetadata('City', null, null),
+        offlineDB.updateSyncMetadata('Store', null, null)
+      ]);
+    }
+    
+    // Step 1: AppUsers with timestamp check (or fresh if underpopulated)
     const appUserResult = await syncEntityWithTimestampCheck('AppUser', AppUser, {}, {});
-    const appUsers = appUserResult.skipped ? await offlineDB.getAll(offlineDB.STORES.APP_USERS) : await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+    const appUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
