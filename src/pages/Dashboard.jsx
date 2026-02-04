@@ -5971,6 +5971,17 @@ function Dashboard() {
         const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
         setEndOfDayDriver(completedDriver);
         setShowEndOfDayStats(true);
+        
+        // CRITICAL: Re-measure stop cards height after route completion
+        setTimeout(() => {
+          if (horizontalStopCardsRef.current) {
+            const newHeight = horizontalStopCardsRef.current.offsetHeight;
+            if (newHeight > 0 && newHeight !== stopCardsBaseHeight) {
+              console.log(`📏 [Route Complete] Re-measured stop cards height: ${newHeight}px (was ${stopCardsBaseHeight}px)`);
+              setStopCardsBaseHeight(newHeight);
+            }
+          }
+        }, 400);
       }
 
       if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id) {
