@@ -23,22 +23,50 @@ const STORES = {
 };
 
 let dbInstance = null;
+let dbOpenPromise = null; // CRITICAL: Prevent multiple simultaneous opens
 
 /**
  * Initialize and open the IndexedDB database
+ * CRITICAL: Uses promise pooling to prevent race conditions
  */
 const openDatabase = () => {
-  return new Promise((resolve, reject) => {
-    if (dbInstance) {
-      resolve(dbInstance);
-      return;
-    }
+  // If already open, return immediately
+  if (dbInstance && !dbInstance.isClosing) {
+    return Promise.resolve(dbInstance);
+  }
 
+  // If currently opening, wait for that operation to complete
+  if (dbOpenPromise) {
+    return dbOpenPromise;
+  }
+
+  // Start new open operation
+  dbOpenPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      dbOpenPromise = null;
+      reject(request.error);
+    };
+    
     request.onsuccess = () => {
       dbInstance = request.result;
+      
+      // CRITICAL: Handle unexpected close events
+      dbInstance.onclose = () => {
+        console.warn('⚠️ [OfflineDB] Database connection closed unexpectedly');
+        dbInstance = null;
+        dbOpenPromise = null;
+      };
+      
+      dbInstance.onversionchange = () => {
+        console.warn('⚠️ [OfflineDB] Database version change detected - closing gracefully');
+        dbInstance.close();
+        dbInstance = null;
+        dbOpenPromise = null;
+      };
+      
+      dbOpenPromise = null;
       resolve(dbInstance);
     };
 
