@@ -87,7 +87,8 @@ import PatientImport from './components/patients/PatientImport';
   import RouteImport from './components/deliveries/RouteImport';
   import DriverStatusToggle from './components/layout/DriverStatusToggle';
   import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
-  import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
+  import { loadUserSettings, saveSetting, clearSettingsCache, getDeviceType, getDeviceIdentifier } from './components/utils/userSettingsManager';
+import DeviceSelectionModal from './components/devices/DeviceSelectionModal';
   import MessagingPanel from './components/messaging/MessagingPanel';
   import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
   import { isMobileDevice } from './components/utils/deviceUtils';
@@ -721,7 +722,10 @@ export default function Layout({ children, currentPageName }) {
           const [adminImportEnabled, setAdminImportEnabled] = useState(false);
           const [isSnapshotModeActive, setIsSnapshotModeActive] = useState(false);
           const [showInviteQRModal, setShowInviteQRModal] = useState(false);
-  const [deviceRegistered, setDeviceRegistered] = useState(false);
+          const [deviceRegistered, setDeviceRegistered] = useState(false);
+          const [showDeviceSelectionModal, setShowDeviceSelectionModal] = useState(false);
+          const [deviceTypeDetected, setDeviceTypeDetected] = useState(null);
+          const [isSettingUpDevice, setIsSettingUpDevice] = useState(false);
 
   // Poll for adminImportEnabled changes (for Kyle J to see updates when toggle changes)
   useEffect(() => {
@@ -757,6 +761,10 @@ export default function Layout({ children, currentPageName }) {
       setIsLoadingLayout(true);
 
       try {
+        // CRITICAL: Step 1 - Detect device type FIRST
+        const detectedDeviceType = getDeviceType();
+        setDeviceTypeDetected(detectedDeviceType);
+
         const fetchedUser = await getEffectiveUser();
 
         if (!fetchedUser) {
@@ -767,10 +775,24 @@ export default function Layout({ children, currentPageName }) {
           return;
         }
 
+        // CRITICAL: Step 2 - Check if device is registered, if not show selection modal
+        const deviceIdentifier = getDeviceIdentifier();
+        const existingDevices = await base44.entities.UserDevice.filter({
+          user_id: fetchedUser.id,
+          device_identifier: deviceIdentifier
+        });
 
+        if (existingDevices && existingDevices.length === 0) {
+          // Device not registered, show selection modal
+          console.log('📱 [Layout] Device not registered, showing selection modal');
+          setShowDeviceSelectionModal(true);
+          setCurrentUser(fetchedUser);
+          setIsLoadingLayout(false);
+          return;
+        }
 
         // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
-        // Step 1: Load user settings from local cache (no API call)
+        // Step 3 - Load user settings from local cache (no API call)
         try {
           const settings = await loadUserSettings(fetchedUser.id);
 
@@ -2238,6 +2260,45 @@ export default function Layout({ children, currentPageName }) {
     }));
   }, [stores, patients, currentUser]);
 
+  const handleDeviceSelected = async (deviceData) => {
+    if (!currentUser) return;
+
+    try {
+      setIsSettingUpDevice(true);
+
+      const deviceIdentifier = getDeviceIdentifier();
+      const deviceType = getDeviceType();
+
+      // Create the device record
+      const newDevice = await base44.entities.UserDevice.create({
+        user_id: currentUser.id,
+        device_identifier: deviceIdentifier,
+        device_name: deviceData.device_name,
+        device_type: deviceType,
+        device_info: deviceData.device_info,
+        last_active_at: new Date().toISOString(),
+        status: 'active'
+      });
+
+      console.log('✅ [Layout] Device registered:', newDevice);
+
+      // Close modal and proceed with initialization
+      setShowDeviceSelectionModal(false);
+      setDeviceRegistered(true);
+      setIsSettingUpDevice(false);
+
+      // Now load user settings and continue with full initialization
+      await loadUserSettings(currentUser.id);
+
+      // Reload the page to complete the initialization flow
+      window.location.reload();
+    } catch (error) {
+      console.error('❌ [Layout] Failed to register device:', error);
+      setIsSettingUpDevice(false);
+      alert('Failed to register device. Please try again.');
+    }
+  };
+
   const getLatestDateWithDeliveries = useCallback((driverId = null) => {
     let relevantDeliveries = filteredDeliveries.filter((delivery) => delivery);
     if (driverId) {
@@ -3033,8 +3094,17 @@ export default function Layout({ children, currentPageName }) {
 
       }
 
+      {/* Device Selection Modal - BLOCKING, shows immediately after user auth if device not registered */}
+      {showDeviceSelectionModal && currentUser &&
+      <DeviceSelectionModal
+        isOpen={showDeviceSelectionModal}
+        deviceType={deviceTypeDetected}
+        onDeviceSelected={handleDeviceSelected}
+        isLoading={isSettingUpDevice} />
+      }
+
       {/* Device Registration - Show after city selection, for drivers only */}
-      {!showCitySelectionPopup && currentUser && userHasRole(currentUser, 'driver') && !deviceRegistered &&
+      {!showCitySelectionPopup && !showDeviceSelectionModal && currentUser && userHasRole(currentUser, 'driver') && !deviceRegistered &&
       <DeviceRegistration
         currentUser={currentUser}
         onDeviceRegistered={(device) => {
