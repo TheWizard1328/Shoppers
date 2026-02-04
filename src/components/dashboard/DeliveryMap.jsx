@@ -2746,7 +2746,7 @@ export default function DeliveryMap({
         })()}
         
         {/* TYPE 2 & 3 POLYLINES: Colored lines connecting stops in stop_order sequence */}
-        {isViewingCurrentDate && showRoutes && (() => {
+        {showRoutes && (() => {
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           const polylines = [];
           
@@ -2770,7 +2770,7 @@ export default function DeliveryMap({
             // Check if route is completed
             const isRouteCompleted = allDriverStops.every(s => finishedStatuses.includes(s.status));
             
-            // TYPE 3: For completed routes, show all stops connected
+            // TYPE 3: For completed routes, show all stops connected (ANY DATE)
             if (isRouteCompleted) {
               for (let i = 0; i < allDriverStops.length - 1; i++) {
                 const stop1 = allDriverStops[i];
@@ -2809,7 +2809,8 @@ export default function DeliveryMap({
                   />
                 );
               }
-            } else {
+            } else if (isViewingCurrentDate) {
+              // TYPE 2: For active routes, only show on CURRENT DATE
               // TYPE 2 & 3 COMBINED: For active routes, show BOTH completed and incomplete segments
               
               // Split stops into completed and incomplete
