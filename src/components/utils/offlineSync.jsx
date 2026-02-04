@@ -347,20 +347,47 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     await new Promise(r => setTimeout(r, 3000));
     
-    // Step 4: Patients with timestamp check
+    // Step 4: Patients with timestamp check (or sync related to selected date deliveries)
     let patients = [];
     try {
       const patientResult = await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' }, { status: 'active' });
       patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
       patients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
-    } catch (patientError) {}
+    } catch (patientError) {
+      console.warn('⚠️ [LoadPriorityData] Patient sync failed:', patientError.message);
+    }
     
     await new Promise(r => setTimeout(r, 3000));
     
     // Step 5: Deliveries for selected date
     const deliveryFilter = { delivery_date: selectedDateStr, ...filters };
     const deliveries = await Delivery.filter(deliveryFilter);
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    
+    if (deliveries && deliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+      
+      // CRITICAL: Sync patients referenced in these deliveries
+      const patientIds = new Set(
+        deliveries
+          .filter(d => d && d.patient_id)
+          .map(d => d.patient_id)
+      );
+      
+      if (patientIds.size > 0) {
+        const patientIdList = Array.from(patientIds);
+        const BATCH_SIZE = 50;
+        
+        for (let i = 0; i < patientIdList.length; i += BATCH_SIZE) {
+          const batchIds = patientIdList.slice(i, i + BATCH_SIZE);
+          const batchPatients = await Patient.filter({ id: { $in: batchIds } });
+          if (batchPatients && batchPatients.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+            patients = [...patients, ...batchPatients];
+          }
+          await new Promise(r => setTimeout(r, 200));
+        }
+      }
+    }
     
     await Promise.all([
       offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
