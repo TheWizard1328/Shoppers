@@ -5972,6 +5972,23 @@ function Dashboard() {
 
       const updateData = { status: newStatus, ...extraData };
 
+      // CRITICAL: Auto-fill COD payment when completing delivery with COD
+      if (newStatus === 'completed' && targetDelivery.cod_total_amount_required > 0) {
+        const hasCODPayments = targetDelivery.cod_payments && 
+                               Array.isArray(targetDelivery.cod_payments) && 
+                               targetDelivery.cod_payments.length > 0;
+        
+        if (!hasCODPayments) {
+          console.log(`💰 [COD Auto-fill] Setting Cash collection for $${targetDelivery.cod_total_amount_required}`);
+          updateData.cod_payments = [
+            {
+              type: 'Cash',
+              amount: targetDelivery.cod_total_amount_required
+            }
+          ];
+        }
+      }
+
       // CRITICAL: Set delivery_time_start to current time + 5 minutes when transitioning to in_transit
       if (newStatus === 'in_transit' || newStatus === 'en_route') {
         const now = new Date();
