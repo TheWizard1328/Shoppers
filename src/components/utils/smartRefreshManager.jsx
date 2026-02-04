@@ -1984,6 +1984,13 @@ class SmartRefreshManager {
   }
   
   /**
+   * Set current user for location polling
+   */
+  setCurrentUser(user) {
+    this._currentUser = user;
+  }
+
+  /**
    * NEW: Combined smart refresh - 15s active route, opportunistic historical
    * @param {string} currentPage - Current page name (to check if on Dashboard)
    * @param {Date} selectedDate - Selected date (to check if today)
