@@ -352,6 +352,18 @@ export default function DeviceSettings() {
                           Edit Settings
                         </Button>
 
+                        {isCurrentDevice && devices.length > 1 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowChangeSettings(true)}
+                            className="gap-2"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            Change Settings From...
+                          </Button>
+                        )}
+
                         {!device.is_primary_tracker && (
                           <Button
                             variant="outline"
@@ -377,6 +389,40 @@ export default function DeviceSettings() {
                       </>
                     )}
                   </div>
+
+                  {/* Change Settings Modal */}
+                  {isCurrentDevice && showChangeSettings && (
+                    <div className="mt-4 p-3 rounded border-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-slate-900)' }}>
+                        Apply settings from another device:
+                      </p>
+                      <div className="space-y-2">
+                        {devices.filter(d => d.id !== currentDeviceId).map(d => (
+                          <div key={d.id} className="flex items-center justify-between p-2 rounded border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                            <div>
+                              <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{d.device_name}</p>
+                              <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{d.device_info?.device_type || 'Unknown'}</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700"
+                              onClick={() => handleApplyDeviceSettings(d)}
+                            >
+                              Apply
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-2"
+                        onClick={() => setShowChangeSettings(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
