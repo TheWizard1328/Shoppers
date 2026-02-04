@@ -764,89 +764,51 @@ export const forceSyncAll = async () => {
     notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 24, count: stores.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // CRITICAL: Manual sync ONLY gets unique patients from last 7 days
-    notifySyncStatus({ status: 'syncing', entity: 'Patients (last 7 days)', progress: 25 });
-    console.log('🔄 [ForceSyncAll] Gathering unique patient IDs from last 7 days...');
-    
-    const weekAgoDateStr = format(subDays(new Date(), 7), 'yyyy-MM-dd');
-    
-    // Fetch deliveries from last 7 days in batches
-    let allDeliveriesLastWeek = [];
-    let deliveryOffset = 0;
-    const DELIVERY_BATCH_SIZE = 500;
-    
+    // CRITICAL: Sync ALL active patients for complete historical data (not just recent)
+    // Payroll page needs patient data for any date in the year
+    notifySyncStatus({ status: 'syncing', entity: 'Patients (all active)', progress: 25 });
+    console.log('🔄 [ForceSyncAll] Syncing ALL active patients...');
+
+    let allPatients = [];
+    let patientOffset = 0;
+    const PATIENT_FETCH_SIZE = 100;
+
     while (true) {
-      const batchDeliveries = await Delivery.filter({ 
-        delivery_date: { $gte: weekAgoDateStr } 
-      }, '-delivery_date', DELIVERY_BATCH_SIZE, deliveryOffset);
-      
-      if (!batchDeliveries || batchDeliveries.length === 0) break;
-      
-      allDeliveriesLastWeek = allDeliveriesLastWeek.concat(batchDeliveries);
-      deliveryOffset += DELIVERY_BATCH_SIZE;
-      
-      console.log(`   Fetched ${batchDeliveries.length} deliveries (total: ${allDeliveriesLastWeek.length})`);
-      
-      if (batchDeliveries.length < DELIVERY_BATCH_SIZE) break;
-      
-      await new Promise(r => setTimeout(r, 300));
-    }
-    
-    // Extract unique patient IDs from last 7 days
-    const uniquePatientIdsFromLastWeek = new Set(
-      allDeliveriesLastWeek
-        .filter(d => d && d.patient_id)
-        .map(d => d.patient_id)
-    );
-    
-    const uniquePatientIdsList = Array.from(uniquePatientIdsFromLastWeek);
-    console.log(`📍 [ForceSyncAll] Found ${uniquePatientIdsList.length} unique patients in ${allDeliveriesLastWeek.length} deliveries from last 7 days`);
-    
-    // Sync ONLY those unique patient IDs in batches
-    let patientsFromLastWeek = [];
-    const ID_BATCH_SIZE = 50;
-    
-    for (let i = 0; i < uniquePatientIdsList.length; i += ID_BATCH_SIZE) {
-      const batchIds = uniquePatientIdsList.slice(i, i + ID_BATCH_SIZE);
-      const batchNumber = Math.floor(i/ID_BATCH_SIZE)+1;
-      const totalBatches = Math.ceil(uniquePatientIdsList.length / ID_BATCH_SIZE);
-      
       try {
-        const batchPatients = await Patient.filter({
-          id: { $in: batchIds }
-        });
-        
-        if (batchPatients && batchPatients.length > 0) {
-          patientsFromLastWeek = patientsFromLastWeek.concat(batchPatients);
-          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
-          
-          // Update progress after EACH batch (25-35% range)
-          const batchProgress = 25 + Math.floor((i / uniquePatientIdsList.length) * 10);
-          notifySyncStatus({ 
-            status: 'syncing', 
-            entity: `Patients (${batchNumber}/${totalBatches})`, 
-            progress: batchProgress, 
-            loaded: patientsFromLastWeek.length 
-          });
-          console.log(`   ✅ Batch ${batchNumber}/${totalBatches} saved (${patientsFromLastWeek.length} total)`);
-        }
-      } catch (batchError) {
-        console.warn(`   ⚠️ Batch ${batchNumber} failed:`, batchError.message);
-        const batchProgress = 25 + Math.floor((i / uniquePatientIdsList.length) * 10);
+        const patientBatch = await Patient.filter(
+          { status: 'active' },
+          '-updated_date',
+          PATIENT_FETCH_SIZE,
+          patientOffset
+        );
+
+        if (!patientBatch || patientBatch.length === 0) break;
+
+        allPatients = allPatients.concat(patientBatch);
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientBatch);
+
+        const batchNumber = Math.floor(patientOffset / PATIENT_FETCH_SIZE) + 1;
+        const batchProgress = 25 + Math.min(10, Math.floor((allPatients.length / 4000) * 10));
         notifySyncStatus({ 
           status: 'syncing', 
-          entity: `Patients (${batchNumber}/${totalBatches})`, 
+          entity: `Patients (${allPatients.length}+)`, 
           progress: batchProgress, 
-          loaded: patientsFromLastWeek.length, 
-          error: 'batch_failed' 
+          loaded: allPatients.length 
         });
+        console.log(`   ✅ Batch ${batchNumber} synced (${allPatients.length} total patients)`);
+
+        if (patientBatch.length < PATIENT_FETCH_SIZE) break;
+
+        patientOffset += PATIENT_FETCH_SIZE;
+        await new Promise(r => setTimeout(r, 200));
+      } catch (error) {
+        console.warn(`   ⚠️ Patient batch failed:`, error.message);
+        break;
       }
-      
-      await new Promise(r => setTimeout(r, 200));
     }
-    
-    const cleanPatients = patientsFromLastWeek.filter(p => p && p.id && !p.id.startsWith('temp_'));
-    console.log(`✅ [ForceSyncAll] Synced ${cleanPatients.length} patients from last 7 days`);
+
+    const cleanPatients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+    console.log(`✅ [ForceSyncAll] Synced ${cleanPatients.length} total active patients`);
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 35, count: cleanPatients.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
