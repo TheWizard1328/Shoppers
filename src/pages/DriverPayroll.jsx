@@ -454,43 +454,24 @@ export default function DriverPayroll() {
       });
       const data = response?.data?.payrollData || response?.payrollData;
       
-      // CRITICAL: ALWAYS prefer offline DB for cities/appUsers (guaranteed fresh)
-      // Offline DB is synced regularly and never gets cleared
-      // Backend data is only used as fallback if offline DB is empty
+      // CRITICAL: Backend data is the source of truth for payroll page
+      // Use offline DB ONLY if backend data is missing, as a fallback
       const mergedData = {
         ...data,
-        cities: freshCities && freshCities.length > 0 ? freshCities : (data?.cities || []),
-        appUsers: freshAppUsers && freshAppUsers.length > 0 ? freshAppUsers : (data?.appUsers || [])
+        // Prefer backend data; only fallback to offline DB if backend has no data
+        cities: (data?.cities && data.cities.length > 0) ? data.cities : (freshCities && freshCities.length > 0 ? freshCities : []),
+        appUsers: (data?.appUsers && data.appUsers.length > 0) ? data.appUsers : (freshAppUsers && freshAppUsers.length > 0 ? freshAppUsers : []),
+        drivers: data?.drivers || []  // Backend provides filtered drivers; keep as-is
       };
       
-      // CRITICAL: Validate core data is present before setting state
-      if (!mergedData.cities || mergedData.cities.length === 0) {
-        console.warn('⚠️ [DriverPayroll] WARNING: Cities missing from merged data, attempting API fetch...');
-        try {
-          const { City } = await import('@/entities/City');
-          const apiCities = await City.list();
-          if (apiCities && apiCities.length > 0) {
-            mergedData.cities = apiCities;
-            await offlineDB.bulkSave(offlineDB.STORES.CITIES, apiCities);
-          }
-        } catch (e) {
-          console.error('Failed to fetch cities from API:', e);
-        }
-      }
-      
-      if (!mergedData.appUsers || mergedData.appUsers.length === 0) {
-        console.warn('⚠️ [DriverPayroll] WARNING: AppUsers missing from merged data, attempting API fetch...');
-        try {
-          const { AppUser } = await import('@/entities/AppUser');
-          const apiAppUsers = await AppUser.list();
-          if (apiAppUsers && apiAppUsers.length > 0) {
-            mergedData.appUsers = apiAppUsers;
-            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, apiAppUsers);
-          }
-        } catch (e) {
-          console.error('Failed to fetch appUsers from API:', e);
-        }
-      }
+      console.log(`✅ [DriverPayroll] Merged payroll data:`, {
+        deliveries: mergedData?.deliveries?.length || 0,
+        drivers: mergedData?.drivers?.length || 0,
+        stores: mergedData?.stores?.length || 0,
+        appUsers: mergedData?.appUsers?.length || 0,
+        patients: mergedData?.patients?.length || 0,
+        cities: mergedData?.cities?.length || 0
+      });
       
       console.log(`✅ [DriverPayroll] Received payroll data:`, {
         deliveries: mergedData?.deliveries?.length || 0,
