@@ -7541,7 +7541,7 @@ function Dashboard() {
           onMouseEnter={() => handleCardInteraction(true)}
           onMouseLeave={() => handleCardInteraction(false)}>
               <div className="flex flex-wrap gap-x-1 gap-y-1 items-center justify-center">
-                {driverRoutes.map((route) => {
+                {[...driverRoutes].sort((a, b) => (a.driverName || '').localeCompare(b.driverName || '')).map((route) => {
                   // CRITICAL: Use route color and driver name already calculated in DeliveryMap
                   const displayName = route.driverName || 'Unknown';
                   const routeColor = route.color;
