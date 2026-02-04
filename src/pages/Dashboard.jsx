@@ -363,6 +363,95 @@ function Dashboard() {
   const [endOfDayDriver, setEndOfDayDriver] = useState(null);
   const [snapshotData, setSnapshotData] = useState(null);
 
+  // ==================== REAL-TIME SUBSCRIPTIONS ====================
+  // Subscribe to Patient and Delivery entity changes via WebSockets
+  useEffect(() => {
+    if (!currentUser || !isDataLoaded) return;
+
+    console.log('🔌 [Real-time] Subscribing to Patient and Delivery changes...');
+
+    // Subscribe to Patient entity changes
+    const unsubscribePatients = base44.entities.Patient.subscribe((event) => {
+      console.log(`📡 [Real-time Patient] ${event.type} event:`, event.data?.full_name || event.id);
+      
+      if (event.type === 'create') {
+        // Add new patient to offline DB and context
+        if (event.data) {
+          offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [event.data]).catch(console.error);
+          // Refresh data to update context
+          refreshData?.();
+        }
+      } else if (event.type === 'update') {
+        // Update patient in offline DB and context
+        if (event.data) {
+          offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [event.data]).catch(console.error);
+          refreshData?.();
+        }
+      } else if (event.type === 'delete') {
+        // Remove patient from offline DB
+        offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, event.id).catch(console.error);
+        refreshData?.();
+      }
+    });
+
+    // Subscribe to Delivery entity changes
+    const unsubscribeDeliveries = base44.entities.Delivery.subscribe((event) => {
+      console.log(`📡 [Real-time Delivery] ${event.type} event:`, event.data?.patient_name || event.id);
+      
+      if (event.type === 'create') {
+        // Add new delivery to offline DB and context
+        if (event.data) {
+          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
+          
+          // Update context immediately
+          if (updateDeliveriesLocally) {
+            updateDeliveriesLocally([event.data], false);
+          }
+          
+          // Trigger map update
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeCreate' }
+          }));
+        }
+      } else if (event.type === 'update') {
+        // Update delivery in offline DB and context
+        if (event.data) {
+          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
+          
+          // Update context immediately
+          if (updateDeliveriesLocally) {
+            updateDeliveriesLocally([event.data], false);
+          }
+          
+          // Trigger map update
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeUpdate' }
+          }));
+        }
+      } else if (event.type === 'delete') {
+        // Remove delivery from offline DB and context
+        offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id).catch(console.error);
+        
+        // Update context by filtering out deleted delivery
+        if (updateDeliveriesLocally && deliveries) {
+          const filtered = deliveries.filter(d => d?.id !== event.id);
+          updateDeliveriesLocally(filtered, true);
+        }
+        
+        // Trigger map update
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { triggeredBy: 'realtimeDelete' }
+        }));
+      }
+    });
+
+    return () => {
+      console.log('🔌 [Real-time] Unsubscribing from Patient and Delivery changes');
+      unsubscribePatients();
+      unsubscribeDeliveries();
+    };
+  }, [currentUser?.id, isDataLoaded, updateDeliveriesLocally, deliveries, refreshData]);
+
   // Listen for deliveries imported event to refresh map immediately
   useEffect(() => {
     const handleDeliveriesImported = async (event) => {
