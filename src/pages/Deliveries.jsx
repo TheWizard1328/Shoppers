@@ -3644,7 +3644,7 @@ export default function DeliveriesPage() {
                   setAllDeliveries(prev => prev.filter(d => !deliveryIds.includes(d.id)));
 
                   // 4. Broadcast to other devices
-                  smartRefreshManager.deletedDeliveryIds.add(...deliveryIds);
+                  deliveryIds.forEach(id => smartRefreshManager.deletedDeliveryIds.add(id));
 
                   invalidate('Delivery');
                   setRefreshKey((prev) => prev + 1);
@@ -3769,7 +3769,7 @@ export default function DeliveriesPage() {
                     setAllDeliveries(prev => prev.filter(d => !deliveryIds.includes(d.id)));
 
                     // 4. Broadcast to other devices
-                    smartRefreshManager.deletedDeliveryIds.add(...deliveryIds);
+                    deliveryIds.forEach(id => smartRefreshManager.deletedDeliveryIds.add(id));
 
                     invalidate('Delivery');
                     setRefreshKey((prev) => prev + 1);
@@ -3780,7 +3780,7 @@ export default function DeliveriesPage() {
                     alert('Failed to delete route. Please try again.');
                     await loadData(true);
                   }
-                }
+                }}
                 onDeleteMonth={async (year, month, driverId) => {
                   try {
                     if (!confirm(`Delete all deliveries for ${driverId ? 'this driver for ' : ''}this month?`)) return;
