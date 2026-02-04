@@ -2294,14 +2294,16 @@ export default function Layout({ children, currentPageName }) {
 
       console.log('✅ [Layout] Device registered:', newDevice);
 
+      // CRITICAL: Cache device registration to prevent re-prompting
+      sessionStorage.setItem('rxdeliver_device_checked', 'true');
+
       // Close modal and continue with initialization
       setShowDeviceSelectionModal(false);
       setDeviceRegistered(true);
       setIsSettingUpDevice(false);
 
-      // CRITICAL: Don't reload - continue with normal init flow
-      // Device now exists, so initialization can proceed to city selection and beyond
-      setInitialGlobalFiltersSet(false); // Reset so init proceeds normally
+      // Reload to complete initialization with registered device
+      window.location.reload();
     } catch (error) {
       console.error('❌ [Layout] Failed to register device:', error);
       setIsSettingUpDevice(false);
