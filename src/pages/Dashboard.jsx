@@ -364,7 +364,6 @@ function Dashboard() {
   const [endOfDayDriver, setEndOfDayDriver] = useState(null);
   const [snapshotData, setSnapshotData] = useState(null);
   const [pullToSyncKey, setPullToSyncKey] = useState(0);
-  const statsCardRef = useRef(null);
 
   // ==================== REAL-TIME SUBSCRIPTIONS ====================
   // Subscribe to Patient and Delivery entity changes via WebSockets
