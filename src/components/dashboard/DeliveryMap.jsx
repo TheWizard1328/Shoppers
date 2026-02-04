@@ -2770,56 +2770,132 @@ export default function DeliveryMap({
             // Check if route is completed
             const isRouteCompleted = allDriverStops.every(s => finishedStatuses.includes(s.status));
             
-            // Filter stops based on route status
-            let stopsToConnect = isRouteCompleted 
-              ? allDriverStops // Type 3: All stops for completed routes
-              : allDriverStops.filter(s => !finishedStatuses.includes(s.status) && s.status !== 'pending'); // Type 2: Incomplete stops only
-            
-            // Find next stop to know where Type 2 starts
-            const nextStop = stopsToConnect.find(s => s.isNextDelivery === true);
-            const nextStopIndex = nextStop ? stopsToConnect.indexOf(nextStop) : -1;
-            
-            // Connect stops in sequence
-            for (let i = 0; i < stopsToConnect.length - 1; i++) {
-              const stop1 = stopsToConnect[i];
-              const stop2 = stopsToConnect[i + 1];
+            // TYPE 3: For completed routes, show all stops connected
+            if (isRouteCompleted) {
+              for (let i = 0; i < allDriverStops.length - 1; i++) {
+                const stop1 = allDriverStops[i];
+                const stop2 = allDriverStops[i + 1];
+                
+                if (!stop1 || !stop2) continue;
+                
+                // CRITICAL: Validate coordinates
+                if (typeof stop1.latitude !== 'number' || typeof stop1.longitude !== 'number' ||
+                    typeof stop2.latitude !== 'number' || typeof stop2.longitude !== 'number' ||
+                    isNaN(stop1.latitude) || isNaN(stop1.longitude) ||
+                    isNaN(stop2.latitude) || isNaN(stop2.longitude)) {
+                  console.warn('[DeliveryMap] Skipping TYPE 3 polyline with invalid coordinates');
+                  continue;
+                }
+                
+                const isAM = stop2.ampm_deliveries === 'AM';
+                const dashArray = isAM ? '10, 5' : '2, 8';
+                
+                polylines.push(
+                  <Polyline
+                    key={`type3-${route.driverId}-${i}-${polylineRenderKey}`}
+                    positions={[
+                      [stop1.latitude, stop1.longitude],
+                      [stop2.latitude, stop2.longitude]
+                    ]}
+                    pathOptions={{
+                      color: driverPolylineColor,
+                      weight: 4,
+                      opacity: 0.7,
+                      dashArray: dashArray,
+                      lineJoin: 'round',
+                      lineCap: 'round'
+                    }}
+                    pane="overlayPane"
+                  />
+                );
+              }
+            } else {
+              // TYPE 2 & 3 COMBINED: For active routes, show BOTH completed and incomplete segments
               
-              if (!stop1 || !stop2) continue;
+              // Split stops into completed and incomplete
+              const completedStops = allDriverStops.filter(s => finishedStatuses.includes(s.status));
+              const incompleteStops = allDriverStops.filter(s => !finishedStatuses.includes(s.status) && s.status !== 'pending');
               
-              // CRITICAL: Validate coordinates before creating polyline
-              if (typeof stop1.latitude !== 'number' || typeof stop1.longitude !== 'number' ||
-                  typeof stop2.latitude !== 'number' || typeof stop2.longitude !== 'number' ||
-                  isNaN(stop1.latitude) || isNaN(stop1.longitude) ||
-                  isNaN(stop2.latitude) || isNaN(stop2.longitude)) {
-                console.warn('[DeliveryMap] Skipping polyline with invalid coordinates:', { stop1, stop2 });
-                continue;
+              // TYPE 3: Draw completed segments (solid lines connecting completed stops)
+              for (let i = 0; i < completedStops.length - 1; i++) {
+                const stop1 = completedStops[i];
+                const stop2 = completedStops[i + 1];
+                
+                if (!stop1 || !stop2) continue;
+                
+                // CRITICAL: Validate coordinates
+                if (typeof stop1.latitude !== 'number' || typeof stop1.longitude !== 'number' ||
+                    typeof stop2.latitude !== 'number' || typeof stop2.longitude !== 'number' ||
+                    isNaN(stop1.latitude) || isNaN(stop1.longitude) ||
+                    isNaN(stop2.latitude) || isNaN(stop2.longitude)) {
+                  console.warn('[DeliveryMap] Skipping TYPE 3 completed segment with invalid coordinates');
+                  continue;
+                }
+                
+                const isAM = stop2.ampm_deliveries === 'AM';
+                const dashArray = isAM ? '10, 5' : '2, 8';
+                
+                polylines.push(
+                  <Polyline
+                    key={`type3-completed-${route.driverId}-${i}-${polylineRenderKey}`}
+                    positions={[
+                      [stop1.latitude, stop1.longitude],
+                      [stop2.latitude, stop2.longitude]
+                    ]}
+                    pathOptions={{
+                      color: driverPolylineColor,
+                      weight: 4,
+                      opacity: 0.5, // Slightly faded for completed segments
+                      dashArray: dashArray,
+                      lineJoin: 'round',
+                      lineCap: 'round'
+                    }}
+                    pane="overlayPane"
+                  />
+                );
               }
               
-              // Determine line style based on destination stop's AM/PM
-              const isAM = stop2.ampm_deliveries === 'AM';
-              const dashArray = isAM ? '10, 5' : '2, 8'; // AM = dashed, PM = dotted
+              // TYPE 2: Draw incomplete segments (from next stop onwards)
+              const nextStop = incompleteStops.find(s => s.isNextDelivery === true);
+              const nextStopIndex = nextStop ? incompleteStops.indexOf(nextStop) : 0;
               
-              // Type 2 polylines start from next stop (skip segments before next stop for active routes)
-              if (!isRouteCompleted && i < nextStopIndex) continue;
-              
-              polylines.push(
-               <Polyline
-                 key={`type2-3-${route.driverId}-${i}-${polylineRenderKey}`}
-                 positions={[
-                   [stop1.latitude, stop1.longitude],
-                   [stop2.latitude, stop2.longitude]
-                 ]}
-                 pathOptions={{
-                   color: driverPolylineColor,
-                   weight: 4,
-                   opacity: 0.7,
-                   dashArray: dashArray,
-                   lineJoin: 'round',
-                   lineCap: 'round'
-                 }}
-                 pane="overlayPane"
-               />
-              );
+              for (let i = nextStopIndex; i < incompleteStops.length - 1; i++) {
+                const stop1 = incompleteStops[i];
+                const stop2 = incompleteStops[i + 1];
+                
+                if (!stop1 || !stop2) continue;
+                
+                // CRITICAL: Validate coordinates
+                if (typeof stop1.latitude !== 'number' || typeof stop1.longitude !== 'number' ||
+                    typeof stop2.latitude !== 'number' || typeof stop2.longitude !== 'number' ||
+                    isNaN(stop1.latitude) || isNaN(stop1.longitude) ||
+                    isNaN(stop2.latitude) || isNaN(stop2.longitude)) {
+                  console.warn('[DeliveryMap] Skipping TYPE 2 polyline with invalid coordinates');
+                  continue;
+                }
+                
+                const isAM = stop2.ampm_deliveries === 'AM';
+                const dashArray = isAM ? '10, 5' : '2, 8';
+                
+                polylines.push(
+                  <Polyline
+                    key={`type2-${route.driverId}-${i}-${polylineRenderKey}`}
+                    positions={[
+                      [stop1.latitude, stop1.longitude],
+                      [stop2.latitude, stop2.longitude]
+                    ]}
+                    pathOptions={{
+                      color: driverPolylineColor,
+                      weight: 4,
+                      opacity: 0.7,
+                      dashArray: dashArray,
+                      lineJoin: 'round',
+                      lineCap: 'round'
+                    }}
+                    pane="overlayPane"
+                  />
+                );
+              }
             }
           });
           
