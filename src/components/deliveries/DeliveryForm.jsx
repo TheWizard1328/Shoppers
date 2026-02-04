@@ -4121,9 +4121,9 @@ export default function DeliveryForm({
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
+                </div>
 
-{isAppOwner(currentUser) && delivery && (
+                {isAppOwner(currentUser) && delivery && (
                 <div className="space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Identifiers</Label>
                   <div className="flex gap-3">
