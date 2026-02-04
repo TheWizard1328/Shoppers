@@ -3867,7 +3867,6 @@ export default function DeliveryForm({
                     </SelectContent>
                   </Select>
                 </div>
-                </div>
               </div>
 
               {isAppOwner(currentUser) && delivery && (
