@@ -42,10 +42,18 @@ export const isMobileDevice = () => {
 
 /**
  * Checks if device is mobile/tablet based ONLY on user agent (ignores screen width)
- * Used for theme decisions - allows dark mode on tablets regardless of screen size
- * @returns {boolean} - true if mobile/tablet user agent
+ * Used for theme decisions - allows dark mode on tablets/phones only
+ * EXCLUDES iPads and tablets - they use light mode like desktops
+ * @returns {boolean} - true if mobile phone user agent (NOT tablets)
  */
 export const isMobileDeviceForTheme = () => {
   const ua = navigator.userAgent;
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  // CRITICAL: Only detect phones, NOT tablets (iPad, Android tablets)
+  // Tablets should use light mode like desktops
+  const isPhone = /Android.*Mobile|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  
+  // Explicitly exclude iPads and Android tablets
+  const isTablet = /iPad|Android(?!.*Mobile)/i.test(ua);
+  
+  return isPhone && !isTablet;
 };

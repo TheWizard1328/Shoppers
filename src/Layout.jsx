@@ -669,12 +669,31 @@ export default function Layout({ children, currentPageName }) {
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
   const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
 
-  // Apply theme class - FORCE light mode for ALL desktop devices
+  // Apply theme class - mobile phones can use dark mode, desktops and tablets always light
   // CRITICAL: Apply theme IMMEDIATELY to prevent flash of light mode
   useEffect(() => {
-    // FORCE light mode on ALL devices - no dark mode support
-    document.documentElement.classList.remove('auto-theme', 'dark-theme');
-    document.documentElement.classList.add('light-theme');
+    // CRITICAL: Use isMobileDeviceForTheme() for theme decisions - ONLY phones get dark mode
+    // Desktops and tablets ALWAYS use light mode
+    const isMobilePhone = isMobileDeviceForTheme();
+    
+    if (!isMobilePhone) {
+      // Force light mode on desktops and tablets
+      document.documentElement.classList.remove('auto-theme', 'dark-theme');
+      document.documentElement.classList.add('light-theme');
+      return;
+    }
+
+    // Mobile phone theme switching
+    if (themePreference === 'dark') {
+      document.documentElement.classList.remove('auto-theme', 'light-theme');
+      document.documentElement.classList.add('dark-theme');
+    } else if (themePreference === 'light') {
+      document.documentElement.classList.remove('auto-theme', 'dark-theme');
+      document.documentElement.classList.add('light-theme');
+    } else {
+      document.documentElement.classList.remove('light-theme', 'dark-theme');
+      document.documentElement.classList.add('auto-theme');
+    }
   }, [themePreference]);
 
   const handleThemeChange = async (newTheme) => {
@@ -760,8 +779,14 @@ export default function Layout({ children, currentPageName }) {
             setSidebarWidth(settings.sidebar_width);
           }
 
-          // FORCE light theme for ALL devices - no dark mode
-          setThemePreference('light');
+          // Apply theme preference (mobile phones only - desktops and tablets always light)
+          // CRITICAL: Check user agent for theme - only phones get theme options
+          const isMobilePhone = isMobileDeviceForTheme();
+          if (settings.theme_preference && isMobilePhone) {
+            setThemePreference(settings.theme_preference);
+          } else {
+            setThemePreference('light');
+          }
 
           // Apply data source preference
           if (settings.data_source) {
