@@ -84,7 +84,8 @@ Deno.serve(async (req) => {
       const envelopeMetrics = calculateEnvelopeMetrics(deliveries, stores);
       metrics.envelopeMetrics = envelopeMetrics;
 
-      statsCache.adminMetrics = { data: metrics, cacheDate, key: metricsKey };
+      statsCache.set(metricsKey, { data: metrics, timestamp: Date.now() });
+      console.log(`✅ Cached AdminMetrics for ${year}`);
       return metrics;
     };
 
