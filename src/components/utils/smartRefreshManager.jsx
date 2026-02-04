@@ -2506,6 +2506,15 @@ class SmartRefreshManager {
        }
 
        const merged = mergeEntityChanges(currentAppUsers, diff);
+       
+       // CRITICAL: Dispatch driver location update event to refresh map markers
+       if (typeof window !== 'undefined') {
+         console.log('📍 [SmartRefresh] Dispatching driverLocationsUpdated event after full AppUser sync');
+         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+           detail: { appUsers: merged }
+         }));
+       }
+       
        return {
          hasChanges: true,
          appUsers: merged
