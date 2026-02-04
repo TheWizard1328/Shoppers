@@ -162,7 +162,7 @@ class LocationTracker {
 
   async updateLocationInDatabase(latitude, longitude, accuracy) {
     const now = Date.now();
-    
+
     // Check if we're in backoff period
     if (this.backoffTime > 0 && (now - this.lastUpdate) < this.backoffTime) {
       console.log('⏸️ [LocationTracker] Skipping update - in backoff period');
@@ -194,7 +194,7 @@ class LocationTracker {
         latitude,
         longitude
       );
-      
+
       if (distance >= this.minDistanceChange) {
         console.log(`📍 [LocationTracker] Updating - moved ${distance.toFixed(0)}m`);
       } else if (timeForCoordinateUpdate) {
@@ -219,9 +219,9 @@ class LocationTracker {
       const isPrimaryTracker = currentDevice?.is_primary_tracker || false;
 
       const nowISO = new Date().toISOString();
-      
+
       console.log(`📤 [LocationTracker] Device isPrimary: ${isPrimaryTracker} - lat: ${latitude.toFixed(6)}, lng: ${longitude.toFixed(6)}`);
-      
+
       // CRITICAL: Only update AppUser location if this is the primary tracker device
       let updatedAppUser = null;
       if (isPrimaryTracker) {
@@ -230,28 +230,37 @@ class LocationTracker {
           current_longitude: longitude,
           location_updated_at: nowISO
         };
-        
+
         updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
-        console.log(`✅ [LocationTracker] Primary device - updated AppUser location`);
-        
+        console.log(`✅ [LocationTracker] Primary device - updated AppUser location online`);
+
+        // CRITICAL: DUAL-WRITE - Save to offline DB immediately for instant sync
+        try {
+          const { offlineDB } = await import('./offlineDatabase');
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [updatedAppUser]);
+          console.log(`💾 [LocationTracker] Synced AppUser location to offline DB`);
+        } catch (offlineError) {
+          console.warn('⚠️ [LocationTracker] Failed to sync AppUser to offline DB:', offlineError.message);
+        }
+
         // Broadcast location update to other devices
         broadcastMutation('AppUser', 'update', this.appUserId, updatedAppUser);
       } else {
         console.log(`ℹ️ [LocationTracker] Non-primary device - skipped AppUser location update`);
       }
-      
+
       // CRITICAL: Always update UserDevice last_active_at regardless of primary status
       if (currentDevice) {
         await updateDeviceLastActive(this.currentUser.id);
         console.log(`✅ [LocationTracker] Updated device last_active_at`);
       }
-      
+
       // Update currentUser reference
       if (this.currentUser) {
         this.currentUser.current_latitude = latitude;
         this.currentUser.current_longitude = longitude;
         this.currentUser.location_updated_at = nowISO;
-        
+
         // Update liveDistanceTracker's currentUser reference
         if (liveDistanceTracker.isTracking && liveDistanceTracker.currentUser) {
           liveDistanceTracker.currentUser.current_latitude = latitude;
@@ -265,7 +274,7 @@ class LocationTracker {
       this.lastPosition = { latitude, longitude, accuracy };
       this.failedUpdateCount = 0;
       this.backoffTime = 0;
-      
+
       console.log(`✅ [LocationTracker] Location updated - Accuracy: ${accuracy?.toFixed(0)}m`);
 
       window.dispatchEvent(new CustomEvent('driverLocationUpdated', {
@@ -298,20 +307,32 @@ class LocationTracker {
       if (this.failedUpdateCount >= this.maxFailedUpdates) {
         console.error('❌ Too many failed updates, stopping location tracking');
         this.stopTracking();
-        
+
         try {
           if (this.appUserId) {
-            await base44.entities.AppUser.update(this.appUserId, {
+            const updateData = {
               location_tracking_enabled: false,
               current_latitude: null,
               current_longitude: null,
               location_updated_at: null
-            });
+            };
+            await base44.entities.AppUser.update(this.appUserId, updateData);
+
+            // CRITICAL: DUAL-WRITE - Save to offline DB immediately
+            try {
+              const { offlineDB } = await import('./offlineDatabase');
+              const appUser = await base44.entities.AppUser.filter({ id: this.appUserId });
+              if (appUser && appUser.length > 0) {
+                await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [appUser[0]]);
+              }
+            } catch (offlineError) {
+              console.warn('⚠️ [LocationTracker] Failed to sync disabled tracking to offline DB:', offlineError.message);
+            }
           }
         } catch (dbError) {
           console.error('Failed to update database after tracking failure:', dbError);
         }
-        
+
         window.dispatchEvent(new CustomEvent('locationTrackingError', {
           detail: {
             message: 'Location updates failed multiple times. Tracking has been stopped.',

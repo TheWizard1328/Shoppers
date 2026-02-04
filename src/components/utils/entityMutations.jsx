@@ -672,9 +672,9 @@ export const updateAppUser = (id, updates, options) => updateEntity('AppUser', i
 export const deleteAppUser = (id, options) => deleteEntity('AppUser', id, options);
 
 /**
- * Update AppUser with immediate UI refresh and real-time broadcast
- * Updates backend, notifies UI immediately, and broadcasts to other devices
- * CRITICAL: Used for driver status, location, and tracking changes
+ * Update AppUser with immediate UI refresh, offline sync, and real-time broadcast
+ * CRITICAL: Dual-writes to both online AppUser entity AND offline DB
+ * Used for driver status, location, and tracking changes
  */
 export const localUpdateAppUser = async (appUserId, updates, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
@@ -682,17 +682,28 @@ export const localUpdateAppUser = async (appUserId, updates, options = {}) => {
   try {
     console.log(`🔄 [EntityMutations] Updating AppUser ${appUserId}...`);
     
-    // Update backend
+    // STEP 1: Update backend (online database)
     const result = await base44.entities.AppUser.update(appUserId, updates);
+    console.log(`☁️ [EntityMutations] Backend AppUser updated: ${appUserId}`);
     
-    // Notify UI immediately so DriverSettings refreshes
+    // STEP 2: CRITICAL - DUAL-WRITE to offline DB immediately
+    try {
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
+      console.log(`💾 [EntityMutations] Synced AppUser to offline DB: ${appUserId}`);
+    } catch (offlineError) {
+      console.warn('⚠️ [EntityMutations] Failed to sync AppUser to offline DB:', offlineError.message);
+      // Don't throw - continue with UI update even if offline sync fails
+    }
+    
+    // STEP 3: Notify UI immediately so components refresh
     notifyMutation({ type: 'update', entity: 'AppUser', id: appUserId, data: result });
+    console.log(`🔔 [EntityMutations] UI notified of AppUser update`);
     
-    // CRITICAL: Broadcast to other devices for real-time sync
-    // This ensures driver location/status changes are instantly visible
+    // STEP 4: CRITICAL: Broadcast to other devices for real-time sync
+    // This ensures driver location/status changes are instantly visible on all devices
     broadcastMutation('AppUser', 'update', appUserId, result);
     
-    console.log(`✅ [EntityMutations] AppUser ${appUserId} updated and broadcast`);
+    console.log(`✅ [EntityMutations] AppUser ${appUserId} updated, synced to offline DB, and broadcast to other devices`);
     return result;
   } catch (error) {
     console.error(`❌ [EntityMutations] Failed to update AppUser ${appUserId}:`, error);
