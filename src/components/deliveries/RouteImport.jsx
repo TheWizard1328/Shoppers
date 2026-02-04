@@ -1757,21 +1757,38 @@ export default function RouteImport({
       // CRITICAL: ALWAYS PURGE BEFORE IMPORT - NO CHECKBOX NEEDED
       // Delete all existing deliveries for affected drivers/dates from BOTH DBs
       // This ensures imported data is the SOLE source of truth
+      // CRITICAL: Delete by BOTH driver_id AND driver_name to catch all ghost records
       setProgressMessage(`Purging existing deliveries for ${driverDatePairs.length} driver/date combinations...`);
 
+      // Get unique driver info from import data for name-based purging
+      const driverNamesToDelete = new Set();
+      [...deliveriesToCreateFiltered, ...deliveriesToUpdateFiltered].forEach(d => {
+        if (d.driver_name) {
+          driverNamesToDelete.add(d.driver_name.trim().toLowerCase());
+        }
+      });
+
       // STEP 1: Delete from ONLINE database FIRST
+      // Query by driver_id first, then also by driver_name to catch ghosts
       for (const { driverId, date } of driverDatePairs) {
         try {
-          const existingDeliveries = await base44.entities.Delivery.filter({
-            driver_id: driverId,
+          // Get all deliveries for this date first
+          const allDeliveriesForDate = await base44.entities.Delivery.filter({
             delivery_date: date
           });
 
-          if (existingDeliveries && existingDeliveries.length > 0) {
-            for (const delivery of existingDeliveries) {
+          // Filter to those matching either driver_id OR driver_name
+          const toDelete = allDeliveriesForDate.filter(d => {
+            const matchesId = d.driver_id === driverId;
+            const matchesName = d.driver_name && driverNamesToDelete.has(d.driver_name.trim().toLowerCase());
+            return matchesId || matchesName;
+          });
+
+          if (toDelete && toDelete.length > 0) {
+            for (const delivery of toDelete) {
               await base44.entities.Delivery.delete(delivery.id);
             }
-            console.log(`🗑️ [RouteImport] Deleted ${existingDeliveries.length} online deliveries for ${driverId} on ${date}`);
+            console.log(`🗑️ [RouteImport] Deleted ${toDelete.length} online deliveries (${driverId} / ${Array.from(driverNamesToDelete).join(', ')}) on ${date}`);
           }
         } catch (deleteError) {
           console.error(`Failed to delete online deliveries for ${driverId}/${date}:`, deleteError);
@@ -1780,17 +1797,21 @@ export default function RouteImport({
       }
 
       // STEP 2: Delete from OFFLINE database
+      // Same logic: delete by driver_id OR driver_name
       for (const { driverId, date } of driverDatePairs) {
         try {
-          // Delete all deliveries for this driver+date from offline DB
           const allOfflineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date);
-          const driverOfflineDeliveries = allOfflineDeliveries.filter(d => d.driver_id === driverId);
+          const toDelete = allOfflineDeliveries.filter(d => {
+            const matchesId = d.driver_id === driverId;
+            const matchesName = d.driver_name && driverNamesToDelete.has(d.driver_name.trim().toLowerCase());
+            return matchesId || matchesName;
+          });
 
-          if (driverOfflineDeliveries.length > 0) {
-            for (const d of driverOfflineDeliveries) {
+          if (toDelete && toDelete.length > 0) {
+            for (const d of toDelete) {
               await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
             }
-            console.log(`🗑️ [RouteImport] Deleted ${driverOfflineDeliveries.length} offline deliveries for ${driverId} on ${date}`);
+            console.log(`🗑️ [RouteImport] Deleted ${toDelete.length} offline deliveries (${driverId} / ${Array.from(driverNamesToDelete).join(', ')}) on ${date}`);
           }
         } catch (offlineDeleteError) {
           console.warn('⚠️ [RouteImport] Failed to delete offline deliveries:', offlineDeleteError);
