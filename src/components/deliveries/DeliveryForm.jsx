@@ -222,6 +222,7 @@ export default function DeliveryForm({
   const [hasChanges, setHasChanges] = useState(false);
   const [isPayrollLocked, setIsPayrollLocked] = useState(false);
   const [payrollLockMessage, setPayrollLockMessage] = useState(null);
+  // Removed debugPatientData state (app owner debug moved to console.log only)
 
   // Camera state
   const videoRef = useRef(null);
@@ -238,7 +239,12 @@ export default function DeliveryForm({
   // Desktop form width threshold (max-w-4xl = 896px + padding)
   const DESKTOP_FORM_WIDTH = 825;
 
+  // Rule 1: Use mobile layout (hidden staged panel) only if screen width < desktop form width
+  // This is PURELY screen-width based - wide mobile screens should show the staged panel
   const useMobileLayout = screenWidth < DESKTOP_FORM_WIDTH;
+
+  // Rule 2: Use fullscreen layout ONLY if screen is too narrow AND on a mobile device
+  // Wide mobile screens should get desktop-style layout with visible staged panel
   const useFullscreen = useMobileLayout && isMobileDevice;
 
   // Track screen dimensions
@@ -266,7 +272,7 @@ export default function DeliveryForm({
 
   // Set default driver when form loads for new deliveries
   useEffect(() => {
-    if (delivery || formData.driver_id) return;
+    if (delivery || formData.driver_id) return; // Skip if editing or driver already set
 
     if (!currentUser || !stores || !drivers || allDrivers.length === 0) return;
 
@@ -321,6 +327,7 @@ export default function DeliveryForm({
     }
   }, [delivery, currentUser, stores, drivers, allDrivers, formData.delivery_date, formData.driver_id]);
 
+  // Ref to track if we're loading an existing delivery (prevent patient auto-load from clearing PUID)
   const isLoadingExistingDelivery = useRef(false);
 
   // Check payroll lock status when editing a delivery
@@ -357,6 +364,7 @@ export default function DeliveryForm({
         isPickup: !delivery.patient_id
       });
 
+      // CRITICAL: If delivery has PUID, find parent pickup to get correct AM/PM slot
       let finalStoreId = delivery.store_id || "";
       let finalAmpm = delivery.ampm_deliveries || null;
       
@@ -430,6 +438,7 @@ export default function DeliveryForm({
         setSelectedPatient(patient);
       }
       
+      // Reset flag after form is loaded
       setTimeout(() => {
         isLoadingExistingDelivery.current = false;
       }, 500);
@@ -456,8 +465,10 @@ export default function DeliveryForm({
   [formData.status]
   );
 
+  // Disable form if payroll is locked (unless admin)
   const isFormLockedByPayroll = useMemo(() => {
     if (!delivery || !isPayrollLocked) return false;
+    // Admins can still edit
     if (currentUser && userHasRole(currentUser, 'admin')) return false;
     return true;
   }, [delivery, isPayrollLocked, currentUser]);
@@ -485,6 +496,7 @@ export default function DeliveryForm({
 
     let relevantStores = stores;
 
+    // Admins always see ALL stores
     if (userHasRole(currentUser, 'admin')) {
       relevantStores = stores;
     } else if (isPickupMode) {
@@ -557,6 +569,7 @@ export default function DeliveryForm({
     if (!searchLower) return [];
     let availablePatients = patients || [];
 
+    // Get IDs of already staged patients (to mark them, not exclude them)
     const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean));
 
     if (userHasRole(currentUser, 'dispatcher')) {
@@ -568,9 +581,14 @@ export default function DeliveryForm({
       }
     }
 
+    // First try active patients only
     let results = availablePatients.filter((patient) => {
       if (!patient) return false;
+
+      // Filter out inactive patients
       if (patient.status === 'inactive') return false;
+
+      // Filter out Deceased and (Old
       const name = patient.full_name?.toLowerCase() || '';
       if (name.includes('deceased') || name.includes('(old')) return false;
 
@@ -580,10 +598,15 @@ export default function DeliveryForm({
       patient.notes?.toLowerCase().includes(searchLower);
     });
 
+    // If no active patients found, search inactive patients as fallback
     if (results.length === 0) {
       results = availablePatients.filter((patient) => {
         if (!patient) return false;
+
+        // ONLY include inactive patients now
         if (patient.status !== 'inactive') return false;
+
+        // Filter out Deceased and (Old
         const name = patient.full_name?.toLowerCase() || '';
         if (name.includes('deceased') || name.includes('(old')) return false;
 
@@ -594,25 +617,30 @@ export default function DeliveryForm({
       });
     }
 
+    // Sort: Staged patients to bottom, then most recently delivered first, then (Temp to the bottom
     results.sort((a, b) => {
       const aIsStaged = stagedPatientIds.has(a.id);
       const bIsStaged = stagedPatientIds.has(b.id);
       
+      // Staged items to the bottom
       if (aIsStaged && !bIsStaged) return 1;
       if (!aIsStaged && bIsStaged) return -1;
       
       const aIsTemp = a.full_name?.toLowerCase().includes('(temp') || false;
       const bIsTemp = b.full_name?.toLowerCase().includes('(temp') || false;
 
+      // (Temp items always to the bottom
       if (aIsTemp && !bIsTemp) return 1;
       if (!aIsTemp && bIsTemp) return -1;
 
+      // Sort by most recent delivery date (descending)
       const aDate = a.last_delivery_date ? new Date(a.last_delivery_date).getTime() : 0;
       const bDate = b.last_delivery_date ? new Date(b.last_delivery_date).getTime() : 0;
 
       return bDate - aDate;
     });
 
+    // Mark patients that are already staged
     return results.slice(0, 50).map(patient => ({
       ...patient,
       _isAlreadyStaged: stagedPatientIds.has(patient.id)
@@ -667,12 +695,15 @@ export default function DeliveryForm({
     return 'Bi-Weekly';
   }, [currentFrequency, hasAnyDaySelected, formData]);
 
+  // CRITICAL: Track if predictions should be stopped (when Done button is clicked or form is closing)
   const predictionsStopped = useRef(false);
+  // CRITICAL: Store full prediction list from backend (never refetch unless date/user changes)
   const fullPredictionListRef = useRef([]);
 
   useEffect(() => {
     if (delivery || !formData.delivery_date || !currentUser || !stores || !allDeliveries) return;
     
+    // CRITICAL: Stop predictions if explicitly stopped (Done button clicked)
     if (predictionsStopped.current) {
       console.log('⏸️ [DeliveryForm] Predictions STOPPED - Done button clicked');
       return;
@@ -717,16 +748,18 @@ export default function DeliveryForm({
           return;
         }
 
+        // Call backend function for predictions (ONLY once per form open)
         const response = await base44.functions.invoke('getDeliveryPredictions', {
           selectedDate: formData.delivery_date,
           storeIds: storeIdsToPredict,
-          excludePatientIds: []
+          excludePatientIds: [] // Don't exclude any on initial load
         });
 
         const result = response?.data || response;
         if (result.predictions) {
           console.log('[DeliveryForm] Received predictions from backend:', result.predictions.length);
           
+          // Map predictions to the format expected by UI
           const formattedPredictions = result.predictions.map(pred => ({
             patient_id: pred.patient_id,
             patient_name: pred.patient_name,
@@ -737,8 +770,10 @@ export default function DeliveryForm({
             extra_time: pred.extra_time || 0
           }));
 
+          // CRITICAL: Store full list in ref (never refetch)
           fullPredictionListRef.current = formattedPredictions;
           
+          // Filter out staged patients and display
           const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean));
           const filteredPredictions = formattedPredictions.filter(pred => !stagedPatientIds.has(pred.patient_id));
           setProjectedDeliveries(filteredPredictions);
@@ -765,6 +800,7 @@ export default function DeliveryForm({
       autoAddToStaged: autoAddToStaged
     });
     
+    // CRITICAL: Check if patient is already in staged list
     const alreadyStaged = stagedDeliveries.some(s => s.patient_id === patient.id);
     if (alreadyStaged) {
       console.log('⏸️ [handlePatientSelect] Patient already staged, skipping:', patient.full_name);
@@ -773,6 +809,7 @@ export default function DeliveryForm({
       return;
     }
     
+    // CRITICAL: Don't auto-load patient data if we're editing an existing delivery
     if (isLoadingExistingDelivery.current) {
       console.log('⏸️ [handlePatientSelect] Blocked - editing existing delivery');
       return;
@@ -785,6 +822,7 @@ export default function DeliveryForm({
 
     setSelectedPatient(patient);
 
+    // Find patient's store FIRST (needed throughout this function)
     const patientStore = stores.find((s) => s && s.id === patient.store_id);
 
     let autoSelectedDriverId = '';
@@ -794,7 +832,7 @@ export default function DeliveryForm({
       const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
       const dayOfWeek = selectedDate.getDay();
 
-      const deliveryAMPM = determineDeliveryAMPM(patient);
+      const deliveryAMPM = determineDeliveryAMPM(patient); // Changed here
 
       let amDriverIdField = '';
       let pmDriverIdField = '';
@@ -865,6 +903,7 @@ export default function DeliveryForm({
 
     setFormData(updatedFormData);
 
+    // CRITICAL: If NOT auto-adding to staged (single patient selection), just populate form and return
     if (!autoAddToStaged) {
       console.log('📝 [handlePatientSelect] Single selection - populating form only, not auto-adding to staged');
       setPatientSearch('');
@@ -908,6 +947,7 @@ export default function DeliveryForm({
       }
     }
 
+    // Use existing distance_from_store if available, otherwise calculate
     let distanceFromStore = patient.distance_from_store;
     if (distanceFromStore === null || distanceFromStore === undefined) {
       if (patient.latitude && patient.longitude && patientStore.latitude && patientStore.longitude) {
@@ -915,60 +955,26 @@ export default function DeliveryForm({
       }
     }
 
-    // Determine primary AM/PM slot for this patient
-    const patientPreferredTimeSlot = determineDeliveryAMPM(patient);
-    
-    let puid = '';
-    let selectedTimeSlot = patientPreferredTimeSlot;
-    let pickupToUse = null;
-    
-    const allDeliveriesForDate = allDeliveries.filter(d => d && d.delivery_date === formData.delivery_date);
+    const timeSlot = getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries);
 
-    // Check for existing pickups for this store, date, and assigned driver
-    const existingAmPickup = allDeliveriesForDate.find(d => 
-      !d.patient_id && d.store_id === patientStore.id && d.ampm_deliveries === 'AM' && d.driver_id === autoSelectedDriverId
-    );
-    const existingPmPickup = allDeliveriesForDate.find(d => 
-      !d.patient_id && d.store_id === patientStore.id && d.ampm_deliveries === 'PM' && d.driver_id === autoSelectedDriverId
-    );
+    // Check if we need to create a new pickup (when in-progress stops exist but no incomplete pickup for this store)
+    let puid = getPickupStopIdForDelivery(patientStore.id, formData.delivery_date, timeSlot, allDeliveries);
 
-    // Prioritize AM
-    if (existingAmPickup && existingAmPickup.status !== 'completed' && existingAmPickup.status !== 'cancelled') {
-      pickupToUse = existingAmPickup;
-      selectedTimeSlot = 'AM';
-      console.log(`📦 [handlePatientSelect] Using existing AM pickup: ${pickupToUse.stop_id}`);
-    } else if (existingPmPickup && existingPmPickup.status !== 'completed' && existingPmPickup.status !== 'cancelled') {
-      pickupToUse = existingPmPickup;
-      selectedTimeSlot = 'PM';
-      console.log(`📦 [handlePatientSelect] ${existingAmPickup ? 'AM pickup completed,' : 'No AM pickup,'} using existing PM pickup: ${pickupToUse.stop_id}`);
-    }
+    try {
+      const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
+        storeId: patientStore.id,
+        deliveryDate: formData.delivery_date,
+        driverId: autoSelectedDriverId,
+        ampmDeliveries: timeSlot
+      });
 
-    if (pickupToUse) {
-      puid = pickupToUse.stop_id;
-    } else {
-      const targetAmpm = patientPreferredTimeSlot || 'AM';
-      
-      try {
-        const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
-          storeId: patientStore.id,
-          deliveryDate: formData.delivery_date,
-          driverId: autoSelectedDriverId,
-          ampmDeliveries: targetAmpm
-        });
-
-        if (pickupResponse.data?.puid) {
-          puid = pickupResponse.data.puid;
-          selectedTimeSlot = targetAmpm;
-          console.log(`✅ [handlePatientSelect] Created new pickup via ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
-        }
-      } catch (error) {
-        console.warn('⚠️ [handlePatientSelect] ensurePickupForDelivery failed, using fallback PUID:', error.message);
-        puid = getPickupStopIdForDelivery(patientStore.id, formData.delivery_date, targetAmpm, allDeliveries);
-        selectedTimeSlot = targetAmpm;
+      if (pickupResponse.data?.puid) {
+        puid = pickupResponse.data.puid;
+        console.log(`✅ [handlePatientSelect] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
       }
+    } catch (error) {
+      console.warn('⚠️ [handlePatientSelect] ensurePickupForDelivery failed, using fallback PUID:', error.message);
     }
-    
-    const timeSlot = selectedTimeSlot;
 
     const stagedDelivery = {
       ...updatedFormData,
@@ -985,6 +991,7 @@ export default function DeliveryForm({
       delivery_address: patient.address || patientStore.address,
       isNextDelivery: false,
       paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null,
+      // CRITICAL: Include patient coordinates for map markers
       latitude: patient.latitude,
       longitude: patient.longitude
     };
@@ -1000,10 +1007,12 @@ export default function DeliveryForm({
 
     setHasChanges(true);
 
+    // CRITICAL: Filter projected deliveries locally (don't refetch from backend)
     const stagedPatientIds = new Set([...stagedDeliveries.map(d => d.patient_id), patient.id].filter(Boolean));
     const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id));
     setProjectedDeliveries(filteredPredictions);
 
+    // CRITICAL: Clear form completely after adding to staged
     setError(null);
     setSelectedPatient(null);
     setSelectedPatientIds(new Set());
@@ -1059,6 +1068,7 @@ export default function DeliveryForm({
 
     const patientsToAdd = filteredPatients.filter((p) => selectedPatientIds.has(p.id));
 
+    // CRITICAL: Auto-add to staged for multiple patients
     for (const patient of patientsToAdd) {
       await handlePatientSelect(patient, true);
     }
@@ -1106,6 +1116,7 @@ export default function DeliveryForm({
     });
   }, []);
 
+  // Original handleCameraScan (for file input method) - Kept as per outline instructions
   const handleCameraScan = useCallback(async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1116,6 +1127,7 @@ export default function DeliveryForm({
     try {
       console.log('📸 [DeliveryForm] Starting camera scan...', { fileName: file.name, fileSize: file.size, fileType: file.type });
 
+      // Compress image first
       console.log('🗜️ [DeliveryForm] Compressing image...');
       const compressedFile = await compressImage(file);
       console.log('✅ [DeliveryForm] Image compressed:', {
@@ -1124,14 +1136,17 @@ export default function DeliveryForm({
         reduction: `${((1 - compressedFile.size / file.size) * 100).toFixed(1)}%`
       });
 
+      // Get current selected city for admin filtering
       const { globalFilters } = await import('../utils/globalFilters');
       const selectedCityId = globalFilters.getSelectedCityId();
       console.log('🏙️ [DeliveryForm] Selected city:', selectedCityId);
 
+      // Upload the compressed image
       console.log('📤 [DeliveryForm] Uploading compressed image...');
       const uploadResult = await base44.integrations.Core.UploadFile({ file: compressedFile });
       console.log('✅ [DeliveryForm] Image uploaded:', uploadResult.file_url);
 
+      // Now call the backend function with the file URL
       console.log('📤 [DeliveryForm] Calling scanPrescriptionLabel function...');
       const response = await base44.functions.invoke('scanPrescriptionLabel', {
         fileUrl: uploadResult.file_url,
@@ -1147,18 +1162,23 @@ export default function DeliveryForm({
 
       setExtractedData(result.extractedData);
 
+      // Check for exact matches first
       if (result.exactMatches && result.exactMatches.length === 1) {
+        // Single exact match - populate form only (don't auto-add to staged)
         console.log('✅ [DeliveryForm] Single exact match found - populating form only');
         await handlePatientSelect(result.exactMatches[0].patient, false);
       } else if (result.exactMatches && result.exactMatches.length > 1) {
+        // Multiple exact matches - show popup with exact matches only
         console.log('⚠️ [DeliveryForm] Multiple exact matches found - showing selection popup');
         setScanMatches(result.exactMatches);
         setShowMatchPopup(true);
       } else if (result.matches && result.matches.length > 0) {
+        // No exact matches, but partial matches found - show popup
         console.log('📋 [DeliveryForm] Partial matches found - showing selection popup');
         setScanMatches(result.matches);
         setShowMatchPopup(true);
       } else {
+        // No matches at all - open new patient form with pre-filled data
         console.log('➕ [DeliveryForm] No matches found - opening new patient form');
         if (onCreatePatient) {
           const newPatientData = {
@@ -1171,6 +1191,7 @@ export default function DeliveryForm({
           setIsPatientFormOpen(true);
           onCreatePatient((createdPatient) => {
             setIsPatientFormOpen(false);
+            // CRITICAL: Auto-add new patient to staged (true parameter)
             handlePatientSelect({
               ...createdPatient,
               ...newPatientData
@@ -1183,12 +1204,17 @@ export default function DeliveryForm({
       setError(`Scan failed: ${error.message}`);
     } finally {
       setIsScanning(false);
-      if (patientSearchInputRef.current) {
+      // Reset file input
+      // cameraInputRef.current is only for file input, not for the live camera overlay.
+      // The current camera button's onClick now opens the live camera overlay.
+      // So this specific ref might not be directly used by the visible button anymore, but kept for compliance.
+      if (patientSearchInputRef.current) {// Assuming cameraInputRef was meant to be patientSearchInputRef for clearing the search box
         patientSearchInputRef.current.value = '';
       }
     }
   }, [onCreatePatient, handlePatientSelect, compressImage]);
 
+  // Camera functions (for live camera stream)
   const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -1203,7 +1229,7 @@ export default function DeliveryForm({
       console.error("Error accessing camera:", err);
       setError("Could not access camera. Please check permissions.");
       setIsCameraActive(false);
-      setShowCameraOverlay(false);
+      setShowCameraOverlay(false); // Close overlay if camera fails
     }
   }, []);
 
@@ -1243,6 +1269,7 @@ export default function DeliveryForm({
       try {
         console.log('📸 [DeliveryForm] Starting camera scan from capture...');
 
+        // Compress image
         console.log('🗜️ [DeliveryForm] Compressing image...');
         const compressedFile = await compressImage(file);
         console.log('✅ [DeliveryForm] Image compressed:', {
@@ -1251,6 +1278,7 @@ export default function DeliveryForm({
           reduction: `${((1 - compressedFile.size / file.size) * 100).toFixed(1)}%`
         });
 
+        // Convert to Base64
         console.log('🔄 [DeliveryForm] Converting to Base64...');
         const reader = new FileReader();
         const base64Image = await new Promise((resolve, reject) => {
@@ -1260,9 +1288,11 @@ export default function DeliveryForm({
         });
         console.log('✅ [DeliveryForm] Base64 conversion complete');
 
+        // Get current selected city
         const { globalFilters } = await import('../utils/globalFilters');
         const selectedCityId = globalFilters.getSelectedCityId();
 
+        // Call backend function
         console.log('📤 [DeliveryForm] Calling scanPrescriptionLabel...');
         const response = await base44.functions.invoke('scanPrescriptionLabel', {
           base64Image: base64Image,
@@ -1278,6 +1308,7 @@ export default function DeliveryForm({
 
         setExtractedData(result.extractedData);
 
+        // Handle matches
         if (result.exactMatches && result.exactMatches.length === 1) {
           console.log('✅ [DeliveryForm] Single exact match - populating form only');
           await handlePatientSelect(result.exactMatches[0].patient, false);
@@ -1302,6 +1333,7 @@ export default function DeliveryForm({
             setIsPatientFormOpen(true);
             onCreatePatient((createdPatient) => {
               setIsPatientFormOpen(false);
+              // CRITICAL: Auto-add new patient to staged (true parameter)
               handlePatientSelect({
                 ...createdPatient,
                 ...newPatientData
@@ -1315,11 +1347,12 @@ export default function DeliveryForm({
       } finally {
         setIsScanning(false);
         stopCamera();
-        setShowCameraOverlay(false);
+        setShowCameraOverlay(false); // Close overlay after scan attempt
       }
     }, 'image/jpeg', 0.8);
   }, [onCreatePatient, handlePatientSelect, compressImage, stopCamera]);
 
+  // Stop camera when component unmounts
   useEffect(() => {
     return () => {
       stopCamera();
@@ -1330,23 +1363,28 @@ export default function DeliveryForm({
     setShowMatchPopup(false);
     setScanMatches([]);
     setExtractedData(null);
+    // CRITICAL: Don't auto-add to staged when selecting from popup (single selection)
     await handlePatientSelect(patient, false);
   }, [handlePatientSelect]);
 
+  // Handler for "Duplicate Patient" button - creates new patient with same info but empty name
   const handleDuplicatePatient = useCallback((patient) => {
     if (!patient) return;
     
+    // CRITICAL: Get full patient data to ensure all fields are populated
     const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
     
     if (isAppOwner(currentUser)) { console.log('DEBUG: Duplicating patient:', fullPatient); }
     
     setNewPatientMode('duplicate');
-    setSelectedPatient(null);
+    setSelectedPatient(null); // Clear selected patient since we're creating new
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
     
+    // Find patient's store
     const patientStore = stores.find((s) => s && s.id === patient.store_id);
     
+    // Auto-select driver based on patient's store
     let autoSelectedDriverId = '';
     let autoSelectedDriverName = '';
     
@@ -1383,10 +1421,11 @@ export default function DeliveryForm({
       }
     }
     
+    // Fill form with patient data but clear patient_id (to create new) and name
     setFormData((prev) => ({
       ...prev,
-      patient_id: '',
-      patient_name: '',
+      patient_id: '', // Empty to create new patient
+      patient_name: '', // Clear name for user to enter
       patient_phone: patient.phone || '',
       unit_number: patient.unit_number || '',
       time_window_start: patient.time_window_start || '',
@@ -1416,25 +1455,31 @@ export default function DeliveryForm({
       recurring_bimonthly: patient.recurring_bimonthly || false
     }));
     
+    // Store original patient data for reference when creating new patient
     setSelectedPatient({ ...patient, _duplicateSource: true });
     
+    // Focus name input after a short delay
     setTimeout(() => patientNameInputRef.current?.focus(), 150);
   }, [formData.delivery_date, stores, drivers]);
 
+  // Handler for "New Address" button - creates new patient with same info but empty address/unit
   const handleNewAddressPatient = useCallback((patient) => {
     if (!patient) return;
     
+    // CRITICAL: Get full patient data to ensure all fields are populated
     const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
     
     if (isAppOwner(currentUser)) { console.log('DEBUG: Creating new address for patient:', fullPatient); }
     
     setNewPatientMode('new_address');
-    setSelectedPatient(null);
+    setSelectedPatient(null); // Clear selected patient since we're creating new
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
     
+    // Find patient's store
     const patientStore = stores.find((s) => s && s.id === fullPatient.store_id);
     
+    // Auto-select driver based on patient's store
     let autoSelectedDriverId = '';
     let autoSelectedDriverName = '';
     
@@ -1471,12 +1516,13 @@ export default function DeliveryForm({
       }
     }
     
+    // Fill form with patient data but clear patient_id (to create new), address and unit_number
     setFormData((prev) => ({
       ...prev,
-      patient_id: '',
+      patient_id: '', // Empty to create new patient
       patient_name: fullPatient.full_name || '',
       patient_phone: fullPatient.phone || '',
-      unit_number: '',
+      unit_number: '', // Clear unit number
       time_window_start: fullPatient.time_window_start || '',
       time_window_end: fullPatient.time_window_end || '',
       mailbox_ok: fullPatient.mailbox_ok || false,
@@ -1504,10 +1550,11 @@ export default function DeliveryForm({
       recurring_bimonthly: fullPatient.recurring_bimonthly || false
     }));
     
+    // Create patient object with all pre-filled data but empty address
     const patientWithoutAddress = {
       ...fullPatient,
-      address: '',
-      unit_number: '',
+      address: '', // Empty address
+      unit_number: '', // Empty unit
       _newAddressSource: true,
       _isNew: true,
       _focusAddress: !isMobileDevice
@@ -1515,11 +1562,13 @@ export default function DeliveryForm({
     
     setSelectedPatient(patientWithoutAddress);
     
+    // Trigger patient form to open with pre-filled data
     if (onCreatePatient) {
       setIsPatientFormOpen(true);
       onCreatePatient((createdPatient) => {
         setIsPatientFormOpen(false);
         setNewPatientMode(null);
+        // CRITICAL: Auto-add new patient to staged (true parameter)
         handlePatientSelect(createdPatient, true);
       }, patientWithoutAddress);
     }
@@ -1535,6 +1584,7 @@ export default function DeliveryForm({
     console.log('📦 Full staged object keys:', Object.keys(staged));
     console.log('📦 Has ID (is pending)?:', !!staged.id);
 
+    // Hide staged panel on mobile when clicking a staged item
     if (isMobileDevice) {
       setShowStagedPanel(false);
     }
@@ -1543,9 +1593,9 @@ export default function DeliveryForm({
 
     let formDataToSet = {
       ...staged,
-      puid: staged.puid || '',
-      driver_id: staged.driver_id || '',
-      driver_name: staged.driver_name || '',
+      puid: staged.puid || '', // Ensure PUID is explicitly set from staged item
+      driver_id: staged.driver_id || '', // CRITICAL: Ensure driver_id is explicitly set from staged item
+      driver_name: staged.driver_name || '', // CRITICAL: Ensure driver_name is explicitly set from staged item
       cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0
     };
     console.log('📦 formDataToSet.puid:', formDataToSet.puid);
@@ -1553,6 +1603,7 @@ export default function DeliveryForm({
     console.log('📦 formDataToSet.driver_id:', formDataToSet.driver_id);
     console.log('📦 formDataToSet.driver_name:', formDataToSet.driver_name);
 
+    // CRITICAL: If it's a patient delivery with PUID, find parent pickup to get correct store_id AND AM/PM slot
     if (staged.patient_id && staged.puid) {
       const allPossiblePickups = [...stagedDeliveries, ...(allDeliveries || [])];
       const parentPickup = allPossiblePickups.find((d) => d && !d.patient_id && d.stop_id === staged.puid);
@@ -1573,9 +1624,11 @@ export default function DeliveryForm({
     setFormData(formDataToSet);
     setSelectedPatient(null);
 
+    // Set pickup option and find the correct store variant
     if (staged.store_id && isPickupMode) {
       const timeSlot = formDataToSet.ampm_deliveries || determineDeliveryAMPM(staged);
 
+      // Try to find variant first (store_id_AM or store_id_PM)
       let matchingStoreId = null;
       if (timeSlot) {
         const variantId = `${staged.store_id}_${timeSlot}`;
@@ -1586,6 +1639,7 @@ export default function DeliveryForm({
         }
       }
 
+      // Fallback to base store ID if no variant found
       if (!matchingStoreId) {
         const baseExists = availableStores.some((s) => s && s.id === staged.store_id);
         if (baseExists) {
@@ -1600,6 +1654,7 @@ export default function DeliveryForm({
       }
     }
 
+    // If patient exists, set it
     if (staged.patient_id && patients) {
       const patient = patients.find((p) => p && p.id === staged.patient_id);
       if (patient) {
@@ -1611,9 +1666,11 @@ export default function DeliveryForm({
 
   const isFormValid = useMemo(() => {
     if (delivery) {
+      // Editing existing delivery - always valid
       return true;
     }
     
+    // Editing staged delivery - check if has required data
     if (editingStagedId) {
       if (isPickupMode) {
         return !!formData.store_id && !!formData.delivery_date && !!formData.driver_id;
@@ -1623,6 +1680,7 @@ export default function DeliveryForm({
              !!formData.delivery_date;
     }
     
+    // For new deliveries, driver is optional (can use "All Drivers" filter)
     if (isPickupMode) return selectedPickupOption !== '' && !!formData.delivery_date && !!formData.driver_id;
     return (!!formData.patient_id || !!formData.patient_name) && !!formData.store_id &&
     !!formData.delivery_date && !isFormDisabled;
@@ -1640,12 +1698,15 @@ export default function DeliveryForm({
     if (!isPickupMode) {
       patient = patients.find((p) => p && p.id === formData.patient_id);
       
+      // CRITICAL: If no patient_id but we have patient_name, create new patient
       if (!patient && formData.patient_name && (newPatientMode === 'duplicate' || newPatientMode === 'new_address')) {
         if (!selectedPatient) {
           setError('Patient information missing for new patient creation.');
           return;
         }
         
+        // CRITICAL: Check if we already have a patient_id in formData (patient was already created)
+        // This prevents duplicate creation when the form state was updated but patient lookup failed
         if (formData.patient_id) {
           console.log('⏸️ [handleAddToStaging] Patient already has ID, skipping creation:', formData.patient_id);
           patient = { id: formData.patient_id, full_name: formData.patient_name };
@@ -1654,9 +1715,10 @@ export default function DeliveryForm({
           console.log('➕ [handleAddToStaging] Creating new patient from Duplicate/New mode:', formData.patient_name);
           
           try {
+            // Create new patient with form data
             const newPatientData = {
               full_name: formData.patient_name,
-              address: selectedPatient.address || '',
+              address: selectedPatient.address || '', // Use original address for duplicate, empty for new_address
               phone: formData.patient_phone || '',
               unit_number: formData.unit_number || '',
               store_id: formData.store_id,
@@ -1689,6 +1751,7 @@ export default function DeliveryForm({
             patient = await createPatientLocal(newPatientData);
             isNewPatient = true;
             
+            // Update formData with new patient_id
             setFormData(prev => ({ ...prev, patient_id: patient.id }));
             
             console.log('✅ [handleAddToStaging] New patient created:', patient.id, patient.full_name);
@@ -1746,6 +1809,7 @@ export default function DeliveryForm({
       }
     }
 
+    // Use existing distance_from_store if available, otherwise calculate
     let distanceFromStore = patient?.distance_from_store;
     if (distanceFromStore === null || distanceFromStore === undefined) {
       if (patient && patient.latitude && patient.longitude && store.latitude && store.longitude) {
@@ -1753,58 +1817,54 @@ export default function DeliveryForm({
       }
     }
 
-    // Determine primary AM/PM slot for this patient
-    const patientPreferredTimeSlot = determineDeliveryAMPM(patient);
-
+    // Check for existing pickup for this store/driver/date
     let puid = null;
-    let selectedTimeSlot = null;
-    let pickupToUse = null;
+    const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
 
-    const allDeliveriesForDate = allDeliveries.filter(d => d && d.delivery_date === formData.delivery_date);
-    
-    // Check for existing pickups for this store, date, and assigned driver
-    const existingAmPickup = allDeliveriesForDate.find(d => 
-      !d.patient_id && d.store_id === store.id && d.ampm_deliveries === 'AM' && d.driver_id === formData.driver_id
-    );
-    const existingPmPickup = allDeliveriesForDate.find(d => 
-      !d.patient_id && d.store_id === store.id && d.ampm_deliveries === 'PM' && d.driver_id === formData.driver_id
-    );
+    // First try the backend function to handle in-progress route scenario
+    try {
+      const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
+        storeId: store.id,
+        deliveryDate: formData.delivery_date,
+        driverId: formData.driver_id,
+        ampmDeliveries: timeSlot
+      });
 
-    // Prioritize AM
-    if (existingAmPickup && existingAmPickup.status !== 'completed' && existingAmPickup.status !== 'cancelled') {
-      pickupToUse = existingAmPickup;
-      selectedTimeSlot = 'AM';
-      console.log(`📦 [handleAddToStaging] Using existing AM pickup: ${pickupToUse.stop_id}`);
-    } else if (existingPmPickup && existingPmPickup.status !== 'completed' && existingPmPickup.status !== 'cancelled') {
-      pickupToUse = existingPmPickup;
-      selectedTimeSlot = 'PM';
-      console.log(`📦 [handleAddToStaging] ${existingAmPickup ? 'AM pickup completed,' : 'No AM pickup,'} using existing PM pickup: ${pickupToUse.stop_id}`);
+      if (pickupResponse.data?.puid) {
+        puid = pickupResponse.data.puid;
+        console.log(`✅ [handleAddToStaging] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
+      }
+    } catch (error) {
+      console.warn('⚠️ [handleAddToStaging] ensurePickupForDelivery failed:', error.message);
     }
 
-    if (pickupToUse) {
-      puid = pickupToUse.stop_id;
-    } else {
-      const targetAmpm = patientPreferredTimeSlot || 'AM';
-      try {
-        const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
-          storeId: store.id,
-          deliveryDate: formData.delivery_date,
-          driverId: formData.driver_id,
-          ampmDeliveries: targetAmpm
-        });
+    // Fallback to local logic if backend didn't return a PUID
+    if (!puid) {
+      const existingPickup = allDeliveries.find((d) =>
+      d &&
+      !d.patient_id &&
+      d.store_id === store.id &&
+      d.delivery_date === formData.delivery_date &&
+      d.driver_id === formData.driver_id &&
+      d.ampm_deliveries === timeSlot
+      );
 
-        if (pickupResponse.data?.puid) {
-          puid = pickupResponse.data.puid;
-          selectedTimeSlot = targetAmpm;
-          console.log(`✅ [handleAddToStaging] Created new pickup via ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
+      if (existingPickup) {
+        const now = new Date();
+        const isNotCompleted = existingPickup.status !== 'completed';
+        const wasCompletedRecently = existingPickup.actual_delivery_time &&
+        now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000;
+
+        if (isNotCompleted || wasCompletedRecently) {
+          puid = existingPickup.stop_id;
+          console.log(`✅ Using existing pickup PUID (fallback): ${puid}`);
         }
-      } catch (error) {
-        console.warn('⚠️ [handleAddToStaging] ensurePickupForDelivery failed:', error.message);
-        puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, targetAmpm, allDeliveries);
-        selectedTimeSlot = targetAmpm;
+      }
+
+      if (!puid) {
+        puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
       }
     }
-    const timeSlot = selectedTimeSlot;
 
     setStagedDeliveries((prev) => [...prev, {
       ...formData,
@@ -1821,22 +1881,24 @@ export default function DeliveryForm({
       distanceFromStore: distanceFromStore,
       delivery_address: patient?.address || store.address,
       paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null,
-      first_delivery: isNewPatient || !patient?.last_delivery_date
+      first_delivery: isNewPatient || !patient?.last_delivery_date // Mark as first delivery if new patient or no last delivery date
     }]);
 
     setHasChanges(true);
 
+    // CRITICAL: Filter projected deliveries locally (don't refetch from backend)
     const stagedPatientIds = new Set([...stagedDeliveries.map(d => d.patient_id), formData.patient_id].filter(Boolean));
     const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id));
     setProjectedDeliveries(filteredPredictions);
 
+    // CRITICAL: Clear form completely after adding to staged
     setError(null);
     setSelectedPatient(null);
     setSelectedPatientIds(new Set());
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
     setEditingStagedId(null);
-    setNewPatientMode(null);
+    setNewPatientMode(null); // Reset new patient mode
     setFormData((prev) => ({
       ...prev, patient_id: '', patient_name: '', patient_phone: '',
       unit_number: '', delivery_instructions: '', delivery_notes: '',
@@ -1855,7 +1917,7 @@ export default function DeliveryForm({
     setSelectedPickupOption('');
 
     setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-  }, [formData, isFormValid, patients, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, allDeliveries]);
+  }, [formData, isFormValid, patients, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries]);
 
   const handleUpdateStaged = useCallback(async () => {
     if (!editingStagedId) return;
@@ -1903,8 +1965,8 @@ export default function DeliveryForm({
           recurring_weekly_wed: formData.recurring_weekly_wed,
           recurring_weekly_thu: formData.recurring_weekly_thu,
           recurring_weekly_fri: formData.recurring_weekly_fri,
-          recurring_weekly_sat: formData.recurring_weekly_sat || false,
-          recurring_weekly_sun: formData.recurring_weekly_sun || false,
+          recurring_weekly_sat: formData.recurring_weekly_sat,
+          recurring_weekly_sun: formData.recurring_weekly_sun,
           recurring_biweekly: formData.recurring_biweekly,
           recurring_weekly_x4: formData.recurring_weekly_x4,
           recurring_monthly: formData.recurring_monthly,
@@ -1916,6 +1978,7 @@ export default function DeliveryForm({
       }
     }
 
+    // Use existing distance_from_store if available, otherwise calculate
     let distanceFromStore = patient?.distance_from_store;
     if (distanceFromStore === null || distanceFromStore === undefined) {
       if (patient && patient.latitude && patient.longitude && store.latitude && store.longitude) {
@@ -1926,16 +1989,19 @@ export default function DeliveryForm({
     setStagedDeliveries((prev) => prev.map((staged) => {
       if (staged._tempId !== editingStagedId) return staged;
 
+      // CRITICAL: Preserve the original 'id' field if it exists (pending delivery)
+      // This ensures pending deliveries don't get re-saved as new when clicking Done
       const updatedStaged = {
         ...formData,
         cod_total_amount_required: codAmount,
         _tempId: editingStagedId,
-        id: staged.id,
+        id: staged.id, // PRESERVE ORIGINAL ID
         patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
         store_name: store.name,
         store_abbreviation: store.abbreviation,
         distanceFromStore: distanceFromStore,
         delivery_address: patient?.address || store.address,
+        // Ensure special flags are preserved
         first_delivery: formData.first_delivery || false,
         oversized: formData.oversized || false,
         fridge_item: formData.fridge_item || false,
@@ -1955,6 +2021,7 @@ export default function DeliveryForm({
       return updatedStaged;
     }));
 
+    // CRITICAL: Clear form completely after updating staged
     setHasChanges(true);
     setError(null);
     setEditingStagedId(null);
@@ -1994,21 +2061,25 @@ export default function DeliveryForm({
       hasId: !!s.id
     })));
 
-    predictionsStopped.current = true;
-    setIsLoadingPredictions(true);
-    setProjectedDeliveries([]);
+    // CRITICAL: Stop prediction manager COMPLETELY when Done button is clicked
+    console.log('⏸️ [DeliveryForm] Stopping delivery prediction manager PERMANENTLY...');
+    predictionsStopped.current = true; // Block predictions permanently
+    setIsLoadingPredictions(true); // Block predictions immediately
+    setProjectedDeliveries([]); // Clear projections
 
     if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
       console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
-      hasLoadedPending.current = false;
-      predictionsStopped.current = false;
-      onCancel();
+      hasLoadedPending.current = false; // Reset flag when closing without saves
+      predictionsStopped.current = false; // Reset for next open
+      onCancel(); // Close form immediately
       return;
     }
 
+    // CRITICAL: If only pending deletes (no staged items), close form FIRST then refresh
     if (stagedDeliveries.length === 0 && hasPendingDeletes) {
       console.log('[AddToRoute] 🗑️ Processing pending deletes (Done button clicked)...');
       
+      // Clear state and close form IMMEDIATELY
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       setHasPendingDeletes(false);
@@ -2018,6 +2089,7 @@ export default function DeliveryForm({
       setIsLoadingPredictions(true);
       onCancel();
       
+      // Background refresh (non-blocking)
       setTimeout(async () => {
         try {
           const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
@@ -2055,7 +2127,10 @@ export default function DeliveryForm({
       return;
     }
 
+    // CRITICAL: Filter out any deliveries that no longer exist in the database
+    // This prevents errors when a delivery was deleted but still in stagedDeliveries
     const validStagedDeliveries = stagedDeliveries.filter((staged) => {
+      // If it has an id, verify it still exists in allDeliveries
       if (staged.id) {
         const stillExists = allDeliveries?.some((d) => d && d.id === staged.id);
         if (!stillExists) {
@@ -2066,6 +2141,9 @@ export default function DeliveryForm({
       return true;
     });
 
+    // CRITICAL: Separate into 2 groups:
+    // 1. New deliveries (no id) - create new
+    // 2. Existing deliveries (id) - update (includes both pending and status-changed)
     const newDeliveries = validStagedDeliveries.filter((staged) => !staged.id);
     const existingDeliveries = validStagedDeliveries.filter((staged) => staged.id);
 
@@ -2085,15 +2163,18 @@ export default function DeliveryForm({
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       hasLoadedPending.current = false;
-      predictionsStopped.current = false;
-      setIsLoadingPredictions(true);
+      predictionsStopped.current = false; // Reset for next open
+      setIsLoadingPredictions(true); // Keep predictions blocked
       onCancel();
       return;
     }
 
+    // Get delivery date from form data for use in TR# calculation
     const deliveryDate = formData.delivery_date;
 
+    // Calculate sequential TR#s based on pickup's TR# for each store/AM-PM combination
     const calculateSequentialTRs = (deliveries) => {
+      // Group by store_id + ampm_deliveries (each store/AM-PM slot has its own pickup with TR#)
       const groups = {};
 
       deliveries.forEach((del) => {
@@ -2102,6 +2183,7 @@ export default function DeliveryForm({
           const store = stores?.find((s) => s && s.id === del.store_id);
           const storeAbbrev = store?.abbreviation || '';
 
+          // CRITICAL: Find the pickup's TR# for this store/AM-PM combination
           const pickup = allDeliveries?.find((d) =>
             d &&
             !d.patient_id &&
@@ -2129,11 +2211,12 @@ export default function DeliveryForm({
         groups[groupKey].deliveries.push(del);
       });
 
+      // Count existing deliveries for each group (store + AM/PM)
       Object.keys(groups).forEach((groupKey) => {
         const [storeId, ampm] = groupKey.split('_');
         const existingCount = allDeliveries?.filter((d) =>
           d &&
-          d.patient_id &&
+          d.patient_id && // Only count deliveries, not pickups
           d.store_id === storeId &&
           d.delivery_date === formData.delivery_date &&
           (d.ampm_deliveries || 'AM') === ampm
@@ -2143,13 +2226,15 @@ export default function DeliveryForm({
         console.log(`[AddToRoute] 📊 Group ${groupKey}: ${existingCount} existing deliveries`);
       });
 
+      // Assign sequential TR#s: abbreviation + (pickupTR + existing + index + 1)
       const updatedDeliveries = deliveries.map((del) => {
-        if (!del.patient_id) return del;
+        if (!del.patient_id) return del; // Skip pickups
 
         const groupKey = `${del.store_id}_${del.ampm_deliveries || 'AM'}`;
         const group = groups[groupKey];
         if (!group) return del;
 
+        // Sort this group's new deliveries by patient name for consistent ordering
         const newDeliveriesInGroup = [...group.deliveries].
         filter((d) => d.patient_id).
         sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
@@ -2169,9 +2254,11 @@ export default function DeliveryForm({
       return updatedDeliveries;
     };
 
+    // CRITICAL: Before calculating TRs, ensure ALL deliveries have correct store_id via PUID lookup
     const deliveriesWithCorrectStores = newDeliveries.map((del) => {
-      if (!del.patient_id || !del.puid) return del;
+      if (!del.patient_id || !del.puid) return del; // Skip pickups or deliveries without PUID
       
+      // Find parent pickup via PUID
       const parentPickup = allDeliveries?.find((d) => 
         d && !d.patient_id && d.stop_id === del.puid
       );
@@ -2190,17 +2277,20 @@ export default function DeliveryForm({
 
     const deliveriesWithTRs = calculateSequentialTRs(deliveriesWithCorrectStores);
 
+    // STEP 2: Re-number ALL existing deliveries for affected pickup groups
     const affectedGroups = new Set(deliveriesWithCorrectStores.map((del) =>
     `${del.store_id}_${del.driver_id}_${del.ampm_deliveries || 'AM'}`
     ));
 
     console.log('[AddToRoute] 🔄 Affected pickup groups:', Array.from(affectedGroups));
 
+    // Collect existing deliveries that need TR# updates
     const existingDeliveriesToUpdate = [];
 
     for (const groupKey of affectedGroups) {
       const [storeId, driverId, ampm] = groupKey.split('_');
 
+      // Find the pickup for this group
       const existingPickup = allDeliveries?.find((d) =>
       d &&
       !d.patient_id &&
@@ -2210,9 +2300,11 @@ export default function DeliveryForm({
       (d.ampm_deliveries || 'AM') === ampm
       );
 
+      // CRITICAL: Get store reference FIRST
       const store = stores?.find((s) => s && s.id === storeId);
       const storeAbbrev = store?.abbreviation || '';
 
+      // CRITICAL: Use pickup's TR# if available, fallback to store base_tracking_number
       let effectivePickupTR = store?.base_tracking_number || 0;
 
       if (existingPickup && existingPickup.tracking_number !== undefined && existingPickup.tracking_number !== null && existingPickup.tracking_number !== '') {
@@ -2223,17 +2315,20 @@ export default function DeliveryForm({
         console.log(`[AddToRoute] 🏪 No pickup TR found for group ${groupKey}, using store base TR# ${effectivePickupTR}`);
       }
 
+      // Get all existing deliveries for this group (already saved in DB)
       const existingDeliveriesInGroup = (allDeliveries || []).filter((d) =>
       d &&
-      d.patient_id &&
+      d.patient_id && // Is a delivery, not pickup
       d.store_id === storeId &&
       d.driver_id === driverId &&
       d.delivery_date === formData.delivery_date &&
       (d.ampm_deliveries || 'AM') === ampm
       );
 
+      // Sort by patient name for consistent ordering
       existingDeliveriesInGroup.sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
+      // Re-assign sequential TR#s: abbreviation + (pickupTR + index + 1)
       existingDeliveriesInGroup.forEach((delivery, index) => {
         const correctTR = `${storeAbbrev}${effectivePickupTR + index + 1}`;
         if (delivery.tracking_number !== correctTR) {
@@ -2250,10 +2345,12 @@ export default function DeliveryForm({
     setError(null);
 
     try {
+      // First, update existing deliveries with corrected TR#s
       if (existingDeliveriesToUpdate.length > 0) {
         console.log(`[AddToRoute] 📝 Updating ${existingDeliveriesToUpdate.length} existing deliveries with corrected TR#s...`);
         for (const update of existingDeliveriesToUpdate) {
           try {
+            // CRITICAL: Use backend-only update (deliveries may not be in IndexedDB yet)
             const { base44 } = await import('@/api/base44Client');
             await base44.entities.Delivery.update(update.id, { tracking_number: update.tracking_number });
           } catch (error) {
@@ -2261,6 +2358,7 @@ export default function DeliveryForm({
               console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${update.id}`);
               continue;
             }
+            // Replace delivery ID with patient name in error message
             const delivery = allDeliveries?.find((d) => d?.id === update.id);
             const deliveryName = delivery?.patient_name || 'Unknown';
             const errorMessage = error.message?.replace(update.id, deliveryName) || error.message;
@@ -2270,9 +2368,11 @@ export default function DeliveryForm({
         console.log('[AddToRoute] ✅ Existing TR#s corrected');
       }
 
+      // Second, update existing deliveries (both pending and status-changed)
       if (existingDeliveries.length > 0) {
         console.log(`[AddToRoute] 📝 Updating ${existingDeliveries.length} existing deliveries...`);
 
+        // Check if any deliveries are completed for this driver/date
         const hasCompletedDeliveries = allDeliveries?.some((d) =>
         d &&
         d.driver_id === formData.driver_id &&
@@ -2286,8 +2386,10 @@ export default function DeliveryForm({
             console.log(`   - Old Status: ${updated.status}`);
             console.log(`   - Time window: ${updated.time_window_start} - ${updated.time_window_end}`);
 
+            // CRITICAL: Convert 'Staged' to 'pending' for existing deliveries (same logic as new deliveries)
             let finalStatus = updated.status;
             if (finalStatus === 'Staged') {
+              // Check if this is an InterStore delivery
               const patientName = (updated.patient_name || '').toLowerCase();
               const deliveryNotes = (updated.delivery_notes || '').toLowerCase();
               const patientNotes = (updated.delivery_instructions || '').toLowerCase();
@@ -2334,13 +2436,16 @@ export default function DeliveryForm({
 
             console.log(`[AddToRoute] 🔄 New Status will be: ${updateData.status}`);
 
+            // CRITICAL: Use updateDeliveryLocal for offline-first updates with immediate UI sync
             await updateDeliveryLocal(updated.id, updateData);
             console.log(`[AddToRoute] ✅ Updated delivery: ${updated.patient_name} to status ${updateData.status}`);
           } catch (error) {
+            // Skip deliveries that were deleted
             if (error.message?.includes('not found') || error.response?.status === 404) {
               console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${updated.id} (${updated.patient_name})`);
               continue;
             }
+            // Replace delivery ID with patient name in error message
             const errorMessage = error.message?.replace(updated.id, updated.patient_name || 'Unknown Patient') || error.message;
             throw new Error(errorMessage);
           }
@@ -2348,10 +2453,15 @@ export default function DeliveryForm({
         console.log('[AddToRoute] ✅ All existing deliveries updated');
       }
 
+      // Then save new deliveries OR trigger data refresh
       if (newDeliveries.length > 0) {
         console.log('[AddToRoute] 📤 Calling Dashboard save handler with batch data...');
+        // CRITICAL: Convert status before saving
+        // - 'Staged' → 'pending' for regular deliveries
+        // - 'Staged' → 'in_transit' for InterStore deliveries (patient with 'InterStore', '(ISP)', or '(ISD)' in name/notes/address)
         const deliveriesReadyForDB = deliveriesWithTRs.map(d => {
           if (d.status === 'Staged') {
+            // Check if this is an InterStore delivery
             const patientName = (d.patient_name || '').toLowerCase();
             const deliveryNotes = (d.delivery_notes || '').toLowerCase();
             const patientNotes = (d.delivery_instructions || '').toLowerCase();
@@ -2372,6 +2482,8 @@ export default function DeliveryForm({
         });
         await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
         
+        // SQUARE INTEGRATION: Create COD items only for in_transit deliveries (not pending)
+        // Note: At this point, cod_total_amount_required is already in DOLLARS (converted earlier in batch save)
         for (const delivery of deliveriesReadyForDB) {
           if (delivery.cod_total_amount_required > 0 && delivery.patient_id && delivery.driver_id && delivery.status === 'in_transit') {
             try {
@@ -2388,15 +2500,18 @@ export default function DeliveryForm({
               console.log('✅ [Square] COD item created for:', delivery.patient_name);
             } catch (squareError) {
               console.error('⚠️ [Square] Failed to create COD item:', squareError);
+              // Don't block the delivery save if Square fails
             }
           }
         }
         console.log('[AddToRoute] ✅ Batch save completed successfully');
       }
 
+      // CRITICAL: Always trigger data refresh if only updating existing deliveries
       if (existingDeliveries.length > 0 && newDeliveries.length === 0) {
         console.log('[AddToRoute] 🔄 Updating existing deliveries only...');
         
+        // Clear staged deliveries and close form FIRST
         console.log('[AddToRoute] 🧹 Clearing staged deliveries and closing form...');
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
@@ -2407,8 +2522,9 @@ export default function DeliveryForm({
         setIsLoadingPredictions(true);
         console.log('[AddToRoute] ✅ Staged deliveries cleared');
 
-        onCancel();
+        onCancel(); // Close form IMMEDIATELY
 
+        // Background refresh (non-blocking)
         setTimeout(async () => {
           try {
             const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
@@ -2437,6 +2553,7 @@ export default function DeliveryForm({
             const { fabControlEvents } = await import('../utils/fabControlEvents');
             fabControlEvents.notifyDataReady();
 
+            // CRITICAL: Trigger done button event to activate FAB phase 1 for 500ms
             fabControlEvents.notifyDoneButtonClicked();
             console.log('[AddToRoute] ✅ Background: UI refreshed, FAB activated, and done button event triggered');
           } catch (error) {
@@ -2444,20 +2561,22 @@ export default function DeliveryForm({
           }
         }, 100);
 
-        return;
+        return; // CRITICAL: Exit early to prevent duplicate processing
       }
 
+      // CRITICAL: Trigger IMMEDIATE UI update BEFORE closing form
       console.log('[AddToRoute] 🔄 IMMEDIATE: Dispatching deliveries updated event...');
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { 
           deliveryDate: formData.delivery_date, 
           driverId: formData.driver_id,
           triggeredBy: 'doneButtonCreates',
-          immediate: true
+          immediate: true // NEW: Flag to force immediate refresh
         }
       }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
+      // CRITICAL: Clear staged state AFTER dispatching event
       console.log('[AddToRoute] 🧹 Clearing staged deliveries from state...');
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
@@ -2468,8 +2587,10 @@ export default function DeliveryForm({
       setIsLoadingPredictions(true);
       console.log('[AddToRoute] ✅ Staged deliveries cleared');
 
+      // Close form IMMEDIATELY to unblock UI
       onCancel();
 
+      // CRITICAL: Force backend refresh and activate FAB AFTER form closes (non-blocking)
       setTimeout(async () => {
         try {
           if (formData.driver_id && formData.delivery_date) {
@@ -2486,9 +2607,11 @@ export default function DeliveryForm({
           invalidate('Delivery');
           invalidateDeliveriesForDate(formData.delivery_date);
 
+          // Activate FAB
           const { fabControlEvents } = await import('../utils/fabControlEvents');
           fabControlEvents.notifyDataReady();
           
+          // CRITICAL: Trigger done button event to activate FAB phase 1 for 500ms
           fabControlEvents.notifyDoneButtonClicked();
           console.log('[AddToRoute] ✅ Background: FAB activated and done button event triggered');
         } catch (error) {
@@ -2498,17 +2621,20 @@ export default function DeliveryForm({
     } catch (err) {
       console.error('[AddToRoute] ❌ Batch save error:', err);
       setError(`Failed to save: ${err.message || 'Unknown error'}`);
-      predictionsStopped.current = false;
-      setIsLoadingPredictions(false);
+      predictionsStopped.current = false; // Reset on error (form stays open, allow predictions)
+      setIsLoadingPredictions(false); // Re-enable predictions on error
     } finally {
       setIsSaving(false);
     }
-  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId, stores, hasPendingDeletes]);
+  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId]);
 
   const handleSearchKeyDown = useCallback((e) => {
+    // Handle Escape key - always trigger Clear button behavior
     if (e.key === 'Escape') {
       e.preventDefault();
+      // If there's form data, clear the form (like clicking Clear button)
       if (hasFormData) {
+        // Inline clear form logic to avoid circular dependency
         setSelectedPatient(null);
         setSelectedPatientIds(new Set());
         setPatientSearch('');
@@ -2530,12 +2656,14 @@ export default function DeliveryForm({
         setSelectedPickupOption('');
         setTimeout(() => patientSearchInputRef.current?.focus(), 100);
       } else {
+        // Just clear the search field
         setPatientSearch('');
         setHighlightedPatientIndex(-1);
       }
       return;
     }
 
+    // Handle Enter key on empty search field - trigger Done or Add button
     if (e.key === 'Enter' && !patientSearch.trim()) {
       e.preventDefault();
       if (buttonState === 'done') {
@@ -2548,6 +2676,7 @@ export default function DeliveryForm({
       return;
     }
 
+    // Rest of the key handling requires patientSearch to have content
     if (!patientSearch) return;
 
     if (e.key === 'ArrowDown') {
@@ -2555,6 +2684,7 @@ export default function DeliveryForm({
       if (filteredPatients.length > 0) {
         setHighlightedPatientIndex((prev) => prev < filteredPatients.length - 1 ? prev + 1 : prev);
       } else if (filteredPatients.length === 0 && addPatientButtonRef.current) {
+        // Focus the Add New Patient button when no results
         addPatientButtonRef.current.focus();
       }
     } else if (e.key === 'ArrowUp') {
@@ -2566,11 +2696,13 @@ export default function DeliveryForm({
       if (highlightedPatientIndex >= 0 && filteredPatients.length > 0) {
         const selectedPat = filteredPatients[highlightedPatientIndex];
         if (selectedPat) {
+          // CRITICAL: Populate form only when pressing Enter (single selection)
           handlePatientSelect(selectedPat, false);
           setPatientSearch('');
           setHighlightedPatientIndex(-1);
         }
       } else if (filteredPatients.length === 0 && onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher'))) {
+        // Auto-click the Add New Patient button
         if (addPatientButtonRef.current) {
           addPatientButtonRef.current.click();
         } else {
@@ -2618,26 +2750,34 @@ export default function DeliveryForm({
       if (delivery && isCompletionStatus && completionTime) {
         const dateStr = formData.delivery_date;
         const timeStr = completionTime;
+        // CRITICAL: Store as local time string WITHOUT UTC conversion
+        // Format: "YYYY-MM-DDTHH:MM:00" (no 'Z' suffix = treated as local time)
         dataToSave.actual_delivery_time = `${dateStr}T${timeStr}:00`;
         console.log('⏱️ [DeliveryForm] Saving actual_delivery_time as LOCAL:', dataToSave.actual_delivery_time);
       }
 
+      // CRITICAL: Check if driver assignment changed
       const driverChanged = delivery && delivery.driver_id !== formData.driver_id;
       const oldDriver = driverChanged ? drivers.find((d) => d?.id === delivery.driver_id) : null;
       const newDriver = driverChanged ? drivers.find((d) => d?.id === formData.driver_id) : null;
 
+      // CRITICAL: Check if delivery date changed
       const dateChanged = delivery && delivery.delivery_date !== formData.delivery_date;
 
+      // CRITICAL: If date changes, keep status as in_transit and set delivery_time_start to 10:00
       if (dateChanged) {
         console.log('📅 [DeliveryForm] Date changed - keeping in_transit status and setting 10:00 AM start time');
         dataToSave.status = 'in_transit';
         dataToSave.delivery_time_start = '10:00';
       }
 
+      // Check if status changed to in_transit (trigger Square COD creation)
       const statusChangedToInTransit = delivery &&
       formData.status === 'in_transit' &&
       delivery.status !== 'in_transit';
 
+      // SQUARE INTEGRATION: Create COD item when delivery transitions to in_transit
+      // Note: formData.cod_total_amount_required is in CENTS (multiplied by 100 in form)
       if (statusChangedToInTransit && delivery?.id && formData.cod_total_amount_required > 0) {
         try {
           const store = stores?.find(s => s && s.id === formData.store_id);
@@ -2657,10 +2797,12 @@ export default function DeliveryForm({
         }
       }
 
+      // Check if status changed to a completion status (completed, cancelled, failed)
       const statusChangedToCompletion = delivery &&
       ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) &&
       delivery.status !== formData.status;
 
+      // SQUARE INTEGRATION: Delete COD item when delivery is completed or failed
       if (statusChangedToCompletion && delivery?.id && (formData.status === 'completed' || formData.status === 'failed')) {
         try {
           console.log('💳 [Square] Deleting COD item for completed/failed delivery:', delivery.id);
@@ -2671,9 +2813,11 @@ export default function DeliveryForm({
           console.log('✅ [Square] COD item deleted');
         } catch (squareError) {
           console.warn('⚠️ [Square] Failed to delete COD item:', squareError.message);
+          // Don't block the delivery update if Square fails
         }
       }
 
+      // SQUARE INTEGRATION: Delete COD item if COD was removed (checkbox unchecked)
       const codWasRemoved = delivery?.cod_total_amount_required > 0 && 
         (formData.cod_total_amount_required === 0 || !formData.cod_total_amount_required);
       
@@ -2681,6 +2825,7 @@ export default function DeliveryForm({
         try {
           console.log('💳 [Square] Deleting COD item - COD was removed from delivery:', delivery.id);
           
+          // CRITICAL: Clear cod_payments array when COD is removed
           dataToSave.cod_payments = [];
           dataToSave.cod_payment_type = 'No Payment';
           dataToSave.cod_amount = '';
@@ -2695,6 +2840,8 @@ export default function DeliveryForm({
         }
       }
 
+      // CRITICAL: Save to both offline and online databases using local-first approach
+      // offlineMutations handles: pausing smart refresh, saving to offline DB, syncing to backend, restarting smart refresh
       if (delivery?.id) {
         console.log('📝 [DeliveryForm] Updating delivery via local-first mutation...');
         console.log('📝 [DeliveryForm] Fields to save:', {
@@ -2711,6 +2858,7 @@ export default function DeliveryForm({
         const updatedDelivery = await updateDeliveryLocal(delivery.id, dataToSave);
         console.log('✅ [DeliveryForm] Delivery updated - UI should update immediately via mutation notification');
         
+        // CRITICAL: Force stats refresh AND deliveries update after any delivery update
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: { 
@@ -2722,10 +2870,13 @@ export default function DeliveryForm({
         }));
         console.log('✅ [DeliveryForm] Triggered stats and deliveries refresh');
         
+        // NOTE: updateDeliveryLocal already notifies mutation listeners immediately after local save
+        // The Layout component subscribes to these mutations and updates state instantly
       } else {
         await onSave(dataToSave);
       }
 
+      // Send message if driver changed (from active driver to new driver)
       if (driverChanged && oldDriver && newDriver && currentUser && userHasRole(currentUser, 'driver')) {
         const patientName = delivery.patient_name || selectedPatient?.full_name || 'Unknown';
         const messageContent = `🚚 Delivery reassigned to you:\n• Patient: ${patientName}\n• Date: ${format(new Date(formData.delivery_date), 'MMM d, yyyy')}\n• From: ${getDriverDisplayName(oldDriver)}`;
@@ -2741,9 +2892,13 @@ export default function DeliveryForm({
       }
 
 
+
+      // AUTO BACK ON DUTY: If driver is on_break and completes their next stop, auto set to on_duty
       if (statusChangedToCompletion && delivery && formData.status === 'completed') {
         try {
+          // Check if this was the isNextDelivery stop
           if (delivery.isNextDelivery) {
+            // Get driver's AppUser to check status
             const appUsers = await base44.entities.AppUser.filter({ user_id: formData.driver_id });
             const driverAppUser = appUsers?.[0];
             
@@ -2760,6 +2915,7 @@ export default function DeliveryForm({
         }
       }
 
+      // CRITICAL: Always reorder stops after any delivery update or status change
       if (delivery && formData.driver_id && formData.delivery_date) {
         console.log('🔄 [DeliveryForm] Reordering stops after delivery update...');
         try {
@@ -2770,6 +2926,7 @@ export default function DeliveryForm({
         }
       }
 
+      // CRITICAL: Trigger patient update function when delivery is completed
       if (statusChangedToCompletion && delivery && formData.status === 'completed') {
         console.log('🔄 [DeliveryForm] Triggering patient update after route completion...');
         try {
@@ -2801,6 +2958,7 @@ export default function DeliveryForm({
         }
       }
 
+      // CRITICAL: Always close form after successful update
       onCancel();
     } catch (error) {
       setError(error.message);
@@ -2834,6 +2992,7 @@ export default function DeliveryForm({
   }, []);
 
   const handleCancelClick = useCallback(() => {
+    // Only show confirmation if there are NEW staged deliveries (without an id)
     const hasNewStagedDeliveries = stagedDeliveries.some((d) => !d.id);
 
     if (hasNewStagedDeliveries && !delivery) {
@@ -2841,10 +3000,12 @@ export default function DeliveryForm({
       if (confirmed) {
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
-        hasLoadedPending.current = false;
+        hasLoadedPending.current = false; // Reset flag to allow reload
         onCancel();
       }
     } else {
+      // CRITICAL: Reset the auto-load flag when canceling without changes
+      // This allows the form to re-load pending deliveries next time
       if (!delivery) {
         hasLoadedPending.current = false;
       }
@@ -2855,19 +3016,23 @@ export default function DeliveryForm({
   useEffect(() => {
     const handleEnterKey = (event) => {
       if (event.key !== 'Enter') return;
+      // CRITICAL: Don't handle Enter if PatientForm is open
       if (isPatientFormOpen) return;
       if (event.target.tagName === 'TEXTAREA') return;
       if (event.target.getAttribute('role') === 'combobox') return;
       if (event.target === patientSearchInputRef.current) return;
+      // CRITICAL: Don't prevent Enter on buttons - let them execute their onClick handlers
       if (event.target.tagName === 'BUTTON') return;
 
       event.preventDefault();
 
+      // If editing an existing delivery, trigger submit (Update Delivery button)
       if (delivery && isFormValid && !isSaving) {
         handleSubmit(event);
         return;
       }
 
+      // New delivery flow
       if (buttonState === 'done') handleBatchSave();else
       if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();else
       if (buttonState === 'add' && isFormValid) handleAddToStaging();
@@ -2881,7 +3046,8 @@ export default function DeliveryForm({
     const handleEscapeKey = (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        if (showCameraOverlay) {
+        // Always trigger cancel on Escape (closes form or clears based on state)
+        if (showCameraOverlay) {// If camera overlay is open, close it first
           stopCamera();
           setShowCameraOverlay(false);
           setIsScanning(false);
@@ -3007,17 +3173,21 @@ export default function DeliveryForm({
     });
   }, []);
 
+  // Auto-load pending deliveries on form mount - ONLY ONCE
   useEffect(() => {
+    // Skip if editing existing delivery
     if (delivery) {
       console.log('⏸️ [DeliveryForm] Skipping auto-load - editing existing delivery');
       return;
     }
 
+    // Skip if already loaded
     if (hasLoadedPending.current) {
       console.log('⏸️ [DeliveryForm] Skipping auto-load - already loaded');
       return;
     }
 
+    // Wait for all required data (driver_id NOT required)
     if (!allDeliveries || !suggestedDate || !currentUser || !patients || !stores) {
       console.log('⏸️ [DeliveryForm] Waiting for data...', {
         hasDeliveries: !!allDeliveries,
@@ -3036,11 +3206,12 @@ export default function DeliveryForm({
     console.log('  - Current user roles:', currentUser.app_roles);
     console.log('  - Current user store_ids:', currentUser.store_ids);
 
+    // Filter pending deliveries based on user role
     let pendingDeliveries = allDeliveries.filter((d) =>
     d &&
     d.status === 'pending' &&
     d.delivery_date === suggestedDate &&
-    d.patient_id
+    d.patient_id // Only patient deliveries, not pickups
     );
 
     console.log('  - Found pending deliveries for date (before role filter):', pendingDeliveries.length);
@@ -3052,9 +3223,12 @@ export default function DeliveryForm({
       })));
     }
 
+    // Role-based filtering - ADMIN takes priority over other roles
     if (userHasRole(currentUser, 'admin')) {
+      // Admins: all pending stops (no additional filtering)
       console.log(`  - Admin mode: ${pendingDeliveries.length} pending stops (no filtering)`);
     } else if (userHasRole(currentUser, 'dispatcher')) {
+      // Dispatchers: only pending stops for their stores
       const dispatcherStoreIds = currentUser.store_ids || [];
       console.log(`  - Dispatcher mode: checking stores ${dispatcherStoreIds.join(', ')}`);
       pendingDeliveries = pendingDeliveries.filter((d) => dispatcherStoreIds.includes(d.store_id));
@@ -3066,6 +3240,7 @@ export default function DeliveryForm({
         })));
       }
     } else if (userHasRole(currentUser, 'driver')) {
+      // Drivers (not admin/dispatcher): only their pending stops
       pendingDeliveries = pendingDeliveries.filter((d) => d.driver_id === currentUser.id);
       console.log(`  - Driver mode: filtered to ${pendingDeliveries.length} pending stops for driver ${currentUser.id}`);
     }
@@ -3078,14 +3253,17 @@ export default function DeliveryForm({
 
     console.log('✅ [DeliveryForm] Found pending deliveries to auto-load:', pendingDeliveries.length);
 
+    // Convert pending deliveries to staged format
     const newStagedItems = pendingDeliveries.map((delivery, index) => {
     const patient = patients.find((p) => p && p.id === delivery.patient_id);
     
+    // CRITICAL: Find correct store via PUID first, fallback to delivery.store_id
     let finalStoreId = delivery.store_id;
     let timeSlot = delivery.ampm_deliveries;
     let puid = delivery.puid || '';
     
     if (puid) {
+      // Find the parent pickup by PUID (stop_id)
       const parentPickup = allDeliveries.find((d) => d && !d.patient_id && d.stop_id === puid);
       if (parentPickup) {
         finalStoreId = parentPickup.store_id || delivery.store_id;
@@ -3098,6 +3276,7 @@ export default function DeliveryForm({
 
     if (!patient || !store) return null;
 
+    // Use existing distance_from_store if available, otherwise calculate
     let distanceFromStore = patient.distance_from_store;
     if (distanceFromStore === null || distanceFromStore === undefined) {
       if (patient?.latitude && patient?.longitude && store?.latitude && store?.longitude) {
@@ -3105,6 +3284,7 @@ export default function DeliveryForm({
       }
     }
 
+      // Fallback: calculate if no PUID or no parent pickup found
       if (!timeSlot) {
         timeSlot = getStoreAssignedTimeSlot(store, delivery.delivery_date, allDeliveries);
         puid = getPickupStopIdForDelivery(store.id, delivery.delivery_date, timeSlot, allDeliveries);
@@ -3125,8 +3305,9 @@ export default function DeliveryForm({
         puid: puid || '',
         paid_km_override: delivery.paid_km_override ?? distanceFromStore ?? null
       };
-    }).filter(Boolean);
+    }).filter(Boolean); // Filter out nulls if patient/store not found
 
+    // Force state update with timeout to ensure re-render
     setTimeout(() => {
       console.log('💾 [DeliveryForm] Setting staged deliveries state with', newStagedItems.length, 'items');
       console.log('💾 [DeliveryForm] Items:', newStagedItems.map((item) => ({
@@ -3140,20 +3321,24 @@ export default function DeliveryForm({
     }, 100);
   }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate]);
 
+  // CRITICAL: Track initial PUID from delivery to prevent overwrites
   const initialPuidRef = useRef(null);
   
   useEffect(() => {
     if (delivery && delivery.puid) {
       initialPuidRef.current = delivery.puid;
     }
-  }, [delivery?.id]);
+  }, [delivery?.id]); // Only set once when delivery loads
 
   useEffect(() => {
+    // CRITICAL: Never auto-update PUID for existing deliveries with a PUID already set
+    // This prevents the blinking issue where PUID gets recalculated and overwrites the correct value
     if (delivery && initialPuidRef.current) {
       console.log('⏸️ [DeliveryForm] Preserving original PUID:', initialPuidRef.current);
-      return;
+      return; // Skip PUID recalculation entirely for deliveries with existing PUID
     }
     
+    // Auto-update PUID only for NEW deliveries or deliveries that never had a PUID
     if (delivery && !isPickupMode && formData.store_id && formData.delivery_date && allDeliveries && stores && !initialPuidRef.current) {
       const store = stores.find((s) => s && s.id === formData.store_id);
       if (store) {
@@ -3180,6 +3365,7 @@ export default function DeliveryForm({
       return;
     }
 
+    // Use existing distance_from_store if available, otherwise calculate
     let distanceFromStore = patient.distance_from_store;
     if (distanceFromStore === null || distanceFromStore === undefined) {
       if (patient.latitude && patient.longitude && store.latitude && store.longitude) {
@@ -3187,6 +3373,7 @@ export default function DeliveryForm({
       }
     }
 
+    // Auto-select driver based on patient's store and time window
     let autoSelectedDriverId = '';
     let autoSelectedDriverName = '';
 
@@ -3224,61 +3411,12 @@ export default function DeliveryForm({
       }
     }
 
+    // Check for existing pickup for this store/driver/date
+    let puid = null;
+    const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
     const autoDriverId = autoSelectedDriverId || formData.driver_id;
 
-    // Determine primary AM/PM slot for this patient
-    const patientPreferredTimeSlot = determineDeliveryAMPM(patient);
-
-    let puid = null;
-    let selectedTimeSlot = null;
-    let pickupToUse = null;
-
-    const allDeliveriesForDate = allDeliveries.filter(d => d && d.delivery_date === formData.delivery_date);
-
-    // Check for existing pickups for this store, date, and assigned driver
-    const existingAmPickup = allDeliveriesForDate.find(d => 
-      !d.patient_id && d.store_id === store.id && d.ampm_deliveries === 'AM' && d.driver_id === autoDriverId
-    );
-    const existingPmPickup = allDeliveriesForDate.find(d => 
-      !d.patient_id && d.store_id === store.id && d.ampm_deliveries === 'PM' && d.driver_id === autoDriverId
-    );
-
-    // Prioritize AM
-    if (existingAmPickup && existingAmPickup.status !== 'completed' && existingAmPickup.status !== 'cancelled') {
-      pickupToUse = existingAmPickup;
-      selectedTimeSlot = 'AM';
-      console.log(`📦 [confirmAddProjectedToStaged] Using existing AM pickup: ${pickupToUse.stop_id}`);
-    } else if (existingPmPickup && existingPmPickup.status !== 'completed' && existingPmPickup.status !== 'cancelled') {
-      pickupToUse = existingPmPickup;
-      selectedTimeSlot = 'PM';
-      console.log(`📦 [confirmAddProjectedToStaged] ${existingAmPickup ? 'AM pickup completed,' : 'No AM pickup,'} using existing PM pickup: ${pickupToUse.stop_id}`);
-    }
-
-    if (pickupToUse) {
-      puid = pickupToUse.stop_id;
-    } else {
-      const targetAmpm = patientPreferredTimeSlot || 'AM';
-      try {
-        const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
-          storeId: projected.store_id,
-          deliveryDate: formData.delivery_date,
-          driverId: autoDriverId,
-          ampmDeliveries: targetAmpm
-        });
-
-        if (pickupResponse.data?.puid) {
-          puid = pickupResponse.data.puid;
-          selectedTimeSlot = targetAmpm;
-          console.log(`✅ [confirmAddProjectedToStaged] Created new pickup via ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
-        }
-      } catch (error) {
-        console.warn('⚠️ [confirmAddProjectedToStaged] ensurePickupForDelivery failed, using fallback PUID:', error.message);
-        puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, targetAmpm, allDeliveries);
-        selectedTimeSlot = targetAmpm;
-      }
-    }
-    const timeSlot = selectedTimeSlot;
-
+    // CRITICAL: Build staged item FIRST, then update both states atomically
     const newStagedItem = {
       patient_id: projected.patient_id,
       patient_name: projected.patient_name,
@@ -3289,7 +3427,7 @@ export default function DeliveryForm({
       delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       time_window_start: patient.time_window_start || '',
       time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
-      puid: puid || '',
+      puid: '', // Will be updated after async call
       ampm_deliveries: timeSlot,
       status: 'Staged',
       driver_id: autoSelectedDriverId,
@@ -3340,19 +3478,77 @@ export default function DeliveryForm({
       paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null
       };
 
+    // CRITICAL: Remove from projected and add to staged in one synchronous batch
     setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));
     setStagedDeliveries((prev) => [...prev, newStagedItem]);
     setHasChanges(true);
+
+    // Now do async PUID lookup and update the staged item if needed
+    if (autoDriverId) {
+      try {
+        const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
+          storeId: projected.store_id,
+          deliveryDate: formData.delivery_date,
+          driverId: autoDriverId,
+          ampmDeliveries: timeSlot
+        });
+
+        if (pickupResponse.data?.puid) {
+          puid = pickupResponse.data.puid;
+          // Update the staged item with the PUID
+          setStagedDeliveries((prev) => prev.map((item) => 
+            item._tempId === newStagedItem._tempId ? { ...item, puid } : item
+          ));
+        }
+      } catch (error) {
+        console.warn('⚠️ [confirmAddProjectedToStaged] ensurePickupForDelivery failed:', error.message);
+      }
+    }
+
+    // Fallback to local logic if backend didn't return a PUID
+    if (!puid) {
+      const existingPickup = allDeliveries.find((d) =>
+      d &&
+      !d.patient_id &&
+      d.store_id === projected.store_id &&
+      d.delivery_date === formData.delivery_date &&
+      d.driver_id === autoDriverId &&
+      d.ampm_deliveries === timeSlot
+      );
+
+      if (existingPickup) {
+        const now = new Date();
+        const isNotCompleted = existingPickup.status !== 'completed';
+        const wasCompletedRecently = existingPickup.actual_delivery_time &&
+        now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000;
+
+        if (isNotCompleted || wasCompletedRecently) {
+          puid = existingPickup.stop_id;
+        }
+      }
+
+      if (!puid) {
+        puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
+      }
+
+      if (puid) {
+        setStagedDeliveries((prev) => prev.map((item) => 
+          item._tempId === newStagedItem._tempId ? { ...item, puid } : item
+        ));
+      }
+    }
   }, [formData, stores, patients, drivers, allDeliveries, stagedDeliveries]);
 
   const sortedStagedDeliveries = useMemo(() => {
     let filtered = [...stagedDeliveries];
 
+    // Filter by driver if a specific driver is selected
     if (formData.driver_id && formData.driver_id !== '') {
       filtered = filtered.filter((d) => d.driver_id === formData.driver_id);
     }
 
     return filtered.sort((a, b) => {
+      // First: Sort new staged (no id) to top, pending (with id) below
       const aIsPending = !!a.id;
       const bIsPending = !!b.id;
 
@@ -3362,18 +3558,21 @@ export default function DeliveryForm({
       const storeA = stores?.find((s) => s && s.id === a.store_id);
       const storeB = stores?.find((s) => s && s.id === b.store_id);
 
+      // Second: Sort by store sort_order
       const sortOrderA = storeA?.sort_order ?? Infinity;
       const sortOrderB = storeB?.sort_order ?? Infinity;
       if (sortOrderA !== sortOrderB) {
         return sortOrderA - sortOrderB;
       }
 
-      const ampmA = a.ampm_deliveries || 'ZZ';
+      // Third: Sort by AM/PM (AM before PM)
+      const ampmA = a.ampm_deliveries || 'ZZ'; // Default to end if no AMPM
       const ampmB = b.ampm_deliveries || 'ZZ';
       if (ampmA !== ampmB) {
-        return ampmA.localeCompare(ampmB);
+        return ampmA.localeCompare(ampmB); // 'AM' < 'PM' alphabetically
       }
 
+      // Fourth: Sort by distance from store (closest first)
       const distA = a.distanceFromStore ?? Infinity;
       const distB = b.distanceFromStore ?? Infinity;
       if (distA !== distB) {
@@ -3387,6 +3586,7 @@ export default function DeliveryForm({
   const sortedProjectedDeliveries = useMemo(() => {
     let filtered = [...projectedDeliveries];
 
+    // Filter by driver if a specific driver is selected (match by store's assigned driver)
     if (formData.driver_id && formData.driver_id !== '') {
       filtered = filtered.filter((proj) => {
         const store = stores?.find((s) => s && s.id === proj.store_id);
@@ -3415,12 +3615,14 @@ export default function DeliveryForm({
       const storeA = stores?.find((s) => s && s.id === a.store_id);
       const storeB = stores?.find((s) => s && s.id === b.store_id);
 
+      // Sort by store sort_order
       const sortOrderA = storeA?.sort_order ?? Infinity;
       const sortOrderB = storeB?.sort_order ?? Infinity;
       if (sortOrderA !== sortOrderB) {
         return sortOrderA - sortOrderB;
       }
 
+      // Then by patient name
       return (a.patient_name || '').localeCompare(b.patient_name || '');
     });
   }, [projectedDeliveries, stores, formData.driver_id, formData.delivery_date]);
@@ -3439,8 +3641,10 @@ export default function DeliveryForm({
                     {delivery ? isPickupMode ? 'Edit Pickup' : 'Edit Delivery' : 'Add To Route'}
                   </CardTitle>
                   {(() => {
+                    // Show last delivery date for selected patient OR for patient in form
                     let patientToCheck = selectedPatient;
 
+                    // Also check formData.patient_id when no selectedPatient
                     if (!patientToCheck && formData.patient_id && patients) {
                       patientToCheck = patients.find((p) => p && p.id === formData.patient_id);
                     }
@@ -3499,6 +3703,7 @@ export default function DeliveryForm({
 
           <CardContent className={`p-4 flex-1 relative overflow-hidden ${isFormLockedByPayroll ? 'opacity-50 pointer-events-none' : ''}`}>
             <div className="space-y-3 h-full flex flex-col">
+              {/* Section 1: Patient Search - STATIC */}
               <div className={`flex gap-3 ${useMobileLayout ? 'flex-col' : ''} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
                 {!delivery && !isPickupMode &&
                 <div className={`relative ${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
@@ -3564,7 +3769,14 @@ export default function DeliveryForm({
                       }
                       </div>
 
+                      {/* The original hidden input for file-based camera capture (kept for outline compliance) */}
+                      {/* Note: cameraInputRef was implicitly used by handleCameraScan to clear input. Keeping the input element for completeness as per original spec */}
                       <input
+                    // The cameraInputRef was not used by the original logic for the camera button directly,
+                    // but was mentioned in the `handleCameraScan` finally block for resetting the input.
+                    // Since this input element is `hidden` and the visible `Button` now triggers a live camera overlay,
+                    // we'll keep the ref as it was, though its direct interaction with the UI is minimal.
+                    ref={(el) => {/* cameraInputRef.current = el; */}} // Keeping the ref declaration, but not strictly needing it for file input triggered by button here.
                     type="file"
                     accept="image/*"
                     capture="environment"
@@ -3576,7 +3788,7 @@ export default function DeliveryForm({
                       size="sm"
                       variant="outline"
                       className="h-9 w-9 p-0 flex-shrink-0"
-                      onClick={() => {
+                      onClick={() => {// Modified to trigger live camera overlay
                         setShowCameraOverlay(true);
                         startCamera();
                       }}
@@ -3628,11 +3840,13 @@ export default function DeliveryForm({
                         size="sm"
                         className="w-full mt-3 gap-2"
                         onClick={() => {
+                          // Clear form for totally new patient entry (same behavior as Duplicate/New buttons)
                           setNewPatientMode('new');
                           setSelectedPatient(null);
                           setPatientSearch('');
                           setHighlightedPatientIndex(-1);
                           
+                          // Open patient form with empty data but preserve store context if dispatcher
                           const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
                           const dispatcherStoreIds = isDispatcher ? (currentUser.store_ids || []) : [];
                           const defaultStoreId = dispatcherStoreIds.length === 1 ? dispatcherStoreIds[0] : '';
@@ -3641,6 +3855,7 @@ export default function DeliveryForm({
                           onCreatePatient((newPatient) => {
                             setIsPatientFormOpen(false);
                             setNewPatientMode(null);
+                            // CRITICAL: Auto-add new patient to staged (true parameter)
                             handlePatientSelect(newPatient, true);
                           }, {
                             full_name: '',
@@ -3693,11 +3908,13 @@ export default function DeliveryForm({
                               type="button"
                               onClick={(e) => {
                                 if (isAlreadyStaged) {
+                                  // Already staged - just clear search, don't add again
                                   setPatientSearch('');
                                   setHighlightedPatientIndex(-1);
                                   return;
                                 }
                                 if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                                  // Multi-select mode
                                   setSelectedPatientIds((prev) => {
                                     const newSet = new Set(prev);
                                     if (newSet.has(patient.id)) {
@@ -3708,6 +3925,7 @@ export default function DeliveryForm({
                                     return newSet;
                                   });
                                 } else {
+                                  // Direct add - populate form only (don't auto-add to staged)
                                   handlePatientSelect(patient, false);
                                   setPatientSearch('');
                                   setHighlightedPatientIndex(-1);
@@ -3737,6 +3955,7 @@ export default function DeliveryForm({
                                     {patient.phone && <div className="text-xs text-slate-500 truncate">{formatPhoneNumber(patient.phone)}</div>}
                                   </button>
                                   
+                                  {/* Duplicate and New Address buttons */}
                                   <div className="flex flex-col gap-1 ml-1">
                                     <Button
                                       type="button"
@@ -3770,7 +3989,10 @@ export default function DeliveryForm({
                     }
                       </div>
                   }
+                  </div>
+                }
 
+                {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
                 <div className={`flex gap-3 ${useMobileLayout ? 'flex-row' : 'contents'}`}>
                 {isPickupMode && !delivery &&
                   <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
@@ -3783,6 +4005,7 @@ export default function DeliveryForm({
                         const storeId = selectedStore?._originalStoreId || value;
                         const timeSlot = selectedStore?._timeSlot || null;
 
+                        // Calculate new PUID based on selected store and time slot
                         const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
 
                         setFormData((prev) => ({
@@ -3812,6 +4035,7 @@ export default function DeliveryForm({
                   </div>
                   }
 
+                {/* Section 2: Delivery Date - STATIC */}
                 <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                   <Input
@@ -3823,6 +4047,7 @@ export default function DeliveryForm({
 
                 </div>
 
+                {/* Section 3: Driver Selection - STATIC */}
                 <div className={`${useMobileLayout ? 'flex-1' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                   <Select
@@ -3832,12 +4057,14 @@ export default function DeliveryForm({
                         const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
                         const newDriverName = driver ? getDriverNameForStorage(driver) : '';
 
+                        // Update form data
                         setFormData((prev) => ({
                           ...prev,
                           driver_id: newDriverId,
                           driver_name: newDriverName
                         }));
 
+                        // CRITICAL: If editing a staged item, update that item's driver assignment
                         if (editingStagedId) {
                           setStagedDeliveries((prev) => prev.map((staged) => {
                             if (staged._tempId === editingStagedId) {
@@ -3867,9 +4094,10 @@ export default function DeliveryForm({
                     </SelectContent>
                   </Select>
                 </div>
+                </div>
               </div>
 
-              {isAppOwner(currentUser) && delivery && (
+              {isAppOwner(currentUser) && delivery &&
               <div className="space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Identifiers</Label>
                   <div className="flex gap-3">
@@ -3914,6 +4142,7 @@ export default function DeliveryForm({
                         if (val === '') {
                           setFormData((prev) => ({ ...prev, paid_km_override: null }));
                         } else {
+                          // Allow typing decimals and numbers freely
                           setFormData((prev) => ({ 
                             ...prev, 
                             paid_km_override: val
@@ -3936,11 +4165,13 @@ export default function DeliveryForm({
                     </div>
                   </div>
                 </div>
-              )}
+              }
 
+              {/* Scrollable container for Sections 4 & 5 on desktop */}
               <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
                 <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
+                  {/* Section 1: Notes */}
                   <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     {!isPickupMode ?
                     <div className="flex gap-3">
@@ -3976,6 +4207,7 @@ export default function DeliveryForm({
                     }
                   </div>
 
+                  {/* Section 2: Delivery Options & COD */}
                   {!isPickupMode &&
                   <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex gap-3">
@@ -4065,8 +4297,10 @@ export default function DeliveryForm({
                             </div>
                         </div>
                       </div>
-                    }
+                    </div>
+                  }
 
+                  {/* Section 3: Store/Status/Time Windows - All users can access, disabled after completion for non-admins */}
                   <div className={`space-y-2 p-3 rounded-lg border ${
                   delivery && !userHasRole(currentUser, 'admin') &&
                   ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ?
@@ -4074,6 +4308,7 @@ export default function DeliveryForm({
                   } style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       {isCompletionStatus && delivery ?
                     <div className="space-y-2">
+                        {/* Row 1: Store and Status */}
                         <div className="flex gap-3">
                           <div className="flex-1 space-y-1">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
@@ -4144,6 +4379,7 @@ export default function DeliveryForm({
                           </div>
                         </div>
 
+                        {/* Row 2: Completion Time */}
                         <div className="flex gap-3">
                           <div className="flex-1 space-y-1">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completion Time *</Label>
@@ -4182,6 +4418,7 @@ export default function DeliveryForm({
                       </div> :
 
                     <div className="space-y-2">
+                      {/* Row 1: Store, Status, PUID */}
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
@@ -4276,6 +4513,7 @@ export default function DeliveryForm({
                         )}
                       </div>
 
+                      {/* Row 2: Time Window */}
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Time Window</Label>
@@ -4305,6 +4543,7 @@ export default function DeliveryForm({
                     }
                     </div>
 
+                  {/* Section 4: Patient Name/Phone/Address/Unit */}
                   {!isPickupMode &&
                   <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex gap-3">
@@ -4352,6 +4591,7 @@ export default function DeliveryForm({
                     </div>
                   }
 
+                  {/* Section 5: Patient Preferences & Recurring */}
                   {!isPickupMode &&
                   <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex gap-3">
@@ -4408,6 +4648,7 @@ export default function DeliveryForm({
                             </Label>
                           </div>
 
+                          {/* Day Selection Popup for Weekly/Bi-Weekly - positioned over recurring section */}
                           {showDayPopup &&
                           <div className="absolute bottom-0 left-0 right-0 z-[100] rounded-lg shadow-xl p-3 border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
                             <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-slate-900)' }}>Select Days</h3>
@@ -4545,7 +4786,7 @@ export default function DeliveryForm({
                     </div>
                   }
 
-                  {isPickupMode && (
+                  {isPickupMode &&
                   <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Options</Label>
                       <div className="space-y-3">
@@ -4557,10 +4798,11 @@ export default function DeliveryForm({
                         disabled={isSaving} />
                       </div>
                     </div>
-                  )}
+                  }
                 </div>
 
-                {!delivery && !useMobileLayout && (
+                {/* Staged Panel - STATIC - Show when screen is wide enough, regardless of device type */}
+                {!delivery && !useMobileLayout &&
                 <div className="w-[300px] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Deliveries: (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})</Label>
                   <DeliveryFormStaged
@@ -4584,6 +4826,7 @@ export default function DeliveryForm({
                     isLoadingPredictions={isLoadingPredictions}
                   />
 
+                    {/* Refresh Projections Button */}
                     <Button
                     type="button"
                     variant="outline"
@@ -4595,10 +4838,11 @@ export default function DeliveryForm({
                       {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
                     </Button>
                   </div>
-                )}
+                }
               </div>
             </div>
 
+            {/* Mobile Staged Panel */}
             <AnimatePresence>
               {!delivery && useMobileLayout && showStagedPanel &&
               <motion.div
@@ -4645,6 +4889,7 @@ export default function DeliveryForm({
                       />
                     </div>
 
+                    {/* Refresh Projections Button */}
                     <Button
                     type="button"
                     variant="outline"
@@ -4732,6 +4977,7 @@ export default function DeliveryForm({
                   onClick={async (e) => {
                     e.preventDefault();
                     await handleSubmit(e);
+                    // CRITICAL: Force stats refresh after update completes
                     setTimeout(() => {
                       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                     }, 500);
@@ -4760,6 +5006,7 @@ export default function DeliveryForm({
         </Card>
       </motion.div>
 
+      {/* Patient Match Popup - CRITICAL: Must be OUTSIDE the form card and at higher z-index */}
       {showMatchPopup &&
       <PatientMatchPopup
         isOpen={showMatchPopup}
@@ -4775,6 +5022,7 @@ export default function DeliveryForm({
 
       }
 
+      {/* Live Camera Overlay */}
       {showCameraOverlay &&
       <AnimatePresence>
           <motion.div
@@ -4789,7 +5037,7 @@ export default function DeliveryForm({
                 <Button variant="outline" onClick={() => {
                 stopCamera();
                 setShowCameraOverlay(false);
-                setIsScanning(false);
+                setIsScanning(false); // Ensure scanning state is reset
               }} disabled={isScanning}>
                   Cancel
                 </Button>
@@ -4812,6 +5060,9 @@ export default function DeliveryForm({
         </AnimatePresence>
       }
 
+      // Removed Debug Patient Data Popup (app owner debug moved to console.log only)
+
+      {/* Delete Pending Confirmation Dialog */}
       {deleteConfirmation.show && deleteConfirmation.staged &&
       <div className="fixed inset-0 z-[10020] bg-black/60 flex items-center justify-center p-4">
           <div className="rounded-lg shadow-xl max-w-sm w-full p-4 border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
@@ -4839,14 +5090,19 @@ export default function DeliveryForm({
                 try {
                   console.log('🗑️ [DeliveryForm] Deleting pending delivery:', staged.id, staged.patient_name);
                   
+                  // CRITICAL: Delete from both offline and online databases
+                  // This also triggers immediate mutation notification to update Layout state
                   await deleteDeliveryLocal(staged.id);
                   console.log('✅ [DeliveryForm] Pending delivery deleted from offline and online DBs');
 
+                  // CRITICAL: Invalidate cache immediately to force refresh
                   const { invalidate } = await import('../utils/dataManager');
                   invalidate('Delivery');
 
+                  // Remove from staged list
                   setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
                   
+                  // CRITICAL: Update projected list - restore the deleted patient if it was a projection
                   const remainingStagedIds = new Set(
                     stagedDeliveries
                       .filter((item) => item.id !== staged.id && item._tempId !== staged._tempId)
@@ -4857,11 +5113,13 @@ export default function DeliveryForm({
                   setProjectedDeliveries(filteredPredictions);
                   console.log(`✅ [DeliveryForm] Restored ${filteredPredictions.length} projections after pending deletion`);
 
+                  // Mark that we have changes to activate Done button
                   setHasChanges(true);
                   setHasPendingDeletes(true);
                   
                   console.log('✅ [DeliveryForm] Pending delivery deleted and cache invalidated');
 
+                  // Clear editing state if this was the one being edited
                   if (editingStagedId === staged._tempId) {
                     setEditingStagedId(null);
                     handleClearForm();
