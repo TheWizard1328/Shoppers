@@ -2754,13 +2754,8 @@ export default function DeliveryMap({
              // CRITICAL: Use route.color for this driver's unique color
              const driverPolylineColor = route.color;
 
-             // CRITICAL: Get deliveries from the SOURCE DATA (allDeliveries that includes showOtherDriverDeliveries)
-             // Don't rely on deliveryMarkers which may be filtered
-             const allSourceDeliveries = showOtherDriverDeliveries && otherDriverDeliveries.length > 0
-               ? [...safeDeliveries, ...otherDriverDeliveries]
-               : safeDeliveries;
-
-             const sourceDeliveries = allSourceDeliveries.filter(d => d && d.driver_id === route.driverId);
+             // CRITICAL: Include ALL drivers' markers - deliveryMarkers already includes other drivers when showOtherDriverDeliveries is true
+             const sourceDeliveries = deliveryMarkers.filter(d => d && d.driver_id === route.driverId);
              const sourcePickups = pickupMarkers.filter(p => p && p.driver_id === route.driverId);
             
             console.log(`🛣️ [Polylines] Driver ${route.driverId}: ${sourceDeliveries.length} deliveries, ${sourcePickups.length} pickups`);
