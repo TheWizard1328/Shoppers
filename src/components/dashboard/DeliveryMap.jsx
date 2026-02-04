@@ -1801,6 +1801,7 @@ export default function DeliveryMap({
 
     const driversToShowHome = new Set();
     const driversToExcludeFromBounds = new Set(); // CRITICAL: Track home markers to exclude from centering
+    const driversWithCompleteRoute = new Set(); // NEW: Track drivers whose routes are complete
 
     // CRITICAL: For admins/app owners, check ALL deliveries for the date (not just current driver's)
     // This includes other drivers when "Show All" is enabled
