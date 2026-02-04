@@ -193,13 +193,20 @@ export async function loadUserSettings(userId) {
 
   // Check if offline - use cached settings from IndexedDB
   if (!offlineManager.getOnlineStatus()) {
-    console.log('📴 [UserSettings] Offline - loading from local persistent store');
-    
-    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceType);
-    if (indexedSettings) {
-      cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
-      currentUserId = userId;
-      return cachedSettings;
+  console.log('📴 [UserSettings] Offline - loading from local persistent store');
+
+  const indexedSettings = await loadFromLocalPersistentStore(userId, deviceType);
+  if (indexedSettings) {
+    cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
+    currentUserId = userId;
+
+    // CRITICAL: Apply auto dark mode for mobile devices
+    const { deviceType: dt } = getUserAgentInfo();
+    if (dt === 'Mobile') {
+      initializeAutoDarkMode();
+    }
+
+    return cachedSettings;
     }
     
     // Return defaults if no cache available
@@ -322,6 +329,12 @@ export async function loadUserSettings(userId) {
       console.log('📦 [UserSettings] Network error - falling back to cached settings from IndexedDB');
       cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
       currentUserId = userId;
+      
+      // CRITICAL: Apply auto dark mode for mobile devices
+      if (deviceType === 'Mobile') {
+        initializeAutoDarkMode();
+      }
+      
       return cachedSettings;
     }
     
@@ -580,6 +593,11 @@ export async function saveSettings(userId, settings) {
     currentUserId = userId;
     
     await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
+    
+    // CRITICAL: Re-initialize auto dark mode if theme changed or on mobile
+    if (deviceType === 'Mobile' && (settings.theme_preference !== undefined || !settings)) {
+      initializeAutoDarkMode();
+    }
 
     return cachedSettings;
 

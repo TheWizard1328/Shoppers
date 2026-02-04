@@ -3806,7 +3806,8 @@ export default function DeliveryMap({
                   // Center marker on click
                   if (map) {
                     const targetZoom = isMobile ? 15 : 16;
-                    const statsCardHeight = isMobile ? (isStatsCardExpanded ? 216 : 116) : 0;
+                    const statsCard = document.querySelector('[data-stats-card]');
+                    const statsCardHeight = statsCard ? statsCard.getBoundingClientRect().height : 0;
                     const dynamicTopPadding = statsCardHeight + 20;
                     
                     const messageBalloonsHeight = 120;
@@ -3952,7 +3953,8 @@ export default function DeliveryMap({
                   // Center marker on click
                   if (map) {
                     const targetZoom = isMobile ? 15 : 16;
-                    const statsCardHeight = isMobile ? (isStatsCardExpanded ? 216 : 116) : 0;
+                    const statsCard = document.querySelector('[data-stats-card]');
+                    const statsCardHeight = statsCard ? statsCard.getBoundingClientRect().height : 0;
                     const dynamicTopPadding = statsCardHeight + 20;
                     
                     const messageBalloonsHeight = 120;
