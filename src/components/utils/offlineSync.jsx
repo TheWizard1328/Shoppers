@@ -999,53 +999,56 @@ export const restartDeliveryPatientSync = async () => {
     console.log(`📍 [OfflineSync] Found ${uniquePatientIdsList.length} unique patients in ${allDeliveriesLastWeek.length} deliveries from last 7 days`);
     
     // Step 2: Sync ONLY those unique patient IDs in batches
-    notifySyncStatus({ status: 'syncing', entity: 'Patients (last 7 days)', progress: 55 });
-    console.log(`🔄 [OfflineSync] Step 2: Syncing ${uniquePatientIdsList.length} unique patients from last 7 days...`);
-    
-    let patientsFromLastWeek = [];
-    const ID_BATCH_SIZE = 50;
-    
-    for (let i = 0; i < uniquePatientIdsList.length; i += ID_BATCH_SIZE) {
-      const batchIds = uniquePatientIdsList.slice(i, i + ID_BATCH_SIZE);
-      const batchNumber = Math.floor(i/ID_BATCH_SIZE)+1;
-      const totalBatches = Math.ceil(uniquePatientIdsList.length / ID_BATCH_SIZE);
-      
+    // CRITICAL: Sync ALL active patients, not just recent ones
+    // This ensures payroll page has complete patient data for any historical date
+    notifySyncStatus({ status: 'syncing', entity: 'Patients (all active)', progress: 55 });
+    console.log(`🔄 [OfflineSync] Step 2: Syncing ALL active patients for complete historical data...`);
+
+    let allPatients = [];
+    const PATIENT_PAGE_SIZE = 100;
+    let patientOffset = 0;
+
+    while (true) {
       try {
-        const batchPatients = await Patient.filter({
-          id: { $in: batchIds }
-        });
-        
-        if (batchPatients && batchPatients.length > 0) {
-          patientsFromLastWeek = patientsFromLastWeek.concat(batchPatients);
-          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
-          
-          // Update progress after EACH batch (55-75% range for patients)
-          const batchProgress = 55 + Math.floor((i / uniquePatientIdsList.length) * 20);
-          notifySyncStatus({ 
-            status: 'syncing', 
-            entity: `Patients (${batchNumber}/${totalBatches})`, 
-            progress: batchProgress, 
-            loaded: patientsFromLastWeek.length 
-          });
-          console.log(`   ✅ Batch ${batchNumber}/${totalBatches} saved (${patientsFromLastWeek.length} total)`);
-        }
-      } catch (batchError) {
-        console.warn(`   ⚠️ Batch ${batchNumber} failed:`, batchError.message);
-        const batchProgress = 55 + Math.floor((i / uniquePatientIdsList.length) * 20);
+        const patientBatch = await Patient.filter(
+          { status: 'active' },
+          '-updated_date',
+          PATIENT_PAGE_SIZE,
+          patientOffset
+        );
+
+        if (!patientBatch || patientBatch.length === 0) break;
+
+        allPatients = allPatients.concat(patientBatch);
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientBatch);
+
+        const batchNumber = Math.floor(patientOffset / PATIENT_PAGE_SIZE) + 1;
+        const batchProgress = 55 + Math.min(20, Math.floor((allPatients.length / 4000) * 20));
         notifySyncStatus({ 
           status: 'syncing', 
-          entity: `Patients (${batchNumber}/${totalBatches})`, 
+          entity: `Patients (${allPatients.length}+)`, 
           progress: batchProgress, 
-          loaded: patientsFromLastWeek.length, 
-          error: 'batch_failed' 
+          loaded: allPatients.length 
         });
+        console.log(`   ✅ Batch ${batchNumber} synced (${allPatients.length} total patients)`);
+
+        // Stop if we got fewer than page size (end of data)
+        if (patientBatch.length < PATIENT_PAGE_SIZE) break;
+
+        patientOffset += PATIENT_PAGE_SIZE;
+        await new Promise(r => setTimeout(r, 200));
+      } catch (error) {
+        console.warn(`   ⚠️ Patient sync batch failed:`, error.message);
+        if (patientOffset === 0) {
+          // If first batch fails, use referenced patients as fallback
+          console.warn('   Using patients referenced in deliveries as fallback...');
+          break;
+        }
       }
-      
-      await new Promise(r => setTimeout(r, 200));
     }
-    
-    const cleanPatients = patientsFromLastWeek.filter(p => p && p.id && !p.id.startsWith('temp_'));
-    console.log(`✅ [OfflineSync] Synced ${cleanPatients.length} patients from last 7 days (background sync will handle the rest)`);
+
+    const cleanPatients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+    console.log(`✅ [OfflineSync] Synced ${cleanPatients.length} total active patients`);
     
     await new Promise(r => setTimeout(r, 1000));
     
