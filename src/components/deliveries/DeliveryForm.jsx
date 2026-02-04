@@ -3481,7 +3481,7 @@ export default function DeliveryForm({
       puid = pickupToUse.stop_id;
     } else {
       // No suitable existing pickup found, create a new one using the backend function
-      const targetAmpm = patientPreferredTimeSlot || 'AM'; // Fallback to AM if patient has no preference
+      const targetAmpm = deliveryAMPM || 'AM'; // Fallback to AM if patient has no preference
       try {
         const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
           storeId: projected.store_id,
