@@ -1791,7 +1791,8 @@ export default function RouteImport({
         const driverDeliveries = freshDeliveries.filter(d => d.driver_id === fileDriver.id);
         
         // CRITICAL: Pass freshStoresAll directly to processCSVData to avoid stale closure
-        const result = await processCSVData(text, file.name, fileDriver, driverDeliveries, freshPatients, freshStoresAll);
+        // skipMatching=true because we're doing full purge and need ALL CSV data imported
+        const result = await processCSVData(text, file.name, fileDriver, driverDeliveries, freshPatients, freshStoresAll, true);
 
         totalToCreate = [...totalToCreate, ...result.deliveriesToCreate];
         totalToUpdate = [...totalToUpdate, ...result.deliveriesToUpdate];
