@@ -2108,11 +2108,9 @@ export default function DeliveryMap({
           }
 
           // NEW: Determine starting point for visualization (routeHasActuallyStarted defined above)
-          // CRITICAL: Skip home-to-first-stop lines for other drivers when viewing self today
           // CRITICAL: Only show starting lines for live routes (current date)
-          const isOtherDriverRoute = isDriverViewingSelfToday && route.driverId !== currentUser?.id;
 
-          if (routeHasActuallyStarted && firstStopCoordinates && route.driver && !isOtherDriverRoute && showLivePolylines) {
+          if (routeHasActuallyStarted && firstStopCoordinates && route.driver && showLivePolylines) {
           let startPoint = null;
 
           if (currentUser && route.driver.id === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
@@ -2141,10 +2139,10 @@ export default function DeliveryMap({
           if (startPoint) {
             startToFirstStopCoordinates = [startPoint, firstStopCoordinates];
           }
-        } else if (!isRouteStarted && firstStopCoordinates && route.driver && !isDispatcherNonAdmin && !isOtherDriverRoute) {
+        } else if (!isRouteStarted && firstStopCoordinates && route.driver && !isDispatcherNonAdmin) {
           // CRITICAL: For unstarted routes, only show home-to-first-stop line if NO live location available
           // The blue dashed line from current location to next stop is drawn separately below
-          const hasLiveLocation = currentUser && route.driver.id === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude;
+          const hasLiveLocation = route.driver.id === currentUser?.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude;
           
           // Only use home location if no live location is available
           if (!hasLiveLocation && route.driver.home_latitude && route.driver.home_longitude) {
