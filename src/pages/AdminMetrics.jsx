@@ -88,7 +88,11 @@ export default function AdminMetrics() {
     try {
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         adminMetricsYear: parseInt(year),
-        adminMetricsCityId: cityId === 'all' ? null : cityId
+        adminMetricsCityId: cityId === 'all' ? null : cityId,
+        // CRITICAL: Don't fetch payroll data on AdminMetrics page (not needed here)
+        payrollYear: null,
+        payrollCityId: null,
+        payrollDriverId: null
       });
       const data = response?.data?.adminMetrics || response?.adminMetrics;
 
