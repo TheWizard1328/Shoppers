@@ -4545,7 +4545,7 @@ export default function DeliveryForm({
                     </div>
                   }
 
-                  {isPickupMode &&
+                  {isPickupMode && (
                   <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Options</Label>
                       <div className="space-y-3">
@@ -4557,10 +4557,10 @@ export default function DeliveryForm({
                         disabled={isSaving} />
                       </div>
                     </div>
-                  }
+                  )}
                 </div>
 
-                {!delivery && !useMobileLayout &&
+                {!delivery && !useMobileLayout && (
                 <div className="w-[300px] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Deliveries: (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})</Label>
                   <DeliveryFormStaged
