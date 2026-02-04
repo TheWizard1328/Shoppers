@@ -12,23 +12,20 @@ export default function PullToSync({
   selectedDriverId, 
   showAllDriverMarkers,
   onSyncComplete,
-  isMobile 
+  statsCardRef
 }) {
   const [isPulling, setIsPulling] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const touchStartY = useRef(0);
-  const headerRef = useRef(null);
   const syncThreshold = 80; // Pull threshold to trigger sync
 
   useEffect(() => {
-    if (!isMobile) return;
+    const statsCard = statsCardRef?.current;
+    if (!statsCard) return;
 
     const handleTouchStart = (e) => {
-      // Only trigger on header element
-      const header = headerRef.current;
-      if (!header || !header.contains(e.target)) return;
-
+      // Only trigger if swipe starts on the stats card
       touchStartY.current = e.touches[0].clientY;
       setIsPulling(true);
     };
@@ -47,7 +44,6 @@ export default function PullToSync({
       if (!isPulling || isSyncing) return;
 
       if (pullDistance >= syncThreshold) {
-        // Trigger sync
         await performSync();
       }
 
@@ -55,16 +51,16 @@ export default function PullToSync({
       setPullDistance(0);
     };
 
-    document.addEventListener('touchstart', handleTouchStart, { passive: true });
-    document.addEventListener('touchmove', handleTouchMove, { passive: true });
-    document.addEventListener('touchend', handleTouchEnd);
+    statsCard.addEventListener('touchstart', handleTouchStart, { passive: true });
+    statsCard.addEventListener('touchmove', handleTouchMove, { passive: true });
+    statsCard.addEventListener('touchend', handleTouchEnd);
 
     return () => {
-      document.removeEventListener('touchstart', handleTouchStart);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
+      statsCard.removeEventListener('touchstart', handleTouchStart);
+      statsCard.removeEventListener('touchmove', handleTouchMove);
+      statsCard.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isPulling, pullDistance, isSyncing, isMobile]);
+  }, [isPulling, pullDistance, isSyncing, statsCardRef]);
 
   const performSync = async () => {
     setIsSyncing(true);
@@ -174,26 +170,11 @@ export default function PullToSync({
     }
   };
 
-  // Expose header ref to parent
-  useEffect(() => {
-    if (headerRef.current) {
-      window.__pullToSyncHeaderRef = headerRef;
-    }
-  }, []);
-
-  if (!isMobile) return null;
-
   const pullProgress = Math.min(pullDistance / syncThreshold, 1);
   const rotation = pullProgress * 360;
 
   return (
     <>
-      {/* Invisible touch target on stats card/header */}
-      <div 
-        ref={headerRef}
-        className="absolute top-0 left-0 right-0 h-24 z-[601] pointer-events-auto"
-        style={{ touchAction: 'none' }}
-      />
 
       {/* Pull indicator */}
       <AnimatePresence>
