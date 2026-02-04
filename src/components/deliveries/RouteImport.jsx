@@ -2991,9 +2991,17 @@ export default function RouteImport({
                                 </Badge>
                               </td>
                               <td className="p-1 w-24">
-                                <span className="text-xs text-slate-500">Line {delivery.lineNumber}</span>
+                                <div className="flex flex-col">
+                                  <span className="text-xs text-slate-500">Line {delivery.lineNumber}</span>
+                                  <span className="text-xs font-medium text-slate-700">{(() => {
+                                    const driverName = [...new Set(previewData.deliveriesToCreate.concat(previewData.deliveriesToUpdate).map(d => d.driver_name))].find(name => 
+                                      name === allPreviewDeliveries.find(d => d.lineNumber === delivery.lineNumber)?.driver_name
+                                    );
+                                    return driverName || 'Unknown Driver';
+                                  })()}</span>
+                                </div>
                               </td>
-                              <td colSpan="9" className="p-1">
+                              <td colSpan="8" className="p-1">
                                 <div className="flex flex-col gap-1">
                                   <span className="font-medium text-orange-700">{delivery.reason}</span>
                                   <span className="font-mono text-[10px] text-slate-500">{delivery.rawData}</span>
