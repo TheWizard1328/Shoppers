@@ -2294,8 +2294,9 @@ export default function Layout({ children, currentPageName }) {
 
       console.log('✅ [Layout] Device registered:', newDevice);
 
-      // CRITICAL: Cache device registration to prevent re-prompting
-      sessionStorage.setItem('rxdeliver_device_checked', 'true');
+      // CRITICAL: Cache device registration in localStorage (persists across refreshes)
+      const deviceIdentifier = getDeviceIdentifier();
+      localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
 
       // Close modal and continue with initialization
       setShowDeviceSelectionModal(false);
