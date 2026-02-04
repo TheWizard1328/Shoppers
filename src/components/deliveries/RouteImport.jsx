@@ -1885,9 +1885,9 @@ export default function RouteImport({
 
       setProgressPercent(8);
 
-      // STEP 2: Use ALL preview deliveries as CREATES (not updates) - we're purging everything
-      // Convert all updates to creates since we delete the entire route before import
-      const allDeliveriesToImport = allPreviewDeliveries.filter((d) => d.action === 'create' || d.action === 'update');
+      // STEP 2: Use ALL preview deliveries (unfiltered) as CREATES - we're purging everything
+      // Import ALL CSV data regardless of preview date filter
+      const allDeliveriesToImport = [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate];
       const deliveriesToCreateFiltered = allDeliveriesToImport.map(d => {
         const { id, _changes, action, _matchReason, ...cleanData } = d;
         return cleanData;
