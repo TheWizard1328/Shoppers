@@ -187,7 +187,7 @@ export default function DeliveryFormStaged({
                   size="sm"
                   variant="ghost"
                   className="h-7 w-7 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded ml-1"
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation();
                     if (staged.id) {
                       setDeleteConfirmation({ show: true, staged });
