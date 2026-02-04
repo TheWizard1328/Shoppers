@@ -1700,10 +1700,11 @@ export default function RouteImport({
        }
 
        if (!freshPatients || freshPatients.length === 0) {
-         alert('No patient data available. Please ensure patients are created in the system before importing.');
-         setIsParsing(false);
-         setShowProgress(false);
-         return;
+         console.warn('⚠️ [RouteImport] No patient data available for import');
+         // Don't block import - some routes may be pickups without patients
+         freshPatients = [];
+       } else {
+         console.log(`✅ [RouteImport] Loaded ${freshPatients.length} patients for matching`);
        }
 
       // STEP 2: Fetch fresh deliveries for ALL drivers in the import and date range
