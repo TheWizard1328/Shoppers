@@ -58,29 +58,8 @@ Deno.serve(async (req) => {
             });
         }
 
-        // 2. Check if there are ANY in-progress stops for this driver/date (not just this store)
-        const allDriverDeliveries = await base44.entities.Delivery.filter({
-            delivery_date: deliveryDate,
-            driver_id: driverId
-        }, '-created_date', 100);
-
-        const hasInProgressStops = allDriverDeliveries.some(d => 
-            d.status === 'in_transit' || d.status === 'en_route'
-        );
-
-        if (!hasInProgressStops) {
-            console.log(`ℹ️ No in-progress stops for driver on ${deliveryDate}. No need to create new pickup.`);
-            // Return null puid - caller should use normal flow
-            return Response.json({ 
-                puid: null,
-                pickupId: null,
-                isNew: false,
-                reason: 'no_in_progress_stops'
-            });
-        }
-
-        // 3. If there are in-progress stops but no incomplete pickup for this store, create a new one
-        console.log(`⚠️ In-progress stops exist but no incomplete pickup for store ${storeId}. Creating new pickup.`);
+        // 2. No incomplete pickup exists - create a new one for the new delivery
+        console.log(`⚠️ No incomplete pickup found for store ${storeId}. Creating new pickup for new delivery.`);
 
         const newStopId = generateShortStopId();
 
