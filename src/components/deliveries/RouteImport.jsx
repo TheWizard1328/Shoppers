@@ -2155,26 +2155,16 @@ export default function RouteImport({
       // CRITICAL: NO route optimization after import - preserve imported stop order
 
       
-      // CRITICAL: Sync processes will be auto-resumed after brief delay
-
-      
-      // CRITICAL: Delay refresh restart to allow UI to stabilize
+      // CRITICAL: Restart sync managers - data is now in sync (both online and offline updated simultaneously during import)
       setTimeout(async () => {
-
         try {
           smartRefreshManager.restart();
-          
-          // Trigger backend sync in background (non-blocking)
-          try {
-            const { processPendingMutations } = await import('../utils/offlineSync');
-            processPendingMutations().catch(err => console.warn('Backend sync error:', err));
-          } catch (err) {
-
-          }
+          driverLocationPoller.resume();
+          console.log('✅ [RouteImport] Sync managers restarted after import');
         } catch (e) {
-
+          console.warn('⚠️ [RouteImport] Failed to restart sync managers:', e.message);
         }
-      }, 3000); // 3 second delay for stability
+      }, 1000); // Brief delay for UI stability
     } catch (error) {
 
       
