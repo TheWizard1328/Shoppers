@@ -870,7 +870,7 @@ export default function RouteImport({
     setFiles(files.filter((_, index) => index !== indexToRemove));
   };
 
-  const processCSVData = useCallback(async (csvText, fileName, selectedDriver, allDeliveriesData, patientsData, storesData) => {
+  const processCSVData = useCallback(async (csvText, fileName, selectedDriver, allDeliveriesData, patientsData, storesData, skipMatching = false) => {
 
     if (!csvText || !fileName || !selectedDriver || !patientsData || !storesData || !currentUser) {
       return { deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] };
