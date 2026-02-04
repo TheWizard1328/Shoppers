@@ -2049,16 +2049,40 @@ class SmartRefreshManager {
           }
           this.markRefreshed('appUsers');
           
-          // CRITICAL: After syncing to offline DB, ALWAYS load from offline DB and update map
+          // CRITICAL: After syncing to offline DB, ALWAYS load from offline DB and process through poller
           // This ensures driver locations update on every cycle regardless of diffs
           try {
             const { offlineDB } = await import('./offlineDatabase');
             const freshAppUsersFromOfflineDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-            
+
             if (freshAppUsersFromOfflineDB && freshAppUsersFromOfflineDB.length > 0) {
-              console.log(`📍 [SmartRefresh] Loading ${freshAppUsersFromOfflineDB.length} fresh driver locations from offline DB and dispatching to map`);
-              
-              // Dispatch with fresh offline DB data to update map markers on EVERY cycle
+              console.log(`📍 [SmartRefresh] Loading ${freshAppUsersFromOfflineDB.length} fresh driver locations from offline DB`);
+
+              // CRITICAL: Process through driverLocationPoller to trigger marker updates
+              try {
+                const { driverLocationPoller } = await import('./driverLocationPoller');
+
+                // Get current user from global context
+                const currentUser = this._currentUser;
+
+                if (currentUser) {
+                  console.log(`📍 [SmartRefresh] Processing ${freshAppUsersFromOfflineDB.length} locations through poller`);
+                  driverLocationPoller.processLocationData(
+                    currentUser, 
+                    [], // deliveries not needed for location processing
+                    [], // drivers not needed
+                    [], // stores not needed
+                    freshAppUsersFromOfflineDB, 
+                    new Date(), // selectedDate
+                    true, // forceNotify
+                    'Dashboard' // currentPageName
+                  );
+                }
+              } catch (pollerError) {
+                console.warn('⚠️ [SmartRefresh] Failed to process through poller:', pollerError.message);
+              }
+
+              // Also dispatch event for components not using the poller
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
                   detail: { appUsers: freshAppUsersFromOfflineDB }
