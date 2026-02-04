@@ -272,8 +272,8 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
       }
     };
 
-    // Initial fetch - delay slightly to let offline data load first
-    const timer = setTimeout(() => fetchStats(), 2000);
+    // Initial fetch - delay to let offline data load first
+    const timer = setTimeout(() => fetchStats(), 5000);
 
     // Listen for delivery changes (imports, status changes, etc.)
     const handleDeliveryChange = () => fetchStats(true);
@@ -747,8 +747,8 @@ export default function Layout({ children, currentPageName }) {
     // Initial check
     pollAdminImportSetting();
 
-    // Poll every 10 seconds for faster response
-    const interval = setInterval(pollAdminImportSetting, 10000);
+    // Poll every 60 seconds to prevent rate limits
+    const interval = setInterval(pollAdminImportSetting, 60000);
     return () => clearInterval(interval);
   }, [currentUser, adminImportEnabled]);
 
