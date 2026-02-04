@@ -1917,7 +1917,7 @@ export default function RouteImport({
         }
       }
 
-      // BATCH UPDATE with delays
+      // BATCH UPDATE - single pass for all updates (imports typically have <100 updates)
       if (deliveriesToUpdateFiltered.length > 0) {
         setImportProgress((prev) => ({
           ...prev,
@@ -1927,50 +1927,42 @@ export default function RouteImport({
         }));
         setProgressMessage(`Updating ${deliveriesToUpdateFiltered.length} existing deliveries...`);
 
-        // CRITICAL: Process in small batches
-        const UPDATE_BATCH_SIZE = 5;
-        for (let i = 0; i < deliveriesToUpdateFiltered.length; i += UPDATE_BATCH_SIZE) {
-          const batch = deliveriesToUpdateFiltered.slice(i, i + UPDATE_BATCH_SIZE);
-          
-          for (const deliveryData of batch) {
-            try {
-              const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
-              if (!id) throw new Error('Missing delivery ID');
+        // CRITICAL: Process all updates in single pass with minimal delays
+        for (let i = 0; i < deliveriesToUpdateFiltered.length; i++) {
+          const deliveryData = deliveriesToUpdateFiltered[i];
+          try {
+            const { id, _changes, action, _matchReason, ...updatePayload } = deliveryData;
+            if (!id) throw new Error('Missing delivery ID');
 
-              const cleanPayload = cleanDeliveryData(updatePayload);
+            const cleanPayload = cleanDeliveryData(updatePayload);
 
-              const updatedDelivery = await retryWithBackoff(async () => {
-                return await base44.entities.Delivery.update(id, cleanPayload);
-              }, 5, 2000, 2);
-              
-              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+            const updatedDelivery = await retryWithBackoff(async () => {
+              return await base44.entities.Delivery.update(id, cleanPayload);
+            }, 5, 2000, 2);
+            
+            // CRITICAL: Update both online and offline simultaneously
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
 
-              overallResults.updated++;
-              if (cleanPayload.status === 'completed') {
-                overallResults.completed++;
-              }
-              if (cleanPayload.status === 'failed') {
-                overallResults.failed++;
-              }
-              if (isReturnDelivery(cleanPayload, freshPatients, freshStores)) {
-                overallResults.returned++;
-              }
-              setImportProgress((prev) => ({
-                ...prev,
-                updated: prev.updated + 1,
-                current: i + batch.indexOf(deliveryData) + 1
-              }));
-              await delay(800); // Increased delay
-            } catch (error) {
-              failedUpdates.push({ data: deliveryData, error: error.message });
-              setImportProgress((prev) => ({ ...prev, current: i + batch.indexOf(deliveryData) + 1 }));
-              await delay(800);
+            overallResults.updated++;
+            if (cleanPayload.status === 'completed') {
+              overallResults.completed++;
             }
-          }
-          
-          // Delay between update batches
-          if (i + UPDATE_BATCH_SIZE < deliveriesToUpdateFiltered.length) {
-            await delay(2000);
+            if (cleanPayload.status === 'failed') {
+              overallResults.failed++;
+            }
+            if (isReturnDelivery(cleanPayload, freshPatients, freshStores)) {
+              overallResults.returned++;
+            }
+            setImportProgress((prev) => ({
+              ...prev,
+              updated: prev.updated + 1,
+              current: i + 1
+            }));
+            await delay(300); // Minimal delay between individual updates
+          } catch (error) {
+            failedUpdates.push({ data: deliveryData, error: error.message });
+            setImportProgress((prev) => ({ ...prev, current: i + 1 }));
+            await delay(300);
           }
         }
       }
