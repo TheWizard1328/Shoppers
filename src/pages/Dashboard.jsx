@@ -2227,8 +2227,9 @@ function Dashboard() {
         detail: { appUsers: latestAppUsers, forceAll: true }
       }));
 
+      // CRITICAL: Force trigger legend and marker refresh
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { deliveryDate: selectedDateStr, triggeredBy: 'periodicRefresh' }
+        detail: { deliveryDate: selectedDateStr, triggeredBy: 'periodicRefresh', allDrivers: true }
       }));
     };
 
