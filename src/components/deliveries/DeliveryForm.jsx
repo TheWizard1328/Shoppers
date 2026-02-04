@@ -4560,8 +4560,7 @@ export default function DeliveryForm({
                           </div>
                         </div>
                       </div>
-                    </div> :
-                    <div className="space-y-2"></div>
+                    </div>
                     }
                   </div>
 
