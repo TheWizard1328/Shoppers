@@ -6799,9 +6799,9 @@ function Dashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isExpanded]);
 
-  // Re-enable auto-fade when card collapses
+  // Re-enable auto-fade when card collapses (unless route is complete)
   useEffect(() => {
-    if (!isExpanded && areCardsVisible) {
+    if (!isExpanded && areCardsVisible && !isRouteComplete) {
       if (fadeTimeoutRef.current) {
         clearTimeout(fadeTimeoutRef.current);
       }
@@ -6809,7 +6809,7 @@ function Dashboard() {
         setAreCardsVisible(false);
       }, 3000);
     }
-  }, [isExpanded, areCardsVisible]);
+  }, [isExpanded, areCardsVisible, isRouteComplete]);
 
   // Force UI refresh when data for selected date becomes available
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
