@@ -473,14 +473,14 @@ export default function DriverPayroll() {
         cities: mergedData?.cities?.length || 0
       });
       
-      console.log(`✅ [DriverPayroll] Received payroll data:`, {
-        deliveries: mergedData?.deliveries?.length || 0,
-        drivers: mergedData?.drivers?.length || 0,
-        stores: mergedData?.stores?.length || 0,
-        appUsers: mergedData?.appUsers?.length || 0,
-        patients: mergedData?.patients?.length || 0,
-        cities: mergedData?.cities?.length || 0
-      });
+      // CRITICAL: Validate merged data has required fields before state update
+      if (!mergedData.drivers || mergedData.drivers.length === 0) {
+        console.error('❌ [DriverPayroll] CRITICAL: No drivers in merged data!');
+      }
+      if (!mergedData.cities || mergedData.cities.length === 0) {
+        console.error('❌ [DriverPayroll] CRITICAL: No cities in merged data!');
+      }
+      
       setPayrollData(mergedData);
     } catch (error) {
       console.error('Failed to fetch payroll data:', error);
