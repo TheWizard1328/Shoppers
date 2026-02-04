@@ -224,14 +224,19 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     });
   });
   
+  // Deduplicate drivers by user_id (in case of duplicate AppUser records)
+  const uniqueDriverMap = new Map();
   appUsers.filter(au => au.app_roles && au.app_roles.includes('driver')).forEach(driver => {
-    metrics.driverData.push({ 
-      name: driver.user_name || driver.full_name, 
-      driverId: driver.user_id, 
-      billable: 0, 
-      nonBillable: 0 
-    });
+    if (!uniqueDriverMap.has(driver.user_id)) {
+      uniqueDriverMap.set(driver.user_id, { 
+        name: driver.user_name || driver.full_name, 
+        driverId: driver.user_id, 
+        billable: 0, 
+        nonBillable: 0 
+      });
+    }
   });
+  metrics.driverData = Array.from(uniqueDriverMap.values());
 
   // --- HELPER FUNCTIONS FOR METRICS ---
   
