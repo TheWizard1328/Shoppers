@@ -2666,6 +2666,12 @@ class SmartRefreshManager {
     */
    async refreshRelevantPatientsOnly(currentPatients, relevantPatientIds) {
      try {
+       // CRITICAL: Guard against undefined currentPatients
+       if (!currentPatients || !Array.isArray(currentPatients)) {
+         console.warn('⚠️ [SmartRefresh] currentPatients is undefined or not an array - skipping patient sync');
+         return null;
+       }
+
        if (!relevantPatientIds || relevantPatientIds.length === 0) {
          return null;
        }
