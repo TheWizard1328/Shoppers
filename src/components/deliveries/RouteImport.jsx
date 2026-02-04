@@ -2957,9 +2957,18 @@ export default function RouteImport({
 
         <div className="px-3 md:px-6 py-2 flex flex-col gap-2 md:gap-3 border-t flex-shrink-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <div className="flex gap-2 md:gap-3">
-            {!showPreview ?
-              <>
-                <Button onClick={handlePreview} disabled={isParsing || isProcessing || files.length === 0 || showProgress}>
+              {showDriverMatching ?
+                <>
+                  <Button variant="outline" onClick={handleBackFromMatching} disabled={isParsing || isProcessing || showProgress} className="flex-1" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+                    Back
+                  </Button>
+                  <Button onClick={handleProceedFromMatching} disabled={isParsing || isProcessing || files.some(f => !fileDriverMap[f.name]?.driver) || showProgress} className="flex-1 bg-blue-600 hover:bg-blue-700">
+                    Proceed to Preview
+                  </Button>
+                </> :
+                !showPreview ?
+                <>
+                  <Button onClick={handlePreview} disabled={isParsing || isProcessing || files.length === 0 || showProgress}>
                   {isParsing ?
                   <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
