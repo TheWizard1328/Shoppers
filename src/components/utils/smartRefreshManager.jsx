@@ -1985,16 +1985,6 @@ class SmartRefreshManager {
     } catch (e) {
       // Ignore errors from touchUserCache
     }
-    
-    // CRITICAL: Check and apply auto dark mode if theme is set to 'auto'
-    try {
-      const themePreference = getSetting('theme_preference');
-      if (themePreference === 'auto') {
-        initializeAutoDarkMode();
-      }
-    } catch (e) {
-      // Ignore errors from dark mode check
-    }
 
     this.isRefreshing = true;
     this._refreshStartTime = Date.now();

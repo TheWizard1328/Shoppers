@@ -200,9 +200,8 @@ export async function loadUserSettings(userId) {
     cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
     currentUserId = userId;
 
-    // CRITICAL: Apply auto dark mode for mobile devices
-    const { deviceType: dt } = getUserAgentInfo();
-    if (dt === 'Mobile') {
+    // CRITICAL: Apply auto dark mode if theme preference is 'auto'
+    if (cachedSettings.theme_preference === 'auto') {
       initializeAutoDarkMode();
     }
 
@@ -289,14 +288,14 @@ export async function loadUserSettings(userId) {
       cachedSettings = { ...DEFAULT_SETTINGS, ...globalSettings, ...newSettings };
       currentUserId = userId;
       lastFetchTime = Date.now();
-      
+
       await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
-      
-      // CRITICAL: Apply auto dark mode for mobile devices
-      if (deviceType === 'Mobile') {
+
+      // CRITICAL: Apply auto dark mode if theme preference is 'auto'
+      if (cachedSettings.theme_preference === 'auto') {
         initializeAutoDarkMode();
       }
-      
+
       console.log(`✅ [UserSettings] Created ${deviceType} settings record (cached for 5 min)`);
       return cachedSettings;
     } catch (createError) {
@@ -329,12 +328,12 @@ export async function loadUserSettings(userId) {
       console.log('📦 [UserSettings] Network error - falling back to cached settings from IndexedDB');
       cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
       currentUserId = userId;
-      
-      // CRITICAL: Apply auto dark mode for mobile devices
-      if (deviceType === 'Mobile') {
+
+      // CRITICAL: Apply auto dark mode if theme preference is 'auto'
+      if (cachedSettings.theme_preference === 'auto') {
         initializeAutoDarkMode();
       }
-      
+
       return cachedSettings;
     }
     
@@ -452,8 +451,13 @@ export async function saveSetting(userId, key, value) {
 
     cachedSettings = { ...DEFAULT_SETTINGS, ...updatedSettings };
     currentUserId = userId;
-    
+
     await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
+
+    // CRITICAL: Re-initialize auto dark mode if theme changed to 'auto'
+    if (cachedSettings.theme_preference === 'auto') {
+      initializeAutoDarkMode();
+    }
 
     return cachedSettings;
 
@@ -591,11 +595,11 @@ export async function saveSettings(userId, settings) {
 
     cachedSettings = { ...DEFAULT_SETTINGS, ...updatedSettings };
     currentUserId = userId;
-    
+
     await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
-    
-    // CRITICAL: Re-initialize auto dark mode if theme changed or on mobile
-    if (deviceType === 'Mobile' && (settings.theme_preference !== undefined || !settings)) {
+
+    // CRITICAL: Re-initialize auto dark mode if theme is 'auto' or was just changed to 'auto'
+    if (cachedSettings.theme_preference === 'auto') {
       initializeAutoDarkMode();
     }
 
