@@ -668,24 +668,34 @@ export default function RouteImport({
 
   const handleFileChange = (e) => {
     try {
+      // CRITICAL: Prevent default to avoid any form submission or page reload
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      
       const selectedFiles = Array.from(e.target.files);
       
-      // CRITICAL: Clear file input value immediately
+      // CRITICAL: Clear file input value immediately to prevent duplicate triggers
       if (e.target) {
         e.target.value = '';
       }
       
       if (selectedFiles.length === 0) {
-        setFiles([]);
-        setFileDriverMap({});
+        console.log('[RouteImport] No files selected');
         return;
       }
       
       // CRITICAL: Limit file selection to prevent memory issues on tablets
       if (selectedFiles.length > 10) {
         alert('Maximum 10 files at a time. Please select fewer files.');
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
         return;
       }
+      
+      console.log(`[RouteImport] Processing ${selectedFiles.length} files...`);
       
       // Prevent state updates from accumulating - use minimal processing
       const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
@@ -713,12 +723,21 @@ export default function RouteImport({
         };
       }
       
+      // Batch state updates to prevent multiple re-renders
       setFiles(selectedFiles);
       setFileDriverMap(newFileDriverMap);
-      setShowDriverMatching(true); // Always show matching screen
+      setShowDriverMatching(true);
+      
+      console.log('[RouteImport] Files processed successfully');
       
     } catch (error) {
       console.error('[RouteImport] File selection error:', error);
+      
+      // Clear file input on error
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
       setImportError({
         message: `File selection error: ${error.message}`,
         record: { phase: 'file-selection' },
@@ -2538,6 +2557,10 @@ export default function RouteImport({
                       accept=".csv,.tsv,.txt"
                       multiple
                       onChange={handleFileChange}
+                      onClick={(e) => {
+                        // CRITICAL: Prevent any event propagation that might trigger page reload
+                        e.stopPropagation();
+                      }}
                       disabled={isParsing || isProcessing || showProgress}
                       className="border-2"
                       style={{ borderColor: '#ffffff', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }} />
