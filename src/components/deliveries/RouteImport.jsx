@@ -1885,9 +1885,14 @@ export default function RouteImport({
 
       setProgressPercent(8);
 
-      // STEP 2: Use ALL preview deliveries (not filtered) - import entire CSV since we're deleting entire routes
-      const deliveriesToCreateFiltered = allPreviewDeliveries.filter((d) => d.action === 'create');
-      const deliveriesToUpdateFiltered = allPreviewDeliveries.filter((d) => d.action === 'update');
+      // STEP 2: Use ALL preview deliveries as CREATES (not updates) - we're purging everything
+      // Convert all updates to creates since we delete the entire route before import
+      const allDeliveriesToImport = allPreviewDeliveries.filter((d) => d.action === 'create' || d.action === 'update');
+      const deliveriesToCreateFiltered = allDeliveriesToImport.map(d => {
+        const { id, _changes, action, _matchReason, ...cleanData } = d;
+        return cleanData;
+      });
+      const deliveriesToUpdateFiltered = []; // No updates - everything is a fresh create after purge
 
       // STEP 3: Get drivers being imported
       const importedDriverIds = [...new Set(
