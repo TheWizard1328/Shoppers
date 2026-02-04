@@ -88,7 +88,7 @@ export default function DeviceForm({ device, existingDevices, onSubmit, onCancel
               <SelectTrigger id="deviceType">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[9999]">
                 <SelectItem value="Mobile">Mobile</SelectItem>
                 <SelectItem value="Tablet">Tablet</SelectItem>
                 <SelectItem value="Desktop">Desktop</SelectItem>
@@ -102,7 +102,7 @@ export default function DeviceForm({ device, existingDevices, onSubmit, onCancel
               <SelectTrigger id="status">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[9999]">
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
