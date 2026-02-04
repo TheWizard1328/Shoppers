@@ -1714,7 +1714,12 @@ function Dashboard() {
 
       setDailyPolylineCount(apiLogs?.length || 0);
     } catch (error) {
-      console.error('Error fetching API call count:', error);
+      // CRITICAL: Silently fail on rate limits - this is non-essential data
+      if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
+        console.log('⏰ [Polyline Count] Rate limited - keeping cached value');
+        return;
+      }
+      console.warn('⚠️ [Polyline Count] Error fetching count:', error.message);
       setDailyPolylineCount(0);
     }
   }, [currentUser]);
@@ -1722,9 +1727,8 @@ function Dashboard() {
   useEffect(() => {
     if (!currentUser || !isAppOwner(currentUser)) return;
 
-    fetchPolylineCount();
-
-    // Refresh every 5 minutes to avoid rate limits
+    // CRITICAL: Skip initial fetch on mount to reduce API calls
+    // Only refresh on interval
     const interval = setInterval(fetchPolylineCount, 300000);
     return () => clearInterval(interval);
   }, [currentUser, fetchPolylineCount]);
@@ -2052,8 +2056,7 @@ function Dashboard() {
           });
           
           if (patientIdsToFetch.length > 0) {
-            const { Patient } = await import('@/entities/Patient');
-            const freshPatients = await Patient.filter({ id: { $in: patientIdsToFetch } });
+            const freshPatients = await base44.entities.Patient.filter({ id: { $in: patientIdsToFetch } });
             if (freshPatients && freshPatients.length > 0) {
               await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
               console.log(`✅ [Periodic Refresh] Synced ${freshPatients.length}/${uniquePatientIds.length} changed patients to offline DB`);
@@ -6893,45 +6896,59 @@ function Dashboard() {
   }, [selectedDate, updateDeliveriesLocally, deliveries, setForceRender]);
 
   // CRITICAL: Load deliveries based on data source preference
+  // DISABLED: This was causing duplicate API calls on mount
+  // The periodic refresh (line 1957) handles loading deliveries every 15s
+  // The render sequence effect handles initial sync if needed
+  const hasLoadedOnMountRef = useRef(false);
+  
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
-
+    if (hasLoadedOnMountRef.current) return; // Only run once
+    
+    hasLoadedOnMountRef.current = true;
+    
     const loadDeliveriesOnMount = async () => {
       console.log(`📦 [Dashboard Mount] Loading deliveries for ${selectedDateStr} (mode: ${dataSource})`);
       
       try {
         let mountDeliveries;
         
+        // CRITICAL: Always try offline DB first to avoid rate limits
+        mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        
+        if (mountDeliveries && mountDeliveries.length > 0) {
+          console.log(`✅ [Dashboard Mount] Loaded ${mountDeliveries.length} deliveries from offline DB`);
+          
+          // Update context immediately
+          if (updateDeliveriesLocally) {
+            const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+            updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
+          }
+          setForceRender((prev) => prev + 1);
+          return; // Skip API fetch
+        }
+        
+        // Offline DB empty - fetch from API ONLY if in online mode
         if (dataSource === 'online') {
-          // ONLINE MODE: Always fetch from API
           console.log('🌐 [Dashboard Mount - ONLINE MODE] Fetching from API');
           mountDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-          // Update offline DB in background
-          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mountDeliveries).catch(() => {});
-        } else {
-          // OFFLINE MODE: Try offline DB first
-          mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mountDeliveries);
           
-          if (!mountDeliveries || mountDeliveries.length === 0) {
-            console.log('📥 [Dashboard Mount] Offline DB empty - fetching from API');
-            mountDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mountDeliveries);
-          } else {
-            console.log(`✅ [Dashboard Mount] Loaded ${mountDeliveries.length} deliveries from offline DB`);
+          if (mountDeliveries.length > 0 && updateDeliveriesLocally) {
+            const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+            updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
+            setForceRender((prev) => prev + 1);
           }
-        }
-
-        // Update context immediately if we have data
-        if (mountDeliveries.length > 0 && updateDeliveriesLocally) {
-          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-          updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
-          console.log(`✅ [Dashboard Mount] UI updated with ${mountDeliveries.length} deliveries (${dataSource} mode)`);
-          
-          // Force a re-render to trigger stats calculation and map rendering
-          setForceRender((prev) => prev + 1);
+        } else {
+          console.log('📦 [Dashboard Mount] Offline DB empty - waiting for periodic refresh');
         }
       } catch (error) {
-        console.error('❌ [Dashboard Mount] Failed to load deliveries:', error);
+        // CRITICAL: Silently fail on rate limits - periodic refresh will handle it
+        if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
+          console.log('⏰ [Dashboard Mount] Rate limited - waiting for periodic refresh');
+          return;
+        }
+        console.warn('⚠️ [Dashboard Mount] Failed to load deliveries:', error.message);
       }
     };
 
