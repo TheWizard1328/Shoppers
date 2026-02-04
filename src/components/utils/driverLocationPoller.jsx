@@ -52,20 +52,35 @@ class DriverLocationPoller {
   }
 
   /**
-   * Process incoming location data from parent component
-   * Filters drivers based on sharing settings and user permissions
-   * CRITICAL: Loads appUsers from offline DB first to prevent rate limiting
-   * @param {Object} currentUser - Current authenticated user
-   * @param {Array} deliveries - Array of delivery objects
-   * @param {Array} drivers - Array of driver objects
-   * @param {Array} stores - Array of store objects
-   * @param {Array} appUsers - Array of AppUser objects with location data (fallback if offline DB fails)
-   * @param {Date} selectedDate - Currently selected date
-   */
-  async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false) {
+    * Process incoming location data from parent component
+    * Filters drivers based on sharing settings and user permissions
+    * CRITICAL: Loads appUsers from offline DB first to prevent rate limiting
+    * CRITICAL: Skips processing if selected date is in past or not on Dashboard
+    * @param {Object} currentUser - Current authenticated user
+    * @param {Array} deliveries - Array of delivery objects
+    * @param {Array} drivers - Array of driver objects
+    * @param {Array} stores - Array of store objects
+    * @param {Array} appUsers - Array of AppUser objects with location data (fallback if offline DB fails)
+    * @param {Date} selectedDate - Currently selected date
+    * @param {string} currentPageName - Current page name (to check if on Dashboard)
+    */
+  async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false, currentPageName = null) {
     // Skip processing if paused (e.g., during imports)
     if (this.isPaused) {
       return;
+    }
+
+    // CRITICAL: Skip processing location data if not on Dashboard or viewing past date
+    if (currentPageName && selectedDate) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const selectedDateStr = selectedDate instanceof Date 
+        ? selectedDate.toISOString().split('T')[0]
+        : selectedDate;
+
+      if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) {
+        console.log(`⏭️ [DriverLocationPoller] Skipping location processing - not on Dashboard today (page: ${currentPageName}, date: ${selectedDateStr})`);
+        return;
+      }
     }
 
     // Update internal current user reference
