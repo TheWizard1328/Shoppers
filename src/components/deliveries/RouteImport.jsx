@@ -1849,7 +1849,7 @@ export default function RouteImport({
       created: 0,
       updated: 0,
       skipped: previewData.skippedItems.length,
-      total: filteredPreviewDeliveries.length,
+      total: previewData.deliveriesToCreate.length + previewData.deliveriesToUpdate.length,
       completed: 0,
       failed: 0,
       returned: 0,
