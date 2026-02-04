@@ -1496,10 +1496,10 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
                     {/* Live Preview - Card layout for mobile, table for desktop */}
                     {previewData.length > 0 &&
-          <div className="py-2 rounded-lg border overflow-hidden">
-                            <div className="bg-slate-100 px-2 sm:px-4 py-1.5 sm:py-2 font-semibold text-xs sm:text-sm border-b">
-                                Preview - First 5 Rows
-                            </div>
+                    <div className="py-2 rounded-lg border overflow-hidden">
+                        <div className="bg-slate-100 px-2 sm:px-4 py-1.5 sm:py-2 font-semibold text-xs sm:text-sm border-b">
+                            Preview - First Record Per Store ({previewData.length} store{previewData.length !== 1 ? 's' : ''})
+                        </div>
                             
                             {/* Mobile: Card View */}
                             <div className="lg:hidden overflow-y-auto max-h-[35vh] p-2 space-y-2">
