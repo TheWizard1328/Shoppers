@@ -1908,7 +1908,8 @@ export default function DeliveryMap({
           longitude: driver.home_longitude,
           driverColor,
           driverName,
-          excludeFromBounds: driversToExcludeFromBounds.has(driverId) // CRITICAL: Flag to exclude from centering
+          excludeFromBounds: driversToExcludeFromBounds.has(driverId), // CRITICAL: Flag to exclude from centering
+          isRouteComplete: driversWithCompleteRoute.has(driverId) // NEW: Flag to show Go Home button
         });
       }
     });
