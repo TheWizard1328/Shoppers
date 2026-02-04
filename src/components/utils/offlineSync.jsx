@@ -292,22 +292,25 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
       offlineDB.getAll(offlineDB.STORES.DELIVERIES),
       offlineDB.getAll(offlineDB.STORES.CITIES)
     ]);
-    
+
     const isUnderPopulated = 
       !existingAppUsers || existingAppUsers.length === 0 ||
       !existingCities || existingCities.length === 0;
-    
+
     console.log(`📊 [LoadPriorityData] DB Status: Users=${existingAppUsers?.length || 0}, Cities=${existingCities?.length || 0}, Patients=${existingPatients?.length || 0}, Deliveries=${existingDeliveries?.length || 0}, ForceSync=${isUnderPopulated}`);
-    
-    // CRITICAL: Clear sync metadata if DB is underpopulated to force fresh sync
+
+    // CRITICAL: If DB is underpopulated, restart the sync cycle instead of clearing metadata
+    // This ensures data is restored without losing what's already there
     if (isUnderPopulated) {
-      console.warn('⚠️ [LoadPriorityData] Offline DB underpopulated, forcing fresh sync...');
-      await Promise.all([
-        offlineDB.updateSyncMetadata('AppUser', null, null),
-        offlineDB.updateSyncMetadata('Patient', null, null),
-        offlineDB.updateSyncMetadata('City', null, null),
-        offlineDB.updateSyncMetadata('Store', null, null)
-      ]);
+      console.warn('⚠️ [LoadPriorityData] Offline DB underpopulated, initiating comprehensive restore...');
+      // Use restartDeliveryPatientSync to restore data properly
+      const restoreResult = await restartDeliveryPatientSync();
+      if (restoreResult.error) {
+        console.error('Failed to restore data:', restoreResult.error);
+      } else {
+        console.log('✅ Data restoration initiated');
+        return restoreResult;
+      }
     }
     
     // Step 1: AppUsers with timestamp check (or fresh if underpopulated)
