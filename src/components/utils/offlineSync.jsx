@@ -389,15 +389,26 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
       }
     }
     
+    // CRITICAL: Verify data was actually saved before marking as synced
+    const [finalAppUsers, finalCities, finalStores, finalPatients, finalDeliveries] = await Promise.all([
+      offlineDB.getAll(offlineDB.STORES.APP_USERS),
+      offlineDB.getAll(offlineDB.STORES.CITIES),
+      offlineDB.getAll(offlineDB.STORES.STORES),
+      offlineDB.getAll(offlineDB.STORES.PATIENTS),
+      offlineDB.getAll(offlineDB.STORES.DELIVERIES)
+    ]);
+    
+    console.log(`✅ [LoadPriorityData] Final DB counts: Users=${finalAppUsers?.length || 0}, Cities=${finalCities?.length || 0}, Stores=${finalStores?.length || 0}, Patients=${finalPatients?.length || 0}, Deliveries=${finalDeliveries?.length || 0}`);
+    
     await Promise.all([
-      offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
-      offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
-      offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
-      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
-      offlineDB.updateSyncStatus('Patient', { recordCount: patients.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() })
+      offlineDB.updateSyncStatus('City', { recordCount: finalCities?.length || 0, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Store', { recordCount: finalStores?.length || 0, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('AppUser', { recordCount: finalAppUsers?.length || 0, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Delivery', { recordCount: finalDeliveries?.length || 0, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Patient', { recordCount: finalPatients?.length || 0, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() })
     ]);
 
-    notifySyncStatus({ status: 'priority_loaded', cities: cities.length, stores: stores.length, appUsers: appUsers.length, deliveries: deliveries.length, patients: patients.length });
+    notifySyncStatus({ status: 'priority_loaded', cities: finalCities?.length, stores: finalStores?.length, appUsers: finalAppUsers?.length, deliveries: finalDeliveries?.length, patients: finalPatients?.length });
 
     syncInProgress = false;
     return { cities, stores, appUsers, deliveries, patients };
