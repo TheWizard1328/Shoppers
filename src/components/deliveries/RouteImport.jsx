@@ -1824,7 +1824,7 @@ export default function RouteImport({
       batchUpdateAMPM(deliveriesToCreateFiltered);
       batchUpdateAMPM(deliveriesToUpdateFiltered);
 
-      // BATCH CREATE with smaller batches and longer delays
+      // BATCH CREATE - Use bulkCreate for efficiency
       if (deliveriesToCreateFiltered.length > 0) {
         setImportProgress((prev) => ({
           ...prev,
@@ -1836,51 +1836,58 @@ export default function RouteImport({
 
         const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-        // CRITICAL: Smaller batch size (10 instead of 25)
-        const BATCH_SIZE = 10;
+        // CRITICAL: Use reasonable batch size for bulkCreate
+        const BATCH_SIZE = 25;
         const batches = [];
         for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
           batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
         }
 
+        console.log(`📦 [RouteImport] Creating ${cleanedDeliveries.length} deliveries in ${batches.length} batches (size: ${BATCH_SIZE})`);
+
         let totalCreated = 0;
         for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
           const batch = batches[batchIndex];
           try {
+            console.log(`📦 [RouteImport] Batch ${batchIndex + 1}/${batches.length}: Calling bulkCreate with ${batch.length} deliveries`);
+
             const createdDeliveries = await retryWithBackoff(async () => {
               return await base44.entities.Delivery.bulkCreate(batch);
-            }, 5, 4000, 2); // Increased retry delay to 4s
+            }, 5, 3000, 2);
+
+            console.log(`✅ [RouteImport] Batch ${batchIndex + 1} succeeded: ${createdDeliveries.length} deliveries created`);
 
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
 
-            batch.forEach((cleanData) => {
+            createdDeliveries.forEach((createdDelivery) => {
               overallResults.created++;
-              if (cleanData.status === 'completed') {
+              if (createdDelivery.status === 'completed') {
                 overallResults.completed++;
               }
-              if (cleanData.status === 'failed') {
+              if (createdDelivery.status === 'failed') {
                 overallResults.failed++;
               }
-              if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
+              if (isReturnDelivery(createdDelivery, freshPatients, freshStores)) {
                 overallResults.returned++;
               }
             });
 
-            totalCreated += batch.length;
+            totalCreated += createdDeliveries.length;
             setImportProgress((prev) => ({
               ...prev,
               created: totalCreated,
               current: totalCreated
             }));
-          } catch (error) {
+          } catch (batchError) {
+            console.error(`❌ [RouteImport] Batch ${batchIndex + 1} failed, falling back to individual creates:`, batchError.message);
 
-
+            // Fallback: try each item individually
             for (const cleanData of batch) {
               try {
                 const createdDelivery = await retryWithBackoff(async () => {
                   return await base44.entities.Delivery.create(cleanData);
                 }, 3, 2000, 2);
-                
+
                 await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
 
                 overallResults.created++;
@@ -1900,6 +1907,7 @@ export default function RouteImport({
                   current: totalCreated
                 }));
               } catch (individualError) {
+                console.error(`❌ [RouteImport] Individual create failed:`, cleanData.delivery_id, individualError.message);
                 failedCreations.push({ data: cleanData, error: individualError.message });
               }
             }
