@@ -1989,7 +1989,28 @@ export default function DeliveryMap({
     // Group deliveries by driver
     const routesByDriver = {};
 
-    deliveryMarkers.forEach((delivery) => {
+    // CRITICAL: When showing other drivers, include their deliveries in route calculation
+    const allDeliveriesForRoutes = showOtherDriverDeliveries && otherDriverDeliveries.length > 0
+      ? [...deliveryMarkers, ...otherDriverDeliveries.map((d) => {
+          // Convert raw deliveries to marker format
+          const patient = safePatients.find((p) => p && p.id === d.patient_id);
+          if (!patient?.latitude || !patient?.longitude) return null;
+          const driver = safeUsers.find((u) => u && u.id === d.driver_id);
+          const store = safeStores.find((s) => s && s.id === d.store_id);
+          return {
+            ...d,
+            latitude: patient.latitude,
+            longitude: patient.longitude,
+            patient,
+            driver,
+            store,
+            pinColor: store ? getStoreColor(store) : '#6B7280',
+            markerType: 'delivery'
+          };
+        }).filter(Boolean)]
+      : deliveryMarkers;
+
+    allDeliveriesForRoutes.forEach((delivery) => {
     if (!delivery) return;
     const driverId = delivery.driver_id || 'unassigned';
     if (!routesByDriver[driverId]) {
