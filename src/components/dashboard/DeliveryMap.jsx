@@ -3924,6 +3924,19 @@ export default function DeliveryMap({
                     <h3 className="font-semibold text-xs">{home.driverName}</h3>
                   </div>
                   <p className="text-[11px] text-gray-600 mt-1">Final Destination (Home)</p>
+                  
+                  {home.isRouteComplete && (
+                    <button
+                      onClick={() => {
+                        const url = `https://www.google.com/maps/dir/?api=1&destination=${home.latitude},${home.longitude}`;
+                        window.open(url, '_blank');
+                      }}
+                      className="w-full mt-3 px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      Go Home
+                    </button>
+                  )}
                 </div>
               </Popup>
             </Marker>
