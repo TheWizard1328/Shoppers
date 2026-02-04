@@ -97,6 +97,35 @@ export default function DeviceSettings() {
     }
   };
 
+  const handleApplySettings = async (device) => {
+    try {
+      const updates = deviceSettings[device.id] || {};
+      if (Object.keys(updates).length === 0) {
+        toast.info('No changes to save');
+        return;
+      }
+
+      await base44.entities.UserDevice.update(device.id, updates);
+      setDevices(prev => prev.map(d => 
+        d.id === device.id ? { ...d, ...updates } : d
+      ));
+      
+      setEditingSettings(prev => ({ ...prev, [device.id]: false }));
+      setDeviceSettings(prev => ({ ...prev, [device.id]: {} }));
+      toast.success('Device settings saved');
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      toast.error('Failed to save device settings');
+    }
+  };
+
+  const handleSettingChange = (deviceId, field, value) => {
+    setDeviceSettings(prev => ({
+      ...prev,
+      [deviceId]: { ...prev[deviceId], [field]: value }
+    }));
+  };
+
   const handleFormSubmit = async (deviceData, deviceId) => {
     try {
       if (deviceId) {
