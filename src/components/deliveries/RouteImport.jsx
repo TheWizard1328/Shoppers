@@ -286,6 +286,39 @@ export default function RouteImport({
       }
     }
 
+    // CRITICAL: PREVENT DUPLICATE CREATION FOR RE-IMPORTS
+    // If the imported delivery doesn't have a SID (required for matching),
+    // and we're importing a delivery that already exists (even without SID),
+    // treat it as a new delivery to prevent overwrites
+    // This prevents stop 10 from being reused for stop 13 on re-import
+    if (!importedDeliveryStopId && importedDeliveryPatientId && importedDeliveryDate && importedDriverId) {
+      const samePatientDeliveries = existingDeliveries.filter((d) =>
+        d.delivery_date === importedDeliveryDate &&
+        d.driver_id === importedDriverId &&
+        d.patient_id === importedDeliveryPatientId &&
+        !d.stop_id // Only match deliveries without stop_id
+      );
+      
+      // If there's exactly one match without a SID, this might be a re-import
+      // In that case, require additional criteria (time, order) to match
+      if (samePatientDeliveries.length === 1) {
+        const candidate = samePatientDeliveries[0];
+        const importedTime = importedDelivery.actual_delivery_time ? new Date(importedDelivery.actual_delivery_time).getTime() : null;
+        const candidateTime = candidate.actual_delivery_time ? new Date(candidate.actual_delivery_time).getTime() : null;
+        
+        // Only match if times are very close (within 5 minutes)
+        if (importedTime && candidateTime) {
+          const timeDiff = Math.abs(importedTime - candidateTime);
+          if (timeDiff <= 300000) { // 5 minutes
+            return { match: candidate, reason: `PID Match (same patient, time within 5min)` };
+          }
+        }
+        
+        // No time match - treat as new delivery to prevent overwrites
+        return { match: null, reason: `PID exists but no SID match - creating new to prevent overwrite` };
+      }
+    }
+
     // CRITICAL: Filter existing deliveries by date AND driver_id (not city-dependent)
     // This ensures we find matches regardless of which city the delivery was created in
     const sameDateDeliveries = existingDeliveries.filter((d) => {
