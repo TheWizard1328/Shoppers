@@ -67,6 +67,23 @@ export default function PullToSync({
     console.log('🔄 [Pull to Sync] Starting full offline database sync...');
 
     try {
+      // CRITICAL: Pause all background managers to prevent data overwrites
+      console.log('⏸️ [Pull to Sync] Pausing background managers...');
+
+      // Pause smart refresh manager
+      if (window.smartRefreshManager?.pause) {
+        window.smartRefreshManager.pause();
+      }
+
+      // Pause subscriptions by pausing the realtimeSync manager
+      if (window.realtimeSyncManager?.pause) {
+        window.realtimeSyncManager.pause();
+      }
+
+      // Pause background sync
+      if (window.backgroundSyncManager?.pause) {
+        window.backgroundSyncManager.pause();
+      }
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       
       // Get city's store IDs for filtering
