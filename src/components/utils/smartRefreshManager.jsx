@@ -2048,6 +2048,26 @@ class SmartRefreshManager {
             updates.appUsers = appUserResult.appUsers;
           }
           this.markRefreshed('appUsers');
+          
+          // CRITICAL: After syncing to offline DB, ALWAYS load from offline DB and update map
+          // This ensures driver locations update on every cycle regardless of diffs
+          try {
+            const { offlineDB } = await import('./offlineDatabase');
+            const freshAppUsersFromOfflineDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+            
+            if (freshAppUsersFromOfflineDB && freshAppUsersFromOfflineDB.length > 0) {
+              console.log(`📍 [SmartRefresh] Loading ${freshAppUsersFromOfflineDB.length} fresh driver locations from offline DB and dispatching to map`);
+              
+              // Dispatch with fresh offline DB data to update map markers on EVERY cycle
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                  detail: { appUsers: freshAppUsersFromOfflineDB }
+                }));
+              }
+            }
+          } catch (offlineReadError) {
+            console.warn('⚠️ [SmartRefresh] Failed to load fresh locations from offline DB:', offlineReadError.message);
+          }
         } catch (e) {
           console.error('❌ [SmartRefresh] Critical AppUser sync failed:', e.message);
         }
