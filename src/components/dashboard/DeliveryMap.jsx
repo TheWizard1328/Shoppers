@@ -2857,7 +2857,14 @@ export default function DeliveryMap({
               }
               
               // TYPE 2: Draw incomplete segments (from next stop onwards)
-              const nextStop = incompleteStops.find(s => s.isNextDelivery === true);
+              // CRITICAL: For other drivers, isNextDelivery may not be set - find first incomplete stop instead
+              let nextStop = incompleteStops.find(s => s.isNextDelivery === true);
+              
+              // If no isNextDelivery flag, use first incomplete stop (for other drivers in Show All mode)
+              if (!nextStop && incompleteStops.length > 0) {
+                nextStop = incompleteStops[0];
+              }
+              
               const nextStopIndex = nextStop ? incompleteStops.indexOf(nextStop) : 0;
               
               for (let i = nextStopIndex; i < incompleteStops.length - 1; i++) {
