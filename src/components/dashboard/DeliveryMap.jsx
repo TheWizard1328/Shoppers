@@ -2756,14 +2756,14 @@ export default function DeliveryMap({
             // CRITICAL: Use route.color for this driver's unique color
             const driverPolylineColor = route.color;
             
-            // CRITICAL: Use ONLY deliveryMarkers for polylines (they have validated coordinates)
-            // deliveryMarkers includes both own driver + other driver deliveries
+            // CRITICAL: Include ALL drivers' markers - deliveryMarkers already includes other drivers when showOtherDriverDeliveries is true
             const sourceDeliveries = deliveryMarkers.filter(d => d && d.driver_id === route.driverId);
+            const sourcePickups = pickupMarkers.filter(p => p && p.driver_id === route.driverId);
             
-            const allDriverStops = [
-              ...pickupMarkers.filter(p => p && p.driver_id === route.driverId),
-              ...sourceDeliveries
-            ].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+            console.log(`🛣️ [Polylines] Driver ${route.driverId}: ${sourceDeliveries.length} deliveries, ${sourcePickups.length} pickups`);
+            
+            const allDriverStops = [...sourcePickups, ...sourceDeliveries]
+              .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
             
             if (allDriverStops.length < 2) return;
             
