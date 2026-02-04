@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -2609,7 +2610,6 @@ export default function DeliveryForm({
         detail: { 
           deliveryDate: formData.delivery_date, 
           driverId: formData.driver_id,
-          triggeredBy: 'doneButtonCreates',
           immediate: true // NEW: Flag to force immediate refresh
         }
       }));
@@ -4023,8 +4023,7 @@ export default function DeliveryForm({
                   }
 
                 {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
-                <div className={`flex gap-3 ${useMobileLayout ? 'flex-row' : 'contents'}`}>
-                {isPickupMode && !delivery &&
+                {isPickupMode && !delivery && (
                   <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
                     <Select
@@ -4063,7 +4062,7 @@ export default function DeliveryForm({
                       </SelectContent>
                     </Select>
                   </div>
-                  }
+                )}
 
                 {/* Section 2: Delivery Date - STATIC */}
                 <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
@@ -4074,7 +4073,6 @@ export default function DeliveryForm({
                       onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))}
                       disabled={isSaving}
                       className="h-9" />
-
                 </div>
 
                 {/* Section 3: Driver Selection - STATIC */}
@@ -4123,7 +4121,6 @@ export default function DeliveryForm({
                         )}
                     </SelectContent>
                   </Select>
-                </div>
                 </div>
               </div>
 
@@ -5088,8 +5085,6 @@ export default function DeliveryForm({
           </motion.div>
         </AnimatePresence>
       }
-
-      {/* Debug Patient Data Popup (removed as per instructions) */}
 
       {/* Delete Pending Confirmation Dialog */}
       {deleteConfirmation.show && deleteConfirmation.staged &&
