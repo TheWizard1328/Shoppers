@@ -1637,7 +1637,7 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Measure stop cards height - ONE TIME when cards render or delivery list changes
+  // Measure stop cards height - whenever cards render or delivery list changes
   useEffect(() => {
     const element = horizontalStopCardsRef.current;
     if (!element) return;
@@ -1648,14 +1648,40 @@ function Dashboard() {
     // Wait for cards to render, then measure the actual HorizontalStopCards element
     const timer = setTimeout(() => {
       const height = element.offsetHeight;
-      if (height > 0) {
-        console.log(`📏 [Stop Cards] Measured condensed height: ${height}px`);
+      if (height > 0 && height !== stopCardsBaseHeight) {
+        console.log(`📏 [Stop Cards] Measured height: ${height}px (previous: ${stopCardsBaseHeight}px)`);
         setStopCardsBaseHeight(height);
       }
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [selectedCardId, deliveriesWithStopOrder.length]);
+  }, [selectedCardId, deliveriesWithStopOrder.length, deliveriesWithStopOrder.map(d => `${d?.id}:${d?.status}`).join(',')]);
+  
+  // CRITICAL: Re-measure stop cards height after smart refresh or data updates
+  useEffect(() => {
+    const handleHeightRemeasure = () => {
+      if (!horizontalStopCardsRef.current || selectedCardId) return;
+      
+      setTimeout(() => {
+        const element = horizontalStopCardsRef.current;
+        if (element) {
+          const height = element.offsetHeight;
+          if (height > 0 && height !== stopCardsBaseHeight) {
+            console.log(`📏 [Height Update] Stop cards height changed: ${stopCardsBaseHeight}px → ${height}px`);
+            setStopCardsBaseHeight(height);
+          }
+        }
+      }, 300);
+    };
+    
+    window.addEventListener('deliveriesUpdated', handleHeightRemeasure);
+    window.addEventListener('smartRefreshComplete', handleHeightRemeasure);
+    
+    return () => {
+      window.removeEventListener('deliveriesUpdated', handleHeightRemeasure);
+      window.removeEventListener('smartRefreshComplete', handleHeightRemeasure);
+    };
+  }, [selectedCardId, stopCardsBaseHeight]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
