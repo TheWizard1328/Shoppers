@@ -698,8 +698,11 @@ export default function RouteImport({
       console.log(`[RouteImport] Processing ${selectedFiles.length} files...`);
       
       // Prevent state updates from accumulating - use minimal processing
-      const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
+      let usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
       const newFileDriverMap = {};
+      
+      // CRITICAL: Track if any drivers failed to match
+      const unmatchedFiles = [];
       
       for (const file of selectedFiles) {
         const driverName = file.name
@@ -717,10 +720,126 @@ export default function RouteImport({
           }
         }
         
+        if (!matchedDriver) {
+          unmatchedFiles.push({ file, driverName });
+        }
+        
         newFileDriverMap[file.name] = {
           extractedName: driverName,
           driver: matchedDriver
         };
+      }
+      
+      // CRITICAL: If any files failed to match, attempt to reload AppUser data
+      if (unmatchedFiles.length > 0) {
+        console.log(`⚠️ [RouteImport] ${unmatchedFiles.length} files failed driver matching - attempting reload...`);
+        setProgressMessage(`Reloading driver data - ${unmatchedFiles.length} drivers not found...`);
+        setShowProgress(true);
+        setProgressPercent(10);
+        
+        try {
+          // STEP 1: Try offline DB first
+          console.log('📦 [RouteImport] Attempting to reload from offline DB...');
+          let refreshedAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+          
+          // STEP 2: If offline DB is empty or still no matches, clear and refresh from online
+          if (!refreshedAppUsers || refreshedAppUsers.length === 0) {
+            console.log('📥 [RouteImport] Offline DB empty - fetching from online DB...');
+            setProgressMessage('Offline DB empty - fetching drivers from online database...');
+            setProgressPercent(30);
+            
+            refreshedAppUsers = await base44.entities.AppUser.list();
+            
+            if (refreshedAppUsers && refreshedAppUsers.length > 0) {
+              // Save to offline DB for future
+              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, refreshedAppUsers);
+              console.log(`✅ [RouteImport] Refreshed ${refreshedAppUsers.length} AppUsers from online DB`);
+            }
+          } else {
+            console.log(`📦 [RouteImport] Loaded ${refreshedAppUsers.length} AppUsers from offline DB`);
+          }
+          
+          setProgressPercent(50);
+          
+          // STEP 3: Rebuild driver list
+          const isAdmin = userHasRole(currentUser, 'admin');
+          if (isAdmin) {
+            const allAuthUsers = await base44.entities.User.list();
+            const mergedUsers = allAuthUsers.map((authUser) => {
+              const appUser = refreshedAppUsers.find((au) => au.user_id === authUser.id);
+              if (appUser) {
+                return {
+                  ...authUser,
+                  ...appUser,
+                  id: authUser.id,
+                  user_name: appUser.user_name || authUser.full_name,
+                  app_roles: appUser.app_roles || []
+                };
+              }
+              return authUser;
+            });
+            usersToSearch = mergedUsers;
+            setAllDriverUsers(mergedUsers);
+          } else {
+            const pseudoUsers = refreshedAppUsers.map((au) => ({
+              id: au.user_id,
+              user_id: au.user_id,
+              user_name: au.user_name,
+              full_name: au.user_name,
+              app_roles: au.app_roles || [],
+              status: au.status
+            }));
+            usersToSearch = pseudoUsers;
+            setAllDriverUsers(pseudoUsers);
+          }
+          
+          setProgressPercent(70);
+          setProgressMessage('Retrying driver matching with refreshed data...');
+          
+          // STEP 4: Retry matching with refreshed data
+          let stillUnmatched = 0;
+          for (const { file, driverName } of unmatchedFiles) {
+            let matchedDriver = null;
+            for (const user of usersToSearch) {
+              const userName = (user.user_name || user.full_name || '').trim();
+              if (userName.toLowerCase() === driverName.toLowerCase()) {
+                matchedDriver = user;
+                break;
+              }
+            }
+            
+            if (matchedDriver) {
+              console.log(`✅ [RouteImport] Matched ${file.name} to ${matchedDriver.user_name} after reload`);
+              newFileDriverMap[file.name] = {
+                extractedName: driverName,
+                driver: matchedDriver
+              };
+            } else {
+              stillUnmatched++;
+            }
+          }
+          
+          setProgressPercent(100);
+          
+          if (stillUnmatched === 0) {
+            setProgressMessage(`✅ All drivers matched after reloading AppUser data!`);
+            setTimeout(() => {
+              setShowProgress(false);
+            }, 1500);
+          } else {
+            setProgressMessage(`⚠️ ${stillUnmatched} drivers still not found after reload`);
+            setTimeout(() => {
+              setShowProgress(false);
+            }, 2000);
+          }
+          
+        } catch (reloadError) {
+          console.error('❌ [RouteImport] Failed to reload AppUser data:', reloadError);
+          setProgressMessage(`❌ Failed to reload driver data: ${reloadError.message}`);
+          setTimeout(() => {
+            setShowProgress(false);
+          }, 3000);
+        }
       }
       
       // Batch state updates to prevent multiple re-renders
