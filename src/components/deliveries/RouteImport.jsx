@@ -1537,7 +1537,8 @@ export default function RouteImport({
         console.warn('⚠️ [RouteImport] Failed to clear offline DB:', offlineError);
       }
       
-      // CRITICAL: Try offline DB first, fallback to API
+      // CRITICAL: ALWAYS use offline DB for validation, NEVER fetch from API during import preview
+      // API calls during import cause rate limits - use cached data only
       let freshDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
       freshDeliveries = freshDeliveries.filter(d => 
         allDriverIds.includes(d.driver_id) &&
@@ -1545,27 +1546,7 @@ export default function RouteImport({
         d.delivery_date <= maxDate
       );
       
-      // Only fetch from API if offline DB is incomplete or empty
-      if (!freshDeliveries || freshDeliveries.length === 0) {
-        console.log('📥 [RouteImport] Fetching deliveries from API (offline DB empty)');
-        freshDeliveries = await base44.entities.Delivery.filter(
-          { 
-            driver_id: { $in: allDriverIds },
-            delivery_date: { $gte: minDate, $lte: maxDate }
-          },
-          '-delivery_date',
-          10000
-        );
-        
-        // Save to offline DB
-        if (freshDeliveries && freshDeliveries.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        }
-      } else {
-        console.log(`✅ [RouteImport] Loaded ${freshDeliveries.length} deliveries from offline DB for validation`);
-      }
-      
-      console.log(`📦 [RouteImport] Fetched ${freshDeliveries.length} fresh deliveries from API for validation`);
+      console.log(`✅ [RouteImport] Loaded ${freshDeliveries.length} deliveries from offline DB for validation (no API fetch)`);
       setProgressPercent(35);
 
 
