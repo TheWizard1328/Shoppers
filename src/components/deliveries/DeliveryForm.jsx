@@ -4595,7 +4595,7 @@ export default function DeliveryForm({
                       {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
                     </Button>
                   </div>
-                }
+                )}
               </div>
             </div>
 
