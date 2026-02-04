@@ -783,13 +783,16 @@ export default function Layout({ children, currentPageName }) {
         });
 
         if (existingDevices && existingDevices.length === 0) {
-          // Device not registered, show selection modal
+          // Device not registered, show selection modal but DON'T block initialization
           console.log('📱 [Layout] Device not registered, showing selection modal');
           setShowDeviceSelectionModal(true);
           setCurrentUser(fetchedUser);
           setIsLoadingLayout(false);
-          return;
+          setDataLoaded(true); // Mark data loaded so rest of app can function
+          return; // Don't proceed with city selection until device is registered
         }
+
+        console.log('✅ [Layout] Device already registered, proceeding with initialization');
 
         // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
         // Step 3 - Load user settings from local cache (no API call)
