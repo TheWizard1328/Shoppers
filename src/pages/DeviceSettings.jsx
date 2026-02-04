@@ -128,6 +128,36 @@ export default function DeviceSettings() {
     }));
   };
 
+  const handleApplyDeviceSettings = async (sourceDevice) => {
+    try {
+      const currentDevice = devices.find(d => d.id === currentDeviceId);
+      if (!currentDevice) {
+        toast.error('Current device not found');
+        return;
+      }
+
+      // Copy settings from source device to current device
+      const updates = {
+        device_identifier: currentDevice.device_identifier,
+        device_name: currentDevice.device_name,
+        device_type: sourceDevice.device_info?.device_type,
+        device_info: sourceDevice.device_info
+      };
+
+      await base44.entities.UserDevice.update(currentDeviceId, updates);
+      setDevices(prev => prev.map(d => 
+        d.id === currentDeviceId ? { ...d, ...updates } : d
+      ));
+      
+      setShowChangeSettings(false);
+      setSelectedSourceDevice(null);
+      toast.success(`Applied settings from ${sourceDevice.device_name}`);
+    } catch (error) {
+      console.error('Failed to apply settings:', error);
+      toast.error('Failed to apply device settings');
+    }
+  };
+
   const handleFormSubmit = async (deviceData, deviceId) => {
     try {
       if (deviceId) {
