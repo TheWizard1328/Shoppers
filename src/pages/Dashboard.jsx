@@ -1025,6 +1025,28 @@ function Dashboard() {
     return allFinished;
   }, [selectedDate, filteredDeliveries]);
 
+  // Check if current route is complete (for stop cards fade prevention)
+  const isRouteComplete = useMemo(() => {
+    if (!filteredDeliveries || !Array.isArray(filteredDeliveries) || filteredDeliveries.length === 0) return false;
+    
+    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const patientDeliveriesOnly = filteredDeliveries.filter((d) => d && d.patient_id);
+    
+    const isReturn = (d) => {
+      if (!d || !d.patient_id) return false;
+      const patient = patients.find((p) => p && p.id === d.patient_id);
+      const notes = d.delivery_notes || '';
+      const patientName = d.patient_name || '';
+      const patientFullName = patient?.full_name || '';
+      return notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)') ||
+        patientFullName.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) ||
+        /\breturn\b/i.test(patientName) || /\breturn\b/i.test(patientFullName);
+    };
+    
+    return patientDeliveriesOnly.length > 0 &&
+      patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturn(d));
+  }, [filteredDeliveries, patients]);
+
   // Filter drivers based on role and deliveries
   const driversList = useMemo(() => {
     // CRITICAL: UNIFIED de-duplication - build final map from ALL sources at once
