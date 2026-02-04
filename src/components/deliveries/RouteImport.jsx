@@ -2383,7 +2383,7 @@ export default function RouteImport({
             Import Route Data
           </DialogTitle>
           <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
-            Upload CSV files to import delivery routes for a selected driver. Use "Purge Duplicates" to remove existing deliveries before import.
+            Upload CSV files to import delivery routes. Existing data will be automatically purged and replaced.
           </DialogDescription>
         </DialogHeader>
 
