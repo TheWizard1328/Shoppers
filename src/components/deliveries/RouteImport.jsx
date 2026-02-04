@@ -1174,11 +1174,20 @@ export default function RouteImport({
   useEffect(() => {
     const loadAllDrivers = async () => {
       try {
-
+        // CRITICAL: Try offline DB first to avoid rate limits
+        let freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
         
-        // CRITICAL: ALWAYS fetch fresh AppUsers to ensure accurate driver_id matching
-        // This prevents temporary IDs from being created during import
-        const freshAppUsers = await base44.entities.AppUser.list();
+        // Only fetch from API if offline DB is empty
+        if (!freshAppUsers || freshAppUsers.length === 0) {
+          console.log('📥 [RouteImport] Fetching AppUsers from API (offline DB empty)');
+          freshAppUsers = await base44.entities.AppUser.list();
+          // Save to offline DB for next time
+          if (freshAppUsers && freshAppUsers.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+          }
+        } else {
+          console.log(`✅ [RouteImport] Loaded ${freshAppUsers.length} AppUsers from offline DB`);
+        }
 
         
         // CRITICAL: Only admins can list User entities
@@ -1367,8 +1376,16 @@ export default function RouteImport({
       setProgressPercent(3);
       
       try {
-
-        const freshAppUsers = await base44.entities.AppUser.list();
+        // CRITICAL: Try offline DB first to avoid rate limits
+        let freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        
+        if (!freshAppUsers || freshAppUsers.length === 0) {
+          console.log('📥 [RouteImport Preview] Fetching AppUsers from API (offline DB empty)');
+          freshAppUsers = await base44.entities.AppUser.list();
+          if (freshAppUsers && freshAppUsers.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+          }
+        }
 
         
         const isAdmin = userHasRole(currentUser, 'admin');
@@ -1520,15 +1537,33 @@ export default function RouteImport({
         console.warn('⚠️ [RouteImport] Failed to clear offline DB:', offlineError);
       }
       
-      // CRITICAL: Fetch FRESH deliveries from API (not cache)
-      const freshDeliveries = await base44.entities.Delivery.filter(
-        { 
-          driver_id: { $in: allDriverIds },
-          delivery_date: { $gte: minDate, $lte: maxDate }
-        },
-        '-delivery_date',
-        10000
+      // CRITICAL: Try offline DB first, fallback to API
+      let freshDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      freshDeliveries = freshDeliveries.filter(d => 
+        allDriverIds.includes(d.driver_id) &&
+        d.delivery_date >= minDate &&
+        d.delivery_date <= maxDate
       );
+      
+      // Only fetch from API if offline DB is incomplete or empty
+      if (!freshDeliveries || freshDeliveries.length === 0) {
+        console.log('📥 [RouteImport] Fetching deliveries from API (offline DB empty)');
+        freshDeliveries = await base44.entities.Delivery.filter(
+          { 
+            driver_id: { $in: allDriverIds },
+            delivery_date: { $gte: minDate, $lte: maxDate }
+          },
+          '-delivery_date',
+          10000
+        );
+        
+        // Save to offline DB
+        if (freshDeliveries && freshDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        }
+      } else {
+        console.log(`✅ [RouteImport] Loaded ${freshDeliveries.length} deliveries from offline DB for validation`);
+      }
       
       console.log(`📦 [RouteImport] Fetched ${freshDeliveries.length} fresh deliveries from API for validation`);
       setProgressPercent(35);
@@ -1641,10 +1676,18 @@ export default function RouteImport({
       
       const { offlineDB } = await import('../utils/offlineDatabase');
 
-      // STEP 1: Fetch fresh AppUser IDs
-      setProgressMessage('Fetching fresh AppUser data...');
+      // STEP 1: Load AppUser data (offline first)
+      setProgressMessage('Loading AppUser data...');
       setProgressPercent(5);
-      const freshAppUsers = await base44.entities.AppUser.list();
+      let freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+      
+      if (!freshAppUsers || freshAppUsers.length === 0) {
+        console.log('📥 [RouteImport Confirm] Fetching AppUsers from API (offline DB empty)');
+        freshAppUsers = await base44.entities.AppUser.list();
+        if (freshAppUsers && freshAppUsers.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+        }
+      }
 
       setProgressPercent(8);
 
