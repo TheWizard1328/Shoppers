@@ -1525,13 +1525,13 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                                             {patient.phone && <span>📞 {patient.phone}</span>}
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            {patient.store_name !== 'N/A' ?
-                  <Badge style={{ backgroundColor: patient.store_color, fontSize: '10px' }}>
-                                                    {patient.store_name}
-                                                </Badge> :
-                  <span className="text-slate-400">{patient.store_name}</span>
-                  }
-                                        </div>
+                                             {patient.store_name !== 'N/A' ?
+                                        <Badge style={{ backgroundColor: patient.store_color, color: getContrastingTextColor(patient.store_color), fontSize: '10px' }}>
+                                                     {patient.store_name}
+                                                 </Badge> :
+                                        <span className="text-slate-400">{patient.store_name}</span>
+                                        }
+                                         </div>
                                         {patient.notes && <div className="text-slate-600 truncate">Notes: {patient.notes}</div>}
                                     </div>
               )}
