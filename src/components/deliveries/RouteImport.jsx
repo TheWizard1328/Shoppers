@@ -1431,17 +1431,33 @@ export default function RouteImport({
       setProgressPercent(15);
 
       setProgressMessage('Loading patient data from cache...');
-      // CRITICAL: Use getData instead of direct API call - respects rate limiting
-      const freshPatients = await getData('Patient', '-created_date', null, false);
-      setPatients(freshPatients);
-      setProgressPercent(20);
+       // CRITICAL: Use getData instead of direct API call - respects rate limiting
+       let freshPatients = await getData('Patient', '-created_date', null, false);
+       setPatients(freshPatients);
+       setProgressPercent(20);
 
-      if (!freshPatients || freshPatients.length === 0) {
-        alert('No patient data available.');
-        setIsParsing(false);
-        setShowProgress(false);
-        return;
-      }
+       if (!freshPatients || freshPatients.length === 0) {
+         setProgressMessage('No patients cached - fetching from API...');
+         // Fetch ALL patients from API if cache is empty
+         try {
+           freshPatients = await base44.entities.Patient.list();
+           if (freshPatients && freshPatients.length > 0) {
+             setPatients(freshPatients);
+             // Sync to offline DB
+             await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+             console.log(`✅ [RouteImport] Synced ${freshPatients.length} patients to offline DB`);
+           }
+         } catch (patientError) {
+           console.warn('⚠️ [RouteImport] Failed to fetch patients from API:', patientError);
+         }
+       }
+
+       if (!freshPatients || freshPatients.length === 0) {
+         alert('No patient data available. Please ensure patients are created in the system before importing.');
+         setIsParsing(false);
+         setShowProgress(false);
+         return;
+       }
 
       // STEP 2: Fetch fresh deliveries for ALL drivers in the import and date range
       setProgressMessage(`Refreshing delivery cache for all drivers (${minDate} to ${maxDate})...`);
