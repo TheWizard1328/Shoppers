@@ -17,6 +17,8 @@ export default function DeviceSettings() {
   const [showForm, setShowForm] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
   const [currentDeviceId, setCurrentDeviceId] = useState(null);
+  const [editingSettings, setEditingSettings] = useState({}); // Track editing mode per device ID
+  const [deviceSettings, setDeviceSettings] = useState({}); // Temporary settings before apply
 
   useEffect(() => {
     if (!currentUser?.id) return;
