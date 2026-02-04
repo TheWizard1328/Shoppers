@@ -223,7 +223,7 @@ export default function PullToSync({
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="absolute top-2 left-1/2 -translate-x-1/2 z-[602] pointer-events-none"
+            className="fixed top-2 left-0 right-0 z-[602] pointer-events-none flex justify-center"
           >
             <div className="flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border bg-white/95 backdrop-blur-sm">
               <RefreshCw 
