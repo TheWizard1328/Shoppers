@@ -1412,16 +1412,26 @@ export default function RouteImport({
       setProgressPercent(5);
       
       const { minDate, maxDate } = await extractDateRangeFromFiles(activeFiles);
-      
-      if (!minDate || !maxDate) {
-        alert('Could not detect any dates in the import files. Please ensure files contain date metadata lines (e.g., #2024-01-15#,...)');
-        setIsParsing(false);
-        setShowProgress(false);
-        return;
-      }
-      
-      setProgressMessage(`Date range: ${minDate} to ${maxDate}`);
-      setProgressPercent(10);
+
+       if (!minDate || !maxDate) {
+         alert('Could not detect any dates in the import files. Please ensure files contain date metadata lines (e.g., #2024-01-15#,...)');
+         setIsParsing(false);
+         setShowProgress(false);
+         return;
+       }
+
+       setProgressMessage(`Date range: ${minDate} to ${maxDate}`);
+
+       // CRITICAL: Clear cached delivery data for this date range to prevent stale matches
+       try {
+         const { invalidateDeliveryRange } = await import('../utils/dataManager');
+         invalidateDeliveryRange(minDate, maxDate);
+         console.log(`🗑️ [RouteImport] Cleared cache for deliveries ${minDate} to ${maxDate}`);
+       } catch (e) {
+         console.warn('⚠️ [RouteImport] Failed to clear delivery cache:', e.message);
+       }
+
+       setProgressPercent(10);
 
       setProgressMessage('Loading store data from cache...');
       // CRITICAL: Use getData instead of direct API call - respects rate limiting
