@@ -1675,23 +1675,28 @@ export default function RouteImport({
        // If cache is incomplete, fetch only the required patients from API
        const cachedPids = new Set(freshPatients?.map(p => p.patient_id).filter(Boolean) || []);
        const missingPids = pidArray.filter(pid => !cachedPids.has(pid));
-       
+
        if (missingPids.length > 0) {
-         setProgressMessage(`Fetching ${missingPids.length} missing patients from API...`);
-         try {
-           const missingPatients = await base44.entities.Patient.filter({
-             patient_id: { $in: missingPids }
-           });
-           if (missingPatients && missingPatients.length > 0) {
-             freshPatients = [...(freshPatients || []), ...missingPatients];
-             setPatients(freshPatients);
-             // Sync new patients to offline DB
-             await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, missingPatients);
-             console.log(`✅ [RouteImport] Fetched and synced ${missingPatients.length} missing patients`);
-           }
-         } catch (patientError) {
-           console.warn('⚠️ [RouteImport] Failed to fetch missing patients:', patientError);
-         }
+       setProgressMessage(`Fetching ${missingPids.length} missing patients from API...`);
+       try {
+       const missingPatients = await base44.entities.Patient.filter({
+         patient_id: { $in: missingPids }
+       });
+       if (missingPatients && missingPatients.length > 0) {
+         freshPatients = [...(freshPatients || []), ...missingPatients];
+         setPatients(freshPatients);
+         // Sync new patients to offline DB
+         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, missingPatients);
+         console.log(`✅ [RouteImport] Fetched and synced ${missingPatients.length} missing patients`);
+       }
+       } catch (patientError) {
+       console.warn('⚠️ [RouteImport] Failed to fetch missing patients:', patientError);
+       }
+       }
+
+       // CRITICAL: Pre-index patients by patient_id for O(1) lookup
+       if (!freshPatients || freshPatients.length === 0) {
+       console.warn('⚠️ [RouteImport] No patient data available for import');
        }
 
        if (!freshPatients || freshPatients.length === 0) {
