@@ -3105,22 +3105,15 @@ export default function Layout({ children, currentPageName }) {
 
       }
 
-      {/* Device Selection Modal - BLOCKING, shows immediately after user auth if device not registered */}
-      {showDeviceSelectionModal && currentUser &&
-      <DeviceSelectionModal
-        isOpen={showDeviceSelectionModal}
-        deviceType={deviceTypeDetected}
-        onDeviceSelected={handleDeviceSelected}
-        isLoading={isSettingUpDevice} />
-      }
-
-      {/* Device Registration - Show after city selection, for drivers only */}
-      {!showCitySelectionPopup && !showDeviceSelectionModal && currentUser && userHasRole(currentUser, 'driver') && !deviceRegistered &&
+      {/* Device Registration - Shows existing devices or option to create new */}
+      {!showCitySelectionPopup && currentUser && userHasRole(currentUser, 'driver') && !deviceRegistered &&
       <DeviceRegistration
         currentUser={currentUser}
         onDeviceRegistered={(device) => {
           console.log('✅ Device registered:', device);
           setDeviceRegistered(true);
+          // Cache the registration to prevent re-prompting on refresh
+          localStorage.setItem(`rxdeliver_device_registered_${device.device_identifier}`, 'true');
         }} />
       }
 
