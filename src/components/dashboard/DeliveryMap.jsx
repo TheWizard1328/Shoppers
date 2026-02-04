@@ -1497,8 +1497,9 @@ export default function DeliveryMap({
       // Calculate zoom level based on device type
       const targetZoom = isMobile ? 15 : 16;
       
-      // Calculate dynamic top padding for stats card
-      const statsCardHeight = isMobile ? (isStatsCardExpanded ? 216 : 116) : 0;
+      // Calculate dynamic top padding for stats card (actual measured height)
+      const statsCard = document.querySelector('[data-stats-card]');
+      const statsCardHeight = statsCard ? statsCard.getBoundingClientRect().height : 0;
       const dynamicTopPadding = statsCardHeight + 20; // Add buffer
       
       // Calculate dynamic bottom padding for message balloon

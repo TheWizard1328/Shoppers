@@ -253,6 +253,11 @@ export async function loadUserSettings(userId) {
       
       await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
       
+      // CRITICAL: Apply auto dark mode for mobile devices
+      if (deviceType === 'Mobile') {
+        initializeAutoDarkMode();
+      }
+      
       console.log(`✅ [UserSettings] Loaded ${deviceType} settings (cached for 5 min)`);
       return cachedSettings;
     }
@@ -279,6 +284,11 @@ export async function loadUserSettings(userId) {
       lastFetchTime = Date.now();
       
       await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
+      
+      // CRITICAL: Apply auto dark mode for mobile devices
+      if (deviceType === 'Mobile') {
+        initializeAutoDarkMode();
+      }
       
       console.log(`✅ [UserSettings] Created ${deviceType} settings record (cached for 5 min)`);
       return cachedSettings;
@@ -599,6 +609,55 @@ export function getSetting(key) {
     return cachedSettings[key];
   }
   return DEFAULT_SETTINGS[key];
+}
+
+/**
+ * Apply auto dark mode based on local time (6pm to 6am = dark)
+ * CRITICAL: Uses device's LOCAL time, not UTC
+ */
+function applyAutoDarkMode() {
+  const currentSettings = cachedSettings || { ...DEFAULT_SETTINGS };
+  
+  if (currentSettings.theme_preference !== 'auto') {
+    return; // Only applies to 'auto' mode
+  }
+  
+  // Get LOCAL time (not UTC)
+  const now = new Date();
+  const hour = now.getHours();
+  
+  // Dark mode from 6pm (18:00) to 6am (6:00)
+  const shouldBeDark = hour >= 18 || hour < 6;
+  
+  // Apply theme to document root
+  if (shouldBeDark) {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+  
+  console.log(`🌓 [UserSettings] Auto dark mode: ${shouldBeDark ? 'DARK' : 'LIGHT'} (local time ${hour}:00)`);
+}
+
+/**
+ * Initialize auto dark mode monitoring
+ * Checks every minute if theme needs to change based on time
+ */
+let autoDarkModeInterval = null;
+
+export function initializeAutoDarkMode() {
+  // Clear any existing interval
+  if (autoDarkModeInterval) {
+    clearInterval(autoDarkModeInterval);
+  }
+  
+  // Apply immediately
+  applyAutoDarkMode();
+  
+  // Check every minute for time-based theme changes
+  autoDarkModeInterval = setInterval(applyAutoDarkMode, 60000);
+  
+  console.log('🌓 [UserSettings] Auto dark mode monitoring initialized');
 }
 
 /**
