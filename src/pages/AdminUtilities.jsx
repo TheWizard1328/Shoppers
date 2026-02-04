@@ -958,22 +958,22 @@ const DeliveryDataTable = ({
           </Select>
 
           <Select value={selectedDriver} onValueChange={onDriverChange} disabled={isLoadingData}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Select driver" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Drivers</SelectItem>
-              {(() => {
-                const filteredDrivers = (drivers || []).filter(d => d && d.user_name);
-                console.log(`📋 [DeliveryDataTable] Rendering driver dropdown: total=${drivers?.length}, filtered=${filteredDrivers.length}`, filteredDrivers.map(d => ({ id: d.id, user_name: d.user_name })));
-                return filteredDrivers.map(driver => (
-                  <SelectItem key={driver.user_name} value={driver.user_name}>
-                    {getDriverDisplayName(driver)}
-                  </SelectItem>
-                ));
-              })()}
-            </SelectContent>
-          </Select>
+             <SelectTrigger className="w-40">
+               <SelectValue placeholder="Select driver" />
+             </SelectTrigger>
+             <SelectContent>
+               <SelectItem value="all">All Drivers</SelectItem>
+               {drivers && drivers.length > 0 ? (
+                 drivers.map(driver => (
+                   <SelectItem key={driver.id} value={driver.user_name || driver.full_name || ''}>
+                     {getDriverDisplayName(driver)}
+                   </SelectItem>
+                 ))
+               ) : (
+                 <div className="p-2 text-xs text-slate-500">No drivers available</div>
+               )}
+             </SelectContent>
+           </Select>
 
           <Input
             placeholder="Filter by name, address, SID, TR#, or status..."
