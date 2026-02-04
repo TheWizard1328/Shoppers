@@ -1430,25 +1430,48 @@ export default function RouteImport({
       setAllStores(freshStoresAll || []);
       setProgressPercent(15);
 
-      setProgressMessage('Loading patient data from cache...');
+      setProgressMessage('Extracting patient IDs from import files...');
+       // Extract unique PIDs from import files
+       const uniquePids = new Set();
+       for (const file of activeFiles) {
+         const text = await file.text();
+         const lines = text.split(/\r?\n/).filter((line) => line.trim());
+         for (const line of lines) {
+           const values = parseCSVLine(line);
+           const patientPID = values[14]?.replace(/"/g, '').trim();
+           if (patientPID) {
+             uniquePids.add(patientPID);
+           }
+         }
+       }
+       const pidArray = Array.from(uniquePids);
+       setProgressPercent(18);
+
+       setProgressMessage('Loading patient data from cache...');
        // CRITICAL: Use getData instead of direct API call - respects rate limiting
        let freshPatients = await getData('Patient', '-created_date', null, false);
        setPatients(freshPatients);
        setProgressPercent(20);
 
-       if (!freshPatients || freshPatients.length === 0) {
-         setProgressMessage('No patients cached - fetching from API...');
-         // Fetch ALL patients from API if cache is empty
+       // If cache is incomplete, fetch only the required patients from API
+       const cachedPids = new Set(freshPatients?.map(p => p.patient_id).filter(Boolean) || []);
+       const missingPids = pidArray.filter(pid => !cachedPids.has(pid));
+       
+       if (missingPids.length > 0) {
+         setProgressMessage(`Fetching ${missingPids.length} missing patients from API...`);
          try {
-           freshPatients = await base44.entities.Patient.list();
-           if (freshPatients && freshPatients.length > 0) {
+           const missingPatients = await base44.entities.Patient.filter({
+             patient_id: { $in: missingPids }
+           });
+           if (missingPatients && missingPatients.length > 0) {
+             freshPatients = [...(freshPatients || []), ...missingPatients];
              setPatients(freshPatients);
-             // Sync to offline DB
-             await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-             console.log(`✅ [RouteImport] Synced ${freshPatients.length} patients to offline DB`);
+             // Sync new patients to offline DB
+             await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, missingPatients);
+             console.log(`✅ [RouteImport] Fetched and synced ${missingPatients.length} missing patients`);
            }
          } catch (patientError) {
-           console.warn('⚠️ [RouteImport] Failed to fetch patients from API:', patientError);
+           console.warn('⚠️ [RouteImport] Failed to fetch missing patients:', patientError);
          }
        }
 
