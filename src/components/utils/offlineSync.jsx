@@ -411,7 +411,13 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     notifySyncStatus({ status: 'priority_loaded', cities: finalCities?.length, stores: finalStores?.length, appUsers: finalAppUsers?.length, deliveries: finalDeliveries?.length, patients: finalPatients?.length });
 
     syncInProgress = false;
-    return { cities, stores, appUsers, deliveries, patients };
+    return { 
+      cities: finalCities || cities, 
+      stores: finalStores || stores, 
+      appUsers: finalAppUsers || appUsers, 
+      deliveries: finalDeliveries || deliveries, 
+      patients: finalPatients?.filter(p => p && p.id && !p.id.startsWith('temp_')) || patients 
+    };
   } catch (error) {
     notifySyncStatus({ status: 'error', error: error.message });
     syncInProgress = false;
