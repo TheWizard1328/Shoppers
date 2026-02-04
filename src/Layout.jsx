@@ -775,24 +775,33 @@ export default function Layout({ children, currentPageName }) {
           return;
         }
 
-        // CRITICAL: Step 2 - Check if device is registered, if not show selection modal
-        const deviceIdentifier = getDeviceIdentifier();
-        const existingDevices = await base44.entities.UserDevice.filter({
-          user_id: fetchedUser.id,
-          device_identifier: deviceIdentifier
-        });
+        // CRITICAL: Step 2 - Check if device is registered
+        // Use cached flag from sessionStorage to avoid repeated API checks
+        const deviceRegistrationChecked = sessionStorage.getItem('rxdeliver_device_checked');
+        
+        if (!deviceRegistrationChecked) {
+          const deviceIdentifier = getDeviceIdentifier();
+          const existingDevices = await base44.entities.UserDevice.filter({
+            user_id: fetchedUser.id,
+            device_identifier: deviceIdentifier
+          });
 
-        if (existingDevices && existingDevices.length === 0) {
-          // Device not registered, show selection modal but DON'T block initialization
-          console.log('📱 [Layout] Device not registered, showing selection modal');
-          setShowDeviceSelectionModal(true);
-          setCurrentUser(fetchedUser);
-          setIsLoadingLayout(false);
-          setDataLoaded(true); // Mark data loaded so rest of app can function
-          return; // Don't proceed with city selection until device is registered
+          if (existingDevices && existingDevices.length === 0) {
+            // Device not registered, show selection modal
+            console.log('📱 [Layout] Device not registered, showing selection modal');
+            setShowDeviceSelectionModal(true);
+            setCurrentUser(fetchedUser);
+            setIsLoadingLayout(false);
+            setDataLoaded(true);
+            return;
+          }
+
+          // Device registered - cache this result to prevent re-checking
+          sessionStorage.setItem('rxdeliver_device_checked', 'true');
+          console.log('✅ [Layout] Device registered and cached, proceeding');
+        } else {
+          console.log('✅ [Layout] Device check cached, skipping API call');
         }
-
-        console.log('✅ [Layout] Device already registered, proceeding with initialization');
 
         // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
         // Step 3 - Load user settings from local cache (no API call)
