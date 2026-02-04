@@ -2120,11 +2120,9 @@ export default function RouteImport({
               updated: prev.updated + 1,
               current: i + 1
             }));
-            await delay(300); // Minimal delay between individual updates
-          } catch (error) {
+            } catch (error) {
             failedUpdates.push({ data: deliveryData, error: error.message });
             setImportProgress((prev) => ({ ...prev, current: i + 1 }));
-            await delay(300);
           }
         }
       }
