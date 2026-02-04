@@ -396,52 +396,103 @@ function Dashboard() {
 
     // Subscribe to Delivery entity changes
     const unsubscribeDeliveries = base44.entities.Delivery.subscribe((event) => {
-      console.log(`📡 [Real-time Delivery] ${event.type} event:`, event.data?.patient_name || event.id);
+      console.log(`📡 [Real-time Delivery] ${event.type} event:`, event.data?.patient_name || event.id, 'driver:', event.data?.driver_id);
+      
+      // CRITICAL: Check if this delivery is for the selected date
+      const deliveryDate = event.data?.delivery_date;
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      const isForSelectedDate = deliveryDate === selectedDateStr;
+      
+      // CRITICAL: Determine if this is another driver's change
+      const isOwnChange = event.data?.driver_id === currentUser?.id;
+      const isOtherDriver = !isOwnChange;
       
       if (event.type === 'create') {
         // Add new delivery to offline DB and context
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
           
-          // Update context immediately
-          if (updateDeliveriesLocally) {
-            updateDeliveriesLocally([event.data], false);
+          // CRITICAL: For other drivers in All Drivers or Show All mode, fetch full delivery set
+          if (isOtherDriver && isForSelectedDate && (selectedDriverId === 'all' || showAllDriverMarkers)) {
+            console.log(`🔄 [Real-time] Other driver created delivery - refreshing for ${deliveryDate}`);
+            base44.entities.Delivery.filter({ delivery_date: deliveryDate }).then(freshDeliveries => {
+              offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(console.error);
+              if (updateDeliveriesLocally) {
+                const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== deliveryDate);
+                updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+              }
+              // Trigger map and legend update
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: { deliveryDate, triggeredBy: 'realtimeCreateOtherDriver' }
+              }));
+            }).catch(console.error);
+          } else {
+            // Own change or single driver mode - update incrementally
+            if (updateDeliveriesLocally) {
+              updateDeliveriesLocally([event.data], false);
+            }
+            // Trigger map update
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeCreate' }
+            }));
           }
-          
-          // Trigger map update
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeCreate' }
-          }));
         }
       } else if (event.type === 'update') {
         // Update delivery in offline DB and context
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
           
-          // Update context immediately
-          if (updateDeliveriesLocally) {
-            updateDeliveriesLocally([event.data], false);
+          // CRITICAL: For other drivers in All Drivers or Show All mode, fetch full delivery set
+          if (isOtherDriver && isForSelectedDate && (selectedDriverId === 'all' || showAllDriverMarkers)) {
+            console.log(`🔄 [Real-time] Other driver updated delivery - refreshing for ${deliveryDate}`);
+            base44.entities.Delivery.filter({ delivery_date: deliveryDate }).then(freshDeliveries => {
+              offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(console.error);
+              if (updateDeliveriesLocally) {
+                const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== deliveryDate);
+                updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+              }
+              // Trigger map and legend update
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: { deliveryDate, triggeredBy: 'realtimeUpdateOtherDriver' }
+              }));
+            }).catch(console.error);
+          } else {
+            // Own change or single driver mode - update incrementally
+            if (updateDeliveriesLocally) {
+              updateDeliveriesLocally([event.data], false);
+            }
+            // Trigger map update
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeUpdate' }
+            }));
           }
-          
-          // Trigger map update
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeUpdate' }
-          }));
         }
       } else if (event.type === 'delete') {
         // Remove delivery from offline DB and context
         offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id).catch(console.error);
         
-        // Update context by filtering out deleted delivery
-        if (updateDeliveriesLocally && deliveries) {
-          const filtered = deliveries.filter(d => d?.id !== event.id);
-          updateDeliveriesLocally(filtered, true);
+        // CRITICAL: Fetch fresh data after delete to ensure correct state
+        if (isForSelectedDate && (selectedDriverId === 'all' || showAllDriverMarkers)) {
+          base44.entities.Delivery.filter({ delivery_date: selectedDateStr }).then(freshDeliveries => {
+            offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(console.error);
+            if (updateDeliveriesLocally) {
+              const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== selectedDateStr);
+              updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+            }
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { deliveryDate: selectedDateStr, triggeredBy: 'realtimeDeleteOtherDriver' }
+            }));
+          }).catch(console.error);
+        } else {
+          // Single driver mode - simple filter
+          if (updateDeliveriesLocally && deliveries) {
+            const filtered = deliveries.filter(d => d?.id !== event.id);
+            updateDeliveriesLocally(filtered, true);
+          }
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { triggeredBy: 'realtimeDelete' }
+          }));
         }
-        
-        // Trigger map update
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { triggeredBy: 'realtimeDelete' }
-        }));
       }
     });
 
@@ -450,7 +501,7 @@ function Dashboard() {
       unsubscribePatients();
       unsubscribeDeliveries();
     };
-  }, [currentUser?.id, isDataLoaded, updateDeliveriesLocally, deliveries, refreshData]);
+  }, [currentUser?.id, isDataLoaded, updateDeliveriesLocally, deliveries, refreshData, selectedDate, selectedDriverId, showAllDriverMarkers]);
 
   // Listen for deliveries imported event to refresh map immediately
   useEffect(() => {
