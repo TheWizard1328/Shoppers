@@ -3626,15 +3626,29 @@ export default function DeliveriesPage() {
 
                   console.log(`🗑️ [DeleteRoute] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
 
-                  // CRITICAL: Batch delete with single UI update
-                  await batchDeleteDeliveriesLocal(deliveryIds, {
-                    userId: currentUser?.id,
-                    userName: currentUser?.user_name || currentUser?.full_name
-                  });
+                  // CRITICAL: Delete from BOTH databases simultaneously
+                  // 1. Delete from online database
+                  for (const id of deliveryIds) {
+                    await base44.entities.Delivery.delete(id);
+                  }
+                  console.log(`✅ [DeleteRoute] Deleted ${deliveryIds.length} from online DB`);
 
-                  console.log(`✅ [DeleteRoute] Route deleted successfully`);
+                  // 2. Delete from offline database
+                  const { offlineDB } = await import('../components/utils/offlineDatabase');
+                  for (const id of deliveryIds) {
+                    await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id);
+                  }
+                  console.log(`✅ [DeleteRoute] Deleted ${deliveryIds.length} from offline DB`);
+
+                  // 3. Update UI immediately
+                  setAllDeliveries(prev => prev.filter(d => !deliveryIds.includes(d.id)));
+
+                  // 4. Broadcast to other devices
+                  smartRefreshManager.deletedDeliveryIds.add(...deliveryIds);
+
                   invalidate('Delivery');
                   setRefreshKey((prev) => prev + 1);
+                  console.log(`✅ [DeleteRoute] Route deleted successfully from both databases`);
                 } catch (error) {
                   console.error('❌ [DeleteRoute] Error:', error);
                   alert('Failed to delete route. Please try again.');
@@ -3737,22 +3751,36 @@ export default function DeliveriesPage() {
 
                     console.log(`🗑️ [DeleteRoute-Mobile] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
 
-                    // CRITICAL: Batch delete with single UI update
-                    await batchDeleteDeliveriesLocal(deliveryIds, {
-                      userId: currentUser?.id,
-                      userName: currentUser?.user_name || currentUser?.full_name
-                    });
+                    // CRITICAL: Delete from BOTH databases simultaneously
+                    // 1. Delete from online database
+                    for (const id of deliveryIds) {
+                      await base44.entities.Delivery.delete(id);
+                    }
+                    console.log(`✅ [DeleteRoute-Mobile] Deleted ${deliveryIds.length} from online DB`);
 
-                    console.log(`✅ [DeleteRoute-Mobile] Route deleted successfully`);
+                    // 2. Delete from offline database
+                    const { offlineDB } = await import('../components/utils/offlineDatabase');
+                    for (const id of deliveryIds) {
+                      await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id);
+                    }
+                    console.log(`✅ [DeleteRoute-Mobile] Deleted ${deliveryIds.length} from offline DB`);
+
+                    // 3. Update UI immediately
+                    setAllDeliveries(prev => prev.filter(d => !deliveryIds.includes(d.id)));
+
+                    // 4. Broadcast to other devices
+                    smartRefreshManager.deletedDeliveryIds.add(...deliveryIds);
+
                     invalidate('Delivery');
                     setRefreshKey((prev) => prev + 1);
                     setIsMobileMenuOpen(false);
+                    console.log(`✅ [DeleteRoute-Mobile] Route deleted successfully from both databases`);
                   } catch (error) {
                     console.error('❌ [DeleteRoute-Mobile] Error:', error);
                     alert('Failed to delete route. Please try again.');
                     await loadData(true);
                   }
-                }}
+                }
                 onDeleteMonth={async (year, month, driverId) => {
                   try {
                     if (!confirm(`Delete all deliveries for ${driverId ? 'this driver for ' : ''}this month?`)) return;
