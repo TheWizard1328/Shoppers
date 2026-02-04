@@ -3980,11 +3980,11 @@ export default function DeliveryForm({
                                           </Badge>);
 
                                 })()}
-                                    </div>
+                                   </div>
                                     <div className="text-xs text-slate-600 truncate">{patient.address}</div>
                                     {patient.phone && <div className="text-xs text-slate-500 truncate">{formatPhoneNumber(patient.phone)}</div>}
                                   </button>
-                                  
+
                                   {/* Duplicate and New Address buttons */}
                                   <div className="flex flex-col gap-1 ml-1">
                                     <Button
@@ -4012,15 +4012,15 @@ export default function DeliveryForm({
                                       <MapPin className="w-3 h-3 text-purple-600" />
                                     </Button>
                                   </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    }
-                  </div>
-                }
+                                </div>
+                                );
+                                })}
+                                </div>
+                                }
+                                </div>
+                                }
 
-                {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
+                                {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
                 {isPickupMode && !delivery && (
                   <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
