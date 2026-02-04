@@ -630,8 +630,8 @@ export function getSetting(key) {
 }
 
 /**
- * Apply auto dark mode based on local time (6pm to 6am = dark)
- * CRITICAL: Uses device's LOCAL time, not UTC
+ * Apply auto dark mode - syncs with device's system dark mode preference
+ * CRITICAL: Uses native prefers-color-scheme media query (no API calls)
  */
 function applyAutoDarkMode() {
   const currentSettings = cachedSettings || { ...DEFAULT_SETTINGS };
@@ -640,42 +640,39 @@ function applyAutoDarkMode() {
     return; // Only applies to 'auto' mode
   }
   
-  // Get LOCAL time (not UTC)
-  const now = new Date();
-  const hour = now.getHours();
-  
-  // Dark mode from 6pm (18:00) to 6am (6:00)
-  const shouldBeDark = hour >= 18 || hour < 6;
+  // Check device's system dark mode preference
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   
   // Apply theme to document root
-  if (shouldBeDark) {
+  if (prefersDark) {
     document.documentElement.classList.add('dark');
   } else {
     document.documentElement.classList.remove('dark');
   }
   
-  console.log(`🌓 [UserSettings] Auto dark mode: ${shouldBeDark ? 'DARK' : 'LIGHT'} (local time ${hour}:00)`);
+  console.log(`🌓 [UserSettings] Auto dark mode synced with system: ${prefersDark ? 'DARK' : 'LIGHT'}`);
 }
 
 /**
  * Initialize auto dark mode monitoring
- * Checks every minute if theme needs to change based on time
+ * Listens for system dark mode changes and applies immediately
  */
-let autoDarkModeInterval = null;
+let darkModeMediaQuery = null;
 
 export function initializeAutoDarkMode() {
-  // Clear any existing interval
-  if (autoDarkModeInterval) {
-    clearInterval(autoDarkModeInterval);
+  // Clean up existing listener
+  if (darkModeMediaQuery) {
+    darkModeMediaQuery.removeEventListener('change', applyAutoDarkMode);
   }
   
   // Apply immediately
   applyAutoDarkMode();
   
-  // Check every minute for time-based theme changes
-  autoDarkModeInterval = setInterval(applyAutoDarkMode, 60000);
+  // Listen for system dark mode changes
+  darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  darkModeMediaQuery.addEventListener('change', applyAutoDarkMode);
   
-  console.log('🌓 [UserSettings] Auto dark mode monitoring initialized');
+  console.log('🌓 [UserSettings] Auto dark mode monitoring initialized (syncs with system)');
 }
 
 /**
