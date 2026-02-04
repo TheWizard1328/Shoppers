@@ -332,9 +332,18 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Step 3: Stores with timestamp check
+    // Step 3: Stores with timestamp check (force if empty)
     const storeResult = await syncEntityWithTimestampCheck('Store', Store, {}, {});
-    const stores = await offlineDB.getAll(offlineDB.STORES.STORES);
+    let stores = await offlineDB.getAll(offlineDB.STORES.STORES);
+    
+    if (!stores || stores.length === 0) {
+      console.warn('⚠️ [LoadPriorityData] Stores empty after sync, forcing full fetch...');
+      const storesFromAPI = await Store.list();
+      if (storesFromAPI && storesFromAPI.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.STORES, storesFromAPI);
+        stores = storesFromAPI;
+      }
+    }
     
     await new Promise(r => setTimeout(r, 3000));
     
