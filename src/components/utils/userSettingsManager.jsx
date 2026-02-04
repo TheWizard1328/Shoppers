@@ -10,37 +10,56 @@ import { getUserAgentInfo } from './deviceUtils';
 
 // In-memory cache for current session
 let cachedSettings = null;
+let cachedGlobalSettings = null;
 let currentUserId = null;
-let cachedDeviceType = null; // Cache device type (Mobile or Desktop)
+let cachedDeviceIdentifier = null;
+let cachedDeviceType = null; // Cache device type (Mobile, Desktop, or Tablet)
 let lastFetchTime = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache to prevent rate limits
 
 /**
- * Gets device type identifier - simply "Mobile" or "Desktop"
- * This ensures only 1 settings record per device type per user
- * CRITICAL: Always returns "Mobile" if is_mobile flag was set, regardless of current screen width
+ * Gets unique device identifier - stored and persisted in localStorage
+ * CRITICAL: Must be stable across sessions for the same physical device
  */
-export function getDeviceType() {
-  // CRITICAL: Check if this device was previously marked as mobile via localStorage
-  const wasMobile = localStorage.getItem('rxdeliver_is_mobile');
-  if (wasMobile === 'true') {
-    cachedDeviceType = 'Mobile';
-    console.log('📱 [UserSettings] Device Type: Mobile (from localStorage flag)');
-    return cachedDeviceType;
+export function getDeviceIdentifier() {
+  // Return cached if available
+  if (cachedDeviceIdentifier) {
+    return cachedDeviceIdentifier;
   }
 
+  // Try to load from localStorage
+  let deviceId = localStorage.getItem('rxdeliver_device_identifier');
+  
+  if (!deviceId) {
+    // Generate new UUID for this device
+    deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('rxdeliver_device_identifier', deviceId);
+    console.log('🆔 [UserSettings] Generated new device identifier:', deviceId);
+  } else {
+    console.log('🆔 [UserSettings] Loaded device identifier:', deviceId);
+  }
+
+  cachedDeviceIdentifier = deviceId;
+  return deviceId;
+}
+
+/**
+ * Gets device type identifier - "Mobile", "Desktop", or "Tablet"
+ * CRITICAL: Classifies Tablet as Mobile for settings purposes
+ */
+export function getDeviceType() {
   // Return cached if available
   if (cachedDeviceType) {
     return cachedDeviceType;
   }
 
   const { deviceType } = getUserAgentInfo();
-  const isMobile = deviceType === 'Mobile';
-  cachedDeviceType = isMobile ? 'Mobile' : 'Desktop';
   
-  // CRITICAL: Store mobile flag in localStorage to persist across sessions
-  if (isMobile) {
-    localStorage.setItem('rxdeliver_is_mobile', 'true');
+  // Classify Tablet as Mobile
+  if (deviceType === 'Tablet') {
+    cachedDeviceType = 'Mobile';
+  } else {
+    cachedDeviceType = deviceType === 'Mobile' ? 'Mobile' : 'Desktop';
   }
   
   console.log('📱 [UserSettings] Device Type:', cachedDeviceType);
@@ -170,11 +189,11 @@ async function loadGlobalSettings(userId) {
 }
 
 /**
- * Loads user settings from the backend for the current user and device type
- * Merges global settings (synced across devices) with device-specific settings
+ * Loads user settings from the backend for the current user and device
+ * Retrieves the UserSettings record and extracts device-specific + global settings
  * Falls back to cached settings when offline
  * @param {string} userId - The user's ID
- * @returns {Promise<object>} - The user settings object
+ * @returns {Promise<object>} - The merged settings object for current device
  */
 export async function loadUserSettings(userId) {
   if (!userId) {
@@ -182,6 +201,7 @@ export async function loadUserSettings(userId) {
     return { ...DEFAULT_SETTINGS };
   }
 
+  const deviceIdentifier = getDeviceIdentifier();
   const deviceType = getDeviceType();
   
   // Return cached if same user AND cache is fresh (< 5 min)
@@ -193,129 +213,104 @@ export async function loadUserSettings(userId) {
 
   // Check if offline - use cached settings from IndexedDB
   if (!offlineManager.getOnlineStatus()) {
-  console.log('📴 [UserSettings] Offline - loading from local persistent store');
+    console.log('📴 [UserSettings] Offline - loading from local persistent store');
+    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceIdentifier);
+    if (indexedSettings) {
+      cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
+      currentUserId = userId;
 
-  const indexedSettings = await loadFromLocalPersistentStore(userId, deviceType);
-  if (indexedSettings) {
-    cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
-    currentUserId = userId;
+      if (cachedSettings.theme_preference === 'auto') {
+        initializeAutoDarkMode();
+      }
 
-    // CRITICAL: Apply auto dark mode if theme preference is 'auto'
-    if (cachedSettings.theme_preference === 'auto') {
-      initializeAutoDarkMode();
-    }
-
-    return cachedSettings;
+      return cachedSettings;
     }
     
-    // Return defaults if no cache available
     console.log('⚠️ [UserSettings] No cached settings available in IndexedDB, using defaults');
     return { ...DEFAULT_SETTINGS };
   }
 
   try {
-    console.log(`🔍 [UserSettings] Loading settings for user: ${userId}, device type: ${deviceType}`);
+    console.log(`🔍 [UserSettings] Loading settings for user: ${userId}, device: ${deviceIdentifier}`);
     
-    // STEP 1: Load global settings (synced across all devices)
-    const globalSettings = await loadGlobalSettings(userId);
-    
-    // STEP 2: Load device-specific settings for this device type
-    // Add delay to space out API calls
-    await new Promise(r => setTimeout(r, 100));
-    
-    const deviceSettings = await UserSettings.filter({
-      user_id: userId,
-      device_type: deviceType
-    }, '-created_date', 10);
+    // Load the main UserSettings record for this user
+    const userSettingsRecords = await UserSettings.filter({
+      user_id: userId
+    }, '-updated', 1);
 
-    if (deviceSettings && deviceSettings.length > 0) {
-      // CRITICAL: If multiple records exist, delete duplicates and keep the OLDEST one
-      if (deviceSettings.length > 1) {
-        console.warn(`⚠️ [UserSettings] Found ${deviceSettings.length} duplicate records for ${deviceType}, cleaning up...`);
-        const sorted = [...deviceSettings].sort((a, b) => 
-          new Date(a.created_date || a.created || 0) - new Date(b.created_date || b.created || 0)
-        );
-        const keepRecord = sorted[0];
-        
-        for (let i = 1; i < deviceSettings.length; i++) {
-          try {
-            await UserSettings.delete(deviceSettings[i].id);
-            console.log(`   Deleted duplicate ${deviceType} record: ${deviceSettings[i].id}`);
-          } catch (deleteError) {
-            console.warn('   Failed to delete duplicate:', deleteError.message);
-          }
-        }
-        
-        deviceSettings[0] = keepRecord;
-      }
+    if (userSettingsRecords && userSettingsRecords.length > 0) {
+      const userSettingsRecord = userSettingsRecords[0];
       
-      cachedSettings = { 
-        ...DEFAULT_SETTINGS, 
+      // Get device-specific settings or initialize empty object
+      const deviceProfile = userSettingsRecord.device_settings_profiles?.[deviceIdentifier] || {};
+      const globalSettings = userSettingsRecord.global_settings || {};
+      
+      cachedSettings = {
+        ...DEFAULT_SETTINGS,
         ...globalSettings,
-        ...deviceSettings[0]
+        ...deviceProfile,
+        device_identifier: deviceIdentifier,
+        device_type: deviceType
       };
+      
+      cachedGlobalSettings = globalSettings;
       currentUserId = userId;
       lastFetchTime = Date.now();
       
-      await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
+      await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
       
-      // CRITICAL: Apply auto dark mode for mobile devices
-      if (deviceType === 'Mobile') {
+      if (cachedSettings.theme_preference === 'auto') {
         initializeAutoDarkMode();
       }
       
-      console.log(`✅ [UserSettings] Loaded ${deviceType} settings (cached for 5 min)`);
+      console.log(`✅ [UserSettings] Loaded device profile for ${deviceIdentifier}`);
       return cachedSettings;
     }
 
-    // No settings found - create new record for this device type
-    console.log(`ℹ️ [UserSettings] No ${deviceType} settings found, creating...`);
+    // No settings record found - create new one
+    console.log(`ℹ️ [UserSettings] No settings record found, creating...`);
     
     try {
       const now = new Date().toISOString();
       const isMobile = deviceType === 'Mobile';
       
-      const newSettings = await UserSettings.create({
+      const newRecord = await UserSettings.create({
         user_id: userId,
-        device_type: deviceType,
-        is_mobile: isMobile,
-        ...DEFAULT_SETTINGS,
-        ...globalSettings,
-        theme_preference: isMobile ? 'auto' : 'light',
+        device_settings_profiles: {
+          [deviceIdentifier]: {
+            device_identifier: deviceIdentifier,
+            device_type: deviceType,
+            ...DEFAULT_SETTINGS,
+            theme_preference: isMobile ? 'auto' : 'light',
+            last_active_at: now
+          }
+        },
+        global_settings: {},
+        active_device_identifier: deviceIdentifier,
         created: now,
         updated: now
       });
-      cachedSettings = { ...DEFAULT_SETTINGS, ...globalSettings, ...newSettings };
+      
+      cachedSettings = {
+        ...DEFAULT_SETTINGS,
+        device_identifier: deviceIdentifier,
+        device_type: deviceType
+      };
+      cachedGlobalSettings = {};
       currentUserId = userId;
       lastFetchTime = Date.now();
 
-      await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
+      await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
 
-      // CRITICAL: Apply auto dark mode if theme preference is 'auto'
       if (cachedSettings.theme_preference === 'auto') {
         initializeAutoDarkMode();
       }
 
-      console.log(`✅ [UserSettings] Created ${deviceType} settings record (cached for 5 min)`);
+      console.log(`✅ [UserSettings] Created new settings record with device profile`);
       return cachedSettings;
     } catch (createError) {
-      if (createError.message?.includes('duplicate') || createError.message?.includes('conflict')) {
-        console.warn('⚠️ [UserSettings] Creation conflict - fetching again');
-        const finalCheck = await UserSettings.filter({
-          user_id: userId,
-          device_type: deviceType
-        }, '-created_date', 1);
-        
-        if (finalCheck && finalCheck.length > 0) {
-          cachedSettings = { ...DEFAULT_SETTINGS, ...finalCheck[0] };
-          currentUserId = userId;
-          await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
-          return cachedSettings;
-        }
-      }
-      
       console.error('❌ [UserSettings] Error creating settings record:', createError);
-      cachedSettings = { ...DEFAULT_SETTINGS };
+      cachedSettings = { ...DEFAULT_SETTINGS, device_identifier: deviceIdentifier, device_type: deviceType };
       currentUserId = userId;
       return cachedSettings;
     }
@@ -323,13 +318,12 @@ export async function loadUserSettings(userId) {
   } catch (error) {
     console.error('❌ [UserSettings] Error loading settings:', error);
     
-    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceType);
+    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceIdentifier);
     if (indexedSettings) {
-      console.log('📦 [UserSettings] Network error - falling back to cached settings from IndexedDB');
+      console.log('📦 [UserSettings] Network error - falling back to cached settings');
       cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
       currentUserId = userId;
 
-      // CRITICAL: Apply auto dark mode if theme preference is 'auto'
       if (cachedSettings.theme_preference === 'auto') {
         initializeAutoDarkMode();
       }
@@ -343,8 +337,7 @@ export async function loadUserSettings(userId) {
 
 /**
  * Saves a specific setting to the backend
- * Handles global settings (synced across devices) vs device-specific settings
- * Queues for offline sync if not connected
+ * Updates either device-specific or global settings in UserSettings
  * @param {string} userId - The user's ID
  * @param {string} key - The setting key to update
  * @param {any} value - The new value
@@ -356,107 +349,73 @@ export async function saveSetting(userId, key, value) {
     return cachedSettings || { ...DEFAULT_SETTINGS };
   }
 
+  const deviceIdentifier = getDeviceIdentifier();
   const deviceType = getDeviceType();
   const isGlobal = isGlobalSetting(key);
   
-  console.log(`💾 [UserSettings] Saving ${isGlobal ? 'GLOBAL' : deviceType} setting: ${key}=${value}`);
+  console.log(`💾 [UserSettings] Saving ${isGlobal ? 'GLOBAL' : 'DEVICE'} setting: ${key}=${value}`);
   
+  // Update cache
   if (cachedSettings) {
     cachedSettings[key] = value;
   } else {
     cachedSettings = { ...DEFAULT_SETTINGS, [key]: value };
   }
+  
+  if (isGlobal) {
+    cachedGlobalSettings = { ...cachedGlobalSettings, [key]: value };
+  }
   currentUserId = userId;
   
-  await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
+  await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
 
   if (!offlineManager.getOnlineStatus()) {
     console.log(`📴 [UserSettings] Offline - queuing setting ${key} for sync`);
-    
     await offlineManager.queueAction({
       type: 'updateUserSettings',
       userId,
-      deviceType,
       key,
       value,
+      isGlobal,
+      deviceIdentifier,
       data: { [key]: value }
     });
-    
     return cachedSettings;
   }
 
   try {
-    if (isGlobal) {
-      console.log(`🌐 [UserSettings] Updating GLOBAL setting across Mobile + Desktop`);
-      
-      const allDeviceSettings = await UserSettings.filter({
-        user_id: userId
-      });
-      
-      for (const deviceRecord of allDeviceSettings) {
-        try {
-          await UserSettings.update(deviceRecord.id, {
-            [key]: value,
-            updated: new Date().toISOString()
-          });
-        } catch (updateError) {
-          console.warn(`   Failed to update device type ${deviceRecord.device_type}:`, updateError.message);
-        }
-      }
-      
-      console.log(`✅ [UserSettings] Updated global setting on ${allDeviceSettings.length} device types`);
-    }
+    const userSettingsRecords = await UserSettings.filter({
+      user_id: userId
+    }, '-updated', 1);
 
-    const existingSettings = await UserSettings.filter({
-      user_id: userId,
-      device_type: deviceType
-    }, '-created_date', 10);
-
-    let updatedSettings;
-
-    if (existingSettings && existingSettings.length > 0) {
-      if (existingSettings.length > 1) {
-        console.warn(`⚠️ [UserSettings] Found ${existingSettings.length} duplicate ${deviceType} records, cleaning up...`);
-        for (let i = 1; i < existingSettings.length; i++) {
-          try {
-            await UserSettings.delete(existingSettings[i].id);
-            console.log(`   Deleted duplicate ${deviceType} record`);
-          } catch (deleteError) {
-            console.warn('   Failed to delete duplicate:', deleteError.message);
-          }
-        }
-      }
-      
-      updatedSettings = await UserSettings.update(existingSettings[0].id, {
-        ...cachedSettings,
-        updated: new Date().toISOString()
-      });
-      console.log(`✅ [UserSettings] Updated ${deviceType} settings`);
-    } else {
+    if (userSettingsRecords && userSettingsRecords.length > 0) {
+      const userSettingsRecord = userSettingsRecords[0];
       const now = new Date().toISOString();
-      const isMobile = deviceType === 'Mobile';
       
-      updatedSettings = await UserSettings.create({
-        user_id: userId,
-        device_type: deviceType,
-        is_mobile: isMobile,
-        ...DEFAULT_SETTINGS,
-        theme_preference: isMobile ? 'auto' : 'light',
-        [key]: value,
-        created: now,
+      const updateData = {
         updated: now
-      });
-      console.log(`✅ [UserSettings] Created ${deviceType} settings record`);
-    }
+      };
 
-    cachedSettings = { ...DEFAULT_SETTINGS, ...updatedSettings };
-    currentUserId = userId;
+      if (isGlobal) {
+        updateData.global_settings = {
+          ...(userSettingsRecord.global_settings || {}),
+          [key]: value
+        };
+      } else {
+        updateData.device_settings_profiles = {
+          ...(userSettingsRecord.device_settings_profiles || {}),
+          [deviceIdentifier]: {
+            ...(userSettingsRecord.device_settings_profiles?.[deviceIdentifier] || {}),
+            device_identifier: deviceIdentifier,
+            device_type: deviceType,
+            [key]: value,
+            last_active_at: now
+          }
+        };
+      }
 
-    await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
-
-    // CRITICAL: Re-initialize auto dark mode if theme changed to 'auto'
-    if (cachedSettings.theme_preference === 'auto') {
-      initializeAutoDarkMode();
+      await UserSettings.update(userSettingsRecord.id, updateData);
+      console.log(`✅ [UserSettings] Updated ${isGlobal ? 'global' : 'device'} setting`);
     }
 
     return cachedSettings;
@@ -468,9 +427,10 @@ export async function saveSetting(userId, key, value) {
       await offlineManager.queueAction({
         type: 'updateUserSettings',
         userId,
-        deviceType,
         key,
         value,
+        isGlobal,
+        deviceIdentifier,
         data: { [key]: value }
       });
     }
@@ -481,8 +441,7 @@ export async function saveSetting(userId, key, value) {
 
 /**
  * Saves multiple settings at once
- * Handles global settings (synced across devices) vs device-specific settings
- * Queues for offline sync if not connected
+ * Updates device-specific and/or global settings in UserSettings
  * @param {string} userId - The user's ID
  * @param {object} settings - Object with key-value pairs to save
  * @returns {Promise<object>} - The updated settings object
@@ -493,6 +452,7 @@ export async function saveSettings(userId, settings) {
     return cachedSettings || { ...DEFAULT_SETTINGS };
   }
 
+  const deviceIdentifier = getDeviceIdentifier();
   const deviceType = getDeviceType();
   
   const globalUpdates = {};
@@ -506,99 +466,68 @@ export async function saveSettings(userId, settings) {
     }
   });
   
-  console.log(`💾 [UserSettings] Saving ${Object.keys(globalUpdates).length} global + ${Object.keys(deviceUpdates).length} ${deviceType} settings`);
+  console.log(`💾 [UserSettings] Saving ${Object.keys(globalUpdates).length} global + ${Object.keys(deviceUpdates).length} device settings`);
   
+  // Update caches
   if (cachedSettings) {
     cachedSettings = { ...cachedSettings, ...settings };
   } else {
     cachedSettings = { ...DEFAULT_SETTINGS, ...settings };
   }
+  
+  cachedGlobalSettings = { ...cachedGlobalSettings, ...globalUpdates };
   currentUserId = userId;
   
-  await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
+  await saveToLocalPersistentStore(userId, deviceIdentifier, cachedSettings);
 
   if (!offlineManager.getOnlineStatus()) {
     console.log(`📴 [UserSettings] Offline - queuing settings for sync`);
-    
     await offlineManager.queueAction({
       type: 'updateUserSettings',
       userId,
-      deviceType,
+      deviceIdentifier,
       data: settings
     });
-    
     return cachedSettings;
   }
 
   try {
-    if (Object.keys(globalUpdates).length > 0) {
-      console.log(`🌐 [UserSettings] Updating global settings across Mobile + Desktop`);
-      
-      const allDeviceSettings = await UserSettings.filter({
-        user_id: userId
-      });
-      
-      for (const deviceRecord of allDeviceSettings) {
-        try {
-          await UserSettings.update(deviceRecord.id, {
-            ...globalUpdates,
-            updated: new Date().toISOString()
-          });
-        } catch (updateError) {
-          console.warn(`   Failed to update device type ${deviceRecord.device_type}:`, updateError.message);
-        }
-      }
-      
-      console.log(`✅ [UserSettings] Updated global settings on ${allDeviceSettings.length} device types`);
-    }
+    const userSettingsRecords = await UserSettings.filter({
+      user_id: userId
+    }, '-updated', 1);
 
-    const existingSettings = await UserSettings.filter({
-      user_id: userId,
-      device_type: deviceType
-    }, '-created_date', 10);
-
-    let updatedSettings;
-
-    if (existingSettings && existingSettings.length > 0) {
-      if (existingSettings.length > 1) {
-        console.warn(`⚠️ [UserSettings] Found ${existingSettings.length} duplicate ${deviceType} records, cleaning up...`);
-        for (let i = 1; i < existingSettings.length; i++) {
-          try {
-            await UserSettings.delete(existingSettings[i].id);
-          } catch (deleteError) {
-            console.warn('   Failed to delete duplicate:', deleteError.message);
-          }
-        }
-      }
-      
-      updatedSettings = await UserSettings.update(existingSettings[0].id, {
-        ...cachedSettings,
-        updated: new Date().toISOString()
-      });
-      console.log(`✅ [UserSettings] Updated ${deviceType} settings`);
-    } else {
+    if (userSettingsRecords && userSettingsRecords.length > 0) {
+      const userSettingsRecord = userSettingsRecords[0];
       const now = new Date().toISOString();
-      const isMobile = deviceType === 'Mobile';
       
-      updatedSettings = await UserSettings.create({
-        user_id: userId,
-        device_type: deviceType,
-        is_mobile: isMobile,
-        ...DEFAULT_SETTINGS,
-        theme_preference: isMobile ? 'auto' : 'light',
-        ...settings,
-        created: now,
+      const updateData = {
         updated: now
-      });
-      console.log(`✅ [UserSettings] Created ${deviceType} settings record`);
+      };
+
+      if (Object.keys(globalUpdates).length > 0) {
+        updateData.global_settings = {
+          ...(userSettingsRecord.global_settings || {}),
+          ...globalUpdates
+        };
+      }
+
+      if (Object.keys(deviceUpdates).length > 0) {
+        updateData.device_settings_profiles = {
+          ...(userSettingsRecord.device_settings_profiles || {}),
+          [deviceIdentifier]: {
+            ...(userSettingsRecord.device_settings_profiles?.[deviceIdentifier] || {}),
+            device_identifier: deviceIdentifier,
+            device_type: deviceType,
+            ...deviceUpdates,
+            last_active_at: now
+          }
+        };
+      }
+
+      await UserSettings.update(userSettingsRecord.id, updateData);
+      console.log(`✅ [UserSettings] Updated settings`);
     }
 
-    cachedSettings = { ...DEFAULT_SETTINGS, ...updatedSettings };
-    currentUserId = userId;
-
-    await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
-
-    // CRITICAL: Re-initialize auto dark mode if theme is 'auto' or was just changed to 'auto'
     if (cachedSettings.theme_preference === 'auto') {
       initializeAutoDarkMode();
     }
@@ -612,7 +541,7 @@ export async function saveSettings(userId, settings) {
       await offlineManager.queueAction({
         type: 'updateUserSettings',
         userId,
-        deviceType,
+        deviceIdentifier,
         data: settings
       });
     }
