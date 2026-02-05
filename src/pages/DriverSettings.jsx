@@ -15,6 +15,7 @@ import { base44 } from '@/api/base44Client';
 import DriverEditForm from '../components/drivers/DriverEditForm';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { globalFilters } from '../components/utils/globalFilters';
+import { getData } from '../components/utils/dataManager';
 
 export default function DriverSettings() {
   const { users, appUsers, stores, cities = [], refreshData } = useAppData();
@@ -42,11 +43,11 @@ export default function DriverSettings() {
     return [...cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
   }, [cities]);
 
-  // Fetch fresh AppUser data on mount and periodically for accurate driver_status
+  // Fetch fresh AppUser data on mount using offline-first data manager with rate limiting
   useEffect(() => {
     const fetchFreshAppUsers = async () => {
       try {
-        const freshData = await base44.entities.AppUser.list();
+        const freshData = await getData('AppUser', '-updated_date', null, false);
         setFreshAppUsers(freshData || []);
       } catch (error) {
         console.warn('Failed to fetch fresh AppUser data:', error);
@@ -54,7 +55,8 @@ export default function DriverSettings() {
     };
 
     fetchFreshAppUsers();
-    const interval = setInterval(fetchFreshAppUsers, 10000); // Refresh every 10 seconds
+    // Only refresh on manual action or long intervals to avoid rate limits
+    const interval = setInterval(fetchFreshAppUsers, 60000); // Refresh every 60 seconds max
     return () => clearInterval(interval);
   }, []);
 
