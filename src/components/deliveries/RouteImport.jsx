@@ -1947,29 +1947,40 @@ export default function RouteImport({
       });
 
       // STEP 1: Delete from ONLINE database FIRST
-      // Query by driver_id first, then also by driver_name to catch ghosts
+      // Batch by date to reduce API calls, then delete in parallel
+      const deliveriesByDate = new Map();
       for (const { driverId, date } of driverDatePairs) {
+        if (!deliveriesByDate.has(date)) {
+          deliveriesByDate.set(date, []);
+        }
+        deliveriesByDate.get(date).push(driverId);
+      }
+
+      for (const [date, driverIds] of deliveriesByDate.entries()) {
         try {
-          // Get all deliveries for this date first
+          // Single query per date
           const allDeliveriesForDate = await base44.entities.Delivery.filter({
             delivery_date: date
           });
 
-          // Filter to those matching either driver_id OR driver_name
+          // Filter to those matching any driver_id OR driver_name
           const toDelete = allDeliveriesForDate.filter(d => {
-            const matchesId = d.driver_id === driverId;
+            const matchesId = driverIds.includes(d.driver_id);
             const matchesName = d.driver_name && driverNamesToDelete.has(d.driver_name.trim().toLowerCase());
             return matchesId || matchesName;
           });
 
+          // Delete in parallel batches of 10 to avoid overwhelming API
           if (toDelete && toDelete.length > 0) {
-            for (const delivery of toDelete) {
-              await base44.entities.Delivery.delete(delivery.id);
+            const BATCH_SIZE = 10;
+            for (let i = 0; i < toDelete.length; i += BATCH_SIZE) {
+              const batch = toDelete.slice(i, i + BATCH_SIZE);
+              await Promise.all(batch.map(d => base44.entities.Delivery.delete(d.id)));
             }
-            console.log(`🗑️ [RouteImport] Deleted ${toDelete.length} online deliveries (${driverId} / ${Array.from(driverNamesToDelete).join(', ')}) on ${date}`);
+            console.log(`🗑️ [RouteImport] Deleted ${toDelete.length} online deliveries on ${date}`);
           }
         } catch (deleteError) {
-          console.error(`Failed to delete online deliveries for ${driverId}/${date}:`, deleteError);
+          console.error(`Failed to delete online deliveries for ${date}:`, deleteError);
           throw deleteError; // CRITICAL: Fail import if purge fails
         }
       }
