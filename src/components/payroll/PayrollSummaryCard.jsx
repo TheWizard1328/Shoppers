@@ -3373,8 +3373,27 @@ export default function PayrollSummaryCard({
                   </div>
               </div>
 
-              {/* Mobile View */}
-              <div className="md:hidden">
+              {/* Mobile View - check for tablets in portrait mode */}
+              <div className="md:hidden" style={{
+                display: (() => {
+                  if (typeof window === 'undefined') return 'none';
+                  const ua = navigator.userAgent;
+                  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
+                  const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+                  
+                  // Phones always show mobile
+                  if (isPhone) return 'block';
+                  
+                  // Tablets: portrait = show, landscape = hide
+                  if (isTabletDevice) {
+                    const isPortrait = window.innerWidth < window.innerHeight;
+                    return isPortrait ? 'block' : 'none';
+                  }
+                  
+                  // Desktop: use media query (md:hidden handles this)
+                  return 'block';
+                })()
+              }}>
                 <div className="font-semibold mb-3 text-sm" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
                 
                 {/* Pay Summary Table */}
