@@ -649,16 +649,16 @@ export default function DriverPayroll() {
     <div className="p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl mx-auto" ref={contentRef}>
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           {/* Row 1 (Mobile) / Left section (Desktop) */}
-          <div className="flex items-center gap-3 justify-between w-full md:w-auto">
+          <div className="flex items-center gap-3 justify-between w-full lg:w-auto">
             <div className="flex items-center gap-3">
               <DollarSign className="w-8 h-8 text-emerald-600" />
               <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Payroll</h1>
             </div>
             
-            {/* Mobile: Show Refresh and Share buttons next to title */}
-            <div className="flex md:hidden items-center gap-1">
+            {/* Mobile/Tablet Portrait: Show Refresh and Share buttons next to title */}
+            <div className="flex lg:hidden items-center gap-1">
               <Button
                 onClick={handleManualRefresh}
                 disabled={isRefreshing || isLoadingPayroll}
@@ -689,7 +689,7 @@ export default function DriverPayroll() {
           </div>
           
           {/* Row 2 (Mobile centered) / Middle section (Desktop) */}
-          <div className="flex flex-row items-center gap-2 justify-center w-full md:w-auto">
+          <div className="flex flex-row items-center gap-2 justify-center w-full lg:w-auto">
             {/* City, Year, Driver Dropdowns */}
             <div className="flex items-center gap-2">
               {/* City Filter */}
@@ -763,7 +763,7 @@ export default function DriverPayroll() {
             </div>
 
             {/* Icon Buttons - Far Right (Desktop only) */}
-            <div id="payroll-controls" className="hidden md:flex items-center gap-1 ml-auto">
+            <div id="payroll-controls" className="hidden lg:flex items-center gap-1 ml-auto">
               <Button
                 onClick={handleManualRefresh}
                 disabled={isRefreshing || isLoadingPayroll}
