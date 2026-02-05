@@ -6182,24 +6182,29 @@ function Dashboard() {
       patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturnByMarkers(d));
 
       if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id) {
-        console.log('🎉 [STATUS] Route complete - showing end of day stats');
-        const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
-        setEndOfDayDriver(completedDriver);
-        setShowEndOfDayStats(true);
-        
-        // CRITICAL: Re-measure stop cards height after route completion
-        setTimeout(() => {
-          if (horizontalStopCardsRef.current) {
-            const newHeight = horizontalStopCardsRef.current.offsetHeight;
-            if (newHeight > 0 && newHeight !== stopCardsBaseHeight) {
-              console.log(`📏 [Route Complete] Re-measured stop cards height: ${newHeight}px (was ${stopCardsBaseHeight}px)`);
-              setStopCardsBaseHeight(newHeight);
+        const summaryKey = `${driverId}_${deliveryDate}`;
+        if (!hasShownSummaryRef.current.has(summaryKey)) {
+          console.log('🎉 [STATUS] Route complete - showing end of day stats');
+          const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
+          setEndOfDayDriver(completedDriver);
+          setShowEndOfDayStats(true);
+          hasShownSummaryRef.current.add(summaryKey);
+          
+          // CRITICAL: Re-measure stop cards height after route completion
+          setTimeout(() => {
+            if (horizontalStopCardsRef.current) {
+              const newHeight = horizontalStopCardsRef.current.offsetHeight;
+              if (newHeight > 0 && newHeight !== stopCardsBaseHeight) {
+                console.log(`📏 [Route Complete] Re-measured stop cards height: ${newHeight}px (was ${stopCardsBaseHeight}px)`);
+                setStopCardsBaseHeight(newHeight);
+              }
             }
-          }
-        }, 400);
+          }, 400);
+        }
       }
 
-      if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id) {
+      // REMOVED: RouteSummaryModal trigger (replaced with EndOfDayStatsDialog)
+      if (false && routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id) {
         const summaryKey = `${driverId}_${deliveryDate}`;
         if (!hasShownSummaryRef.current.has(summaryKey)) {
           setMapViewPhase(1);
