@@ -211,8 +211,8 @@ export default function PayrollMobileCard({
           {/* Gross (bold, divider) */}
           <div className="flex gap-2 pt-1 border-t font-bold" style={{ borderColor: 'var(--border-slate-200)', color: '#10b981' }}>
             <div className="flex-1 text-left">Gross</div>
-            <div className="w-24 text-right">{formatCurrency(data.grossPay || data.gross_pay || 0)}</div>
-            <div className="w-24 text-right">{formatCurrency(ytdTotals.ytdGrossPay)}</div>
+            <div className="w-24 text-right">{formatCurrency((data.grandTotal || 0) + (data.taxAmount || 0) - (data.deductions || 0) + (bonusAmount || 0) + (appFeeAmount || 0))}</div>
+            <div className="w-24 text-right">{formatCurrency((ytdDataByDriver[data.driver.id]?.ytdNetPay || 0) + (ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0) - (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0))}</div>
           </div>
         </div>
       </div>
