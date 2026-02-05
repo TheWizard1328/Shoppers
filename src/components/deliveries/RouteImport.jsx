@@ -2005,7 +2005,7 @@ export default function RouteImport({
       batchUpdateAMPM(deliveriesToCreateFiltered);
       batchUpdateAMPM(deliveriesToUpdateFiltered);
 
-      // BATCH CREATE - Use bulkCreate for efficiency
+      // BATCH CREATE - Organize by date, bulkCreate all drivers for each date with 1sec cooldown
       if (deliveriesToCreateFiltered.length > 0) {
         setImportProgress((prev) => ({
           ...prev,
@@ -2017,26 +2017,33 @@ export default function RouteImport({
 
         const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-        // CRITICAL: Use reasonable batch size for bulkCreate
-        const BATCH_SIZE = 25;
-        const batches = [];
-        for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
-          batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
-        }
+        // Group deliveries by date
+        const deliveriesByDate = new Map();
+        cleanedDeliveries.forEach(d => {
+          if (!deliveriesByDate.has(d.delivery_date)) {
+            deliveriesByDate.set(d.delivery_date, []);
+          }
+          deliveriesByDate.get(d.delivery_date).push(d);
+        });
 
-        console.log(`📦 [RouteImport] Creating ${cleanedDeliveries.length} deliveries in ${batches.length} batches (size: ${BATCH_SIZE})`);
+        console.log(`📦 [RouteImport] Creating ${cleanedDeliveries.length} deliveries across ${deliveriesByDate.size} dates`);
 
         let totalCreated = 0;
-        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-          const batch = batches[batchIndex];
+        const sortedDates = Array.from(deliveriesByDate.keys()).sort();
+
+        for (let dateIndex = 0; dateIndex < sortedDates.length; dateIndex++) {
+          const date = sortedDates[dateIndex];
+          const deliveriesForDate = deliveriesByDate.get(date);
+
           try {
-            console.log(`📦 [RouteImport] Batch ${batchIndex + 1}/${batches.length}: Calling bulkCreate with ${batch.length} deliveries`);
+            console.log(`📦 [RouteImport] Date ${dateIndex + 1}/${sortedDates.length} (${date}): Creating ${deliveriesForDate.length} deliveries`);
+            setProgressMessage(`Creating deliveries for ${date} (${dateIndex + 1}/${sortedDates.length})...`);
 
             const createdDeliveries = await retryWithBackoff(async () => {
-              return await base44.entities.Delivery.bulkCreate(batch);
+              return await base44.entities.Delivery.bulkCreate(deliveriesForDate);
             }, 5, 3000, 2);
 
-            console.log(`✅ [RouteImport] Batch ${batchIndex + 1} succeeded: ${createdDeliveries.length} deliveries created`);
+            console.log(`✅ [RouteImport] Date ${date}: ${createdDeliveries.length} deliveries created`);
 
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
 
@@ -2059,11 +2066,16 @@ export default function RouteImport({
               created: totalCreated,
               current: totalCreated
             }));
-          } catch (batchError) {
-            console.error(`❌ [RouteImport] Batch ${batchIndex + 1} failed, falling back to individual creates:`, batchError.message);
 
-            // Fallback: try each item individually
-            for (const cleanData of batch) {
+            // Cooldown between dates to prevent rate limiting
+            if (dateIndex < sortedDates.length - 1) {
+              await delay(1000);
+            }
+          } catch (dateError) {
+            console.error(`❌ [RouteImport] Date ${date} failed, falling back to individual creates:`, dateError.message);
+
+            // Fallback: try each item individually for this date
+            for (const cleanData of deliveriesForDate) {
               try {
                 const createdDelivery = await retryWithBackoff(async () => {
                   return await base44.entities.Delivery.create(cleanData);
@@ -2091,6 +2103,11 @@ export default function RouteImport({
                 console.error(`❌ [RouteImport] Individual create failed:`, cleanData.delivery_id, individualError.message);
                 failedCreations.push({ data: cleanData, error: individualError.message });
               }
+            }
+
+            // Cooldown after failed date
+            if (dateIndex < sortedDates.length - 1) {
+              await delay(1000);
             }
           }
         }
