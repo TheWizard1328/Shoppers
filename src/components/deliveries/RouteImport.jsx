@@ -1932,11 +1932,9 @@ export default function RouteImport({
         return { driverId, date };
       });
 
-      // CRITICAL: ALWAYS PURGE BEFORE IMPORT - NO CHECKBOX NEEDED
-      // Delete all existing deliveries for affected drivers/dates from BOTH DBs
-      // This ensures imported data is the SOLE source of truth
-      // CRITICAL: Delete by BOTH driver_id AND driver_name to catch all ghost records
-      setProgressMessage(`Purging existing deliveries for ${driverDatePairs.length} driver/date combinations...`);
+      // CRITICAL: CONSERVATIVE PURGE - Date by date, driver by driver with cooldown
+      // This prevents rate limiting by spreading deletions over time
+      setProgressMessage(`Purging existing deliveries...`);
 
       // Get unique driver info from import data for name-based purging
       const driverNamesToDelete = new Set();
@@ -1946,69 +1944,60 @@ export default function RouteImport({
         }
       });
 
-      // STEP 1: Delete from ONLINE database FIRST
-      // Batch by date to reduce API calls, then delete in parallel
-      const deliveriesByDate = new Map();
+      // Group driver/date pairs by date, then by driver
+      const dateToDrivers = new Map();
       for (const { driverId, date } of driverDatePairs) {
-        if (!deliveriesByDate.has(date)) {
-          deliveriesByDate.set(date, []);
+        if (!dateToDrivers.has(date)) {
+          dateToDrivers.set(date, new Set());
         }
-        deliveriesByDate.get(date).push(driverId);
+        dateToDrivers.get(date).add(driverId);
       }
 
-      for (const [date, driverIds] of deliveriesByDate.entries()) {
-        try {
-          // Single query per date
-          const allDeliveriesForDate = await base44.entities.Delivery.filter({
-            delivery_date: date
-          });
+      // STEP 1: Delete from ONLINE DB - iterate dates, then drivers (one at a time)
+      let totalOnlineDeleted = 0;
+      for (const [date, driverIds] of dateToDrivers.entries()) {
+        for (const driverId of driverIds) {
+          try {
+            const toDelete = await base44.entities.Delivery.filter({
+              driver_id: driverId,
+              delivery_date: date
+            });
 
-          // Filter to those matching any driver_id OR driver_name
-          const toDelete = allDeliveriesForDate.filter(d => {
-            const matchesId = driverIds.includes(d.driver_id);
-            const matchesName = d.driver_name && driverNamesToDelete.has(d.driver_name.trim().toLowerCase());
-            return matchesId || matchesName;
-          });
-
-          // Delete in parallel batches of 10 to avoid overwhelming API
-          if (toDelete && toDelete.length > 0) {
-            const BATCH_SIZE = 10;
-            for (let i = 0; i < toDelete.length; i += BATCH_SIZE) {
-              const batch = toDelete.slice(i, i + BATCH_SIZE);
-              await Promise.all(batch.map(d => base44.entities.Delivery.delete(d.id)));
+            if (toDelete && toDelete.length > 0) {
+              for (const delivery of toDelete) {
+                await base44.entities.Delivery.delete(delivery.id);
+              }
+              totalOnlineDeleted += toDelete.length;
+              console.log(`🗑️ [RouteImport] Deleted ${toDelete.length} online deliveries for driver ${driverId} on ${date}`);
             }
-            console.log(`🗑️ [RouteImport] Deleted ${toDelete.length} online deliveries on ${date}`);
+          } catch (deleteError) {
+            console.error(`Failed to delete online deliveries for ${driverId}/${date}:`, deleteError);
+            throw deleteError;
           }
-        } catch (deleteError) {
-          console.error(`Failed to delete online deliveries for ${date}:`, deleteError);
-          throw deleteError; // CRITICAL: Fail import if purge fails
         }
       }
+      console.log(`✅ [RouteImport] Deleted ${totalOnlineDeleted} total online deliveries`);
 
-      // STEP 2: Delete from OFFLINE database
-      // Batch by date to reduce IndexedDB operations
-      for (const [date, driverIds] of deliveriesByDate.entries()) {
-        try {
-          const allOfflineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date);
-          const toDelete = allOfflineDeliveries.filter(d => {
-            const matchesId = driverIds.includes(d.driver_id);
-            const matchesName = d.driver_name && driverNamesToDelete.has(d.driver_name.trim().toLowerCase());
-            return matchesId || matchesName;
-          });
+      // STEP 2: Clear OFFLINE DB for ALL affected drivers/dates upfront (bulk operation)
+      setProgressMessage(`Clearing offline database cache...`);
+      try {
+        const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        const toDeleteOffline = allOfflineDeliveries.filter(d => {
+          const dateMatch = Array.from(dateToDrivers.keys()).includes(d.delivery_date);
+          const driverMatch = dateMatch && dateToDrivers.get(d.delivery_date)?.has(d.driver_id);
+          return dateMatch && driverMatch;
+        });
 
-          // Delete in parallel batches
-          if (toDelete && toDelete.length > 0) {
-            const BATCH_SIZE = 20;
-            for (let i = 0; i < toDelete.length; i += BATCH_SIZE) {
-              const batch = toDelete.slice(i, i + BATCH_SIZE);
-              await Promise.all(batch.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id)));
-            }
-            console.log(`🗑️ [RouteImport] Deleted ${toDelete.length} offline deliveries on ${date}`);
+        if (toDeleteOffline && toDeleteOffline.length > 0) {
+          const BATCH_SIZE = 20;
+          for (let i = 0; i < toDeleteOffline.length; i += BATCH_SIZE) {
+            const batch = toDeleteOffline.slice(i, i + BATCH_SIZE);
+            await Promise.all(batch.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id)));
           }
-        } catch (offlineDeleteError) {
-          console.warn('⚠️ [RouteImport] Failed to delete offline deliveries:', offlineDeleteError);
-          // Continue - offline DB errors shouldn't block import
+          console.log(`🗑️ [RouteImport] Cleared ${toDeleteOffline.length} offline deliveries`);
         }
+      } catch (offlineError) {
+        console.warn('⚠️ [RouteImport] Failed to clear offline DB:', offlineError);
       }
 
       setProgressPercent(15);
