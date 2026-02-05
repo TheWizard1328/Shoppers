@@ -1808,14 +1808,10 @@ export default function DeliveryMap({
     const driversToExcludeFromBounds = new Set(); // CRITICAL: Track home markers to exclude from centering
     const driversWithCompleteRoute = new Set(); // NEW: Track drivers whose routes are complete
 
-    // CRITICAL: Determine which deliveries to check based on mode
-    // Single driver mode: Only check selected driver
-    // All drivers/Show All mode: Check all deliveries
-    const deliveriesToCheck = isSingleDriverMode && selectedDriverId && selectedDriverId !== 'all'
-      ? safeDeliveries.filter(d => d && d.driver_id === selectedDriverId)
-      : (isCurrentUserAdmin && showOtherDriverDeliveries && otherDriverDeliveries.length > 0)
-        ? [...safeDeliveries, ...otherDriverDeliveries]
-        : safeDeliveries;
+    // CRITICAL: Check all deliveries to determine which drivers have stops
+    const deliveriesToCheck = (isCurrentUserAdmin && showOtherDriverDeliveries && otherDriverDeliveries.length > 0)
+      ? [...safeDeliveries, ...otherDriverDeliveries]
+      : safeDeliveries;
 
     // Group all stops (deliveries + pickups) by driver
     const stopsByDriver = new Map();
@@ -1880,6 +1876,13 @@ export default function DeliveryMap({
 
     const homeMarkers = [];
     driversToShowHome.forEach((driverId) => {
+      // CRITICAL: Filter based on mode
+      // Single driver mode: ONLY show selected driver's home
+      // All Drivers/Show All mode: Show all drivers' homes
+      if (isSingleDriverMode) {
+        if (driverId !== selectedDriverId) return;
+      }
+      
       if (isDriverViewingSelfToday && driverId !== currentUser.id) return;
 
       // CRITICAL: Find driver in safeUsers (contains merged AppUser data with home coords)
