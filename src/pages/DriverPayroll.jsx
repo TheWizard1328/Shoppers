@@ -563,48 +563,39 @@ export default function DriverPayroll() {
     
     const today = new Date();
     
-    // CRITICAL: Check if any past payroll has been finalized
-    const hasFinalizedPayroll = payrollRecords.some(r => 
-      r.status === 'driver_finalized' || 
-      r.status === 'admin_finalized' || 
-      r.status === 'paid'
+    // Find the most recent period that has ended or is current
+    let mostRecentPeriodIdx = -1;
+    for (let i = allPeriods.length - 1; i >= 0; i--) {
+      if (allPeriods[i].end <= today) {
+        mostRecentPeriodIdx = i;
+        break;
+      }
+    }
+    
+    // If no past period found, use current period
+    if (mostRecentPeriodIdx === -1 && selectedYear === today.getFullYear()) {
+      mostRecentPeriodIdx = findCurrentPeriodIndex(allPeriods, today);
+    } else if (mostRecentPeriodIdx === -1) {
+      mostRecentPeriodIdx = allPeriods.length - 1;
+    }
+    
+    // Check if this most recent period has been finalized
+    const mostRecentPeriod = allPeriods[mostRecentPeriodIdx];
+    const periodStartStr = mostRecentPeriod.start.toISOString().split('T')[0];
+    const periodEndStr = mostRecentPeriod.end.toISOString().split('T')[0];
+    
+    const periodIsFinalized = payrollRecords.some(r =>
+      r.pay_period_start === periodStartStr &&
+      r.pay_period_end === periodEndStr &&
+      (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
     );
     
-    if (hasFinalizedPayroll) {
-      // If past payroll finalized, load current pay cycle (existing behavior)
-      if (selectedYear === today.getFullYear()) {
-        const idx = findCurrentPeriodIndex(allPeriods, today);
-        setSelectedPeriodIndex(idx);
-      } else {
-        setSelectedPeriodIndex(allPeriods.length - 1);
-      }
+    if (!periodIsFinalized) {
+      // Most recent period is NOT finalized, load it
+      setSelectedPeriodIndex(mostRecentPeriodIdx);
     } else {
-      // Otherwise, load most recent unfinalized period
-      // Find the most recent period that has payroll records in draft status
-      let mostRecentUnfinalizedIdx = -1;
-      
-      for (let i = allPeriods.length - 1; i >= 0; i--) {
-        const period = allPeriods[i];
-        const periodStartStr = period.start.toISOString().split('T')[0];
-        const periodEndStr = period.end.toISOString().split('T')[0];
-        
-        // Check if this period has any draft records
-        const hasDraftRecords = payrollRecords.some(r =>
-          r.pay_period_start === periodStartStr &&
-          r.pay_period_end === periodEndStr &&
-          r.status === 'draft'
-        );
-        
-        if (hasDraftRecords) {
-          mostRecentUnfinalizedIdx = i;
-          break;
-        }
-      }
-      
-      // If found unfinalized period, use it; otherwise use current period
-      if (mostRecentUnfinalizedIdx >= 0) {
-        setSelectedPeriodIndex(mostRecentUnfinalizedIdx);
-      } else if (selectedYear === today.getFullYear()) {
+      // Most recent period IS finalized, load current period instead
+      if (selectedYear === today.getFullYear()) {
         const idx = findCurrentPeriodIndex(allPeriods, today);
         setSelectedPeriodIndex(idx);
       } else {
