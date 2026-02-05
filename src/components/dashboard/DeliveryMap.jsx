@@ -1518,17 +1518,16 @@ export default function DeliveryMap({
         [marker.latitude, marker.longitude]
       ]);
 
-      // Center map with proper zoom and offset to show balloon fully
-      // Using uneven padding to center marker lower on screen (more bottom space than top)
+      // Center map with proper zoom and offset - marker centered BELOW middle of screen
       const panOptions = {
-        paddingTopLeft: [60, dynamicTopPadding],
-        paddingBottomRight: [60, dynamicBottomPadding],
+        paddingTopLeft: [60, 50], // Minimal top padding
+        paddingBottomRight: [60, dynamicBottomPadding + dynamicTopPadding + 100], // Large bottom padding to push marker down
         animate: true,
         duration: 0.6,
         maxZoom: targetZoom
       };
 
-      map.fitBounds(markerBounds, panOptions);
+        map.fitBounds(markerBounds, panOptions);
       
       // Set the zoom to target zoom level
       setTimeout(() => {
