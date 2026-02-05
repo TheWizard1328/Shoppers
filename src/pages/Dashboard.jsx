@@ -6181,15 +6181,17 @@ function Dashboard() {
       const routeComplete = patientDeliveriesOnly.length > 0 &&
       patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturnByMarkers(d));
 
-      if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id) {
+      // CRITICAL: Check if route is complete (current driver only)
+      if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id && driverId === currentUser?.id) {
         const summaryKey = `${driverId}_${deliveryDate}`;
         if (!hasShownSummaryRef.current.has(summaryKey)) {
-          console.log('🎉 [STATUS] Route complete - showing end of day stats');
+          console.log('🎉 [STATUS] Route complete - preparing end of day sequence');
+          hasShownSummaryRef.current.add(summaryKey);
           
-          // CRITICAL: Collapse all expanded cards
+          // STEP 1: Collapse all expanded cards immediately
           setSelectedCardId(null);
           
-          // CRITICAL: Set map to Phase 1 and lock briefly
+          // STEP 2: Set map to Phase 1 and lock briefly
           setMapViewPhase(1);
           setIsMapViewLocked(true);
           lastProgrammaticMapMoveRef.current = Date.now();
@@ -6200,31 +6202,42 @@ function Dashboard() {
             saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
           }
 
-          setTimeout(() => setIsMapViewLocked(false), 500);
-
-          // CRITICAL: Disable location tracking
+          // STEP 3: Stop location tracking
           if (locationTracker.isTracking) {
+            console.log('📍 [Route Complete] Stopping location tracker');
             locationTracker.stopTracking();
           }
 
-          // CRITICAL: Set driver status to off_duty and disable location tracking
+          // STEP 4: Set driver status to off_duty and disable location tracking
+          console.log('📴 [Route Complete] Setting driver to off_duty and disabling location tracking');
           base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsersList) => {
             const appUser = appUsersList?.[0];
             if (appUser) {
-              base44.entities.AppUser.update(appUser.id, {
+              return base44.entities.AppUser.update(appUser.id, {
                 driver_status: 'off_duty',
                 location_tracking_enabled: false
               });
             }
+          }).then(() => {
+            console.log('✅ [Route Complete] Driver status updated to off_duty');
+            // Refresh user to update UI
+            if (refreshUser) {
+              refreshUser();
+            }
           }).catch((error) => console.warn('⚠️ AppUser update failed:', error));
 
-          // Show end of day stats dialog
-          const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
-          setEndOfDayDriver(completedDriver);
-          setShowEndOfDayStats(true);
-          hasShownSummaryRef.current.add(summaryKey);
+          // STEP 5: Show end of day stats dialog after a brief delay
+          setTimeout(() => {
+            const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
+            setEndOfDayDriver(completedDriver);
+            setShowEndOfDayStats(true);
+            console.log('🎉 [Route Complete] Showing end of day stats dialog');
+          }, 800);
           
-          // CRITICAL: Re-measure stop cards height after route completion
+          // STEP 6: Unlock map after brief lock
+          setTimeout(() => setIsMapViewLocked(false), 500);
+          
+          // STEP 7: Re-measure stop cards height after route completion
           setTimeout(() => {
             if (horizontalStopCardsRef.current) {
               const newHeight = horizontalStopCardsRef.current.offsetHeight;
@@ -6233,7 +6246,7 @@ function Dashboard() {
                 setStopCardsBaseHeight(newHeight);
               }
             }
-          }, 400);
+          }, 1000);
         }
       }
 
