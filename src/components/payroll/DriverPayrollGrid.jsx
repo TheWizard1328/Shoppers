@@ -472,56 +472,7 @@ export default function DriverPayrollGrid({
           )}
           
           {/* Period Navigation */}
-          <div className="hidden lg:flex items-center justify-between gap-3">
-            {/* Left: View mode toggle */}
-            <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
-              <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
-                <Package className="w-3 h-3" />Deliveries
-              </Button>
-              <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
-                <Ruler className="w-3 h-3" />Extra KM
-              </Button>
-            </div>
-
-            {/* Center: Period Navigation */}
-            <div className="flex items-center gap-3">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onPrevPeriod}
-                disabled={selectedPeriodIndex === 0}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </Button>
-              <div className="flex flex-col items-center gap-2 min-w-[200px]">
-                <div className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{currentPeriod.label}</div>
-                <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{periodDateRange}</div>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onNextPeriod}
-                disabled={selectedPeriodIndex === allPeriods.length - 1}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </Button>
-            </div>
-
-            {/* Right: Pay cycle buttons */}
-            {isOwner && (
-              <div className="flex gap-1 flex-shrink-0">
-                <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
-                <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
-                <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Monthly</Button>
-                <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
-              </div>
-            )}
-          </div>
-
-          {/* Mobile/Tablet view - keep original layout */}
-          <div className="lg:hidden flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center gap-3">
             <Button
               size="sm"
               variant="ghost"
