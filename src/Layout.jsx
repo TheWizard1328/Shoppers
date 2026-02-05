@@ -3923,8 +3923,8 @@ export default function Layout({ children, currentPageName }) {
                     </div>
                     }
 
-                    {/* Battery + User Avatar on far right (all users, narrow mobile) */}
-                    {isMobile && screenWidth < 768 && currentUser &&
+                    {/* Battery + User Avatar on far right (all users, narrow mobile OR tablet portrait) */}
+                    {(isMobile || isTabletPortrait) && currentUser &&
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <BatteryIndicator vertical={true} />
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
