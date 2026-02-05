@@ -1272,23 +1272,14 @@ function Dashboard() {
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
     
     console.log(`   - selectedCityId: ${selectedCityId || 'null (showing all)'}`);
+    console.log(`   - userRole: ${currentUser?.app_roles?.join(', ') || 'unknown'}`);
 
-    // Step 1: Get all active drivers for the selected city (OR all if no city selected)
-    const allCityDrivers = selectedCityId ? 
-      driversSource.filter(d => {
-        const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
-        return driverCityIds.includes(selectedCityId);
-      }) :
-      driversSource; // No city selected = show all drivers
-    
-    console.log(`   - allCityDrivers after city filter: ${allCityDrivers.length}`);
-
-    // Step 2: Apply role-based filtering
+    // DISPATCHER: Filter by stores, NOT by city
     if (userHasRole(currentUser, 'dispatcher')) {
-      // DISPATCHER: Only show drivers with pickups/deliveries for their stores (any status)
       const dispatcherStoreIds = currentUser.store_ids || [];
       console.log(`   - Dispatcher stores: ${dispatcherStoreIds.length}`);
       
+      // Get ALL drivers who have ANY delivery/pickup in dispatcher's stores
       const driversWithStoreDeliveries = new Set(
         deliveries?.
         filter((d) => d && dispatcherStoreIds.includes(d.store_id)).
@@ -1297,13 +1288,22 @@ function Dashboard() {
       );
       
       console.log(`   - Drivers with dispatcher store deliveries: ${driversWithStoreDeliveries.size}`);
+      console.log(`   - Driver IDs: ${Array.from(driversWithStoreDeliveries).join(', ')}`);
       
-      const filteredDrivers = allCityDrivers.filter((d) => driversWithStoreDeliveries.has(d.id));
+      const filteredDrivers = driversSource.filter((d) => driversWithStoreDeliveries.has(d.id));
       console.log(`   - Final dispatcher driver list: ${filteredDrivers.length}`);
       return filteredDrivers;
     }
 
-    // ADMIN and DRIVER: Show all drivers for the selected city
+    // ADMIN and DRIVER: Filter by city
+    const allCityDrivers = selectedCityId ? 
+      driversSource.filter(d => {
+        const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
+        return driverCityIds.includes(selectedCityId);
+      }) :
+      driversSource;
+    
+    console.log(`   - allCityDrivers after city filter: ${allCityDrivers.length}`);
     console.log(`   - Final driver list (admin/driver): ${allCityDrivers.length}`);
     return allCityDrivers;
   }, [drivers, appUsers, currentUser, selectedDate, deliveries]);
