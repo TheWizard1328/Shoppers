@@ -3856,8 +3856,8 @@ export default function Layout({ children, currentPageName }) {
                       </div>
                     </div>
 
-                    {/* Centered Controls - Only on narrow mobile */}
-                    {isMobile && screenWidth < 768 && currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
+                    {/* Centered Controls - On narrow mobile OR tablet portrait */}
+                    {(isMobile || isTabletPortrait) && currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
                     <div className="flex-1 flex items-center justify-center gap-2">
                       {/* Menu - Left */}
                       <DropdownMenu>
