@@ -601,59 +601,41 @@ export default function DriverPayroll() {
       }
     }
     
-    // Check if ALL past periods are finalized
-    let allPastPeriodsFinalized = true;
+    // Find first unfinalized period
     let selectedIdx = null;
+    for (let i = 0; i <= mostRecentPastPeriodIdx && selectedIdx === null; i++) {
+      const period = allPeriods[i];
+      const periodStartStr = period.start.toISOString().split('T')[0];
+      const periodEndStr = period.end.toISOString().split('T')[0];
+      
+      const isFinal = payrollRecords.some(r =>
+        r.pay_period_start === periodStartStr &&
+        r.pay_period_end === periodEndStr &&
+        (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
+      );
+      
+      if (!isFinal) {
+        console.log(`✅ [Period Init] Found first unfinalized period: ${i} (${period.label})`);
+        selectedIdx = i;
+      }
+    }
     
-    if (mostRecentPastPeriodIdx >= 0) {
-      for (let i = 0; i <= mostRecentPastPeriodIdx; i++) {
+    // If no unfinalized periods, find period containing today's date
+    if (selectedIdx === null) {
+      console.log(`✅ [Period Init] All periods finalized, finding period containing today`);
+      for (let i = 0; i < allPeriods.length; i++) {
         const period = allPeriods[i];
-        const periodStartStr = period.start.toISOString().split('T')[0];
-        const periodEndStr = period.end.toISOString().split('T')[0];
-        
-        const isFinal = payrollRecords.some(r =>
-          r.pay_period_start === periodStartStr &&
-          r.pay_period_end === periodEndStr &&
-          (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
-        );
-        
-        console.log(`  Period ${i} (${period.label}): finalized=${isFinal}`);
-        
-        if (!isFinal) {
-          allPastPeriodsFinalized = false;
-          // CRITICAL: Only select this period if it's on or after today
-          const periodEndDate = new Date(period.end);
-          periodEndDate.setHours(0, 0, 0, 0);
-          const todayAtMidnight = new Date(today);
-          todayAtMidnight.setHours(0, 0, 0, 0);
-          
-          if (periodEndDate >= todayAtMidnight) {
-            console.log(`✅ [Period Init] Found non-finalized period ${i} (on/after today), setting to that`);
-            selectedIdx = i;
-            break;
-          } else {
-            console.log(`⏭️ [Period Init] Found non-finalized period ${i} but it's in the past, continuing search`);
-          }
+        if (today >= period.start && today <= period.end) {
+          console.log(`✅ [Period Init] Found period containing today: ${i} (${period.label})`);
+          selectedIdx = i;
+          break;
         }
       }
     }
     
-    // Determine final period index
-    console.log(`[Period Init] allPastPeriodsFinalized=${allPastPeriodsFinalized}, selectedIdx=${selectedIdx}`);
-    
+    // Set the selected period
     if (selectedIdx !== null) {
-      // Found a non-finalized period on or after today
       setSelectedPeriodIndex(selectedIdx);
-    } else if (allPastPeriodsFinalized) {
-      // All past periods finalized, show current period
-      if (selectedYear === today.getFullYear()) {
-        console.log(`✅ [Period Init] All past periods finalized, finding current period for today`);
-        const idx = findCurrentPeriodIndex(allPeriods, today);
-        console.log(`✅ [Period Init] Setting to current period index: ${idx}`);
-        setSelectedPeriodIndex(idx);
-      } else {
-        setSelectedPeriodIndex(allPeriods.length - 1);
-      }
     }
     
     // Mark that initial period has been set
