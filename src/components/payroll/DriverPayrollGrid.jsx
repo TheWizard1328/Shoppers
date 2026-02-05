@@ -32,7 +32,7 @@ export default function DriverPayrollGrid({
 }) {
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extraKm'
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [headerLayout, setHeaderLayout] = useState('single'); // 'single', 'title-viewmode', 'title-paycycle', 'viewmode-paycycle', 'three'
+  const [headerLayout, setHeaderLayout] = useState('desktop-three-column'); // 'desktop-three-column', 'single', 'title-viewmode', 'title-paycycle', 'viewmode-paycycle', 'three'
   const { smartRefreshActivity } = useAppData();
   const navigate = useNavigate();
   const { currentUser } = useUser();
