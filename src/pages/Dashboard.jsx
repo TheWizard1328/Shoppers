@@ -1274,6 +1274,12 @@ function Dashboard() {
     console.log(`   - selectedCityId: ${selectedCityId || 'null (showing all)'}`);
     console.log(`   - userRole: ${currentUser?.app_roles?.join(', ') || 'unknown'}`);
 
+    // ADMIN: Show ALL active drivers from AppUsers (no filtering, no dependency on deliveries)
+    if (userHasRole(currentUser, 'admin')) {
+      console.log(`   - Final admin driver list: ${driversSource.length} (showing all active drivers)`);
+      return driversSource;
+    }
+
     // DISPATCHER: Show ALL drivers assigned to dispatcher's stores (via store slots)
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
@@ -1295,23 +1301,16 @@ function Dashboard() {
       });
       
       console.log(`   - Drivers assigned to store slots: ${assignedDriverIds.size}`);
-      console.log(`   - Assigned driver IDs: ${Array.from(assignedDriverIds).join(', ')}`);
       
       const filteredDrivers = driversSource.filter(d => assignedDriverIds.has(d.id));
       console.log(`   - Final dispatcher driver list: ${filteredDrivers.length}`);
       return filteredDrivers;
     }
 
-    // ADMIN: Show ALL drivers (no city filtering)
-    if (userHasRole(currentUser, 'admin')) {
-      console.log(`   - Final admin driver list: ${driversSource.length} (no filtering)`);
-      return driversSource;
-    }
-
     // PURE DRIVER: Show only self
     console.log(`   - Final driver list (pure driver): self only`);
     return driversSource.filter(d => d.id === currentUser?.id);
-  }, [drivers, appUsers, currentUser, selectedDate, deliveries]);
+  }, [appUsers, drivers, currentUser, stores]);
 
   // CRITICAL: Show location toggle on mobile devices regardless of layout mode
   const shouldShowLocationToggle = useMemo(() => {
