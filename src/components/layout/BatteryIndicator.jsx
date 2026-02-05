@@ -61,6 +61,15 @@ export default function BatteryIndicator({ vertical = false }) {
   };
 
   const { bg, text } = getColorAndFill();
+  
+  // Determine text color that contrasts well with the fill
+  const getTextColor = () => {
+    if (batteryLevel <= 30) {
+      return 'text-white';
+    } else {
+      return 'text-slate-900';
+    }
+  };
 
   if (vertical) {
     return (
@@ -69,11 +78,15 @@ export default function BatteryIndicator({ vertical = false }) {
         title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
 
         {/* Battery bar (vertical) */}
-        <div className="relative w-5 h-12 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
+        <div className="relative w-6 h-10 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
           {/* Fill */}
           <div
-            className={`absolute bottom-0 left-0 right-0 rounded transition-all duration-300 ${bg}`}
-            style={{ height: `${batteryLevel}%` }} />
+            className={`absolute bottom-0 left-0 right-0 rounded transition-all duration-300 ${bg} flex items-center justify-center`}
+            style={{ height: `${batteryLevel}%` }}>
+            {batteryLevel > 15 && (
+              <span className={`text-[8px] font-bold ${getTextColor()}`}>{batteryLevel}%</span>
+            )}
+          </div>
           
           {/* Charging indicator */}
           {isCharging && (
@@ -82,21 +95,23 @@ export default function BatteryIndicator({ vertical = false }) {
             </div>
           )}
         </div>
-        
-        <span className={`text-[10px] font-bold ${text}`}>{batteryLevel}%</span>
       </div>);
   }
 
   return (
-    <div className="flex items-center gap-2"
+    <div className="flex items-center"
       title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
 
       {/* Battery bar (horizontal) */}
-      <div className="relative w-12 h-6 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
+      <div className="relative w-16 h-5 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
         {/* Fill */}
         <div
-          className={`absolute left-0 top-0 bottom-0 rounded transition-all duration-300 ${bg}`}
-          style={{ width: `${batteryLevel}%` }} />
+          className={`absolute left-0 top-0 bottom-0 rounded transition-all duration-300 ${bg} flex items-center justify-center`}
+          style={{ width: `${batteryLevel}%` }}>
+          {batteryLevel > 15 && (
+            <span className={`text-[10px] font-bold ${getTextColor()}`}>{batteryLevel}%</span>
+          )}
+        </div>
         
         {/* Charging indicator */}
         {isCharging && (
@@ -105,8 +120,6 @@ export default function BatteryIndicator({ vertical = false }) {
           </div>
         )}
       </div>
-      
-      <span className={`text-xs font-bold ${text}`}>{batteryLevel}%</span>
     </div>);
 
 }
