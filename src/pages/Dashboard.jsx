@@ -844,31 +844,32 @@ function Dashboard() {
 
         // Fall back to smart default based on role and store assignments
         if (!driverToSelect) {
-          const todayStr = format(new Date(), 'yyyy-MM-dd');
-          const todayDeliveries = deliveries?.filter((d) => d && d.delivery_date === todayStr) || [];
-
           if (userHasRole(currentUser, 'dispatcher')) {
-            // DISPATCHERS: Check deliveries for their assigned stores on SELECTED date (not just today)
+            // DISPATCHERS: Auto-select based on drivers with deliveries for their stores on SELECTED date
             const selectedDateStr = settings.selected_date || format(new Date(), 'yyyy-MM-dd');
             const dispatcherStoreIds = currentUser.store_ids || [];
-            const dateDeliveries = deliveries?.filter((d) =>
-            d && d.delivery_date === selectedDateStr && dispatcherStoreIds.includes(d.store_id)
-            ) || [];
-
-            // Get unique drivers with deliveries for dispatcher's stores on selected date
+            
+            // Get drivers with deliveries (pending, in_transit, completed, failed) for dispatcher's stores
             const driversWithDeliveries = new Set(
-              dateDeliveries.map((d) => d.driver_id).filter(Boolean)
+              deliveries?.
+              filter((d) => {
+                if (!d || d.delivery_date !== selectedDateStr) return false;
+                if (!dispatcherStoreIds.includes(d.store_id)) return false;
+                return ['pending', 'in_transit', 'completed', 'failed'].includes(d.status);
+              }).
+              map((d) => d.driver_id).
+              filter(Boolean)
             );
 
             if (driversWithDeliveries.size === 1) {
-              // Only 1 driver with deliveries - select that driver
+              // Only 1 driver - select that driver
               driverToSelect = Array.from(driversWithDeliveries)[0];
             } else if (driversWithDeliveries.size > 1) {
-              // Multiple drivers - use "All Drivers"
+              // Multiple drivers - select "All Drivers"
               driverToSelect = 'all';
             } else {
-              // No deliveries for dispatcher's stores - use saved or 'all'
-              driverToSelect = settings.selected_driver_id || 'all';
+              // No deliveries - select "All Drivers"
+              driverToSelect = 'all';
             }
           } else if (userHasRole(currentUser, 'admin')) {
             // Admins - use saved or default
@@ -1232,9 +1233,6 @@ function Dashboard() {
       });
     }
     
-    // SOURCE 3: Deliveries (fallback for missing drivers) - ONLY add if not already in map
-    // REMOVED: Don't add drivers from deliveries - this was causing incorrect filtering
-    
     // CRITICAL: Sort drivers by sort_order, then by user_name
     const driversSource = Array.from(finalDriversMap.values()).sort((a, b) => {
       const sortOrderA = a.sort_order ?? Infinity;
@@ -1250,16 +1248,16 @@ function Dashboard() {
       return nameA.localeCompare(nameB);
     });
 
-    console.log(`✅ [Dashboard] Built driver list: ${driversSource.length} unique drivers (${finalDriversMap.size} total)`);
+    console.log(`✅ [Dashboard] Built driver list: ${driversSource.length} unique drivers`);
 
     // CRITICAL: Get the active city from globalFilters
     const selectedCityId = globalFilters.getSelectedCityId();
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
 
     // ADMIN: Get all drivers for the active city
     if (userHasRole(currentUser, 'admin')) {
       const cityDrivers = selectedCityId ? 
         driversSource.filter(d => {
-          // Check both city_id (legacy) and city_ids (array)
           const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
           return driverCityIds.includes(selectedCityId);
         }) :
@@ -1268,31 +1266,25 @@ function Dashboard() {
       return cityDrivers;
     }
 
-    // DISPATCHER: Show ALL active drivers in the city, highlighting those with deliveries
+    // DISPATCHER: ONLY show drivers with deliveries for dispatcher's stores on selected date
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
-      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // Get unique driver IDs that have deliveries for dispatcher's stores ON THE SELECTED DATE
+      // Get unique driver IDs that have deliveries (pending, in_transit, completed, failed) for dispatcher's stores
       const driversWithStoreDeliveries = new Set(
         deliveries?.
-        filter((d) => d && d.delivery_date === selectedDateStr && dispatcherStoreIds.includes(d.store_id)).
+        filter((d) => {
+          if (!d || d.delivery_date !== selectedDateStr) return false;
+          if (!dispatcherStoreIds.includes(d.store_id)) return false;
+          // Only include active statuses
+          return ['pending', 'in_transit', 'completed', 'failed'].includes(d.status);
+        }).
         map((d) => d.driver_id).
         filter(Boolean)
       );
 
-      // CRITICAL: Return ALL active drivers for the city, marking those with deliveries for dispatcher's stores
-      const cityDrivers = selectedCityId ? 
-        driversSource.filter(d => {
-          const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
-          return driverCityIds.includes(selectedCityId);
-        }) :
-        driversSource;
-
-      return cityDrivers.map((d) => ({
-        ...d,
-        _hasDispatcherStoreDeliveries: driversWithStoreDeliveries.has(d.id)
-      }));
+      // CRITICAL: Return ONLY drivers who have deliveries for dispatcher's stores
+      return driversSource.filter((d) => driversWithStoreDeliveries.has(d.id));
     }
 
     // DRIVER: Show all drivers for the active city
@@ -1304,7 +1296,7 @@ function Dashboard() {
       driversSource;
 
     return cityDrivers;
-  }, [drivers, appUsers, currentUser, selectedDate]);
+  }, [drivers, appUsers, currentUser, selectedDate, deliveries]);
 
   // CRITICAL: Show location toggle on mobile devices regardless of layout mode
   const shouldShowLocationToggle = useMemo(() => {
@@ -1327,27 +1319,13 @@ function Dashboard() {
       return false;
     }
 
-    // For drivers: only enable if another driver shares a store with them on the selected date
+    // DRIVER: Always disable (drivers can only see their own route)
     if (userHasRole(currentUser, 'driver')) {
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const todayDeliveries = deliveries?.filter((d) => d && d.delivery_date === dateStr) || [];
-
-      // Get stores this driver has deliveries from
-      const myStores = new Set(
-        todayDeliveries.filter((d) => d.driver_id === currentUser.id).map((d) => d.store_id)
-      );
-
-      // Check if any other driver has deliveries from the same stores
-      const hasSharedStore = todayDeliveries.some((d) =>
-      d.driver_id !== currentUser.id && myStores.has(d.store_id)
-      );
-
-      // Enable dropdown if there's a shared store, disable otherwise
-      return !hasSharedStore;
+      return true;
     }
 
     return false;
-  }, [currentUser, selectedDate, deliveries]);
+  }, [currentUser]);
 
   const tooltipValues = useMemo(() => ({
     total: isDispatcher ?
