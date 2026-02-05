@@ -7702,21 +7702,7 @@ function Dashboard() {
                           className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
                           style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
                         >
-                          {/* Custom GPS Dots Icon */}
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            {/* GPS dot 1 - top */}
-                            <circle cx="8" cy="3" r="1.5" fill="currentColor" />
-                            {/* GPS dot 2 - middle-left */}
-                            <circle cx="4" cy="8" r="1.5" fill="currentColor" />
-                            {/* GPS dot 3 - middle-right */}
-                            <circle cx="12" cy="9" r="1.5" fill="currentColor" />
-                            {/* GPS dot 4 - bottom */}
-                            <circle cx="8" cy="13" r="1.5" fill="currentColor" />
-                            {/* Connecting lines (swerving path) */}
-                            <path d="M 8 3 Q 6 5, 4 8" stroke="currentColor" strokeWidth="1" fill="none" />
-                            <path d="M 4 8 Q 8 8.5, 12 9" stroke="currentColor" strokeWidth="1" fill="none" />
-                            <path d="M 12 9 Q 10 11, 8 13" stroke="currentColor" strokeWidth="1" fill="none" />
-                          </svg>
+                          <Binoculars className="w-4 h-4" />
                         </Button>
                         </div>
 
@@ -7757,7 +7743,21 @@ function Dashboard() {
                           className={`h-9 w-9 p-0 ${showBreadcrumbs ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
                           style={!showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
                         >
-                          <LocateFixed className="w-4 h-4" />
+                          {/* Custom GPS Dots Icon */}
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            {/* GPS dot 1 - top */}
+                            <circle cx="8" cy="3" r="1.5" fill="currentColor" />
+                            {/* GPS dot 2 - middle-left */}
+                            <circle cx="4" cy="8" r="1.5" fill="currentColor" />
+                            {/* GPS dot 3 - middle-right */}
+                            <circle cx="12" cy="9" r="1.5" fill="currentColor" />
+                            {/* GPS dot 4 - bottom */}
+                            <circle cx="8" cy="13" r="1.5" fill="currentColor" />
+                            {/* Connecting lines (swerving path) */}
+                            <path d="M 8 3 Q 6 5, 4 8" stroke="currentColor" strokeWidth="1" fill="none" />
+                            <path d="M 4 8 Q 8 8.5, 12 9" stroke="currentColor" strokeWidth="1" fill="none" />
+                            <path d="M 12 9 Q 10 11, 8 13" stroke="currentColor" strokeWidth="1" fill="none" />
+                          </svg>
                         </Button>
                         </div>
                       </div>
