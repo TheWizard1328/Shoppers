@@ -4042,25 +4042,25 @@ export default function DeliveryMap({
             });
           }
           
-          // Process current/real-time breadcrumbs (if available)
-          // These would be populated by the location tracking system
+          // Process current/real-time breadcrumbs from offline database
           if (breadcrumbsData.current && breadcrumbsData.current.length > 0) {
             const currentBreadcrumbColor = '#3B82F6'; // Blue for current tracking
             
-            breadcrumbsData.current.forEach((point, idx) => {
-              if (!point || typeof point.lat !== 'number' || typeof point.lng !== 'number') return;
+            breadcrumbsData.current.forEach((breadcrumb, idx) => {
+              // Current breadcrumbs have structure: {driver_id, delivery_date, lat, lng, timestamp, accuracy}
+              if (!breadcrumb || typeof breadcrumb.lat !== 'number' || typeof breadcrumb.lng !== 'number') return;
               
               breadcrumbCircles.push(
                 <Circle
                   key={`current-breadcrumb-${idx}`}
-                  center={[point.lat, point.lng]}
-                  radius={4} // Same size as historical
+                  center={[breadcrumb.lat, breadcrumb.lng]}
+                  radius={5} // Slightly larger for real-time tracking
                   pathOptions={{
                     color: currentBreadcrumbColor,
                     fillColor: currentBreadcrumbColor,
-                    fillOpacity: 0.7,
-                    weight: 1,
-                    opacity: 0.9
+                    fillOpacity: 0.8,
+                    weight: 1.5,
+                    opacity: 1
                   }}
                 />
               );

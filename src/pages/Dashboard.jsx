@@ -7719,14 +7719,33 @@ function Dashboard() {
                               try {
                                 const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
                                 const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-                                
+
                                 // Fetch historical breadcrumbs from DeliveryBreadcrumbs entity
                                 const historicalBreadcrumbs = await base44.entities.DeliveryBreadcrumbs.filter({
                                   driver_id: driverIdToFetch,
                                   delivery_date: selectedDateStr
                                 });
 
-                                if (historicalBreadcrumbs.length === 0) {
+                                // Fetch current/real-time breadcrumbs from offline database
+                                let currentBreadcrumbs = [];
+                                try {
+                                  const allCurrentBreadcrumbs = await offlineDB.getByIndex(
+                                    offlineDB.STORES.CURRENT_BREADCRUMBS,
+                                    'driver_id',
+                                    driverIdToFetch
+                                  );
+
+                                  // Filter to selected date
+                                  currentBreadcrumbs = allCurrentBreadcrumbs
+                                    .filter(b => b && b.delivery_date === selectedDateStr)
+                                    .sort((a, b) => a.timestamp - b.timestamp);
+
+                                  console.log(`📍 [Breadcrumbs] Loaded ${currentBreadcrumbs.length} current breadcrumbs from offline DB`);
+                                } catch (offlineError) {
+                                  console.warn('⚠️ [Breadcrumbs] Failed to load current breadcrumbs:', offlineError);
+                                }
+
+                                if (historicalBreadcrumbs.length === 0 && currentBreadcrumbs.length === 0) {
                                   console.log('📍 [Breadcrumbs] No breadcrumb trails found for this date/driver');
                                   toast.info('No breadcrumb trails available', {
                                     description: 'GPS trails are saved after deliveries are completed with tracking enabled'
@@ -7735,11 +7754,11 @@ function Dashboard() {
                                   return;
                                 }
 
-                                console.log(`📍 [Breadcrumbs] Loaded ${historicalBreadcrumbs.length} breadcrumb trails`);
+                                console.log(`📍 [Breadcrumbs] Loaded ${historicalBreadcrumbs.length} historical + ${currentBreadcrumbs.length} current trails`);
 
                                 setBreadcrumbsData({
                                   historical: historicalBreadcrumbs,
-                                  current: [] // Real-time breadcrumbs would be populated by tracking system
+                                  current: currentBreadcrumbs
                                 });
                               } catch (error) {
                                 console.error('❌ [Breadcrumbs] Failed to load:', error);

@@ -19,7 +19,8 @@ const STORES = {
   DRIVER_OVERVIEW_STATS: 'driver_overview_stats',
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations',
-  SYNC_METADATA: 'sync_metadata' // Timestamp tracking per entity
+  SYNC_METADATA: 'sync_metadata', // Timestamp tracking per entity
+  CURRENT_BREADCRUMBS: 'current_breadcrumbs' // Real-time GPS breadcrumb trails being generated
 };
 
 let dbInstance = null;
@@ -141,6 +142,13 @@ const openDatabase = () => {
 
       if (!db.objectStoreNames.contains(STORES.SYNC_METADATA)) {
         db.createObjectStore(STORES.SYNC_METADATA, { keyPath: 'entity_name' });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.CURRENT_BREADCRUMBS)) {
+        const breadcrumbStore = db.createObjectStore(STORES.CURRENT_BREADCRUMBS, { keyPath: 'id', autoIncrement: true });
+        breadcrumbStore.createIndex('driver_id', 'driver_id', { unique: false });
+        breadcrumbStore.createIndex('delivery_date', 'delivery_date', { unique: false });
+        breadcrumbStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
 
     };
