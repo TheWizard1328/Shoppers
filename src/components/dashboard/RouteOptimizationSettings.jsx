@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings, MapPin, Clock, Truck, Target, Save, RotateCcw, Navigation, AlertTriangle } from "lucide-react";
 import { userHasRole } from "../utils/userRoles";
 import { locationTracker } from "../utils/locationTracker";
+import { base44 } from "@/api/base44Client";
+import { loadUserSettings, saveSetting } from "../utils/userSettingsManager";
 
 const DEFAULT_SETTINGS = {
   defaultTravelTimeMinutes: 5,
@@ -57,6 +59,9 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
   const [settings, setSettings] = useState(getStoredSettings());
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [breadcrumbsEnabled, setBreadcrumbsEnabled] = useState(false);
+  const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
+  const [isLoadingBreadcrumbsSettings, setIsLoadingBreadcrumbsSettings] = useState(true);
 
   const handleSettingChange = (key, value) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -117,6 +122,37 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
       }));
     }
   }, [currentUser]);
+
+  // Load breadcrumbs settings from UserSettings and check if primary device
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const loadBreadcrumbsSettings = async () => {
+      try {
+        setIsLoadingBreadcrumbsSettings(true);
+        
+        // Get user settings and device info
+        const userSettings = await loadUserSettings(currentUser.id);
+        const deviceIdentifier = localStorage.getItem('device_identifier');
+        
+        // Check if breadcrumbs are enabled for this device
+        const deviceProfile = userSettings?.device_settings_profiles?.[deviceIdentifier];
+        setBreadcrumbsEnabled(deviceProfile?.breadcrumbs_enabled || false);
+        
+        // Check if this device is the primary tracker
+        const userDevices = await base44.entities.UserDevice.filter({ user_id: currentUser.id });
+        const currentDevice = userDevices?.find(d => d.device_identifier === deviceIdentifier);
+        setIsPrimaryDevice(currentDevice?.is_primary_tracker || false);
+        
+      } catch (error) {
+        console.error('Error loading breadcrumbs settings:', error);
+      } finally {
+        setIsLoadingBreadcrumbsSettings(false);
+      }
+    };
+
+    loadBreadcrumbsSettings();
+  }, [currentUser?.id]);
 
   return (
     <Card className="w-full max-w-2xl">
@@ -328,6 +364,53 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
 
             </div>
           </div>
+        </div>
+
+        <div className="border-t border-slate-200"></div>
+
+        {/* GPS Breadcrumbs Tracking */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <MapPin className="w-4 h-4" />
+            GPS Breadcrumbs Tracking
+          </h3>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="breadcrumbsEnabled" className="text-sm">
+                Enable GPS breadcrumb tracking
+              </Label>
+              <p className="text-xs text-slate-500">
+                {isPrimaryDevice ? 
+                  'Record GPS location every 15 seconds during deliveries' :
+                  'Only available on primary tracking device'
+                }
+              </p>
+            </div>
+            <Switch
+              id="breadcrumbsEnabled"
+              checked={breadcrumbsEnabled}
+              disabled={!isPrimaryDevice || isLoadingBreadcrumbsSettings}
+              onCheckedChange={async (checked) => {
+                setBreadcrumbsEnabled(checked);
+                try {
+                  await saveSetting(currentUser.id, 'breadcrumbs_enabled', checked);
+                  console.log(`✅ Breadcrumbs tracking ${checked ? 'enabled' : 'disabled'}`);
+                } catch (error) {
+                  console.error('Failed to save breadcrumbs setting:', error);
+                  setBreadcrumbsEnabled(!checked); // Revert on error
+                }
+              }} />
+
+          </div>
+          
+          {!isPrimaryDevice && !isLoadingBreadcrumbsSettings &&
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-2">
+              <p className="text-xs text-blue-700">
+                This device is not set as the primary tracker. Set it as primary in Device Settings to enable breadcrumb tracking.
+              </p>
+            </div>
+          }
         </div>
 
         {/* Real-Time Tracking Settings - Admin Only */}
