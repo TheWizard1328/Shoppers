@@ -1274,21 +1274,30 @@ function Dashboard() {
     console.log(`   - selectedCityId: ${selectedCityId || 'null (showing all)'}`);
     console.log(`   - userRole: ${currentUser?.app_roles?.join(', ') || 'unknown'}`);
 
-    // DISPATCHER: Filter by stores
+    // DISPATCHER: Show ALL drivers assigned to dispatcher's stores (via store slots)
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
-      console.log(`   - Dispatcher stores: ${dispatcherStoreIds.length}`);
+      const dispatcherStores = stores?.filter(s => s && dispatcherStoreIds.includes(s.id)) || [];
+      console.log(`   - Dispatcher stores: ${dispatcherStores.length}`);
       
-      const driversWithStoreDeliveries = new Set(
-        deliveries?.
-        filter((d) => d && dispatcherStoreIds.includes(d.store_id)).
-        map((d) => d.driver_id).
-        filter(Boolean)
-      );
+      // Collect all driver IDs assigned to any slot in any dispatcher store
+      const assignedDriverIds = new Set();
+      dispatcherStores.forEach(store => {
+        const slotFields = [
+          'weekday_am_driver_id', 'weekday_pm_driver_id',
+          'saturday_am_driver_id', 'saturday_pm_driver_id',
+          'sunday_am_driver_id', 'sunday_pm_driver_id'
+        ];
+        
+        slotFields.forEach(field => {
+          if (store[field]) assignedDriverIds.add(store[field]);
+        });
+      });
       
-      console.log(`   - Drivers with dispatcher store deliveries: ${driversWithStoreDeliveries.size}`);
+      console.log(`   - Drivers assigned to store slots: ${assignedDriverIds.size}`);
+      console.log(`   - Assigned driver IDs: ${Array.from(assignedDriverIds).join(', ')}`);
       
-      const filteredDrivers = driversSource.filter((d) => driversWithStoreDeliveries.has(d.id));
+      const filteredDrivers = driversSource.filter(d => assignedDriverIds.has(d.id));
       console.log(`   - Final dispatcher driver list: ${filteredDrivers.length}`);
       return filteredDrivers;
     }
