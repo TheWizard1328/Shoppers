@@ -2780,8 +2780,9 @@ export default function Layout({ children, currentPageName }) {
           }
         }
 
-        /* Mobile layout - portrait mode (narrow screen) */
-        @media (max-width: 767px) {
+        /* Mobile layout - portrait mode (narrow screen) and tablets in portrait */
+        @media (max-width: 1024px) and (orientation: portrait),
+               (max-width: 767px) {
           .app-container.mobile-device .mobile-header {
             display: flex !important;
             position: sticky;
@@ -2829,7 +2830,8 @@ export default function Layout({ children, currentPageName }) {
         }
 
         /* Mobile layout - landscape mode (wide screen) - use desktop layout */
-        @media (min-width: 768px) {
+        @media (min-width: 768px) and (orientation: landscape),
+               (min-width: 1025px) {
           .app-container.mobile-device .mobile-header {
             display: none !important;
           }
