@@ -3332,7 +3332,7 @@ export default function Layout({ children, currentPageName }) {
           isSnapshotModeActive: isSnapshotModeActive,
           setIsSnapshotModeActive: setIsSnapshotModeActive
         }}>
-            <div className={`app-container ${(isMobile || isTabletPortrait) ? 'mobile-device' : 'desktop-device'}`}>
+            <div className={`app-container ${isTabletPortrait ? 'tablet-portrait' : (isMobile ? 'mobile-device' : 'desktop-device')}`}>
               {(isMobile || isTabletPortrait) && sidebarOpen &&
               <div
                className="sidebar-overlay"
