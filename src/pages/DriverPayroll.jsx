@@ -133,14 +133,26 @@ const calculateAllPeriods = (year, payPeriodType) => {
 
 // Helper: Find current period index based on today's date
 const findCurrentPeriodIndex = (periods, today) => {
+  // Normalize today to midnight for accurate comparison
+  const todayMidnight = new Date(today);
+  todayMidnight.setHours(0, 0, 0, 0);
+  
   for (let i = 0; i < periods.length; i++) {
-    if (today >= periods[i].start && today <= periods[i].end) {
+    const periodStart = new Date(periods[i].start);
+    periodStart.setHours(0, 0, 0, 0);
+    
+    const periodEnd = new Date(periods[i].end);
+    periodEnd.setHours(23, 59, 59, 999);
+    
+    if (todayMidnight >= periodStart && todayMidnight <= periodEnd) {
       return i;
     }
   }
   // If not found, return closest past period
   for (let i = periods.length - 1; i >= 0; i--) {
-    if (today > periods[i].end) return i;
+    const periodEnd = new Date(periods[i].end);
+    periodEnd.setHours(23, 59, 59, 999);
+    if (todayMidnight > periodEnd) return i;
   }
   return 0;
 };
