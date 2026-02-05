@@ -217,7 +217,7 @@ export default function PayrollMobileCard({
           {/* App Fee (if any) */}
           {isAdmin && isPeriodEndOfMonth && (appFeeAmount || ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount) > 0 &&
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
-              <div className="text-left">App Fee ({appFeePercent.toFixed(2)}%):</div>
+              <div className="text-left">App Fee:</div>
               <div className="text-right pr-0.5">+$</div>
               <div className="text-right font-semibold">{(appFeeAmount || 0).toFixed(2)}</div>
               <div className="text-right pr-0.5">+$</div>
