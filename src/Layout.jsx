@@ -3287,11 +3287,11 @@ export default function Layout({ children, currentPageName }) {
           setIsSnapshotModeActive: setIsSnapshotModeActive
         }}>
             <div className={`app-container ${(isMobile || isTabletPortrait) ? 'mobile-device' : 'desktop-device'}`}>
-              {isMobile && sidebarOpen &&
-            <div
-              className="sidebar-overlay"
-              onClick={() => setSidebarOpen(false)} />
-            }
+              {(isMobile || isTabletPortrait) && sidebarOpen &&
+              <div
+               className="sidebar-overlay"
+               onClick={() => setSidebarOpen(false)} />
+              }
 
               {/* Sidebar - Hidden in snapshot mode */}
               {!isSnapshotModeActive &&
