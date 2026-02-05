@@ -155,67 +155,91 @@ export default function PayrollMobileCard({
         }
       </div>
 
-      {/* Pay Summary - 3 Columns: Labels | Period | YTD */}
-      <div style={{ display: !currentPeriod || !ytdTotals.ytdGrossPay ? 'none' : 'block' }} className="p-3 rounded-lg border" style={{
+      {/* Pay Summary - Table Layout with Aligned Columns */}
+      {currentPeriod && ytdDataByDriver[data.driver.id]?.ytdGrossPay > 0 && (
+      <div className="p-3 rounded-lg border" style={{
         background: 'var(--bg-white)',
         borderColor: 'var(--border-slate-200)',
         fontVariantNumeric: 'tabular-nums'
       }}>
-        <div className="space-y-1 text-xs font-mono" style={{ color: 'var(--text-slate-900)' }}>
-          {/* Header */}
-          <div className="flex gap-2 mb-2 font-semibold pb-1 border-b" style={{ borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-700)' }}>
-            <div className="flex-1"></div>
-            <div className="w-24 text-right">Period</div>
-            <div className="w-24 text-right">YTD</div>
+        <div className="text-xs font-mono" style={{ color: 'var(--text-slate-900)' }}>
+          {/* Header Row */}
+          <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{ 
+            gridTemplateColumns: '1fr 22px 60px 22px 60px',
+            borderColor: 'var(--border-slate-200)', 
+            color: 'var(--text-slate-700)' 
+          }}>
+            <div></div>
+            <div></div>
+            <div className="text-right">Period</div>
+            <div></div>
+            <div className="text-right">YTD</div>
           </div>
 
           {/* Net */}
-          <div className="flex gap-2">
-            <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Net:</div>
-            <div className="w-24 text-right font-semibold"><span style={{ opacity: 0.5 }}>$</span>{(data.grandTotal || 0).toFixed(2)}</div>
-            <div className="w-24 text-right font-semibold"><span style={{ opacity: 0.5 }}>$</span>{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
+          <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
+            <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Net:</div>
+            <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
+            <div className="text-right font-semibold">{(data.grandTotal || 0).toFixed(2)}</div>
+            <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
+            <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
           </div>
 
           {/* Tax */}
-          <div className="flex gap-2">
-            <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Tax:</div>
-            <div className="w-24 text-right font-semibold"><span style={{ opacity: 0.5 }}>$</span>{(data.taxAmount || 0).toFixed(2)}</div>
-            <div className="w-24 text-right font-semibold"><span style={{ opacity: 0.5 }}>$</span>{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0).toFixed(2)}</div>
+          <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
+            <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Tax:</div>
+            <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
+            <div className="text-right font-semibold">{(data.taxAmount || 0).toFixed(2)}</div>
+            <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
+            <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0).toFixed(2)}</div>
           </div>
 
           {/* Deductions */}
-          <div className="flex gap-2 text-red-700">
-            <div className="flex-1 text-left">Deductions:</div>
-            <div className="w-24 text-right font-semibold">-<span style={{ opacity: 0.5 }}>$</span>{(data.total_deductions || data.totalDeductions || 0).toFixed(2)}</div>
-            <div className="w-24 text-right font-semibold">-<span style={{ opacity: 0.5 }}>$</span>{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0).toFixed(2)}</div>
+          <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
+            <div className="text-left">Deductions:</div>
+            <div className="text-right pr-0.5">-$</div>
+            <div className="text-right font-semibold">{(data.total_deductions || data.totalDeductions || 0).toFixed(2)}</div>
+            <div className="text-right pr-0.5">-$</div>
+            <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0).toFixed(2)}</div>
           </div>
 
           {/* Bonus (if any) */}
           {(bonusAmount || ytdDataByDriver[data.driver.id]?.ytdBonusAmount) > 0 &&
-          <div className="flex gap-2" style={{ color: 'var(--text-blue-700)' }}>
-              <div className="flex-1 text-left">Bonus:</div>
-              <div className="w-24 text-right font-semibold">+<span style={{ opacity: 0.5 }}>$</span>{(bonusAmount || 0).toFixed(2)}</div>
-              <div className="w-24 text-right font-semibold">+<span style={{ opacity: 0.5 }}>$</span>{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0).toFixed(2)}</div>
+          <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-blue-700)' }}>
+              <div className="text-left">Bonus:</div>
+              <div className="text-right pr-0.5">+$</div>
+              <div className="text-right font-semibold">{(bonusAmount || 0).toFixed(2)}</div>
+              <div className="text-right pr-0.5">+$</div>
+              <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0).toFixed(2)}</div>
             </div>
           }
 
           {/* App Fee (if any) */}
           {isAdmin && isPeriodEndOfMonth && (appFeeAmount || ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount) > 0 &&
-          <div className="flex gap-2" style={{ color: 'var(--text-purple-700)' }}>
-              <div className="flex-1 text-left">App Fee ({appFeePercent.toFixed(2)}%):</div>
-              <div className="w-24 text-right font-semibold">+<span style={{ opacity: 0.5 }}>$</span>{(appFeeAmount || 0).toFixed(2)}</div>
-              <div className="w-24 text-right font-semibold">+<span style={{ opacity: 0.5 }}>$</span>{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0).toFixed(2)}</div>
+          <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
+              <div className="text-left">App Fee ({appFeePercent.toFixed(2)}%):</div>
+              <div className="text-right pr-0.5">+$</div>
+              <div className="text-right font-semibold">{(appFeeAmount || 0).toFixed(2)}</div>
+              <div className="text-right pr-0.5">+$</div>
+              <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0).toFixed(2)}</div>
             </div>
           }
 
           {/* Gross (bold, divider) */}
-          <div className="flex gap-2 pt-1 border-t font-bold" style={{ borderColor: 'var(--border-slate-200)', color: '#10b981' }}>
-            <div className="flex-1 text-left">Gross:</div>
-            <div className="w-24 text-right"><span style={{ opacity: 0.5 }}>$</span>{((data.grandTotal || 0) + (data.taxAmount || 0) - (data.deductions || 0) + (bonusAmount || 0) + (appFeeAmount || 0)).toFixed(2)}</div>
-            <div className="w-24 text-right"><span style={{ opacity: 0.5 }}>$</span>{((ytdDataByDriver[data.driver.id]?.ytdNetPay || 0) + (ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0) - (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0)).toFixed(2)}</div>
+          <div className="grid gap-1 pt-1 border-t font-bold" style={{ 
+            gridTemplateColumns: '1fr 22px 60px 22px 60px',
+            borderColor: 'var(--border-slate-200)', 
+            color: '#10b981' 
+          }}>
+            <div className="text-left">Gross:</div>
+            <div className="text-right pr-0.5">$</div>
+            <div className="text-right">{((data.grandTotal || 0) + (data.taxAmount || 0) - (data.deductions || 0) + (bonusAmount || 0) + (appFeeAmount || 0)).toFixed(2)}</div>
+            <div className="text-right pr-0.5">$</div>
+            <div className="text-right">{((ytdDataByDriver[data.driver.id]?.ytdNetPay || 0) + (ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0) - (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0)).toFixed(2)}</div>
           </div>
         </div>
       </div>
+      )}
     </div>);
 
 }
