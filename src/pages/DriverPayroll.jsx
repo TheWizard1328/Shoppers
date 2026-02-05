@@ -550,7 +550,10 @@ export default function DriverPayroll() {
   const initialPeriodSetRef = useRef(false);
   
   useEffect(() => {
-    if (!hasInitialized) return;
+    // CRITICAL: Wait for all data to be loaded BEFORE setting initial period
+    if (!hasInitialized || !payrollData || allPeriods.length === 0 || payrollRecords.length === 0) {
+      return;
+    }
     
     // CRITICAL: Only auto-select period on INITIAL load or when pay period/year changes
     // Do NOT override user's manual period navigation
@@ -605,7 +608,7 @@ export default function DriverPayroll() {
     
     // Mark that initial period has been set
     initialPeriodSetRef.current = true;
-  }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords]);
+  }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData]);
 
   // Load payroll records when period changes (initial load and period navigation)
   useEffect(() => {
