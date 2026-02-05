@@ -1266,25 +1266,40 @@ function Dashboard() {
       return cityDrivers;
     }
 
-    // DISPATCHER: ONLY show drivers with deliveries for dispatcher's stores on selected date
+    // DISPATCHER: Show all drivers for their assigned cities
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
+      
+      // Get all unique cities from dispatcher's stores
+      const dispatcherCityIds = new Set(
+        stores?.
+        filter((s) => dispatcherStoreIds.includes(s.id)).
+        map((s) => s.city_id).
+        filter(Boolean)
+      );
 
-      // Get unique driver IDs that have deliveries (pending, in_transit, completed, failed) for dispatcher's stores
-      const driversWithStoreDeliveries = new Set(
+      // Return all drivers for dispatcher's cities
+      const cityDrivers = driversSource.filter(d => {
+        const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
+        return driverCityIds.some(cid => dispatcherCityIds.has(cid));
+      });
+
+      // Mark which drivers have deliveries for this date (used for auto-selection)
+      const driversWithDeliveries = new Set(
         deliveries?.
         filter((d) => {
           if (!d || d.delivery_date !== selectedDateStr) return false;
           if (!dispatcherStoreIds.includes(d.store_id)) return false;
-          // Only include active statuses
           return ['pending', 'in_transit', 'completed', 'failed'].includes(d.status);
         }).
         map((d) => d.driver_id).
         filter(Boolean)
       );
 
-      // CRITICAL: Return ONLY drivers who have deliveries for dispatcher's stores
-      return driversSource.filter((d) => driversWithStoreDeliveries.has(d.id));
+      return cityDrivers.map((d) => ({
+        ...d,
+        _hasDeliveriesOnDate: driversWithDeliveries.has(d.id)
+      }));
     }
 
     // DRIVER: Show all drivers for the active city
