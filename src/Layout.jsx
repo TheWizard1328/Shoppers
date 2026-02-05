@@ -3178,8 +3178,8 @@ export default function Layout({ children, currentPageName }) {
 
       }
 
-      {/* Device Registration - Shows existing devices or option to create new */}
-      {!showCitySelectionPopup && currentUser && userHasRole(currentUser, 'driver') && !deviceRegistered &&
+      {/* Device Registration - Shows existing devices or option to create new - DRIVERS ONLY */}
+      {!showCitySelectionPopup && !deviceRegistered && currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') &&
       <DeviceRegistration
         currentUser={currentUser}
         onDeviceRegistered={(device) => {
