@@ -4,21 +4,70 @@
  */
 
 /**
+ * Detects if device is a tablet based on user agent
+ * @returns {boolean} - true if tablet device
+ */
+export const isTablet = () => {
+  const ua = navigator.userAgent;
+  return /iPad|Android(?!.*Mobile)/i.test(ua);
+};
+
+/**
+ * Detects device orientation
+ * @returns {string} - 'portrait' or 'landscape'
+ */
+export const getOrientation = () => {
+  return window.innerWidth < window.innerHeight ? 'portrait' : 'landscape';
+};
+
+/**
+ * Determines if mobile layout should be used
+ * Rules:
+ * - Phones: always use mobile layout
+ * - Tablets in portrait: use mobile layout
+ * - Tablets in landscape: use desktop layout
+ * - Desktop: use desktop layout
+ * @returns {boolean} - true if mobile layout should be used
+ */
+export const shouldUseMobileLayout = () => {
+  const ua = navigator.userAgent;
+  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
+  const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  
+  // Phones always use mobile layout
+  if (isPhone) return true;
+  
+  // Tablets: portrait = mobile, landscape = desktop
+  if (isTabletDevice) {
+    return getOrientation() === 'portrait';
+  }
+  
+  // Desktop devices use desktop layout (but respect small screens)
+  return window.innerWidth < 768;
+};
+
+/**
  * Detects device type and operating system from user agent and screen width
  * Wide-screen devices (> 525px = 1.75 × statscard width) are treated as desktop even if mobile user agent
- * @returns {Object} - { deviceType: 'Mobile'|'Desktop', os: string }
+ * @returns {Object} - { deviceType: 'Mobile'|'Desktop'|'Tablet', os: string }
  */
 export const getUserAgentInfo = () => {
   const ua = navigator.userAgent;
 
   // Detect device type from user agent
+  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
   const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
   
   // Override mobile detection for wide screens (1.75 × 300px statscard width = 525px)
   const screenWidth = window.innerWidth;
   const MOBILE_THRESHOLD = 525; // 1.75 × statscard width (300px)
   
-  const deviceType = (isMobileUserAgent && screenWidth <= MOBILE_THRESHOLD) ? 'Mobile' : 'Desktop';
+  let deviceType = 'Desktop';
+  if (isTabletDevice) {
+    deviceType = 'Tablet';
+  } else if (isMobileUserAgent && screenWidth <= MOBILE_THRESHOLD) {
+    deviceType = 'Mobile';
+  }
 
   // Detect OS
   let os = 'Unknown OS';

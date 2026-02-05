@@ -2754,10 +2754,27 @@ export default function PayrollSummaryCard({
             data.driver.id === currentUser?.id;
             const canShowConfirmButton = isOwnCardInAllDriversMode && !driverHasConfirmed && canFinalize;
 
-            // Mobile view
-            const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+            // Mobile view - check for tablets in portrait mode
+            const shouldShowMobile = (() => {
+              if (typeof window === 'undefined') return false;
+              const ua = navigator.userAgent;
+              const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
+              const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+              
+              // Phones always use mobile layout
+              if (isPhone) return true;
+              
+              // Tablets: portrait = mobile, landscape = desktop
+              if (isTabletDevice) {
+                const isPortrait = window.innerWidth < window.innerHeight;
+                return isPortrait;
+              }
+              
+              // Desktop/other: use breakpoint
+              return window.innerWidth < 768;
+            })();
 
-            if (isMobile) {
+            if (shouldShowMobile) {
               return (
                 <PayrollMobileCard
                    key={data.driver.id}
