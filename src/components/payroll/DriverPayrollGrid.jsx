@@ -433,28 +433,7 @@ export default function DriverPayrollGrid({
               )}
             </div>
           )}
-            <>
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="flex items-center gap-2 text-base flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>
-                  <Table className="w-5 h-5" />
-                  {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
-                  <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
-                    <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
-                  </button>
-                </CardTitle>
-              </div>
-              {isOwner && (
-                <div className="flex justify-center">
-                  <div className="flex gap-1 flex-shrink-0">
-                    <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
-                    <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
-                    <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Monthly</Button>
-                    <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
-                  </div>
-                </div>
-              )}
-
-        </div>
+          </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
