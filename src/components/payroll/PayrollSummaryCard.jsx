@@ -2794,7 +2794,10 @@ export default function PayrollSummaryCard({
                     appFeeAmount={calculateAppFeeAmount(data.driver.id, driverEdits[data.driver.id]?.appFeePercent || 0)}
                     appFeePercent={driverEdits[data.driver.id]?.appFeePercent || 0}
                     ytdDataByDriver={ytdDataByDriver}
-                    isPeriodEndOfMonth={isPeriodEndOfMonth} />);
+                    isPeriodEndOfMonth={isPeriodEndOfMonth}
+                    onDeductionsClick={isAdmin ? setDeductionOverlayDriverId : null}
+                    onBonusClick={isAdmin ? setBonusOverlayDriverId : null}
+                    onAppFeeClick={isAdmin ? setAppFeeOverlayDriverId : null} />);
 
 
               }
@@ -3108,7 +3111,8 @@ export default function PayrollSummaryCard({
                 Total App Fees Collected
               </div>
               
-              <div className="p-3 rounded-lg border bg-white dark:bg-slate-800/50" style={{
+              <div className="p-3 rounded-lg border" style={{
+                  background: 'var(--bg-white)',
                   borderColor: 'var(--border-slate-200)',
                   fontVariantNumeric: 'tabular-nums'
                 }}>
@@ -3415,7 +3419,8 @@ export default function PayrollSummaryCard({
                 <div className="font-semibold mb-3 text-sm" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
                 
                 {/* Pay Summary Table */}
-                <div className="p-3 rounded-lg border bg-white dark:bg-slate-800/50" style={{
+                <div className="p-3 rounded-lg border" style={{
+                  background: 'var(--bg-white)',
                   borderColor: 'var(--border-slate-200)',
                   fontVariantNumeric: 'tabular-nums'
                 }}>

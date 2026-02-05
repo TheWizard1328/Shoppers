@@ -22,7 +22,10 @@ export default function PayrollMobileCard({
   appFeeAmount = 0,
   appFeePercent = 0,
   ytdDataByDriver = {},
-  isPeriodEndOfMonth = false
+  isPeriodEndOfMonth = false,
+  onDeductionsClick,
+  onBonusClick,
+  onAppFeeClick
 }) {
   const [expandedSection, setExpandedSection] = useState(null);
 
@@ -199,7 +202,15 @@ export default function PayrollMobileCard({
           {/* Deductions (if any) */}
           {((data.deductions || data.total_deductions || data.totalDeductions || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) > 0) &&
           <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
-            <div className="text-left">Deductions:</div>
+            <div className="text-left">
+              {isAdmin && onDeductionsClick ? (
+                <button onClick={() => onDeductionsClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium">
+                  Deductions:
+                </button>
+              ) : (
+                'Deductions:'
+              )}
+            </div>
             <div className="text-right pr-0.5">-$</div>
             <div className="text-right font-semibold">{(data.deductions || data.total_deductions || data.totalDeductions || 0).toFixed(2)}</div>
             <div className="text-right pr-0.5">-$</div>
@@ -208,9 +219,17 @@ export default function PayrollMobileCard({
           }
 
           {/* Bonus (if any) */}
-          {(bonusAmount || ytdDataByDriver[data.driver.id]?.ytdBonusAmount) > 0 &&
+          {((bonusAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) > 0) &&
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-blue-700)' }}>
-              <div className="text-left">Bonus:</div>
+              <div className="text-left">
+                {isAdmin && onBonusClick ? (
+                  <button onClick={() => onBonusClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium">
+                    Bonus:
+                  </button>
+                ) : (
+                  'Bonus:'
+                )}
+              </div>
               <div className="text-right pr-0.5">+$</div>
               <div className="text-right font-semibold">{(bonusAmount || 0).toFixed(2)}</div>
               <div className="text-right pr-0.5">+$</div>
@@ -219,9 +238,17 @@ export default function PayrollMobileCard({
           }
 
           {/* App Fee (if any) */}
-          {isAdmin && isPeriodEndOfMonth && (appFeeAmount || ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount) > 0 &&
+          {isAdmin && ((appFeeAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0) > 0) &&
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
-              <div className="text-left">App Fee:</div>
+              <div className="text-left">
+                {onAppFeeClick ? (
+                  <button onClick={() => onAppFeeClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium">
+                    App Fee %:
+                  </button>
+                ) : (
+                  'App Fee %:'
+                )}
+              </div>
               <div className="text-right pr-0.5">+$</div>
               <div className="text-right font-semibold">{(appFeeAmount || 0).toFixed(2)}</div>
               <div className="text-right pr-0.5">+$</div>
