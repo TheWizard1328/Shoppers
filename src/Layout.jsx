@@ -3328,8 +3328,8 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Show controls in navigation panel when mobile wide screen OR desktop admin */}
-                      {(isMobile && screenWidth >= 768) || (!isMobile && userHasRole(currentUser, 'admin') && cities && cities.length > 0) ?
+                      {/* Show controls in navigation panel when tablet landscape OR desktop admin */}
+                      {((deviceType === 'Tablet' && !isTabletPortrait) || (!isMobile && !isTabletPortrait && userHasRole(currentUser, 'admin') && cities && cities.length > 0)) ?
                         <>
                           {/* Location Tracking Toggle - mobile devices (including tablets) in landscape, drivers only */}
                           {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
