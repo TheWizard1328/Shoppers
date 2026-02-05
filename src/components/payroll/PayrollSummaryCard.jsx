@@ -3207,8 +3207,27 @@ export default function PayrollSummaryCard({
           {/* Grand Total for All Drivers */}
           {payrollData.length > 1 &&
           <div className="pt-4" style={{ borderTop: '2px solid var(--border-slate-300)' }}>
-              {/* Desktop View */}
-              <div className="hidden md:block">
+              {/* Desktop View - hide on phones and tablets in portrait */}
+              <div style={{
+                display: (() => {
+                  if (typeof window === 'undefined') return 'block';
+                  const ua = navigator.userAgent;
+                  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
+                  const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+                  
+                  // Phones never show desktop
+                  if (isPhone) return 'none';
+                  
+                  // Tablets: portrait = hide, landscape = show
+                  if (isTabletDevice) {
+                    const isPortrait = window.innerWidth < window.innerHeight;
+                    return isPortrait ? 'none' : 'block';
+                  }
+                  
+                  // Desktop: show if width >= 768px
+                  return window.innerWidth >= 768 ? 'block' : 'none';
+                })()
+              }}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
                 </div>
@@ -3373,8 +3392,8 @@ export default function PayrollSummaryCard({
                   </div>
               </div>
 
-              {/* Mobile View - check for tablets in portrait mode */}
-              <div className="md:hidden" style={{
+              {/* Mobile View - only show on phones and tablets in portrait */}
+              <div style={{
                 display: (() => {
                   if (typeof window === 'undefined') return 'none';
                   const ua = navigator.userAgent;
@@ -3390,8 +3409,8 @@ export default function PayrollSummaryCard({
                     return isPortrait ? 'block' : 'none';
                   }
                   
-                  // Desktop: use media query (md:hidden handles this)
-                  return 'block';
+                  // Desktop: hide if width >= 768px
+                  return window.innerWidth < 768 ? 'block' : 'none';
                 })()
               }}>
                 <div className="font-semibold mb-3 text-sm" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
