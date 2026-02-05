@@ -1307,27 +1307,30 @@ export default function StopCard({
                 const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
                 const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
 
-                if (!onStatusUpdate) {
-                  console.error('❌ [FAILURE] onStatusUpdate is missing!');
-                  toast.error('Status update function not available');
-                  fabControlEvents.reactivateFAB(true);
-                  return;
-                }
-
-                console.log('📞 [FAILURE] Calling onStatusUpdate with status:', status);
+                console.log('📞 [FAILURE] Saving to both databases with status:', status);
                 console.log('📦 [FAILURE] Extra data:', {
                   delivery_notes: updatedNotes,
                   actual_delivery_time: localTimeString
                 });
                 
+                // CRITICAL: Save to both offline and online databases
                 try {
-                  await onStatusUpdate(delivery.id, status, {
+                  await updateDeliveryLocal(delivery.id, {
+                    status: status,
                     delivery_notes: updatedNotes,
                     actual_delivery_time: localTimeString
-                  }, false);
-                  console.log('✅ [FAILURE] onStatusUpdate completed');
+                  }, { skipSmartRefresh: true });
+                  console.log('✅ [FAILURE] Saved to both databases');
+                  
+                  // Also call onStatusUpdate if available for additional UI updates
+                  if (onStatusUpdate) {
+                    await onStatusUpdate(delivery.id, status, {
+                      delivery_notes: updatedNotes,
+                      actual_delivery_time: localTimeString
+                    }, false);
+                  }
                 } catch (statusError) {
-                  console.error('❌ [FAILURE] onStatusUpdate failed:', statusError);
+                  console.error('❌ [FAILURE] Update failed:', statusError);
                   toast.error(`Failed to update status: ${statusError.message}`);
                   fabControlEvents.reactivateFAB(true);
                   return;
@@ -2350,7 +2353,16 @@ export default function StopCard({
                           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                           await ensureDriverOnline();
-                          await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
+                          
+                          // CRITICAL: Save to both offline and online databases
+                          await updateDeliveryLocal(delivery.id, { 
+                            status: isPickup ? 'en_route' : 'in_transit' 
+                          }, { skipSmartRefresh: true });
+                          
+                          // Also call onStatusUpdate if available for additional UI updates
+                          if (onStatusUpdate) {
+                            await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
+                          }
 
                           // CRITICAL: Run route optimizer to insert retry at optimal position
                           try {
@@ -2519,7 +2531,7 @@ export default function StopCard({
                             isNextDelivery: false
                           };
 
-                          // Update local state immediately
+                          // CRITICAL: Save to both offline and online databases
                           await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
 
                           // Find and update next delivery flag
