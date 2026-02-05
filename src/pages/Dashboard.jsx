@@ -1233,21 +1233,8 @@ function Dashboard() {
     }
     
     // SOURCE 3: Deliveries (fallback for missing drivers) - ONLY add if not already in map
-    (deliveries || []).forEach((d) => {
-      if (!d || !d.driver_id || !d.driver_name) return;
-      if (!finalDriversMap.has(d.driver_id)) {
-        finalDriversMap.set(d.driver_id, {
-          id: d.driver_id,
-          user_id: d.driver_id,
-          user_name: d.driver_name,
-          full_name: d.driver_name,
-          app_roles: ['driver'],
-          status: 'active',
-          _source: 'deliveries'
-        });
-      }
-    });
-
+    // REMOVED: Don't add drivers from deliveries - this was causing incorrect filtering
+    
     // CRITICAL: Sort drivers by sort_order, then by user_name
     const driversSource = Array.from(finalDriversMap.values()).sort((a, b) => {
       const sortOrderA = a.sort_order ?? Infinity;
@@ -1265,9 +1252,20 @@ function Dashboard() {
 
     console.log(`✅ [Dashboard] Built driver list: ${driversSource.length} unique drivers (${finalDriversMap.size} total)`);
 
-    // ADMIN: Get all drivers
+    // CRITICAL: Get the active city from globalFilters
+    const selectedCityId = globalFilters.getSelectedCityId();
+
+    // ADMIN: Get all drivers for the active city
     if (userHasRole(currentUser, 'admin')) {
-      return driversSource;
+      const cityDrivers = selectedCityId ? 
+        driversSource.filter(d => {
+          // Check both city_id (legacy) and city_ids (array)
+          const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
+          return driverCityIds.includes(selectedCityId);
+        }) :
+        driversSource;
+
+      return cityDrivers;
     }
 
     // DISPATCHER: Show ALL active drivers in the city, highlighting those with deliveries
@@ -1283,16 +1281,30 @@ function Dashboard() {
         filter(Boolean)
       );
 
-      // CRITICAL: Return ALL active drivers, marking those with deliveries for dispatcher's stores
-      return driversSource.map((d) => ({
+      // CRITICAL: Return ALL active drivers for the city, marking those with deliveries for dispatcher's stores
+      const cityDrivers = selectedCityId ? 
+        driversSource.filter(d => {
+          const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
+          return driverCityIds.includes(selectedCityId);
+        }) :
+        driversSource;
+
+      return cityDrivers.map((d) => ({
         ...d,
         _hasDispatcherStoreDeliveries: driversWithStoreDeliveries.has(d.id)
       }));
     }
 
-    // OTHER ROLES: Return all drivers
-    return driversSource;
-  }, [drivers, appUsers, deliveries, currentUser, selectedDate]);
+    // DRIVER: Show all drivers for the active city
+    const cityDrivers = selectedCityId ? 
+      driversSource.filter(d => {
+        const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
+        return driverCityIds.includes(selectedCityId);
+      }) :
+      driversSource;
+
+    return cityDrivers;
+  }, [drivers, appUsers, currentUser, selectedDate]);
 
   // CRITICAL: Show location toggle on mobile devices regardless of layout mode
   const shouldShowLocationToggle = useMemo(() => {
