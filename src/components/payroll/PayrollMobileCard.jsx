@@ -75,7 +75,7 @@ export default function PayrollMobileCard({
 
 
   return (
-    <div className="p-4 rounded-lg space-y-3 dark:bg-slate-800/50" style={{ background: 'var(--bg-white)' }}>
+    <div className="p-4 rounded-lg space-y-3 bg-white dark:bg-slate-800/50">
       {/* Driver Name Header */}
       <div className="flex items-center justify-between">
         <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
