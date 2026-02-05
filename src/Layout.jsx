@@ -3321,21 +3321,6 @@ export default function Layout({ children, currentPageName }) {
                             />
                           }
 
-                          {/* Driver Status Toggle - mobile devices (including tablets) in landscape, drivers only */}
-                          {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
-                            <DriverStatusToggle
-                              currentUser={currentUser}
-                              vertical={true}
-                              onStatusChange={async (newStatus) => {
-                                clearUserCache();
-                                const refreshedUser = await getEffectiveUser();
-                                if (refreshedUser) {
-                                  setCurrentUser(refreshedUser);
-                                }
-                              }}
-                            />
-                          }
-
                           {/* Settings Menu */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -3375,6 +3360,21 @@ export default function Layout({ children, currentPageName }) {
                               isMobile={isMobile}
                             />
                           </DropdownMenu>
+
+                          {/* Driver Status Toggle - mobile devices (including tablets) in landscape, drivers only */}
+                          {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
+                            <DriverStatusToggle
+                              currentUser={currentUser}
+                              vertical={true}
+                              onStatusChange={async (newStatus) => {
+                                clearUserCache();
+                                const refreshedUser = await getEffectiveUser();
+                                if (refreshedUser) {
+                                  setCurrentUser(refreshedUser);
+                                }
+                              }}
+                            />
+                          }
                         </> : null
                       }
                     </div>
