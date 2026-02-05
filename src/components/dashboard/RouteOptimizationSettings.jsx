@@ -131,16 +131,17 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
       try {
         setIsLoadingBreadcrumbsSettings(true);
         
-        // Get user settings (which includes the device_identifier)
-        const userSettings = await loadUserSettings(currentUser.id);
-        console.log('⚙️ [Breadcrumbs] User settings loaded:', userSettings);
-        
-        // Get device identifier from userSettings (not localStorage)
-        const deviceIdentifier = userSettings?.device_identifier;
+        // Get device identifier
+        const deviceIdentifier = localStorage.getItem('rxdeliver_device_identifier');
         console.log('📱 [Breadcrumbs] Device identifier:', deviceIdentifier);
         
-        // Check if breadcrumbs are enabled for this device
-        const deviceProfile = userSettings?.device_settings_profiles?.[deviceIdentifier];
+        // Load raw UserSettings record (not merged)
+        const userSettingsRecords = await base44.entities.UserSettings.filter({ user_id: currentUser.id }, '-updated', 1);
+        const userSettingsRecord = userSettingsRecords?.[0];
+        console.log('⚙️ [Breadcrumbs] UserSettings record:', userSettingsRecord);
+        
+        // Get device-specific profile
+        const deviceProfile = userSettingsRecord?.device_settings_profiles?.[deviceIdentifier];
         console.log('📱 [Breadcrumbs] Device profile:', deviceProfile);
         setBreadcrumbsEnabled(deviceProfile?.breadcrumbs_enabled || false);
         
