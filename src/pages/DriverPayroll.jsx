@@ -650,9 +650,41 @@ export default function DriverPayroll() {
       <div className="max-w-7xl mx-auto" ref={contentRef}>
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <DollarSign className="w-8 h-8 text-emerald-600" />
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Payroll</h1>
+          <div className="flex items-center gap-3 justify-between w-full md:w-auto">
+            <div className="flex items-center gap-3">
+              <DollarSign className="w-8 h-8 text-emerald-600" />
+              <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Payroll</h1>
+            </div>
+            
+            {/* Mobile: Show Refresh and Share buttons next to title */}
+            <div className="flex md:hidden items-center gap-1">
+              <Button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing || isLoadingPayroll}
+                size="sm"
+                variant="ghost"
+                className="p-2 h-auto"
+                title="Refresh payroll data"
+                style={{ color: 'var(--text-slate-900)' }}
+              >
+                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button
+                onClick={handleCaptureScreenshot}
+                disabled={isCapturingScreenshot}
+                size="sm"
+                variant="ghost"
+                className="p-2 h-auto"
+                title="Capture and share screenshot"
+                style={{ color: 'var(--text-slate-900)' }}
+              >
+                {isCapturingScreenshot ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Share2 className="w-5 h-5" />
+                )}
+              </Button>
+            </div>
           </div>
           
           {/* Filters */}
@@ -729,8 +761,8 @@ export default function DriverPayroll() {
               </Select>
             </div>
 
-            {/* Icon Buttons - Far Right */}
-            <div id="payroll-controls" className="flex items-center gap-1">
+            {/* Icon Buttons - Far Right (Desktop only) */}
+            <div id="payroll-controls" className="hidden md:flex items-center gap-1">
               <Button
                 onClick={handleManualRefresh}
                 disabled={isRefreshing || isLoadingPayroll}
