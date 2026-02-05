@@ -2549,6 +2549,11 @@ class SmartRefreshManager {
        try {
          const { offlineDB } = await import('./offlineDatabase');
          console.log(`💾 [SmartRefresh] Saving ${allAppUsers.length} AppUsers to offline DB...`);
+         
+         // CRITICAL: Clear the store first to prevent accumulation of stale records
+         await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+         console.log('🗑️ [SmartRefresh] Cleared APP_USERS store before resync');
+         
          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
 
          // Verify save was successful
