@@ -1892,7 +1892,7 @@ export default function RouteImport({
 
       setProgressPercent(8);
 
-      // STEP 2: CRITICAL - Use ALL preview deliveries (creates + updates) as CREATES
+      // STEP 2: CRITICAL - Use ALL preview deliveries (creates + updates) as CREATES via bulkCreate
       // Since we purge everything first, ALL CSV data becomes fresh creates
       // This prevents duplicates and ensures CSV is the sole source of truth
       const allDeliveriesToImport = [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate];
