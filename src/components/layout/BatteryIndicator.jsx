@@ -29,28 +29,33 @@ export default function BatteryIndicator({ vertical = false }) {
       return;
     }
 
-    // Check if Battery Status API is supported
-    if ('getBattery' in navigator) {
-      navigator.getBattery().then((battery) => {
-        // Set initial values
-        setBatteryLevel(Math.round(battery.level * 100));
-        setIsCharging(battery.charging);
-
-        // Update on battery level change
-        battery.addEventListener('levelchange', () => {
+      // Check if Battery Status API is supported
+      if ('getBattery' in navigator) {
+        navigator.getBattery().then((battery) => {
+          // Set initial values
           setBatteryLevel(Math.round(battery.level * 100));
-        });
-
-        // Update on charging status change
-        battery.addEventListener('chargingchange', () => {
           setIsCharging(battery.charging);
+
+          // Update on battery level change
+          battery.addEventListener('levelchange', () => {
+            setBatteryLevel(Math.round(battery.level * 100));
+          });
+
+          // Update on charging status change
+          battery.addEventListener('chargingchange', () => {
+            setIsCharging(battery.charging);
+          });
+        }).catch(() => {
+          // Battery API not available
+          setBatteryLevel(null);
         });
-      }).catch(() => {
-        // Battery API not available
+      } else {
         setBatteryLevel(null);
-      });
-    }
-  }, []);
+      }
+    };
+
+    checkDeviceAndSetBattery();
+  }, [currentUser?.id]);
 
   // Don't render if battery level is not available
   if (batteryLevel === null) return null;
