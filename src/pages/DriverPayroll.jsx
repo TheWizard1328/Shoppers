@@ -133,40 +133,34 @@ const calculateAllPeriods = (year, payPeriodType) => {
 
 // Helper: Find current period index based on today's date
 const findCurrentPeriodIndex = (periods, today) => {
-  // Normalize today to midnight for accurate comparison
-  const todayMidnight = new Date(today);
-  todayMidnight.setHours(0, 0, 0, 0);
+  // Use ISO string comparison (YYYY-MM-DD) to avoid timezone issues
+  const todayStr = today.toISOString().split('T')[0];
   
-  console.log(`🔍 [findCurrentPeriodIndex] Looking for period containing ${todayMidnight.toISOString().split('T')[0]}`);
-  console.log(`📅 [findCurrentPeriodIndex] Available periods:`, periods.map((p, i) => 
-    `${i}: ${p.start.toISOString().split('T')[0]} to ${p.end.toISOString().split('T')[0]} (${p.label})`
-  ).join(', '));
+  console.log(`🔍 [findCurrentPeriodIndex] Today: ${todayStr}, Periods:`, periods.map((p, i) => 
+    `${i}: ${p.start.toISOString().split('T')[0]}-${p.end.toISOString().split('T')[0]} (${p.label})`
+  ).join(' | '));
   
   for (let i = 0; i < periods.length; i++) {
-    const periodStart = new Date(periods[i].start);
-    periodStart.setHours(0, 0, 0, 0);
+    const startStr = periods[i].start.toISOString().split('T')[0];
+    const endStr = periods[i].end.toISOString().split('T')[0];
+    const isInRange = todayStr >= startStr && todayStr <= endStr;
+    console.log(`  Period ${i} (${periods[i].label}): ${startStr} <= ${todayStr} <= ${endStr}? ${isInRange}`);
     
-    const periodEnd = new Date(periods[i].end);
-    periodEnd.setHours(23, 59, 59, 999);
-    
-    console.log(`  Checking period ${i} (${periods[i].label}): ${periodStart.toISOString().split('T')[0]} <= ${todayMidnight.toISOString().split('T')[0]} <= ${periodEnd.toISOString().split('T')[0]}? ${todayMidnight >= periodStart && todayMidnight <= periodEnd}`);
-    
-    if (todayMidnight >= periodStart && todayMidnight <= periodEnd) {
-      console.log(`✅ [findCurrentPeriodIndex] Found current period: index ${i} (${periods[i].label})`);
+    if (isInRange) {
+      console.log(`✅ Found current period: index ${i} (${periods[i].label})`);
       return i;
     }
   }
+  
   // If not found, return closest past period
-  console.log(`⚠️ [findCurrentPeriodIndex] No exact match, looking for closest past period`);
+  console.log(`⚠️ No exact match found, returning closest past period`);
   for (let i = periods.length - 1; i >= 0; i--) {
-    const periodEnd = new Date(periods[i].end);
-    periodEnd.setHours(23, 59, 59, 999);
-    if (todayMidnight > periodEnd) {
-      console.log(`✅ [findCurrentPeriodIndex] Returning closest past period: index ${i} (${periods[i].label})`);
+    const endStr = periods[i].end.toISOString().split('T')[0];
+    if (todayStr > endStr) {
+      console.log(`✅ Returning closest past: index ${i} (${periods[i].label})`);
       return i;
     }
   }
-  console.log(`✅ [findCurrentPeriodIndex] Returning default: index 0`);
   return 0;
 };
 
