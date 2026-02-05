@@ -544,9 +544,16 @@ export default function DriverPayroll() {
     hasLoadedInitialDataRef.current = true;
   }, [payrollData?.appUsers, selectedDriverId]);
 
-  // Reset period index when pay period or year changes
+  // Reset period index when pay period or year changes - ONLY on initial load
+  const initialPeriodSetRef = useRef(false);
+  
   useEffect(() => {
     if (!hasInitialized) return;
+    
+    // CRITICAL: Only auto-select period on INITIAL load or when pay period/year changes
+    // Do NOT override user's manual period navigation
+    const shouldAutoSelect = !initialPeriodSetRef.current || isManualChangeRef.current;
+    if (!shouldAutoSelect) return;
     
     // Invalidate caches to force fresh calculations
     invalidate('Payroll');
@@ -602,6 +609,9 @@ export default function DriverPayroll() {
         setSelectedPeriodIndex(allPeriods.length - 1);
       }
     }
+    
+    // Mark that initial period has been set
+    initialPeriodSetRef.current = true;
   }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords]);
 
   // Load payroll records when period changes (initial load and period navigation)
