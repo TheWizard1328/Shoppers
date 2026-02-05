@@ -1808,11 +1808,14 @@ export default function DeliveryMap({
     const driversToExcludeFromBounds = new Set(); // CRITICAL: Track home markers to exclude from centering
     const driversWithCompleteRoute = new Set(); // NEW: Track drivers whose routes are complete
 
-    // CRITICAL: For admins/app owners, check ALL deliveries for the date (not just current driver's)
-    // This includes other drivers when "Show All" is enabled
-    const deliveriesToCheck = (isCurrentUserAdmin && showOtherDriverDeliveries && otherDriverDeliveries.length > 0)
-      ? [...safeDeliveries, ...otherDriverDeliveries]
-      : safeDeliveries;
+    // CRITICAL: Determine which deliveries to check based on mode
+    // Single driver mode: Only check selected driver
+    // All drivers/Show All mode: Check all deliveries
+    const deliveriesToCheck = isSingleDriverMode && selectedDriverId && selectedDriverId !== 'all'
+      ? safeDeliveries.filter(d => d && d.driver_id === selectedDriverId)
+      : (isCurrentUserAdmin && showOtherDriverDeliveries && otherDriverDeliveries.length > 0)
+        ? [...safeDeliveries, ...otherDriverDeliveries]
+        : safeDeliveries;
 
     // Group all stops (deliveries + pickups) by driver
     const stopsByDriver = new Map();
