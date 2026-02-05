@@ -2333,7 +2333,7 @@ export default function PayrollSummaryCard({
                  <thead style={{ background: 'var(--bg-slate-100)', position: 'sticky', top: 0 }}>
                    <tr style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
                      <th className="text-left px-2 py-1.5 font-semibold">Driver</th>
-                     <th className="text-right px-2 py-1.5 font-semibold" style={{ width: '80px' }}>Fee %</th>
+                     <th className="text-right px-2 py-1.5 font-semibold" style={{ width: '90px' }}>Fee %</th>
                      <th className="text-right px-2 py-1.5 font-semibold" style={{ width: '80px' }}>Fee $</th>
                    </tr>
                  </thead>
@@ -2351,9 +2351,105 @@ export default function PayrollSummaryCard({
                            {isAppOwnerRow && <span className="text-xs font-semibold text-blue-600 ml-1">(App Owner)</span>}
                          </td>
                          <td className="text-right px-1 py-1.5">
+                           <span className="text-[11px] font-medium">{driverAppFeePercent.toFixed(2)}%</span>
+                         </td>
+                         <td className="text-right px-1 py-1.5">
                            <input
                              type="number"
-                             value={activeInputField === `${driver.driver.id}-percent` ? driverAppFeePercent : driverAppFeePercent.toFixed(2)}
+                             value={driverAppFeeAmount}
+                             onChange={(e) => {
+                               const newAmount = parseFloat(e.target.value) || 0;
+                               let totalBillableCount = 0;
+                               const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                               const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                               deliveries.forEach((d) => {
+                                 if (!d || !d.store_id) return;
+                                 const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                                 if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+                                 const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+                                 if (!validStatus) return;
+                                 if (!d.patient_id && !d.after_hours_pickup) return;
+                                 const store = stores.find((s) => s?.id === d.store_id);
+                                 if (!store) return;
+                                 let paysAppFees = store.pays_app_fees || false;
+                                 if (store.app_fee_history && store.app_fee_history.length > 0) {
+                                   const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                                     new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                                   );
+                                   if (sortedHistory[0]) {
+                                     paysAppFees = sortedHistory[0].pays_app_fees;
+                                   }
+                                 }
+                                 if (paysAppFees) {
+                                   totalBillableCount++;
+                                 }
+                               });
+                               const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                               const newPercent = totalMonthlyAppFees > 0 ? (newAmount / totalMonthlyAppFees) * 100 : 0;
+
+                               setDriverEdits((prev) => ({
+                                 ...prev,
+                                 [driver.driver.id]: { 
+                                   ...prev[driver.driver.id], 
+                                   appFeePercent: newPercent,
+                                   appFeeAmount: newAmount
+                                 }
+                               }));
+
+                               // RULE 1 & 2: Recalculate based on who is being edited
+                               if (isAppOwnerRow) {
+                                 // Editing App Owner → recalc Other App Fee
+                                 const sumAllDrivers = driversWithDeliveries.reduce((sum, d) => {
+                                   if (d.driver.id === driver.driver.id) return sum + newPercent;
+                                   return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                                 }, 0);
+                                 const newOtherPercent = Math.max(0, 100 - sumAllDrivers);
+                                 setOtherAppFeePercent(Math.round(newOtherPercent * 100) / 100);
+                               } else {
+                                 // Editing regular driver → recalc App Owner fee
+                                 const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
+                                   if (d.driver.id === currentUser?.id) return sum; // Skip App Owner
+                                   if (d.driver.id === driver.driver.id) return sum + newPercent; // Use new value
+                                   return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                                 }, 0);
+                                 const newAppOwnerPercent = Math.max(0, 100 - sumNonAppOwnerDrivers - otherAppFeePercent);
+                                 setDriverEdits((prev) => ({
+                                   ...prev,
+                                   [currentUser.id]: {
+                                     ...prev[currentUser.id],
+                                     appFeePercent: newAppOwnerPercent,
+                                     appFeeAmount: calculateAppFeeAmount(currentUser.id, newAppOwnerPercent)
+                                   }
+                                 }));
+                               }
+                               }}
+                             onBlur={(e) => {
+                               const value = parseFloat(e.target.value) || 0;
+                               setDriverEdits((prev) => ({
+                                 ...prev,
+                                 [driver.driver.id]: { 
+                                   ...prev[driver.driver.id], 
+                                   appFeeAmount: Math.round(value * 100) / 100
+                                 }
+                               }));
+                             }}
+                             className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
+                             step="any"
+                             min="0" />
+                         </td>
+                       </tr>
+                     );
+                     })}
+                   {/* Other App Fee Row */}
+                   <tr style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
+                     <td className="px-2 py-1.5 text-left">Other App Fee</td>
+                     <td className="text-right px-1 py-1.5">
+                       <span className="text-[11px] font-medium">{otherAppFeePercent.toFixed(2)}%</span>
+                     </td>
+                     <td className="text-right px-1 py-1.5">
+                       <input
+                         type="number"
+                         value={calculateAppFeeAmount('other-app-fee', otherAppFeePercent).toFixed(2)}
                              onFocus={() => setActiveInputField(`${driver.driver.id}-percent`)}
                              onBlur={() => setActiveInputField(null)}
                              onChange={(e) => {
@@ -2580,9 +2676,87 @@ export default function PayrollSummaryCard({
                    <tr style={{ background: 'var(--bg-slate-100)', borderTop: '2px solid var(--border-slate-300)' }}>
                      <td className="px-2 py-1.5 font-semibold">App Owner (You)</td>
                      <td className="text-right px-1 py-1.5">
-                       <input
-                         type="number"
-                         value={activeInputField === `${currentUser?.id}-appowner-percent` ? (driverEdits[currentUser?.id]?.appFeePercent || 0) : (driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}
+                       <span className="text-[11px] font-semibold">{(driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}%</span>
+                     </td>
+                     <td className="text-right px-1 py-1.5 font-semibold">${(driverEdits[currentUser?.id]?.appFeeAmount || calculateAppFeeAmount(currentUser?.id, driverEdits[currentUser?.id]?.appFeePercent || 0) || 0).toFixed(2)}</td>
+                   </tr>
+                 </tbody>
+               </table>
+             </div>
+           </div>
+
+           {/* Summary */}
+           <div className="text-xs p-2 bg-slate-50 rounded mt-3">
+             <div>Sum of Other Drivers: <strong>{sumAllDriversAppFeePercent.toFixed(2)}%</strong></div>
+             <div>App Owner (You): <strong>{(driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}%</strong></div>
+             <div>Other App Fee: <strong>{otherAppFeePercent.toFixed(2)}%</strong></div>
+             <div className="text-xs text-slate-500 mt-1 font-semibold">Total: {(sumAllDriversAppFeePercent + (driverEdits[currentUser?.id]?.appFeePercent || 0) + otherAppFeePercent).toFixed(2)}% / 100%</div>
+           </div>
+           </div>
+
+           <DialogFooter>
+           <Button
+             variant="outline"
+             onClick={async () => {
+               try {
+                 // Save each driver's app fee percentage and amount - direct update without recalculation
+                 for (const driver of driversWithDeliveries) {
+                   const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
+                   const driverAppFeeAmount = driverEdits[driver.driver.id]?.appFeeAmount || 0;
+                   const existingRecord = getDriverPayrollRecord(driver.driver.id);
+                   
+                   if (existingRecord) {
+                     await base44.entities.Payroll.update(existingRecord.id, {
+                       app_fee_percentage: driverAppFeePercent,
+                       app_fee_amount: driverAppFeeAmount
+                     });
+                   }
+                 }
+
+                 // Save Extra_App_Fee_Percentage and Other_App_Fee_Percentage to AppSettings
+                 const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                 if (settings?.[0]) {
+                   await base44.entities.AppSettings.update(settings[0].id, {
+                     setting_value: {
+                       ...settings[0].setting_value,
+                       Extra_App_Fee_Percentage: extraAppFeePercent,
+                       Other_App_Fee_Percentage: otherAppFeePercent
+                     }
+                   });
+                 }
+                 setAppFeeOverlayAllDriversId(null);
+               } catch (error) {
+                 console.error('Failed to save App Fee changes:', error);
+               }
+             }}
+             style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+             Save & Close
+           </Button>
+         </DialogFooter>
+       </DialogContent>
+      </Dialog>
+      }
+
+      {/* App Fee Manager Overlay Dialog */}
+      {appFeeOverlayDriverId && driverEdits[appFeeOverlayDriverId] &&
+      <Dialog open={true} onOpenChange={(open) => !open && setAppFeeOverlayDriverId(null)}>
+       <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+         <DialogHeader>
+           <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Fee</DialogTitle>
+         </DialogHeader>
+
+         <div className="space-y-3">
+           <p className="text-xs text-slate-600">For {payrollData.find((d) => d.driver.id === appFeeOverlayDriverId)?.driver.user_name}:</p>
+
+           {/* Two fields side by side */}
+           <div className="grid grid-cols-2 gap-3">
+             {/* App Fee % */}
+             <div>
+               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee %</label>
+               <div className="flex gap-1">
+                 <input
+                   type="number"
+                   value={driverEdits[appFeeOverlayDriverId]?.appFeePercent || 0}
                          onFocus={() => setActiveInputField(`${currentUser?.id}-appowner-percent`)}
                          onBlur={() => setActiveInputField(null)}
                          onChange={(e) => {
