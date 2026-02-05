@@ -18,16 +18,16 @@ export default function BatteryIndicator({ vertical = false }) {
         }
       }
 
-    // Only show on mobile devices and laptops, not desktop PCs
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isMobileOrLaptop = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i.test(userAgent) ||
-    navigator.maxTouchPoints > 1 ||
-    window.innerWidth < 1024; // Treat narrow screens as mobile
+      // Only show on mobile devices and laptops, not desktop PCs
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileOrLaptop = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i.test(userAgent) ||
+      navigator.maxTouchPoints > 1 ||
+      window.innerWidth < 1024; // Treat narrow screens as mobile
 
-    if (!isMobileOrLaptop) {
-      setBatteryLevel(null);
-      return;
-    }
+      if (!isMobileOrLaptop) {
+        setBatteryLevel(null);
+        return;
+      }
 
       // Check if Battery Status API is supported
       if ('getBattery' in navigator) {
