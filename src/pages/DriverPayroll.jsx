@@ -688,7 +688,7 @@ export default function DriverPayroll() {
           </div>
           
           {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2 justify-between w-full md:w-auto">
+          <div className="flex flex-col md:flex-row md:items-center gap-2 justify-center md:justify-between w-full md:w-auto">
             {/* City, Year, Driver Dropdowns */}
             <div className="flex items-center gap-2">
               {/* City Filter */}
