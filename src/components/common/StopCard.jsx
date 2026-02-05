@@ -2440,6 +2440,19 @@ export default function StopCard({
                           // Auto-toggle driver online if offline
                           await ensureDriverOnline();
 
+                          // CRITICAL: Auto-collect COD if required and not already collected
+                          if (hasCODRequired && codPayments.length === 0 && onCODUpdate) {
+                            console.log('💰 [COMPLETE] Auto-collecting COD:', codTotalRequired);
+                            const autoCODPayment = [{
+                              type: 'Cash',
+                              amount: codTotalRequired
+                            }];
+                            
+                            // Save COD payment to both databases
+                            await onCODUpdate(delivery.id, autoCODPayment, true);
+                            console.log('✅ [COMPLETE] COD auto-collected and saved');
+                          }
+
                           // CRITICAL: For pickups with pending deliveries, force Accept All FIRST
                           if (isPickup && pendingPickups && pendingPickups.length > 0) {
                             // Check if there are pending deliveries that haven't been accepted yet
