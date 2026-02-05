@@ -6185,6 +6185,40 @@ function Dashboard() {
         const summaryKey = `${driverId}_${deliveryDate}`;
         if (!hasShownSummaryRef.current.has(summaryKey)) {
           console.log('🎉 [STATUS] Route complete - showing end of day stats');
+          
+          // CRITICAL: Collapse all expanded cards
+          setSelectedCardId(null);
+          
+          // CRITICAL: Set map to Phase 1 and lock briefly
+          setMapViewPhase(1);
+          setIsMapViewLocked(true);
+          lastProgrammaticMapMoveRef.current = Date.now();
+          window._lastProgrammaticMapMove = Date.now();
+          setMapViewTrigger((prev) => prev + 1);
+
+          if (currentUser?.id) {
+            saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
+          }
+
+          setTimeout(() => setIsMapViewLocked(false), 500);
+
+          // CRITICAL: Disable location tracking
+          if (locationTracker.isTracking) {
+            locationTracker.stopTracking();
+          }
+
+          // CRITICAL: Set driver status to off_duty and disable location tracking
+          base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsersList) => {
+            const appUser = appUsersList?.[0];
+            if (appUser) {
+              base44.entities.AppUser.update(appUser.id, {
+                driver_status: 'off_duty',
+                location_tracking_enabled: false
+              });
+            }
+          }).catch((error) => console.warn('⚠️ AppUser update failed:', error));
+
+          // Show end of day stats dialog
           const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
           setEndOfDayDriver(completedDriver);
           setShowEndOfDayStats(true);
@@ -6200,44 +6234,6 @@ function Dashboard() {
               }
             }
           }, 400);
-        }
-      }
-
-      // REMOVED: RouteSummaryModal trigger (replaced with EndOfDayStatsDialog)
-      if (false && routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id) {
-        const summaryKey = `${driverId}_${deliveryDate}`;
-        if (!hasShownSummaryRef.current.has(summaryKey)) {
-          setMapViewPhase(1);
-          setIsMapViewLocked(true);
-          lastProgrammaticMapMoveRef.current = Date.now();
-          window._lastProgrammaticMapMove = Date.now();
-          setMapViewTrigger((prev) => prev + 1);
-
-          if (currentUser?.id) {
-            saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
-          }
-
-          setTimeout(() => setIsMapViewLocked(false), 500);
-
-          // Disable location tracking (background)
-          if (locationTracker.isTracking) {
-            locationTracker.stopTracking();
-          }
-
-          base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsersList) => {
-            const appUser = appUsersList?.[0];
-            if (appUser) {
-              base44.entities.AppUser.update(appUser.id, {
-                driver_status: 'off_duty',
-                location_tracking_enabled: false
-              });
-            }
-          }).catch((error) => console.warn('⚠️ AppUser update failed:', error));
-
-          const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
-          setSummaryDriver(completedDriver);
-          setShowRouteSummary(true);
-          hasShownSummaryRef.current.add(summaryKey);
         }
       }
 
