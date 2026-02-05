@@ -3322,7 +3322,7 @@ export default function Layout({ children, currentPageName }) {
                         <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Pharmacy Logistics</p>
                         <div className="flex items-center">
                           <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{appVersion}</p>
-                          <BatteryIndicator />
+                          {!isMobile && !isTabletPortrait && <BatteryIndicator />}
                         </div>
                       </div>
                     </div>
