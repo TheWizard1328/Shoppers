@@ -2780,61 +2780,8 @@ export default function Layout({ children, currentPageName }) {
           }
         }
 
-        /* Mobile/Tablet layout - portrait orientation */
-        @media (orientation: portrait) {
-          .app-container.mobile-device .mobile-header,
-          .app-container.desktop-device .mobile-header {
-            display: flex !important;
-            position: sticky;
-            top: 0;
-            z-index: 10001 !important;
-            background: var(--bg-white);
-            border-bottom: 1px solid var(--border-slate-200);
-          }
-
-          .app-container.mobile-device main,
-          .app-container.desktop-device main {
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            flex: 1;
-          }
-
-          .app-container.mobile-device .app-sidebar,
-          .app-container.desktop-device .app-sidebar {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
-            bottom: 0 !important;
-            width: 280px !important;
-            max-width: 80vw !important;
-            z-index: 50000 !important;
-            transform: translateX(-100%) !important;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-            background: var(--bg-white) !important;
-            box-shadow: 4px 0 12px var(--shadow-color) !important;
-            flex-shrink: 0 !important;
-          }
-
-          .app-container.mobile-device .app-sidebar.sidebar-open,
-          .app-container.desktop-device .app-sidebar.sidebar-open {
-            transform: translateX(0) !important;
-            box-shadow: 4px 0 12px var(--shadow-color) !important;
-          }
-
-          .app-container.mobile-device .main-content-area,
-          .app-container.desktop-device .main-content-area {
-            width: 100vw !important;
-            flex: 1 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            overflow: hidden !important;
-            max-height: 100vh !important;
-            max-height: 100dvh !important;
-          }
-        }
-
-        /* Desktop layout - landscape orientation */
-        @media (orientation: landscape) {
+        /* Mobile layout - portrait mode (narrow screen) */
+        @media (max-width: 767px) {
           .app-container.mobile-device .mobile-header {
             display: flex !important;
             position: sticky;
@@ -2879,12 +2826,15 @@ export default function Layout({ children, currentPageName }) {
             max-height: 100vh !important;
             max-height: 100dvh !important;
           }
+        }
 
-          .app-container.desktop-device .mobile-header {
+        /* Mobile layout - landscape mode (wide screen) - use desktop layout */
+        @media (min-width: 768px) {
+          .app-container.mobile-device .mobile-header {
             display: none !important;
           }
 
-          .app-container.desktop-device .app-sidebar {
+          .app-container.mobile-device .app-sidebar {
             position: relative !important;
             transform: none !important;
             box-shadow: none !important;
@@ -2895,7 +2845,7 @@ export default function Layout({ children, currentPageName }) {
             transition: none !important;
           }
 
-          .app-container.desktop-device .main-content-area {
+          .app-container.mobile-device .main-content-area {
             flex: 1 1 auto !important;
             width: calc(100vw - var(--sidebar-width) - 1px) !important;
             min-width: 400px !important;
