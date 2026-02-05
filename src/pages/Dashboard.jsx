@@ -1282,87 +1282,31 @@ function Dashboard() {
       return cityDrivers;
     }
 
-    // DISPATCHER: Show all drivers for their assigned cities
-    if (userHasRole(currentUser, 'dispatcher')) {
-      const dispatcherStoreIds = currentUser.store_ids || [];
-      
-      // Get all unique cities from dispatcher's stores
-      const dispatcherCityIds = new Set(
-        stores?.
-        filter((s) => dispatcherStoreIds.includes(s.id)).
-        map((s) => s.city_id).
-        filter(Boolean)
-      );
-
-      // Return all drivers for dispatcher's cities
-      const cityDrivers = driversSource.filter(d => {
-        const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
-        return driverCityIds.some(cid => dispatcherCityIds.has(cid));
-      });
-
-      // Mark which drivers have deliveries for this date (used for auto-selection)
-      const driversWithDeliveries = new Set(
-        deliveries?.
-        filter((d) => {
-          if (!d || d.delivery_date !== selectedDateStr) return false;
-          if (!dispatcherStoreIds.includes(d.store_id)) return false;
-          return ['pending', 'in_transit', 'completed', 'failed'].includes(d.status);
-        }).
-        map((d) => d.driver_id).
-        filter(Boolean)
-      );
-
-      return cityDrivers.map((d) => ({
-        ...d,
-        _hasDeliveriesOnDate: driversWithDeliveries.has(d.id)
-      }));
-    }
-
-    // DRIVER: Show all drivers for the active city, always including current driver
-    if (userHasRole(currentUser, 'driver')) {
-      const cityDrivers = selectedCityId ? 
-        driversSource.filter(d => {
-          const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
-          return driverCityIds.includes(selectedCityId);
-        }) :
-        driversSource;
-
-      // Ensure current driver is included
-      const hasCurrentDriver = cityDrivers.some(d => d.id === currentUser.id);
-      if (!hasCurrentDriver && currentUser.id) {
-        cityDrivers.push({
-          id: currentUser.id,
-          user_id: currentUser.id,
-          user_name: currentUser.user_name || currentUser.full_name,
-          full_name: currentUser.user_name || currentUser.full_name
-        });
-      }
-
-      return cityDrivers;
-    }
-
-    // ADMIN: Show all drivers for the active city, always including current driver
-    const cityDrivers = selectedCityId ? 
+    // Step 1: Get all active drivers for the selected city
+    const allCityDrivers = selectedCityId ? 
       driversSource.filter(d => {
         const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
         return driverCityIds.includes(selectedCityId);
       }) :
       driversSource;
 
-    // Ensure current driver is included if they're a driver
-    if (userHasRole(currentUser, 'driver')) {
-      const hasCurrentDriver = cityDrivers.some(d => d.id === currentUser.id);
-      if (!hasCurrentDriver && currentUser.id) {
-        cityDrivers.push({
-          id: currentUser.id,
-          user_id: currentUser.id,
-          user_name: currentUser.user_name || currentUser.full_name,
-          full_name: currentUser.user_name || currentUser.full_name
-        });
-      }
+    // Step 2: Filter based on role
+    if (userHasRole(currentUser, 'dispatcher')) {
+      // DISPATCHER: Only show drivers with pickups/deliveries for their stores (any status)
+      const dispatcherStoreIds = currentUser.store_ids || [];
+      
+      const driversWithStoreDeliveries = new Set(
+        deliveries?.
+        filter((d) => d && dispatcherStoreIds.includes(d.store_id)).
+        map((d) => d.driver_id).
+        filter(Boolean)
+      );
+
+      return allCityDrivers.filter((d) => driversWithStoreDeliveries.has(d.id));
     }
 
-    return cityDrivers;
+    // ADMIN and DRIVER: Show all drivers for the selected city
+    return allCityDrivers;
   }, [drivers, appUsers, currentUser, selectedDate, deliveries]);
 
   // CRITICAL: Show location toggle on mobile devices regardless of layout mode
