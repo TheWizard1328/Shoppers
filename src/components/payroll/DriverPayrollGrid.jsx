@@ -40,52 +40,26 @@ export default function DriverPayrollGrid({
   
   // Refs for measuring section widths
   const containerRef = useRef(null);
-  const titleRef = useRef(null);
-  const viewModeRef = useRef(null);
-  const payCycleRef = useRef(null);
-  
+
+  // Detect desktop layout (min 1024px width)
+  const isDesktopLayout = useRef(false);
+
   // Calculate optimal layout based on container width
   const calculateLayout = useCallback(() => {
-    if (!containerRef.current || !titleRef.current || !viewModeRef.current || !payCycleRef.current) return;
+    if (!containerRef.current) return;
 
     const containerWidth = containerRef.current.offsetWidth;
-    const titleWidth = titleRef.current.offsetWidth;
-    const viewModeWidth = viewModeRef.current.offsetWidth;
-    const payCycleWidth = payCycleRef.current.offsetWidth;
-    const gap = 12; // gap-3 = 12px
 
-    // Desktop: Use 3-column grid layout (title left, viewmode+date center, paycycle right)
-    if (containerWidth >= 1200) {
+    // Desktop 3-column layout for wide screens
+    if (containerWidth >= 1024) {
       setHeaderLayout('desktop-three-column');
+      isDesktopLayout.current = true;
       return;
     }
 
-    // Check if all three fit on one row
-    if (titleWidth + viewModeWidth + payCycleWidth + gap * 2 <= containerWidth) {
-      setHeaderLayout('single');
-      return;
-    }
-
-    // Check if title + viewMode fit (payCycle goes to row 2)
-    if (titleWidth + viewModeWidth + gap <= containerWidth) {
-      setHeaderLayout('title-viewmode');
-      return;
-    }
-
-    // Check if title + payCycle fit (viewMode goes to row 2)
-    if (titleWidth + payCycleWidth + gap <= containerWidth) {
-      setHeaderLayout('title-paycycle');
-      return;
-    }
-
-    // Check if viewMode + payCycle fit together (both go to row 2)
-    if (viewModeWidth + payCycleWidth + gap <= containerWidth) {
-      setHeaderLayout('viewmode-paycycle');
-      return;
-    }
-
-    // All three on separate rows
-    setHeaderLayout('three');
+    // Mobile/tablet layouts for narrow screens
+    isDesktopLayout.current = false;
+    setHeaderLayout('single');
   }, []);
   
   // Measure and recalculate on mount and resize
