@@ -799,34 +799,31 @@ export default function Layout({ children, currentPageName }) {
           return;
         }
 
-        // CRITICAL: Step 2 - Check if device is registered (DRIVERS ONLY)
-        // Dispatchers and admins don't need device registration
-        if (userHasRole(fetchedUser, 'driver')) {
-          // Cache in localStorage (persists across refreshes) to avoid repeated checks
-          const deviceIdentifier = getDeviceIdentifier();
-          const cachedDeviceCheck = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
-          
-          if (!cachedDeviceCheck) {
-            const existingDevices = await base44.entities.UserDevice.filter({
-              user_id: fetchedUser.id,
-              device_identifier: deviceIdentifier
-            });
+        // CRITICAL: Step 2 - Check if device is registered (ALL USERS)
+        // Cache in localStorage (persists across refreshes) to avoid repeated checks
+        const deviceIdentifier = getDeviceIdentifier();
+        const cachedDeviceCheck = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
+        
+        if (!cachedDeviceCheck) {
+          const existingDevices = await base44.entities.UserDevice.filter({
+            user_id: fetchedUser.id,
+            device_identifier: deviceIdentifier
+          });
 
-            if (existingDevices && existingDevices.length === 0) {
-              // Device not registered - show DeviceRegistration (shows existing devices or create new)
-              console.log('📱 [Layout] Device not registered, showing registration options');
-              setCurrentUser(fetchedUser);
-              setIsLoadingLayout(false);
-              setDataLoaded(true);
-              return;
-            }
-
-            // Device registered - cache result to prevent re-checking
-            localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
-            console.log('✅ [Layout] Device registered and cached, proceeding');
-          } else {
-            console.log('✅ [Layout] Device check cached, skipping API call');
+          if (existingDevices && existingDevices.length === 0) {
+            // Device not registered - show DeviceRegistration (shows existing devices or create new)
+            console.log('📱 [Layout] Device not registered, showing registration options');
+            setCurrentUser(fetchedUser);
+            setIsLoadingLayout(false);
+            setDataLoaded(true);
+            return;
           }
+
+          // Device registered - cache result to prevent re-checking
+          localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
+          console.log('✅ [Layout] Device registered and cached, proceeding');
+        } else {
+          console.log('✅ [Layout] Device check cached, skipping API call');
         }
 
         // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
@@ -3178,8 +3175,8 @@ export default function Layout({ children, currentPageName }) {
 
       }
 
-      {/* Device Registration - Shows existing devices or option to create new - DRIVERS ONLY */}
-      {!showCitySelectionPopup && !deviceRegistered && currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') &&
+      {/* Device Registration - Shows existing devices or option to create new - ALL USERS */}
+      {!showCitySelectionPopup && !deviceRegistered && currentUser &&
       <DeviceRegistration
         currentUser={currentUser}
         onDeviceRegistered={(device) => {
