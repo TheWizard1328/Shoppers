@@ -2070,7 +2070,7 @@ export default function RouteImport({
             }));
 
             // Cooldown between dates to prevent rate limiting
-            if (dateIndex < sortedDates.length - 1) {
+            if (dateIndex < sortedCreateDates.length - 1) {
               await delay(1000);
             }
           } catch (dateError) {
@@ -2108,7 +2108,7 @@ export default function RouteImport({
             }
 
             // Cooldown after failed date
-            if (dateIndex < sortedDates.length - 1) {
+            if (dateIndex < sortedCreateDates.length - 1) {
               await delay(1000);
             }
           }
