@@ -1274,12 +1274,11 @@ function Dashboard() {
     console.log(`   - selectedCityId: ${selectedCityId || 'null (showing all)'}`);
     console.log(`   - userRole: ${currentUser?.app_roles?.join(', ') || 'unknown'}`);
 
-    // DISPATCHER: Filter by stores, NOT by city
+    // DISPATCHER: Filter by stores
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
       console.log(`   - Dispatcher stores: ${dispatcherStoreIds.length}`);
       
-      // Get ALL drivers who have ANY delivery/pickup in dispatcher's stores
       const driversWithStoreDeliveries = new Set(
         deliveries?.
         filter((d) => d && dispatcherStoreIds.includes(d.store_id)).
@@ -1288,29 +1287,21 @@ function Dashboard() {
       );
       
       console.log(`   - Drivers with dispatcher store deliveries: ${driversWithStoreDeliveries.size}`);
-      console.log(`   - Driver IDs: ${Array.from(driversWithStoreDeliveries).join(', ')}`);
       
       const filteredDrivers = driversSource.filter((d) => driversWithStoreDeliveries.has(d.id));
       console.log(`   - Final dispatcher driver list: ${filteredDrivers.length}`);
       return filteredDrivers;
     }
 
-    // ADMIN and DRIVER: Filter by city OR include drivers with no city assignment
-    const allCityDrivers = selectedCityId ? 
-      driversSource.filter(d => {
-        const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
-        // Include drivers assigned to this city OR drivers with no city assignment
-        return driverCityIds.length === 0 || driverCityIds.includes(selectedCityId);
-      }) :
-      driversSource;
-    
-    console.log(`   - allCityDrivers after city filter: ${allCityDrivers.length}`);
-    console.log(`   - Drivers with no city_ids: ${driversSource.filter(d => {
-      const cityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
-      return cityIds.length === 0;
-    }).length}`);
-    console.log(`   - Final driver list (admin/driver): ${allCityDrivers.length}`);
-    return allCityDrivers;
+    // ADMIN: Show ALL drivers (no city filtering)
+    if (userHasRole(currentUser, 'admin')) {
+      console.log(`   - Final admin driver list: ${driversSource.length} (no filtering)`);
+      return driversSource;
+    }
+
+    // PURE DRIVER: Show only self
+    console.log(`   - Final driver list (pure driver): self only`);
+    return driversSource.filter(d => d.id === currentUser?.id);
   }, [drivers, appUsers, currentUser, selectedDate, deliveries]);
 
   // CRITICAL: Show location toggle on mobile devices regardless of layout mode
