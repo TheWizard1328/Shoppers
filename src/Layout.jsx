@@ -656,6 +656,30 @@ export default function Layout({ children, currentPageName }) {
   const isMobileDeviceForUI = isMobileDevice(); // CRITICAL: For UI controls - always true for mobile devices
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
   const [cardWidth, setCardWidth] = useState(300);
+  const [isTabletPortrait, setIsTabletPortrait] = useState(false);
+
+  // Detect tablet orientation - portrait = always mobile view, landscape = desktop view
+  useEffect(() => {
+    const detectTabletOrientation = () => {
+      if (deviceType !== 'Tablet') {
+        setIsTabletPortrait(false);
+        return;
+      }
+
+      // Tablet detected - check orientation
+      const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+      setIsTabletPortrait(isPortrait);
+    };
+
+    detectTabletOrientation();
+    window.addEventListener('orientationchange', detectTabletOrientation);
+    window.addEventListener('resize', detectTabletOrientation);
+
+    return () => {
+      window.removeEventListener('orientationchange', detectTabletOrientation);
+      window.removeEventListener('resize', detectTabletOrientation);
+    };
+  }, [deviceType]);
 
 
 
