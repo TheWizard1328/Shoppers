@@ -1986,21 +1986,24 @@ export default function RouteImport({
       }
 
       // STEP 2: Delete from OFFLINE database
-      // Same logic: delete by driver_id OR driver_name
-      for (const { driverId, date } of driverDatePairs) {
+      // Batch by date to reduce IndexedDB operations
+      for (const [date, driverIds] of deliveriesByDate.entries()) {
         try {
           const allOfflineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date);
           const toDelete = allOfflineDeliveries.filter(d => {
-            const matchesId = d.driver_id === driverId;
+            const matchesId = driverIds.includes(d.driver_id);
             const matchesName = d.driver_name && driverNamesToDelete.has(d.driver_name.trim().toLowerCase());
             return matchesId || matchesName;
           });
 
+          // Delete in parallel batches
           if (toDelete && toDelete.length > 0) {
-            for (const d of toDelete) {
-              await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
+            const BATCH_SIZE = 20;
+            for (let i = 0; i < toDelete.length; i += BATCH_SIZE) {
+              const batch = toDelete.slice(i, i + BATCH_SIZE);
+              await Promise.all(batch.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id)));
             }
-            console.log(`🗑️ [RouteImport] Deleted ${toDelete.length} offline deliveries (${driverId} / ${Array.from(driverNamesToDelete).join(', ')}) on ${date}`);
+            console.log(`🗑️ [RouteImport] Deleted ${toDelete.length} offline deliveries on ${date}`);
           }
         } catch (offlineDeleteError) {
           console.warn('⚠️ [RouteImport] Failed to delete offline deliveries:', offlineDeleteError);
