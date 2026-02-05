@@ -3273,14 +3273,13 @@ export default function Layout({ children, currentPageName }) {
               {!isSnapshotModeActive &&
               <div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200]`} style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
                 <div className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
-                  {/* Header Row 1: Logo and App Info */}
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
                       {/* Close button - show when sidebar is open (always on mobile, on desktop when expanded) */}
                       {sidebarOpen &&
                     <button
                       onClick={() => setSidebarOpen(false)}
-                      className="p-2 rounded-lg transition-colors flex-shrink-0"
+                      className="p-2 rounded-lg transition-colors"
                       style={{
                         '&:hover': { background: 'var(--bg-slate-100)' }
                       }}>
@@ -3291,93 +3290,95 @@ export default function Layout({ children, currentPageName }) {
                       <img
                       src="https://cdn-icons-png.flaticon.com/512/3843/3843479.png"
                       alt="RxDeliver"
-                      className="w-10 h-10 rounded object-contain flex-shrink-0"
+                      className="w-10 h-10 rounded object-contain"
                       style={{ filter: 'var(--image-filter, none)' }} />
 
-                      <div className="flex-1 min-w-0">
-                        <h2 className="font-bold text-lg truncate" style={{ color: 'var(--text-slate-900)' }}>RxDeliver</h2>
-                        <p className="text-xs truncate" style={{ color: 'var(--text-slate-500)' }}>Pharmacy Logistics</p>
-                        <div className="flex items-center gap-1">
+                      <div>
+                        <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>RxDeliver</h2>
+                        <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Pharmacy Logistics</p>
+                        <div className="flex items-center">
                           <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{appVersion}</p>
                           <BatteryIndicator />
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Header Row 2: Controls (for landscape tablets/wide mobile) */}
-                  {((isMobile && screenWidth >= 768) || (!isMobile && userHasRole(currentUser, 'admin') && cities && cities.length > 0)) &&
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-                      {/* Location Tracking Toggle - mobile devices (including tablets) in landscape, drivers only */}
-                      {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
-                        <LocationTrackingToggle
-                          currentUser={currentUser}
-                          onUpdate={async () => {
-                            clearUserCache();
-                            const refreshedUser = await getEffectiveUser();
-                            if (refreshedUser) {
-                              setCurrentUser(refreshedUser);
-                            }
-                          }}
-                        />
-                      }
+                    <div className="flex items-center gap-2">
+                      {/* Show controls in navigation panel when mobile wide screen OR desktop admin */}
+                      {(isMobile && screenWidth >= 768) || (!isMobile && userHasRole(currentUser, 'admin') && cities && cities.length > 0) ?
+                        <>
+                          {/* Location Tracking Toggle - mobile devices (including tablets) in landscape, drivers only */}
+                          {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
+                            <LocationTrackingToggle
+                              currentUser={currentUser}
+                              onUpdate={async () => {
+                                clearUserCache();
+                                const refreshedUser = await getEffectiveUser();
+                                if (refreshedUser) {
+                                  setCurrentUser(refreshedUser);
+                                }
+                              }}
+                            />
+                          }
 
-                      {/* Driver Status Toggle - mobile devices (including tablets) in landscape, drivers only */}
-                      {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
-                        <DriverStatusToggle
-                          currentUser={currentUser}
-                          vertical={true}
-                          onStatusChange={async (newStatus) => {
-                            clearUserCache();
-                            const refreshedUser = await getEffectiveUser();
-                            if (refreshedUser) {
-                              setCurrentUser(refreshedUser);
-                            }
-                          }}
-                        />
-                      }
+                          {/* Driver Status Toggle - mobile devices (including tablets) in landscape, drivers only */}
+                          {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
+                            <DriverStatusToggle
+                              currentUser={currentUser}
+                              vertical={true}
+                              onStatusChange={async (newStatus) => {
+                                clearUserCache();
+                                const refreshedUser = await getEffectiveUser();
+                                if (refreshedUser) {
+                                  setCurrentUser(refreshedUser);
+                                }
+                              }}
+                            />
+                          }
 
-                      {/* Settings Menu */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreVertical className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} text-slate-500`} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <SettingsMenu
-                          currentUser={currentUser}
-                          realUser={realUser}
-                          isAppOwner={isAppOwner(currentUser)}
-                          adminImportEnabled={adminImportEnabled}
-                          onAdminImportToggle={async (checked) => {
-                            if (currentUser?._isImpersonating) return;
-                            setAdminImportEnabled(checked);
-                            try {
-                              const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                              if (settings && settings.length > 0) {
-                                await base44.entities.AppSettings.update(settings[0].id, {
-                                  setting_value: {
-                                    ...settings[0].setting_value,
-                                    adminImportEnabled: checked
+                          {/* Settings Menu */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <MoreVertical className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'} text-slate-500`} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <SettingsMenu
+                              currentUser={currentUser}
+                              realUser={realUser}
+                              isAppOwner={isAppOwner(currentUser)}
+                              adminImportEnabled={adminImportEnabled}
+                              onAdminImportToggle={async (checked) => {
+                                if (currentUser?._isImpersonating) return;
+                                setAdminImportEnabled(checked);
+                                try {
+                                  const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                  if (settings && settings.length > 0) {
+                                    await base44.entities.AppSettings.update(settings[0].id, {
+                                      setting_value: {
+                                        ...settings[0].setting_value,
+                                        adminImportEnabled: checked
+                                      }
+                                    });
                                   }
-                                });
-                              }
-                            } catch (error) {
-                              console.error('Failed to save admin import setting:', error);
-                            }
-                          }}
-                          themePreference={themePreference}
-                          onThemeChange={handleThemeChange}
-                          dataSource={dataSource}
-                          onDataSourceChange={handleDataSourceChange}
-                          cities={cities}
-                          onPatientImportClick={() => setShowPatientImport(true)}
-                          onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                          isMobile={isMobile}
-                        />
-                      </DropdownMenu>
+                                } catch (error) {
+                                  console.error('Failed to save admin import setting:', error);
+                                }
+                              }}
+                              themePreference={themePreference}
+                              onThemeChange={handleThemeChange}
+                              dataSource={dataSource}
+                              onDataSourceChange={handleDataSourceChange}
+                              cities={cities}
+                              onPatientImportClick={() => setShowPatientImport(true)}
+                              onDeliveryImportClick={() => setShowDeliveryImport(true)}
+                              isMobile={isMobile}
+                            />
+                          </DropdownMenu>
+                        </> : null
+                      }
                     </div>
-                  }
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3 custom-scrollbar" style={{ background: 'var(--bg-white)' }}>
