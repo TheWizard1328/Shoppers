@@ -2881,6 +2881,52 @@ export default function Layout({ children, currentPageName }) {
           }
         }
 
+        /* Tablet Portrait Override - Always mobile view regardless of width */
+        .app-container.tablet-portrait .mobile-header {
+          display: flex !important;
+          position: sticky;
+          top: 0;
+          z-index: 10001 !important;
+          background: var(--bg-white);
+          border-bottom: 1px solid var(--border-slate-200);
+        }
+
+        .app-container.tablet-portrait .app-sidebar {
+          position: fixed !important;
+          left: 0 !important;
+          top: 0 !important;
+          bottom: 0 !important;
+          width: 280px !important;
+          max-width: 80vw !important;
+          z-index: 50000 !important;
+          transform: translateX(-100%) !important;
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          background: var(--bg-white) !important;
+          box-shadow: 4px 0 12px var(--shadow-color) !important;
+          flex-shrink: 0 !important;
+        }
+
+        .app-container.tablet-portrait .app-sidebar.sidebar-open {
+          transform: translateX(0) !important;
+          box-shadow: 4px 0 12px var(--shadow-color) !important;
+        }
+
+        .app-container.tablet-portrait .main-content-area {
+          width: 100vw !important;
+          flex: 1 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          overflow: hidden !important;
+          max-height: 100vh !important;
+          max-height: 100dvh !important;
+        }
+
+        .app-container.tablet-portrait main {
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          flex: 1;
+        }
+
         /* Desktop layout - controlled by device type */
         .app-container.desktop-device .mobile-header {
           display: none !important;
