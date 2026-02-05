@@ -739,6 +739,8 @@ export default function DeliveryMap({
   retractClustersRef, // NEW: Ref to allow parent to retract clusters
   stopCardsHeight = 75, // Height of the stop cards container (passed from Dashboard)
   currentToNextPolyline = null, // NEW: Google Maps polyline from current position to next stop
+  showBreadcrumbs = false, // NEW: Whether to show breadcrumb trails
+  breadcrumbsData = { historical: [], current: [] }, // NEW: Breadcrumbs data {historical: DeliveryBreadcrumbs[], current: []}
   statsCardPositioning = '', // NEW: CSS classes for stats card positioning
   isStatsCardExpanded = false, // NEW: Whether stats card is expanded
   statsCardRect = null, // NEW: Stats card bounding rect for legend positioning
@@ -4040,6 +4042,71 @@ export default function DeliveryMap({
         })}
 
 
+
+        {/* Breadcrumb Trails - Historical and Current */}
+        {showBreadcrumbs && (() => {
+          const breadcrumbCircles = [];
+          
+          // Process historical breadcrumbs from DeliveryBreadcrumbs entity
+          if (breadcrumbsData.historical && breadcrumbsData.historical.length > 0) {
+            breadcrumbsData.historical.forEach((trail, trailIdx) => {
+              if (!trail || !trail.breadcrumbs || !Array.isArray(trail.breadcrumbs)) return;
+              
+              // Get driver for this trail to use their polyline color
+              const trailDriver = safeUsers.find(u => u && u.id === trail.driver_id);
+              const breadcrumbColor = trailDriver ? getDriverColor(trailDriver) : '#607D8B';
+              
+              // Each breadcrumb is [lat, lng, timestamp_ms]
+              trail.breadcrumbs.forEach(([lat, lng, timestamp], idx) => {
+                if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+                  return;
+                }
+                
+                breadcrumbCircles.push(
+                  <Circle
+                    key={`historical-breadcrumb-${trail.id}-${idx}`}
+                    center={[lat, lng]}
+                    radius={4} // Medium size dots - adjust if needed
+                    pathOptions={{
+                      color: breadcrumbColor,
+                      fillColor: breadcrumbColor,
+                      fillOpacity: 0.6,
+                      weight: 1,
+                      opacity: 0.8
+                    }}
+                  />
+                );
+              });
+            });
+          }
+          
+          // Process current/real-time breadcrumbs (if available)
+          // These would be populated by the location tracking system
+          if (breadcrumbsData.current && breadcrumbsData.current.length > 0) {
+            const currentBreadcrumbColor = '#3B82F6'; // Blue for current tracking
+            
+            breadcrumbsData.current.forEach((point, idx) => {
+              if (!point || typeof point.lat !== 'number' || typeof point.lng !== 'number') return;
+              
+              breadcrumbCircles.push(
+                <Circle
+                  key={`current-breadcrumb-${idx}`}
+                  center={[point.lat, point.lng]}
+                  radius={4} // Same size as historical
+                  pathOptions={{
+                    color: currentBreadcrumbColor,
+                    fillColor: currentBreadcrumbColor,
+                    fillOpacity: 0.7,
+                    weight: 1,
+                    opacity: 0.9
+                  }}
+                />
+              );
+            });
+          }
+          
+          return breadcrumbCircles.length > 0 ? breadcrumbCircles : null;
+        })()}
 
         {/* NEW: Driver Home Location Markers - Only for active routes */}
         {driverHomeMarkers.map((home) => {
