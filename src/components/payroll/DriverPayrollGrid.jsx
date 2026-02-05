@@ -357,9 +357,9 @@ export default function DriverPayrollGrid({
           
           {/* Dynamic layout based on calculated layout mode */}
           {headerLayout === 'single' && (
-            <div className="flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-3">
+            <div className="flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-3 w-full">
               {/* Title */}
-              <CardTitle className="flex items-center gap-2 text-base flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>
+              <CardTitle className="flex items-center justify-center lg:justify-start gap-2 text-base flex-shrink-0 w-full lg:w-auto" style={{ color: 'var(--text-slate-900)' }}>
                 <Table className="w-5 h-5" />
                 {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
                 <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
