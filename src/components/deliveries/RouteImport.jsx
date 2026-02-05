@@ -1219,7 +1219,7 @@ export default function RouteImport({
       // CRITICAL: If skipMatching is true (full purge), treat everything as create
       // This ensures ALL CSV data is imported after purge, not just new/changed items
       let existingDelivery = null;
-      const matchReason = skipMatching ? 'FULL_PURGE_IMPORT' : 'Unknown';
+      let matchReason = skipMatching ? 'FULL_PURGE_IMPORT' : 'Unknown';
 
       if (!skipMatching) {
        // CRITICAL: If this PID has duplicates in the import, ONLY match by exact SID
