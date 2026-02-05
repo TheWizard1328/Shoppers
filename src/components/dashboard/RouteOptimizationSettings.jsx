@@ -131,13 +131,13 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
       try {
         setIsLoadingBreadcrumbsSettings(true);
         
-        // Get device identifier
-        const deviceIdentifier = localStorage.getItem('device_identifier');
-        console.log('📱 [Breadcrumbs] Device identifier:', deviceIdentifier);
-        
-        // Get user settings
+        // Get user settings (which includes the device_identifier)
         const userSettings = await loadUserSettings(currentUser.id);
         console.log('⚙️ [Breadcrumbs] User settings loaded:', userSettings);
+        
+        // Get device identifier from userSettings (not localStorage)
+        const deviceIdentifier = userSettings?.device_identifier;
+        console.log('📱 [Breadcrumbs] Device identifier:', deviceIdentifier);
         
         // Check if breadcrumbs are enabled for this device
         const deviceProfile = userSettings?.device_settings_profiles?.[deviceIdentifier];
