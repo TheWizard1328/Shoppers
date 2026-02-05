@@ -2845,48 +2845,7 @@ export default function DeliveryMap({
               const completedStops = allDriverStops.filter(s => finishedStatuses.includes(s.status));
               const incompleteStops = allDriverStops.filter(s => !finishedStatuses.includes(s.status) && s.status !== 'pending');
               
-              // CRITICAL: Skip drawing completed segments if route is not finished (incomplete routes show TYPE 2 only)
-              // TYPE 3: Draw completed segments (only for debugging/reference, not shown for incomplete routes)
-              // Skip completed segments drawing for incomplete routes
-              if (false) {
-              for (let i = 0; i < completedStops.length - 1; i++) {
-                const stop1 = completedStops[i];
-                const stop2 = completedStops[i + 1];
-                
-                if (!stop1 || !stop2) continue;
-                
-                // CRITICAL: Validate coordinates
-                if (typeof stop1.latitude !== 'number' || typeof stop1.longitude !== 'number' ||
-                    typeof stop2.latitude !== 'number' || typeof stop2.longitude !== 'number' ||
-                    isNaN(stop1.latitude) || isNaN(stop1.longitude) ||
-                    isNaN(stop2.latitude) || isNaN(stop2.longitude)) {
-                  console.warn('[DeliveryMap] Skipping TYPE 3 completed segment with invalid coordinates');
-                  continue;
-                }
-                
-                const isAM = stop2.ampm_deliveries === 'AM';
-                const dashArray = isAM ? '10, 5' : '2, 8';
-                
-                polylines.push(
-                  <Polyline
-                    key={`type3-completed-${route.driverId}-${i}-${polylineRenderKey}`}
-                    positions={[
-                      [stop1.latitude, stop1.longitude],
-                      [stop2.latitude, stop2.longitude]
-                    ]}
-                    pathOptions={{
-                      color: driverPolylineColor,
-                      weight: 4,
-                      opacity: 0.5, // Slightly faded for completed segments
-                      dashArray: dashArray,
-                      lineJoin: 'round',
-                      lineCap: 'round'
-                    }}
-                    pane="overlayPane"
-                  />
-                );
-              }
-              
+              // CRITICAL: Skip TYPE 3 for incomplete routes - only TYPE 2 is shown
               // TYPE 2: Draw incomplete segments (from next stop onwards)
               // CRITICAL: For other drivers, isNextDelivery may not be set - find first incomplete stop instead
               let nextStop = incompleteStops.find(s => s.isNextDelivery === true);
