@@ -194,7 +194,8 @@ export default function PayrollMobileCard({
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0).toFixed(2)}</div>
           </div>
 
-          {/* Deductions */}
+          {/* Deductions (if any) */}
+          {((data.total_deductions || data.totalDeductions || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) > 0) &&
           <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left">Deductions:</div>
             <div className="text-right pr-0.5">-$</div>
@@ -202,6 +203,7 @@ export default function PayrollMobileCard({
             <div className="text-right pr-0.5">-$</div>
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0).toFixed(2)}</div>
           </div>
+          }
 
           {/* Bonus (if any) */}
           {(bonusAmount || ytdDataByDriver[data.driver.id]?.ytdBonusAmount) > 0 &&
