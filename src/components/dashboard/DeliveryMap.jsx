@@ -2839,13 +2839,16 @@ export default function DeliveryMap({
               }
             } else if (isViewingCurrentDate) {
               // TYPE 2: For active routes, only show on CURRENT DATE
-              // TYPE 2 & 3 COMBINED: For active routes, show BOTH completed and incomplete segments
+              // TYPE 2 ONLY: For incomplete routes, show only incomplete segments (no TYPE 3)
               
               // Split stops into completed and incomplete
               const completedStops = allDriverStops.filter(s => finishedStatuses.includes(s.status));
               const incompleteStops = allDriverStops.filter(s => !finishedStatuses.includes(s.status) && s.status !== 'pending');
               
-              // TYPE 3: Draw completed segments (solid lines connecting completed stops)
+              // CRITICAL: Skip drawing completed segments if route is not finished (incomplete routes show TYPE 2 only)
+              // TYPE 3: Draw completed segments (only for debugging/reference, not shown for incomplete routes)
+              // Skip completed segments drawing for incomplete routes
+              if (false) {
               for (let i = 0; i < completedStops.length - 1; i++) {
                 const stop1 = completedStops[i];
                 const stop2 = completedStops[i + 1];
