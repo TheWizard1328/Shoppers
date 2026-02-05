@@ -78,13 +78,13 @@ export default function BatteryIndicator({ vertical = false }) {
         title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
 
         {/* Battery bar (vertical) */}
-        <div className="relative w-6 h-10 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
+        <div className="relative w-6 h-8 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
           {/* Fill */}
           <div
             className={`absolute bottom-0 left-0 right-0 rounded transition-all duration-300 ${bg} flex items-center justify-center`}
             style={{ height: `${batteryLevel}%` }}>
             {batteryLevel > 15 && (
-              <span className={`text-[8px] font-bold ${getTextColor()}`}>{batteryLevel}%</span>
+              <span className={`text-[8px] font-bold ${getTextColor()} origin-center`} style={{ transform: 'rotate(-90deg)' }}>{batteryLevel}%</span>
             )}
           </div>
           
@@ -99,7 +99,7 @@ export default function BatteryIndicator({ vertical = false }) {
   }
 
   return (
-    <div className="flex items-center"
+    <div className="flex items-center ml-2"
       title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
 
       {/* Battery bar (horizontal) */}
