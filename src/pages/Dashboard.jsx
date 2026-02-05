@@ -1264,36 +1264,30 @@ function Dashboard() {
       return nameA.localeCompare(nameB);
     });
 
-    console.log(`✅ [Dashboard] Built driver list: ${driversSource.length} unique drivers`);
+    console.log(`✅ [Dashboard] Built driver list: ${driversSource.length} unique drivers from sources`);
+    console.log(`   - appUsers: ${appUsers?.length || 0}, drivers: ${drivers?.length || 0}, deliveries: ${deliveries?.length || 0}`);
 
     // CRITICAL: Get the active city from globalFilters
     const selectedCityId = globalFilters.getSelectedCityId();
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    
+    console.log(`   - selectedCityId: ${selectedCityId || 'null (showing all)'}`);
 
-    // ADMIN: Get all drivers for the active city
-    if (userHasRole(currentUser, 'admin')) {
-      const cityDrivers = selectedCityId ? 
-        driversSource.filter(d => {
-          const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
-          return driverCityIds.includes(selectedCityId);
-        }) :
-        driversSource;
-
-      return cityDrivers;
-    }
-
-    // Step 1: Get all active drivers for the selected city
+    // Step 1: Get all active drivers for the selected city (OR all if no city selected)
     const allCityDrivers = selectedCityId ? 
       driversSource.filter(d => {
         const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
         return driverCityIds.includes(selectedCityId);
       }) :
-      driversSource;
+      driversSource; // No city selected = show all drivers
+    
+    console.log(`   - allCityDrivers after city filter: ${allCityDrivers.length}`);
 
-    // Step 2: Filter based on role
+    // Step 2: Apply role-based filtering
     if (userHasRole(currentUser, 'dispatcher')) {
       // DISPATCHER: Only show drivers with pickups/deliveries for their stores (any status)
       const dispatcherStoreIds = currentUser.store_ids || [];
+      console.log(`   - Dispatcher stores: ${dispatcherStoreIds.length}`);
       
       const driversWithStoreDeliveries = new Set(
         deliveries?.
@@ -1301,11 +1295,16 @@ function Dashboard() {
         map((d) => d.driver_id).
         filter(Boolean)
       );
-
-      return allCityDrivers.filter((d) => driversWithStoreDeliveries.has(d.id));
+      
+      console.log(`   - Drivers with dispatcher store deliveries: ${driversWithStoreDeliveries.size}`);
+      
+      const filteredDrivers = allCityDrivers.filter((d) => driversWithStoreDeliveries.has(d.id));
+      console.log(`   - Final dispatcher driver list: ${filteredDrivers.length}`);
+      return filteredDrivers;
     }
 
     // ADMIN and DRIVER: Show all drivers for the selected city
+    console.log(`   - Final driver list (admin/driver): ${allCityDrivers.length}`);
     return allCityDrivers;
   }, [drivers, appUsers, currentUser, selectedDate, deliveries]);
 
