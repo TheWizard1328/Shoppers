@@ -580,7 +580,11 @@ export default function DriverPayroll() {
     // CRITICAL: Only auto-select period on INITIAL load or when pay period/year changes
     // Do NOT override user's manual period navigation
     const shouldAutoSelect = !initialPeriodSetRef.current || isManualChangeRef.current;
-    if (!shouldAutoSelect) return;
+    console.log(`🔄 [Period Init Effect] shouldAutoSelect: ${shouldAutoSelect}, initialPeriodSetRef: ${initialPeriodSetRef.current}, isManualChangeRef: ${isManualChangeRef.current}`);
+    if (!shouldAutoSelect) {
+      console.log(`⏭️ [Period Init Effect] Skipping - auto-select disabled`);
+      return;
+    }
     
     // Invalidate caches to force fresh calculations
     invalidate('Payroll');
