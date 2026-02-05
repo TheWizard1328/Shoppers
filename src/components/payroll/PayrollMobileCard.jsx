@@ -185,7 +185,8 @@ export default function PayrollMobileCard({
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
           </div>
 
-          {/* Tax */}
+          {/* Tax (if any) */}
+          {((data.taxAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0) > 0) &&
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left" style={{ color: 'var(--text-slate-600)' }}>Tax:</div>
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
@@ -193,13 +194,14 @@ export default function PayrollMobileCard({
             <div className="text-right pr-0.5" style={{ color: 'var(--text-slate-600)' }}>$</div>
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0).toFixed(2)}</div>
           </div>
+          }
 
           {/* Deductions (if any) */}
-          {((data.total_deductions || data.totalDeductions || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) > 0) &&
+          {((data.deductions || data.total_deductions || data.totalDeductions || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) > 0) &&
           <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left">Deductions:</div>
             <div className="text-right pr-0.5">-$</div>
-            <div className="text-right font-semibold">{(data.total_deductions || data.totalDeductions || 0).toFixed(2)}</div>
+            <div className="text-right font-semibold">{(data.deductions || data.total_deductions || data.totalDeductions || 0).toFixed(2)}</div>
             <div className="text-right pr-0.5">-$</div>
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0).toFixed(2)}</div>
           </div>
@@ -235,7 +237,7 @@ export default function PayrollMobileCard({
           }}>
             <div className="text-left">Gross:</div>
             <div className="text-right pr-0.5">$</div>
-            <div className="text-right">{((data.grandTotal || 0) + (data.taxAmount || 0) - (data.deductions || 0) + (bonusAmount || 0) + (appFeeAmount || 0)).toFixed(2)}</div>
+            <div className="text-right">{((data.grandTotal || 0) + (data.taxAmount || 0) + (bonusAmount || 0) + (appFeeAmount || 0)).toFixed(2)}</div>
             <div className="text-right pr-0.5">$</div>
             <div className="text-right">{((ytdDataByDriver[data.driver.id]?.ytdNetPay || 0) + (ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0) - (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0)).toFixed(2)}</div>
           </div>
