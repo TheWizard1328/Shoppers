@@ -1246,67 +1246,67 @@ export default function RouteImport({
       if (existingDelivery) {
         const changes = detectChanges(existingDelivery, newDeliveryData);
 
-        if (changes.length > 0) {
-          const updatedDeliveryData = {
-            ...existingDelivery,
-            ...newDeliveryData,
-            id: existingDelivery.id
-          };
+        // CRITICAL: Always add to updates list, even if no changes
+        // This ensures ALL CSV data gets imported after purge
+        const updatedDeliveryData = {
+          ...existingDelivery,
+          ...newDeliveryData,
+          id: existingDelivery.id
+        };
 
-          // CRITICAL: Import travel_dist only if existing is 0 AND stop is finished
-          const finishedStatuses = ['completed', 'failed', 'cancelled'];
-          if (finishedStatuses.includes(existingDelivery.status) && 
-              (existingDelivery.travel_dist === 0 || existingDelivery.travel_dist === null) && 
-              travelDist !== null) {
-            updatedDeliveryData.travel_dist = travelDist;
-          } else {
-            // Preserve existing travel_dist
-            updatedDeliveryData.travel_dist = existingDelivery.travel_dist;
+        // CRITICAL: Import travel_dist only if existing is 0 AND stop is finished
+        const finishedStatuses = ['completed', 'failed', 'cancelled'];
+        if (finishedStatuses.includes(existingDelivery.status) && 
+            (existingDelivery.travel_dist === 0 || existingDelivery.travel_dist === null) && 
+            travelDist !== null) {
+          updatedDeliveryData.travel_dist = travelDist;
+        } else {
+          // Preserve existing travel_dist
+          updatedDeliveryData.travel_dist = existingDelivery.travel_dist;
+        }
+
+        // CRITICAL: Don't unset first_delivery for past deliveries with future last_delivery_date
+        // Only preserve if flag is ALREADY true - don't prevent setting it to true from notes
+        if (patient && patient.last_delivery_date && existingDelivery.first_delivery === true) {
+          const importDeliveryDate = new Date(currentDate);
+          const patientLastDeliveryDate = new Date(patient.last_delivery_date);
+
+          if (patientLastDeliveryDate > importDeliveryDate && newDeliveryData.first_delivery === false) {
+            // Past delivery, patient has future delivery, and import would unset flag - preserve existing true
+            updatedDeliveryData.first_delivery = true;
           }
+        }
 
-          // CRITICAL: Don't unset first_delivery for past deliveries with future last_delivery_date
-          // Only preserve if flag is ALREADY true - don't prevent setting it to true from notes
-          if (patient && patient.last_delivery_date && existingDelivery.first_delivery === true) {
-            const importDeliveryDate = new Date(currentDate);
-            const patientLastDeliveryDate = new Date(patient.last_delivery_date);
-            
-            if (patientLastDeliveryDate > importDeliveryDate && newDeliveryData.first_delivery === false) {
-              // Past delivery, patient has future delivery, and import would unset flag - preserve existing true
-              updatedDeliveryData.first_delivery = true;
-            }
-          }
+        // CRITICAL: For incomplete stops (pending, in_transit, en_route), preserve COD payment fields AND set amount to 0
+        // For completed stops, only set COD amount if not already collected
+        const incompleteStatuses = ['pending', 'in_transit', 'en_route'];
+        if (incompleteStatuses.includes(updatedDeliveryData.status)) {
+          // Incomplete stops: preserve existing COD fields and force amount to 0
+          updatedDeliveryData.cod_payment_type = existingDelivery.cod_payment_type;
+          updatedDeliveryData.cod_payments = existingDelivery.cod_payments;
+          updatedDeliveryData.cod_total_amount_required = 0; // Force to 0 for incomplete
 
-          // CRITICAL: For incomplete stops (pending, in_transit, en_route), preserve COD payment fields AND set amount to 0
-          // For completed stops, only set COD amount if not already collected
-          const incompleteStatuses = ['pending', 'in_transit', 'en_route'];
-          if (incompleteStatuses.includes(updatedDeliveryData.status)) {
-            // Incomplete stops: preserve existing COD fields and force amount to 0
+        } else if (updatedDeliveryData.status === 'completed') {
+          // Completed stops: only update COD amount if not already collected
+          const hasPaymentRecorded = existingDelivery.cod_payments && existingDelivery.cod_payments.length > 0;
+          const hasPaymentTypeSet = existingDelivery.cod_payment_type && existingDelivery.cod_payment_type !== 'No Payment';
+
+          if (hasPaymentRecorded || hasPaymentTypeSet) {
+            // Already collected - preserve existing COD data
+            updatedDeliveryData.cod_total_amount_required = existingDelivery.cod_total_amount_required;
             updatedDeliveryData.cod_payment_type = existingDelivery.cod_payment_type;
             updatedDeliveryData.cod_payments = existingDelivery.cod_payments;
-            updatedDeliveryData.cod_total_amount_required = 0; // Force to 0 for incomplete
 
-          } else if (updatedDeliveryData.status === 'completed') {
-            // Completed stops: only update COD amount if not already collected
-            const hasPaymentRecorded = existingDelivery.cod_payments && existingDelivery.cod_payments.length > 0;
-            const hasPaymentTypeSet = existingDelivery.cod_payment_type && existingDelivery.cod_payment_type !== 'No Payment';
-            
-            if (hasPaymentRecorded || hasPaymentTypeSet) {
-              // Already collected - preserve existing COD data
-              updatedDeliveryData.cod_total_amount_required = existingDelivery.cod_total_amount_required;
-              updatedDeliveryData.cod_payment_type = existingDelivery.cod_payment_type;
-              updatedDeliveryData.cod_payments = existingDelivery.cod_payments;
-
-            }
-            // Otherwise, use imported COD amount (already set in newDeliveryData)
           }
-
-          deliveriesToUpdate.push({
-            ...updatedDeliveryData,
-            _changes: changes,
-            _matchReason: matchReason
-          });
-          matchedExistingDeliveryIds.add(existingDelivery.id); // Mark this existing delivery as matched
+          // Otherwise, use imported COD amount (already set in newDeliveryData)
         }
+
+        deliveriesToUpdate.push({
+          ...updatedDeliveryData,
+          _changes: changes.length > 0 ? changes : ['No changes - re-importing'],
+          _matchReason: matchReason
+        });
+        matchedExistingDeliveryIds.add(existingDelivery.id); // Mark this existing delivery as matched
       } else {
         const newDeliveryId = generateDeliveryId(Array.from(existingDeliveryIds));
         existingDeliveryIds.add(newDeliveryId);
