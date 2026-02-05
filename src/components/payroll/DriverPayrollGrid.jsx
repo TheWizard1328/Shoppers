@@ -47,37 +47,43 @@ export default function DriverPayrollGrid({
   // Calculate optimal layout based on container width
   const calculateLayout = useCallback(() => {
     if (!containerRef.current || !titleRef.current || !viewModeRef.current || !payCycleRef.current) return;
-    
+
     const containerWidth = containerRef.current.offsetWidth;
     const titleWidth = titleRef.current.offsetWidth;
     const viewModeWidth = viewModeRef.current.offsetWidth;
     const payCycleWidth = payCycleRef.current.offsetWidth;
     const gap = 12; // gap-3 = 12px
-    
+
+    // Desktop: Use 3-column grid layout (title left, viewmode+date center, paycycle right)
+    if (containerWidth >= 1200) {
+      setHeaderLayout('desktop-three-column');
+      return;
+    }
+
     // Check if all three fit on one row
     if (titleWidth + viewModeWidth + payCycleWidth + gap * 2 <= containerWidth) {
       setHeaderLayout('single');
       return;
     }
-    
+
     // Check if title + viewMode fit (payCycle goes to row 2)
     if (titleWidth + viewModeWidth + gap <= containerWidth) {
       setHeaderLayout('title-viewmode');
       return;
     }
-    
+
     // Check if title + payCycle fit (viewMode goes to row 2)
     if (titleWidth + payCycleWidth + gap <= containerWidth) {
       setHeaderLayout('title-paycycle');
       return;
     }
-    
+
     // Check if viewMode + payCycle fit together (both go to row 2)
     if (viewModeWidth + payCycleWidth + gap <= containerWidth) {
       setHeaderLayout('viewmode-paycycle');
       return;
     }
-    
+
     // All three on separate rows
     setHeaderLayout('three');
   }, []);
