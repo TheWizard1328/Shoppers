@@ -370,6 +370,14 @@ export default function DriverPayrollGrid({
                     <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
                   </button>
                 </CardTitle>
+                <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+                  <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                    <Package className="w-3 h-3" />Deliveries
+                  </Button>
+                  <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                    <Ruler className="w-3 h-3" />Extra KM
+                  </Button>
+                </div>
               </div>
               {isOwner && (
                 <div className="flex justify-center">
@@ -401,6 +409,16 @@ export default function DriverPayrollGrid({
                   <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
                 </div>
               </div>
+              <div className="flex justify-center">
+                <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+                  <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                    <Package className="w-3 h-3" />Deliveries
+                  </Button>
+                  <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                    <Ruler className="w-3 h-3" />Extra KM
+                  </Button>
+                </div>
+              </div>
             </>
           )}
           
@@ -415,16 +433,24 @@ export default function DriverPayrollGrid({
                   </button>
                 </CardTitle>
               </div>
-              {isOwner && (
-                <div className="flex items-center justify-center gap-3">
+              <div className="flex items-center justify-center gap-3">
+                <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+                  <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                    <Package className="w-3 h-3" />Deliveries
+                  </Button>
+                  <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                    <Ruler className="w-3 h-3" />Extra KM
+                  </Button>
+                </div>
+                {isOwner && (
                   <div className="flex gap-1 flex-shrink-0">
                     <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
                     <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
                     <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Mo</Button>
                     <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </>
           )}
           
@@ -438,6 +464,16 @@ export default function DriverPayrollGrid({
                     <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
                   </button>
                 </CardTitle>
+              </div>
+              <div className="flex justify-center">
+                <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+                  <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                    <Package className="w-3 h-3" />Deliveries
+                  </Button>
+                  <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                    <Ruler className="w-3 h-3" />Extra KM
+                  </Button>
+                </div>
               </div>
               {isOwner && (
                 <div className="flex justify-center">
