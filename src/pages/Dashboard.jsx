@@ -7718,9 +7718,6 @@ function Dashboard() {
                             <path d="M 12 9 Q 10 11, 8 13" stroke="currentColor" strokeWidth="1" fill="none" />
                           </svg>
                         </Button>
-                        <p className="text-[10px] leading-tight text-center" style={{ color: 'var(--text-slate-600)' }}>
-                          Show All
-                        </p>
                         </div>
 
                         <div className="flex flex-col items-center gap-1">
@@ -7762,9 +7759,6 @@ function Dashboard() {
                         >
                           <LocateFixed className="w-4 h-4" />
                         </Button>
-                        <p className="text-[10px] leading-tight text-center" style={{ color: 'var(--text-slate-600)' }}>
-                          Breadcrumbs
-                        </p>
                         </div>
                       </div>
                     )}
