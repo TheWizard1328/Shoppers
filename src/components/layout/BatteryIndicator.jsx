@@ -5,6 +5,13 @@ export default function BatteryIndicator({ vertical = false }) {
   const [isCharging, setIsCharging] = useState(false);
 
   useEffect(() => {
+    // Don't show on desktop devices
+    const deviceInfo = JSON.parse(localStorage.getItem('deviceInfo') || '{}');
+    if (deviceInfo.device_type === 'Desktop') {
+      setBatteryLevel(null);
+      return;
+    }
+
     // Only show on mobile devices and laptops, not desktop PCs
     const userAgent = navigator.userAgent.toLowerCase();
     const isMobileOrLaptop = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i.test(userAgent) ||
