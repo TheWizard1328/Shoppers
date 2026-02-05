@@ -1932,8 +1932,8 @@ export default function RouteImport({
         return { driverId, date };
       });
 
-      // CRITICAL: CONSERVATIVE PURGE - Date by date, driver by driver with cooldown
-      // This prevents rate limiting by spreading deletions over time
+      // CRITICAL: CONSERVATIVE PURGE - Interleave online/offline per date for natural cooldown
+      // This prevents rate limiting by alternating between API and IndexedDB operations
       setProgressMessage(`Purging existing deliveries...`);
 
       // Get unique driver info from import data for name-based purging
@@ -1953,9 +1953,15 @@ export default function RouteImport({
         dateToDrivers.get(date).add(driverId);
       }
 
-      // STEP 1: Delete from ONLINE DB - iterate dates, then drivers (one at a time)
+      // INTERLEAVED PURGE: For each date, delete online then offline (natural cooldown between)
       let totalOnlineDeleted = 0;
-      for (const [date, driverIds] of dateToDrivers.entries()) {
+      let totalOfflineDeleted = 0;
+      const sortedDates = Array.from(dateToDrivers.keys()).sort();
+
+      for (const date of sortedDates) {
+        const driverIds = dateToDrivers.get(date);
+
+        // STEP 1a: Delete from ONLINE DB for this date, driver by driver
         for (const driverId of driverIds) {
           try {
             const toDelete = await base44.entities.Delivery.filter({
@@ -1975,31 +1981,27 @@ export default function RouteImport({
             throw deleteError;
           }
         }
-      }
-      console.log(`✅ [RouteImport] Deleted ${totalOnlineDeleted} total online deliveries`);
 
-      // STEP 2: Clear OFFLINE DB for ALL affected drivers/dates upfront (bulk operation)
-      setProgressMessage(`Clearing offline database cache...`);
-      try {
-        const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-        const toDeleteOffline = allOfflineDeliveries.filter(d => {
-          const dateMatch = Array.from(dateToDrivers.keys()).includes(d.delivery_date);
-          const driverMatch = dateMatch && dateToDrivers.get(d.delivery_date)?.has(d.driver_id);
-          return dateMatch && driverMatch;
-        });
+        // STEP 1b: Delete from OFFLINE DB for this date, all drivers
+        try {
+          const allOfflineForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date);
+          const toDeleteOffline = allOfflineForDate.filter(d => driverIds.has(d.driver_id));
 
-        if (toDeleteOffline && toDeleteOffline.length > 0) {
-          const BATCH_SIZE = 20;
-          for (let i = 0; i < toDeleteOffline.length; i += BATCH_SIZE) {
-            const batch = toDeleteOffline.slice(i, i + BATCH_SIZE);
-            await Promise.all(batch.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id)));
+          if (toDeleteOffline && toDeleteOffline.length > 0) {
+            const BATCH_SIZE = 20;
+            for (let i = 0; i < toDeleteOffline.length; i += BATCH_SIZE) {
+              const batch = toDeleteOffline.slice(i, i + BATCH_SIZE);
+              await Promise.all(batch.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id)));
+            }
+            totalOfflineDeleted += toDeleteOffline.length;
+            console.log(`🗑️ [RouteImport] Deleted ${toDeleteOffline.length} offline deliveries on ${date}`);
           }
-          console.log(`🗑️ [RouteImport] Cleared ${toDeleteOffline.length} offline deliveries`);
+        } catch (offlineError) {
+          console.warn(`⚠️ [RouteImport] Failed to delete offline for ${date}:`, offlineError);
         }
-      } catch (offlineError) {
-        console.warn('⚠️ [RouteImport] Failed to clear offline DB:', offlineError);
       }
 
+      console.log(`✅ [RouteImport] Purge complete: ${totalOnlineDeleted} online + ${totalOfflineDeleted} offline`);
       setProgressPercent(15);
 
       batchUpdateAMPM(deliveriesToCreateFiltered);
