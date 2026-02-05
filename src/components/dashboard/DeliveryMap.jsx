@@ -3934,8 +3934,8 @@ export default function DeliveryMap({
                     ]);
                     
                     map.fitBounds(markerBounds, {
-                      paddingTopLeft: [60, dynamicTopPadding],
-                      paddingBottomRight: [60, dynamicBottomPadding],
+                      paddingTopLeft: [60, 50],
+                      paddingBottomRight: [60, dynamicBottomPadding + dynamicTopPadding + 100],
                       animate: true,
                       duration: 0.6,
                       maxZoom: targetZoom
@@ -4081,8 +4081,8 @@ export default function DeliveryMap({
                     ]);
                     
                     map.fitBounds(markerBounds, {
-                      paddingTopLeft: [60, dynamicTopPadding],
-                      paddingBottomRight: [60, dynamicBottomPadding],
+                      paddingTopLeft: [60, 50],
+                      paddingBottomRight: [60, dynamicBottomPadding + dynamicTopPadding + 100],
                       animate: true,
                       duration: 0.6,
                       maxZoom: targetZoom
