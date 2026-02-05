@@ -567,37 +567,38 @@ export default function DriverPayroll() {
     const today = new Date();
     
     // Find the most recent period that has ended or is current
-    let mostRecentPeriodIdx = -1;
+    let mostRecentPastPeriodIdx = -1;
     for (let i = allPeriods.length - 1; i >= 0; i--) {
       if (allPeriods[i].end <= today) {
-        mostRecentPeriodIdx = i;
+        mostRecentPastPeriodIdx = i;
         break;
       }
     }
     
-    // If no past period found, use current period
-    if (mostRecentPeriodIdx === -1 && selectedYear === today.getFullYear()) {
-      mostRecentPeriodIdx = findCurrentPeriodIndex(allPeriods, today);
-    } else if (mostRecentPeriodIdx === -1) {
-      mostRecentPeriodIdx = allPeriods.length - 1;
+    // Check if ALL past periods are finalized
+    let allPastPeriodsFinalized = true;
+    if (mostRecentPastPeriodIdx >= 0) {
+      for (let i = 0; i <= mostRecentPastPeriodIdx; i++) {
+        const period = allPeriods[i];
+        const periodStartStr = period.start.toISOString().split('T')[0];
+        const periodEndStr = period.end.toISOString().split('T')[0];
+        
+        const isFinal = payrollRecords.some(r =>
+          r.pay_period_start === periodStartStr &&
+          r.pay_period_end === periodEndStr &&
+          (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
+        );
+        
+        if (!isFinal) {
+          allPastPeriodsFinalized = false;
+          setSelectedPeriodIndex(i);
+          break;
+        }
+      }
     }
     
-    // Check if this most recent period has been finalized
-    const mostRecentPeriod = allPeriods[mostRecentPeriodIdx];
-    const periodStartStr = mostRecentPeriod.start.toISOString().split('T')[0];
-    const periodEndStr = mostRecentPeriod.end.toISOString().split('T')[0];
-    
-    const periodIsFinalized = payrollRecords.some(r =>
-      r.pay_period_start === periodStartStr &&
-      r.pay_period_end === periodEndStr &&
-      (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
-    );
-    
-    if (!periodIsFinalized) {
-      // Most recent period is NOT finalized, load it
-      setSelectedPeriodIndex(mostRecentPeriodIdx);
-    } else {
-      // Most recent period IS finalized, load current period instead
+    // If all past periods finalized, show current period
+    if (allPastPeriodsFinalized) {
       if (selectedYear === today.getFullYear()) {
         const idx = findCurrentPeriodIndex(allPeriods, today);
         setSelectedPeriodIndex(idx);
