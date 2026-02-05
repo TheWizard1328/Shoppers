@@ -1318,13 +1318,49 @@ function Dashboard() {
       }));
     }
 
-    // DRIVER: Show all drivers for the active city
+    // DRIVER: Show all drivers for the active city, always including current driver
+    if (userHasRole(currentUser, 'driver')) {
+      const cityDrivers = selectedCityId ? 
+        driversSource.filter(d => {
+          const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
+          return driverCityIds.includes(selectedCityId);
+        }) :
+        driversSource;
+
+      // Ensure current driver is included
+      const hasCurrentDriver = cityDrivers.some(d => d.id === currentUser.id);
+      if (!hasCurrentDriver && currentUser.id) {
+        cityDrivers.push({
+          id: currentUser.id,
+          user_id: currentUser.id,
+          user_name: currentUser.user_name || currentUser.full_name,
+          full_name: currentUser.user_name || currentUser.full_name
+        });
+      }
+
+      return cityDrivers;
+    }
+
+    // ADMIN: Show all drivers for the active city, always including current driver
     const cityDrivers = selectedCityId ? 
       driversSource.filter(d => {
         const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
         return driverCityIds.includes(selectedCityId);
       }) :
       driversSource;
+
+    // Ensure current driver is included if they're a driver
+    if (userHasRole(currentUser, 'driver')) {
+      const hasCurrentDriver = cityDrivers.some(d => d.id === currentUser.id);
+      if (!hasCurrentDriver && currentUser.id) {
+        cityDrivers.push({
+          id: currentUser.id,
+          user_id: currentUser.id,
+          user_name: currentUser.user_name || currentUser.full_name,
+          full_name: currentUser.user_name || currentUser.full_name
+        });
+      }
+    }
 
     return cityDrivers;
   }, [drivers, appUsers, currentUser, selectedDate, deliveries]);
