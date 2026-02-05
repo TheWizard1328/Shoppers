@@ -2448,6 +2448,9 @@ export default function StopCard({
                               amount: codTotalRequired
                             }];
                             
+                            // Update local state FIRST for immediate UI update
+                            setCodPayments(autoCODPayment);
+                            
                             // Save COD payment to both databases
                             await onCODUpdate(delivery.id, autoCODPayment, true);
                             console.log('✅ [COMPLETE] COD auto-collected and saved');
