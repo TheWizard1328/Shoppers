@@ -10,7 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar as CalendarIcon, Clock, Truck, CheckCircle, XCircle, Package, Plus, ChevronUp, ChevronDown, RotateCcw as RefreshIcon, Phone, MapPin, X, Settings, Bot, Sparkles, Navigation, Bell, BellOff, Mailbox, ArrowUp, ArrowDown } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Truck, CheckCircle, XCircle, Package, Plus, ChevronUp, ChevronDown, RotateCcw as RefreshIcon, Phone, MapPin, X, Settings, Bot, Sparkles, Navigation, Bell, BellOff, Mailbox, ArrowUp, ArrowDown, Binoculars, LocateFixed } from "lucide-react";
 import { format, startOfDay } from 'date-fns';
 import { getData, invalidate, invalidateDeliveriesForDate } from "@/components/utils/dataManager";
 import { offlineDB } from "@/components/utils/offlineDatabase";
@@ -356,6 +356,8 @@ function Dashboard() {
   const cardExpandedAtRef = useRef(null);
   const [showAllDriverMarkers, setShowAllDriverMarkers] = useState(false);
   const [showSmartPrioritization, setShowSmartPrioritization] = useState(false);
+  const [showBreadcrumbs, setShowBreadcrumbs] = useState(false);
+  const [breadcrumbsData, setBreadcrumbsData] = useState({ historical: [], current: [] });
   const [performanceStats, setPerformanceStats] = useState(null);
   const [deliveryStats, setDeliveryStats] = useState(null);
   const [liveDistance, setLiveDistance] = useState(0); // Live accumulated distance from liveDistanceTracker
@@ -7587,13 +7589,14 @@ function Dashboard() {
                       </SelectContent>
                     </Select>
 
-                    {/* Show All Drivers Checkbox - Only for drivers in single driver mode */}
-                    {isDriver && !isAllDriversMode &&
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <Checkbox
-                      id="show-all-drivers"
-                      checked={showAllDriverMarkers}
-                      onCheckedChange={async (checked) => {
+                    {/* Show All Drivers Button - Only for drivers in single driver mode */}
+                    {isDriver && !isAllDriversMode && (
+                      <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={async () => {
+                            const checked = !showAllDriverMarkers;
                         setShowAllDriverMarkers(checked);
                         if (currentUser?.id) {
                           saveSetting(currentUser.id, 'show_all_driver_markers', checked);
@@ -7665,8 +7668,8 @@ function Dashboard() {
                           }
                         }
 
-                        // CRITICAL: Activate Phase 1 immediately when checkbox is toggled
-                        console.log('🗺️ [Show All Checkbox] Activating Phase 1');
+                        // CRITICAL: Activate Phase 1 immediately when button is toggled
+                        console.log('🗺️ [Show All Button] Activating Phase 1');
                         
                         // Clear any existing timers
                         if (mapLockTimeoutRef.current) {
@@ -7693,21 +7696,67 @@ function Dashboard() {
                             setIsMapViewLocked(false);
                             mapLockExpiresAtRef.current = null;
                             mapLockTimeoutRef.current = null;
-                            console.log('⏰ [Show All Checkbox] Phase 1 auto-unlocked after 500ms');
+                            console.log('⏰ [Show All Button] Phase 1 auto-unlocked after 500ms');
                           }
                         }, lockDuration);
-                      }}
-                      className="h-4 w-4" />
-
-                        <label
-                      htmlFor="show-all-drivers"
-                      className="text-[10px] leading-tight cursor-pointer"
-                      style={{ color: 'var(--text-slate-600)' }}>
-
-                          Show<br />All
-                        </label>
+                          }}
+                          className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                          style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
+                        >
+                          <Binoculars className="w-4 h-4" />
+                        </Button>
+                        <p className="text-[10px] leading-tight text-center" style={{ color: 'var(--text-slate-600)' }}>
+                          Show All
+                        </p>
                       </div>
-                  }
+                    )}
+
+                    {/* Breadcrumbs Button - Only for drivers in single driver mode */}
+                    {isDriver && !isAllDriversMode && (
+                      <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={async () => {
+                            const newShowBreadcrumbs = !showBreadcrumbs;
+                            setShowBreadcrumbs(newShowBreadcrumbs);
+                            
+                            if (newShowBreadcrumbs) {
+                              // Load breadcrumbs for selected date and driver
+                              try {
+                                const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                                const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+                                
+                                // Fetch historical breadcrumbs from DeliveryBreadcrumbs entity
+                                const historicalBreadcrumbs = await base44.entities.DeliveryBreadcrumbs.filter({
+                                  driver_id: driverIdToFetch,
+                                  delivery_date: selectedDateStr
+                                });
+                                
+                                console.log(`📍 [Breadcrumbs] Loaded ${historicalBreadcrumbs.length} breadcrumb trails`);
+                                
+                                setBreadcrumbsData({
+                                  historical: historicalBreadcrumbs,
+                                  current: [] // Real-time breadcrumbs would be populated by tracking system
+                                });
+                              } catch (error) {
+                                console.error('❌ [Breadcrumbs] Failed to load:', error);
+                                setBreadcrumbsData({ historical: [], current: [] });
+                              }
+                            } else {
+                              setBreadcrumbsData({ historical: [], current: [] });
+                            }
+                          }}
+                          className={`h-9 w-9 p-0 ${showBreadcrumbs ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                          style={!showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
+                        >
+                          <LocateFixed className="w-4 h-4" />
+                        </Button>
+                        <p className="text-[10px] leading-tight text-center" style={{ color: 'var(--text-slate-600)' }}>
+                          Breadcrumbs
+                        </p>
+                      </div>
+                    )}
 
                     <Button
                     variant="outline"
@@ -7883,6 +7932,8 @@ function Dashboard() {
             showOtherDriverDeliveries={showAllDriverMarkers}
             currentDriverLocation={driverLocation}
             currentToNextPolyline={currentToNextPolyline}
+            showBreadcrumbs={showBreadcrumbs}
+            breadcrumbsData={breadcrumbsData}
             center={mapCenter}
             zoom={mapZoom}
             shouldFitBounds={shouldFitBounds}
