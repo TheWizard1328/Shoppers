@@ -2584,11 +2584,9 @@ export default function PayrollSummaryCard({
              <div>
                <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee %</label>
                <div className="flex gap-1">
-                 <td className="text-right px-1 py-1.5">
-                   <input
-                     type="number"
-                     value={calculateAppFeeAmount('other-app-fee', otherAppFeePercent).toFixed(2)}
-                     onChange={(e) => {
+                 <input
+                   type="number"
+                   value={driverEdits[appFeeOverlayDriverId]?.appFeePercent || 0}
                    onChange={(e) => {
                      const newPercent = parseFloat(e.target.value) || 0;
                      const calculatedAmount = calculateAppFeeAmount(appFeeOverlayDriverId, newPercent);
