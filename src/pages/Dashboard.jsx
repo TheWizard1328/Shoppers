@@ -1193,124 +1193,65 @@ function Dashboard() {
       patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturn(d));
   }, [filteredDeliveries, patients]);
 
-  // Filter drivers based on role and deliveries
+  // Filter drivers based on role - NEVER based on deliveries (except dispatcher)
   const driversList = useMemo(() => {
-    // CRITICAL: UNIFIED de-duplication - build final map from ALL sources at once
-    const finalDriversMap = new Map();
+    console.log('🔍 [DriversList] Building driver list...');
+    console.log(`   - appUsers count: ${appUsers?.length || 0}`);
+    console.log(`   - drivers prop count: ${drivers?.length || 0}`);
+    console.log(`   - currentUser role: ${currentUser?.app_roles?.join(', ') || 'none'}`);
     
-    // SOURCE 1: AppUsers (most reliable, has all metadata)
-    (appUsers || [])
+    // CRITICAL: Build drivers from AppUsers ONLY (most reliable source)
+    const driversSource = (appUsers || [])
       .filter((au) => au && au.user_id && au.app_roles?.includes('driver') && au.status === 'active')
-      .forEach((au) => {
-        const userId = au.user_id;
-        const existing = finalDriversMap.get(userId);
-        
-        // Keep first occurrence or the one with better sort_order
-        if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
-          finalDriversMap.set(userId, {
-            id: userId,
-            user_id: userId,
-            user_name: au.user_name,
-            full_name: au.user_name,
-            app_roles: au.app_roles,
-            status: au.status,
-            sort_order: au.sort_order,
-            _source: 'appUsers'
-          });
-        }
+      .map((au) => ({
+        id: au.user_id,
+        user_id: au.user_id,
+        user_name: au.user_name,
+        full_name: au.user_name,
+        app_roles: au.app_roles,
+        status: au.status,
+        sort_order: au.sort_order
+      }))
+      .sort((a, b) => {
+        const sortOrderA = a.sort_order ?? Infinity;
+        const sortOrderB = b.sort_order ?? Infinity;
+        if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB;
+        const nameA = (a.user_name || '').toLowerCase();
+        const nameB = (b.user_name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
       });
-    
-    // SOURCE 2: Drivers prop (full user data for admins) - ONLY add if not already in map
-    if (drivers && Array.isArray(drivers)) {
-      drivers.forEach((d) => {
-        if (!d || !d.id) return;
-        if (!finalDriversMap.has(d.id)) {
-          finalDriversMap.set(d.id, {
-            ...d,
-            _source: 'drivers_prop'
-          });
-        }
-      });
-    }
 
-    // SOURCE 3: Deliveries (fallback for missing drivers) - ONLY add if not already in map
-    if (deliveries && Array.isArray(deliveries)) {
-      deliveries.forEach((del) => {
-        if (!del || !del.driver_id) return;
-        if (!finalDriversMap.has(del.driver_id)) {
-          finalDriversMap.set(del.driver_id, {
-            id: del.driver_id,
-            user_id: del.driver_id,
-            user_name: del.driver_name || 'Unknown Driver',
-            full_name: del.driver_name || 'Unknown Driver',
-            _source: 'deliveries'
-          });
-        }
-      });
-    }
-    
-    // CRITICAL: Sort drivers by sort_order, then by user_name
-    const driversSource = Array.from(finalDriversMap.values()).sort((a, b) => {
-      const sortOrderA = a.sort_order ?? Infinity;
-      const sortOrderB = b.sort_order ?? Infinity;
+    console.log(`✅ [DriversList] Found ${driversSource.length} active drivers from AppUsers`);
 
-      if (sortOrderA !== sortOrderB) {
-        return sortOrderA - sortOrderB;
-      }
-
-      // If same sort_order, sort alphabetically by user_name
-      const nameA = (a.user_name || a.full_name || '').toLowerCase();
-      const nameB = (b.user_name || b.full_name || '').toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
-
-    console.log(`✅ [Dashboard] Built driver list: ${driversSource.length} unique drivers from sources`);
-    console.log(`   - appUsers: ${appUsers?.length || 0}, drivers: ${drivers?.length || 0}, deliveries: ${deliveries?.length || 0}`);
-
-    // CRITICAL: Get the active city from globalFilters
-    const selectedCityId = globalFilters.getSelectedCityId();
-    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-    
-    console.log(`   - selectedCityId: ${selectedCityId || 'null (showing all)'}`);
-    console.log(`   - userRole: ${currentUser?.app_roles?.join(', ') || 'unknown'}`);
-
-    // ADMIN: Show ALL active drivers from AppUsers (no filtering, no dependency on deliveries)
-    if (userHasRole(currentUser, 'admin')) {
-      console.log(`   - Final admin driver list: ${driversSource.length} (showing all active drivers)`);
+    // ADMIN/DRIVER: Show ALL drivers (no filtering)
+    if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) {
+      console.log(`   - Role: ${currentUser?.app_roles?.join('/')}, showing ALL ${driversSource.length} drivers`);
       return driversSource;
     }
 
-    // DISPATCHER: Show ALL drivers assigned to dispatcher's stores (via store slots)
+    // DISPATCHER: Show drivers assigned to dispatcher's stores
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
       const dispatcherStores = stores?.filter(s => s && dispatcherStoreIds.includes(s.id)) || [];
-      console.log(`   - Dispatcher stores: ${dispatcherStores.length}`);
       
-      // Collect all driver IDs assigned to any slot in any dispatcher store
       const assignedDriverIds = new Set();
       dispatcherStores.forEach(store => {
-        const slotFields = [
-          'weekday_am_driver_id', 'weekday_pm_driver_id',
-          'saturday_am_driver_id', 'saturday_pm_driver_id',
-          'sunday_am_driver_id', 'sunday_pm_driver_id'
-        ];
-        
-        slotFields.forEach(field => {
-          if (store[field]) assignedDriverIds.add(store[field]);
-        });
+        ['weekday_am_driver_id', 'weekday_pm_driver_id',
+         'saturday_am_driver_id', 'saturday_pm_driver_id',
+         'sunday_am_driver_id', 'sunday_pm_driver_id']
+          .forEach(field => {
+            if (store[field]) assignedDriverIds.add(store[field]);
+          });
       });
       
-      console.log(`   - Drivers assigned to store slots: ${assignedDriverIds.size}`);
-      
       const filteredDrivers = driversSource.filter(d => assignedDriverIds.has(d.id));
-      console.log(`   - Final dispatcher driver list: ${filteredDrivers.length}`);
+      console.log(`   - Role: dispatcher, showing ${filteredDrivers.length}/${driversSource.length} assigned drivers`);
       return filteredDrivers;
     }
 
-    // PURE DRIVER: Show only self
-    console.log(`   - Final driver list (pure driver): self only`);
-    return driversSource.filter(d => d.id === currentUser?.id);
-  }, [appUsers, drivers, currentUser, stores]);
+    console.log(`   - Default: showing all ${driversSource.length} drivers`);
+    return driversSource;
+  }, [appUsers, currentUser, stores]);
 
   // CRITICAL: Show location toggle on mobile devices regardless of layout mode
   const shouldShowLocationToggle = useMemo(() => {
