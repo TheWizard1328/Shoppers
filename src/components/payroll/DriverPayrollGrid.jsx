@@ -50,14 +50,14 @@ export default function DriverPayrollGrid({
 
     const containerWidth = containerRef.current.offsetWidth;
 
-    // Desktop 3-column layout for wide screens
-    if (containerWidth >= 1024) {
+    // Desktop 3-column layout for wide screens and landscape tablets
+    if (containerWidth >= 768) {
       setHeaderLayout('desktop-three-column');
       isDesktopLayout.current = true;
       return;
     }
 
-    // Mobile/tablet layouts for narrow screens
+    // Mobile portrait layout for narrow screens
     isDesktopLayout.current = false;
     setHeaderLayout('single');
   }, []);
