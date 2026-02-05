@@ -3416,8 +3416,7 @@ export default function PayrollSummaryCard({
                 <div className="font-semibold mb-3 text-sm" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
                 
                 {/* Pay Summary Table */}
-                <div className="p-3 rounded-lg border dark:bg-slate-800/50" style={{
-                  background: 'var(--bg-white)',
+                <div className="p-3 rounded-lg border bg-white dark:bg-slate-800/50" style={{
                   borderColor: 'var(--border-slate-200)',
                   fontVariantNumeric: 'tabular-nums'
                 }}>
