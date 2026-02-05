@@ -1233,22 +1233,6 @@ function Dashboard() {
       });
     }
     
-    // SOURCE 3: Deliveries (fallback for missing drivers) - ONLY add if not already in map
-    (deliveries || []).forEach((d) => {
-      if (!d || !d.driver_id || !d.driver_name) return;
-      if (!finalDriversMap.has(d.driver_id)) {
-        finalDriversMap.set(d.driver_id, {
-          id: d.driver_id,
-          user_id: d.driver_id,
-          user_name: d.driver_name,
-          full_name: d.driver_name,
-          app_roles: ['driver'],
-          status: 'active',
-          _source: 'deliveries'
-        });
-      }
-    });
-    
     // CRITICAL: Sort drivers by sort_order, then by user_name
     const driversSource = Array.from(finalDriversMap.values()).sort((a, b) => {
       const sortOrderA = a.sort_order ?? Infinity;
