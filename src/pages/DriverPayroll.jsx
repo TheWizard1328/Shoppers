@@ -663,7 +663,7 @@ export default function DriverPayroll() {
                 disabled={isRefreshing || isLoadingPayroll}
                 size="sm"
                 variant="ghost"
-                className="p-2 h-auto"
+                className="p-2 h-auto border border-slate-900 dark:border-white"
                 title="Refresh payroll data"
                 style={{ color: 'var(--text-slate-900)' }}
               >
@@ -674,7 +674,7 @@ export default function DriverPayroll() {
                 disabled={isCapturingScreenshot}
                 size="sm"
                 variant="ghost"
-                className="p-2 h-auto"
+                className="p-2 h-auto border border-slate-900 dark:border-white"
                 title="Capture and share screenshot"
                 style={{ color: 'var(--text-slate-900)' }}
               >
