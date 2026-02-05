@@ -2244,7 +2244,7 @@ export default function RouteImport({
       
       // STEP 2: Process dates in priority order (active date first)
       let syncedCount = 0;
-      for (const date of sortedDates) {
+      for (const date of sortedSyncDates) {
         const driverIds = pairsByDate.get(date);
         if (!driverIds || driverIds.length === 0) continue;
         
