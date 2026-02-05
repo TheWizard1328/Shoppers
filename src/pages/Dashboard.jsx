@@ -7725,9 +7725,18 @@ function Dashboard() {
                                   driver_id: driverIdToFetch,
                                   delivery_date: selectedDateStr
                                 });
-                                
+
+                                if (historicalBreadcrumbs.length === 0) {
+                                  console.log('📍 [Breadcrumbs] No breadcrumb trails found for this date/driver');
+                                  toast.info('No breadcrumb trails available', {
+                                    description: 'GPS trails are saved after deliveries are completed with tracking enabled'
+                                  });
+                                  setShowBreadcrumbs(false);
+                                  return;
+                                }
+
                                 console.log(`📍 [Breadcrumbs] Loaded ${historicalBreadcrumbs.length} breadcrumb trails`);
-                                
+
                                 setBreadcrumbsData({
                                   historical: historicalBreadcrumbs,
                                   current: [] // Real-time breadcrumbs would be populated by tracking system
