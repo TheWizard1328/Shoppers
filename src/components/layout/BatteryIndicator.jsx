@@ -65,7 +65,7 @@ export default function BatteryIndicator({ vertical = false }) {
   const getTextColor = () => {
     const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches || 
                        document.documentElement.classList.contains('dark');
-    return isDarkMode ? 'text-white' : 'text-slate-900';
+    return isDarkMode ? '#ffffff' : '#000000';
   };
 
   if (vertical) {
@@ -100,7 +100,7 @@ export default function BatteryIndicator({ vertical = false }) {
           {/* Percentage text - always centered */}
           {batteryLevel > 15 && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className={`text-[8px] font-bold ${getTextColor()} origin-center`} style={{ transform: 'rotate(-90deg)' }}>{batteryLevel}%</span>
+              <span className="text-[8px] font-bold origin-center" style={{ transform: 'rotate(-90deg)', color: getTextColor() }}>{batteryLevel}%</span>
             </div>
           )}
         </div>
@@ -137,7 +137,7 @@ export default function BatteryIndicator({ vertical = false }) {
         {/* Percentage text - always centered */}
         {batteryLevel > 15 && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className={`text-[10px] font-bold ${getTextColor()}`}>{batteryLevel}%</span>
+            <span className="text-[10px] font-bold" style={{ color: getTextColor() }}>{batteryLevel}%</span>
           </div>
         )}
       </div>
