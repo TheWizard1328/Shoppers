@@ -61,13 +61,11 @@ export default function BatteryIndicator({ vertical = false }) {
 
   const { bg, text } = getColorAndFill();
   
-  // Determine text color that contrasts well with the fill
+  // Determine text color based on theme (dark mode = white, light mode = black)
   const getTextColor = () => {
-    if (batteryLevel <= 30) {
-      return 'text-white';
-    } else {
-      return 'text-slate-900';
-    }
+    const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches || 
+                       document.documentElement.classList.contains('dark');
+    return isDarkMode ? 'text-white' : 'text-slate-900';
   };
 
   if (vertical) {
