@@ -1892,14 +1892,15 @@ export default function RouteImport({
 
       setProgressPercent(8);
 
-      // STEP 2: Use ALL preview deliveries (unfiltered) as CREATES - we're purging everything
-      // Import ALL CSV data regardless of preview date filter
+      // STEP 2: CRITICAL - Use ALL preview deliveries (creates + updates) as CREATES
+      // Since we purge everything first, ALL CSV data becomes fresh creates
+      // This prevents duplicates and ensures CSV is the sole source of truth
       const allDeliveriesToImport = [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate];
       const deliveriesToCreateFiltered = allDeliveriesToImport.map(d => {
         const { id, _changes, action, _matchReason, ...cleanData } = d;
         return cleanData;
       });
-      const deliveriesToUpdateFiltered = []; // No updates - everything is a fresh create after purge
+      const deliveriesToUpdateFiltered = []; // No updates - full purge means everything is a create
 
       // STEP 3: Get drivers being imported
       const importedDriverIds = [...new Set(
