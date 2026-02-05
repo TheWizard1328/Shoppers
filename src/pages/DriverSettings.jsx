@@ -64,10 +64,13 @@ export default function DriverSettings() {
     return appUsers;
   }, [freshAppUsers, appUsers]);
 
-  // Get all users with driver role
+  // Get all users with driver role (deduplicated by ID)
   const drivers = useMemo(() => {
+    const seen = new Set();
     const driverUsers = users.filter((user) => {
       if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
+      if (seen.has(user.id)) return false; // Skip duplicates
+      seen.add(user.id);
       return user.app_roles.includes('driver');
     });
     return sortUsers(driverUsers);
