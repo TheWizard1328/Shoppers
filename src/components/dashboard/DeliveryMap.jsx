@@ -1518,10 +1518,11 @@ export default function DeliveryMap({
         [marker.latitude, marker.longitude]
       ]);
 
-      // Center map with proper zoom and offset - marker centered BELOW middle of screen
+      // Center map with proper zoom and offset to show balloon fully
+      // Using uneven padding to keep marker high on screen with space below for cards
       const panOptions = {
-        paddingTopLeft: [60, 50], // Minimal top padding
-        paddingBottomRight: [60, dynamicBottomPadding + dynamicTopPadding + 100], // Large bottom padding to push marker down
+        paddingTopLeft: [60, dynamicTopPadding + 50],
+        paddingBottomRight: [60, dynamicBottomPadding],
         animate: true,
         duration: 0.6,
         maxZoom: targetZoom
