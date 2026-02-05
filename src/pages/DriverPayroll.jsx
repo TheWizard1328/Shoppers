@@ -603,6 +603,8 @@ export default function DriverPayroll() {
     
     // Check if ALL past periods are finalized
     let allPastPeriodsFinalized = true;
+    let selectedIdx = null;
+    
     if (mostRecentPastPeriodIdx >= 0) {
       for (let i = 0; i <= mostRecentPastPeriodIdx; i++) {
         const period = allPeriods[i];
@@ -619,16 +621,31 @@ export default function DriverPayroll() {
         
         if (!isFinal) {
           allPastPeriodsFinalized = false;
-          console.log(`✅ [Period Init] Found non-finalized period ${i}, setting to that`);
-          setSelectedPeriodIndex(i);
-          break;
+          // CRITICAL: Only select this period if it's on or after today
+          const periodEndDate = new Date(period.end);
+          periodEndDate.setHours(0, 0, 0, 0);
+          const todayAtMidnight = new Date(today);
+          todayAtMidnight.setHours(0, 0, 0, 0);
+          
+          if (periodEndDate >= todayAtMidnight) {
+            console.log(`✅ [Period Init] Found non-finalized period ${i} (on/after today), setting to that`);
+            selectedIdx = i;
+            break;
+          } else {
+            console.log(`⏭️ [Period Init] Found non-finalized period ${i} but it's in the past, continuing search`);
+          }
         }
       }
     }
     
-    // If all past periods finalized, show current period
-    console.log(`[Period Init] allPastPeriodsFinalized=${allPastPeriodsFinalized}`);
-    if (allPastPeriodsFinalized) {
+    // Determine final period index
+    console.log(`[Period Init] allPastPeriodsFinalized=${allPastPeriodsFinalized}, selectedIdx=${selectedIdx}`);
+    
+    if (selectedIdx !== null) {
+      // Found a non-finalized period on or after today
+      setSelectedPeriodIndex(selectedIdx);
+    } else if (allPastPeriodsFinalized) {
+      // All past periods finalized, show current period
       if (selectedYear === today.getFullYear()) {
         console.log(`✅ [Period Init] All past periods finalized, finding current period for today`);
         const idx = findCurrentPeriodIndex(allPeriods, today);
