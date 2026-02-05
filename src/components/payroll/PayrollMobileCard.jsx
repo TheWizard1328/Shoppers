@@ -171,48 +171,48 @@ export default function PayrollMobileCard({
 
           {/* Net */}
           <div className="flex gap-2">
-            <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Net</div>
-            <div className="w-24 text-right">{formatCurrency(data.grandTotal || 0)}</div>
-            <div className="w-24 text-right">{formatCurrency(ytdTotals.ytdNetPay)}</div>
+            <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Net:</div>
+            <div className="w-24 text-right font-semibold"><span style={{ opacity: 0.5 }}>$</span>{(data.grandTotal || 0).toFixed(2)}</div>
+            <div className="w-24 text-right font-semibold"><span style={{ opacity: 0.5 }}>$</span>{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
           </div>
 
           {/* Tax */}
           <div className="flex gap-2">
-            <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Tax</div>
-            <div className="w-24 text-right">{formatCurrency(data.taxAmount || 0)}</div>
-            <div className="w-24 text-right">{formatCurrency(ytdTotals.ytdTaxAmount)}</div>
+            <div className="flex-1 text-left" style={{ color: 'var(--text-slate-600)' }}>Tax:</div>
+            <div className="w-24 text-right font-semibold"><span style={{ opacity: 0.5 }}>$</span>{(data.taxAmount || 0).toFixed(2)}</div>
+            <div className="w-24 text-right font-semibold"><span style={{ opacity: 0.5 }}>$</span>{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0).toFixed(2)}</div>
           </div>
 
           {/* Deductions */}
           <div className="flex gap-2 text-red-700">
-            <div className="flex-1 text-left">Deductions</div>
-            <div className="w-24 text-right">-{formatCurrency(data.total_deductions || data.totalDeductions || 0)}</div>
-            <div className="w-24 text-right">-{formatCurrency(ytdTotals.ytdDeductions)}</div>
+            <div className="flex-1 text-left">Deductions:</div>
+            <div className="w-24 text-right font-semibold">-<span style={{ opacity: 0.5 }}>$</span>{(data.total_deductions || data.totalDeductions || 0).toFixed(2)}</div>
+            <div className="w-24 text-right font-semibold">-<span style={{ opacity: 0.5 }}>$</span>{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0).toFixed(2)}</div>
           </div>
 
           {/* Bonus (if any) */}
           {(bonusAmount || ytdDataByDriver[data.driver.id]?.ytdBonusAmount) > 0 &&
           <div className="flex gap-2" style={{ color: 'var(--text-blue-700)' }}>
-              <div className="flex-1 text-left">Bonus</div>
-              <div className="w-24 text-right">{formatCurrency(bonusAmount || 0)}</div>
-              <div className="w-24 text-right">{formatCurrency(ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0)}</div>
+              <div className="flex-1 text-left">Bonus:</div>
+              <div className="w-24 text-right font-semibold">+<span style={{ opacity: 0.5 }}>$</span>{(bonusAmount || 0).toFixed(2)}</div>
+              <div className="w-24 text-right font-semibold">+<span style={{ opacity: 0.5 }}>$</span>{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0).toFixed(2)}</div>
             </div>
           }
 
           {/* App Fee (if any) */}
           {isAdmin && isPeriodEndOfMonth && (appFeeAmount || ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount) > 0 &&
           <div className="flex gap-2" style={{ color: 'var(--text-purple-700)' }}>
-              <div className="flex-1 text-left">App Fee ({appFeePercent}%)</div>
-              <div className="w-24 text-right">{formatCurrency(appFeeAmount || 0)}</div>
-              <div className="w-24 text-right">{formatCurrency(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0)}</div>
+              <div className="flex-1 text-left">App Fee ({appFeePercent.toFixed(2)}%):</div>
+              <div className="w-24 text-right font-semibold">+<span style={{ opacity: 0.5 }}>$</span>{(appFeeAmount || 0).toFixed(2)}</div>
+              <div className="w-24 text-right font-semibold">+<span style={{ opacity: 0.5 }}>$</span>{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0).toFixed(2)}</div>
             </div>
           }
 
           {/* Gross (bold, divider) */}
           <div className="flex gap-2 pt-1 border-t font-bold" style={{ borderColor: 'var(--border-slate-200)', color: '#10b981' }}>
-            <div className="flex-1 text-left">Gross</div>
-            <div className="w-24 text-right">{formatCurrency((data.grandTotal || 0) + (data.taxAmount || 0) - (data.deductions || 0) + (bonusAmount || 0) + (appFeeAmount || 0))}</div>
-            <div className="w-24 text-right">{formatCurrency((ytdDataByDriver[data.driver.id]?.ytdNetPay || 0) + (ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0) - (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0))}</div>
+            <div className="flex-1 text-left">Gross:</div>
+            <div className="w-24 text-right"><span style={{ opacity: 0.5 }}>$</span>{((data.grandTotal || 0) + (data.taxAmount || 0) - (data.deductions || 0) + (bonusAmount || 0) + (appFeeAmount || 0)).toFixed(2)}</div>
+            <div className="w-24 text-right"><span style={{ opacity: 0.5 }}>$</span>{((ytdDataByDriver[data.driver.id]?.ytdNetPay || 0) + (ytdDataByDriver[data.driver.id]?.ytdTaxAmount || 0) - (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) + (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0)).toFixed(2)}</div>
           </div>
         </div>
       </div>
