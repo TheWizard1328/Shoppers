@@ -2031,10 +2031,10 @@ export default function RouteImport({
         console.log(`📦 [RouteImport] Creating ${cleanedDeliveries.length} deliveries across ${deliveriesByDate.size} dates`);
 
         let totalCreated = 0;
-        const sortedDates = Array.from(deliveriesByDate.keys()).sort();
+        const sortedCreateDates = Array.from(deliveriesByDate.keys()).sort();
 
-        for (let dateIndex = 0; dateIndex < sortedDates.length; dateIndex++) {
-          const date = sortedDates[dateIndex];
+        for (let dateIndex = 0; dateIndex < sortedCreateDates.length; dateIndex++) {
+          const date = sortedCreateDates[dateIndex];
           const deliveriesForDate = deliveriesByDate.get(date);
 
           try {
