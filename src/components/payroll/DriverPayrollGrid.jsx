@@ -516,30 +516,43 @@ export default function DriverPayrollGrid({
             </>
           )}
           
-          {/* Period Navigation */}
-          <div className="flex items-center justify-center gap-3">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={onPrevPeriod}
-              disabled={selectedPeriodIndex === 0}
-              className="h-8 w-8 p-0"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-            <div className="text-center min-w-[200px]">
-              <div className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{currentPeriod.label}</div>
-              <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{periodDateRange}</div>
+          {/* Period Navigation - Centered with Toggle */}
+          <div className="flex flex-col items-center gap-2">
+            {/* Toggle centered above period */}
+            <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+              <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                <Package className="w-3 h-3" />Deliveries
+              </Button>
+              <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                <Ruler className="w-3 h-3" />Extra KM
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={onNextPeriod}
-              disabled={selectedPeriodIndex === allPeriods.length - 1}
-              className="h-8 w-8 p-0"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </Button>
+
+            {/* Period navigation */}
+            <div className="flex items-center justify-center gap-3">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onPrevPeriod}
+                disabled={selectedPeriodIndex === 0}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </Button>
+              <div className="text-center min-w-[200px]">
+                <div className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{currentPeriod.label}</div>
+                <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{periodDateRange}</div>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onNextPeriod}
+                disabled={selectedPeriodIndex === allPeriods.length - 1}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
