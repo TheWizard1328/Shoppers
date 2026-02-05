@@ -2222,7 +2222,7 @@ export default function RouteImport({
       const activeDateStr = globalFilters?.getSelectedDate?.() || todayStr;
       
       // CRITICAL: Prioritize active date FIRST
-      const sortedDates = allImportedDates.sort((a, b) => {
+      const sortedSyncDates = allImportedDates.sort((a, b) => {
         if (a === activeDateStr) return -1;
         if (b === activeDateStr) return 1;
         if (a === todayStr) return -1;
