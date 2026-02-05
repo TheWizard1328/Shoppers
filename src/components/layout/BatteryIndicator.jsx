@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { getCurrentDevice } from '../utils/deviceManager';
+import { useUser } from '../utils/UserContext';
 
 export default function BatteryIndicator({ vertical = false }) {
   const [batteryLevel, setBatteryLevel] = useState(null);
   const [isCharging, setIsCharging] = useState(false);
+  const { currentUser } = useUser();
 
   useEffect(() => {
-    // Don't show on desktop devices
-    const deviceInfo = JSON.parse(localStorage.getItem('deviceInfo') || '{}');
-    if (deviceInfo.device_type === 'Desktop') {
-      setBatteryLevel(null);
-      return;
-    }
+    const checkDeviceAndSetBattery = async () => {
+      // Check if current device is Desktop type
+      if (currentUser?.id) {
+        const device = await getCurrentDevice(currentUser.id);
+        if (device?.device_info?.device_type === 'Desktop') {
+          setBatteryLevel(null);
+          return;
+        }
+      }
 
     // Only show on mobile devices and laptops, not desktop PCs
     const userAgent = navigator.userAgent.toLowerCase();
