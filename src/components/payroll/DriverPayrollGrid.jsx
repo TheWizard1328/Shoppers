@@ -357,7 +357,7 @@ export default function DriverPayrollGrid({
           
           {/* Dynamic layout based on calculated layout mode */}
           {headerLayout === 'single' && (
-            <div className="flex flex-col md:flex-row items-center justify-center md:justify-between gap-3">
+            <div className="flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-3">
               {/* Title */}
               <CardTitle className="flex items-center gap-2 text-base flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>
                 <Table className="w-5 h-5" />
