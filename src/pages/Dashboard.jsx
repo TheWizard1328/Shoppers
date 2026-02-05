@@ -1295,15 +1295,20 @@ function Dashboard() {
       return filteredDrivers;
     }
 
-    // ADMIN and DRIVER: Filter by city
+    // ADMIN and DRIVER: Filter by city OR include drivers with no city assignment
     const allCityDrivers = selectedCityId ? 
       driversSource.filter(d => {
         const driverCityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
-        return driverCityIds.includes(selectedCityId);
+        // Include drivers assigned to this city OR drivers with no city assignment
+        return driverCityIds.length === 0 || driverCityIds.includes(selectedCityId);
       }) :
       driversSource;
     
     console.log(`   - allCityDrivers after city filter: ${allCityDrivers.length}`);
+    console.log(`   - Drivers with no city_ids: ${driversSource.filter(d => {
+      const cityIds = d.city_ids || (d.city_id ? [d.city_id] : []);
+      return cityIds.length === 0;
+    }).length}`);
     console.log(`   - Final driver list (admin/driver): ${allCityDrivers.length}`);
     return allCityDrivers;
   }, [drivers, appUsers, currentUser, selectedDate, deliveries]);
