@@ -131,21 +131,33 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
       try {
         setIsLoadingBreadcrumbsSettings(true);
         
-        // Get user settings and device info
-        const userSettings = await loadUserSettings(currentUser.id);
+        // Get device identifier
         const deviceIdentifier = localStorage.getItem('device_identifier');
+        console.log('📱 [Breadcrumbs] Device identifier:', deviceIdentifier);
+        
+        // Get user settings
+        const userSettings = await loadUserSettings(currentUser.id);
+        console.log('⚙️ [Breadcrumbs] User settings loaded:', userSettings);
         
         // Check if breadcrumbs are enabled for this device
         const deviceProfile = userSettings?.device_settings_profiles?.[deviceIdentifier];
+        console.log('📱 [Breadcrumbs] Device profile:', deviceProfile);
         setBreadcrumbsEnabled(deviceProfile?.breadcrumbs_enabled || false);
         
         // Check if this device is the primary tracker
         const userDevices = await base44.entities.UserDevice.filter({ user_id: currentUser.id });
+        console.log('📱 [Breadcrumbs] All user devices:', userDevices);
+        
         const currentDevice = userDevices?.find(d => d.device_identifier === deviceIdentifier);
-        setIsPrimaryDevice(currentDevice?.is_primary_tracker || false);
+        console.log('📱 [Breadcrumbs] Current device:', currentDevice);
+        console.log('📱 [Breadcrumbs] is_primary_tracker:', currentDevice?.is_primary_tracker);
+        
+        const isPrimary = currentDevice?.is_primary_tracker || false;
+        setIsPrimaryDevice(isPrimary);
+        console.log(`📱 [Breadcrumbs] Setting isPrimaryDevice to: ${isPrimary}`);
         
       } catch (error) {
-        console.error('Error loading breadcrumbs settings:', error);
+        console.error('❌ [Breadcrumbs] Error loading settings:', error);
       } finally {
         setIsLoadingBreadcrumbsSettings(false);
       }
