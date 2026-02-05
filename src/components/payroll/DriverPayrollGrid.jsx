@@ -40,26 +40,52 @@ export default function DriverPayrollGrid({
   
   // Refs for measuring section widths
   const containerRef = useRef(null);
-
-  // Detect desktop layout (min 1024px width)
-  const isDesktopLayout = useRef(false);
-
+  const titleRef = useRef(null);
+  const viewModeRef = useRef(null);
+  const payCycleRef = useRef(null);
+  
   // Calculate optimal layout based on container width
   const calculateLayout = useCallback(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !titleRef.current || !viewModeRef.current || !payCycleRef.current) return;
 
     const containerWidth = containerRef.current.offsetWidth;
+    const titleWidth = titleRef.current.offsetWidth;
+    const viewModeWidth = viewModeRef.current.offsetWidth;
+    const payCycleWidth = payCycleRef.current.offsetWidth;
+    const gap = 12; // gap-3 = 12px
 
-    // Desktop 3-column layout for wide screens
-    if (containerWidth >= 1024) {
+    // Desktop: Use 3-column grid layout (title left, viewmode+date center, paycycle right)
+    if (containerWidth >= 1200) {
       setHeaderLayout('desktop-three-column');
-      isDesktopLayout.current = true;
       return;
     }
 
-    // Mobile/tablet layouts for narrow screens
-    isDesktopLayout.current = false;
-    setHeaderLayout('single');
+    // Check if all three fit on one row
+    if (titleWidth + viewModeWidth + payCycleWidth + gap * 2 <= containerWidth) {
+      setHeaderLayout('single');
+      return;
+    }
+
+    // Check if title + viewMode fit (payCycle goes to row 2)
+    if (titleWidth + viewModeWidth + gap <= containerWidth) {
+      setHeaderLayout('title-viewmode');
+      return;
+    }
+
+    // Check if title + payCycle fit (viewMode goes to row 2)
+    if (titleWidth + payCycleWidth + gap <= containerWidth) {
+      setHeaderLayout('title-paycycle');
+      return;
+    }
+
+    // Check if viewMode + payCycle fit together (both go to row 2)
+    if (viewModeWidth + payCycleWidth + gap <= containerWidth) {
+      setHeaderLayout('viewmode-paycycle');
+      return;
+    }
+
+    // All three on separate rows
+    setHeaderLayout('three');
   }, []);
   
   // Measure and recalculate on mount and resize
@@ -335,6 +361,58 @@ export default function DriverPayrollGrid({
             </div>
           </div>
           
+          {/* Desktop 3-Column Layout */}
+          {headerLayout === 'desktop-three-column' && (
+            <div className="grid grid-cols-3 gap-4 items-center">
+              {/* Left Section - Title */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
+                  <Table className="w-5 h-5" />
+                  {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
+                </CardTitle>
+                <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
+                  <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                </button>
+              </div>
+
+              {/* Center Section - View Mode & Period */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+                  <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                    <Package className="w-3 h-3" />Deliveries
+                  </Button>
+                  <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                    <Ruler className="w-3 h-3" />Extra KM
+                  </Button>
+                </div>
+                <div className="text-center">
+                  <div className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{currentPeriod.label}</div>
+                  <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{periodDateRange}</div>
+                </div>
+              </div>
+
+              {/* Right Section - Pay Cycle & Navigation */}
+              {isOwner && (
+                <div className="flex items-center justify-end gap-2">
+                  <div className="flex gap-1 flex-shrink-0">
+                    <Button size="sm" variant={payPeriod === 'weekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('weekly')} className="text-xs h-7 px-2" style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Weekly</Button>
+                    <Button size="sm" variant={payPeriod === 'biweekly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('biweekly')} className="text-xs h-7 px-2" style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Bi-Weekly</Button>
+                    <Button size="sm" variant={payPeriod === 'semimonthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('semimonthly')} className="text-xs h-7 px-2" style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Semi-Monthly</Button>
+                    <Button size="sm" variant={payPeriod === 'monthly' ? 'default' : 'outline'} onClick={() => onPayPeriodChange('monthly')} className="text-xs h-7 px-2" style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>Monthly</Button>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" onClick={onPrevPeriod} disabled={selectedPeriodIndex === 0} className="h-8 w-8 p-0">
+                      <ChevronLeft className="w-5 h-5" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={onNextPeriod} disabled={selectedPeriodIndex === allPeriods.length - 1} className="h-8 w-8 p-0">
+                      <ChevronRight className="w-5 h-5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Dynamic layout based on calculated layout mode */}
           {headerLayout === 'single' && (
             <div className="flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-3">
