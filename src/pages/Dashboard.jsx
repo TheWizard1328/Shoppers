@@ -1870,10 +1870,27 @@ function Dashboard() {
   useEffect(() => {
     if (!currentUser || !isAppOwner(currentUser)) return;
 
-    // CRITICAL: Skip initial fetch on mount to reduce API calls
-    // Only refresh on interval
+    // Fetch shortly after mount (2 second delay)
+    const initialTimer = setTimeout(() => {
+      fetchPolylineCount();
+    }, 2000);
+
+    // Refresh every 5 minutes
     const interval = setInterval(fetchPolylineCount, 300000);
-    return () => clearInterval(interval);
+    
+    // Listen for smart refresh completion to update counter
+    const handleSmartRefreshComplete = () => {
+      console.log('🔄 [Polyline Count] Smart refresh complete - updating counter');
+      fetchPolylineCount();
+    };
+    
+    window.addEventListener('smartRefreshComplete', handleSmartRefreshComplete);
+    
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+      window.removeEventListener('smartRefreshComplete', handleSmartRefreshComplete);
+    };
   }, [currentUser, fetchPolylineCount]);
 
   // Get driver's location for blue dot display
