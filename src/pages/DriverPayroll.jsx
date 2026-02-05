@@ -571,18 +571,11 @@ export default function DriverPayroll() {
   useEffect(() => {
     // CRITICAL: Wait for all data to be loaded BEFORE setting initial period
     if (!hasInitialized || !payrollData || allPeriods.length === 0 || payrollRecords.length === 0) {
-      console.log(`⏳ [Period Init] Waiting for data - hasInit: ${hasInitialized}, payrollData: ${!!payrollData}, periods: ${allPeriods.length}, records: ${payrollRecords.length}`);
       return;
     }
     
-    console.log(`📋 [Period Init] All data ready. Available periods:`, allPeriods.map((p, i) => `${i}: ${p.label} (${p.start.toISOString().split('T')[0]} to ${p.end.toISOString().split('T')[0]})`).join(' | '));
-    
-    // CRITICAL: Only auto-select period on INITIAL load or when pay period/year changes
-    // Do NOT override user's manual period navigation
-    const shouldAutoSelect = !initialPeriodSetRef.current || isManualChangeRef.current;
-    console.log(`🔄 [Period Init Effect] shouldAutoSelect: ${shouldAutoSelect}, initialPeriodSetRef: ${initialPeriodSetRef.current}, isManualChangeRef: ${isManualChangeRef.current}`);
-    if (!shouldAutoSelect) {
-      console.log(`⏭️ [Period Init Effect] Skipping - auto-select disabled`);
+    // CRITICAL: Only auto-select on INITIAL load or when year/pay period changes
+    if (initialPeriodSetRef.current && !isManualChangeRef.current) {
       return;
     }
     
