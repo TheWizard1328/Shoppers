@@ -85,10 +85,10 @@ export default function BatteryIndicator({ vertical = false }) {
             50% { opacity: 0.7; }
           }
           .charging-marquee {
-            animation: marquee-fill 2s ease-in-out infinite;
+            animation: marquee-fill 4s ease-in-out infinite;
           }
           .battery-pulse {
-            animation: pulse-gently 2s ease-in-out infinite;
+            animation: pulse-gently 4s ease-in-out infinite;
           }
         `}</style>
 
@@ -96,12 +96,15 @@ export default function BatteryIndicator({ vertical = false }) {
         <div className="relative w-6 h-8 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
           {/* Fill */}
           <div
-            className={`absolute bottom-0 left-0 right-0 rounded transition-all duration-300 ${bg} ${isCharging && batteryLevel < 100 ? 'charging-marquee' : ''} ${isCharging && batteryLevel === 100 ? 'battery-pulse' : ''} flex items-center justify-center`}
+            className={`absolute bottom-0 left-0 right-0 rounded transition-all duration-300 ${bg} ${isCharging && batteryLevel < 100 ? 'charging-marquee' : ''} ${isCharging && batteryLevel === 100 ? 'battery-pulse' : ''}`}
             style={{ height: `${batteryLevel}%` }}>
-            {batteryLevel > 15 && (
-              <span className={`text-[8px] font-bold ${getTextColor()} origin-center`} style={{ transform: 'rotate(-90deg)' }}>{batteryLevel}%</span>
-            )}
           </div>
+          {/* Percentage text - always centered */}
+          {batteryLevel > 15 && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className={`text-[8px] font-bold ${getTextColor()} origin-center`} style={{ transform: 'rotate(-90deg)' }}>{batteryLevel}%</span>
+            </div>
+          )}
         </div>
       </div>);
   }
@@ -119,10 +122,10 @@ export default function BatteryIndicator({ vertical = false }) {
           50% { opacity: 0.7; }
         }
         .charging-marquee-h {
-          animation: marquee-fill-h 2s ease-in-out infinite;
+          animation: marquee-fill-h 4s ease-in-out infinite;
         }
         .battery-pulse {
-          animation: pulse-gently 2s ease-in-out infinite;
+          animation: pulse-gently 4s ease-in-out infinite;
         }
       `}</style>
 
@@ -130,12 +133,15 @@ export default function BatteryIndicator({ vertical = false }) {
       <div className="relative w-16 h-5 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
         {/* Fill */}
         <div
-          className={`absolute left-0 top-0 bottom-0 rounded transition-all duration-300 ${bg} ${isCharging && batteryLevel < 100 ? 'charging-marquee-h' : ''} ${isCharging && batteryLevel === 100 ? 'battery-pulse' : ''} flex items-center justify-center`}
+          className={`absolute left-0 top-0 bottom-0 rounded transition-all duration-300 ${bg} ${isCharging && batteryLevel < 100 ? 'charging-marquee-h' : ''} ${isCharging && batteryLevel === 100 ? 'battery-pulse' : ''}`}
           style={{ width: `${batteryLevel}%` }}>
-          {batteryLevel > 15 && (
-            <span className={`text-[10px] font-bold ${getTextColor()}`}>{batteryLevel}%</span>
-          )}
         </div>
+        {/* Percentage text - always centered */}
+        {batteryLevel > 15 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className={`text-[10px] font-bold ${getTextColor()}`}>{batteryLevel}%</span>
+          </div>
+        )}
       </div>
     </div>);
 
