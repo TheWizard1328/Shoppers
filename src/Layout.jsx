@@ -3833,71 +3833,74 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     {/* Centered Controls - Only on narrow mobile */}
-                    {isMobile && screenWidth < 768 && currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
-                    <div className="flex-1 flex items-center justify-center gap-2">
-                      {/* Menu - Left */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
-                            <MoreVertical className="w-5 h-5 text-slate-500" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <SettingsMenu
-                          currentUser={currentUser}
-                          realUser={realUser}
-                          isAppOwner={isAppOwner(currentUser)}
-                          adminImportEnabled={adminImportEnabled}
-                          onAdminImportToggle={async (checked) => {
-                            if (currentUser?._isImpersonating) return;
-                            setAdminImportEnabled(checked);
-                            try {
-                              const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                              if (settings && settings.length > 0) {
-                                await base44.entities.AppSettings.update(settings[0].id, {
-                                  setting_value: {
-                                    ...settings[0].setting_value,
-                                    adminImportEnabled: checked
-                                  }
-                                });
-                              }
-                            } catch (error) {
-                              console.error('Failed to save admin import setting:', error);
-                            }
-                          }}
-                          themePreference={themePreference}
-                          onThemeChange={handleThemeChange}
-                          dataSource={dataSource}
-                          onDataSourceChange={handleDataSourceChange}
-                          cities={cities}
-                          onPatientImportClick={() => setShowPatientImport(true)}
-                          onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                          isMobile={true}
-                        />
-                      </DropdownMenu>
+                     {isMobile && screenWidth < 768 && currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
+                     <div className="flex-1 flex items-center justify-center gap-2">
+                       {/* Battery - Far Left */}
+                       <BatteryIndicator vertical={true} />
 
-                      {/* Status Toggle - Center */}
-                      <div style={{ width: userHasRole(currentUser, 'driver') ? 'auto' : '0px', overflow: 'hidden' }}>
-                        <DriverStatusToggle
-                          currentUser={currentUser}
-                          onStatusChange={async (newStatus) => {
-                            clearUserCache();
-                            const refreshedUser = await getEffectiveUser();
-                            if (refreshedUser) {
-                              setCurrentUser(refreshedUser);
-                            }
-                          }}
-                        />
-                      </div>
+                       {/* Menu */}
+                       <DropdownMenu>
+                         <DropdownMenuTrigger asChild>
+                           <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                             <MoreVertical className="w-5 h-5 text-slate-500" />
+                           </Button>
+                         </DropdownMenuTrigger>
+                         <SettingsMenu
+                           currentUser={currentUser}
+                           realUser={realUser}
+                           isAppOwner={isAppOwner(currentUser)}
+                           adminImportEnabled={adminImportEnabled}
+                           onAdminImportToggle={async (checked) => {
+                             if (currentUser?._isImpersonating) return;
+                             setAdminImportEnabled(checked);
+                             try {
+                               const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                               if (settings && settings.length > 0) {
+                                 await base44.entities.AppSettings.update(settings[0].id, {
+                                   setting_value: {
+                                     ...settings[0].setting_value,
+                                     adminImportEnabled: checked
+                                   }
+                                 });
+                               }
+                             } catch (error) {
+                               console.error('Failed to save admin import setting:', error);
+                             }
+                           }}
+                           themePreference={themePreference}
+                           onThemeChange={handleThemeChange}
+                           dataSource={dataSource}
+                           onDataSourceChange={handleDataSourceChange}
+                           cities={cities}
+                           onPatientImportClick={() => setShowPatientImport(true)}
+                           onDeliveryImportClick={() => setShowDeliveryImport(true)}
+                           isMobile={true}
+                         />
+                       </DropdownMenu>
 
-                      {/* QR Code - Right */}
-                      <button
-                        onClick={() => setShowInviteQRModal(true)}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                        title="Generate Invite QR Code">
-                        <QrCode className="w-6 h-6 text-slate-500 hover:text-slate-700" />
-                      </button>
-                    </div>
-                    }
+                       {/* Status Toggle */}
+                       <div style={{ width: userHasRole(currentUser, 'driver') ? 'auto' : '0px', overflow: 'hidden' }}>
+                         <DriverStatusToggle
+                           currentUser={currentUser}
+                           onStatusChange={async (newStatus) => {
+                             clearUserCache();
+                             const refreshedUser = await getEffectiveUser();
+                             if (refreshedUser) {
+                               setCurrentUser(refreshedUser);
+                             }
+                           }}
+                         />
+                       </div>
+
+                       {/* QR Code - Right */}
+                       <button
+                         onClick={() => setShowInviteQRModal(true)}
+                         className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                         title="Generate Invite QR Code">
+                         <QrCode className="w-6 h-6 text-slate-500 hover:text-slate-700" />
+                       </button>
+                     </div>
+                     }
 
                     {/* Battery + User Avatar on far right (all users, narrow mobile) */}
                     {isMobile && screenWidth < 768 && currentUser &&
