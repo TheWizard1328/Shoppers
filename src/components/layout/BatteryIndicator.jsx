@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Battery, BatteryCharging, BatteryLow, BatteryMedium, BatteryFull } from 'lucide-react';
+import { Zap } from 'lucide-react';
 
 export default function BatteryIndicator({ vertical = false }) {
   const [batteryLevel, setBatteryLevel] = useState(null);
@@ -43,61 +43,70 @@ export default function BatteryIndicator({ vertical = false }) {
   // Don't render if battery level is not available
   if (batteryLevel === null) return null;
 
-  // Determine color based on battery level and charging status
-  const getColor = () => {
+  // Determine color and fill based on battery level and charging status
+  const getColorAndFill = () => {
     if (isCharging) {
-      return 'text-green-600';
+      return { bg: 'bg-green-500', text: 'text-green-600' };
     }
 
     if (batteryLevel <= 20) {
-      return 'text-red-600';
+      return { bg: 'bg-red-500', text: 'text-red-600' };
     } else if (batteryLevel <= 50) {
-      return 'text-yellow-600';
+      return { bg: 'bg-yellow-500', text: 'text-yellow-600' };
     } else if (batteryLevel <= 80) {
-      return 'text-blue-600';
+      return { bg: 'bg-blue-500', text: 'text-blue-600' };
     } else {
-      return 'text-green-600';
+      return { bg: 'bg-green-500', text: 'text-green-600' };
     }
   };
 
-  const getBatteryIcon = () => {
-    const iconSize = vertical ? "w-6 h-5" : "w-10 h-6";
-    const colorClass = getColor();
-
-    if (isCharging) {
-      return <BatteryCharging className={`${iconSize} ${colorClass}`} />;
-    }
-
-    if (batteryLevel <= 20) {
-      return <BatteryLow className={`${iconSize} ${colorClass}`} />;
-    } else if (batteryLevel <= 50) {
-      return <BatteryMedium className={`${iconSize} ${colorClass}`} />;
-    } else if (batteryLevel <= 80) {
-      return <Battery className={`${iconSize} ${colorClass}`} />;
-    } else {
-      return <BatteryFull className={`${iconSize} ${colorClass}`} />;
-    }
-  };
+  const { bg, text } = getColorAndFill();
 
   if (vertical) {
     return (
       <div
-        className="flex flex-col items-center"
+        className="flex flex-col items-center gap-1"
         title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
 
-        {getBatteryIcon()}
-        <span className={`text-[10px] font-bold ${getColor()}`}>{batteryLevel}%</span>
+        {/* Battery bar (vertical) */}
+        <div className="relative w-5 h-12 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
+          {/* Fill */}
+          <div
+            className={`absolute bottom-0 left-0 right-0 rounded transition-all duration-300 ${bg}`}
+            style={{ height: `${batteryLevel}%` }} />
+          
+          {/* Charging indicator */}
+          {isCharging && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Zap className="w-3 h-3 text-white animate-pulse" />
+            </div>
+          )}
+        </div>
+        
+        <span className={`text-[10px] font-bold ${text}`}>{batteryLevel}%</span>
       </div>);
-
   }
 
   return (
-    <div className="flex items-center"
+    <div className="flex items-center gap-2"
+      title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
 
-    title={`Battery: ${batteryLevel}%${isCharging ? ' (Charging)' : ''}`}>
-
-      {getBatteryIcon()}
-      <span className={`text-xs font-bold ${getColor()}`}>{batteryLevel}%</span>
+      {/* Battery bar (horizontal) */}
+      <div className="relative w-12 h-6 border-2 rounded" style={{ borderColor: 'var(--border-slate-300)', backgroundColor: 'var(--bg-slate-100)' }}>
+        {/* Fill */}
+        <div
+          className={`absolute left-0 top-0 bottom-0 rounded transition-all duration-300 ${bg}`}
+          style={{ width: `${batteryLevel}%` }} />
+        
+        {/* Charging indicator */}
+        {isCharging && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Zap className="w-3 h-3 text-white animate-pulse" />
+          </div>
+        )}
+      </div>
+      
+      <span className={`text-xs font-bold ${text}`}>{batteryLevel}%</span>
     </div>);
 
 }
