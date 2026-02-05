@@ -615,8 +615,11 @@ export default function DriverPayroll() {
           (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
         );
         
+        console.log(`  Period ${i} (${period.label}): finalized=${isFinal}`);
+        
         if (!isFinal) {
           allPastPeriodsFinalized = false;
+          console.log(`✅ [Period Init] Found non-finalized period ${i}, setting to that`);
           setSelectedPeriodIndex(i);
           break;
         }
@@ -624,9 +627,12 @@ export default function DriverPayroll() {
     }
     
     // If all past periods finalized, show current period
+    console.log(`[Period Init] allPastPeriodsFinalized=${allPastPeriodsFinalized}`);
     if (allPastPeriodsFinalized) {
       if (selectedYear === today.getFullYear()) {
+        console.log(`✅ [Period Init] All past periods finalized, finding current period for today`);
         const idx = findCurrentPeriodIndex(allPeriods, today);
+        console.log(`✅ [Period Init] Setting to current period index: ${idx}`);
         setSelectedPeriodIndex(idx);
       } else {
         setSelectedPeriodIndex(allPeriods.length - 1);
