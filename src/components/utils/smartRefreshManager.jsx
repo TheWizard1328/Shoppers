@@ -1687,7 +1687,8 @@ class SmartRefreshManager {
           const hasRealChange = timeDiff > 1000 || 
             d.status !== fetchedVersion.status ||
             d.driver_id !== fetchedVersion.driver_id ||
-            d.stop_order !== fetchedVersion.stop_order;
+            d.stop_order !== fetchedVersion.stop_order ||
+            d.isNextDelivery !== fetchedVersion.isNextDelivery;
           
           if (hasRealChange) {
             // Server has different data - use server version (authoritative)
