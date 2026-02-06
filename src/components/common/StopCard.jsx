@@ -2601,13 +2601,13 @@ export default function StopCard({
 
                           // CRITICAL: Re-fetch ALL deliveries to ensure we see the newly transitioned deliveries
                           console.log('🔄 [Complete Pickup] Re-fetching ALL deliveries after Accept All...');
-                          const freshDeliveries = await base44.entities.Delivery.filter({
+                          const refreshedAfterAccept = await base44.entities.Delivery.filter({
                             driver_id: delivery.driver_id,
                             delivery_date: delivery.delivery_date
                           });
 
                           // Find and update next delivery flag
-                          const incompleteDeliveries = freshDeliveries.
+                          const incompleteDeliveries = refreshedAfterAccept.
                           filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').
                           sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
