@@ -799,18 +799,24 @@ export default function DeliveryForm({
       autoAddToStaged: autoAddToStaged
     });
     
+    // CRITICAL: Pause location poller during patient operations
+    const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+    driverLocationPoller.pause();
+    
     // CRITICAL: Check if patient is already in staged list
     const alreadyStaged = stagedDeliveries.some(s => s.patient_id === patient.id);
     if (alreadyStaged) {
       console.log('⏸️ [handlePatientSelect] Patient already staged, skipping:', patient.full_name);
       setPatientSearch('');
       setHighlightedPatientIndex(-1);
+      driverLocationPoller.resume();
       return;
     }
     
     // CRITICAL: Don't auto-load patient data if we're editing an existing delivery
     if (isLoadingExistingDelivery.current) {
       console.log('⏸️ [handlePatientSelect] Blocked - editing existing delivery');
+      driverLocationPoller.resume();
       return;
     }
 
@@ -907,10 +913,12 @@ export default function DeliveryForm({
       console.log('📝 [handlePatientSelect] Single selection - populating form only, not auto-adding to staged');
       setPatientSearch('');
       setHighlightedPatientIndex(-1);
+      driverLocationPoller.resume();
       return;
     }
 
     if (!patientStore || !autoSelectedDriverId) {
+      driverLocationPoller.resume();
       return;
     }
 
@@ -1060,6 +1068,9 @@ export default function DeliveryForm({
     setSelectedPickupOption('');
 
     setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+    
+    // Resume location poller after operations complete
+    driverLocationPoller.resume();
   }, [formData, stores, drivers, allDeliveries, stagedDeliveries]);
 
   const handleAddSelectedPatients = useCallback(async () => {
