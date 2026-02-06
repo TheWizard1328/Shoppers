@@ -26,6 +26,50 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Missing required parameters: storeId, deliveryDate, driverId' }, { status: 400 });
         }
 
+        // CRITICAL: Special stores - do NOT auto-create pickups (Dashboard handles them on-demand)
+        const stores = await base44.entities.Store.filter({ id: storeId });
+        const store = stores[0];
+        const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'SouthPoint', 'WestPark'];
+        
+        if (store && specialStoreNames.includes(store.name)) {
+            console.log(`⏭️ [ensurePickup] Special store ${store.name} - skipping auto-pickup creation (handled by Dashboard)`);
+            
+            // Still check for existing incomplete pickup and return it if found
+            const now = new Date();
+            const currentHour = now.getHours();
+            const ampmDeliveries = requestedAmpm || (currentHour < 14 ? 'AM' : 'PM');
+            
+            const existingPickups = await base44.entities.Delivery.filter({
+                store_id: storeId,
+                delivery_date: deliveryDate,
+                driver_id: driverId,
+                ampm_deliveries: ampmDeliveries
+            }, '-created_date', 20);
+            
+            const incompletePickup = existingPickups.find(p => 
+                !p.patient_id && 
+                p.status !== 'completed' && 
+                p.status !== 'cancelled' && 
+                p.status !== 'returned'
+            );
+            
+            if (incompletePickup) {
+                return Response.json({ 
+                    puid: incompletePickup.stop_id,
+                    pickupId: incompletePickup.id,
+                    isNew: false 
+                });
+            }
+            
+            // No incomplete pickup exists, but don't create one - Dashboard will handle it
+            return Response.json({ 
+                puid: null,
+                pickupId: null,
+                isNew: false,
+                skipAutoCreate: true
+            });
+        }
+
         // Determine AM/PM based on current time if not provided
         const now = new Date();
         const currentHour = now.getHours();
