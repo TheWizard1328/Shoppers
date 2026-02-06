@@ -44,6 +44,12 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [currentDisplayIndex, setCurrentDisplayIndex] = useState(0);
   const [hasError, setHasError] = useState(false);
+  
+  // Track which manager is active
+  const [activeManager, setActiveManager] = useState(null); // 'smart', 'offline', 'polling'
+  const [isSmartRefreshActive, setIsSmartRefreshActive] = useState(false);
+  const [isOfflineSyncActive, setIsOfflineSyncActive] = useState(false);
+  const [isPollingActive, setIsPollingActive] = useState(false);
 
   // Track which entities were updated and reset index
   // CRITICAL: Use a ref to track the timeout so we can clear it properly
@@ -114,6 +120,54 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     }
   }, []);
 
+  // Track smart refresh, offline sync, and polling manager states
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Track smart refresh state
+      const checkSmartRefresh = () => {
+        const isRefreshing = smartRefreshManager?.isRefreshing || false;
+        setIsSmartRefreshActive(isRefreshing);
+      };
+      
+      // Track offline sync state
+      const handleOfflineSyncStart = () => setIsOfflineSyncActive(true);
+      const handleOfflineSyncComplete = () => setIsOfflineSyncActive(false);
+      
+      // Track polling manager state  
+      const handlePollingStart = () => setIsPollingActive(true);
+      const handlePollingComplete = () => setIsPollingActive(false);
+      
+      // Check smart refresh every 100ms
+      const smartRefreshInterval = setInterval(checkSmartRefresh, 100);
+      
+      window.addEventListener('offlineSyncStarted', handleOfflineSyncStart);
+      window.addEventListener('offlineSyncComplete', handleOfflineSyncComplete);
+      window.addEventListener('driverLocationPollingStarted', handlePollingStart);
+      window.addEventListener('driverLocationPollingComplete', handlePollingComplete);
+      
+      return () => {
+        clearInterval(smartRefreshInterval);
+        window.removeEventListener('offlineSyncStarted', handleOfflineSyncStart);
+        window.removeEventListener('offlineSyncComplete', handleOfflineSyncComplete);
+        window.removeEventListener('driverLocationPollingStarted', handlePollingStart);
+        window.removeEventListener('driverLocationPollingComplete', handlePollingComplete);
+      };
+    }
+  }, []);
+
+  // Determine active manager and color
+  useEffect(() => {
+    if (isSmartRefreshActive) {
+      setActiveManager('smart');
+    } else if (isOfflineSyncActive) {
+      setActiveManager('offline');
+    } else if (isPollingActive) {
+      setActiveManager('polling');
+    } else {
+      setActiveManager(null);
+    }
+  }, [isSmartRefreshActive, isOfflineSyncActive, isPollingActive]);
+
   // Real-time sync broadcasts removed
 
   // Show for all users (removed app owner restriction)
@@ -121,9 +175,23 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     return null;
   }
 
-  const isActive = smartRefreshActivity?.active || isManualRefreshing;
+  const isActive = smartRefreshActivity?.active || isManualRefreshing || activeManager !== null;
   const isPaused = isEntityUpdating;
   const hasUpdates = recentUpdates.length > 0;
+  
+  // Determine spinner color based on active manager
+  const getSpinnerColor = () => {
+    if (hasError) return 'bg-red-500';
+    if (isPaused) return 'bg-yellow-100';
+    if (!isOnline) return 'bg-red-500';
+    
+    switch (activeManager) {
+      case 'smart': return 'bg-emerald-500'; // Green for smart refresh
+      case 'offline': return 'bg-purple-500'; // Purple for offline sync
+      case 'polling': return 'bg-blue-500'; // Blue for polling
+      default: return isActive ? 'bg-emerald-500' : 'bg-slate-200 hover:bg-slate-300';
+    }
+  };
 
   // Handle manual refresh click
   const handleManualRefresh = async () => {
@@ -223,13 +291,12 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         <button
           onClick={handleManualRefresh}
           disabled={isPaused}
-          className={`w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 relative ${
-            hasError ? 'bg-red-500' : 
-            isActive && !isPaused ? 'bg-emerald-500' : 
-            isPaused ? 'bg-yellow-100' : 
-            'bg-slate-200 hover:bg-slate-300'
-          }`}
-          title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 'Click to refresh'}>
+          className={`w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 relative ${getSpinnerColor()}`}
+          title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 
+                 activeManager === 'smart' ? 'Smart Refresh active' : 
+                 activeManager === 'offline' ? 'Offline Sync active' : 
+                 activeManager === 'polling' ? 'Location Polling active' : 
+                 'Click to refresh'}>
           
           {isActive && !isPaused ? (
             <motion.div
@@ -273,14 +340,12 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       <button
         onClick={handleManualRefresh}
         disabled={isPaused}
-        className={`w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 relative ${
-          hasError ? 'bg-red-500' : 
-          isActive && !isPaused ? 'bg-emerald-500' : 
-          isPaused ? 'bg-yellow-100 cursor-not-allowed' : 
-          !isOnline ? 'bg-red-500' : 
-          'bg-slate-100 hover:bg-slate-200'
-        }`}
-        title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : 'Click to refresh'}>
+        className={`w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 relative ${getSpinnerColor()}`}
+        title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : 
+               activeManager === 'smart' ? 'Smart Refresh active' : 
+               activeManager === 'offline' ? 'Offline Sync active' : 
+               activeManager === 'polling' ? 'Location Polling active' : 
+               'Click to refresh'}>
 
         {hasError ? (
           <RefreshCw className="w-3.5 h-3.5 text-white" />
