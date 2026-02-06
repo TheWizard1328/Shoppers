@@ -103,9 +103,9 @@ class DriverLocationPoller {
       console.warn('⚠️ [DriverLocationPoller] Failed to load from offline DB, using props:', offlineError.message);
     }
 
-    // Log incoming data count (reduced verbosity)
-    if (usersData?.length > 0) {
-      console.log(`📍 [DriverLocationPoller] Processing ${usersData.length} appUsers (force: ${forceNotify})`);
+    // Log incoming data count (only on force notify or first run)
+    if (forceNotify && usersData?.length > 0) {
+      console.log(`📍 [DriverLocationPoller] Processing ${usersData.length} appUsers (forced)`);
     }
 
     // Determine if current device is mobile
@@ -153,7 +153,6 @@ class DriverLocationPoller {
       if (user.location_updated_at) {
         const locationAge = now - new Date(user.location_updated_at).getTime();
         if (locationAge > maxStaleTime) {
-          console.log(`⏰ [DriverLocationPoller] ${user.user_name} - location stale (${Math.floor(locationAge/60000)} min)`);
           return false;
         }
       } else {
@@ -171,12 +170,10 @@ class DriverLocationPoller {
         const isTrackingOnThisDevice = locationTracker.isTracking === true;
         
         if (isMobileDevice && isTrackingOnThisDevice) {
-          console.log(`🚫 [DriverLocationPoller] Hiding self marker - GPS actively tracking on THIS device (blue dot shows)`);
           return false;
         }
         
         // Show own marker on all other devices OR if GPS is not actively running
-        console.log(`✅ [DriverLocationPoller] Showing self marker - other device or GPS inactive (status: ${user.driver_status})`);
         return true;
       }
 
@@ -202,13 +199,11 @@ class DriverLocationPoller {
         });
 
         if (!hasDeliveriesFromDispatcherStores) {
-          console.log(`🚫 [DriverLocationPoller] Dispatcher: driver ${user.user_name} has no deliveries from dispatcher stores`);
           return false;
         }
 
         // Dispatchers ALWAYS see their assigned drivers' markers
         // Regardless of driver_status, location_tracking_enabled, or showAllDrivers mode
-        console.log(`✅ [DriverLocationPoller] Dispatcher: showing driver ${user.user_name} (has deliveries from dispatcher stores)`);
         return true;
       }
 
@@ -218,25 +213,21 @@ class DriverLocationPoller {
 
       // CRITICAL: Must be in "show all" or "all drivers" mode
       if (!showAllDrivers) {
-        console.log(`🚫 [DriverLocationPoller] ${user.user_name} - not in show all/all drivers mode`);
         return false;
       }
 
       // Must be on_duty or on_break
       if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
-        console.log(`🚫 [DriverLocationPoller] ${user.user_name} - not on duty/break (${user.driver_status})`);
         return false;
       }
 
       // For non-admin drivers, must have location_tracking_enabled = true
       // Admins bypass this check (admin override)
       if (!isAdmin && user.location_tracking_enabled !== true) {
-        console.log(`🚫 [DriverLocationPoller] ${user.user_name} - tracking disabled (driver viewing)`);
         return false;
       }
 
       // Show marker for admin or driver in show all/all drivers mode
-      console.log(`✅ [DriverLocationPoller] ${user.user_name} - visible to ${isAdmin ? 'admin' : 'driver'} (show all mode)`);
       return true;
     });
 
@@ -284,7 +275,9 @@ class DriverLocationPoller {
 
     // CRITICAL: ALWAYS notify to prevent disappearing markers
     // The deduplication check was causing markers to disappear
-    console.log(`📢 [DriverLocationPoller] Notifying subscribers - ${locationObjects.length} locations`);
+    if (forceNotify) {
+      console.log(`📢 [DriverLocationPoller] Notifying ${this.subscribers.size} subscribers - ${locationObjects.length} locations`);
+    }
 
     this.subscribers.forEach(callback => {
       try {
