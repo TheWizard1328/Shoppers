@@ -229,7 +229,8 @@ class LocationTracker {
         lng: longitude.toFixed(6)
       });
 
-      // CRITICAL: Only update AppUser location if this is the primary tracker device
+      // CRITICAL: Update OFFLINE DB FIRST with new location
+      // Smart refresh will sync to server on next 15s cycle
       let updatedAppUser = null;
       if (isPrimaryTracker) {
         const updateData = {
@@ -238,20 +239,43 @@ class LocationTracker {
           location_updated_at: nowISO
         };
 
-        updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
-        console.log(`✅ [LocationTracker] Primary device - updated AppUser location online`);
-
-        // CRITICAL: DUAL-WRITE - Save to offline DB immediately for instant sync
+        // Step 1: Update offline DB FIRST with new location
         try {
           const { offlineDB } = await import('./offlineDatabase');
+          
+          // Fetch current AppUser from offline DB
+          const currentAppUser = await offlineDB.getById(offlineDB.STORES.APP_USERS, this.appUserId);
+          
+          if (currentAppUser) {
+            // Merge new location with existing data
+            updatedAppUser = { ...currentAppUser, ...updateData };
+          } else {
+            // Fallback - fetch from API if not in offline DB
+            const apiAppUser = await base44.entities.AppUser.filter({ id: this.appUserId });
+            updatedAppUser = { ...(apiAppUser[0] || {}), ...updateData };
+          }
+          
+          // Save updated AppUser to offline DB
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [updatedAppUser]);
-          console.log(`💾 [LocationTracker] Synced AppUser location to offline DB`);
+          console.log(`💾 [LocationTracker] Updated AppUser location in offline DB FIRST`);
+          
+          // Step 2: Update server (let smart refresh handle if this fails)
+          try {
+            const serverUpdatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
+            console.log(`✅ [LocationTracker] Synced location to server`);
+            
+            // Broadcast location update to other devices
+            broadcastMutation('AppUser', 'update', this.appUserId, serverUpdatedAppUser);
+          } catch (serverError) {
+            console.warn(`⚠️ [LocationTracker] Server update failed (smart refresh will retry):`, serverError.message);
+            // Don't throw - offline DB has the update, smart refresh will sync it
+          }
         } catch (offlineError) {
-          console.warn('⚠️ [LocationTracker] Failed to sync AppUser to offline DB:', offlineError.message);
+          console.warn('⚠️ [LocationTracker] Failed to update offline DB:', offlineError.message);
+          // Fallback to direct server update
+          updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
+          broadcastMutation('AppUser', 'update', this.appUserId, updatedAppUser);
         }
-
-        // Broadcast location update to other devices
-        broadcastMutation('AppUser', 'update', this.appUserId, updatedAppUser);
       } else {
         console.log(`ℹ️ [LocationTracker] Non-primary device - skipped AppUser location update`);
       }
