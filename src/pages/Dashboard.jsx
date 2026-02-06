@@ -536,7 +536,7 @@ function Dashboard() {
       unsubscribePatients();
       unsubscribeDeliveries();
     };
-  }, [currentUser?.id, isDataLoaded, updateDeliveriesLocally, deliveries, refreshData, selectedDate, selectedDriverId, showAllDriverMarkers, appUsers, updateDeliveriesLocally]);
+  }, [currentUser?.id, isDataLoaded, updateDeliveriesLocally, deliveries, refreshData, selectedDate, selectedDriverId, showAllDriverMarkers, appUsers]);
 
 
 
