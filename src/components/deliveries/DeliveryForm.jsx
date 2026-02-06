@@ -3087,8 +3087,12 @@ export default function DeliveryForm({
         }
       }
 
-      // CRITICAL: Resume background operations before closing
-      (async () => {
+      // CRITICAL: Resume background operations AFTER closing form
+      // CRITICAL: Always close form after successful update
+      onCancel();
+      
+      // Resume managers after form closes (non-blocking)
+      setTimeout(async () => {
         try {
           const { smartRefreshManager } = await import('../utils/smartRefreshManager');
           const { driverLocationPoller } = await import('../utils/driverLocationPoller');
@@ -3104,10 +3108,7 @@ export default function DeliveryForm({
         } catch (error) {
           console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
         }
-      })();
-      
-      // CRITICAL: Always close form after successful update
-      onCancel();
+      }, 100);
     } catch (error) {
       setError(error.message);
     } finally {
