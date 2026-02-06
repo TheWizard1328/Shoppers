@@ -2621,6 +2621,28 @@ class SmartRefreshManager {
 
        const merged = mergeEntityChanges(currentAppUsers, diff);
 
+       // CRITICAL: Process fresh locations through poller FIRST to update markers
+       try {
+         const { driverLocationPoller } = await import('./driverLocationPoller');
+         const currentUser = this._currentUser;
+
+         if (currentUser) {
+           console.log(`📍 [SmartRefresh] Processing ${allAppUsers.length} fresh AppUsers through poller for marker updates`);
+           driverLocationPoller.processLocationData(
+             currentUser, 
+             [], // deliveries not needed for location processing
+             [], // drivers not needed
+             [], // stores not needed
+             allAppUsers, 
+             new Date(), // selectedDate
+             true, // forceNotify - always trigger marker updates
+             'Dashboard' // currentPageName
+           );
+         }
+       } catch (pollerError) {
+         console.warn('⚠️ [SmartRefresh] Failed to process through poller:', pollerError.message);
+       }
+
        // CRITICAL: ALWAYS dispatch driver location update event to refresh map markers
        // Use fresh API data (allAppUsers), not just merged diff
        if (typeof window !== 'undefined') {
