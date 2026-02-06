@@ -93,7 +93,7 @@ export default function SpecialSymbolsBadges({
       <Badge className={badgeBaseClass}>
 
         {/* Special flags: $ N O F S */}
-        {hasCOD && <span className={`text-green-800 ${isCardSize ? config.text : ''}`}>$</span>}
+        {hasCOD && <span className={`text-black ${isCardSize ? config.text : ''}`}>$</span>}
         {isFirstDelivery && <span className={`text-blue-800 ${isCardSize ? config.text : ''}`}>N</span>}
         {hasOversized && <span className={`text-orange-800 ${isCardSize ? config.text : ''}`}>O</span>}
         {hasFridge && <span className={`text-cyan-800 ${isCardSize ? config.text : ''}`}>F</span>}
