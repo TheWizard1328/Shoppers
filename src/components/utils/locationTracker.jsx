@@ -216,13 +216,12 @@ class LocationTracker {
 
       // Get current device to check if it's the primary tracker
       const currentDevice = await getCurrentDevice(this.currentUser.id);
-      const isPrimaryTracker = currentDevice?.is_primary_tracker || false;
+      // CRITICAL: If no UserDevice record exists, assume this IS the primary tracker (fallback)
+      const isPrimaryTracker = currentDevice?.is_primary_tracker !== false; // true if device exists OR no device record
 
       const nowISO = new Date().toISOString();
 
       console.log(`📤 [LocationTracker] Device isPrimary: ${isPrimaryTracker} - lat: ${latitude.toFixed(6)}, lng: ${longitude.toFixed(6)}`);
-      console.log(`📤 [LocationTracker] Current device:`, currentDevice);
-      console.log(`📤 [LocationTracker] AppUser ID:`, this.appUserId);
 
       // CRITICAL: Only update AppUser location if this is the primary tracker device
       let updatedAppUser = null;
