@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
             time_window_start: pickupTimeStr,
             time_window_end: '',
             ampm_deliveries: ampmDeliveries,
-            puid: '', // Pickups don't have a parent PUID
+            puid: newStopId, // CRITICAL: PUID = pickup's own SID (stop_id)
             stop_id: newStopId, // 3-character short ID (e.g., "k3E")
             delivery_stop_id: newStopId,
             store_phone: store?.phone || '',
