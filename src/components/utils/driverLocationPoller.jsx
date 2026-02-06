@@ -155,12 +155,13 @@ class DriverLocationPoller {
       }
 
       // ========================================
-      // RULE 1: Own location marker - always visible (will be filtered by Dashboard on mobile with live GPS)
+      // RULE 1: Own location marker - ALWAYS visible on non-primary devices
       // ========================================
       if (isSelf) {
-        // CRITICAL: ALWAYS include self marker in the output
-        // Dashboard will filter it out on mobile devices with active GPS tracking
-        // This allows the marker to show on desktop, other devices, and when GPS is off
+        // CRITICAL: ALWAYS include self marker for non-primary devices
+        // Primary device filtering happens in DriverLocationMarkers
+        // This allows shared location to show on ALL non-primary devices
+        // regardless of driver_status or location_tracking_enabled
         return true;
       }
 
