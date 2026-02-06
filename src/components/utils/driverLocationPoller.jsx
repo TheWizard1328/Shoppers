@@ -140,8 +140,26 @@ class DriverLocationPoller {
                      user.user_id === currentUserUserId ||
                      user.id === currentUserUserId;
 
+      // CRITICAL: Check self BEFORE coordinates to enable debugging
+      if (isSelf) {
+        console.log(`🔍 [Poller] SELF MARKER CHECK:`, {
+          userId: user.id || user.user_id,
+          hasCoordinates: !!(user.current_latitude && user.current_longitude),
+          current_latitude: user.current_latitude,
+          current_longitude: user.current_longitude,
+          location_updated_at: user.location_updated_at,
+          driver_status: user.driver_status,
+          location_tracking_enabled: user.location_tracking_enabled
+        });
+      }
+
       // Skip if no valid coordinates
-      if (!user.current_latitude || !user.current_longitude) return false;
+      if (!user.current_latitude || !user.current_longitude) {
+        if (isSelf) {
+          console.log(`❌ [Poller] SELF marker BLOCKED - no coordinates in AppUser entity`);
+        }
+        return false;
+      }
 
       // CRITICAL: 5-minute inactivity rule - applies to ALL markers (including own)
       if (user.location_updated_at) {
