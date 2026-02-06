@@ -559,16 +559,16 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       });
     }
 
-    // CRITICAL: Restart smart refresh after mutation (unless skipped)
-    if (!skipSmartRefresh && smartRefreshManager) {
+    // CRITICAL: Restart smart refresh after mutation (unless skipped or in batch operation)
+    if (!skipSmartRefresh && !isBatchOperation && smartRefreshManager) {
       smartRefreshManager.restart();
     }
     
     return updatedDelivery;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to update delivery:', error);
-    // CRITICAL: Restart smart refresh on error
-    if (!skipSmartRefresh && smartRefreshManager) {
+    // CRITICAL: Restart smart refresh on error (unless in batch operation)
+    if (!skipSmartRefresh && !isBatchOperation && smartRefreshManager) {
       smartRefreshManager.restart();
     }
     throw error;
