@@ -3422,8 +3422,6 @@ export default function Layout({ children, currentPageName }) {
                               }}
                               themePreference={themePreference}
                               onThemeChange={handleThemeChange}
-                              dataSource={dataSource}
-                              onDataSourceChange={handleDataSourceChange}
                               cities={cities}
                               onPatientImportClick={() => setShowPatientImport(true)}
                               onDeliveryImportClick={() => setShowDeliveryImport(true)}
@@ -3936,8 +3934,6 @@ export default function Layout({ children, currentPageName }) {
                           }}
                           themePreference={themePreference}
                           onThemeChange={handleThemeChange}
-                          dataSource={dataSource}
-                          onDataSourceChange={handleDataSourceChange}
                           cities={cities}
                           onPatientImportClick={() => setShowPatientImport(true)}
                           onDeliveryImportClick={() => setShowDeliveryImport(true)}
