@@ -27,14 +27,13 @@ import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import { sendDeliveryMessage } from '../utils/deliveryMessaging';
 import { reorderStops } from '../utils/stopReorderer';
 import {
-  createPatientLocal,
-  updatePatientLocal,
-  createDeliveryLocal,
-  updateDeliveryLocal,
-  deleteDeliveryLocal,
-  batchCreateDeliveriesLocal
-} from
-'../utils/entityMutations';
+  createPatient as createPatientLocal,
+  updatePatient as updatePatientLocal,
+  createDelivery as createDeliveryLocal,
+  updateDelivery as updateDeliveryLocal,
+  deleteDelivery as deleteDeliveryLocal,
+  batchCreateDeliveries as batchCreateDeliveriesLocal
+} from '../utils/entityMutations';
 import DeliveryFormStaged from './DeliveryFormStaged';
 import { checkPayrollLock } from '../utils/payrollLockManager';
 
