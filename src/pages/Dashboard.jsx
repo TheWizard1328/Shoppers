@@ -1916,7 +1916,6 @@ function Dashboard() {
             // CRITICAL: Only re-center if FAB is locked - user pan/zoom unlocks FAB via handleMapInteraction
             // CRITICAL: Use ref to get current lock state (closure captures stale state)
             if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current && nextStopCoordinates) {
-              console.log('📍 [Phase 2 Auto] Re-centering on driver & next stop');
 
               const bounds = [
               [newLocation.latitude, newLocation.longitude],
@@ -2968,7 +2967,6 @@ function Dashboard() {
 
         // CRITICAL: Reactivate Phase 1 if driver is off duty OR date is in the past
         if (!isDriverOnDutyPhase3 || isPastDatePhase3) {
-          console.log(`🔄 [Phase 3] Conditions not met (on_duty: ${isDriverOnDutyPhase3}, isPast: ${isPastDatePhase3}) - switching to Phase 1`);
           setMapViewPhase(1);
           setMapViewTrigger((prev) => prev + 1);
 
