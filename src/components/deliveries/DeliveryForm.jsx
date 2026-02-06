@@ -2602,16 +2602,41 @@ export default function DeliveryForm({
         return; // CRITICAL: Exit early to prevent duplicate processing
       }
 
-      // CRITICAL: Trigger IMMEDIATE UI update BEFORE closing form
-      console.log('[AddToRoute] 🔄 IMMEDIATE: Dispatching deliveries updated event...');
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { 
-          deliveryDate: formData.delivery_date, 
-          driverId: formData.driver_id,
-          triggeredBy: 'doneButtonCreates',
-          immediate: true // NEW: Flag to force immediate refresh
-        }
-      }));
+      // CRITICAL: Force IMMEDIATE backend data fetch (don't wait for smart refresh cycle)
+      console.log('[AddToRoute] 🔄 IMMEDIATE: Fetching fresh data from backend...');
+      try {
+        const freshDeliveries = await base44.entities.Delivery.filter({
+          driver_id: formData.driver_id,
+          delivery_date: formData.delivery_date
+        });
+        
+        // Update offline DB immediately
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        
+        // Dispatch immediate update event with fresh data
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { 
+            deliveryDate: formData.delivery_date, 
+            driverId: formData.driver_id,
+            triggeredBy: 'doneButtonCreates',
+            immediate: true,
+            freshDeliveries: freshDeliveries // Include fresh data for instant UI update
+          }
+        }));
+        
+        console.log(`✅ [AddToRoute] Immediate refresh complete - ${freshDeliveries.length} deliveries`);
+      } catch (fetchError) {
+        console.warn('⚠️ [AddToRoute] Immediate fetch failed, will rely on smart refresh:', fetchError);
+        // Fallback to regular event without fresh data
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { 
+            deliveryDate: formData.delivery_date, 
+            driverId: formData.driver_id,
+            triggeredBy: 'doneButtonCreates'
+          }
+        }));
+      }
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
       // CRITICAL: Clear staged state AFTER dispatching event
