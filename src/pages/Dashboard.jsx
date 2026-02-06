@@ -2221,7 +2221,9 @@ function Dashboard() {
         stores, 
         latestAppUsers, 
         selectedDate, 
-        true
+        true,
+        'Dashboard',
+        showAllDriverMarkers
       );
 
       // CRITICAL: ALWAYS dispatch for ALL drivers to ensure complete marker updates
