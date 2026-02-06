@@ -2823,8 +2823,6 @@ export default function DeliveryMap({
              const sourceDeliveries = deliveryMarkers.filter(d => d && d.driver_id === route.driverId);
              const sourcePickups = pickupMarkers.filter(p => p && p.driver_id === route.driverId);
             
-            console.log(`🛣️ [Polylines] Driver ${route.driverId}: ${sourceDeliveries.length} deliveries, ${sourcePickups.length} pickups`);
-            
             const allDriverStops = [...sourcePickups, ...sourceDeliveries]
               .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
             
