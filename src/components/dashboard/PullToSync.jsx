@@ -259,11 +259,11 @@ export default function PullToSync({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/20 backdrop-blur-sm pointer-events-none"
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-md pointer-events-none"
           >
             <div 
               className="rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4"
-              style={{ background: 'var(--bg-white)' }}
+              style={{ background: 'var(--bg-white)', opacity: 1 }}
             >
               <div 
                 className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin"
