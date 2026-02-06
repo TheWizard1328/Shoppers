@@ -342,8 +342,12 @@ export const createDelivery = async (deliveryData, options = {}) => {
  */
 export const updateDelivery = async (deliveryId, updates, options = {}) => {
   const { skipSmartRefresh = false, isBatchOperation = false } = options;
+  
   if (mutationsPaused) throw new Error('Mutations are paused');
-  if (!skipSmartRefresh && !isBatchOperation) await pauseSmartRefresh();
+  
+  // CRITICAL: Skip ALL SmartRefresh operations during batch
+  const shouldManageSmartRefresh = !skipSmartRefresh && !isBatchOperation;
+  if (shouldManageSmartRefresh) await pauseSmartRefresh();
 
   try {
     const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
@@ -360,14 +364,15 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
         updateCache('Delivery', deliveryId, backendDelivery);
         
         notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
-        if (!skipSmartRefresh) await restartSmartRefresh();
+        if (shouldManageSmartRefresh) await restartSmartRefresh();
         return backendDelivery;
       } catch (error) {
         if (error.message?.includes('not found') || error.message?.includes('404')) {
           notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId, data: null });
-          if (!skipSmartRefresh) await restartSmartRefresh();
+          if (shouldManageSmartRefresh) await restartSmartRefresh();
           return null;
         }
+        if (shouldManageSmartRefresh) await restartSmartRefresh();
         throw error;
       }
     }
@@ -404,10 +409,11 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
     }
     
-    if (!skipSmartRefresh && !isBatchOperation) await restartSmartRefresh();
+    // CRITICAL: NO restart during batch operations
+    if (shouldManageSmartRefresh) await restartSmartRefresh();
     return updated;
   } catch (error) {
-    if (!skipSmartRefresh && !isBatchOperation) await restartSmartRefresh();
+    if (shouldManageSmartRefresh) await restartSmartRefresh();
     throw error;
   }
 };
