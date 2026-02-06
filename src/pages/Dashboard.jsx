@@ -2111,133 +2111,43 @@ function Dashboard() {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const isToday = selectedDateStr === todayStr;
 
-      // CRITICAL: ALWAYS load ALL drivers' deliveries for complete map marker data
-      // This ensures markers update correctly in Single Driver, All Drivers, and Show All modes
-      console.log(`🔄 [Periodic Refresh] Loading ALL drivers for ${selectedDateStr} (isToday: ${isToday})`);
-
       let freshDeliveries;
 
-      // CRITICAL: ALWAYS fetch from API for today's date (cross-device sync)
-      // Only use dataSource preference for historical dates
-      if (isToday || dataSource === 'online') {
-        console.log(`🌐 [Periodic Refresh] Fetching ALL drivers from API (${isToday ? 'today - cross-device sync' : 'online mode'})`);
+      // CRITICAL: Try offline DB first to avoid excessive API calls
+      freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+
+      // Only fetch from API if offline DB empty OR it's today's date (cross-device sync every 3rd cycle)
+      const shouldFetchFromAPI = !freshDeliveries || freshDeliveries.length === 0 || 
+                                  (isToday && Math.floor(Date.now() / 15000) % 3 === 0);
+
+      if (shouldFetchFromAPI) {
         try {
           freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-          console.log(`📊 [Periodic Refresh API] isNextDelivery flags:`, freshDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
-          // CRITICAL: ALWAYS sync to offline DB after API fetch to persist updates
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-          console.log(`✅ [Periodic Refresh] Synced ${freshDeliveries.length} deliveries to offline DB`);
         } catch (apiError) {
-          console.warn(`⚠️ [Periodic Refresh] API fetch failed - using offline DB: ${apiError.message}`);
+          console.warn(`⚠️ [Periodic Refresh] API fetch failed - using offline DB`);
           freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr) || [];
-          console.log(`📊 [Periodic Refresh Offline Fallback] isNextDelivery flags:`, freshDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
-        }
-      } else {
-        // Historical dates - try offline DB first
-        freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-
-        if (!freshDeliveries || freshDeliveries.length === 0) {
-          console.log('📥 [Periodic Refresh] Offline DB empty - fetching ALL from API');
-          freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-          console.log(`📊 [Periodic Refresh API Backfill] isNextDelivery flags:`, freshDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        } else {
-          console.log(`📦 [Periodic Refresh] Loaded ${freshDeliveries.length} ALL drivers from offline DB`);
-          console.log(`📊 [Periodic Refresh Offline] isNextDelivery flags:`, freshDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
-          // CRITICAL: Even when using offline data, occasionally refresh from API to catch cross-device updates
-          // Refresh every 3 cycles (45 seconds) to stay current
-          if (Math.floor(Date.now() / 15000) % 3 === 0) {
-            console.log(`🔄 [Periodic Refresh] Syncing offline DB with API for cross-device updates...`);
-            try {
-              const apiDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-              console.log(`📊 [Periodic Refresh API Sync] isNextDelivery flags:`, apiDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
-              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, apiDeliveries);
-              freshDeliveries = apiDeliveries;
-              console.log(`✅ [Periodic Refresh] Synced ${apiDeliveries.length} deliveries from API to offline DB`);
-            } catch (syncError) {
-              console.warn(`⚠️ [Periodic Refresh] API sync failed - using cached offline data: ${syncError.message}`);
-            }
-          }
         }
       }
 
-      // Update context with fresh deliveries - CRITICAL: Preserve isNextDelivery flags
+      // Update UI with deliveries
       if (updateDeliveriesLocally && freshDeliveries.length > 0) {
-        console.log(`📊 [Periodic Refresh Pre-Update] isNextDelivery flags being passed to UI:`, freshDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
         updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-        console.log(`✅ [Periodic Refresh] Updated UI with ${freshDeliveries.length} ALL drivers deliveries`);
       }
 
-      // CRITICAL: ALWAYS force full AppUser refresh to get ALL drivers' locations
-      // This ensures ALL markers update regardless of selection mode
+      // CRITICAL: ALWAYS refresh AppUsers to get ALL drivers' locations
       const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
-
-      // Use updated AppUsers or fall back to current context
       const latestAppUsers = locationUpdates?.appUsers || appUsers;
 
-      // CRITICAL: Sync AppUsers to offline DB for cross-device consistency
       if (latestAppUsers && latestAppUsers.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, latestAppUsers);
-        console.log(`✅ [Periodic Refresh] Synced ${latestAppUsers.length} AppUsers to offline DB`);
       }
 
-      // CRITICAL: Incremental patient sync - only fetch patients that changed since last refresh
-      const uniquePatientIds = [...new Set(freshDeliveries.filter(d => d?.patient_id).map(d => d.patient_id))];
-      if (uniquePatientIds.length > 0) {
-        try {
-          // Get existing patients from offline DB to check timestamps
-          const existingPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-          const existingPatientMap = new Map(existingPatients.map(p => [p.id, p.updated_date]));
-          
-          // Only fetch patients that don't exist or might have been updated
-          const patientIdsToFetch = uniquePatientIds.filter(id => {
-            const existingTimestamp = existingPatientMap.get(id);
-            // Fetch if: not in DB OR was updated in last hour (likely changed)
-            if (!existingTimestamp) return true;
-            const age = Date.now() - new Date(existingTimestamp).getTime();
-            return age < 3600000; // 1 hour
-          });
-          
-          if (patientIdsToFetch.length > 0) {
-            const freshPatients = await base44.entities.Patient.filter({ id: { $in: patientIdsToFetch } });
-            if (freshPatients && freshPatients.length > 0) {
-              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-              console.log(`✅ [Periodic Refresh] Synced ${freshPatients.length}/${uniquePatientIds.length} changed patients to offline DB`);
-            }
-          } else {
-            console.log(`⏭️ [Periodic Refresh] All ${uniquePatientIds.length} patients already current in offline DB`);
-          }
-        } catch (patientError) {
-          console.warn(`⚠️ [Periodic Refresh] Failed to sync patients: ${patientError.message}`);
-        }
-      }
-
-      // CRITICAL: Update isNextDelivery flags for each active driver BEFORE processing locations
-      const activeDriverIds = new Set(freshDeliveries.map(d => d?.driver_id).filter(Boolean));
-      
-      for (const activeDriverId of activeDriverIds) {
-        try {
-          await updateNextDeliveryFlags(activeDriverId, selectedDateStr);
-        } catch (flagError) {
-          console.warn(`⚠️ [Periodic Refresh] Failed to update isNextDelivery for driver ${activeDriverId}:`, flagError.message);
-        }
-      }
-
-      // CRITICAL: Re-fetch deliveries AFTER updating flags to get correct isNextDelivery values
-      const deliveriesWithUpdatedFlags = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesWithUpdatedFlags);
-      
-      // Update UI with fresh flags
-      if (updateDeliveriesLocally) {
-        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-        updateDeliveriesLocally([...otherDateDeliveries, ...deliveriesWithUpdatedFlags], true);
-      }
-
-      // CRITICAL: Process location data with deliveries that have updated flags
+      // Process location data through poller
       driverLocationPoller.processLocationData(
         currentUser, 
-        deliveriesWithUpdatedFlags, 
+        freshDeliveries, 
         drivers, 
         stores, 
         latestAppUsers, 
@@ -2247,13 +2157,12 @@ function Dashboard() {
         showAllDriverMarkers
       );
 
-      // CRITICAL: ALWAYS dispatch for ALL drivers to ensure complete marker updates
-      console.log(`📍 [Periodic Refresh] Dispatching location updates for ALL ${latestAppUsers.length} drivers`);
+      // Dispatch location updates
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
         detail: { appUsers: latestAppUsers, forceAll: true }
       }));
 
-      // CRITICAL: Force trigger legend and marker refresh
+      // Trigger marker refresh
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { deliveryDate: selectedDateStr, triggeredBy: 'periodicRefresh', allDrivers: true }
       }));
@@ -7409,21 +7318,7 @@ function Dashboard() {
                       const now = new Date();
                       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-                      // STEP 1: Smart refresh cycle
-                      const currentData = { deliveries, patients, appUsers, stores };
-                      const filters = {
-                        selectedDate,
-                        deliveryFilter: shouldFetchAllDrivers ? {} : { driver_id: activeDriverId },
-                        patientFilter: {},
-                        activeDriverIds: shouldFetchAllDrivers ? [] : [activeDriverId]
-                      };
-
-                      const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
-                      if (cityStoreIds.length > 0) {
-                        filters.deliveryFilter.store_id = { $in: cityStoreIds };
-                        filters.patientFilter.store_id = { $in: cityStoreIds };
-                      }
-
+                      // Reset smart refresh timers for fresh start
                       smartRefreshManager.lastRefreshTimes = {
                         driverLocation: 0,
                         activeDeliveries: 0,
@@ -7432,8 +7327,6 @@ function Dashboard() {
                         patients: 0,
                         stores: 0
                       };
-
-                      const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false, showAllDriverMarkers, 'Dashboard', selectedDate);
 
                       // STEP 2: Force reload deliveries for ALL drivers - ensures complete marker data
                       console.log(`📥 [Manual Refresh] Fetching ALL drivers for ${selectedDateStr} (mode: ${dataSource})...`);

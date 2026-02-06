@@ -12,8 +12,6 @@ import { updateDeliveryLocal } from './offlineMutations';
  * Updates all stop orders sequentially from 1 to N
  */
 export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => {
-  console.log('🔢 [STOP ORDER MGR] Recalculating stop orders...');
-
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   
   // Fetch fresh data from backend to ensure accuracy
@@ -68,12 +66,6 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     }
   }
 
-  if (updates.length > 0) {
-    console.log(`✅ [STOP ORDER MGR] Updated ${updates.length} stop orders sequentially`);
-  } else {
-    console.log('ℹ️ [STOP ORDER MGR] No updates needed');
-  }
-
   return sortedDeliveries;
 };
 
@@ -82,8 +74,6 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
  * Sets the first non-completed, non-pending delivery as the next delivery
  */
 export const updateNextDeliveryFlags = async (driverId, deliveryDate) => {
-  console.log('🎯 [STOP ORDER MGR] Updating isNextDelivery flags...');
-
   const allDeliveries = await base44.entities.Delivery.filter({
     driver_id: driverId,
     delivery_date: deliveryDate
@@ -96,7 +86,6 @@ export const updateNextDeliveryFlags = async (driverId, deliveryDate) => {
   
   if (resetPromises.length > 0) {
     await Promise.all(resetPromises);
-    console.log(`  Reset ${resetPromises.length} isNextDelivery flags`);
   }
 
   // Find first incomplete (SKIP PENDING)
@@ -107,8 +96,5 @@ export const updateNextDeliveryFlags = async (driverId, deliveryDate) => {
 
   if (firstIncomplete) {
     await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
-    console.log(`✅ [STOP ORDER MGR] Set isNextDelivery for: ${firstIncomplete.patient_name || 'Pickup'}`);
-  } else {
-    console.log('ℹ️ [STOP ORDER MGR] No non-pending incomplete deliveries');
   }
 };
