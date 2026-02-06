@@ -1095,34 +1095,46 @@ export default function StopCard({
                 </h3>
 
                 <div className="space-y-3 mb-6">
-                  <p className="text-slate-700">
-                    Are you sure you want to delete this {isPickup ? 'pickup' : 'delivery'}?
-                  </p>
+                <p className="text-slate-700">
+                  Are you sure you want to delete this {isPickup ? 'pickup' : 'delivery'}?
+                </p>
 
-                  <div className="rounded-lg p-3 space-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
-                    <div>
-                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
-                      <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayName}</p>
-                    </div>
-
-                    {displayAddress &&
-                    <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
-                        <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</p>
-                      </div>
-                    }
-
-                    {delivery.tracking_number &&
-                    <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
-                        <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</p>
-                      </div>
-                    }
+                <div className="rounded-lg p-3 space-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
+                  <div>
+                    <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
+                    <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayName}</p>
                   </div>
 
-                  <p className="text-sm text-red-600 font-medium">
-                    This action cannot be undone.
-                  </p>
+                  {displayAddress &&
+                  <div>
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
+                      <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</p>
+                    </div>
+                  }
+
+                  {delivery.tracking_number &&
+                  <div>
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
+                      <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</p>
+                    </div>
+                  }
+                </div>
+
+                {/* CRITICAL: Warning for pickups with pending deliveries */}
+                {isPickup && delivery.stop_id && pendingPickups && pendingPickups.length > 0 &&
+                  <div className="rounded-lg p-3 border-2 border-amber-400" style={{ background: 'var(--bg-amber-50)' }}>
+                    <p className="text-sm font-semibold text-amber-800 mb-1">
+                      ⚠️ Warning: {pendingPickups.length} Pending Delivery{pendingPickups.length > 1 ? 's' : ''} Will Also Be Deleted
+                    </p>
+                    <p className="text-xs text-amber-700">
+                      {pendingPickups.map(p => p.patient_name).join(', ')}
+                    </p>
+                  </div>
+                }
+
+                <p className="text-sm text-red-600 font-medium">
+                  This action cannot be undone.
+                </p>
                 </div>
 
                 <div className="flex gap-3">
