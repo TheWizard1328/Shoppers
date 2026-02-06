@@ -2464,7 +2464,7 @@ export default function DeliveryForm({
             puid: updated.puid || ''
           };
 
-          return updateDeliveryLocal(updated.id, updateData, { isBatchOperation: true })
+          return updateDeliveryLocal(updated.id, updateData, { isBatchOperation: true, skipSmartRefresh: true })
             .then(() => {
               console.log(`[AddToRoute] ✅ Updated delivery: ${updated.patient_name} to status ${updateData.status}`);
               return null;
@@ -2480,6 +2480,7 @@ export default function DeliveryForm({
             });
         });
 
+        console.log(`[AddToRoute] 🚀 Batching ${updatePromises.length} updates in parallel...`);
         await Promise.all(updatePromises);
         console.log('[AddToRoute] ✅ All existing deliveries updated');
       }
