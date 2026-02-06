@@ -1076,11 +1076,14 @@ export default function DeliveryForm({
     }));
     setSelectedPickupOption('');
 
-    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+    // Only auto-focus on desktop
+    if (!isMobileDevice) {
+      setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+    }
     
     // Resume location poller after operations complete
     driverLocationPoller.resume();
-  }, [formData, stores, drivers, allDeliveries, stagedDeliveries]);
+  }, [formData, stores, drivers, allDeliveries, stagedDeliveries, isMobileDevice]);
 
   const handleAddSelectedPatients = useCallback(async () => {
     if (selectedPatientIds.size === 0) return;
@@ -2043,8 +2046,11 @@ export default function DeliveryForm({
     }));
     setSelectedPickupOption('');
 
-    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-  }, [formData, isFormValid, patients, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries]);
+    // Only auto-focus on desktop
+    if (!isMobileDevice) {
+      setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+    }
+  }, [formData, isFormValid, patients, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice]);
 
   const handleUpdateStaged = useCallback(async () => {
     if (!editingStagedId) return;
@@ -2173,8 +2179,11 @@ export default function DeliveryForm({
     }));
     setSelectedPickupOption('');
 
-    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-  }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode]);
+    // Only auto-focus on desktop
+    if (!isMobileDevice) {
+      setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+    }
+  }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice]);
 
   const handleBatchSave = useCallback(async () => {
     console.log('='.repeat(50));
@@ -3266,8 +3275,11 @@ export default function DeliveryForm({
       recurring_monthly: false, recurring_bimonthly: false
     }));
     setSelectedPickupOption('');
-    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-  }, []);
+    // Only auto-focus on desktop
+    if (!isMobileDevice) {
+      setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+    }
+  }, [isMobileDevice]);
 
   const handleCancelClick = useCallback(() => {
     // Only show confirmation if there are NEW staged deliveries (without an id)
