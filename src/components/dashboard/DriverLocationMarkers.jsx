@@ -33,7 +33,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       console.log(`📍 [DriverLocationMarkers] driverLocationsUpdated event:`, { 
         appUsersCount: updatedAppUsers?.length || 0,
         hasSingleUpdate: !!singleUpdate,
-        forceAll
+        forceAll,
+        currentVisibleCount: visibleDrivers.length
       });
       
       // Handle single driver update
@@ -46,45 +47,52 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           setVisibleDrivers(prev => {
             const exists = prev.find(d => d && d.id === userId);
             if (exists) {
-              return prev.map(d => d && d.id === userId ? {
+              const updated = prev.map(d => d && d.id === userId ? {
                 ...d,
                 current_latitude,
                 current_longitude,
                 location_updated_at: location_updated_at || new Date().toISOString()
               } : d);
+              console.log(`📍 [DriverLocationMarkers] Updated single driver in visibleDrivers`);
+              return updated;
             }
+            console.log(`⚠️ [DriverLocationMarkers] Driver ${userId} not in visibleDrivers, skipping`);
             return prev;
           });
         }
         return;
       }
       
-      // Handle bulk appUsers update
+      // CRITICAL: Handle bulk appUsers update - reprocess through filter logic
       if (updatedAppUsers && updatedAppUsers.length > 0) {
-        console.log(`📍 [DriverLocationMarkers] Updating ${updatedAppUsers.length} drivers from appUsers`);
-        setVisibleDrivers(prev => {
-          const updated = [...prev];
-          for (const appUser of updatedAppUsers) {
-            if (!appUser) continue;
-            const existingIdx = updated.findIndex(d => d && d.id === appUser.id);
-            if (existingIdx >= 0) {
-              updated[existingIdx] = {
-                ...updated[existingIdx],
-                ...appUser,
-                current_latitude: appUser.current_latitude || updated[existingIdx]?.current_latitude,
-                current_longitude: appUser.current_longitude || updated[existingIdx]?.current_longitude,
-                location_updated_at: appUser.location_updated_at || new Date().toISOString()
-              };
-            }
+        console.log(`📍 [DriverLocationMarkers] Bulk update: reprocessing ${updatedAppUsers.length} drivers`);
+        
+        // CRITICAL: Recreate visible drivers from scratch with fresh data
+        const validDrivers = updatedAppUsers.filter(user => {
+          if (!user) return false;
+          if (!user.current_latitude || !user.current_longitude) return false;
+          
+          const currentUserId = currentUser?.id;
+          const currentUserUserId = currentUser?.user_id;
+          const userId = user.id || user.user_id;
+          const isSelf = userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
+          
+          // Block self marker if primary device
+          if (isSelf && isPrimaryDevice) {
+            return false;
           }
-          return updated;
+          
+          return true;
         });
+        
+        console.log(`📍 [DriverLocationMarkers] Filtered to ${validDrivers.length} valid drivers with fresh locations`);
+        setVisibleDrivers(validDrivers);
       }
     };
     
     window.addEventListener('driverLocationsUpdated', handleLocationUpdates);
     return () => window.removeEventListener('driverLocationsUpdated', handleLocationUpdates);
-  }, []);
+  }, [currentUser, isPrimaryDevice, visibleDrivers.length]);
 
   useEffect(() => {
     // CRITICAL: The `users` prop comes pre-filtered from driverLocationPoller
