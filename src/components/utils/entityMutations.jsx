@@ -113,6 +113,12 @@ const pauseSmartRefresh = async () => {
  * Restart smart refresh after mutation
  */
 const restartSmartRefresh = async () => {
+  // CRITICAL: Skip restart if batch form is saving (prevents spam during Add To Route)
+  if (isBatchFormSaving) {
+    console.log('⏭️ [EntityMutations] Skipping SmartRefresh restart - batch form saving active');
+    return;
+  }
+  
   try {
     const { smartRefreshManager } = await import('./smartRefreshManager');
     smartRefreshManager.restart();
