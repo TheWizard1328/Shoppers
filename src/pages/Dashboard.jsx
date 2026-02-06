@@ -5121,9 +5121,21 @@ function Dashboard() {
           if (stopPatient?.time_window_start) {
             stop.delivery_time_start = stopPatient.time_window_start;
           } else {
+            // CRITICAL: Find NEW en_route pickup - match by store, ampm_deliveries, exclude finished
+            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
             const correspondingPickup = stopsToProcess.find((s) => {
-              if (!s) return false; // Defensive check
-              return s.store_id === stop.store_id && s.patient_id === null;
+              if (!s) return false;
+              if (s.patient_id !== null) return false; // Must be a pickup
+              if (s.store_id !== stop.store_id) return false; // Must be same store
+              if (s.ampm_deliveries && stop.ampm_deliveries && s.ampm_deliveries !== stop.ampm_deliveries) return false; // Must match AM/PM
+              if (finishedStatuses.includes(s.status)) return false; // Skip completed pickups
+              return true;
+            }) || stopsToProcess.find((s) => {
+              // Fallback: new pickups only (just created)
+              if (!s || !s.isNew) return false;
+              if (s.patient_id !== null) return false;
+              if (s.store_id !== stop.store_id) return false;
+              return true;
             });
             if (correspondingPickup && correspondingPickup.delivery_time_start) {
               stop.delivery_time_start = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
@@ -5176,9 +5188,22 @@ function Dashboard() {
 
         if (stop.patient_id !== null) {
           const stopPatient = patients.find((p) => p.id === stop.patient_id);
-          const correspondingPickup = stopsToProcess.find((s) => {
-            if (!s) return false; // Defensive check
-            return s.store_id === stop.store_id && s.patient_id === null;
+          
+          // CRITICAL: Find NEW en_route pickup - match by store, ampm_deliveries, exclude finished
+          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+          const correspondingPickup = optimizedRoute.find((s) => {
+            if (!s) return false;
+            if (s.patient_id !== null) return false; // Must be a pickup
+            if (s.store_id !== stop.store_id) return false; // Must be same store
+            if (s.ampm_deliveries && stop.ampm_deliveries && s.ampm_deliveries !== stop.ampm_deliveries) return false; // Must match AM/PM
+            if (finishedStatuses.includes(s.status)) return false; // Skip completed pickups
+            return true;
+          }) || optimizedRoute.find((s) => {
+            // Fallback: new pickups only (just created)
+            if (!s || !s.isNew) return false;
+            if (s.patient_id !== null) return false;
+            if (s.store_id !== stop.store_id) return false;
+            return true;
           });
 
           if (stopPatient?.time_window_start) {

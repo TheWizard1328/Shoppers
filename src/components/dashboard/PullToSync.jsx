@@ -162,6 +162,25 @@ export default function PullToSync({
         }
       }));
 
+      // CRITICAL: Process driver locations through poller to update ALL markers
+      try {
+        const { driverLocationPoller } = await import('@/components/utils/driverLocationPoller');
+        const { useUser } = await import('@/components/utils/UserContext');
+        
+        driverLocationPoller.processLocationData(
+          window.__currentUser, 
+          freshDeliveries, 
+          [], // drivers loaded from context
+          [], // stores loaded from context
+          freshAppUsers, 
+          selectedDate, 
+          true // forceNotify
+        );
+        console.log('✅ [Pull to Sync] Processed driver locations through poller');
+      } catch (pollerError) {
+        console.warn('⚠️ [Pull to Sync] Failed to process through poller:', pollerError.message);
+      }
+
       // Callback to parent component for additional refresh logic
       if (onSyncComplete) {
         await onSyncComplete(freshDeliveries, freshPatients, freshAppUsers);
