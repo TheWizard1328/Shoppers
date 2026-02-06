@@ -5801,6 +5801,25 @@ function Dashboard() {
 
       const driverId = targetDelivery.driver_id;
       const deliveryDate = targetDelivery.delivery_date;
+      const isPickup = !targetDelivery.patient_id;
+
+      // CRITICAL: If deleting a pickup, also delete any pending deliveries assigned to it
+      if (isPickup && targetDelivery.stop_id) {
+        const pendingDeliveriesForPickup = deliveriesWithStopOrder.filter((d) =>
+          d && d.puid === targetDelivery.stop_id && d.status === 'pending' && d.patient_id
+        );
+        
+        if (pendingDeliveriesForPickup.length > 0) {
+          console.log(`🗑️ [Delete Pickup] Found ${pendingDeliveriesForPickup.length} pending deliveries - deleting cascade`);
+          
+          // Delete all pending deliveries first
+          const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
+          for (const pendingDelivery of pendingDeliveriesForPickup) {
+            await deleteDeliveryLocal(pendingDelivery.id);
+            console.log(`  ✅ Deleted pending delivery: ${pendingDelivery.patient_name}`);
+          }
+        }
+      }
 
       // CRITICAL: Delete Square COD item if delivery has COD and is in_transit
       if (targetDelivery.status === 'in_transit' && targetDelivery.cod_total_amount_required > 0 && targetDelivery.patient_id) {
