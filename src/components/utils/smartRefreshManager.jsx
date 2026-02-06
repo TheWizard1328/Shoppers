@@ -2109,7 +2109,7 @@ class SmartRefreshManager {
       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
         try {
           console.log('📡 [SmartRefresh] PRIORITY 0: Syncing FULL AppUser dataset (every 15s) - FRESH LOCATIONS FIRST');
-          const appUserResult = await this.refreshAllAppUsersFullSync(currentData.appUsers);
+          const appUserResult = await this.refreshAllAppUsersFullSync(currentData.appUsers, currentPage, selectedDate);
           if (appUserResult?.hasChanges) {
             updates.appUsers = appUserResult.appUsers;
           }
@@ -2139,9 +2139,10 @@ class SmartRefreshManager {
                     [], // drivers not needed
                     [], // stores not needed
                     freshAppUsersFromOfflineDB, 
-                    new Date(), // selectedDate
+                    selectedDate || new Date(), // Use actual selected date from context
                     true, // forceNotify
-                    'Dashboard' // currentPageName
+                    currentPageName || 'Dashboard', // Use actual current page from context
+                    false // showAllDrivers - not needed here
                   );
                 }
               } catch (pollerError) {
@@ -2584,7 +2585,7 @@ class SmartRefreshManager {
     * NEW: Full AppUser sync - every 15 seconds, entire dataset in one API hit
     * CRITICAL: Ensures offline DB is updated AND dispatches event with fresh location data
     */
-   async refreshAllAppUsersFullSync(currentAppUsers) {
+   async refreshAllAppUsersFullSync(currentAppUsers, currentPageName = null, selectedDate = null) {
      try {
        console.log('🔄 [SmartRefresh] Starting full AppUser sync - fetching from API...');
        await this.waitForRateLimit();
@@ -2679,9 +2680,10 @@ class SmartRefreshManager {
              [], // drivers not needed
              [], // stores not needed
              allAppUsers, 
-             new Date(), // selectedDate
+             selectedDate || new Date(), // Use actual selected date from context
              true, // forceNotify - always trigger marker updates
-             'Dashboard' // currentPageName
+             currentPageName || 'Dashboard', // Use actual current page from context
+             false // showAllDrivers - not needed here
            );
          }
        } catch (pollerError) {
