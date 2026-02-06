@@ -222,7 +222,6 @@ export default function DeliveryForm({
   const [hasChanges, setHasChanges] = useState(false);
   const [isPayrollLocked, setIsPayrollLocked] = useState(false);
   const [payrollLockMessage, setPayrollLockMessage] = useState(null);
-  // Removed debugPatientData state (app owner debug moved to console.log only)
 
   // Camera state
   const videoRef = useRef(null);
@@ -2087,6 +2086,26 @@ export default function DeliveryForm({
       hasLoadedPending.current = false;
       predictionsStopped.current = false;
       setIsLoadingPredictions(true);
+      
+      // CRITICAL: Resume background operations before closing
+      (async () => {
+        try {
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+          const { routePolylineManager } = await import('../utils/routePolylineManager');
+          const { fabControlEvents } = await import('../utils/fabControlEvents');
+          
+          smartRefreshManager.resume();
+          driverLocationPoller.resume();
+          routePolylineManager?.resume?.();
+          fabControlEvents.resumeFAB();
+          
+          console.log('▶️ [AddToRoute Deletes] Resumed background operations');
+        } catch (error) {
+          console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
+        }
+      })();
+      
       onCancel();
       
       // Background refresh (non-blocking)
@@ -2522,6 +2541,25 @@ export default function DeliveryForm({
         setIsLoadingPredictions(true);
         console.log('[AddToRoute] ✅ Staged deliveries cleared');
 
+        // CRITICAL: Resume background operations before closing
+        (async () => {
+          try {
+            const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+            const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+            const { routePolylineManager } = await import('../utils/routePolylineManager');
+            const { fabControlEvents } = await import('../utils/fabControlEvents');
+            
+            smartRefreshManager.resume();
+            driverLocationPoller.resume();
+            routePolylineManager?.resume?.();
+            fabControlEvents.resumeFAB();
+            
+            console.log('▶️ [AddToRoute Updates] Resumed background operations');
+          } catch (error) {
+            console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
+          }
+        })();
+
         onCancel(); // Close form IMMEDIATELY
 
         // Background refresh (non-blocking)
@@ -2586,6 +2624,25 @@ export default function DeliveryForm({
       predictionsStopped.current = false;
       setIsLoadingPredictions(true);
       console.log('[AddToRoute] ✅ Staged deliveries cleared');
+
+      // CRITICAL: Resume background operations before closing form
+      (async () => {
+        try {
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+          const { routePolylineManager } = await import('../utils/routePolylineManager');
+          const { fabControlEvents } = await import('../utils/fabControlEvents');
+          
+          smartRefreshManager.resume();
+          driverLocationPoller.resume();
+          routePolylineManager?.resume?.();
+          fabControlEvents.resumeFAB();
+          
+          console.log('▶️ [AddToRoute] Resumed background operations before close');
+        } catch (error) {
+          console.warn('⚠️ [AddToRoute] Failed to resume managers:', error);
+        }
+      })();
 
       // Close form IMMEDIATELY to unblock UI
       onCancel();
@@ -2958,6 +3015,25 @@ export default function DeliveryForm({
         }
       }
 
+      // CRITICAL: Resume background operations before closing
+      (async () => {
+        try {
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+          const { routePolylineManager } = await import('../utils/routePolylineManager');
+          const { fabControlEvents } = await import('../utils/fabControlEvents');
+          
+          smartRefreshManager.resume();
+          driverLocationPoller.resume();
+          routePolylineManager?.resume?.();
+          fabControlEvents.resumeFAB();
+          
+          console.log('▶️ [DeliveryForm Update] Resumed background operations');
+        } catch (error) {
+          console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
+        }
+      })();
+      
       // CRITICAL: Always close form after successful update
       onCancel();
     } catch (error) {
@@ -3001,6 +3077,26 @@ export default function DeliveryForm({
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
         hasLoadedPending.current = false; // Reset flag to allow reload
+        
+        // CRITICAL: Resume background operations before closing
+        (async () => {
+          try {
+            const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+            const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+            const { routePolylineManager } = await import('../utils/routePolylineManager');
+            const { fabControlEvents } = await import('../utils/fabControlEvents');
+            
+            smartRefreshManager.resume();
+            driverLocationPoller.resume();
+            routePolylineManager?.resume?.();
+            fabControlEvents.resumeFAB();
+            
+            console.log('▶️ [DeliveryForm Cancel] Resumed background operations');
+          } catch (error) {
+            console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
+          }
+        })();
+        
         onCancel();
       }
     } else {
@@ -3009,6 +3105,26 @@ export default function DeliveryForm({
       if (!delivery) {
         hasLoadedPending.current = false;
       }
+      
+      // CRITICAL: Resume background operations before closing
+      (async () => {
+        try {
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+          const { routePolylineManager } = await import('../utils/routePolylineManager');
+          const { fabControlEvents } = await import('../utils/fabControlEvents');
+          
+          smartRefreshManager.resume();
+          driverLocationPoller.resume();
+          routePolylineManager?.resume?.();
+          fabControlEvents.resumeFAB();
+          
+          console.log('▶️ [DeliveryForm Cancel] Resumed background operations');
+        } catch (error) {
+          console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
+        }
+      })();
+      
       onCancel();
     }
   }, [stagedDeliveries, onCancel, delivery]);
@@ -3090,9 +3206,60 @@ export default function DeliveryForm({
   useEffect(() => {
     console.log('📝 [DeliveryForm] Setting isFormOverlayOpen = true');
     setIsFormOverlayOpen(true);
+    
+    // CRITICAL: Pause all background operations when form opens
+    (async () => {
+      try {
+        // Pause smart refresh
+        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+        smartRefreshManager.pause();
+        
+        // Pause driver location poller
+        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+        driverLocationPoller.pause();
+        
+        // Pause polyline manager
+        const { routePolylineManager } = await import('../utils/routePolylineManager');
+        routePolylineManager?.pause?.();
+        
+        // Pause FAB
+        const { fabControlEvents } = await import('../utils/fabControlEvents');
+        fabControlEvents.pauseFAB();
+        
+        console.log('⏸️ [DeliveryForm] Paused: SmartRefresh, DriverLocationPoller, Polylines, FAB');
+      } catch (error) {
+        console.warn('⚠️ [DeliveryForm] Failed to pause some managers:', error);
+      }
+    })();
+    
     return () => {
       console.log('📝 [DeliveryForm] Cleanup - setting isFormOverlayOpen = false');
       setIsFormOverlayOpen(false);
+      
+      // CRITICAL: Resume all background operations when form closes
+      (async () => {
+        try {
+          // Resume smart refresh
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+          smartRefreshManager.resume();
+          
+          // Resume driver location poller
+          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+          driverLocationPoller.resume();
+          
+          // Resume polyline manager
+          const { routePolylineManager } = await import('../utils/routePolylineManager');
+          routePolylineManager?.resume?.();
+          
+          // Resume FAB
+          const { fabControlEvents } = await import('../utils/fabControlEvents');
+          fabControlEvents.resumeFAB();
+          
+          console.log('▶️ [DeliveryForm] Resumed: SmartRefresh, DriverLocationPoller, Polylines, FAB');
+        } catch (error) {
+          console.warn('⚠️ [DeliveryForm] Failed to resume some managers:', error);
+        }
+      })();
     };
   }, [setIsFormOverlayOpen]);
 
@@ -5060,7 +5227,7 @@ export default function DeliveryForm({
         </AnimatePresence>
       }
 
-      // Removed Debug Patient Data Popup (app owner debug moved to console.log only)
+
 
       {/* Delete Pending Confirmation Dialog */}
       {deleteConfirmation.show && deleteConfirmation.staged &&
