@@ -2631,13 +2631,6 @@ function Dashboard() {
         }
 
         // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked OR when desktop OR dispatcher
-        console.log(`🗺️ [Phase 1] showAllDriverMarkers: ${showAllDriverMarkers}`);
-        console.log(`🗺️ [Phase 1] shouldShowAllMarkersForBounds: ${shouldShowAllMarkersForBounds}`);
-        console.log(`🗺️ [Phase 1] isViewingToday: ${isViewingToday}`);
-        console.log(`🗺️ [Phase 1] isMobile: ${isMobile}`);
-        console.log(`🗺️ [Phase 1] isDispatcher: ${isDispatcher}`);
-        console.log(`🗺️ [Phase 1] allDriverLocations count: ${allDriverLocations?.length || 0}`);
-
         // CRITICAL: Always include shared locations for desktop OR "show all" mode OR dispatchers
         const shouldIncludeSharedLocations = !isMobile || shouldShowAllMarkersForBounds || isDispatcher;
         
