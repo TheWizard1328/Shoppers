@@ -221,6 +221,8 @@ class LocationTracker {
       const nowISO = new Date().toISOString();
 
       console.log(`📤 [LocationTracker] Device isPrimary: ${isPrimaryTracker} - lat: ${latitude.toFixed(6)}, lng: ${longitude.toFixed(6)}`);
+      console.log(`📤 [LocationTracker] Current device:`, currentDevice);
+      console.log(`📤 [LocationTracker] AppUser ID:`, this.appUserId);
 
       // CRITICAL: Only update AppUser location if this is the primary tracker device
       let updatedAppUser = null;
