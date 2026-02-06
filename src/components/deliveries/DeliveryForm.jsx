@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -2506,27 +2505,33 @@ export default function DeliveryForm({
         });
         await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
         
-        // SQUARE INTEGRATION: Create COD items only for in_transit deliveries (not pending)
+        // SQUARE INTEGRATION: Create COD items only for in_transit deliveries (not pending) - batched for speed
         // Note: At this point, cod_total_amount_required is already in DOLLARS (converted earlier in batch save)
-        for (const delivery of deliveriesReadyForDB) {
-          if (delivery.cod_total_amount_required > 0 && delivery.patient_id && delivery.driver_id && delivery.status === 'in_transit') {
-            try {
-              const store = stores?.find(s => s && s.id === delivery.store_id);
-              console.log('💳 [Square] Creating COD item for in_transit delivery:', delivery.patient_name, 'Amount:', delivery.cod_total_amount_required);
-              await base44.functions.invoke('squareCreateCodItem', {
-                deliveryId: delivery.id || delivery._tempId,
-                patientName: delivery.patient_name,
-                storeAbbreviation: store?.abbreviation || '',
-                codAmount: delivery.cod_total_amount_required,
-                deliveryDate: delivery.delivery_date,
-                storeId: delivery.store_id
+        const squarePromises = deliveriesReadyForDB
+          .filter(d => d.cod_total_amount_required > 0 && d.patient_id && d.driver_id && d.status === 'in_transit')
+          .map(delivery => {
+            const store = stores?.find(s => s && s.id === delivery.store_id);
+            console.log('💳 [Square] Creating COD item for in_transit delivery:', delivery.patient_name, 'Amount:', delivery.cod_total_amount_required);
+            return base44.functions.invoke('squareCreateCodItem', {
+              deliveryId: delivery.id || delivery._tempId,
+              patientName: delivery.patient_name,
+              storeAbbreviation: store?.abbreviation || '',
+              codAmount: delivery.cod_total_amount_required,
+              deliveryDate: delivery.delivery_date,
+              storeId: delivery.store_id
+            })
+              .then(() => {
+                console.log('✅ [Square] COD item created for:', delivery.patient_name);
+                return null;
+              })
+              .catch(squareError => {
+                console.error('⚠️ [Square] Failed to create COD item:', squareError);
+                return null; // Don't block if Square fails
               });
-              console.log('✅ [Square] COD item created for:', delivery.patient_name);
-            } catch (squareError) {
-              console.error('⚠️ [Square] Failed to create COD item:', squareError);
-              // Don't block the delivery save if Square fails
-            }
-          }
+          });
+
+        if (squarePromises.length > 0) {
+          await Promise.all(squarePromises);
         }
         console.log('[AddToRoute] ✅ Batch save completed successfully');
       }
