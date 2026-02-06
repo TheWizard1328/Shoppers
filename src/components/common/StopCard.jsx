@@ -2599,17 +2599,22 @@ export default function StopCard({
                           // CRITICAL: Save to both offline and online databases
                           await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
 
-                          // Find and update next delivery flag
-                          const allDriverDeliveries = allDeliveries.filter((d) =>
-                          d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                          );
+                          // CRITICAL: Re-fetch ALL deliveries to ensure we see the newly transitioned deliveries
+                          console.log('🔄 [Complete Pickup] Re-fetching ALL deliveries after Accept All...');
+                          const freshDeliveries = await base44.entities.Delivery.filter({
+                            driver_id: delivery.driver_id,
+                            delivery_date: delivery.delivery_date
+                          });
 
-                          const incompleteDeliveries = allDriverDeliveries.
+                          // Find and update next delivery flag
+                          const incompleteDeliveries = freshDeliveries.
                           filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').
                           sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
+                          console.log(`🎯 [Complete Pickup] Found ${incompleteDeliveries.length} incomplete deliveries`);
                           if (incompleteDeliveries.length > 0) {
                             const nextStop = incompleteDeliveries[0];
+                            console.log(`✅ [Complete Pickup] Setting isNextDelivery=true on ${nextStop.patient_name || 'Pickup'}`);
                             await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
                           } else {
                             // CRITICAL: This is the FINAL stop - activate FAB phase 1 and show route summary
