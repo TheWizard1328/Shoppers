@@ -8038,8 +8038,8 @@ function Dashboard() {
           isLocked={isMapViewLocked}
           stopCardsHeight={stopCardsBaseHeight} />
 
-        {/* Re-optimize Route FAB - Only for drivers viewing their own route */}
-        {isDriver && !isAdmin && !isDispatcher && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
+        {/* Re-optimize Route FAB - Only for app owner (testing phase) */}
+        {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
