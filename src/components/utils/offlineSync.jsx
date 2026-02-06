@@ -716,6 +716,14 @@ export const processPendingMutations = async () => {
       successCount++;
       await new Promise(r => setTimeout(r, 500));
     } catch (error) {
+      // CRITICAL: If record was deleted (404), remove mutation from queue (silent)
+      if (error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('not found')) {
+        console.log(`⏭️ [OfflineSync] Removing mutation for deleted record: ${mutation.recordId} (${mutation.entity})`);
+        await offlineDB.removePendingMutation(mutation.mutationId);
+        successCount++;
+        continue;
+      }
+      
       await offlineDB.updateMutationRetry(mutation.mutationId, (mutation.retryCount || 0) + 1);
       failCount++;
       
