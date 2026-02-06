@@ -1770,20 +1770,24 @@ export default function StopCard({
                           const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
                           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-                          // Update all pending deliveries to in_transit with delivery_time_start (locally only - skip API)
-                           for (const pendingDelivery of allPendingDeliveries) {
-                             updateDeliveryLocal(pendingDelivery.id, {
-                               status: 'in_transit',
-                               delivery_time_start: deliveryTimeStart
-                             }, { skipSmartRefresh: true });
-                             console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, delivery_time_start: ${deliveryTimeStart}`);
+                          // OPTIMIZED: Batch all status updates in parallel
+                          const statusUpdatePromises = allPendingDeliveries.map(pendingDelivery => 
+                            updateDeliveryLocal(pendingDelivery.id, {
+                              status: 'in_transit',
+                              delivery_time_start: deliveryTimeStart
+                            }, { skipSmartRefresh: true })
+                          );
+                          
+                          await Promise.all(statusUpdatePromises);
+                          console.log(`✅ Updated ${allPendingDeliveries.length} deliveries to in_transit`);
 
-                            // SQUARE INTEGRATION: Create COD item if applicable
-                            if (pendingDelivery.cod_total_amount_required > 0 && pendingDelivery.patient_id) {
+                          // OPTIMIZED: Batch all Square COD item creation in parallel
+                          const codPromises = allPendingDeliveries
+                            .filter(pd => pd.cod_total_amount_required > 0 && pd.patient_id)
+                            .map(async (pendingDelivery) => {
                               try {
                                 const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
                                 const codAmountDollars = pendingDelivery.cod_total_amount_required;
-                                console.log('💳 [Square] Creating COD item for accepted/assigned delivery:', pendingDelivery.id, 'Amount:', codAmountDollars);
                                 await base44.functions.invoke('squareCreateCodItem', {
                                   deliveryId: pendingDelivery.id,
                                   patientName: pendingDelivery.patient_name,
@@ -1792,11 +1796,14 @@ export default function StopCard({
                                   deliveryDate: pendingDelivery.delivery_date,
                                   storeId: pendingDelivery.store_id
                                 });
-                                console.log('✅ [Square] COD item created for:', pendingDelivery.patient_name);
                               } catch (squareError) {
                                 console.error('⚠️ [Square] Failed to create COD item:', squareError);
                               }
-                            }
+                            });
+                          
+                          if (codPromises.length > 0) {
+                            await Promise.all(codPromises);
+                            console.log(`✅ Created ${codPromises.length} Square COD items`);
                           }
 
                           // CRITICAL: Dispatch event to trigger ETA updates for pending->in_transit transitions
@@ -1868,15 +1875,15 @@ export default function StopCard({
                           (a.patient_name || '').localeCompare(b.patient_name || '')
                           );
 
-                          // Assign sequential TR#s
-                          for (let i = 0; i < sortedPending.length; i++) {
-                            const newTR = String(baseTR + i + 1);
-                            await updateDeliveryLocal(sortedPending[i].id, {
-                              tracking_number: newTR
-                            }, { skipSmartRefresh: true });
-                            console.log(`  ✅ ${sortedPending[i].patient_name}: TR# ${newTR}`);
-                          }
-                          console.log('  ✅ TR#s assigned sequentially');
+                          // OPTIMIZED: Batch all TR# assignments in parallel
+                          const trUpdatePromises = sortedPending.map((pd, i) => 
+                            updateDeliveryLocal(pd.id, {
+                              tracking_number: String(baseTR + i + 1)
+                            }, { skipSmartRefresh: true })
+                          );
+                          
+                          await Promise.all(trUpdatePromises);
+                          console.log(`✅ Assigned TR#s sequentially to ${sortedPending.length} deliveries`);
 
                           // Step 6 & 7: Let smart refresh handle the sync
                            console.log('🟢 [Assign All] Step 6-7: Smart refresh will sync data...');
