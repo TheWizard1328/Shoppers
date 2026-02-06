@@ -2213,6 +2213,17 @@ function Dashboard() {
         }
       }
 
+      // CRITICAL: Update isNextDelivery flags for each active driver
+      const activeDriverIds = new Set(freshDeliveries.map(d => d?.driver_id).filter(Boolean));
+      
+      for (const activeDriverId of activeDriverIds) {
+        try {
+          await updateNextDeliveryFlags(activeDriverId, selectedDateStr);
+        } catch (flagError) {
+          console.warn(`⚠️ [Periodic Refresh] Failed to update isNextDelivery for driver ${activeDriverId}:`, flagError.message);
+        }
+      }
+
       // CRITICAL: Always process location data for ALL drivers to update markers
       driverLocationPoller.processLocationData(
         currentUser, 
