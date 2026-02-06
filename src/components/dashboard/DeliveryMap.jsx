@@ -62,9 +62,9 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 // CRITICAL: Memoized icon cache to prevent re-creation on every render
 const simpleCircleIconCache = new Map();
 
-const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, borderColor = 'white', isOtherDriver = false, clusterCount = 0) => {
+const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, borderColor = 'white', isOtherDriver = false, clusterCount = 0, isNextDelivery = false) => {
   // Use caching to prevent icon re-creation causing pulsation
-  const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}`;
+  const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}_${isNextDelivery}`;
   
   if (simpleCircleIconCache.has(cacheKey)) {
     return simpleCircleIconCache.get(cacheKey);
@@ -83,7 +83,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
   };
 
   const statusColor = statusColors[status] || '#94A3B8';
-  const driverColor = borderColor; // This is the driver/pin color passed in (background of circle)
+  const driverColor = isNextDelivery ? '#FDE047' : borderColor; // Bright yellow ring for next delivery
 
   // CRITICAL: Match exact sizing from regular markers
   let baseSize = 24 * 0.75;
