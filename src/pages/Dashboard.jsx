@@ -7272,6 +7272,24 @@ function Dashboard() {
                   updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
                 }
                 
+                // CRITICAL: Process driver locations through poller to update ALL markers
+                console.log('📍 [Pull to Sync] Processing driver locations through poller for marker updates...');
+                driverLocationPoller.processLocationData(
+                  currentUser, 
+                  freshDeliveries, 
+                  drivers, 
+                  stores, 
+                  freshAppUsers, 
+                  selectedDate, 
+                  true, // forceNotify
+                  'Dashboard' // currentPageName
+                );
+                
+                // CRITICAL: Dispatch location updates for ALL drivers
+                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                  detail: { appUsers: freshAppUsers, forceAll: true }
+                }));
+                
                 // Force map update based on selection mode
                 const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -7296,7 +7314,7 @@ function Dashboard() {
                 // Force stats refresh
                 window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                 
-                console.log('✅ [Dashboard] Pull to sync UI update complete');
+                console.log('✅ [Dashboard] Pull to sync UI update complete - all markers refreshed');
               }}
             />
 
