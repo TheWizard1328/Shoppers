@@ -2203,7 +2203,7 @@ function Dashboard() {
       }) :
       locations;
 
-      console.log(`📍 [Dashboard] Setting ${filteredLocations.length} driver locations (mobile: ${isMobile}, GPS tracking: ${isTrackingOnThisDevice}, filtered self: ${locations.length - filteredLocations.length})`);
+      // Setting filtered driver locations
 
       setAllDriverLocations(filteredLocations);
     });
@@ -2221,16 +2221,12 @@ function Dashboard() {
     };
   }, [isDataLoaded, currentUser?.id, currentUser?.user_id, isMobile, isDriver]);
 
-  // CRITICAL: Separate effect to reprocess location data when dependencies change
-  // This ensures the poller has updated data without restarting (which would clear subscribers)
-  useEffect(() => {
-    if (!isDataLoaded || !currentUser || !deliveries || !drivers || !appUsers) {
-      return;
-    }
-
-    console.log('📍 [Dashboard] Reprocessing location data - data updated');
-    driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, true);
-  }, [isDataLoaded, currentUser?.id, deliveries, drivers, appUsers, stores, selectedDate]);
+  // REMOVED: Excessive location data reprocessing effect
+  // The poller already handles updates through:
+  // 1. Initial setup when it starts
+  // 2. Periodic refresh triggers (every 15 seconds)
+  // 3. Event-driven updates (deliveriesUpdated, driverLocationsUpdated)
+  // This effect was causing unnecessary re-renders and console spam
 
   // REMOVED: This effect was causing re-processing on every appUsers/deliveries change
   // Location processing is now handled once on mount in the poller initialization effect above // Fetch and display current-to-next polyline for display
