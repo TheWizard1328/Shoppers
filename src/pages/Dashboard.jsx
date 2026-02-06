@@ -2093,12 +2093,14 @@ function Dashboard() {
         console.log(`🌐 [Periodic Refresh] Fetching ALL drivers from API (${isToday ? 'today - cross-device sync' : 'online mode'})`);
         try {
           freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+          console.log(`📊 [Periodic Refresh API] isNextDelivery flags:`, freshDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
           // CRITICAL: ALWAYS sync to offline DB after API fetch to persist updates
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
           console.log(`✅ [Periodic Refresh] Synced ${freshDeliveries.length} deliveries to offline DB`);
         } catch (apiError) {
           console.warn(`⚠️ [Periodic Refresh] API fetch failed - using offline DB: ${apiError.message}`);
           freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr) || [];
+          console.log(`📊 [Periodic Refresh Offline Fallback] isNextDelivery flags:`, freshDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
         }
       } else {
         // Historical dates - try offline DB first
@@ -2107,15 +2109,18 @@ function Dashboard() {
         if (!freshDeliveries || freshDeliveries.length === 0) {
           console.log('📥 [Periodic Refresh] Offline DB empty - fetching ALL from API');
           freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+          console.log(`📊 [Periodic Refresh API Backfill] isNextDelivery flags:`, freshDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
         } else {
           console.log(`📦 [Periodic Refresh] Loaded ${freshDeliveries.length} ALL drivers from offline DB`);
+          console.log(`📊 [Periodic Refresh Offline] isNextDelivery flags:`, freshDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
           // CRITICAL: Even when using offline data, occasionally refresh from API to catch cross-device updates
           // Refresh every 3 cycles (45 seconds) to stay current
           if (Math.floor(Date.now() / 15000) % 3 === 0) {
             console.log(`🔄 [Periodic Refresh] Syncing offline DB with API for cross-device updates...`);
             try {
               const apiDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+              console.log(`📊 [Periodic Refresh API Sync] isNextDelivery flags:`, apiDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, apiDeliveries);
               freshDeliveries = apiDeliveries;
               console.log(`✅ [Periodic Refresh] Synced ${apiDeliveries.length} deliveries from API to offline DB`);
@@ -2126,8 +2131,9 @@ function Dashboard() {
         }
       }
 
-      // Update context with fresh deliveries
+      // Update context with fresh deliveries - CRITICAL: Preserve isNextDelivery flags
       if (updateDeliveriesLocally && freshDeliveries.length > 0) {
+        console.log(`📊 [Periodic Refresh Pre-Update] isNextDelivery flags being passed to UI:`, freshDeliveries.filter(d => d.isNextDelivery).map(d => ({ id: d.id, patient_name: d.patient_name, driver_id: d.driver_id })));
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
         updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
         console.log(`✅ [Periodic Refresh] Updated UI with ${freshDeliveries.length} ALL drivers deliveries`);
