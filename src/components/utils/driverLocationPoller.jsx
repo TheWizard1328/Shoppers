@@ -71,8 +71,9 @@ class DriverLocationPoller {
       return;
     }
 
-    // CRITICAL: Skip processing location data if not on Dashboard or viewing past date
-    if (currentPageName && selectedDate) {
+    // CRITICAL: Skip page/date check when forceNotify=true (smart refresh with fresh data)
+    // Only enforce Dashboard/today check for automatic polling cycles
+    if (!forceNotify && currentPageName && selectedDate) {
       const todayStr = new Date().toISOString().split('T')[0];
       const selectedDateStr = selectedDate instanceof Date 
         ? selectedDate.toISOString().split('T')[0]
@@ -83,6 +84,9 @@ class DriverLocationPoller {
         return;
       }
     }
+    
+    console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} driver locations (forceNotify: ${forceNotify})`);
+
 
     // Update internal current user reference
     this.currentUser = currentUser;
