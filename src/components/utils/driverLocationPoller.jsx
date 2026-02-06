@@ -63,8 +63,9 @@ class DriverLocationPoller {
     * @param {Array} appUsers - Array of AppUser objects with location data (fallback if offline DB fails)
     * @param {Date} selectedDate - Currently selected date
     * @param {string} currentPageName - Current page name (to check if on Dashboard)
+    * @param {boolean} showAllDrivers - Whether "show all" or "all drivers" mode is active
     */
-  async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false, currentPageName = null) {
+  async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false, currentPageName = null, showAllDrivers = false) {
     // Skip processing if paused (e.g., during imports)
     if (this.isPaused) {
       return;
@@ -190,44 +191,52 @@ class DriverLocationPoller {
       // ========================================
       if (isDispatcher && !isAdmin && !isDriver) {
         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
-        
-        // Check if driver has ANY active stops for dispatcher's stores
-        const hasAssignedStops = (deliveries || []).some(delivery => {
+
+        // Check if driver has ANY deliveries for dispatcher's stores (today)
+        const hasDeliveriesFromDispatcherStores = (deliveries || []).some(delivery => {
           if (!delivery) return false;
           if (delivery.driver_id !== driverId) return false;
           if (delivery.delivery_date !== todayStr) return false;
           if (!dispatcherStoreIds.has(delivery.store_id)) return false;
-          if (['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status)) return false;
-          return true;
+          return true; // Include all deliveries, not just active ones
         });
-        
-        if (!hasAssignedStops) {
-          console.log(`🚫 [DriverLocationPoller] Dispatcher: driver ${user.user_name} has no active stops`);
+
+        if (!hasDeliveriesFromDispatcherStores) {
+          console.log(`🚫 [DriverLocationPoller] Dispatcher: driver ${user.user_name} has no deliveries from dispatcher stores`);
           return false;
         }
-        
-        // Dispatchers see assigned driver markers regardless of driver_status or location_tracking_enabled
-        console.log(`✅ [DriverLocationPoller] Dispatcher: showing assigned driver ${user.user_name}`);
+
+        // Dispatchers ALWAYS see their assigned drivers' markers
+        // Regardless of driver_status, location_tracking_enabled, or showAllDrivers mode
+        console.log(`✅ [DriverLocationPoller] Dispatcher: showing driver ${user.user_name} (has deliveries from dispatcher stores)`);
         return true;
       }
 
       // ========================================
-      // RULE 3: Other drivers' markers (for drivers and admins)
+      // RULE 3: Admins and Drivers viewing other drivers
       // ========================================
-      // Must have location_tracking_enabled = true
-      if (user.location_tracking_enabled !== true) {
-        console.log(`🚫 [DriverLocationPoller] ${user.user_name} - tracking disabled`);
+
+      // CRITICAL: Must be in "show all" or "all drivers" mode
+      if (!showAllDrivers) {
+        console.log(`🚫 [DriverLocationPoller] ${user.user_name} - not in show all/all drivers mode`);
         return false;
       }
-      
+
       // Must be on_duty or on_break
       if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
         console.log(`🚫 [DriverLocationPoller] ${user.user_name} - not on duty/break (${user.driver_status})`);
         return false;
       }
 
-      // Admin or driver viewing other drivers - show if sharing enabled and on duty/break
-      console.log(`✅ [DriverLocationPoller] ${user.user_name} - visible to ${isAdmin ? 'admin' : 'driver'}`);
+      // For non-admin drivers, must have location_tracking_enabled = true
+      // Admins bypass this check (admin override)
+      if (!isAdmin && user.location_tracking_enabled !== true) {
+        console.log(`🚫 [DriverLocationPoller] ${user.user_name} - tracking disabled (driver viewing)`);
+        return false;
+      }
+
+      // Show marker for admin or driver in show all/all drivers mode
+      console.log(`✅ [DriverLocationPoller] ${user.user_name} - visible to ${isAdmin ? 'admin' : 'driver'} (show all mode)`);
       return true;
     });
 
