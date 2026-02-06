@@ -2545,6 +2545,15 @@ export default function DeliveryForm({
         console.log('[AddToRoute] ✅ Batch save completed successfully');
       }
 
+      // CRITICAL: Resume SmartRefresh ONCE after all updates complete
+      try {
+        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+        smartRefreshManager.restart();
+        console.log('▶️ [AddToRoute] Resumed SmartRefresh after batch operation');
+      } catch (error) {
+        console.warn('⚠️ [AddToRoute] Failed to resume SmartRefresh:', error);
+      }
+
       // CRITICAL: Always trigger data refresh if only updating existing deliveries
       if (existingDeliveries.length > 0 && newDeliveries.length === 0) {
         console.log('[AddToRoute] 🔄 Updating existing deliveries only...');
