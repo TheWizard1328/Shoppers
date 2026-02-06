@@ -624,22 +624,22 @@ Deno.serve(async (req) => {
           let totalDutyMinutes = 0;
           if (finishedWithTimes.length > 0) {
             const firstMinutes = finishedWithTimes[0].localMinutes;
-            
+
             // Determine end time: last stop OR current time if driver is on_duty
             let endMinutes;
             const allPatientDeliveries = todayDeliveries.filter(d => d && d.patient_id);
             const routeComplete = allPatientDeliveries.length > 0 &&
               allPatientDeliveries.every(d => finishedStatuses.includes(d.status));
-            
+
             if (routeComplete) {
               // Route complete - use last stop's completion time
               endMinutes = finishedWithTimes[finishedWithTimes.length - 1].localMinutes;
               console.log(`⏱️ [TIME CALC] Route complete - using last stop time`);
             } else {
-              // Still on duty - use current device time
+              // Still on duty or no patient deliveries - use current device time
               const now = new Date();
               endMinutes = now.getHours() * 60 + now.getMinutes();
-              console.log(`⏱️ [TIME CALC] Route active - using current time`);
+              console.log(`⏱️ [TIME CALC] Route active/no patients - using current time`);
             }
             
             // Calculate raw duration and deduct breaks
