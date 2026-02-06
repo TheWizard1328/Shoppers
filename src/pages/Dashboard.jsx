@@ -2092,7 +2092,7 @@ function Dashboard() {
     const interval = setInterval(runPeriodicSmartRefresh, 15000);
 
     return () => clearInterval(interval);
-  }, [isDataLoaded, currentUser, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, deliveries, drivers, stores, patients, appUsers, dataSource, updateDeliveriesLocally]);
+  }, [isDataLoaded, currentUser?.id, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, dataSource]);
 
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   // CRITICAL: Initialize poller once on mount
