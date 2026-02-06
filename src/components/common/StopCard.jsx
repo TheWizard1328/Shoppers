@@ -1509,10 +1509,10 @@ export default function StopCard({
 
                   {/* COD Information - For active deliveries with COD required (always show, but disable editing for driver-stripped) */}
                   {hasCODRequired && !isPickup && !isFinishedDelivery &&
-                <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
-                      <span className="text-lg md:text-xs font-semibold text-amber-800">COD Required: ${codTotalRequired.toFixed(2)}</span>
+                <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: 'var(--bg-amber-50)', borderWidth: '1px', borderColor: 'var(--border-amber-200)' }}>
+                      <span className="text-lg md:text-xs font-semibold" style={{ color: 'var(--text-amber-800)' }}>COD Required: ${codTotalRequired.toFixed(2)}</span>
                       {userHasRole(currentUser, 'driver') && !isStrippedForDriver &&
-                  <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs text-amber-700 hover:text-amber-900" onClick={(e) => {
+                  <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs hover:bg-amber-100 dark:hover:bg-amber-900/30" style={{ color: 'var(--text-amber-700)' }} onClick={(e) => {
                     e.stopPropagation();
                     setShowCODCollection(!showCODCollection);
                     // Auto-add payment when opening COD collection and focus dropdown
@@ -1528,8 +1528,12 @@ export default function StopCard({
 
                   {/* COD Collected - Show for active deliveries OR for finished deliveries with COD (disable editing for driver-stripped) */}
                   {hasCODRequired && !isPickup && codPayments.length > 0 &&
-                <div className={`flex items-center justify-between rounded-md px-2 py-1 ${isCODComplete ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
-                      <span className={`text-lg md:text-xs font-semibold ${isCODComplete ? 'text-emerald-800' : 'text-amber-800'}`}>
+                <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ 
+                  background: isCODComplete ? 'var(--bg-emerald-50)' : 'var(--bg-amber-50)',
+                  borderWidth: '1px',
+                  borderColor: isCODComplete ? 'var(--border-emerald-200)' : 'var(--border-amber-200)'
+                }}>
+                      <span className="text-lg md:text-xs font-semibold" style={{ color: isCODComplete ? 'var(--text-emerald-800)' : 'var(--text-amber-800)' }}>
                         COD Collected: {codPayments.map((payment, index) =>
                     <span key={index}>
                             {payment.type}: ${payment.amount.toFixed(2)}
@@ -1551,10 +1555,11 @@ export default function StopCard({
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="overflow-hidden bg-slate-50 rounded-md p-3 space-y-2 w-full"
+                    className="overflow-hidden rounded-md p-3 space-y-2 w-full"
+                    style={{ background: 'var(--bg-slate-50)' }}
                     onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm md:text-xs font-semibold text-slate-700">Collect COD Payments</span>
+                          <span className="text-sm md:text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>Collect COD Payments</span>
                           <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={async (e) => {
                             e.stopPropagation();
                             console.log('🗑️ [COD Clear] Clearing all COD payments');
@@ -1575,7 +1580,7 @@ export default function StopCard({
 
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                           {codPayments.map((payment, index) =>
-                      <div key={index} className="flex items-center gap-2 bg-white p-2 rounded border border-slate-200">
+                      <div key={index} className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
                               <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => {if (open) setShowCODCollection(true);}}>
                                <SelectTrigger className="h-7 text-sm md:text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
                                  <SelectValue placeholder="Type" />
@@ -1589,13 +1594,19 @@ export default function StopCard({
                               </Select>
 
                               <div className="relative flex-1">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm md:text-xs text-slate-500">$</span>
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm md:text-xs" style={{ color: 'var(--text-slate-500)' }}>$</span>
                                 <input
                             ref={(el) => codAmountInputRefs.current[index] = el}
                             type="text"
                             value={payment.amount > 0 ? payment.amount.toFixed(2) : payment.amount === 0 ? '0.00' : ''}
-                            onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)} className="h-7 w-full pl-5 pr-2 text-sm md:text-xs bg-white border border-slate-300 rounded-md"
-
+                            onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)}
+                            className="h-7 w-full pl-5 pr-2 text-sm md:text-xs rounded-md"
+                            style={{ 
+                              background: 'var(--bg-white)', 
+                              borderWidth: '1px', 
+                              borderColor: 'var(--border-slate-300)',
+                              color: 'var(--text-slate-900)'
+                            }}
                             placeholder="0.00"
                             onClick={(e) => e.stopPropagation()}
                             onFocus={(e) => e.target.select()} />
@@ -1614,13 +1625,13 @@ export default function StopCard({
                           Add Payment
                         </Button>
 
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                        <div className="flex items-center justify-between pt-2" style={{ borderTopWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
                           <div className="text-sm md:text-xs">
-                            <span className="text-slate-600">Total: </span>
-                            <span className={`font-bold ${isCODComplete ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            <span style={{ color: 'var(--text-slate-600)' }}>Total: </span>
+                            <span className="font-bold" style={{ color: isCODComplete ? 'var(--text-emerald-600)' : 'var(--text-amber-600)' }}>
                               ${codTotalCollected.toFixed(2)}
                             </span>
-                            <span className="text-slate-600"> / ${codTotalRequired.toFixed(2)}</span>
+                            <span style={{ color: 'var(--text-slate-600)' }}> / ${codTotalRequired.toFixed(2)}</span>
                           </div>
 
                           <Button size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700" onClick={(e) => {e.stopPropagation();handleSaveCODPayments();}} disabled={codPayments.length === 0}>
