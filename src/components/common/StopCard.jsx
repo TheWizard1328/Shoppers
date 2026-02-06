@@ -2556,7 +2556,7 @@ export default function StopCard({
                                 }, { skipSmartRefresh: true });
                               }
 
-                              // Refresh data
+                              // Refresh data to get optimized stop orders
                               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                               console.log('✅ [Complete Pickup] Accept All completed - now completing pickup...');
