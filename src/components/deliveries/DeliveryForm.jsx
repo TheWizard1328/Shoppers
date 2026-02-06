@@ -2374,6 +2374,15 @@ export default function DeliveryForm({
     setIsSaving(true);
     setError(null);
 
+    // CRITICAL: Pause SmartRefresh ONCE for the entire batch operation
+    try {
+      const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+      smartRefreshManager.pause();
+      console.log('⏸️ [AddToRoute] Paused SmartRefresh for batch operation');
+    } catch (error) {
+      console.warn('⚠️ [AddToRoute] Failed to pause SmartRefresh:', error);
+    }
+
     try {
       // First, update existing deliveries with corrected TR#s (batched for speed)
       if (existingDeliveriesToUpdate.length > 0) {
@@ -2456,7 +2465,7 @@ export default function DeliveryForm({
             puid: updated.puid || ''
           };
 
-          return updateDeliveryLocal(updated.id, updateData)
+          return updateDeliveryLocal(updated.id, updateData, { isBatchOperation: true })
             .then(() => {
               console.log(`[AddToRoute] ✅ Updated delivery: ${updated.patient_name} to status ${updateData.status}`);
               return null;
