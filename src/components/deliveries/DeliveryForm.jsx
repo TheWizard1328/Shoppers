@@ -2742,6 +2742,9 @@ export default function DeliveryForm({
       predictionsStopped.current = false; // Reset on error (form stays open, allow predictions)
       setIsLoadingPredictions(false); // Re-enable predictions on error
       
+      // CRITICAL: Release batch flag on error
+      setBatchFormSaving(false);
+      
       // Resume SmartRefresh on error
       try {
         const { smartRefreshManager } = await import('../utils/smartRefreshManager');
