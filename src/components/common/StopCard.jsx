@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactDOM from "react-dom";
@@ -12,7 +13,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue } from
+  SelectValue
+} from
 "@/components/ui/select";
 import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation, GripVertical, Bell, BellOff, Mailbox } from "lucide-react";
 import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
@@ -35,7 +37,8 @@ import {
   notifyDriverCompleted,
   notifyDriverFailed,
   notifyDriverRetry,
-  notifyDriverReturn } from
+  notifyDriverReturn
+} from
 "../utils/deliveryMessaging";
 import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
@@ -69,11 +72,11 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 const formatTime12Hour = (timeString) => {
   // Silently handle missing, invalid, or placeholder times (common for pending deliveries)
   if (!timeString ||
-  timeString === '--:--' ||
-  timeString === 'null' ||
-  timeString === 'undefined' ||
-  timeString === 'NaN:NaN' ||
-  String(timeString).includes('NaN')) {
+    timeString === '--:--' ||
+    timeString === 'null' ||
+    timeString === 'undefined' ||
+    timeString === 'NaN:NaN' ||
+    String(timeString).includes('NaN')) {
     return '--:--';
   }
 
@@ -165,8 +168,10 @@ export default function StopCard({
   const isStrippedForDriver = useMemo(() => {
     if (!currentUser || !delivery) return false;
     if (userHasRole(currentUser, 'admin')) return false;
-    if (!userHasRole(currentUser, 'driver')) return false;
-    return delivery._isStripped === true;
+    if (userHasRole(currentUser, 'driver')) {
+      return delivery._isStripped === true;
+    }
+    return false;
   }, [delivery?._isStripped, currentUser]);
 
   const isStrippedForDispatcher = useMemo(() => {
@@ -289,8 +294,8 @@ export default function StopCard({
   }, [patient, delivery?.unit_number, isPickup]);
 
   const safeDriver = useMemo(() =>
-  driver && typeof driver === 'object' ? driver : null,
-  [driver]);
+    driver && typeof driver === 'object' ? driver : null,
+    [driver]);
 
   const driverBadgeColor = useMemo(() => {
     if (getDriverColor && safeDriver) {
@@ -321,8 +326,8 @@ export default function StopCard({
     const patientNotes = (patient?.notes || '').toUpperCase();
 
     return patientName.includes('(RTN)') ||
-    deliveryNotes.includes('(RTN)') ||
-    patientNotes.includes('(RTN)');
+      deliveryNotes.includes('(RTN)') ||
+      patientNotes.includes('(RTN)');
   }, [delivery, patient, isPickup]);
 
   // Check if this is a first delivery based on patient's last_delivery_date
@@ -409,16 +414,16 @@ export default function StopCard({
     if (isPickup || isInterStore || isInterStorePickup) return false;
     // Redact completed deliveries for drivers (not admins/dispatchers)
     if (isCompleted &&
-    !userHasRole(currentUser, 'admin') &&
-    !userHasRole(currentUser, 'dispatcher') &&
-    userHasRole(currentUser, 'driver')) {
+      !userHasRole(currentUser, 'admin') &&
+      !userHasRole(currentUser, 'dispatcher') &&
+      userHasRole(currentUser, 'driver')) {
       return true;
     }
     // Redact when route is complete for drivers
     if (isRouteCompleted &&
-    !userHasRole(currentUser, 'admin') &&
-    !userHasRole(currentUser, 'dispatcher') &&
-    userHasRole(currentUser, 'driver')) {
+      !userHasRole(currentUser, 'admin') &&
+      !userHasRole(currentUser, 'dispatcher') &&
+      userHasRole(currentUser, 'driver')) {
       return true;
     }
     return false;
@@ -629,7 +634,7 @@ export default function StopCard({
       }
       return;
     }
-    
+
     if (notesInput !== delivery.delivery_notes && onNotesUpdate) {
       onNotesUpdate(delivery.id, notesInput);
     }
@@ -701,15 +706,221 @@ export default function StopCard({
       try {
         console.log('💾 [COD Save] Saving payments:', codPayments);
         console.log('💾 [COD Save] Current delivery cod_payments:', delivery?.cod_payments);
-        
+
         // Pass skipAutoCenter=true to prevent card scrolling after COD save
         await onCODUpdate(delivery.id, codPayments, true);
-        
+
         console.log('✅ [COD Save] onCODUpdate completed');
         setShowCODCollection(false);
       } catch (error) {
         console.error('❌ [COD Save] Failed:', error);
         alert(`Failed to save COD: ${error.message}`);
+      }
+    }
+  };
+
+  const handleAcceptAllStops = async () => {
+    console.log('🟢 [Accept All] Step 1: Pausing location poller...');
+    const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+    driverLocationPoller.pause();
+
+    console.log('🟢 [Accept All] Step 2: Running smart refresh...');
+
+    // Step 2: Run smart refresh
+    smartRefreshManager.lastRefreshTimes = {
+      driverLocation: 0,
+      activeDeliveries: 0,
+      todayDeliveries: 0,
+      appUsers: 0,
+      patients: 0,
+      stores: 0
+    };
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Step 3: Pause smart refresh
+    console.log('🟢 [Assign All] Step 3: Pausing smart refresh...');
+    setIsEntityUpdating(true);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    try {
+      // Step 3: Change all pending stops to in_transit
+      console.log('🟢 [Assign All] Step 3: Changing pending stops to in_transit...');
+      const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
+      console.log(`  Found ${allPendingDeliveries.length} pending deliveries`);
+
+      // Get pickup's stop_order
+      const pickupStopOrder = delivery.stop_order || 0;
+      console.log(`  Pickup stop order: ${pickupStopOrder}`);
+
+      // CRITICAL: Set delivery_time_start to current time + 5 minutes for all pending deliveries
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const startMinutes = currentMinutes + 5;
+      const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      // OPTIMIZED: Batch all status updates in parallel
+      const statusUpdatePromises = allPendingDeliveries.map(pendingDelivery =>
+        updateDeliveryLocal(pendingDelivery.id, {
+          status: 'in_transit',
+          delivery_time_start: deliveryTimeStart
+        }, { skipSmartRefresh: true })
+      );
+
+      await Promise.all(statusUpdatePromises);
+      console.log(`✅ Updated ${allPendingDeliveries.length} deliveries to in_transit`);
+
+      // OPTIMIZED: Batch all Square COD item creation in parallel
+      const codPromises = allPendingDeliveries
+        .filter(pd => pd.cod_total_amount_required > 0 && pd.patient_id)
+        .map(async (pendingDelivery) => {
+          try {
+            const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
+            const codAmountDollars = pendingDelivery.cod_total_amount_required;
+            await base44.functions.invoke('squareCreateCodItem', {
+              deliveryId: pendingDelivery.id,
+              patientName: pendingDelivery.patient_name,
+              storeAbbreviation: storeForCod?.abbreviation || '',
+              codAmount: codAmountDollars,
+              deliveryDate: pendingDelivery.delivery_date,
+              storeId: pendingDelivery.store_id
+            });
+          } catch (squareError) {
+            console.error('⚠️ [Square] Failed to create COD item:', squareError);
+          }
+        });
+
+      if (codPromises.length > 0) {
+        await Promise.all(codPromises);
+        console.log(`✅ Created ${codPromises.length} Square COD items`);
+      }
+
+      // CRITICAL: Dispatch event to trigger ETA updates for pending->in_transit transitions
+      window.dispatchEvent(new CustomEvent('pendingToInTransit', {
+        detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+      }));
+
+      // CRITICAL: Dispatch deliveriesUpdated event IMMEDIATELY after status changes
+      // This ensures map route lines update before waiting for optimization
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+      }));
+
+      // Step 4: Sort by delivery_time_start and group by store for staged optimization
+      console.log('🟢 [Assign All] Step 4: Sorting by delivery_time_start and optimizing in stages...');
+
+      // CRITICAL: Sort all pending deliveries by delivery_time_start BEFORE grouping
+      const sortedPendingDeliveries = [...allPendingDeliveries].sort((a, b) => {
+        const timeA = a.delivery_time_start ? parseInt(a.delivery_time_start.split(':')[0]) * 60 + parseInt(a.delivery_time_start.split(':')[1]) : Infinity;
+        const timeB = b.delivery_time_start ? parseInt(b.delivery_time_start.split(':')[0]) * 60 + parseInt(b.delivery_time_start.split(':')[1]) : Infinity;
+        return timeA - timeB;
+      });
+
+      console.log(`  Sorted ${sortedPendingDeliveries.length} deliveries by delivery_time_start`);
+
+      // Group deliveries by store_id for staged optimization
+      const deliveriesByStore = new Map();
+      for (const d of sortedPendingDeliveries) {
+        const storeId = d.store_id;
+        if (!deliveriesByStore.has(storeId)) {
+          deliveriesByStore.set(storeId, []);
+        }
+        deliveriesByStore.get(storeId).push(d);
+      }
+
+      console.log(`  Found ${deliveriesByStore.size} store groups to optimize`);
+
+      // CRITICAL: Run recursive route optimizer
+      try {
+        console.log('🔄 [Accept/Assign All] Running optimizeRouteRealTime...');
+        await base44.functions.invoke('optimizeRouteRealTime', {
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          currentLocalTime: currentLocalTime,
+          generatePolyline: false
+        });
+        console.log('✅ [Accept/Assign All] Route optimized');
+
+        // CRITICAL: Refresh UI to show reordered stops
+        invalidate('Delivery');
+        await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+        console.log('✅ [Accept/Assign All] UI refreshed with new stop order');
+
+        // CRITICAL: Trigger map route line refresh
+        window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
+      } catch (optimizeError) {
+        console.warn('⚠️ [Accept/Assign All] Route optimizer failed, continuing without optimization:', optimizeError);
+      }
+
+      // Step 5: Update TR#s sequentially for newly accepted stops
+      console.log('🟢 [Assign All] Step 5: Assigning sequential TR#s...');
+
+      const pickupTR = parseInt(delivery.tracking_number, 10);
+      const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
+      console.log(`  Using pickup TR# ${baseTR} as base`);
+
+      // Sort pending by patient name for consistent TR# assignment
+      const sortedPending = [...allPendingDeliveries].sort((a, b) =>
+        (a.patient_name || '').localeCompare(b.patient_name || '')
+      );
+
+      // OPTIMIZED: Batch all TR# assignments in parallel
+      const trUpdatePromises = sortedPending.map((pd, i) =>
+        updateDeliveryLocal(pd.id, {
+          tracking_number: String(baseTR + i + 1)
+        }, { skipSmartRefresh: true })
+      );
+
+      await Promise.all(trUpdatePromises);
+      console.log(`✅ Assigned TR#s sequentially to ${sortedPending.length} deliveries`);
+
+      // Step 6 & 7: Let smart refresh handle the sync
+      console.log('🟢 [Assign All] Step 6-7: Smart refresh will sync data...');
+      // Don't call forceRefreshDriverDeliveries here - it floods API
+      // Smart refresh will pick up the changes automatically
+
+      // Send notifications
+      const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
+      if (isDriverAction) {
+        await notifyDriverAcceptedAll({
+          driver: currentUser,
+          store,
+          appUsers
+        });
+      } else {
+        const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
+        if (assignedDriver) {
+          await notifyDispatcherAssignedAll({
+            dispatcher: currentUser,
+            driver: assignedDriver,
+            store,
+            deliveries: allPendingDeliveries,
+            patients
+          });
+        }
+      }
+
+      console.log('✅ [Assign All] Complete');
+    } finally {
+      // Step 8: Reset and resume smart refresh + location poller
+      console.log('🟢 [Assign All] Step 8: Resuming location poller and smart refresh...');
+      const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+      driverLocationPoller.resume();
+
+      smartRefreshManager.lastRefreshTimes = {
+        driverLocation: 0,
+        activeDeliveries: 0,
+        todayDeliveries: 0,
+        appUsers: 0,
+        patients: 0,
+        stores: 0
+      };
+      setIsEntityUpdating(false);
+      console.log('  ✅ Smart refresh and location poller resumed');
+
+      // CRITICAL: Collapse the card after assign/accept all completes
+      if (onClick) {
+        onClick(null);
       }
     }
   };
@@ -725,7 +936,7 @@ export default function StopCard({
       // Find the return patient for this store
       const returnPatientName = `${store.name.replace(/-/g, ' ')} Return`;
       const foundReturnPatient = patients.find((p) =>
-      p && p.full_name === returnPatientName && p.store_id === delivery.store_id
+        p && p.full_name === returnPatientName && p.store_id === delivery.store_id
       );
       if (!foundReturnPatient) {
         alert(`Return patient "${returnPatientName}" not found. Please ensure a patient with this name exists for the store.`);
@@ -832,26 +1043,26 @@ export default function StopCard({
       <Card className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[338px] max-w-[338px] border-blue-500"
 
 
-      onClick={() => {
-        // Allow clicking even for stripped deliveries (to show driver notes)
-        onClick && onClick(delivery);
-      }}
-      style={{
-        background: 'var(--bg-white)',
-        borderColor: isNextDelivery ? '#10B981' : '#3B82F6',
-        opacity: shouldFade ? 0.4 : 1,
-        transition: 'opacity 0.2s ease-in-out'
-      }}>
+        onClick={() => {
+          // Allow clicking even for stripped deliveries (to show driver notes)
+          onClick && onClick(delivery);
+        }}
+        style={{
+          background: 'var(--bg-white)',
+          borderColor: isNextDelivery ? '#10B981' : '#3B82F6',
+          opacity: shouldFade ? 0.4 : 1,
+          transition: 'opacity 0.2s ease-in-out'
+        }}>
         <CardContent className="p-6 px-2 py-0 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
             {showDragHandle && dragHandleProps && !FINISHED_STATUSES.includes(delivery.status) &&
-            <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
+              <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
                 <GripVertical className="w-5 h-5 text-slate-400 hover:text-slate-600" />
               </div>
             }
-            
+
             <div className="flex flex-col py-0. gap-0.5  items-center">
               <Badge
                 variant="secondary" className="bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 w-[40px] justify-center"
@@ -863,8 +1074,8 @@ export default function StopCard({
               </Badge>
 
               {isPickup && pendingPickups && pendingPickups.length > 0 &&
-              <Badge
-                variant="secondary" className="bg-purple-500 text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-lg inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 !text-white justify-center">
+                <Badge
+                  variant="secondary" className="bg-purple-500 text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-lg inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 !text-white justify-center">
 
                   P: {pendingPickups.length}
                 </Badge>
@@ -886,25 +1097,25 @@ export default function StopCard({
               <div className="flex flex-col items-center min-h-[40px]">
                 <div className="text-lg md:text-sm flex items-center justify-center" style={{ color: 'var(--text-slate-600)' }}>
                   {FINISHED_STATUSES.includes(delivery.status) && delivery.actual_delivery_time ?
-                  <>
+                    <>
                       <Clock className="w-3 h-3" />
                       <span className="font-medium">{formatTime12Hour(format(new Date(delivery.actual_delivery_time), 'HH:mm'))}</span>
                     </> :
 
-                  <span className="font-medium">ETA: {formatTime12Hour(
+                    <span className="font-medium">ETA: {formatTime12Hour(
                       delivery.delivery_time_eta || (
-                      isPickup ? delivery.delivery_time_start : null) ||
+                        isPickup ? delivery.delivery_time_start : null) ||
                       delivery.delivery_time_start ||
                       delivery.time_window_start ||
                       '--:--'
                     )}</span>
                   }
                   {showDriverName && safeDriver &&
-                  <>
+                    <>
                       <span className="px-1 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80" style={{ color: 'var(--text-slate-500)' }}>•</span>
                       <Badge
-                      variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-0.5 rounded-full text-xs !text-white  font-semibold"
-                      style={{ backgroundColor: driverBadgeColor, color: driverBadgeTextColor }}>
+                        variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-0.5 rounded-full text-xs !text-white  font-semibold"
+                        style={{ backgroundColor: driverBadgeColor, color: driverBadgeTextColor }}>
                         {getDriverDisplayName(safeDriver)}
                       </Badge>
                     </>
@@ -912,20 +1123,20 @@ export default function StopCard({
                 </div>
                 {/* Time Window - Only for non-finished stops */}
                 {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
-                <div className="text-sm md:text-[11px]" style={{ color: 'var(--text-slate-500)' }}>
+                  <div className="text-sm md:text-[11px]" style={{ color: 'var(--text-slate-500)' }}>
                     {delivery.time_window_start && delivery.time_window_end ?
-                  <>{formatTime12Hour(delivery.time_window_start)} → {formatTime12Hour(delivery.time_window_end)}</> :
-                  delivery.time_window_start ?
-                  <>{formatTime12Hour(delivery.time_window_start)} →</> :
-                  delivery.time_window_end ?
-                  <>← {formatTime12Hour(delivery.time_window_end)}</> :
-                  null}
+                      <>{formatTime12Hour(delivery.time_window_start)} → {formatTime12Hour(delivery.time_window_end)}</> :
+                      delivery.time_window_start ?
+                        <>{formatTime12Hour(delivery.time_window_start)} →</> :
+                        delivery.time_window_end ?
+                          <>← {formatTime12Hour(delivery.time_window_end)}</> :
+                          null}
                   </div>
                 }
                 {/* Driver Pay for Finished Stops - Drivers and Admins */}
                 {FINISHED_STATUSES.includes(delivery.status) && (
-                userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) && (
-                delivery.patient_id || delivery.after_hours_pickup) && (() => {
+                  userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) && (
+                  delivery.patient_id || delivery.after_hours_pickup) && (() => {
                   // For drivers viewing their own deliveries, use their own pay rates
                   // For admins, use the assigned driver's pay rates
                   // CRITICAL: delivery.driver_id IS the user_id (auth user ID), NOT AppUser.id
@@ -982,26 +1193,26 @@ export default function StopCard({
                 <Badge
                   variant="secondary"
                   className={`text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-full hover:bg-secondary/80 border-transparent inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
-                  isReturnDelivery ? 'bg-orange-500' :
-                  delivery.status === 'failed' || delivery.status === 'cancelled' ? 'bg-red-500' : 'bg-emerald-500'}`
+                    isReturnDelivery ? 'bg-orange-500' :
+                      delivery.status === 'failed' || delivery.status === 'cancelled' ? 'bg-red-500' : 'bg-emerald-500'}`
                   }
                   style={{ color: isPickup && delivery.after_hours_pickup && FINISHED_STATUSES.includes(delivery.status) ? '#3b82f6' : 'white' }}>
-                    {isReturnDelivery ? 'Return' : statusConfig[delivery.status]?.label || delivery.status}
-                  </Badge>
+                  {isReturnDelivery ? 'Return' : statusConfig[delivery.status]?.label || delivery.status}
+                </Badge>
               </div>
 
               {delivery.tracking_number && store?.abbreviation &&
-              <Badge
-                variant="secondary" className="bg-secondary text-secondary-foreground mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80"
-                style={{ backgroundColor: `${storeColor}`, color: `White` }}>
+                <Badge
+                  variant="secondary" className="bg-secondary text-secondary-foreground mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80"
+                  style={{ backgroundColor: `${storeColor}`, color: `White` }}>
                   {(() => {
-                  const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
-                  const trackingNum = parseInt(delivery.tracking_number) || 0;
-                  const formattedNum = trackingNum > 99 ?
-                  trackingNum.toString().padStart(3, '0') :
-                  trackingNum.toString().padStart(2, '0');
-                  return `${storeAbbr}${formattedNum}`;
-                })()}
+                    const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
+                    const trackingNum = parseInt(delivery.tracking_number) || 0;
+                    const formattedNum = trackingNum > 99 ?
+                      trackingNum.toString().padStart(3, '0') :
+                      trackingNum.toString().padStart(2, '0');
+                    return `${storeAbbr}${formattedNum}`;
+                  })()}
                 </Badge>
               }
             </div>
@@ -1012,69 +1223,69 @@ export default function StopCard({
 
           {!isStrippedForDriver && (!isFinishedDelivery || isExpanded) && <div className="flex flex-col">
             <div className="flex items-start justify-between">
-            <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
-            {finalDisplayAddress ?
-                <>
-              {/* Main address without unit/buzzer */}
-              <div className="flex items-start gap-2 text-lg md:text-sm" style={{ color: 'var(--text-slate-700)' }}>
-                <span className="text-2xl md:text-xl font-medium truncate">
-                      {isPickup ? store?.address || '' : patient?.address || ''}
-                    </span>
-                  </div>
+              <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
+                {finalDisplayAddress ?
+                  <>
+                    {/* Main address without unit/buzzer */}
+                    <div className="flex items-start gap-2 text-lg md:text-sm" style={{ color: 'var(--text-slate-700)' }}>
+                      <span className="text-2xl md:text-xl font-medium truncate">
+                        {isPickup ? store?.address || '' : patient?.address || ''}
+                      </span>
+                    </div>
 
                     {/* Unit/Buzzer row (phone removed - now in expanded section) */}
                     {!isStrippedDelivery && !shouldRedact &&
-                  <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                      <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
                         {/* Unit and Buzzer info */}
                         {(() => {
-                      const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
-                      const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
-                      const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
-                      const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
+                          const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
+                          const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
+                          const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
+                          const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
 
-                      if (!unitNum && !buzzerNum) return null;
+                          if (!unitNum && !buzzerNum) return null;
 
-                      return (
-                        <>
+                          return (
+                            <>
                               {unitNum && <span className="text-xl md:text-base font-medium">#{unitNum}</span>}
                               {buzzerNum && <span className="text-lg md:text-sm font-medium">Buzz {buzzerNum}</span>}
                             </>);
-                    })()}
+                        })()}
                       </div>
-                  }
+                    }
                   </> :
-                <div className="w-full h-[26px]" />
+                  <div className="w-full h-[26px]" />
                 }
               </div>
 
               {/* Navigation and Phone buttons - Hide for driver-stripped always (stripped item) */}
               {isAssignedDriverOrAppOwner && !isStrippedForDriver &&
-              <div className="mt-1 py-1 flex items-center gap-2 flex-shrink-0 min-h-[50px]">
+                <div className="mt-1 py-1 flex items-center gap-2 flex-shrink-0 min-h-[50px]">
                   {finalDisplayPhone &&
-                <a
-                  href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
-                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
+                    <a
+                      href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
+                      onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
                       <Phone className="w-6 h-6 md:w-5 md:h-5" />
                     </a>
-                }
+                  }
                   {/* CRITICAL: Only show GPS button for isNextDelivery cards */}
                   {isNextDelivery && finalDisplayAddress &&
-                <a
-                  href={(() => {
-                    if (!shouldRedact && !isPickup && patient?.latitude && patient?.longitude) {
-                      return `https://www.google.com/maps/dir/?api=1&destination=${patient.latitude},${patient.longitude}`;
-                    } else if (!shouldRedact && isPickup && store?.latitude && store?.longitude) {
-                      return `https://www.google.com/maps/dir/?api=1&destination=${store.latitude},${store.longitude}`;
-                    } else {
-                      return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(finalDisplayAddress)}`;
-                    }
-                  })()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
+                    <a
+                      href={(() => {
+                        if (!shouldRedact && !isPickup && patient?.latitude && patient?.longitude) {
+                          return `https://www.google.com/maps/dir/?api=1&destination=${patient.latitude},${patient.longitude}`;
+                        } else if (!shouldRedact && isPickup && store?.latitude && store?.longitude) {
+                          return `https://www.google.com/maps/dir/?api=1&destination=${store.latitude},${store.longitude}`;
+                        } else {
+                          return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(finalDisplayAddress)}`;
+                        }
+                      })()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
                       <Navigation className="w-6 h-6 md:w-5 md:h-5" />
                     </a>
-                }
+                  }
                 </div>
               }
             </div>
@@ -1095,40 +1306,40 @@ export default function StopCard({
                 </h3>
 
                 <div className="space-y-3 mb-6">
-                <p className="text-slate-700">
-                  Are you sure you want to delete this {isPickup ? 'pickup' : 'delivery'}?
-                </p>
+                  <p className="text-slate-700">
+                    Are you sure you want to delete this {isPickup ? 'pickup' : 'delivery'}?
+                  </p>
 
-                <div className="rounded-lg p-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
-                  <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
-                  <span style={{ color: 'var(--text-slate-900)' }}>{displayName}</span>
+                  <div className="rounded-lg p-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
+                    <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
+                    <span style={{ color: 'var(--text-slate-900)' }}>{displayName}</span>
 
-                  {displayAddress && <>
-                    <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
-                    <span style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</span>
-                  </>}
+                    {displayAddress && <>
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
+                      <span style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</span>
+                    </>}
 
-                  {delivery.tracking_number && <>
-                    <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
-                    <span style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</span>
-                  </>}
-                </div>
-
-                {/* CRITICAL: Warning for pickups with pending deliveries */}
-                {isPickup && delivery.stop_id && pendingPickups && pendingPickups.length > 0 &&
-                  <div className="rounded-lg p-3 border-2 border-amber-400" style={{ background: 'var(--bg-amber-50)' }}>
-                    <p className="text-sm font-semibold text-amber-800 mb-1">
-                      ⚠️ Warning: {pendingPickups.length} Pending Delivery{pendingPickups.length > 1 ? 's' : ''} Will Also Be Deleted
-                    </p>
-                    <p className="text-xs text-amber-700">
-                      {pendingPickups.map(p => p.patient_name).join(', ')}
-                    </p>
+                    {delivery.tracking_number && <>
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
+                      <span style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</span>
+                    </>}
                   </div>
-                }
 
-                <p className="text-sm text-red-600 font-medium">
-                  This action cannot be undone.
-                </p>
+                  {/* CRITICAL: Warning for pickups with pending deliveries */}
+                  {isPickup && delivery.stop_id && pendingPickups && pendingPickups.length > 0 &&
+                    <div className="rounded-lg p-3 border-2 border-amber-400" style={{ background: 'var(--bg-amber-50)' }}>
+                      <p className="text-sm font-semibold text-amber-800 mb-1">
+                        ⚠️ Warning: {pendingPickups.length} Pending Delivery{pendingPickups.length > 1 ? 's' : ''} Will Also Be Deleted
+                      </p>
+                      <p className="text-xs text-amber-700">
+                        {pendingPickups.map(p => p.patient_name).join(', ')}
+                      </p>
+                    </div>
+                  }
+
+                  <p className="text-sm text-red-600 font-medium">
+                    This action cannot be undone.
+                  </p>
                 </div>
 
                 <div className="flex gap-3">
@@ -1173,87 +1384,87 @@ export default function StopCard({
 
           {/* Signature Capture - Full Screen Landscape */}
           {showSignatureCapture &&
-          <SignatureCapture
-            customerName={displayName}
-            onSave={async (signatureBlob) => {
-              try {
-                console.log('📝 [Signature] Starting upload...', signatureBlob);
+            <SignatureCapture
+              customerName={displayName}
+              onSave={async (signatureBlob) => {
+                try {
+                  console.log('📝 [Signature] Starting upload...', signatureBlob);
 
-                // Upload signature immediately
-                const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureBlob });
-                const signatureUrl = uploadResult.file_url;
+                  // Upload signature immediately
+                  const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureBlob });
+                  const signatureUrl = uploadResult.file_url;
 
-                console.log('📝 [Signature] Upload complete:', signatureUrl);
+                  console.log('📝 [Signature] Upload complete:', signatureUrl);
 
-                // Update delivery with signature DIRECTLY
-                await base44.entities.Delivery.update(delivery.id, {
-                  signature_image_url: signatureUrl
-                });
+                  // Update delivery with signature DIRECTLY
+                  await base44.entities.Delivery.update(delivery.id, {
+                    signature_image_url: signatureUrl
+                  });
 
-                console.log('📝 [Signature] Database updated');
+                  console.log('📝 [Signature] Database updated');
 
-                // Close modal
-                setShowSignatureCapture(false);
+                  // Close modal
+                  setShowSignatureCapture(false);
 
-                // Force immediate refresh
-                invalidate('Delivery');
-                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                  // Force immediate refresh
+                  invalidate('Delivery');
+                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
-                console.log('📝 [Signature] UI refreshed - signature should now show green');
+                  console.log('📝 [Signature] UI refreshed - signature should now show green');
 
-                toast.success('Signature saved!');
-              } catch (error) {
-                console.error('❌ [Signature] Save failed:', error);
-                toast.error(`Failed to save signature: ${error.message}`);
-                setShowSignatureCapture(false);
-              }
-            }}
-            onCancel={() => setShowSignatureCapture(false)} />
+                  toast.success('Signature saved!');
+                } catch (error) {
+                  console.error('❌ [Signature] Save failed:', error);
+                  toast.error(`Failed to save signature: ${error.message}`);
+                  setShowSignatureCapture(false);
+                }
+              }}
+              onCancel={() => setShowSignatureCapture(false)} />
 
           }
 
           {/* Photo Capture */}
           {showPhotoCapture &&
-          <PhotoCapture
-            onSave={async (photoBlobs) => {
-              try {
-                console.log('📷 [Photos] Starting upload...', photoBlobs.length, 'photos');
+            <PhotoCapture
+              onSave={async (photoBlobs) => {
+                try {
+                  console.log('📷 [Photos] Starting upload...', photoBlobs.length, 'photos');
 
-                // Upload photos immediately
-                const uploadPromises = photoBlobs.map((blob) =>
-                base44.integrations.Core.UploadFile({ file: blob })
-                );
-                const results = await Promise.all(uploadPromises);
-                const newPhotoUrls = results.map((r) => r.file_url);
+                  // Upload photos immediately
+                  const uploadPromises = photoBlobs.map((blob) =>
+                    base44.integrations.Core.UploadFile({ file: blob })
+                  );
+                  const results = await Promise.all(uploadPromises);
+                  const newPhotoUrls = results.map((r) => r.file_url);
 
-                console.log('📷 [Photos] Upload complete:', newPhotoUrls);
+                  console.log('📷 [Photos] Upload complete:', newPhotoUrls);
 
-                // Update delivery with photos DIRECTLY
-                const existingPhotos = delivery.proof_photo_urls || [];
-                await base44.entities.Delivery.update(delivery.id, {
-                  proof_photo_urls: [...existingPhotos, ...newPhotoUrls]
-                });
+                  // Update delivery with photos DIRECTLY
+                  const existingPhotos = delivery.proof_photo_urls || [];
+                  await base44.entities.Delivery.update(delivery.id, {
+                    proof_photo_urls: [...existingPhotos, ...newPhotoUrls]
+                  });
 
-                console.log('📷 [Photos] Database updated');
+                  console.log('📷 [Photos] Database updated');
 
-                // Close modal
-                setShowPhotoCapture(false);
+                  // Close modal
+                  setShowPhotoCapture(false);
 
-                // Force immediate refresh
-                invalidate('Delivery');
-                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                  // Force immediate refresh
+                  invalidate('Delivery');
+                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
-                console.log('📷 [Photos] UI refreshed - photos should now show green');
+                  console.log('📷 [Photos] UI refreshed - photos should now show green');
 
-                toast.success(`${photoBlobs.length} photo(s) saved!`);
-              } catch (error) {
-                console.error('❌ [Photos] Save failed:', error);
-                toast.error(`Failed to save photos: ${error.message}`);
-                setShowPhotoCapture(false);
-              }
-            }}
-            onCancel={() => setShowPhotoCapture(false)}
-            maxPhotos={3} />
+                  toast.success(`${photoBlobs.length} photo(s) saved!`);
+                } catch (error) {
+                  console.error('❌ [Photos] Save failed:', error);
+                  toast.error(`Failed to save photos: ${error.message}`);
+                  setShowPhotoCapture(false);
+                }
+              }}
+              onCancel={() => setShowPhotoCapture(false)}
+              maxPhotos={3} />
 
           }
 
@@ -1269,7 +1480,7 @@ export default function StopCard({
 
               try {
                 console.log('🔴 [FAILURE] Starting failure/cancel with reason:', reason);
-                
+
                 setShowFailureReasonDialog(false);
                 setPendingFailureStatus(null);
 
@@ -1290,8 +1501,8 @@ export default function StopCard({
                 // Add reason to delivery notes
                 const existingNotes = delivery.delivery_notes || '';
                 const updatedNotes = existingNotes ?
-                `${existingNotes}\n[${status.toUpperCase()}] ${reason}` :
-                `[${status.toUpperCase()}] ${reason}`;
+                  `${existingNotes}\n[${status.toUpperCase()}] ${reason}` :
+                  `[${status.toUpperCase()}] ${reason}`;
 
                 // CRITICAL: Round completion time to nearest 5-minute mark
                 const currentTime = new Date();
@@ -1318,7 +1529,7 @@ export default function StopCard({
                   delivery_notes: updatedNotes,
                   actual_delivery_time: localTimeString
                 });
-                
+
                 // CRITICAL: Save to both offline and online databases
                 try {
                   await updateDeliveryLocal(delivery.id, {
@@ -1327,7 +1538,7 @@ export default function StopCard({
                     actual_delivery_time: localTimeString
                   }, { skipSmartRefresh: true });
                   console.log('✅ [FAILURE] Saved to both databases');
-                  
+
                   // Also call onStatusUpdate if available for additional UI updates
                   if (onStatusUpdate) {
                     await onStatusUpdate(delivery.id, status, {
@@ -1344,10 +1555,10 @@ export default function StopCard({
 
                 // Check if this is the FINAL stop
                 const allDriverDeliveries = allDeliveries.filter((d) =>
-                d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                 );
                 const incompleteAfterThis = allDriverDeliveries.filter((d) =>
-                d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
+                  d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
                 );
 
                 if (incompleteAfterThis.length === 0) {
@@ -1423,7 +1634,7 @@ export default function StopCard({
             deliveryName={displayName}
             isPickup={isPickup}
             statusType={pendingFailureStatus} />
-          
+
 
           {/* Return Confirmation Dialog - Portal to body for proper z-index */}
           {showReturnConfirm && returnPatient && ReactDOM.createPortal(
@@ -1503,67 +1714,67 @@ export default function StopCard({
           {/* BODY SECTION - Expandable - Always show when expanded (driver stripping only applies to collapsed state) */}
           <AnimatePresence>
             {isExpanded &&
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="mt-2 pt-3 pb-2 space-y-3 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                   {/* Phone number - moved below divider - HIDE for finished patient deliveries */}
                   {finalDisplayPhone && !(isFinishedDelivery && !isPickup) &&
-                <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                    <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
                       <Phone className="w-4 h-4 mr-2 text-slate-500" />
                       <span className="text-xl md:text-base font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
                     </div>
-                }
+                  }
 
                   {/* COD Information - For active deliveries with COD required (always show, but disable editing for driver-stripped) */}
                   {hasCODRequired && !isPickup && !isFinishedDelivery &&
-                <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: 'var(--bg-amber-50)', borderWidth: '1px', borderColor: 'var(--border-amber-200)' }}>
+                    <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: 'var(--bg-amber-50)', borderWidth: '1px', borderColor: 'var(--border-amber-200)' }}>
                       <span className="text-lg md:text-xs font-semibold" style={{ color: 'var(--text-amber-800)' }}>COD Required: ${codTotalRequired.toFixed(2)}</span>
                       {userHasRole(currentUser, 'driver') && !isStrippedForDriver &&
-                  <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs hover:bg-amber-100 dark:hover:bg-amber-900/30" style={{ color: 'var(--text-amber-700)' }} onClick={(e) => {
-                    e.stopPropagation();
-                    setShowCODCollection(!showCODCollection);
-                    // Auto-add payment when opening COD collection and focus dropdown
-                    if (!showCODCollection && codPayments.length === 0) {
-                      handleAddCODPayment(true);
-                    }
-                  }}>
+                        <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs hover:bg-amber-100 dark:hover:bg-amber-900/30" style={{ color: 'var(--text-amber-700)' }} onClick={(e) => {
+                          e.stopPropagation();
+                          setShowCODCollection(!showCODCollection);
+                          // Auto-add payment when opening COD collection and focus dropdown
+                          if (!showCODCollection && codPayments.length === 0) {
+                            handleAddCODPayment(true);
+                          }
+                        }}>
                           {codPayments.length > 0 ? 'Edit' : 'Collect'}
                         </Button>
-                  }
+                      }
                     </div>
-                }
+                  }
 
                   {/* COD Collected - Show for active deliveries OR for finished deliveries with COD (disable editing for driver-stripped) */}
                   {hasCODRequired && !isPickup && codPayments.length > 0 &&
-                <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ 
-                  background: isCODComplete ? 'var(--bg-emerald-50)' : 'var(--bg-amber-50)',
-                  borderWidth: '1px',
-                  borderColor: isCODComplete ? 'var(--border-emerald-200)' : 'var(--border-amber-200)'
-                }}>
+                    <div className="flex items-center justify-between rounded-md px-2 py-1" style={{
+                      background: isCODComplete ? 'var(--bg-emerald-50)' : 'var(--bg-amber-50)',
+                      borderWidth: '1px',
+                      borderColor: isCODComplete ? 'var(--border-emerald-200)' : 'var(--border-amber-200)'
+                    }}>
                       <span className="text-lg md:text-xs font-semibold" style={{ color: isCODComplete ? 'var(--text-emerald-800)' : 'var(--text-amber-800)' }}>
                         COD Collected: {codPayments.map((payment, index) =>
-                    <span key={index}>
+                          <span key={index}>
                             {payment.type}: ${payment.amount.toFixed(2)}
                             {index < codPayments.length - 1 && ', '}
                           </span>
-                    )}
+                        )}
                       </span>
                       {!isStrippedForDriver && !isFinishedDelivery && userHasRole(currentUser, 'driver') ||
-                  isFinishedDelivery && userHasRole(currentUser, 'admin') ?
-                  <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs" onClick={(e) => {e.stopPropagation();setShowCODCollection(!showCODCollection);}}>Edit</Button> :
-                  null}
+                        isFinishedDelivery && userHasRole(currentUser, 'admin') ?
+                        <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs" onClick={(e) => { e.stopPropagation(); setShowCODCollection(!showCODCollection); }}>Edit</Button> :
+                        null}
                     </div>
-                }
+                  }
 
                   <AnimatePresence>
                     {showCODCollection && hasCODRequired && !isPickup && !isStrippedForDriver && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden rounded-md p-3 space-y-2 w-full"
-                    style={{ background: 'var(--bg-slate-50)' }}
-                    onClick={(e) => e.stopPropagation()}>
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden rounded-md p-3 space-y-2 w-full"
+                        style={{ background: 'var(--bg-slate-50)' }}
+                        onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm md:text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>Collect COD Payments</span>
                           <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={async (e) => {
@@ -1586,11 +1797,11 @@ export default function StopCard({
 
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                           {codPayments.map((payment, index) =>
-                      <div key={index} className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
-                              <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => {if (open) setShowCODCollection(true);}}>
-                               <SelectTrigger className="h-7 text-sm md:text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
-                                 <SelectValue placeholder="Type" />
-                               </SelectTrigger>
+                            <div key={index} className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                              <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => { if (open) setShowCODCollection(true); }}>
+                                <SelectTrigger className="h-7 text-sm md:text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
+                                  <SelectValue placeholder="Type" />
+                                </SelectTrigger>
                                 <SelectContent onClick={(e) => e.stopPropagation()} className="z-[200]">
                                   <SelectItem value="Cash">Cash</SelectItem>
                                   <SelectItem value="Debit">Debit</SelectItem>
@@ -1602,31 +1813,31 @@ export default function StopCard({
                               <div className="relative flex-1">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm md:text-xs" style={{ color: 'var(--text-slate-500)' }}>$</span>
                                 <input
-                            ref={(el) => codAmountInputRefs.current[index] = el}
-                            type="text"
-                            value={payment.amount > 0 ? payment.amount.toFixed(2) : payment.amount === 0 ? '0.00' : ''}
-                            onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)}
-                            className="h-7 w-full pl-5 pr-2 text-sm md:text-xs rounded-md"
-                            style={{ 
-                              background: 'var(--bg-white)', 
-                              borderWidth: '1px', 
-                              borderColor: 'var(--border-slate-300)',
-                              color: 'var(--text-slate-900)'
-                            }}
-                            placeholder="0.00"
-                            onClick={(e) => e.stopPropagation()}
-                            onFocus={(e) => e.target.select()} />
+                                  ref={(el) => codAmountInputRefs.current[index] = el}
+                                  type="text"
+                                  value={payment.amount > 0 ? payment.amount.toFixed(2) : payment.amount === 0 ? '0.00' : ''}
+                                  onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)}
+                                  className="h-7 w-full pl-5 pr-2 text-sm md:text-xs rounded-md"
+                                  style={{
+                                    background: 'var(--bg-white)',
+                                    borderWidth: '1px',
+                                    borderColor: 'var(--border-slate-300)',
+                                    color: 'var(--text-slate-900)'
+                                  }}
+                                  placeholder="0.00"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onFocus={(e) => e.target.select()} />
 
                               </div>
 
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600 hover:text-red-800" onClick={(e) => {e.stopPropagation();handleRemoveCODPayment(index);}}>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600 hover:text-red-800" onClick={(e) => { e.stopPropagation(); handleRemoveCODPayment(index); }}>
                                 <X className="w-3 h-3" />
                               </Button>
                             </div>
-                      )}
+                          )}
                         </div>
 
-                        <Button size="sm" variant="outline" className="w-full h-7 text-sm md:text-xs" onClick={(e) => {e.stopPropagation();handleAddCODPayment();}}>
+                        <Button size="sm" variant="outline" className="w-full h-7 text-sm md:text-xs" onClick={(e) => { e.stopPropagation(); handleAddCODPayment(); }}>
                           <Plus className="w-3 h-3 mr-1" />
                           Add Payment
                         </Button>
@@ -1640,546 +1851,343 @@ export default function StopCard({
                             <span style={{ color: 'var(--text-slate-600)' }}> / ${codTotalRequired.toFixed(2)}</span>
                           </div>
 
-                          <Button size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700" onClick={(e) => {e.stopPropagation();handleSaveCODPayments();}} disabled={codPayments.length === 0}>
+                          <Button size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700" onClick={(e) => { e.stopPropagation(); handleSaveCODPayments(); }} disabled={codPayments.length === 0}>
                             <Save className="w-3 h-3 mr-1" />
                             Save
                           </Button>
                         </div>
                       </motion.div>
-                  }
+                    }
                   </AnimatePresence>
 
                   {/* Patient Notes - Hide for driver-stripped AND non-AppOwner on completed/past routes */}
                   {!isStrippedForDriver && isFinishedDelivery && !isPickup && patient?.notes && (isAppOwner(currentUser) || (delivery.delivery_date === format(new Date(), 'yyyy-MM-dd'))) &&
-                  <div className="flex items-start gap-2">
-                    <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-base md:text-xs font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>Patient Notes:</p>
-                      <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
-                        <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
+                    <div className="flex items-start gap-2">
+                      <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base md:text-xs font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>Patient Notes:</p>
+                        <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                          <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
                   }
 
                   {/* Full Patient Info - Only AppOwner on completed routes or dispatcher on active deliveries */}
                   {!isStrippedForDriver && !isFinishedDelivery && !isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
-                <div className="flex items-start gap-2">
-                <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-base md:text-xs font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>Patient Info:</p>
-                  <div className="text-base md:text-xs rounded px-2 py-1.5 space-y-1" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                    <div className="flex items-start gap-2">
+                      <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base md:text-xs font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>Patient Info:</p>
+                        <div className="text-base md:text-xs rounded px-2 py-1.5 space-y-1" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
                           {/* Delivery Preferences */}
                           {(patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door) &&
-                      <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-wrap gap-1">
                               {patient.mailbox_ok && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 border-blue-200 text-blue-700">Mailbox OK</Badge>}
                               {patient.call_upon_arrival && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-amber-50 border-amber-200 text-amber-700">Call on Arrival</Badge>}
                               {patient.dont_ring_bell && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-red-50 border-red-200 text-red-700">Don't Ring Bell</Badge>}
                               {patient.back_door && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-purple-50 border-purple-200 text-purple-700">Back Door</Badge>}
                             </div>
-                      }
+                          }
 
                           {/* Recurring Schedule */}
                           {patient.recurring &&
-                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">
                               {(() => {
-                          if (patient.recurring_daily) return 'Daily';
-                          if (patient.recurring_monthly) return 'Monthly';
-                          if (patient.recurring_bimonthly) return 'Bi-Monthly';
-                          if (patient.recurring_biweekly) return 'Bi-Weekly';
-                          if (patient.recurring_weekly_x4) return '4x Weekly';
+                                if (patient.recurring_daily) return 'Daily';
+                                if (patient.recurring_monthly) return 'Monthly';
+                                if (patient.recurring_bimonthly) return 'Bi-Monthly';
+                                if (patient.recurring_biweekly) return 'Bi-Weekly';
+                                if (patient.recurring_weekly_x4) return '4x Weekly';
 
-                          // Weekly with specific days
-                          const days = [];
-                          if (patient.recurring_weekly_mon) days.push('Mon');
-                          if (patient.recurring_weekly_tue) days.push('Tue');
-                          if (patient.recurring_weekly_wed) days.push('Wed');
-                          if (patient.recurring_weekly_thu) days.push('Thu');
-                          if (patient.recurring_weekly_fri) days.push('Fri');
-                          if (patient.recurring_weekly_sat) days.push('Sat');
-                          if (patient.recurring_weekly_sun) days.push('Sun');
+                                // Weekly with specific days
+                                const days = [];
+                                if (patient.recurring_weekly_mon) days.push('Mon');
+                                if (patient.recurring_weekly_tue) days.push('Tue');
+                                if (patient.recurring_weekly_wed) days.push('Wed');
+                                if (patient.recurring_weekly_thu) days.push('Thu');
+                                if (patient.recurring_weekly_fri) days.push('Fri');
+                                if (patient.recurring_weekly_sat) days.push('Sat');
+                                if (patient.recurring_weekly_sun) days.push('Sun');
 
-                          if (days.length > 0) return `Weekly(${days.join(', ')})`;
-                          return 'Recurring';
-                        })()}
+                                if (days.length > 0) return `Weekly(${days.join(', ')})`;
+                                return 'Recurring';
+                              })()}
                             </Badge>
-                      }
+                          }
 
                           {/* Patient Notes */}
                           {patient.notes &&
-                      <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
-                      }
+                            <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
+                          }
                         </div>
                       </div>
                     </div>
-                }
+                  }
 
                   {/* Show pending pickup list for pickups that are en_route (equivalent to in_transit for deliveries) - HIDE for finished */}
                   {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
-                <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                    <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-base md:text-xs font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
                           <Package className="w-3.5 h-3.5" />
                           Pending Pickup List ({pendingPickups.length})
                           <HelpTooltip
-                        title={HELP_CONTENT.pendingPickups.title}
-                        content={HELP_CONTENT.pendingPickups.content}
-                        size="sm" />
+                            title={HELP_CONTENT.pendingPickups.title}
+                            content={HELP_CONTENT.pendingPickups.content}
+                            size="sm" />
 
                         </h4>
                         {canAccessAcceptButtons &&
-                    <Button
-                      size="sm"
-                      variant="default" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md h-6 px-2 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 text-white"
+                          <Button
+                            size="sm"
+                            variant="default" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md h-6 px-2 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 text-white"
 
-                      onClick={async (e) => {
-                        e.stopPropagation();
-
-                        console.log('🟢 [Assign All] Step 1: Pausing location poller...');
-                        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                        driverLocationPoller.pause();
-
-                        console.log('🟢 [Assign All] Step 2: Running smart refresh...');
-
-                        // Step 2: Run smart refresh
-                        smartRefreshManager.lastRefreshTimes = {
-                          driverLocation: 0,
-                          activeDeliveries: 0,
-                          todayDeliveries: 0,
-                          appUsers: 0,
-                          patients: 0,
-                          stores: 0
-                        };
-                        await new Promise((resolve) => setTimeout(resolve, 200));
-
-                        // Step 3: Pause smart refresh
-                        console.log('🟢 [Assign All] Step 3: Pausing smart refresh...');
-                        setIsEntityUpdating(true);
-                        await new Promise((resolve) => setTimeout(resolve, 100));
-
-                        try {
-                          // Step 3: Change all pending stops to in_transit
-                          console.log('🟢 [Assign All] Step 3: Changing pending stops to in_transit...');
-                          const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
-                          console.log(`  Found ${allPendingDeliveries.length} pending deliveries`);
-
-                          // Get pickup's stop_order
-                          const pickupStopOrder = delivery.stop_order || 0;
-                          console.log(`  Pickup stop order: ${pickupStopOrder}`);
-
-                          // CRITICAL: Set delivery_time_start to current time + 5 minutes for all pending deliveries
-                          const now = new Date();
-                          const currentMinutes = now.getHours() * 60 + now.getMinutes();
-                          const startMinutes = currentMinutes + 5;
-                          const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
-                          const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-                          // OPTIMIZED: Batch all status updates in parallel
-                          const statusUpdatePromises = allPendingDeliveries.map(pendingDelivery => 
-                            updateDeliveryLocal(pendingDelivery.id, {
-                              status: 'in_transit',
-                              delivery_time_start: deliveryTimeStart
-                            }, { skipSmartRefresh: true })
-                          );
-                          
-                          await Promise.all(statusUpdatePromises);
-                          console.log(`✅ Updated ${allPendingDeliveries.length} deliveries to in_transit`);
-
-                          // OPTIMIZED: Batch all Square COD item creation in parallel
-                          const codPromises = allPendingDeliveries
-                            .filter(pd => pd.cod_total_amount_required > 0 && pd.patient_id)
-                            .map(async (pendingDelivery) => {
-                              try {
-                                const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
-                                const codAmountDollars = pendingDelivery.cod_total_amount_required;
-                                await base44.functions.invoke('squareCreateCodItem', {
-                                  deliveryId: pendingDelivery.id,
-                                  patientName: pendingDelivery.patient_name,
-                                  storeAbbreviation: storeForCod?.abbreviation || '',
-                                  codAmount: codAmountDollars,
-                                  deliveryDate: pendingDelivery.delivery_date,
-                                  storeId: pendingDelivery.store_id
-                                });
-                              } catch (squareError) {
-                                console.error('⚠️ [Square] Failed to create COD item:', squareError);
-                              }
-                            });
-                          
-                          if (codPromises.length > 0) {
-                            await Promise.all(codPromises);
-                            console.log(`✅ Created ${codPromises.length} Square COD items`);
-                          }
-
-                          // CRITICAL: Dispatch event to trigger ETA updates for pending->in_transit transitions
-                          window.dispatchEvent(new CustomEvent('pendingToInTransit', {
-                            detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                          }));
-
-                          // CRITICAL: Dispatch deliveriesUpdated event IMMEDIATELY after status changes
-                          // This ensures map route lines update before waiting for optimization
-                          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                            detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                          }));
-
-                          // Step 4: Sort by delivery_time_start and group by store for staged optimization
-                          console.log('🟢 [Assign All] Step 4: Sorting by delivery_time_start and optimizing in stages...');
-
-                          // CRITICAL: Sort all pending deliveries by delivery_time_start BEFORE grouping
-                          const sortedPendingDeliveries = [...allPendingDeliveries].sort((a, b) => {
-                            const timeA = a.delivery_time_start ? parseInt(a.delivery_time_start.split(':')[0]) * 60 + parseInt(a.delivery_time_start.split(':')[1]) : Infinity;
-                            const timeB = b.delivery_time_start ? parseInt(b.delivery_time_start.split(':')[0]) * 60 + parseInt(b.delivery_time_start.split(':')[1]) : Infinity;
-                            return timeA - timeB;
-                          });
-
-                          console.log(`  Sorted ${sortedPendingDeliveries.length} deliveries by delivery_time_start`);
-
-                          // Group deliveries by store_id for staged optimization
-                          const deliveriesByStore = new Map();
-                          for (const d of sortedPendingDeliveries) {
-                            const storeId = d.store_id;
-                            if (!deliveriesByStore.has(storeId)) {
-                              deliveriesByStore.set(storeId, []);
-                            }
-                            deliveriesByStore.get(storeId).push(d);
-                          }
-
-                          console.log(`  Found ${deliveriesByStore.size} store groups to optimize`);
-
-                          // CRITICAL: Run recursive route optimizer
-                          try {
-                            console.log('🔄 [Accept/Assign All] Running optimizeRouteRealTime...');
-                            await base44.functions.invoke('optimizeRouteRealTime', {
-                              driverId: delivery.driver_id,
-                              deliveryDate: delivery.delivery_date,
-                              currentLocalTime: currentLocalTime,
-                              generatePolyline: false
-                            });
-                            console.log('✅ [Accept/Assign All] Route optimized');
-
-                            // CRITICAL: Refresh UI to show reordered stops
-                            invalidate('Delivery');
-                            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                            console.log('✅ [Accept/Assign All] UI refreshed with new stop order');
-
-                            // CRITICAL: Trigger map route line refresh
-                            window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
-                          } catch (optimizeError) {
-                            console.warn('⚠️ [Accept/Assign All] Route optimizer failed, continuing without optimization:', optimizeError);
-                          }
-
-                          // Step 5: Update TR#s sequentially for newly accepted stops
-                          console.log('🟢 [Assign All] Step 5: Assigning sequential TR#s...');
-
-                          const pickupTR = parseInt(delivery.tracking_number, 10);
-                          const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
-                          console.log(`  Using pickup TR# ${baseTR} as base`);
-
-                          // Sort pending by patient name for consistent TR# assignment
-                          const sortedPending = [...allPendingDeliveries].sort((a, b) =>
-                          (a.patient_name || '').localeCompare(b.patient_name || '')
-                          );
-
-                          // OPTIMIZED: Batch all TR# assignments in parallel
-                          const trUpdatePromises = sortedPending.map((pd, i) => 
-                            updateDeliveryLocal(pd.id, {
-                              tracking_number: String(baseTR + i + 1)
-                            }, { skipSmartRefresh: true })
-                          );
-                          
-                          await Promise.all(trUpdatePromises);
-                          console.log(`✅ Assigned TR#s sequentially to ${sortedPending.length} deliveries`);
-
-                          // Step 6 & 7: Let smart refresh handle the sync
-                           console.log('🟢 [Assign All] Step 6-7: Smart refresh will sync data...');
-                           // Don't call forceRefreshDriverDeliveries here - it floods API
-                           // Smart refresh will pick up the changes automatically
-
-                           // Send notifications
-                          const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
-                          if (isDriverAction) {
-                            await notifyDriverAcceptedAll({
-                              driver: currentUser,
-                              store,
-                              appUsers
-                            });
-                          } else {
-                            const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
-                            if (assignedDriver) {
-                              await notifyDispatcherAssignedAll({
-                                dispatcher: currentUser,
-                                driver: assignedDriver,
-                                store,
-                                deliveries: allPendingDeliveries,
-                                patients
-                              });
-                            }
-                          }
-
-                          console.log('✅ [Assign All] Complete');
-                        } finally {
-                          // Step 8: Reset and resume smart refresh + location poller
-                          console.log('🟢 [Assign All] Step 8: Resuming location poller and smart refresh...');
-                          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                          driverLocationPoller.resume();
-                          
-                          smartRefreshManager.lastRefreshTimes = {
-                            driverLocation: 0,
-                            activeDeliveries: 0,
-                            todayDeliveries: 0,
-                            appUsers: 0,
-                            patients: 0,
-                            stores: 0
-                          };
-                          setIsEntityUpdating(false);
-                          console.log('  ✅ Smart refresh and location poller resumed');
-
-                          // CRITICAL: Collapse the card after assign/accept all completes
-                          if (onClick) {
-                            onClick(null);
-                          }
-                        }
-                      }}>
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await handleAcceptAllStops();
+                            }}>
                             {acceptButtonText}
                           </Button>
-                    }
+                        }
                       </div>
                       <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar max-h-[150px]"
 
-                  onWheel={(e) => {
-                    const el = e.currentTarget;
-                    // If the list isn't scrollable, don't interfere with the event.
-                    if (el.scrollHeight <= el.clientHeight) {
-                      return;
-                    }
+                        onWheel={(e) => {
+                          const el = e.currentTarget;
+                          // If the list isn't scrollable, don't interfere with the event.
+                          if (el.scrollHeight <= el.clientHeight) {
+                            return;
+                          }
 
-                    // Scrolling up
-                    if (e.deltaY < 0) {
-                      // If we're not at the very top, stop the event from bubbling up.
-                      if (el.scrollTop > 0) {
-                        e.stopPropagation();
-                      }
-                    }
-                    // Scrolling down
-                    else if (e.deltaY > 0) {
-                      // If we're not at the very bottom, stop the event from bubbling up.
-                      // A 1px buffer is for potential floating point rounding errors.
-                      if (el.scrollTop < el.scrollHeight - el.clientHeight - 1) {
-                        e.stopPropagation();
-                      }
-                    }
-                  }}>
+                          // Scrolling up
+                          if (e.deltaY < 0) {
+                            // If we're not at the very top, stop the event from bubbling up.
+                            if (el.scrollTop > 0) {
+                              e.stopPropagation();
+                            }
+                          }
+                          // Scrolling down
+                          else if (e.deltaY > 0) {
+                            // If we're not at the very bottom, stop the event from bubbling up.
+                            // A 1px buffer is for potential floating point rounding errors.
+                            if (el.scrollTop < el.scrollHeight - el.clientHeight - 1) {
+                              e.stopPropagation();
+                            }
+                          }
+                        }}>
 
                         {[...pendingPickups].sort((a, b) => {
-                      const trA = parseInt(a.tracking_number || '999', 10);
-                      const trB = parseInt(b.tracking_number || '999', 10);
-                      return trA - trB;
-                    }).map((projectedDelivery, idx) => {
-                      if (!projectedDelivery) {
-                        console.warn('[StopCard] Skipping undefined projected delivery at index', idx);
-                        return null;
-                      }
+                          const trA = parseInt(a.tracking_number || '999', 10);
+                          const trB = parseInt(b.tracking_number || '999', 10);
+                          return trA - trB;
+                        }).map((projectedDelivery, idx) => {
+                          if (!projectedDelivery) {
+                            console.warn('[StopCard] Skipping undefined projected delivery at index', idx);
+                            return null;
+                          }
 
-                      const deliveryId = projectedDelivery.id || `projected-${delivery.id}-${idx}`;
+                          const deliveryId = projectedDelivery.id || `projected-${delivery.id}-${idx}`;
 
-                      // Calculate special badges for this pending delivery
-                      const projPatient = patients.find((p) => p?.id === projectedDelivery.patient_id);
+                          // Calculate special badges for this pending delivery
+                          const projPatient = patients.find((p) => p?.id === projectedDelivery.patient_id);
 
-                      // FIXED: Check if first delivery - must explicitly be marked OR have no completed deliveries
-                      const projIsFirstDelivery = projectedDelivery.first_delivery === true ||
-                      projPatient?.notes?.toLowerCase().includes('first delivery') ||
-                      projectedDelivery.delivery_instructions?.toLowerCase().includes('first delivery') ||
-                      projectedDelivery.delivery_notes?.toLowerCase().includes('first delivery');
+                          // FIXED: Check if first delivery - must explicitly be marked OR have no completed deliveries
+                          const projIsFirstDelivery = projectedDelivery.first_delivery === true ||
+                            projPatient?.notes?.toLowerCase().includes('first delivery') ||
+                            projectedDelivery.delivery_instructions?.toLowerCase().includes('first delivery') ||
+                            projectedDelivery.delivery_notes?.toLowerCase().includes('first delivery');
 
-                      const hasCOD = projectedDelivery.cod_total_amount_required > 0;
-                      const hasOversized = projectedDelivery.oversized === true;
-                      const hasFridge = projectedDelivery.fridge_item === true;
-                      const hasSignature = projectedDelivery.signature_needed === true;
+                          const hasCOD = projectedDelivery.cod_total_amount_required > 0;
+                          const hasOversized = projectedDelivery.oversized === true;
+                          const hasFridge = projectedDelivery.fridge_item === true;
+                          const hasSignature = projectedDelivery.signature_needed === true;
 
 
 
-                      return (
-                        <div
-                          key={deliveryId}
-                          className="flex items-center justify-between gap-2 border px-2.5 py-1.5 rounded-md cursor-pointer transition-colors"
-                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
-                          onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-50)';}}
-                          onMouseLeave={(e) => {e.currentTarget.style.background = 'var(--bg-white)';}}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (onEditDelivery && projectedDelivery.id) {
-                              onEditDelivery(projectedDelivery);
-                            }
-                          }}>
+                          return (
+                            <div
+                              key={deliveryId}
+                              className="flex items-center justify-between gap-2 border px-2.5 py-1.5 rounded-md cursor-pointer transition-colors"
+                              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-slate-50)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-white)'; }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onEditDelivery && projectedDelivery.id) {
+                                  onEditDelivery(projectedDelivery);
+                                }
+                              }}>
 
                               <span className="text-base md:text-xs font-medium truncate flex-1" style={{ color: 'var(--text-slate-900)' }}>
                                 {projectedDelivery.patient_name || 'Unknown Patient'}
                               </span>
                               <div className="flex items-center gap-1 flex-shrink-0">
                                 <SpecialSymbolsBadges
-                              delivery={projectedDelivery}
-                              patient={projPatient}
-                              isPickup={false}
-                              size="sm" />
+                                  delivery={projectedDelivery}
+                                  patient={projPatient}
+                                  isPickup={false}
+                                  size="sm" />
 
                                 <span className="text-base md:text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>
                                   {(() => {
-                                const storeAbbr = store?.abbreviation?.slice(0, 2).toUpperCase() || 'XX';
-                                const trackingNum = parseInt(projectedDelivery.tracking_number) || 0;
-                                const formattedNum = trackingNum > 99 ?
-                                trackingNum.toString().padStart(3, '0') :
-                                trackingNum.toString().padStart(2, '0');
-                                return `${storeAbbr}${formattedNum}`;
-                              })()}
+                                    const storeAbbr = store?.abbreviation?.slice(0, 2).toUpperCase() || 'XX';
+                                    const trackingNum = parseInt(projectedDelivery.tracking_number) || 0;
+                                    const formattedNum = trackingNum > 99 ?
+                                      trackingNum.toString().padStart(3, '0') :
+                                      trackingNum.toString().padStart(2, '0');
+                                    return `${storeAbbr}${formattedNum}`;
+                                  })()}
                                 </span>
                                 {/* Individual accept button - only for assigned driver, dispatcher, or admin */}
                                 {canAccessAcceptButtons &&
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-5 w-5 p-0 ml-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (!onStatusUpdate) return;
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-5 w-5 p-0 ml-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      if (!onStatusUpdate) return;
 
-                                // Get pickup's TR# as base
-                                const pickupTR = parseInt(delivery.tracking_number, 10);
-                                const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
+                                      // Get pickup's TR# as base
+                                      const pickupTR = parseInt(delivery.tracking_number, 10);
+                                      const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
 
-                                // Find the highest TR# already assigned to this pickup's deliveries
-                                const existingTRs = pendingPickups.
-                                map((p) => parseInt(p.tracking_number, 10)).
-                                filter((tr) => !isNaN(tr) && tr !== 99 && tr !== 0 && tr > baseTR);
-                                const highestExistingTR = existingTRs.length > 0 ? Math.max(...existingTRs) : baseTR;
+                                      // Find the highest TR# already assigned to this pickup's deliveries
+                                      const existingTRs = pendingPickups.
+                                        map((p) => parseInt(p.tracking_number, 10)).
+                                        filter((tr) => !isNaN(tr) && tr !== 99 && tr !== 0 && tr > baseTR);
+                                      const highestExistingTR = existingTRs.length > 0 ? Math.max(...existingTRs) : baseTR;
 
-                                // Assign the next sequential TR#
-                                const newTR = String(highestExistingTR + 1);
+                                      // Assign the next sequential TR#
+                                      const newTR = String(highestExistingTR + 1);
 
-                                // CRITICAL: Set delivery_time_start to current time + 5 minutes
-                                const now = new Date();
-                                const currentMinutes = now.getHours() * 60 + now.getMinutes();
-                                const startMinutes = currentMinutes + 5;
-                                const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+                                      // CRITICAL: Set delivery_time_start to current time + 5 minutes
+                                      const now = new Date();
+                                      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                                      const startMinutes = currentMinutes + 5;
+                                      const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
 
-                                // Update this single delivery to in_transit (don't touch isNextDelivery)
-                                await onStatusUpdate(projectedDelivery.id, 'in_transit', {
-                                  tracking_number: newTR,
-                                  delivery_time_start: deliveryTimeStart
-                                }, true);
+                                      // Update this single delivery to in_transit (don't touch isNextDelivery)
+                                      await onStatusUpdate(projectedDelivery.id, 'in_transit', {
+                                        tracking_number: newTR,
+                                        delivery_time_start: deliveryTimeStart
+                                      }, true);
 
-                                // SQUARE INTEGRATION: Create COD item if applicable
-                                if (projectedDelivery.cod_total_amount_required > 0 && projectedDelivery.patient_id) {
-                                  try {
-                                    const storeForCod = stores.find((s) => s && s.id === projectedDelivery.store_id);
-                                    const codAmountDollars = projectedDelivery.cod_total_amount_required;
-                                    console.log('💳 [Square] Creating COD item for single accept:', projectedDelivery.id, 'Amount:', codAmountDollars);
-                                    await base44.functions.invoke('squareCreateCodItem', {
-                                      deliveryId: projectedDelivery.id,
-                                      patientName: projectedDelivery.patient_name,
-                                      storeAbbreviation: storeForCod?.abbreviation || '',
-                                      codAmount: codAmountDollars,
-                                      deliveryDate: projectedDelivery.delivery_date,
-                                      storeId: projectedDelivery.store_id
-                                    });
-                                    console.log('✅ [Square] COD item created for:', projectedDelivery.patient_name);
-                                  } catch (squareError) {
-                                    console.error('⚠️ [Square] Failed to create COD item:', squareError);
-                                  }
-                                }
+                                      // SQUARE INTEGRATION: Create COD item if applicable
+                                      if (projectedDelivery.cod_total_amount_required > 0 && projectedDelivery.patient_id) {
+                                        try {
+                                          const storeForCod = stores.find((s) => s && s.id === projectedDelivery.store_id);
+                                          const codAmountDollars = projectedDelivery.cod_total_amount_required;
+                                          console.log('💳 [Square] Creating COD item for single accept:', projectedDelivery.id, 'Amount:', codAmountDollars);
+                                          await base44.functions.invoke('squareCreateCodItem', {
+                                            deliveryId: projectedDelivery.id,
+                                            patientName: projectedDelivery.patient_name,
+                                            storeAbbreviation: storeForCod?.abbreviation || '',
+                                            codAmount: codAmountDollars,
+                                            deliveryDate: projectedDelivery.delivery_date,
+                                            storeId: projectedDelivery.store_id
+                                          });
+                                          console.log('✅ [Square] COD item created for:', projectedDelivery.patient_name);
+                                        } catch (squareError) {
+                                          console.error('⚠️ [Square] Failed to create COD item:', squareError);
+                                        }
+                                      }
 
-                                // CRITICAL: Dispatch event to trigger ETA updates
-                                window.dispatchEvent(new CustomEvent('pendingToInTransit', {
-                                  detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                }));
+                                      // CRITICAL: Dispatch event to trigger ETA updates
+                                      window.dispatchEvent(new CustomEvent('pendingToInTransit', {
+                                        detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                      }));
 
-                                // CRITICAL: Trigger immediate map update
-                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                  detail: { triggeredBy: 'acceptOne', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                }));
+                                      // CRITICAL: Trigger immediate map update
+                                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                        detail: { triggeredBy: 'acceptOne', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                      }));
 
-                                // Send notification message
-                                const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
-                                if (isDriverAction) {
-                                  // Driver accepted one - notify dispatchers
-                                  await notifyDriverAcceptedOne({
-                                    driver: currentUser,
-                                    patientName: projectedDelivery.patient_name,
-                                    store,
-                                    appUsers
-                                  });
-                                } else {
-                                  // Dispatcher/Admin assigned one - notify driver
-                                  const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
-                                  if (assignedDriver) {
-                                    await notifyDispatcherAssignedAll({
-                                      dispatcher: currentUser,
-                                      driver: assignedDriver,
-                                      store,
-                                      deliveries: [projectedDelivery],
-                                      patients
-                                    });
-                                  }
-                                }
-                              }}>
+                                      // Send notification message
+                                      const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+                                      if (isDriverAction) {
+                                        // Driver accepted one - notify dispatchers
+                                        await notifyDriverAcceptedOne({
+                                          driver: currentUser,
+                                          patientName: projectedDelivery.patient_name,
+                                          store,
+                                          appUsers
+                                        });
+                                      } else {
+                                        // Dispatcher/Admin assigned one - notify driver
+                                        const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
+                                        if (assignedDriver) {
+                                          await notifyDispatcherAssignedAll({
+                                            dispatcher: currentUser,
+                                            driver: assignedDriver,
+                                            store,
+                                            deliveries: [projectedDelivery],
+                                            patients
+                                          });
+                                        }
+                                      }
+                                    }}>
                                     <Plus className="w-3 h-3" />
                                   </Button>
-                            }
+                                }
                               </div>
                             </div>);
-                    })}
+                        })}
                       </div>
                     </div>
-                }
+                  }
 
                   {/* Driver Notes - ALWAYS show when expanded (even if empty) */}
                   {isFinishedDelivery && !isPickup ?
-                <div className="space-y-1 mt-2">
+                    <div className="space-y-1 mt-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
                       </div>
                       {delivery.delivery_notes ?
-                  <div
-                    className="text-base md:text-xs rounded px-2 py-1.5 min-h-[60px]"
-                    style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
-                    onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="text-base md:text-xs rounded px-2 py-1.5 min-h-[60px]"
+                          style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
+                          onClick={(e) => e.stopPropagation()}>
                           <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
                         </div> :
 
-                  <div
-                    className="text-base md:text-xs rounded px-2 py-1.5 italic min-h-[60px]"
-                    style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
-                    onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="text-base md:text-xs rounded px-2 py-1.5 italic min-h-[60px]"
+                          style={{ color: 'var(--text-slate-400)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}
+                          onClick={(e) => e.stopPropagation()}>
                           No driver notes
                         </div>
-                  }
+                      }
                     </div> :
 
-                <div className="space-y-1 mt-2">
+                    <div className="space-y-1 mt-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
                       </div>
                       <Textarea
-                    value={notesInput}
-                    onChange={(e) => setNotesInput(e.target.value)}
-                    onFocus={(e) => {
-                      e.stopPropagation();
-                      if (notesInput === 'No driver notes') {
-                        setNotesInput('');
-                      }
-                    }}
-                    onBlur={handleNotesBlur}
-                    onKeyDown={handleNotesKeyDown}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder=""
-                    className="text-base md:text-xs resize-none h-24"
-                    style={{ 
-                      background: 'var(--bg-white)', 
-                      borderColor: 'var(--border-slate-200)', 
-                      color: notesInput === 'No driver notes' ? 'var(--text-slate-400)' : 'var(--text-slate-900)',
-                      fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal'
-                    }}
-                    disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
+                        value={notesInput}
+                        onChange={(e) => setNotesInput(e.target.value)}
+                        onFocus={(e) => {
+                          e.stopPropagation();
+                          if (notesInput === 'No driver notes') {
+                            setNotesInput('');
+                          }
+                        }}
+                        onBlur={handleNotesBlur}
+                        onKeyDown={handleNotesKeyDown}
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder=""
+                        className="text-base md:text-xs resize-none h-24"
+                        style={{
+                          background: 'var(--bg-white)',
+                          borderColor: 'var(--border-slate-200)',
+                          color: notesInput === 'No driver notes' ? 'var(--text-slate-400)' : 'var(--text-slate-900)',
+                          fontStyle: notesInput === 'No driver notes' ? 'italic' : 'normal'
+                        }}
+                        disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
                     </div>
-                }
+                  }
                 </div>
               </motion.div>
             }
@@ -2200,768 +2208,720 @@ export default function StopCard({
             <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
-                <>
+                  <>
                     {/* Proof of Delivery Buttons - Only on next delivery, OR completed with captured proof */}
                     {!isPickup &&
-                  <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
                         {/* Signature Button - show ONLY on next delivery OR completed with signature */}
                         {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.signature_image_url ?
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (delivery.status !== 'completed') {
-                          setShowSignatureCapture(true);
-                        }
-                      }}
-                      size="sm"
-                      variant="outline"
-                      disabled={delivery.status === 'completed'}
-                      className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
-                      delivery.signature_image_url ?
-                      'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
-                      'border-white hover:bg-slate-100'}`
-                      }>
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (delivery.status !== 'completed') {
+                                setShowSignatureCapture(true);
+                              }
+                            }}
+                            size="sm"
+                            variant="outline"
+                            disabled={delivery.status === 'completed'}
+                            className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                              delivery.signature_image_url ?
+                                'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
+                                'border-white hover:bg-slate-100'}`
+                            }>
 
                             <Pen className={`w-5 h-5 md:w-4 md:h-4 ${
-                      delivery.signature_image_url ? 'text-emerald-700' : 'text-white'}`
-                      } />
+                              delivery.signature_image_url ? 'text-emerald-700' : 'text-white'}`
+                            } />
                           </Button> :
-                    null}
+                          null}
 
                         {/* Photo Button - show ONLY on next delivery OR completed with photos */}
                         {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (delivery.status !== 'completed') {
-                          setShowPhotoCapture(true);
-                        }
-                      }}
-                      size="sm"
-                      variant="outline"
-                      disabled={delivery.status === 'completed'}
-                      className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
-                      delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
-                      'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
-                      'border-white hover:bg-slate-100'}`
-                      }>
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (delivery.status !== 'completed') {
+                                setShowPhotoCapture(true);
+                              }
+                            }}
+                            size="sm"
+                            variant="outline"
+                            disabled={delivery.status === 'completed'}
+                            className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                              delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
+                                'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
+                                'border-white hover:bg-slate-100'}`
+                            }>
 
                             <Camera className={`w-5 h-5 md:w-4 md:h-4 ${
-                      delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-white'}`
-                      } />
+                              delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-white'}`
+                            } />
                           </Button> :
-                    null}
+                          null}
                       </div>
-                  }
+                    }
 
                     {/* Return button for failed deliveries - creates new return delivery */}
                     {delivery.status === 'failed' && !isPickup &&
-                  <Button
-                    onClick={handleReturnClick}
-                    size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 md:px-3 text-sm md:text-xs bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8"
+                      <Button
+                        onClick={handleReturnClick}
+                        size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 md:px-3 text-sm md:text-xs bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8"
 
-                    disabled={isPreparingReturn || hasFutureReturn || hasCompletedDelivery}>
+                        disabled={isPreparingReturn || hasFutureReturn || hasCompletedDelivery}>
                         {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                         Return
                       </Button>
-                  }
+                    }
 
                     {/* Start/Complete/Restart button and menu - right aligned */}
                     <div className="flex items-center ml-auto">
                       {/* Restart button for completed/failed/cancelled on today's date when route not finished */}
                       {FINISHED_STATUSES.includes(delivery.status) && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted ?
-                    <Button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        fabControlEvents.deactivateFAB();
-                        setIsEntityUpdating(true);
-                        setIsProcessingBackground(true);
-                        console.log('⏸️ [Restart] Pausing location poller...');
-                        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                        driverLocationPoller.pause();
+                        <Button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            fabControlEvents.deactivateFAB();
+                            setIsEntityUpdating(true);
+                            setIsProcessingBackground(true);
+                            console.log('⏸️ [Restart] Pausing location poller...');
+                            const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                            driverLocationPoller.pause();
 
-                        await new Promise((resolve) => setTimeout(resolve, 100));
+                            await new Promise((resolve) => setTimeout(resolve, 100));
 
-                        try {
-                          // CRITICAL: Verify delivery still exists before restarting
-                          const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                          if (!deliveryExists || deliveryExists.length === 0) {
-                            console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
-                            throw new Error('This delivery has been deleted. Please refresh the page.');
-                          }
-
-                          console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
-
-                          // Step 1: Clear all isNextDelivery flags for this driver/date
-                          const driverDeliveries = allDeliveries.filter((d) =>
-                          d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                          );
-
-                          for (const d of driverDeliveries) {
-                            if (d.isNextDelivery) {
-                              await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
-                            }
-                          }
-
-                          // Step 2: Set restarted delivery to in_transit/en_route and isNextDelivery: true
-                          const newStatus = isPickup ? 'en_route' : 'in_transit';
-                          await updateDeliveryLocal(delivery.id, {
-                            status: newStatus,
-                            isNextDelivery: true,
-                            actual_delivery_time: null,
-                            delivery_notes: ''
-                          }, { skipSmartRefresh: true });
-
-                          // Step 3: Run recursive route optimization
-                          try {
-                            const now = new Date();
-                            const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                            console.log('🔄 [Restart Delivery] Running optimizeRouteRealTime...');
-                            await base44.functions.invoke('optimizeRouteRealTime', {
-                              driverId: delivery.driver_id,
-                              deliveryDate: delivery.delivery_date,
-                              currentLocalTime: currentLocalTime,
-                              generatePolyline: false
-                            });
-                            console.log('✅ [Restart Delivery] Route optimized');
-
-                            // CRITICAL: Refresh UI to show reordered stops
-                            invalidate('Delivery');
-                            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                            console.log('✅ [Restart Delivery] UI refreshed with new stop order');
-                          } catch (optimizeError) {
-                            console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
-                          }
-
-                          // Step 4: Refresh data and sync UI
-                          invalidate('Delivery');
-                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                          console.log('✅ [RESTART] Delivery restarted successfully');
-
-                          // CRITICAL: Trigger map update
-                          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                            detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                          }));
-
-                          // Send notification to dispatchers
-                          if (userHasRole(currentUser, 'driver')) {
-                            await notifyDriverRetry({
-                              driver: currentUser,
-                              patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                              delivery,
-                              store,
-                              appUsers
-                            });
-                          }
-                        } finally {
-                          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                          driverLocationPoller.resume();
-
-                          // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
-                          fabControlEvents.reactivateFAB(true);
-                          setIsProcessingBackground(false);
-                        }
-                      }}
-                      size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
-                      disabled={isProcessingBackground}>
-                          <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
-                          <span className="text-white">Restart</span>
-                        </Button> :
-                    delivery.status === 'failed' && onStatusUpdate ?
-                    <Button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-
-                        fabControlEvents.deactivateFAB();
-                        setIsRetrying(true);
-                        setIsProcessingBackground(true);
-                        console.log('⏸️ [Retry] Pausing location poller...');
-                        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                        driverLocationPoller.pause();
-
-                        smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-                        await new Promise((resolve) => setTimeout(resolve, 50));
-
-                        try {
-                          // CRITICAL: Verify delivery still exists before retrying
-                          const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                          if (!deliveryExists || deliveryExists.length === 0) {
-                            console.warn('⚠️ [RETRY] Delivery no longer exists - aborting');
-                            throw new Error('This delivery has been deleted. Please refresh the page.');
-                          }
-
-                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                          await ensureDriverOnline();
-                          
-                          // CRITICAL: Save to both offline and online databases
-                          await updateDeliveryLocal(delivery.id, { 
-                            status: isPickup ? 'en_route' : 'in_transit' 
-                          }, { skipSmartRefresh: true });
-                          
-                          // Also call onStatusUpdate if available for additional UI updates
-                          if (onStatusUpdate) {
-                            await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
-                          }
-
-                          // CRITICAL: Run route optimizer to insert retry at optimal position
-                          try {
-                            const now = new Date();
-                            const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                            console.log('🔄 [Retry] Running optimizeRouteRealTime...');
-                            await base44.functions.invoke('optimizeRouteRealTime', {
-                              driverId: delivery.driver_id,
-                              deliveryDate: delivery.delivery_date,
-                              currentLocalTime: currentLocalTime,
-                              generatePolyline: false
-                            });
-                            console.log('✅ [Retry] Route optimized');
-
-                            // CRITICAL: Refresh UI to show reordered stops
-                            invalidate('Delivery');
-                            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                            console.log('✅ [Retry] UI refreshed with new stop order');
-                          } catch (optimizeError) {
-                            console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);
-                          }
-
-                          // CRITICAL: Trigger immediate map update
-                          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                            detail: { triggeredBy: 'retry', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                          }));
-
-                          // Send notification to dispatchers
-                          if (userHasRole(currentUser, 'driver')) {
-                            await notifyDriverRetry({
-                              driver: currentUser,
-                              patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                              delivery,
-                              store,
-                              appUsers
-                            });
-                          }
-                        } finally {
-                          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                          driverLocationPoller.resume();
-
-                          setIsRetrying(false);
-                          setIsProcessingBackground(false);
-                          console.log('✅ [RETRY] Retry cycle complete');
-
-                          // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
-                          fabControlEvents.reactivateFAB(true);
-                        }
-                      }}
-                      size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
-                      disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery}>
-                          {isRetrying ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-                          <span className="text-white">Retry</span>
-                        </Button> :
-                    delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
-                    isNextDelivery ?
-                    <Button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-
-                        fabControlEvents.deactivateFAB();
-                        setIsCompleting(true);
-                        setIsProcessingBackground(true);
-                        console.log('⏸️ [Complete] Pausing location poller...');
-                        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                        driverLocationPoller.pause();
-
-                        smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-                        await new Promise((resolve) => setTimeout(resolve, 50));
-
-                        try {
-                          // CRITICAL: Verify delivery still exists before completing
-                          const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                          if (!deliveryExists || deliveryExists.length === 0) {
-                            console.warn('⚠️ [COMPLETE] Delivery no longer exists - aborting');
-                            throw new Error('This delivery has been deleted. Please refresh the page.');
-                          }
-
-                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                          // Auto-toggle driver online if offline
-                          await ensureDriverOnline();
-
-                          // CRITICAL: Auto-collect COD if required and not already collected
-                          if (hasCODRequired && codPayments.length === 0 && onCODUpdate) {
-                            console.log('💰 [COMPLETE] Auto-collecting COD:', codTotalRequired);
-                            const autoCODPayment = [{
-                              type: 'Cash',
-                              amount: codTotalRequired
-                            }];
-                            
-                            // Update local state FIRST for immediate UI update
-                            setCodPayments(autoCODPayment);
-                            
-                            // Save COD payment to both databases
-                            await onCODUpdate(delivery.id, autoCODPayment, true);
-                            console.log('✅ [COMPLETE] COD auto-collected and saved');
-                          }
-
-                          // CRITICAL: For pickups with pending deliveries, force Accept All FIRST
-                          if (isPickup && pendingPickups && pendingPickups.length > 0) {
-                            // Check if there are pending deliveries that haven't been accepted yet
-                            const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');
-
-                            if (hasPendingDeliveries) {
-                              console.log('⚠️ [Complete Pickup] Pending deliveries detected - triggering Accept All first...');
-
-                              // Simulate Accept All button click
-                              const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
-                              const pickupTR = parseInt(delivery.tracking_number, 10);
-                              const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
-
-                              const now = new Date();
-                              const currentMinutes = now.getHours() * 60 + now.getMinutes();
-                              const startMinutes = currentMinutes + 5;
-                              const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
-                              const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-                              // Update all pending deliveries to in_transit
-                              for (const pendingDelivery of allPendingDeliveries) {
-                                await updateDeliveryLocal(pendingDelivery.id, {
-                                  status: 'in_transit',
-                                  delivery_time_start: deliveryTimeStart
-                                }, { skipSmartRefresh: true });
+                            try {
+                              // CRITICAL: Verify delivery still exists before restarting
+                              const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                              if (!deliveryExists || deliveryExists.length === 0) {
+                                console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
+                                throw new Error('This delivery has been deleted. Please refresh the page.');
                               }
 
-                              // Run route optimizer
+                              console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
+
+                              // Step 1: Clear all isNextDelivery flags for this driver/date
+                              const driverDeliveries = allDeliveries.filter((d) =>
+                                d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                              );
+
+                              for (const d of driverDeliveries) {
+                                if (d.isNextDelivery) {
+                                  await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+                                }
+                              }
+
+                              // Step 2: Set restarted delivery to in_transit/en_route and isNextDelivery: true
+                              const newStatus = isPickup ? 'en_route' : 'in_transit';
+                              await updateDeliveryLocal(delivery.id, {
+                                status: newStatus,
+                                isNextDelivery: true,
+                                actual_delivery_time: null,
+                                delivery_notes: ''
+                              }, { skipSmartRefresh: true });
+
+                              // Step 3: Run recursive route optimization
                               try {
+                                const now = new Date();
+                                const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                console.log('🔄 [Restart Delivery] Running optimizeRouteRealTime...');
                                 await base44.functions.invoke('optimizeRouteRealTime', {
                                   driverId: delivery.driver_id,
                                   deliveryDate: delivery.delivery_date,
                                   currentLocalTime: currentLocalTime,
                                   generatePolyline: false
                                 });
+                                console.log('✅ [Restart Delivery] Route optimized');
+
+                                // CRITICAL: Refresh UI to show reordered stops
+                                invalidate('Delivery');
+                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                console.log('✅ [Restart Delivery] UI refreshed with new stop order');
                               } catch (optimizeError) {
-                                console.warn('⚠️ Route optimizer failed:', optimizeError);
+                                console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
                               }
 
-                              // Assign sequential TR#s
-                              const sortedPending = [...allPendingDeliveries].sort((a, b) =>
-                              (a.patient_name || '').localeCompare(b.patient_name || '')
-                              );
-
-                              for (let i = 0; i < sortedPending.length; i++) {
-                                const newTR = String(baseTR + i + 1);
-                                await updateDeliveryLocal(sortedPending[i].id, {
-                                  tracking_number: newTR
-                                }, { skipSmartRefresh: true });
-                              }
-
-                              // Refresh data to get optimized stop orders
+                              // Step 4: Refresh data and sync UI
+                              invalidate('Delivery');
                               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
-                              console.log('✅ [Complete Pickup] Accept All completed - now completing pickup...');
-                            }
-                          }
+                              console.log('✅ [RESTART] Delivery restarted successfully');
 
-                          // ═══════════ PHASE 1: IMMEDIATE UI UPDATES ═══════════
-                          console.log('🎯 [COMPLETE] PHASE 1: Updating UI immediately...');
+                              // CRITICAL: Trigger map update
+                              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                              }));
 
-                          // Update status to completed with timestamp
-                          // CRITICAL: Round completion time to nearest 5-minute mark
-                          const currentTime = new Date();
-                          const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                          const roundedMinutes = Math.round(totalMinutes / 5) * 5;
-                          const roundedHours = Math.floor(roundedMinutes / 60);
-                          const roundedMins = roundedMinutes % 60;
-
-                          const year = currentTime.getFullYear();
-                          const month = String(currentTime.getMonth() + 1).padStart(2, '0');
-                          const day = String(currentTime.getDate()).padStart(2, '0');
-                          const hours = String(roundedHours).padStart(2, '0');
-                          const minutes = String(roundedMins).padStart(2, '0');
-                          const seconds = '00';
-
-                          // Get timezone offset in minutes and format as ±HH:MM
-                          const offsetMinutes = -currentTime.getTimezoneOffset();
-                          const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
-                          const offsetMins = Math.abs(offsetMinutes) % 60;
-                          const offsetSign = offsetMinutes >= 0 ? '+' : '-';
-                          const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
-
-                          const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
-
-                          const completionUpdate = {
-                            status: 'completed',
-                            actual_delivery_time: localTimeString,
-                            isNextDelivery: false
-                          };
-
-                          // CRITICAL: Save to both offline and online databases
-                          await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
-
-                          // CRITICAL: Re-fetch ALL deliveries to ensure we see the newly transitioned deliveries
-                          console.log('🔄 [Complete Pickup] Re-fetching ALL deliveries after Accept All...');
-                          const refreshedAfterAccept = await base44.entities.Delivery.filter({
-                            driver_id: delivery.driver_id,
-                            delivery_date: delivery.delivery_date
-                          });
-
-                          // Find and update next delivery flag
-                          const incompleteDeliveries = refreshedAfterAccept.
-                          filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').
-                          sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-                          console.log(`🎯 [Complete Pickup] Found ${incompleteDeliveries.length} incomplete deliveries`);
-                          if (incompleteDeliveries.length > 0) {
-                            const nextStop = incompleteDeliveries[0];
-                            console.log(`✅ [Complete Pickup] Setting isNextDelivery=true on ${nextStop.patient_name || 'Pickup'}`);
-                            await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
-                          } else {
-                            // CRITICAL: This is the FINAL stop - activate FAB phase 1 and show route summary
-                            console.log('🏁 [COMPLETE] FINAL STOP COMPLETED - Activating FAB and showing route summary');
-
-                            // Activate FAB phase 1
-                            fabControlEvents.notifyDoneButtonClicked();
-
-                            // Show route summary popup
-                            window.dispatchEvent(new CustomEvent('showRouteSummary', {
-                              detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                            }));
-
-                            // Toggle location sharing off and driver status to off_duty
-                            if (currentUser?.id) {
-                              const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
-                              if (appUsers && appUsers.length > 0) {
-                                const appUser = appUsers[0];
-                                await base44.entities.AppUser.update(appUser.id, {
-                                  driver_status: 'off_duty',
-                                  location_tracking_enabled: false
+                              // Send notification to dispatchers
+                              if (userHasRole(currentUser, 'driver')) {
+                                await notifyDriverRetry({
+                                  driver: currentUser,
+                                  patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                  delivery,
+                                  store,
+                                  appUsers
                                 });
+                              }
+                            } finally {
+                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                              driverLocationPoller.resume();
 
-                                // Stop location tracking
+                              // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
+                              fabControlEvents.reactivateFAB(true);
+                              setIsProcessingBackground(false);
+                            }
+                          }}
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
+                          disabled={isProcessingBackground}>
+                          <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
+                          <span className="text-white">Restart</span>
+                        </Button> :
+                        delivery.status === 'failed' && onStatusUpdate ?
+                          <Button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+
+                              fabControlEvents.deactivateFAB();
+                              setIsRetrying(true);
+                              setIsProcessingBackground(true);
+                              console.log('⏸️ [Retry] Pausing location poller...');
+                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                              driverLocationPoller.pause();
+
+                              smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+                              await new Promise((resolve) => setTimeout(resolve, 50));
+
+                              try {
+                                // CRITICAL: Verify delivery still exists before retrying
+                                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                                if (!deliveryExists || deliveryExists.length === 0) {
+                                  console.warn('⚠️ [RETRY] Delivery no longer exists - aborting');
+                                  throw new Error('This delivery has been deleted. Please refresh the page.');
+                                }
+
+                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+                                await ensureDriverOnline();
+
+                                // CRITICAL: Save to both offline and online databases
+                                await updateDeliveryLocal(delivery.id, {
+                                  status: isPickup ? 'en_route' : 'in_transit'
+                                }, { skipSmartRefresh: true });
+
+                                // Also call onStatusUpdate if available for additional UI updates
+                                if (onStatusUpdate) {
+                                  await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
+                                }
+
+                                // CRITICAL: Run route optimizer to insert retry at optimal position
                                 try {
-                                  locationTracker.stopTracking();
-                                } catch (trackingError) {
-                                  console.warn('Could not stop location tracking:', trackingError.message);
+                                  const now = new Date();
+                                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                  console.log('🔄 [Retry] Running optimizeRouteRealTime...');
+                                  await base44.functions.invoke('optimizeRouteRealTime', {
+                                    driverId: delivery.driver_id,
+                                    deliveryDate: delivery.delivery_date,
+                                    currentLocalTime: currentLocalTime,
+                                    generatePolyline: false
+                                  });
+                                  console.log('✅ [Retry] Route optimized');
+
+                                  // CRITICAL: Refresh UI to show reordered stops
+                                  invalidate('Delivery');
+                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                  console.log('✅ [Retry] UI refreshed with new stop order');
+                                } catch (optimizeError) {
+                                  console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);
                                 }
 
-                                // Notify parent to refresh UI
-                                if (onDriverStatusChange) {
-                                  onDriverStatusChange('off_duty');
+                                // CRITICAL: Trigger immediate map update
+                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                  detail: { triggeredBy: 'retry', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                }));
+
+                                // Send notification to dispatchers
+                                if (userHasRole(currentUser, 'driver')) {
+                                  await notifyDriverRetry({
+                                    driver: currentUser,
+                                    patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                    delivery,
+                                    store,
+                                    appUsers
+                                  });
                                 }
+                              } finally {
+                                const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                driverLocationPoller.resume();
+
+                                setIsRetrying(false);
+                                setIsProcessingBackground(false);
+                                console.log('✅ [RETRY] Retry cycle complete');
+
+                                // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
+                                fabControlEvents.reactivateFAB(true);
                               }
-                            }
-                          }
+                            }}
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
+                            disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery}>
+                            {isRetrying ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                            <span className="text-white">Retry</span>
+                          </Button> :
+                          delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
+                            isNextDelivery ?
+                              <Button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
 
-                          // Force UI refresh with new data
-                          invalidate('Delivery');
-                          const freshDeliveries = await base44.entities.Delivery.filter({
-                            driver_id: delivery.driver_id,
-                            delivery_date: delivery.delivery_date
-                          });
+                                  fabControlEvents.deactivateFAB();
+                                  setIsCompleting(true);
+                                  setIsProcessingBackground(true);
+                                  console.log('⏸️ [Complete] Pausing location poller...');
+                                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                  driverLocationPoller.pause();
 
-                          if (updateDeliveriesLocally) {
-                            const otherDeliveries = allDeliveries.filter((d) =>
-                            d && (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date)
-                            );
-                            updateDeliveriesLocally([...otherDeliveries, ...freshDeliveries], true);
-                          }
+                                  smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+                                  await new Promise((resolve) => setTimeout(resolve, 50));
 
-                          // CRITICAL: Trigger map and stop cards update immediately
-                          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                            detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                          }));
+                                  try {
+                                    // CRITICAL: Verify delivery still exists before completing
+                                    const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                                    if (!deliveryExists || deliveryExists.length === 0) {
+                                      console.warn('⚠️ [COMPLETE] Delivery no longer exists - aborting');
+                                      throw new Error('This delivery has been deleted. Please refresh the page.');
+                                    }
 
-                          // CRITICAL: Collapse the current card immediately by deselecting it
-                          // This ensures if the card was expanded, it will now be condensed
-                          if (onSelectionChange) {
-                            onSelectionChange(delivery.id, false);
-                          } else if (onClick) {
-                            onClick(null);
-                          }
+                                    await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
-                          // CRITICAL: Scroll to next delivery card immediately
-                          if (incompleteDeliveries.length > 0) {
-                            setTimeout(() => {
-                              const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
-                              if (nextCardElement) {
-                                nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                                console.log('📍 [COMPLETE] Scrolled to next delivery card');
-                              }
-                            }, 100);
-                          }
+                                    // Auto-toggle driver online if offline
+                                    await ensureDriverOnline();
 
-                          // CRITICAL: Reactivate FAB immediately (before background work)
-                          fabControlEvents.reactivateFAB(true);
+                                    // CRITICAL: Auto-collect COD if required and not already collected
+                                    if (hasCODRequired && codPayments.length === 0 && onCODUpdate) {
+                                      console.log('💰 [COMPLETE] Auto-collecting COD:', codTotalRequired);
+                                      const autoCODPayment = [{
+                                        type: 'Cash',
+                                        amount: codTotalRequired
+                                      }];
 
-                          console.log('✅ [COMPLETE] PHASE 1: UI updated - markers, routes, FAB, and next card centered');
+                                      // Update local state FIRST for immediate UI update
+                                      setCodPayments(autoCODPayment);
 
-                          // ═══════════ PHASE 2: BACKGROUND TASKS ═══════════
-                          console.log('🔄 [COMPLETE] PHASE 2: Running background tasks...');
-                          setIsProcessingBackground(true);
+                                      // Save COD payment to both databases
+                                      await onCODUpdate(delivery.id, autoCODPayment, true);
+                                      console.log('✅ [COMPLETE] COD auto-collected and saved');
+                                    }
 
-                          // Background: Route optimization
-                          base44.functions.invoke('optimizeRouteRealTime', {
-                            driverId: delivery.driver_id,
-                            deliveryDate: delivery.delivery_date,
-                            currentLocalTime: format(currentTime, 'HH:mm'),
-                            generatePolyline: false
-                          }).then(() => {
-                            console.log('✅ [COMPLETE] Background: Route optimized');
-                            // Trigger final map update after optimization
-                            window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
-                          }).catch((err) => console.warn('⚠️ [COMPLETE] Background optimization failed:', err));
+                                    // CRITICAL: For pickups with pending deliveries, trigger Accept All FIRST
+                                    if (isPickup && pendingPickups && pendingPickups.length > 0) {
+                                      const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');
+                                      if (hasPendingDeliveries) {
+                                        console.log('⚠️ [Complete Pickup] Pending deliveries detected - triggering Accept All logic...');
+                                        await handleAcceptAllStops();
+                                        console.log('✅ [Complete Pickup] Accept All logic completed - now completing pickup...');
+                                      }
+                                    }
 
-                          // Background: Send notification
-                          if (userHasRole(currentUser, 'driver')) {
-                            notifyDriverCompleted({
-                              driver: currentUser,
-                              patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                              delivery,
-                              store,
-                              appUsers
-                            }).catch((err) => console.warn('Notification failed:', err));
-                          }
+                                    // ═══════════ PHASE 1: IMMEDIATE UI UPDATES ═══════════
+                                    console.log('🎯 [COMPLETE] PHASE 1: Updating UI immediately...');
 
-                          // Background: AI route re-optimization
-                          const today = format(new Date(), 'yyyy-MM-dd');
-                          triggerRouteOptimization({
-                            driverId: currentUser.id,
-                            deliveryDate: today,
-                            trigger: 'delivery_complete',
-                            completedDeliveryId: delivery.id,
-                            onNotification: (notification) => {
-                              if (notification.type === 'next_stop') {
-                                toast.success(notification.message, {
-                                  description: notification.aiSuggestion
-                                });
-                              }
-                            }
-                          }).catch((err) => console.warn('Route optimization failed:', err)).finally(() => {
-                            setIsProcessingBackground(false);
-                          });
+                                    // Update status to completed with timestamp
+                                    // CRITICAL: Round completion time to nearest 5-minute mark
+                                    const currentTime = new Date();
+                                    const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                                    const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+                                    const roundedHours = Math.floor(roundedMinutes / 60);
+                                    const roundedMins = roundedMinutes % 60;
 
-                        } catch (error) {
-                          console.error('❌ [COMPLETE] Error:', error);
-                          fabControlEvents.reactivateFAB(true);
-                          setIsProcessingBackground(false);
-                        } finally {
-                          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                          driverLocationPoller.resume();
-                          setIsCompleting(false);
-                        }
-                      }}
-                      size="sm"
-                      disabled={isCompleting || isProcessingBackground}
-                      className="rounded-md bg-emerald-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-emerald-700 h-10 md:h-8 border-r border-emerald-500 !text-white">
-                              {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-                              <span className="text-white">Complete</span>
-                            </Button> :
-                    onStartDelivery &&
-                    <Button type="button" onClick={async (e) => {
-                      e.stopPropagation();
-                      setIsStarting(true);
+                                    const year = currentTime.getFullYear();
+                                    const month = String(currentTime.getMonth() + 1).padStart(2, '0');
+                                    const day = String(currentTime.getDate()).padStart(2, '0');
+                                    const hours = String(roundedHours).padStart(2, '0');
+                                    const minutes = String(roundedMins).padStart(2, '0');
+                                    const seconds = '00';
 
-                      // ═══════════ PHASE 1: IMMEDIATE UI UPDATE ═══════════
-                      console.log('🎯 [START] PHASE 1: Immediate UI update...');
+                                    // Get timezone offset in minutes and format as ±HH:MM
+                                    const offsetMinutes = -currentTime.getTimezoneOffset();
+                                    const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+                                    const offsetMins = Math.abs(offsetMinutes) % 60;
+                                    const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+                                    const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
 
-                      // Build batch updates for immediate local state change
-                      const driverDeliveries = allDeliveries.filter((d) =>
-                      d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                      );
+                                    const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
 
-                      const localUpdates = [];
-                      for (const d of driverDeliveries) {
-                        if (d.id !== delivery.id && d.isNextDelivery) {
-                          localUpdates.push({ ...d, isNextDelivery: false });
-                        } else if (d.id === delivery.id) {
-                          localUpdates.push({ ...d, isNextDelivery: true });
-                        } else {
-                          localUpdates.push(d);
-                        }
+                                    const completionUpdate = {
+                                      status: 'completed',
+                                      actual_delivery_time: localTimeString,
+                                      isNextDelivery: false
+                                    };
+
+                                    // CRITICAL: Save to both offline and online databases
+                                    await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
+
+                                    // CRITICAL: Re-fetch ALL deliveries to ensure we see the newly transitioned deliveries
+                                    console.log('🔄 [Complete Pickup] Re-fetching ALL deliveries after Accept All...');
+                                    const refreshedAfterAccept = await base44.entities.Delivery.filter({
+                                      driver_id: delivery.driver_id,
+                                      delivery_date: delivery.delivery_date
+                                    });
+
+                                    // Find and update next delivery flag
+                                    const incompleteDeliveries = refreshedAfterAccept.
+                                      filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').
+                                      sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+                                    console.log(`🎯 [Complete Pickup] Found ${incompleteDeliveries.length} incomplete deliveries`);
+                                    if (incompleteDeliveries.length > 0) {
+                                      const nextStop = incompleteDeliveries[0];
+                                      console.log(`✅ [Complete Pickup] Setting isNextDelivery=true on ${nextStop.patient_name || 'Pickup'}`);
+                                      await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                                    } else {
+                                      // CRITICAL: This is the FINAL stop - activate FAB phase 1 and show route summary
+                                      console.log('🏁 [COMPLETE] FINAL STOP COMPLETED - Activating FAB and showing route summary');
+
+                                      // Activate FAB phase 1
+                                      fabControlEvents.notifyDoneButtonClicked();
+
+                                      // Show route summary popup
+                                      window.dispatchEvent(new CustomEvent('showRouteSummary', {
+                                        detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                      }));
+
+                                      // Toggle location sharing off and driver status to off_duty
+                                      if (currentUser?.id) {
+                                        const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+                                        if (appUsers && appUsers.length > 0) {
+                                          const appUser = appUsers[0];
+                                          await base44.entities.AppUser.update(appUser.id, {
+                                            driver_status: 'off_duty',
+                                            location_tracking_enabled: false
+                                          });
+
+                                          // Stop location tracking
+                                          try {
+                                            locationTracker.stopTracking();
+                                          } catch (trackingError) {
+                                            console.warn('Could not stop location tracking:', trackingError.message);
+                                          }
+
+                                          // Notify parent to refresh UI
+                                          if (onDriverStatusChange) {
+                                            onDriverStatusChange('off_duty');
+                                          }
+                                        }
+                                      }
+                                    }
+
+                                    // Force UI refresh with new data
+                                    invalidate('Delivery');
+                                    const freshDeliveries = await base44.entities.Delivery.filter({
+                                      driver_id: delivery.driver_id,
+                                      delivery_date: delivery.delivery_date
+                                    });
+
+                                    if (updateDeliveriesLocally) {
+                                      const otherDeliveries = allDeliveries.filter((d) =>
+                                        d && (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date)
+                                      );
+                                      updateDeliveriesLocally([...otherDeliveries, ...freshDeliveries], true);
+                                    }
+
+                                    // CRITICAL: Trigger map and stop cards update immediately
+                                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                      detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                    }));
+
+                                    // CRITICAL: Collapse the current card immediately by deselecting it
+                                    // This ensures if the card was expanded, it will now be condensed
+                                    if (onSelectionChange) {
+                                      onSelectionChange(delivery.id, false);
+                                    } else if (onClick) {
+                                      onClick(null);
+                                    }
+
+                                    // CRITICAL: Scroll to next delivery card immediately
+                                    if (incompleteDeliveries.length > 0) {
+                                      setTimeout(() => {
+                                        const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
+                                        if (nextCardElement) {
+                                          nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                          console.log('📍 [COMPLETE] Scrolled to next delivery card');
+                                        }
+                                      }, 100);
+                                    }
+
+                                    // CRITICAL: Reactivate FAB immediately (before background work)
+                                    fabControlEvents.reactivateFAB(true);
+
+                                    console.log('✅ [COMPLETE] PHASE 1: UI updated - markers, routes, FAB, and next card centered');
+
+                                    // ═══════════ PHASE 2: BACKGROUND TASKS ═══════════
+                                    console.log('🔄 [COMPLETE] PHASE 2: Background tasks starting...');
+                                    setIsProcessingBackground(true);
+
+                                    // Background: Route optimization
+                                    base44.functions.invoke('optimizeRouteRealTime', {
+                                      driverId: delivery.driver_id,
+                                      deliveryDate: delivery.delivery_date,
+                                      currentLocalTime: format(currentTime, 'HH:mm'),
+                                      generatePolyline: false
+                                    }).then(() => {
+                                      console.log('✅ [COMPLETE] Background: Route optimized');
+                                      // Trigger final map update after optimization
+                                      window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
+                                    }).catch((err) => console.warn('⚠️ [COMPLETE] Background optimization failed:', err));
+
+                                    // Background: Send notification
+                                    if (userHasRole(currentUser, 'driver')) {
+                                      notifyDriverCompleted({
+                                        driver: currentUser,
+                                        patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                        delivery,
+                                        store,
+                                        appUsers
+                                      }).catch((err) => console.warn('Notification failed:', err));
+                                    }
+
+                                    // Background: AI route re-optimization
+                                    const today = format(new Date(), 'yyyy-MM-dd');
+                                    triggerRouteOptimization({
+                                      driverId: currentUser.id,
+                                      deliveryDate: today,
+                                      trigger: 'delivery_complete',
+                                      completedDeliveryId: delivery.id,
+                                      onNotification: (notification) => {
+                                        if (notification.type === 'next_stop') {
+                                          toast.success(notification.message, {
+                                            description: notification.aiSuggestion
+                                          });
+                                        }
+                                      }
+                                    }).catch((err) => console.warn('Route optimization failed:', err)).finally(() => {
+                                      setIsProcessingBackground(false);
+                                    });
+
+                                  } catch (error) {
+                                    console.error('❌ [COMPLETE] Error:', error);
+                                    fabControlEvents.reactivateFAB(true);
+                                    setIsProcessingBackground(false);
+                                  } finally {
+                                    const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                    driverLocationPoller.resume();
+                                    setIsCompleting(false);
+                                  }
+                                }}
+                                size="sm"
+                                disabled={isCompleting || isProcessingBackground}
+                                className="rounded-md bg-emerald-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-emerald-700 h-10 md:h-8 border-r border-emerald-500 !text-white">
+                                {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                                <span className="text-white">Complete</span>
+                              </Button> :
+                              onStartDelivery &&
+                              <Button type="button" onClick={async (e) => {
+                                e.stopPropagation();
+                                setIsStarting(true);
+
+                                // ═══════════ PHASE 1: IMMEDIATE UI UPDATE ═══════════
+                                console.log('🎯 [START] PHASE 1: Immediate UI update...');
+
+                                // Build batch updates for immediate local state change
+                                const driverDeliveries = allDeliveries.filter((d) =>
+                                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                                );
+
+                                const localUpdates = [];
+                                for (const d of driverDeliveries) {
+                                  if (d.id !== delivery.id && d.isNextDelivery) {
+                                    localUpdates.push({ ...d, isNextDelivery: false });
+                                  } else if (d.id === delivery.id) {
+                                    localUpdates.push({ ...d, isNextDelivery: true });
+                                  } else {
+                                    localUpdates.push(d);
+                                  }
+                                }
+
+                                // Update local state IMMEDIATELY for instant UI feedback
+                                if (updateDeliveriesLocally) {
+                                  const otherDeliveries = allDeliveries.filter((d) =>
+                                    d && (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date)
+                                  );
+                                  updateDeliveriesLocally([...otherDeliveries, ...localUpdates], true);
+                                }
+
+                                // Trigger immediate map/UI update
+                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                  detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                }));
+
+                                console.log('✅ [START] PHASE 1 Complete - UI updated instantly');
+
+                                // ═══════════ PHASE 2: BACKGROUND DATABASE & OPTIMIZATION ═══════════
+                                // Run in background - don't block UI
+                                (async () => {
+                                  try {
+                                    console.log('🔄 [START] PHASE 2: Background tasks starting...');
+                                    setIsEntityUpdating(true);
+
+                                    // Wait for smart refresh to fully pause
+                                    await new Promise((resolve) => setTimeout(resolve, 300));
+
+                                    // CRITICAL: Update database directly WITHOUT fetching
+                                    console.log('💾 [START] Writing isNextDelivery to database...');
+
+                                    // Step 1: Use LOCAL allDeliveries instead of fetching from backend
+                                    const resetPromises = driverDeliveries
+                                      .filter((d) => d.isNextDelivery && d.id !== delivery.id)
+                                      .map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+
+                                    if (resetPromises.length > 0) {
+                                      await Promise.all(resetPromises);
+                                      console.log(`  ✅ Cleared ${resetPromises.length} old isNextDelivery flags`);
+                                    }
+
+                                    // Step 2: Set this delivery as isNextDelivery with status update
+                                    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                                    const completedStops = driverDeliveries.filter((d) => finishedStatuses.includes(d.status));
+                                    const nextStopOrder = completedStops.length + 1;
+
+                                    await base44.entities.Delivery.update(delivery.id, {
+                                      isNextDelivery: true,
+                                      status: isPickup ? 'en_route' : 'in_transit',
+                                      stop_order: nextStopOrder
+                                    });
+                                    console.log(`  ✅ Set isNextDelivery=true on ${delivery.id} with stop_order ${nextStopOrder}`);
+
+                                    // Set delivery_time_start to current time
+                                    const now = new Date();
+                                    const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                    await updateDeliveryLocal(delivery.id, {
+                                      delivery_time_start: currentLocalTime
+                                    }, { skipSmartRefresh: true });
+
+                                    // CRITICAL: Route optimization - don't refresh UI until complete
+                                    try {
+                                      console.log('🔄 [START] Running optimizeRouteRealTime...');
+                                      await base44.functions.invoke('optimizeRouteRealTime', {
+                                        driverId: delivery.driver_id,
+                                        deliveryDate: delivery.delivery_date,
+                                        currentLocalTime: currentLocalTime,
+                                        generatePolyline: false
+                                      });
+                                      console.log('✅ [START] Route optimized');
+
+                                      // Wait before refreshing to let backend sync complete
+                                      await new Promise((resolve) => setTimeout(resolve, 500));
+
+                                      // NOW refresh UI with optimized stop orders
+                                      invalidate('Delivery');
+                                      await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+                                      // Wait for UI to fully update with new stop orders
+                                      await new Promise((resolve) => setTimeout(resolve, 500));
+
+                                      // Find and scroll to the card with isNextDelivery=true AFTER optimization
+                                      const nextCardElement = document.getElementById(`stop-card-${delivery.id}`);
+                                      if (nextCardElement) {
+                                        nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                        console.log('📍 [START] Scrolled to started delivery card');
+                                      }
+
+                                      // Trigger final map update
+                                      window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
+                                    } catch (optimizeError) {
+                                      console.warn('⚠️ [START] Route optimizer failed:', optimizeError);
+                                    }
+
+                                    // Ensure driver is online
+                                    await ensureDriverOnline();
+
+                                    // Send notification (fire and forget)
+                                    if (userHasRole(currentUser, 'driver')) {
+                                      notifyDriverStarted({
+                                        driver: currentUser,
+                                        patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                        delivery,
+                                        store,
+                                        appUsers
+                                      }).catch((err) => console.warn('Notification failed:', err));
+                                    }
+
+                                    console.log('✅ [START] PHASE 2 Complete - Background tasks done');
+                                  } catch (error) {
+                                    console.error('❌ [START] Background error:', error);
+                                  } finally {
+                                    setIsStarting(false);
+                                    setIsProcessingBackground(false);
+                                    setIsEntityUpdating(false);
+                                  }
+                                })();
+
+                                // CRITICAL: Re-enable button immediately after UI update (don't wait for background)
+                                setTimeout(() => {
+                                  setIsStarting(false);
+                                }, 300);
+
+                              }} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
+                                {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                                <span className="text-white">Start</span>
+                              </Button>)
                       }
-
-                      // Update local state IMMEDIATELY for instant UI feedback
-                      if (updateDeliveriesLocally) {
-                        const otherDeliveries = allDeliveries.filter((d) =>
-                        d && (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date)
-                        );
-                        updateDeliveriesLocally([...otherDeliveries, ...localUpdates], true);
-                      }
-
-                      // Trigger immediate map/UI update
-                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                        detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                      }));
-
-                      console.log('✅ [START] PHASE 1 Complete - UI updated instantly');
-
-                      // ═══════════ PHASE 2: BACKGROUND DATABASE & OPTIMIZATION ═══════════
-                      // Run in background - don't block UI
-                      (async () => {
-                        try {
-                          console.log('🔄 [START] PHASE 2: Background tasks starting...');
-                          setIsEntityUpdating(true);
-
-                          // Wait for smart refresh to fully pause
-                          await new Promise((resolve) => setTimeout(resolve, 300));
-
-                          // CRITICAL: Update database directly WITHOUT fetching
-                          console.log('💾 [START] Writing isNextDelivery to database...');
-
-                          // Step 1: Use LOCAL allDeliveries instead of fetching from backend
-                          const resetPromises = driverDeliveries
-                            .filter((d) => d.isNextDelivery && d.id !== delivery.id)
-                            .map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
-
-                          if (resetPromises.length > 0) {
-                            await Promise.all(resetPromises);
-                            console.log(`  ✅ Cleared ${resetPromises.length} old isNextDelivery flags`);
-                          }
-
-                          // Step 2: Set this delivery as isNextDelivery with status update
-                          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                          const completedStops = driverDeliveries.filter((d) => finishedStatuses.includes(d.status));
-                          const nextStopOrder = completedStops.length + 1;
-
-                          await base44.entities.Delivery.update(delivery.id, {
-                            isNextDelivery: true,
-                            status: isPickup ? 'en_route' : 'in_transit',
-                            stop_order: nextStopOrder
-                          });
-                          console.log(`  ✅ Set isNextDelivery=true on ${delivery.id} with stop_order ${nextStopOrder}`);
-
-                          // Set delivery_time_start to current time
-                          const now = new Date();
-                          const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                          await updateDeliveryLocal(delivery.id, {
-                            delivery_time_start: currentLocalTime
-                          }, { skipSmartRefresh: true });
-
-                          // CRITICAL: Route optimization - don't refresh UI until complete
-                          try {
-                            console.log('🔄 [START] Running optimizeRouteRealTime...');
-                            await base44.functions.invoke('optimizeRouteRealTime', {
-                              driverId: delivery.driver_id,
-                              deliveryDate: delivery.delivery_date,
-                              currentLocalTime: currentLocalTime,
-                              generatePolyline: false
-                            });
-                            console.log('✅ [START] Route optimized');
-
-                            // Wait before refreshing to let backend sync complete
-                            await new Promise((resolve) => setTimeout(resolve, 500));
-
-                            // NOW refresh UI with optimized stop orders
-                            invalidate('Delivery');
-                            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                            // Wait for UI to fully update with new stop orders
-                            await new Promise((resolve) => setTimeout(resolve, 500));
-
-                            // Find and scroll to the card with isNextDelivery=true AFTER optimization
-                            const nextCardElement = document.getElementById(`stop-card-${delivery.id}`);
-                            if (nextCardElement) {
-                              nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                              console.log('📍 [START] Scrolled to started delivery card');
-                            }
-
-                            // Trigger final map update
-                            window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
-                          } catch (optimizeError) {
-                            console.warn('⚠️ [START] Route optimizer failed:', optimizeError);
-                          }
-
-                          // Ensure driver is online
-                          await ensureDriverOnline();
-
-                          // Send notification (fire and forget)
-                          if (userHasRole(currentUser, 'driver')) {
-                            notifyDriverStarted({
-                              driver: currentUser,
-                              patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                              delivery,
-                              store,
-                              appUsers
-                            }).catch((err) => console.warn('Notification failed:', err));
-                          }
-
-                          console.log('✅ [START] PHASE 2 Complete - Background tasks done');
-                        } catch (error) {
-                          console.error('❌ [START] Background error:', error);
-                        } finally {
-                          setIsStarting(false);
-                          setIsProcessingBackground(false);
-                          setIsEntityUpdating(false);
-                        }
-                      })();
-
-                      // CRITICAL: Re-enable button immediately after UI update (don't wait for background)
-                      setTimeout(() => {
-                        setIsStarting(false);
-                      }, 300);
-
-                    }} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
-                              {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-                              <span className="text-white">Start</span>
-                            </Button>)
-                    }
 
                       <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
                           <Button
-                          variant="ghost"
-                          size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
+                            variant="ghost"
+                            size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
 
-                          onClick={(e) => e.stopPropagation()}>
+                            onClick={(e) => e.stopPropagation()}>
                             <MoreVertical className="w-5 h-5 md:w-4 md:h-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                           {onEditDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                        <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}} className="text-base md:text-sm py-2.5 md:py-1.5">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDelivery(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5">
                               <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                               {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
                             </DropdownMenuItem>
-                        }
+                          }
 
                           {!isPickup && patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                        <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditPatient(patient);}} className="text-base md:text-sm py-2.5 md:py-1.5">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }} className="text-base md:text-sm py-2.5 md:py-1.5">
                               <User className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                               Edit Patient
                             </DropdownMenuItem>
-                        }
+                          }
 
 
 
                           {/* Failed/Cancel menu item - for active deliveries */}
                           {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate &&
-                        <>
+                            <>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                               <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
-                              setShowFailureReasonDialog(true);
-                            }}
-                            className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5">
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
+                                  setShowFailureReasonDialog(true);
+                                }}
+                                className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5">
                                 <XCircle className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                                 {isPickup ? 'Cancel Pickup' : 'Mark as Failed'}
                               </DropdownMenuItem>
                             </>
-                        }
+                          }
 
                           {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
 
                           {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                        <DropdownMenuItem
-                          onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}}
-                          className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
-                          disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
+                            <DropdownMenuItem
+                              onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
+                              className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
+                              disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
                               <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                               Delete
                             </DropdownMenuItem>
-                        }
+                          }
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
