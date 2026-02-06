@@ -1876,7 +1876,7 @@ export default function DeliveryForm({
       }
     }
 
-    setStagedDeliveries((prev) => [...prev, {
+    const newStagedDelivery = {
       ...formData,
       delivery_time_start: patient?.time_window_start || '',
       delivery_time_end: patient?.time_window_end || '',
@@ -1892,7 +1892,95 @@ export default function DeliveryForm({
       delivery_address: patient?.address || store.address,
       paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null,
       first_delivery: isNewPatient || !patient?.last_delivery_date // Mark as first delivery if new patient or no last delivery date
-    }]);
+    };
+
+    setStagedDeliveries((prev) => [...prev, newStagedDelivery]);
+
+    // CRITICAL: Auto-add default pickups for driver when first delivery is staged for non-special stores
+    if (!isPickupMode && formData.driver_id && formData.delivery_date && stores) {
+      const specialStores = ['WestPark', 'SouthPoint', 'Lakeland Ridge', 'Sherwood Pk Mall'];
+      const isSpecialStore = specialStores.some(name => 
+        (stores.find(s => s?.id === formData.store_id)?.name || '').includes(name)
+      );
+
+      // Only auto-add pickups for non-special stores
+      if (!isSpecialStore) {
+        // Check if this is the first delivery for ANY non-special store for this driver/date
+        const existingDeliveries = stagedDeliveries.filter(d => 
+          d.driver_id === formData.driver_id && 
+          d.delivery_date === formData.delivery_date &&
+          d.patient_id // Only count patient deliveries
+        );
+        
+        // Get the stores this driver is assigned to for the delivery date
+        const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
+        const dayOfWeek = selectedDate.getDay();
+        
+        const driverAssignedStores = stores.filter(s => {
+          if (!s) return false;
+          
+          let driverIds = [];
+          if (dayOfWeek === 6) {
+            driverIds = [s.saturday_am_driver_id, s.saturday_pm_driver_id];
+          } else if (dayOfWeek === 0) {
+            driverIds = [s.sunday_am_driver_id, s.sunday_pm_driver_id];
+          } else {
+            driverIds = [s.weekday_am_driver_id, s.weekday_pm_driver_id];
+          }
+          
+          return driverIds.includes(formData.driver_id);
+        });
+
+        console.log(`📦 [AutoAddPickups] Driver ${formData.driver_id} assigned to ${driverAssignedStores.length} stores for ${formData.delivery_date}`);
+
+        // Auto-add pickups for all assigned stores (except the one just staged)
+        driverAssignedStores.forEach(assignedStore => {
+          if (!assignedStore || assignedStore.id === formData.store_id) return; // Skip current store
+          
+          // Check if pickup already exists in staged or allDeliveries
+          const pickupExists = stagedDeliveries.some(d => 
+            !d.patient_id && d.store_id === assignedStore.id && 
+            d.delivery_date === formData.delivery_date &&
+            d.driver_id === formData.driver_id
+          ) || allDeliveries?.some(d =>
+            !d.patient_id && d.store_id === assignedStore.id &&
+            d.delivery_date === formData.delivery_date &&
+            d.driver_id === formData.driver_id &&
+            (d.status === 'pending' || d.status === 'en_route' || d.status === 'completed')
+          );
+
+          if (!pickupExists) {
+            // Determine time slot for this store
+            const assignedTimeSlot = getStoreAssignedTimeSlot(assignedStore, formData.delivery_date, allDeliveries);
+            const pickupPuid = getPickupStopIdForDelivery(assignedStore.id, formData.delivery_date, assignedTimeSlot, allDeliveries);
+
+            const autoPickup = {
+              store_id: assignedStore.id,
+              delivery_date: formData.delivery_date,
+              driver_id: formData.driver_id,
+              driver_name: formData.driver_name,
+              status: 'Staged',
+              _tempId: Date.now() + Math.random(),
+              patient_name: `(Auto Pickup)`,
+              store_name: assignedStore.name,
+              store_abbreviation: assignedStore.abbreviation,
+              ampm_deliveries: assignedTimeSlot,
+              puid: pickupPuid || '',
+              stop_id: pickupPuid || '',
+              delivery_notes: 'Auto-added pickup',
+              delivery_time_start: '',
+              delivery_time_end: '',
+              cod_total_amount_required: 0,
+              cod_payments: [],
+              distanceFromStore: 0
+            };
+
+            setStagedDeliveries(prev => [...prev, autoPickup]);
+            console.log(`✅ [AutoAddPickups] Auto-added pickup for store: ${assignedStore.name}`);
+          }
+        });
+      }
+    }
 
     setHasChanges(true);
 
