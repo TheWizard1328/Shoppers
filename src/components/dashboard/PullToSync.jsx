@@ -228,8 +228,9 @@ export default function PullToSync({
             <div 
               className="flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border backdrop-blur-sm"
               style={{
-                background: 'var(--bg-white-95)',
-                borderColor: 'var(--border-slate-200)'
+                background: 'var(--bg-white)',
+                borderColor: 'var(--border-slate-200)',
+                opacity: 1
               }}
             >
               <RefreshCw 
