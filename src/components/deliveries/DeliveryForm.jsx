@@ -2552,6 +2552,9 @@ export default function DeliveryForm({
 
       // CRITICAL: Resume SmartRefresh ONCE after all updates complete
       try {
+        setBatchFormSaving(false); // Release batch flag FIRST
+        console.log('🔓 [AddToRoute] Batch form saving COMPLETE - SmartRefresh restarts re-enabled');
+        
         const { smartRefreshManager } = await import('../utils/smartRefreshManager');
         smartRefreshManager.restart();
         console.log('▶️ [AddToRoute] Resumed SmartRefresh after batch operation');
