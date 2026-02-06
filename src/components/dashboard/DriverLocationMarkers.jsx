@@ -4,12 +4,26 @@ import { Circle, Marker, Popup } from 'react-leaflet';
 import { formatDistanceToNow } from 'date-fns';
 import { userHasRole } from '../utils/userRoles';
 import { isMobileDevice } from '../utils/deviceUtils';
+import { getCurrentDevice } from '../utils/deviceManager';
 
 const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [] }) => {
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const markersRef = useRef({});
   const prevVisibleIdsRef = useRef(new Set());
+  const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
+
+  // Check if current device is primary tracker
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const checkPrimary = async () => {
+      const device = await getCurrentDevice(currentUser.id);
+      setIsPrimaryDevice(device?.is_primary_tracker || false);
+    };
+
+    checkPrimary();
+  }, [currentUser?.id]);
 
   // Listen for driverLocationsUpdated events to force marker refresh
   useEffect(() => {
@@ -104,8 +118,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return false;
       }
       
-      // CRITICAL: Only block self marker on mobile if live GPS tracking is active
-      // If tracking is off or driver is off-duty, show the shared marker
+      // CRITICAL: Check if this is the current user viewing the map
       const currentUserId = currentUser?.id;
       const currentUserUserId = currentUser?.user_id;
       const userId = user.id || user.user_id;
@@ -114,27 +127,23 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                      userId === currentUserUserId ||
                      user.user_id === currentUserId;
       
-      if (isMobile && isSelf) {
-        // Check if live GPS tracking is active (blue dot showing)
-        const isLiveTrackingActive = currentUser?.driver_status === 'on_duty' && 
-                                     currentUser?.location_tracking_enabled === true;
-        
-        if (isLiveTrackingActive) {
-          console.log('🚫 [DriverLocationMarkers] Blocking self shared marker - live GPS active', {
-            userId,
-            currentUserId,
-            userName: user.user_name || user.full_name,
-            driver_status: currentUser?.driver_status,
-            location_tracking_enabled: currentUser?.location_tracking_enabled
-          });
-          return false;
-        } else {
-          console.log('✅ [DriverLocationMarkers] Showing self shared marker - live GPS inactive', {
-            userId,
-            driver_status: currentUser?.driver_status,
-            location_tracking_enabled: currentUser?.location_tracking_enabled
-          });
-        }
+      // CRITICAL: Only block self marker if this device is the PRIMARY tracker
+      // All non-primary devices should ALWAYS show the shared location marker
+      if (isSelf && isPrimaryDevice) {
+        console.log('🚫 [DriverLocationMarkers] Blocking self marker - this is the primary tracking device', {
+          userId,
+          userName: user.user_name || user.full_name,
+          isPrimaryDevice
+        });
+        return false;
+      }
+      
+      if (isSelf && !isPrimaryDevice) {
+        console.log('✅ [DriverLocationMarkers] Showing self shared marker - non-primary device', {
+          userId,
+          userName: user.user_name || user.full_name,
+          isPrimaryDevice
+        });
       }
       
       console.log('✅ [DriverLocationMarkers] Including driver', {
@@ -233,10 +242,14 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                                    currentUser?.location_tracking_enabled === true;
       const shouldBlockSelfMarker = isCurrentUserOnMobile && isLiveTrackingActive;
       
-      // CRITICAL: ALWAYS show current user's own marker (even if location_tracking_enabled is false)
-      // Only requirement: must have valid status and permissions
+      // CRITICAL: Check if this is the current user on a non-primary device
       const isCurrentUserMarker = userId === currentUser?.id || userId === currentUser?.user_id;
-      const shouldShowMarker = (user.location_tracking_enabled === true || isCurrentUserMarker) && 
+      const isCurrentUserOnNonPrimaryDevice = isCurrentUserMarker && !isPrimaryDevice;
+      
+      // CRITICAL: Determine if we should block the self marker based on primary device status
+      const shouldBlockSelfMarker = isCurrentUserMarker && isPrimaryDevice;
+      
+      const shouldShowMarker = (user.location_tracking_enabled === true || isCurrentUserOnNonPrimaryDevice) && 
                                user.status !== 'inactive' && 
                                canView && 
                                !shouldBlockSelfMarker;
@@ -270,11 +283,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     return () => window.removeEventListener('driverLocationUpdated', handleLocationUpdate);
   }, [users, currentUser, isMobile]);
 
-  const createDriverIcon = (user, isActive) => {
+  const createDriverIcon = (user, isActive, isSharedLocation = false) => {
     const displayName = user.user_name || user.full_name || 'U';
     const firstInitial = displayName.charAt(0).toUpperCase();
     const size = isActive ? 18 : 14;
-    const color = isActive ? '#10b981' : '#3b82f6';
+    // Use gray color for shared location markers, otherwise use green/blue
+    const color = isSharedLocation ? '#64748b' : (isActive ? '#10b981' : '#3b82f6');
     const pulseClass = isActive ? 'driver-marker-pulse' : '';
     
     return L.divIcon({
@@ -348,6 +362,13 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const displayName = user.user_name || user.full_name || 'Unknown Driver';
         const firstName = displayName.split(' ')[0];
         
+        // CRITICAL: Check if this is the current user's shared location (non-primary device)
+        const currentUserId = currentUser?.id;
+        const currentUserUserId = currentUser?.user_id;
+        const userId = user.id || user.user_id;
+        const isSelf = userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
+        const isSharedLocation = isSelf && !isPrimaryDevice;
+        
         // CRITICAL: Use stable key that includes lat/lng to force React to unmount stale markers
         // This prevents ghost markers and shadows from old positions
         const stableKey = `${user.id}_${user.current_latitude}_${user.current_longitude}`;
@@ -358,12 +379,17 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           <Marker
             key={stableKey}
             position={position}
-            icon={createDriverIcon(user, isActive)}
+            icon={createDriverIcon(user, isActive, isSharedLocation)}
             zIndexOffset={isActive ? 2000 : 1000}
           >
             <Popup>
               <div className="text-sm">
                 <p className="font-semibold">{displayName}</p>
+                {isSharedLocation && (
+                  <p className="text-xs text-slate-500 mt-1 italic">
+                    📍 Shared location from primary device
+                  </p>
+                )}
                 {user.phone && (
                   <p className="text-xs mt-2">
                     <a href={`tel:${user.phone}`} className="text-blue-600 hover:text-blue-700 underline font-medium">
