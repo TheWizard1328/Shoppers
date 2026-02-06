@@ -2733,6 +2733,14 @@ export default function DeliveryForm({
       setError(`Failed to save: ${err.message || 'Unknown error'}`);
       predictionsStopped.current = false; // Reset on error (form stays open, allow predictions)
       setIsLoadingPredictions(false); // Re-enable predictions on error
+      
+      // Resume SmartRefresh on error
+      try {
+        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+        smartRefreshManager.restart();
+      } catch (error) {
+        console.warn('⚠️ [AddToRoute] Failed to resume SmartRefresh on error:', error);
+      }
     } finally {
       setIsSaving(false);
     }
