@@ -542,6 +542,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     console.log('🔔 [OfflineMutations] UI notified immediately after local save');
 
     // CRITICAL: Sync to backend in background (don't block UI update)
+    // For batch operations, backend updates still happen but don't trigger restarts
     try {
       const { base44 } = await import('@/api/base44Client');
       await base44.entities.Delivery.update(deliveryId, updates);
@@ -559,8 +560,9 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       });
     }
 
-    // CRITICAL: Restart smart refresh after mutation (unless skipped or in batch operation)
-    if (!skipSmartRefresh && !isBatchOperation && smartRefreshManager) {
+    // CRITICAL: NO restart during batch operations - caller handles it once at the end
+    // Only restart if explicitly not batch and not skipped
+    if (!isBatchOperation && !skipSmartRefresh && smartRefreshManager) {
       smartRefreshManager.restart();
     }
     
