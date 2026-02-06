@@ -94,19 +94,13 @@ class DriverLocationPoller {
       const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
       
       if (offlineAppUsers && offlineAppUsers.length > 0) {
-        console.log(`📦 [DriverLocationPoller] Loaded ${offlineAppUsers.length} AppUsers from offline DB`);
         usersData = offlineAppUsers;
-      } else {
-        console.log(`📡 [DriverLocationPoller] Using ${appUsers?.length || 0} AppUsers from props (offline DB empty)`);
       }
     } catch (offlineError) {
       console.warn('⚠️ [DriverLocationPoller] Failed to load from offline DB, using props:', offlineError.message);
     }
 
-    // Log incoming data count (only on force notify or first run)
-    if (forceNotify && usersData?.length > 0) {
-      console.log(`📍 [DriverLocationPoller] Processing ${usersData.length} appUsers (forced)`);
-    }
+    // Process location data silently
 
     // Determine if current device is mobile
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
