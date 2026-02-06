@@ -799,8 +799,6 @@ export default function DeliveryMap({
     if (!map) return;
     
     const handleResize = () => {
-      console.log('🔄 [DeliveryMap] Screen resized - checking FAB phase for map update');
-      
       // Dispatch event to trigger FAB phase re-application
       window.dispatchEvent(new CustomEvent('screenResized'));
     };
@@ -831,7 +829,6 @@ export default function DeliveryMap({
         setPolylineRenderKey(prev => prev + 1);
         // CRITICAL: Force delivery marker refresh to update status colors
         setRouteRenderKey(prev => prev + 1);
-        console.log('🗺️ [DeliveryMap] Driver location updated - refreshing map markers and polylines');
         return;
       }
 
@@ -842,13 +839,11 @@ export default function DeliveryMap({
         setPolylineRenderKey(prev => prev + 1);
         // CRITICAL: Force delivery marker refresh to update status colors
         setRouteRenderKey(prev => prev + 1);
-        console.log('🗺️ [DeliveryMap] Bulk driver locations updated - refreshing map markers and polylines');
       }
     };
 
     // NEW: Listen for delivery updates to force complete route recalculation
     const handleDeliveriesUpdate = (event) => {
-      console.log('🗺️ [DeliveryMap] Deliveries updated - forcing route line recalculation');
       // CRITICAL: Clear cached routes to force full recalculation
       prevDriverRoutesRef.current = [];
       // Force re-render by incrementing BOTH keys
@@ -858,7 +853,6 @@ export default function DeliveryMap({
 
     // NEW: Listen for route optimization completion to refresh map
     const handleRouteOptimizationComplete = (event) => {
-      console.log('🗺️ [DeliveryMap] Route optimization complete - refreshing map');
       prevDriverRoutesRef.current = [];
       setRouteRenderKey(prev => prev + 1);
       setPolylineRenderKey(prev => prev + 1);
@@ -909,7 +903,6 @@ export default function DeliveryMap({
       
       // If deliveries array is provided, use it directly to update otherDriverDeliveries
       if (importedDeliveries && importedDeliveries.length > 0 && showOtherDriverDeliveries && currentUser) {
-        console.log('📥 [DeliveryMap] Updating other drivers markers from import event');
         const others = importedDeliveries.filter(d => d && d.driver_id && d.driver_id !== currentUser.id);
         setOtherDriverDeliveries(others);
       }
@@ -929,8 +922,6 @@ export default function DeliveryMap({
         return;
       }
       
-      console.log(`📥 [DeliveryMap] Refreshing other driver markers (${triggeredBy})`);
-      
       try {
         // Load from offline DB (already updated by smart refresh/Pull to Sync)
         const { offlineDB } = await import('./../../components/utils/offlineDatabase');
@@ -938,7 +929,6 @@ export default function DeliveryMap({
         
         if (allDeliveries && allDeliveries.length > 0) {
           const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== selectedDriverId);
-          console.log(`📍 [DeliveryMap] Updated ${others.length} other driver markers from offline DB`);
           setOtherDriverDeliveries([...others]);
         }
       } catch (error) {
@@ -961,7 +951,6 @@ export default function DeliveryMap({
       if (!selectedDate || !showOtherDriverDeliveries || !selectedDriverId || selectedDriverId === 'all') {
         // CRITICAL: Clear markers when checkbox is unchecked
         if (!showOtherDriverDeliveries && otherDriverDeliveries.length > 0) {
-          console.log('📍 [DeliveryMap] Clearing other driver markers (checkbox unchecked)');
           setOtherDriverDeliveries([]);
         }
         return;
@@ -974,7 +963,6 @@ export default function DeliveryMap({
         
         // Fallback to API if offline DB doesn't have data for this date
         if (!allDeliveries || allDeliveries.length === 0) {
-          console.log(`📡 [DeliveryMap] Offline DB empty for ${selectedDate}, fetching from API`);
           const { base44 } = await import('@/api/base44Client');
           allDeliveries = await base44.entities.Delivery.filter({
             delivery_date: selectedDate
@@ -982,12 +970,10 @@ export default function DeliveryMap({
           // Save to offline DB for future
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDeliveries);
         } else {
-          console.log(`💾 [DeliveryMap] Loaded ${allDeliveries.length} deliveries from offline DB`);
         }
         
         // Filter to exclude the currently selected driver's deliveries
         const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== selectedDriverId);
-        console.log(`📍 [DeliveryMap] Setting ${others.length} other driver deliveries (excluding ${selectedDriverId})`);
         
         // CRITICAL: ALWAYS update to force React re-render - use new array reference
         setOtherDriverDeliveries([...others]);
@@ -1005,7 +991,6 @@ export default function DeliveryMap({
     // CRITICAL: Include other drivers' deliveries when showOtherDriverDeliveries is true (checkbox checked)
     // Works for ANY user viewing a specific driver (admin, driver, etc.)
     if (showOtherDriverDeliveries && otherDriverDeliveries.length > 0) {
-      console.log(`📍 [DeliveryMap] Including ${otherDriverDeliveries.length} other driver deliveries`);
       
       // CRITICAL: De-duplicate by delivery ID to prevent duplicate markers
       const deliveriesById = new Map();
@@ -1025,7 +1010,6 @@ export default function DeliveryMap({
       });
       
       deliveriesToShow = Array.from(deliveriesById.values());
-      console.log(`📍 [DeliveryMap] De-duplicated to ${deliveriesToShow.length} total deliveries`);
     }
     
     const pickups = deliveriesToShow.filter((d) => d && !d.patient_id && d.store_id);
