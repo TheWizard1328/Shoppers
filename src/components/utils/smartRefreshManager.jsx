@@ -2587,7 +2587,28 @@ class SmartRefreshManager {
     */
    async refreshAllAppUsersFullSync(currentAppUsers, currentPageName = null, selectedDate = null) {
      try {
-       console.log('🔄 [SmartRefresh] Starting full AppUser sync - fetching from API...');
+       // CRITICAL: FIRST update current driver's location to online DB (if tracking on this device)
+       if (this._currentUser) {
+         try {
+           const { locationTracker } = await import('./locationTracker');
+           if (locationTracker.isTracking && locationTracker.lastLocation) {
+             const currentAppUser = currentAppUsers.find(au => au.user_id === this._currentUser.id);
+             if (currentAppUser) {
+               console.log('📍 [SmartRefresh] STEP 1: Pushing current driver location to online DB...');
+               await base44.entities.AppUser.update(currentAppUser.id, {
+                 current_latitude: locationTracker.lastLocation.latitude,
+                 current_longitude: locationTracker.lastLocation.longitude,
+                 location_updated_at: locationTracker.lastLocation.timestamp
+               });
+               console.log('✅ [SmartRefresh] Current driver location pushed to online DB');
+             }
+           }
+         } catch (locationUpdateError) {
+           console.warn('⚠️ [SmartRefresh] Failed to push current location (non-fatal):', locationUpdateError.message);
+         }
+       }
+       
+       console.log('🔄 [SmartRefresh] STEP 2: Fetching fresh AppUsers from API...');
        await this.waitForRateLimit();
        const allAppUsers = await queueEntityRequest(
          () => base44.entities.AppUser.list(),
