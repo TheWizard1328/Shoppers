@@ -99,6 +99,9 @@ class SmartRefreshManager {
     // CRITICAL: Track incomplete stops per driver for route completion detection
     this._lastIncompleteStopsByDriver = new Map(); // driverId -> incompleteCount
     
+    // CRITICAL: Track which stop has isNextDelivery flag per driver for auto-centering
+    this._lastNextDeliveryStopByDriver = new Map(); // driverId -> deliveryId
+    
     // CRITICAL: Track deliveries that have pending local updates
     // This prevents smart refresh from overwriting them with stale DB data
     this.pendingLocalUpdates = new Map(); // deliveryId -> { expiresAt, driverId, deliveryDate }
@@ -1887,44 +1890,63 @@ class SmartRefreshManager {
           updates.deliveries = [...otherDeliveries, ...filteredMerged];
           console.log(`✨ [ActiveRoute] Delivery updates from API: +${diff.toAdd.length} ~${diff.toUpdate.length} -${diff.toRemove.length}`);
 
-          // CRITICAL: If incomplete delivery count changed, dispatch event for auto-centering
-          const incompleteDeliveries = updates.deliveries.filter(d => 
-            d && d.delivery_date === activeDateStr && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
-          );
-          if (incompleteDeliveries.length !== this._lastIncompleteDeliveriesCount) {
-            this._lastIncompleteDeliveriesCount = incompleteDeliveries.length;
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('incompleteDeliveriesCountChanged'));
+          // CRITICAL: Track incomplete stops and isNextDelivery stop by driver
+          const newIncompleteByDriver = new Map();
+          const newNextDeliveryStopByDriver = new Map();
+          
+          updates.deliveries.forEach(d => {
+            if (!d || !d.driver_id || d.delivery_date !== activeDateStr) return;
+            
+            // Track incomplete count
+            if (!['completed', 'failed', 'cancelled', 'returned'].includes(d.status)) {
+              const count = newIncompleteByDriver.get(d.driver_id) || 0;
+              newIncompleteByDriver.set(d.driver_id, count + 1);
+            }
+            
+            // Track which stop has isNextDelivery flag
+            if (d.isNextDelivery === true) {
+              newNextDeliveryStopByDriver.set(d.driver_id, d.id);
+            }
+          });
+          
+          // CRITICAL: Check if either incomplete count OR isNextDelivery stop changed for active driver
+          let shouldCenterNextDelivery = false;
+          let shouldActivatePhase1 = false;
+          
+          const activeDriverId = filters?.deliveryFilter?.driver_id;
+          
+          if (activeDriverId) {
+            const oldIncompleteCount = this._lastIncompleteStopsByDriver.get(activeDriverId) || 0;
+            const newIncompleteCount = newIncompleteByDriver.get(activeDriverId) || 0;
+            const oldNextDeliveryStop = this._lastNextDeliveryStopByDriver.get(activeDriverId);
+            const newNextDeliveryStop = newNextDeliveryStopByDriver.get(activeDriverId);
+            
+            // Trigger centering if incomplete count changed OR isNextDelivery stop changed
+            if (oldIncompleteCount !== newIncompleteCount || oldNextDeliveryStop !== newNextDeliveryStop) {
+              console.log(`🎯 [SmartRefresh] Auto-centering triggered - incomplete: ${oldIncompleteCount}->${newIncompleteCount}, next: ${oldNextDeliveryStop}->${newNextDeliveryStop}`);
+              shouldCenterNextDelivery = true;
+            }
+            
+            // Check for route completion (for phase 1 activation)
+            const driverDeliveries = updates.deliveries.filter(d => d && d.driver_id === activeDriverId && d.delivery_date === activeDateStr);
+            const hasNextDelivery = driverDeliveries.some(d => d.isNextDelivery === true);
+            
+            if (oldIncompleteCount !== newIncompleteCount && newIncompleteCount === 0 && !hasNextDelivery) {
+              console.log(`✅ [SmartRefresh] Driver ${activeDriverId} completed all stops - activating phase 1`);
+              shouldActivatePhase1 = true;
             }
           }
           
-          // CRITICAL: Track incomplete stops by driver to detect route completion
-          const newIncompleteByDriver = new Map();
-          updates.deliveries.forEach(d => {
-            if (!d || !d.driver_id || d.delivery_date !== activeDateStr) return;
-            if (['completed', 'failed', 'cancelled', 'returned'].includes(d.status)) return;
-            
-            const count = newIncompleteByDriver.get(d.driver_id) || 0;
-            newIncompleteByDriver.set(d.driver_id, count + 1);
-          });
-          
-          // Check if any driver's incomplete count changed AND they have no incomplete stops AND no isNextDelivery
-          let shouldActivatePhase1 = false;
-          newIncompleteByDriver.forEach((newCount, driverId) => {
-            const oldCount = this._lastIncompleteStopsByDriver.get(driverId) || 0;
-            const driverDeliveries = updates.deliveries.filter(d => d && d.driver_id === driverId && d.delivery_date === activeDateStr);
-            const hasNextDelivery = driverDeliveries.some(d => d.isNextDelivery === true);
-            
-            if (oldCount !== newCount && newCount === 0 && !hasNextDelivery) {
-              console.log(`✅ [SmartRefresh] Driver ${driverId} completed all stops (${oldCount} -> ${newCount}) - activating phase 1`);
-              shouldActivatePhase1 = true;
-            }
-          });
-          
-          // Update tracking
+          // Update tracking maps
           this._lastIncompleteStopsByDriver = newIncompleteByDriver;
+          this._lastNextDeliveryStopByDriver = newNextDeliveryStopByDriver;
           
-          // Trigger phase 1 activation if any driver completed their route
+          // Trigger auto-centering event
+          if (shouldCenterNextDelivery && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('incompleteDeliveriesCountChanged'));
+          }
+          
+          // Trigger phase 1 activation if driver completed their route
           if (shouldActivatePhase1 && typeof window !== 'undefined') {
             const { fabControlEvents } = await import('./fabControlEvents');
             fabControlEvents.notifyDoneButtonClicked();
