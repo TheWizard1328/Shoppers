@@ -1983,7 +1983,6 @@ export default function DeliveryForm({
           }, 100);
         }
       }
-      }
     }
 
     setHasChanges(true);
