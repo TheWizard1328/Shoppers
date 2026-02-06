@@ -71,9 +71,38 @@ Deno.serve(async (req) => {
         const appUsers = await base44.entities.AppUser.filter({ user_id: driverId });
         const driverName = appUsers[0]?.user_name || 'Unknown Driver';
 
-        // Get store info for store_phone
+        // Get store info for store_phone and abbreviation
         const stores = await base44.entities.Store.filter({ id: storeId });
         const store = stores[0];
+        const storeAbbreviation = store?.abbreviation || '';
+
+        // CRITICAL: Find all existing pickups for this driver to determine next tracking number
+        // Pickups are multiples of 20 (0, 20, 40, 60, 80, 100, etc.)
+        const allDriverPickups = await base44.entities.Delivery.filter({
+            driver_id: driverId,
+            delivery_date: deliveryDate
+        });
+
+        // Filter to only pickups (no patient_id) and extract tracking numbers
+        const pickupTrackingNumbers = allDriverPickups
+            .filter(d => !d.patient_id && d.tracking_number)
+            .map(d => {
+                // Remove store abbreviation prefix to get numeric part
+                const numericPart = d.tracking_number.replace(/[A-Za-z]/g, '');
+                return parseInt(numericPart, 10);
+            })
+            .filter(num => !isNaN(num));
+
+        // Find the largest tracking number
+        const maxTrackingNumber = pickupTrackingNumbers.length > 0 
+            ? Math.max(...pickupTrackingNumbers)
+            : (store?.base_tracking_number || 0) - 20; // Subtract 20 so first pickup gets base_tracking_number
+
+        // New pickup gets max + 20
+        const newTrackingNumber = maxTrackingNumber + 20;
+        const newTrackingNumberStr = `${storeAbbreviation}${newTrackingNumber}`;
+
+        console.log(`🔢 [ensurePickup] Pickup TR# calculation: max=${maxTrackingNumber}, new=${newTrackingNumberStr}`);
 
         const newPickupData = {
             delivery_date: deliveryDate,
@@ -89,6 +118,7 @@ Deno.serve(async (req) => {
             puid: newStopId, // CRITICAL: PUID = pickup's own SID (stop_id)
             stop_id: newStopId, // 3-character short ID (e.g., "k3E")
             delivery_stop_id: newStopId,
+            tracking_number: newTrackingNumberStr, // CRITICAL: Generated tracking number (e.g., SC100)
             store_phone: store?.phone || '',
             delivery_notes: `Auto-created pickup for new ${ampmDeliveries} delivery`,
             isNextDelivery: false
