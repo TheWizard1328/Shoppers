@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactDOM from "react-dom";
@@ -153,6 +152,8 @@ export default function StopCard({
   const [isRetrying, setIsRetrying] = useState(false);
   const [isPreparingReturn, setIsPreparingReturn] = useState(false);
   const [isProcessingBackground, setIsProcessingBackground] = useState(false);
+  const [isAcceptingAll, setIsAcceptingAll] = useState(false);
+  const [acceptingIndividual, setAcceptingIndividual] = useState({});
   const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false);
   const [pendingFailureStatus, setPendingFailureStatus] = useState(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -720,9 +721,11 @@ export default function StopCard({
   };
 
   const handleAcceptAllStops = async () => {
-    console.log('🟢 [Accept All] Step 1: Pausing location poller...');
-    const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-    driverLocationPoller.pause();
+    setIsAcceptingAll(true);
+    try {
+      console.log('🟢 [Accept All] Step 1: Pausing location poller...');
+      const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+      driverLocationPoller.pause();
 
     console.log('🟢 [Accept All] Step 2: Running smart refresh...');
 
@@ -922,6 +925,9 @@ export default function StopCard({
       if (onClick) {
         onClick(null);
       }
+    }
+    } finally {
+      setIsAcceptingAll(false);
     }
   };
 
@@ -1851,8 +1857,8 @@ export default function StopCard({
                             <span style={{ color: 'var(--text-slate-600)' }}> / ${codTotalRequired.toFixed(2)}</span>
                           </div>
 
-                          <Button size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700" onClick={(e) => { e.stopPropagation(); handleSaveCODPayments(); }} disabled={codPayments.length === 0}>
-                            <Save className="w-3 h-3 mr-1" />
+                          <Button size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700" onClick={(e) => { e.stopPropagation(); handleSaveCODPayments(); }} disabled={codPayments.length === 0 || isCompleting}>
+                            {isCompleting ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
                             Save
                           </Button>
                         </div>
@@ -1942,11 +1948,12 @@ export default function StopCard({
                           <Button
                             size="sm"
                             variant="default" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md h-6 px-2 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 text-white"
-
+                            disabled={isAcceptingAll}
                             onClick={async (e) => {
                               e.stopPropagation();
                               await handleAcceptAllStops();
                             }}>
+                            {isAcceptingAll && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
                             {acceptButtonText}
                           </Button>
                         }
@@ -2045,9 +2052,13 @@ export default function StopCard({
                                     size="sm"
                                     variant="ghost"
                                     className="h-5 w-5 p-0 ml-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700"
+                                    disabled={acceptingIndividual[deliveryId]}
                                     onClick={async (e) => {
                                       e.stopPropagation();
                                       if (!onStatusUpdate) return;
+                                      
+                                      setAcceptingIndividual(prev => ({ ...prev, [deliveryId]: true }));
+                                      try {
 
                                       // Get pickup's TR# as base
                                       const pickupTR = parseInt(delivery.tracking_number, 10);
@@ -2127,8 +2138,14 @@ export default function StopCard({
                                           });
                                         }
                                       }
+                                      } finally {
+                                        setAcceptingIndividual(prev => ({ ...prev, [deliveryId]: false }));
+                                      }
                                     }}>
-                                    <Plus className="w-3 h-3" />
+                                    {acceptingIndividual[deliveryId] ? 
+                                      <Loader2 className="w-3 h-3 animate-spin" /> : 
+                                      <Plus className="w-3 h-3" />
+                                    }
                                   </Button>
                                 }
                               </div>
