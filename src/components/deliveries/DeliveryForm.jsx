@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -1917,52 +1916,73 @@ export default function DeliveryForm({
 
         console.log(`📦 [AutoAddPickups] Driver ${formData.driver_id} assigned to ${driverAssignedStores.length} stores for ${formData.delivery_date}`);
 
-        // Auto-add pickups for all assigned stores (except the one just staged)
-        driverAssignedStores.forEach(assignedStore => {
-          if (!assignedStore || assignedStore.id === formData.store_id) return; // Skip current store
+        // Check if this is the FIRST delivery for this driver/date (no existing deliveries)
+        const hasExistingDeliveries = existingDeliveries.length > 0 || allDeliveries?.some(d =>
+          d && d.patient_id &&
+          d.driver_id === formData.driver_id &&
+          d.delivery_date === formData.delivery_date
+        );
+
+        if (!hasExistingDeliveries) {
+          console.log(`📦 [AutoAddPickups] FIRST delivery detected - creating all default pickups`);
           
-          // Check if pickup already exists in staged or allDeliveries
-          const pickupExists = stagedDeliveries.some(d => 
-            !d.patient_id && d.store_id === assignedStore.id && 
-            d.delivery_date === formData.delivery_date &&
-            d.driver_id === formData.driver_id
-          ) || allDeliveries?.some(d =>
-            !d.patient_id && d.store_id === assignedStore.id &&
-            d.delivery_date === formData.delivery_date &&
-            d.driver_id === formData.driver_id &&
-            (d.status === 'pending' || d.status === 'en_route' || d.status === 'completed')
-          );
+          // Create all default pickups in parallel using ensurePickupForDelivery
+          setTimeout(async () => {
+            const pickupPromises = driverAssignedStores
+              .filter(assignedStore => assignedStore && assignedStore.id !== formData.store_id)
+              .map(async (assignedStore) => {
+                // Check if pickup already exists
+                const pickupExists = allDeliveries?.some(d =>
+                  !d.patient_id && d.store_id === assignedStore.id &&
+                  d.delivery_date === formData.delivery_date &&
+                  d.driver_id === formData.driver_id &&
+                  (d.status === 'pending' || d.status === 'en_route' || d.status === 'in_transit' || d.status === 'completed')
+                );
 
-          if (!pickupExists) {
-            // Determine time slot for this store
-            const assignedTimeSlot = getStoreAssignedTimeSlot(assignedStore, formData.delivery_date, allDeliveries);
-            const pickupPuid = getPickupStopIdForDelivery(assignedStore.id, formData.delivery_date, assignedTimeSlot, allDeliveries);
+                if (!pickupExists) {
+                  const assignedTimeSlot = getStoreAssignedTimeSlot(assignedStore, formData.delivery_date, allDeliveries);
+                  
+                  try {
+                    console.log(`📦 [AutoAddPickups] Creating en_route pickup for: ${assignedStore.name} [${assignedTimeSlot}]`);
+                    
+                    const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
+                      storeId: assignedStore.id,
+                      deliveryDate: formData.delivery_date,
+                      driverId: formData.driver_id,
+                      ampmDeliveries: assignedTimeSlot
+                    });
 
-            const autoPickup = {
-              store_id: assignedStore.id,
-              delivery_date: formData.delivery_date,
-              driver_id: formData.driver_id,
-              driver_name: formData.driver_name,
-              status: 'Staged',
-              _tempId: Date.now() + Math.random(),
-              patient_name: `(Auto Pickup)`,
-              store_name: assignedStore.name,
-              store_abbreviation: assignedStore.abbreviation,
-              ampm_deliveries: assignedTimeSlot,
-              puid: pickupPuid || '',
-              stop_id: pickupPuid || '',
-              delivery_notes: 'Auto-added pickup',
-              delivery_time_start: '',
-              delivery_time_end: '',
-              cod_total_amount_required: 0,
-              cod_payments: [],
-              distanceFromStore: 0
-            };
+                    if (pickupResponse.data?.puid) {
+                      console.log(`✅ [AutoAddPickups] Created en_route pickup for ${assignedStore.name}: ${pickupResponse.data.puid}`);
+                    }
+                    return true;
+                  } catch (error) {
+                    console.warn(`⚠️ [AutoAddPickups] Failed to create pickup for ${assignedStore.name}:`, error.message);
+                    return false;
+                  }
+                }
+                return false;
+              });
 
-            setStagedDeliveries(prev => [...prev, autoPickup]);
-            console.log(`✅ [AutoAddPickups] Auto-added pickup for store: ${assignedStore.name}`);
-          }
-        });
+            // Wait for all pickups to be created
+            await Promise.all(pickupPromises);
+            console.log(`✅ [AutoAddPickups] All default pickups created for driver`);
+
+            // Trigger data refresh to show new pickups
+            const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
+            invalidate('Delivery');
+            invalidateDeliveriesForDate(formData.delivery_date);
+            
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { 
+                deliveryDate: formData.delivery_date, 
+                driverId: formData.driver_id,
+                triggeredBy: 'autoPickupCreation'
+              }
+            }));
+          }, 100);
+        }
+      }
       }
     }
 
