@@ -5142,13 +5142,21 @@ function Dashboard() {
       // Sort stops by existing stop_order or delivery_time_start
       const optimizedRoute = [...stopsToProcess].sort((a, b) => {
         if (!a || !b) return 0;
-
-        // First, sort by stop_order if both have it
-        if (a.stop_order && b.stop_order) {
+        
+        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+        const aFinished = finishedStatuses.includes(a.status);
+        const bFinished = finishedStatuses.includes(b.status);
+        
+        // Completed stops first (sorted by their stop_order)
+        if (aFinished && !bFinished) return -1;
+        if (!aFinished && bFinished) return 1;
+        
+        // Both completed - sort by stop_order
+        if (aFinished && bFinished && a.stop_order && b.stop_order) {
           return a.stop_order - b.stop_order;
         }
 
-        // Then by delivery_time_start
+        // Both incomplete - sort by time, new stops get sorted with existing
         const timeA = a.delivery_time_start || '99:99';
         const timeB = b.delivery_time_start || '99:99';
         return timeA.localeCompare(timeB);
