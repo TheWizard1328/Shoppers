@@ -2651,11 +2651,14 @@ export default function StopCard({
 
                                     // CRITICAL: Collapse the current card immediately by deselecting it
                                     // This ensures if the card was expanded, it will now be condensed
-                                    if (onSelectionChange) {
-                                      onSelectionChange(delivery.id, false);
-                                    } else if (onClick) {
-                                      onClick(null);
-                                    }
+                                    // Use setTimeout to ensure this happens AFTER state updates
+                                    setTimeout(() => {
+                                      if (onSelectionChange) {
+                                        onSelectionChange(delivery.id, false);
+                                      } else if (onClick) {
+                                        onClick(null);
+                                      }
+                                    }, 0);
 
                                     // CRITICAL: Scroll to next delivery card immediately
                                     if (incompleteDeliveries.length > 0) {
@@ -2719,13 +2722,20 @@ export default function StopCard({
                                     });
 
                                   } catch (error) {
-                                    console.error('❌ [COMPLETE] Error:', error);
-                                    fabControlEvents.reactivateFAB(true);
-                                    setIsProcessingBackground(false);
+                                   console.error('❌ [COMPLETE] Error:', error);
+                                   fabControlEvents.reactivateFAB(true);
+                                   setIsProcessingBackground(false);
                                   } finally {
-                                    const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                    driverLocationPoller.resume();
-                                    setIsCompleting(false);
+                                   const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                   driverLocationPoller.resume();
+                                   setIsCompleting(false);
+
+                                   // CRITICAL: Ensure card is collapsed after completion
+                                   if (onSelectionChange) {
+                                     onSelectionChange(delivery.id, false);
+                                   } else if (onClick) {
+                                     onClick(null);
+                                   }
                                   }
                                 }}
                                 size="sm"
