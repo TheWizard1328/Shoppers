@@ -4283,9 +4283,15 @@ function Dashboard() {
 
           const isFirstStop = driverDeliveriesForDate.length === 0;
 
-          // CRITICAL: Always create pickups for ALL assigned stores when adding deliveries (batch mode)
-          const assignedStores = (stores || []).filter((store) => {// Defensive check
+          // CRITICAL: Special stores that only get pickups created on-demand (when first delivery is added)
+          const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'SouthPoint', 'WestPark'];
+          
+          // CRITICAL: Always create pickups for ALL assigned stores EXCEPT special stores
+          const assignedStores = (stores || []).filter((store) => {
             if (!store) return false;
+            // Skip special stores - they get pickups created dynamically below
+            if (specialStoreNames.includes(store.name)) return false;
+            
             if (isSaturday) {
               return isDriverAssignedToSlot(store, 'saturday_am') || isDriverAssignedToSlot(store, 'saturday_pm');
             } else if (isSunday) {
@@ -4392,6 +4398,49 @@ function Dashboard() {
             if (!deliveryStore) {
               console.warn(`[AddToRoute]   ⚠️ Store not found for patient: ${newDelivery.store_id}`);
               continue;
+            }
+
+            // CRITICAL: For special stores, create pickup on-demand when first delivery is added
+            if (specialStoreNames.includes(deliveryStore.name)) {
+              const deliveryAmpm = determineAMPMFromTime(newDelivery.delivery_time_start || '10:00');
+              
+              // Check if pickup already exists for this store/AM-PM combo
+              const existingPickup = stopsToProcess.find((s) => 
+                s && !s.patient_id && s.store_id === deliveryStore.id && s.ampm_deliveries === deliveryAmpm
+              );
+              
+              if (!existingPickup) {
+                console.log(`📦 [Special Store] Creating on-demand pickup for ${deliveryStore.name} (${deliveryAmpm})`);
+                
+                // Determine pickup time based on AM/PM
+                const pickupTime = deliveryAmpm === 'AM' ? 
+                  (isSaturday ? deliveryStore.saturday_am_start : isSunday ? deliveryStore.sunday_am_start : deliveryStore.weekday_am_start) || '09:00' :
+                  (isSaturday ? deliveryStore.saturday_pm_start : isSunday ? deliveryStore.sunday_pm_start : deliveryStore.weekday_pm_start) || '13:00';
+                
+                const pickupEndTime = deliveryAmpm === 'AM' ?
+                  (isSaturday ? deliveryStore.saturday_am_end : isSunday ? deliveryStore.sunday_am_end : deliveryStore.weekday_am_end) || '12:00' :
+                  (isSaturday ? deliveryStore.saturday_pm_end : isSunday ? deliveryStore.sunday_pm_end : deliveryStore.weekday_pm_end) || '17:00';
+                
+                stopsToProcess.push({
+                  isNew: true,
+                  patient_id: null,
+                  store_id: deliveryStore.id,
+                  driver_id: driverId,
+                  driver_name: driver.user_name || driver.full_name,
+                  delivery_date: deliveryDate,
+                  delivery_time_start: pickupTime,
+                  delivery_time_end: pickupEndTime,
+                  ampm_deliveries: deliveryAmpm,
+                  status: 'en_route',
+                  delivery_notes: `Store Pickup for ${deliveryStore.name}`,
+                  latitude: deliveryStore.latitude,
+                  longitude: deliveryStore.longitude,
+                  patient_name: '',
+                  patient_phone: '',
+                  store_phone: deliveryStore.phone || '',
+                  extra_time: 15
+                });
+              }
             }
 
             // CRITICAL: Use the status from DeliveryForm (already converted from 'Staged' to 'pending' or 'in_transit')
@@ -4984,7 +5033,15 @@ function Dashboard() {
 
       const isFirstStop = driverDeliveriesForDate.length === 0;
       const deliveryStore = stores.find((s) => s.id === deliveryData.store_id);
-      const storesToCheck = isFirstStop ? assignedStores : deliveryStore ? [deliveryStore] : [];
+      
+      // CRITICAL: Special stores - only create pickup when first delivery is added to that specific store
+      const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'SouthPoint', 'WestPark'];
+      const isSpecialStore = deliveryStore && specialStoreNames.includes(deliveryStore.name);
+      
+      // For special stores: only check the specific delivery's store (not all assigned stores)
+      // For regular stores: check all assigned stores on first stop, or just delivery's store otherwise
+      const storesToCheck = isSpecialStore ? (deliveryStore ? [deliveryStore] : []) : 
+                            (isFirstStop ? assignedStores : deliveryStore ? [deliveryStore] : []);
 
       for (const store of storesToCheck) {
         const isAssignedToAM = isSaturday ? isDriverAssignedToSlot(store, 'saturday_am') :
