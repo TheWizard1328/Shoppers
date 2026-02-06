@@ -1735,9 +1735,13 @@ export default function StopCard({
                       onClick={async (e) => {
                         e.stopPropagation();
 
-                        console.log('🟢 [Assign All] Step 1: Running smart refresh...');
+                        console.log('🟢 [Assign All] Step 1: Pausing location poller...');
+                        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                        driverLocationPoller.pause();
 
-                        // Step 1: Run smart refresh
+                        console.log('🟢 [Assign All] Step 2: Running smart refresh...');
+
+                        // Step 2: Run smart refresh
                         smartRefreshManager.lastRefreshTimes = {
                           driverLocation: 0,
                           activeDeliveries: 0,
@@ -1748,8 +1752,8 @@ export default function StopCard({
                         };
                         await new Promise((resolve) => setTimeout(resolve, 200));
 
-                        // Step 2: Pause smart refresh
-                        console.log('🟢 [Assign All] Step 2: Pausing smart refresh...');
+                        // Step 3: Pause smart refresh
+                        console.log('🟢 [Assign All] Step 3: Pausing smart refresh...');
                         setIsEntityUpdating(true);
                         await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -1913,8 +1917,11 @@ export default function StopCard({
 
                           console.log('✅ [Assign All] Complete');
                         } finally {
-                          // Step 8: Reset and resume smart refresh
-                          console.log('🟢 [Assign All] Step 8: Resetting smart refresh...');
+                          // Step 8: Reset and resume smart refresh + location poller
+                          console.log('🟢 [Assign All] Step 8: Resuming location poller and smart refresh...');
+                          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                          driverLocationPoller.resume();
+                          
                           smartRefreshManager.lastRefreshTimes = {
                             driverLocation: 0,
                             activeDeliveries: 0,
@@ -1924,7 +1931,7 @@ export default function StopCard({
                             stores: 0
                           };
                           setIsEntityUpdating(false);
-                          console.log('  ✅ Smart refresh resumed');
+                          console.log('  ✅ Smart refresh and location poller resumed');
 
                           // CRITICAL: Collapse the card after assign/accept all completes
                           if (onClick) {
@@ -2269,6 +2276,10 @@ export default function StopCard({
                         fabControlEvents.deactivateFAB();
                         setIsEntityUpdating(true);
                         setIsProcessingBackground(true);
+                        console.log('⏸️ [Restart] Pausing location poller...');
+                        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                        driverLocationPoller.pause();
+
                         await new Promise((resolve) => setTimeout(resolve, 100));
 
                         try {
@@ -2344,6 +2355,9 @@ export default function StopCard({
                             });
                           }
                         } finally {
+                          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                          driverLocationPoller.resume();
+
                           // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
                           fabControlEvents.reactivateFAB(true);
                           setIsProcessingBackground(false);
@@ -2363,6 +2377,10 @@ export default function StopCard({
                         fabControlEvents.deactivateFAB();
                         setIsRetrying(true);
                         setIsProcessingBackground(true);
+                        console.log('⏸️ [Retry] Pausing location poller...');
+                        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                        driverLocationPoller.pause();
+
                         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
                         await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -2425,6 +2443,9 @@ export default function StopCard({
                             });
                           }
                         } finally {
+                          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                          driverLocationPoller.resume();
+
                           setIsRetrying(false);
                           setIsProcessingBackground(false);
                           console.log('✅ [RETRY] Retry cycle complete');
@@ -2448,6 +2469,10 @@ export default function StopCard({
                         fabControlEvents.deactivateFAB();
                         setIsCompleting(true);
                         setIsProcessingBackground(true);
+                        console.log('⏸️ [Complete] Pausing location poller...');
+                        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                        driverLocationPoller.pause();
+
                         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
                         await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -2716,6 +2741,8 @@ export default function StopCard({
                           fabControlEvents.reactivateFAB(true);
                           setIsProcessingBackground(false);
                         } finally {
+                          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                          driverLocationPoller.resume();
                           setIsCompleting(false);
                         }
                       }}
