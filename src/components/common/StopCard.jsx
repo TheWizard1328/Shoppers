@@ -1100,22 +1100,22 @@ export default function StopCard({
                 </p>
 
                 <div className="rounded-lg p-3 space-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
-                  <div>
+                  <div className="flex items-start gap-2">
                     <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
-                    <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayName}</p>
+                    <span style={{ color: 'var(--text-slate-900)' }}>{displayName}</span>
                   </div>
 
                   {displayAddress &&
-                  <div>
+                  <div className="flex items-start gap-2">
                       <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
-                      <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</p>
+                      <span style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</span>
                     </div>
                   }
 
                   {delivery.tracking_number &&
-                  <div>
+                  <div className="flex items-start gap-2">
                       <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
-                      <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</p>
+                      <span style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</span>
                     </div>
                   }
                 </div>
