@@ -3243,12 +3243,13 @@ export default function DeliveryForm({
     console.log('📝 [DeliveryForm] Setting isFormOverlayOpen = true');
     setIsFormOverlayOpen(true);
     
-    // CRITICAL: Pause all background operations when form opens
+    // CRITICAL: Pause background operations when form opens (except smart refresh for data freshness)
     (async () => {
       try {
-        // Pause smart refresh
+        // Keep smart refresh active - form data needs to stay fresh while editing
+        // The staged deliveries are local-only and won't be affected
         const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-        smartRefreshManager.pause();
+        // Don't pause smart refresh - let it continue updating form data
         
         // Pause driver location poller
         const { driverLocationPoller } = await import('../utils/driverLocationPoller');
@@ -3262,7 +3263,7 @@ export default function DeliveryForm({
         const { fabControlEvents } = await import('../utils/fabControlEvents');
         fabControlEvents.pauseFAB();
         
-        console.log('⏸️ [DeliveryForm] Paused: SmartRefresh, DriverLocationPoller, Polylines, FAB');
+        console.log('⏸️ [DeliveryForm] Paused: DriverLocationPoller, Polylines, FAB (SmartRefresh continues for data freshness)');
       } catch (error) {
         console.warn('⚠️ [DeliveryForm] Failed to pause some managers:', error);
       }
