@@ -1099,25 +1099,19 @@ export default function StopCard({
                   Are you sure you want to delete this {isPickup ? 'pickup' : 'delivery'}?
                 </p>
 
-                <div className="rounded-lg p-3 space-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
-                  <div className="flex items-start gap-2">
-                    <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
-                    <span style={{ color: 'var(--text-slate-900)' }}>{displayName}</span>
-                  </div>
+                <div className="rounded-lg p-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
+                  <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
+                  <span style={{ color: 'var(--text-slate-900)' }}>{displayName}</span>
 
-                  {displayAddress &&
-                  <div className="flex items-start gap-2">
-                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
-                      <span style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</span>
-                    </div>
-                  }
+                  {displayAddress && <>
+                    <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
+                    <span style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</span>
+                  </>}
 
-                  {delivery.tracking_number &&
-                  <div className="flex items-start gap-2">
-                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
-                      <span style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</span>
-                    </div>
-                  }
+                  {delivery.tracking_number && <>
+                    <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
+                    <span style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</span>
+                  </>}
                 </div>
 
                 {/* CRITICAL: Warning for pickups with pending deliveries */}
