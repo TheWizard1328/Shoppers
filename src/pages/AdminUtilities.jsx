@@ -1169,12 +1169,19 @@ const DeliveryDataTable = ({
                                 </SelectContent>
                               </Select>
                             ) : (
-                              <span 
-                                className="cursor-pointer hover:bg-slate-100 px-2 py-1 rounded transition-colors inline-block"
-                                onClick={() => setEditingDriverId(delivery.id)}
-                              >
-                                {driverName}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span 
+                                  className="cursor-pointer hover:bg-slate-100 px-2 py-1 rounded transition-colors inline-block"
+                                  onClick={() => setEditingDriverId(delivery.id)}
+                                >
+                                  {driverName}
+                                </span>
+                                {delivery.isNextDelivery && (
+                                  <Badge className="bg-green-100 text-green-800 border-green-300">
+                                    Next
+                                  </Badge>
+                                )}
+                              </div>
                             )}
                           </td>
                         )}
