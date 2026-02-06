@@ -30,6 +30,7 @@ const broadcastMutation = async (entity, action, id, data, ids = null) => {
 
 let mutationListeners = [];
 let mutationsPaused = false;
+let isBatchFormSaving = false; // CRITICAL: Track if Add To Route form is batch saving
 
 /**
  * Pause all mutations (during route optimization)
@@ -51,6 +52,19 @@ export const resumeMutations = () => {
  * Check if mutations are paused
  */
 export const areMutationsPaused = () => mutationsPaused;
+
+/**
+ * Set batch form saving state (prevents SmartRefresh spam during batch operations)
+ */
+export const setBatchFormSaving = (isSaving) => {
+  console.log(`${isSaving ? '🔒' : '🔓'} [EntityMutations] Batch form saving: ${isSaving}`);
+  isBatchFormSaving = isSaving;
+};
+
+/**
+ * Check if batch form is saving
+ */
+export const isBatchFormSavingActive = () => isBatchFormSaving;
 
 /**
  * Subscribe to mutation events for UI updates
