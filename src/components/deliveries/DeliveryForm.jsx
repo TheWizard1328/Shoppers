@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -2396,7 +2397,7 @@ export default function DeliveryForm({
         console.log('[AddToRoute] ✅ Existing TR#s corrected');
       }
 
-      // Second, update existing deliveries (both pending and status-changed)
+      // Second, update existing deliveries (both pending and status-changed) - batched for speed
       if (existingDeliveries.length > 0) {
         console.log(`[AddToRoute] 📝 Updating ${existingDeliveries.length} existing deliveries...`);
 
@@ -2408,76 +2409,71 @@ export default function DeliveryForm({
         d.status === 'completed'
         );
 
-        for (const updated of existingDeliveries) {
-          try {
-            console.log(`[AddToRoute] 🔄 Updating delivery ${updated.id}: ${updated.patient_name}`);
-            console.log(`   - Old Status: ${updated.status}`);
-            console.log(`   - Time window: ${updated.time_window_start} - ${updated.time_window_end}`);
-
-            // CRITICAL: Convert 'Staged' to 'pending' for existing deliveries (same logic as new deliveries)
-            let finalStatus = updated.status;
-            if (finalStatus === 'Staged') {
-              // Check if this is an InterStore delivery
-              const patientName = (updated.patient_name || '').toLowerCase();
-              const deliveryNotes = (updated.delivery_notes || '').toLowerCase();
-              const patientNotes = (updated.delivery_instructions || '').toLowerCase();
-              const deliveryAddress = (updated.delivery_address || '').toLowerCase();
-              
-              const isInterStore = patientName.includes('interstore') || 
-                                   deliveryNotes.includes('interstore') || 
-                                   patientNotes.includes('interstore') ||
-                                   deliveryAddress.includes('(isp)') || 
-                                   deliveryAddress.includes('(isd)');
-              
-              finalStatus = isInterStore ? 'in_transit' : 'pending';
-              console.log(`[AddToRoute] 🔄 Converting Staged → ${finalStatus} for: ${updated.patient_name}`);
-            }
-
-            const updateData = {
-              status: finalStatus,
-              delivery_notes: updated.delivery_notes || '',
-              prescription_number: updated.prescription_number || '',
-              cod_total_amount_required: updated.cod_total_amount_required || 0,
-              delivery_instructions: updated.delivery_instructions || '',
-              tracking_number: updated.tracking_number || '99',
-              isNextDelivery: hasCompletedDeliveries ? false : updated.isNextDelivery || false,
-              patient_name: updated.patient_name || '',
-              patient_phone: updated.patient_phone || '',
-              unit_number: updated.unit_number || '',
-              mailbox_ok: updated.mailbox_ok || false,
-              call_upon_arrival: updated.call_upon_arrival || false,
-              ring_bell: updated.ring_bell || false,
-              dont_ring_bell: updated.dont_ring_bell || false,
-              back_door: updated.back_door || false,
-              signature_needed: updated.signature_needed || false,
-              fridge_item: updated.fridge_item || false,
-              oversized: updated.oversized || false,
-              no_charge: updated.no_charge || false,
-              extra_time: updated.extra_time || 0,
-              time_window_start: updated.time_window_start || '',
-              time_window_end: updated.time_window_end || '',
-              paid_km_override: updated.paid_km_override ?? null,
-              store_id: updated.store_id || '',
-              ampm_deliveries: updated.ampm_deliveries || null,
-              puid: updated.puid || ''
-            };
-
-            console.log(`[AddToRoute] 🔄 New Status will be: ${updateData.status}`);
-
-            // CRITICAL: Use updateDeliveryLocal for offline-first updates with immediate UI sync
-            await updateDeliveryLocal(updated.id, updateData);
-            console.log(`[AddToRoute] ✅ Updated delivery: ${updated.patient_name} to status ${updateData.status}`);
-          } catch (error) {
-            // Skip deliveries that were deleted
-            if (error.message?.includes('not found') || error.response?.status === 404) {
-              console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${updated.id} (${updated.patient_name})`);
-              continue;
-            }
-            // Replace delivery ID with patient name in error message
-            const errorMessage = error.message?.replace(updated.id, updated.patient_name || 'Unknown Patient') || error.message;
-            throw new Error(errorMessage);
+        const updatePromises = existingDeliveries.map((updated) => {
+          // CRITICAL: Convert 'Staged' to 'pending' for existing deliveries (same logic as new deliveries)
+          let finalStatus = updated.status;
+          if (finalStatus === 'Staged') {
+            // Check if this is an InterStore delivery
+            const patientName = (updated.patient_name || '').toLowerCase();
+            const deliveryNotes = (updated.delivery_notes || '').toLowerCase();
+            const patientNotes = (updated.delivery_instructions || '').toLowerCase();
+            const deliveryAddress = (updated.delivery_address || '').toLowerCase();
+            
+            const isInterStore = patientName.includes('interstore') || 
+                                 deliveryNotes.includes('interstore') || 
+                                 patientNotes.includes('interstore') ||
+                                 deliveryAddress.includes('(isp)') || 
+                                 deliveryAddress.includes('(isd)');
+            
+            finalStatus = isInterStore ? 'in_transit' : 'pending';
           }
-        }
+
+          const updateData = {
+            status: finalStatus,
+            delivery_notes: updated.delivery_notes || '',
+            prescription_number: updated.prescription_number || '',
+            cod_total_amount_required: updated.cod_total_amount_required || 0,
+            delivery_instructions: updated.delivery_instructions || '',
+            tracking_number: updated.tracking_number || '99',
+            isNextDelivery: hasCompletedDeliveries ? false : updated.isNextDelivery || false,
+            patient_name: updated.patient_name || '',
+            patient_phone: updated.patient_phone || '',
+            unit_number: updated.unit_number || '',
+            mailbox_ok: updated.mailbox_ok || false,
+            call_upon_arrival: updated.call_upon_arrival || false,
+            ring_bell: updated.ring_bell || false,
+            dont_ring_bell: updated.dont_ring_bell || false,
+            back_door: updated.back_door || false,
+            signature_needed: updated.signature_needed || false,
+            fridge_item: updated.fridge_item || false,
+            oversized: updated.oversized || false,
+            no_charge: updated.no_charge || false,
+            extra_time: updated.extra_time || 0,
+            time_window_start: updated.time_window_start || '',
+            time_window_end: updated.time_window_end || '',
+            paid_km_override: updated.paid_km_override ?? null,
+            store_id: updated.store_id || '',
+            ampm_deliveries: updated.ampm_deliveries || null,
+            puid: updated.puid || ''
+          };
+
+          return updateDeliveryLocal(updated.id, updateData)
+            .then(() => {
+              console.log(`[AddToRoute] ✅ Updated delivery: ${updated.patient_name} to status ${updateData.status}`);
+              return null;
+            })
+            .catch((error) => {
+              // Skip deliveries that were deleted
+              if (error.message?.includes('not found') || error.response?.status === 404) {
+                console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${updated.id} (${updated.patient_name})`);
+                return null;
+              }
+              const errorMessage = error.message?.replace(updated.id, updated.patient_name || 'Unknown Patient') || error.message;
+              throw new Error(errorMessage);
+            });
+        });
+
+        await Promise.all(updatePromises);
         console.log('[AddToRoute] ✅ All existing deliveries updated');
       }
 
@@ -4515,7 +4511,7 @@ export default function DeliveryForm({
                                     <Input
                                 ref={codAmountInputRef}
                                 type="text"
-                                value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : formData.cod_total_amount_required === 0 ? '0.00' : ''}
+                                value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''}
                                 onChange={(e) => {
                                   const cleaned = e.target.value.replace(/[^\d]/g, '');
                                   const cents = parseInt(cleaned) || 0;
