@@ -1169,7 +1169,7 @@ const DeliveryDataTable = ({
                                 </SelectContent>
                               </Select>
                             ) : (
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-col gap-1">
                                 <span 
                                   className="cursor-pointer hover:bg-slate-100 px-2 py-1 rounded transition-colors inline-block"
                                   onClick={() => setEditingDriverId(delivery.id)}
@@ -1177,7 +1177,7 @@ const DeliveryDataTable = ({
                                   {driverName}
                                 </span>
                                 {delivery.isNextDelivery && (
-                                  <Badge className="bg-green-100 text-green-800 border-green-300">
+                                  <Badge className="bg-green-100 text-green-800 border-green-300 w-fit">
                                     Next
                                   </Badge>
                                 )}
