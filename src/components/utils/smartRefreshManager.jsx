@@ -1876,81 +1876,19 @@ class SmartRefreshManager {
         // Merge API data with current state
         const diff = diffEntityArrays(currentActiveDateDeliveries, fetchedDeliveries);
         if (diff.toUpdate.length > 0 || diff.toAdd.length > 0 || diff.toRemove.length > 0) {
-          const mergedActiveDate = mergeEntityChanges(currentActiveDateDeliveries, diff);
-          
-          // Preserve items with pending local updates (just created/edited)
-          const filteredMerged = mergedActiveDate.map(d => {
-            if (this.hasPendingUpdate(d.id)) {
-              const localVersion = currentActiveDateDeliveries.find(cd => cd.id === d.id);
-              return localVersion || d;
-            }
-            return d;
-          });
-          
-          updates.deliveries = [...otherDeliveries, ...filteredMerged];
-          console.log(`✨ [ActiveRoute] Delivery updates from API: +${diff.toAdd.length} ~${diff.toUpdate.length} -${diff.toRemove.length}`);
+        const mergedActiveDate = mergeEntityChanges(currentActiveDateDeliveries, diff);
 
-          // CRITICAL: Track incomplete stops and isNextDelivery stop by driver
-          const newIncompleteByDriver = new Map();
-          const newNextDeliveryStopByDriver = new Map();
-          
-          updates.deliveries.forEach(d => {
-            if (!d || !d.driver_id || d.delivery_date !== activeDateStr) return;
-            
-            // Track incomplete count
-            if (!['completed', 'failed', 'cancelled', 'returned'].includes(d.status)) {
-              const count = newIncompleteByDriver.get(d.driver_id) || 0;
-              newIncompleteByDriver.set(d.driver_id, count + 1);
-            }
-            
-            // Track which stop has isNextDelivery flag
-            if (d.isNextDelivery === true) {
-              newNextDeliveryStopByDriver.set(d.driver_id, d.id);
-            }
-          });
-          
-          // CRITICAL: Check if either incomplete count OR isNextDelivery stop changed for active driver
-          let shouldCenterNextDelivery = false;
-          let shouldActivatePhase1 = false;
-          
-          const activeDriverId = filters?.deliveryFilter?.driver_id;
-          
-          if (activeDriverId) {
-            const oldIncompleteCount = this._lastIncompleteStopsByDriver.get(activeDriverId) || 0;
-            const newIncompleteCount = newIncompleteByDriver.get(activeDriverId) || 0;
-            const oldNextDeliveryStop = this._lastNextDeliveryStopByDriver.get(activeDriverId);
-            const newNextDeliveryStop = newNextDeliveryStopByDriver.get(activeDriverId);
-            
-            // Trigger centering if incomplete count changed OR isNextDelivery stop changed
-            if (oldIncompleteCount !== newIncompleteCount || oldNextDeliveryStop !== newNextDeliveryStop) {
-              console.log(`🎯 [SmartRefresh] Auto-centering triggered - incomplete: ${oldIncompleteCount}->${newIncompleteCount}, next: ${oldNextDeliveryStop}->${newNextDeliveryStop}`);
-              shouldCenterNextDelivery = true;
-            }
-            
-            // Check for route completion (for phase 1 activation)
-            const driverDeliveries = updates.deliveries.filter(d => d && d.driver_id === activeDriverId && d.delivery_date === activeDateStr);
-            const hasNextDelivery = driverDeliveries.some(d => d.isNextDelivery === true);
-            
-            if (oldIncompleteCount !== newIncompleteCount && newIncompleteCount === 0 && !hasNextDelivery) {
-              console.log(`✅ [SmartRefresh] Driver ${activeDriverId} completed all stops - activating phase 1`);
-              shouldActivatePhase1 = true;
-            }
+        // Preserve items with pending local updates (just created/edited)
+        const filteredMerged = mergedActiveDate.map(d => {
+          if (this.hasPendingUpdate(d.id)) {
+            const localVersion = currentActiveDateDeliveries.find(cd => cd.id === d.id);
+            return localVersion || d;
           }
-          
-          // Update tracking maps
-          this._lastIncompleteStopsByDriver = newIncompleteByDriver;
-          this._lastNextDeliveryStopByDriver = newNextDeliveryStopByDriver;
-          
-          // Trigger auto-centering event
-          if (shouldCenterNextDelivery && typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('incompleteDeliveriesCountChanged'));
-          }
-          
-          // Trigger phase 1 activation if driver completed their route
-          if (shouldActivatePhase1 && typeof window !== 'undefined') {
-            const { fabControlEvents } = await import('./fabControlEvents');
-            fabControlEvents.notifyDoneButtonClicked();
-          }
+          return d;
+        });
+
+        updates.deliveries = [...otherDeliveries, ...filteredMerged];
+        console.log(`✨ [ActiveRoute] Delivery updates from API: +${diff.toAdd.length} ~${diff.toUpdate.length} -${diff.toRemove.length}`);
         }
       }
       
