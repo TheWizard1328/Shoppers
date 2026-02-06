@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -978,6 +977,65 @@ export default function DeliveryForm({
       if (pickupResponse.data?.puid) {
         puid = pickupResponse.data.puid;
         console.log(`✅ [handlePatientSelect] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
+      }
+
+      // CRITICAL: Create all other default pickups for this driver on this date
+      if (autoSelectedDriverId && formData.delivery_date && stores) {
+        const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
+        const dayOfWeek = selectedDate.getDay();
+        
+        // Get all stores this driver is assigned to
+        const driverAssignedStores = stores.filter(s => {
+          if (!s || s.id === patientStore.id) return false; // Skip current store
+          
+          let driverIds = [];
+          if (dayOfWeek === 6) {
+            driverIds = [s.saturday_am_driver_id, s.saturday_pm_driver_id];
+          } else if (dayOfWeek === 0) {
+            driverIds = [s.sunday_am_driver_id, s.sunday_pm_driver_id];
+          } else {
+            driverIds = [s.weekday_am_driver_id, s.weekday_pm_driver_id];
+          }
+          
+          return driverIds.includes(autoSelectedDriverId);
+        });
+
+        console.log(`📦 [handlePatientSelect] Creating ${driverAssignedStores.length} default pickups for driver`);
+
+        // Create all pickups in parallel
+        const pickupPromises = driverAssignedStores.map(async (store) => {
+          const storeTimeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
+          
+          try {
+            const response = await base44.functions.invoke('ensurePickupForDelivery', {
+              storeId: store.id,
+              deliveryDate: formData.delivery_date,
+              driverId: autoSelectedDriverId,
+              ampmDeliveries: storeTimeSlot
+            });
+            
+            if (response.data?.puid) {
+              console.log(`✅ [handlePatientSelect] Created pickup for ${store.name}: ${response.data.puid}`);
+            }
+          } catch (err) {
+            console.warn(`⚠️ [handlePatientSelect] Failed to create pickup for ${store.name}:`, err.message);
+          }
+        });
+
+        // Don't wait for pickups to complete - let them create in background
+        Promise.all(pickupPromises).then(() => {
+          console.log('✅ [handlePatientSelect] All default pickups created');
+          // Trigger background refresh to show new pickups
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { 
+                deliveryDate: formData.delivery_date, 
+                driverId: autoSelectedDriverId,
+                triggeredBy: 'autoPickupCreation'
+              }
+            }));
+          }, 100);
+        });
       }
     } catch (error) {
       console.warn('⚠️ [handlePatientSelect] ensurePickupForDelivery failed, using fallback PUID:', error.message);
