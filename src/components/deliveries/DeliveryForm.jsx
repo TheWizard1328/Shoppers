@@ -2375,26 +2375,24 @@ export default function DeliveryForm({
     setError(null);
 
     try {
-      // First, update existing deliveries with corrected TR#s
+      // First, update existing deliveries with corrected TR#s (batched for speed)
       if (existingDeliveriesToUpdate.length > 0) {
         console.log(`[AddToRoute] 📝 Updating ${existingDeliveriesToUpdate.length} existing deliveries with corrected TR#s...`);
-        for (const update of existingDeliveriesToUpdate) {
-          try {
-            // CRITICAL: Use backend-only update (deliveries may not be in IndexedDB yet)
-            const { base44 } = await import('@/api/base44Client');
-            await base44.entities.Delivery.update(update.id, { tracking_number: update.tracking_number });
-          } catch (error) {
-            if (error.message?.includes('not found') || error.response?.status === 404) {
-              console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${update.id}`);
-              continue;
-            }
-            // Replace delivery ID with patient name in error message
-            const delivery = allDeliveries?.find((d) => d?.id === update.id);
-            const deliveryName = delivery?.patient_name || 'Unknown';
-            const errorMessage = error.message?.replace(update.id, deliveryName) || error.message;
-            throw new Error(errorMessage);
-          }
-        }
+        const { base44 } = await import('@/api/base44Client');
+        const trUpdatePromises = existingDeliveriesToUpdate.map((update) =>
+          base44.entities.Delivery.update(update.id, { tracking_number: update.tracking_number })
+            .catch((error) => {
+              if (error.message?.includes('not found') || error.response?.status === 404) {
+                console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${update.id}`);
+                return null;
+              }
+              const delivery = allDeliveries?.find((d) => d?.id === update.id);
+              const deliveryName = delivery?.patient_name || 'Unknown';
+              const errorMessage = error.message?.replace(update.id, deliveryName) || error.message;
+              throw new Error(errorMessage);
+            })
+        );
+        await Promise.all(trUpdatePromises);
         console.log('[AddToRoute] ✅ Existing TR#s corrected');
       }
 
