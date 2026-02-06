@@ -3377,6 +3377,41 @@ export default function DeliveryForm({
     });
   }, []);
 
+  // Monitor for deleted pending deliveries on other devices
+  useEffect(() => {
+    if (delivery || stagedDeliveries.length === 0) return;
+
+    // Find any staged deliveries that have an ID (pending) but are no longer in allDeliveries
+    const deletedPendingDeliveries = stagedDeliveries.filter((staged) => {
+      if (!staged.id) return false; // Skip new staged items
+      return !allDeliveries?.some((d) => d && d.id === staged.id);
+    });
+
+    if (deletedPendingDeliveries.length > 0) {
+      console.log('🗑️ [DeliveryForm] Detected deleted pending deliveries on other devices:', deletedPendingDeliveries.map((d) => d.patient_name));
+
+      // Remove deleted pending deliveries from staged list
+      setStagedDeliveries((prev) => prev.filter((staged) => !deletedPendingDeliveries.some((del) => del.id === staged.id)));
+
+      // Update projected deliveries - restore deleted patient IDs
+      const remainingStagedIds = new Set(
+        stagedDeliveries
+          .filter((staged) => !deletedPendingDeliveries.some((del) => del.id === staged.id))
+          .map((d) => d.patient_id)
+          .filter(Boolean)
+      );
+      const filteredPredictions = fullPredictionListRef.current.filter((pred) => !remainingStagedIds.has(pred.patient_id));
+      setProjectedDeliveries(filteredPredictions);
+
+      // If editing one of the deleted deliveries, clear the form
+      if (editingStagedId && deletedPendingDeliveries.some((d) => d._tempId === editingStagedId)) {
+        console.log('📝 [DeliveryForm] Clearing form - edited pending delivery was deleted');
+        setEditingStagedId(null);
+        handleClearForm();
+      }
+    }
+  }, [allDeliveries, stagedDeliveries.length, delivery]);
+
   // Auto-load pending deliveries on form mount - ONLY ONCE
   useEffect(() => {
     // Skip if editing existing delivery
