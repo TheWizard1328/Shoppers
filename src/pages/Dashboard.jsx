@@ -7133,51 +7133,6 @@ function Dashboard() {
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
-      {/* Pull to Sync - Works on any device */}
-      <PullToSync
-        key={pullToSyncKey}
-        selectedDate={selectedDate}
-        selectedCityId={globalFilters.getSelectedCityId()}
-        selectedDriverId={selectedDriverId}
-        showAllDriverMarkers={showAllDriverMarkers}
-        statsCardRef={statsCardRef}
-        onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
-            console.log('🔄 [Dashboard] Pull to sync complete - updating UI...');
-            
-            // Update deliveries in context
-            if (updateDeliveriesLocally) {
-              const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-              const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== selectedDateStr);
-              updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-            }
-            
-            // Force map update based on selection mode
-            const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-              detail: { 
-                deliveryDate: selectedDateStr, 
-                triggeredBy: 'pullToSyncComplete',
-                allDrivers: true 
-              }
-            }));
-            
-            // Trigger map repositioning based on current phase
-            setIsMapViewLocked(true);
-            lastProgrammaticMapMoveRef.current = Date.now();
-            window._lastProgrammaticMapMove = Date.now();
-            setMapViewTrigger(prev => prev + 1);
-            
-            // Auto-unlock after 500ms
-            setTimeout(() => {
-              setIsMapViewLocked(false);
-            }, 500);
-            
-            // Force stats refresh
-            window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-            
-            console.log('✅ [Dashboard] Pull to sync UI update complete');
-          }}
-        />
 
       {/* Snapshot Timeline - Only visible when snapshot mode is active */}
       {isSnapshotModeActive && isAppOwner(currentUser) &&
@@ -7196,11 +7151,57 @@ function Dashboard() {
 
 
       <div className={statsCardPositioning} style={{ zIndex: 600 }}>
-        <div className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px]"
+        <div className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px] relative"
 
         style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
         onMouseEnter={() => handleStatsPanelInteraction(true)}
         onMouseLeave={() => handleStatsPanelInteraction(false)}>
+
+          {/* Pull to Sync - Inside stats card container */}
+          <PullToSync
+            key={pullToSyncKey}
+            selectedDate={selectedDate}
+            selectedCityId={globalFilters.getSelectedCityId()}
+            selectedDriverId={selectedDriverId}
+            showAllDriverMarkers={showAllDriverMarkers}
+            statsCardRef={statsCardRef}
+            onSyncComplete={async (freshDeliveries, freshPatients, freshAppUsers) => {
+                console.log('🔄 [Dashboard] Pull to sync complete - updating UI...');
+                
+                // Update deliveries in context
+                if (updateDeliveriesLocally) {
+                  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                  const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== selectedDateStr);
+                  updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+                }
+                
+                // Force map update based on selection mode
+                const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                  detail: { 
+                    deliveryDate: selectedDateStr, 
+                    triggeredBy: 'pullToSyncComplete',
+                    allDrivers: true 
+                  }
+                }));
+                
+                // Trigger map repositioning based on current phase
+                setIsMapViewLocked(true);
+                lastProgrammaticMapMoveRef.current = Date.now();
+                window._lastProgrammaticMapMove = Date.now();
+                setMapViewTrigger(prev => prev + 1);
+                
+                // Auto-unlock after 500ms
+                setTimeout(() => {
+                  setIsMapViewLocked(false);
+                }, 500);
+                
+                // Force stats refresh
+                window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                
+                console.log('✅ [Dashboard] Pull to sync UI update complete');
+              }}
+            />
 
           <motion.div
             ref={statsCardRef}
