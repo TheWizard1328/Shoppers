@@ -2571,9 +2571,22 @@ export default function DeliveryMap({
         </div>
 
         <div className="space-y-1.5">
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-            {isPickup ? store?.address : patient?.full_name}
-          </p>
+          {isPickup ? (
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+              {store?.address}
+            </p>
+          ) : (
+            <button
+              onClick={() => {
+                const destination = `${patient?.address}${delivery.unit_number ? ' #' + delivery.unit_number : ''}`;
+                const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+                window.open(url, '_blank');
+              }}
+              className="text-sm font-semibold text-blue-600 hover:text-blue-700 underline transition-colors text-left"
+            >
+              📍 {patient?.full_name}
+            </button>
+          )}
 
           <p className="text-xs" style={{ color: 'var(--text-slate-600)' }}>
             {isPickup ? store?.address : patient?.address}
