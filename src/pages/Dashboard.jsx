@@ -373,6 +373,36 @@ function Dashboard() {
     if (!currentUser || !isDataLoaded) return;
 
     console.log('🔌 [Real-time] Subscribing to Patient and Delivery changes...');
+    
+    // CRITICAL: Listen for immediate updates from Done button (includes fresh data)
+    const handleImmediateDeliveryUpdate = async (event) => {
+      const { immediate, freshDeliveries, deliveryDate, driverId } = event.detail || {};
+      
+      if (immediate && freshDeliveries && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
+        console.log(`⚡ [Dashboard] IMMEDIATE update - ${freshDeliveries.length} deliveries from Done button`);
+        
+        // Update offline DB
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        
+        // Update UI immediately
+        if (updateDeliveriesLocally) {
+          const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== deliveryDate);
+          updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+        }
+        
+        // Force refresh driver locations and markers
+        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
+        const latestAppUsers = locationUpdates?.appUsers || appUsers;
+        
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: latestAppUsers, forceAll: true }
+        }));
+        
+        console.log('✅ [Dashboard] Immediate update complete');
+      }
+    };
+    
+    window.addEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
 
     // Subscribe to Patient entity changes
     const unsubscribePatients = base44.entities.Patient.subscribe((event) => {
@@ -502,10 +532,11 @@ function Dashboard() {
 
     return () => {
       console.log('🔌 [Real-time] Unsubscribing from Patient and Delivery changes');
+      window.removeEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
       unsubscribePatients();
       unsubscribeDeliveries();
     };
-  }, [currentUser?.id, isDataLoaded, updateDeliveriesLocally, deliveries, refreshData, selectedDate, selectedDriverId, showAllDriverMarkers]);
+  }, [currentUser?.id, isDataLoaded, updateDeliveriesLocally, deliveries, refreshData, selectedDate, selectedDriverId, showAllDriverMarkers, appUsers, updateDeliveriesLocally]);
 
   // Listen for deliveries imported event to refresh map immediately
   useEffect(() => {
