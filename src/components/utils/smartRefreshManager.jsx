@@ -2624,52 +2624,18 @@ class SmartRefreshManager {
 
        console.log(`📥 [SmartRefresh] Fetched ${allAppUsers.length} AppUsers from API`);
 
-       // CRITICAL: Merge with offline DB (prefer newest data for each record)
-       let offlineSaveSuccess = false;
+       // CRITICAL: STEP 3: Completely replace offline DB with fresh API data (no merging)
+       // This ensures shared location markers are always up-to-date every 15 seconds
        try {
          const { offlineDB } = await import('./offlineDatabase');
-         console.log(`💾 [SmartRefresh] Merging ${allAppUsers.length} AppUsers with offline DB...`);
+         console.log(`💾 [SmartRefresh] STEP 3: Replacing offline DB with ${allAppUsers.length} fresh AppUsers...`);
 
-         // CRITICAL: Load existing offline data FIRST
-         const existingOfflineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-
-         // Merge API data with offline data, preferring the record with newest updated_date
-         const mergedAppUsers = allAppUsers.map(apiAppUser => {
-           const offlineAppUser = existingOfflineAppUsers.find(off => off.id === apiAppUser.id);
-
-           if (!offlineAppUser) {
-             return apiAppUser; // New from API
-           }
-
-           // Compare timestamps - use newest
-           const apiTime = new Date(apiAppUser.updated_date || 0).getTime();
-           const offlineTime = new Date(offlineAppUser.updated_date || 0).getTime();
-
-           // Also compare location_updated_at for location freshness
-           const apiLocationTime = new Date(apiAppUser.location_updated_at || 0).getTime();
-           const offlineLocationTime = new Date(offlineAppUser.location_updated_at || 0).getTime();
-
-           if (offlineLocationTime > apiLocationTime) {
-             console.log(`📍 [SmartRefresh] Keeping fresher offline location for ${offlineAppUser.user_name} (offline: ${Math.floor((Date.now() - offlineLocationTime) / 1000)}s ago)`);
-             // Use offline location data, but API data for everything else
-             return {
-               ...apiAppUser,
-               current_latitude: offlineAppUser.current_latitude,
-               current_longitude: offlineAppUser.current_longitude,
-               location_updated_at: offlineAppUser.location_updated_at
-             };
-           }
-
-           return apiAppUser; // API is newer or equal
-         });
-
-         // Save merged data to offline DB
-         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, mergedAppUsers);
-         console.log(`✅ [SmartRefresh] Saved ${mergedAppUsers.length} merged AppUsers to offline DB`);
-         offlineSaveSuccess = true;
+         // CRITICAL: Replace entire dataset (don't merge - use fresh API data as authoritative)
+         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+         console.log(`✅ [SmartRefresh] Replaced offline DB with ${allAppUsers.length} fresh AppUsers`);
 
          await offlineDB.updateSyncStatus('AppUser', {
-           recordCount: mergedAppUsers.length,
+           recordCount: allAppUsers.length,
            status: 'synced',
            lastSync: new Date().toISOString()
          });
