@@ -2213,7 +2213,7 @@ function Dashboard() {
         }
       }
 
-      // CRITICAL: Update isNextDelivery flags for each active driver
+      // CRITICAL: Update isNextDelivery flags for each active driver BEFORE processing locations
       const activeDriverIds = new Set(freshDeliveries.map(d => d?.driver_id).filter(Boolean));
       
       for (const activeDriverId of activeDriverIds) {
@@ -2224,10 +2224,20 @@ function Dashboard() {
         }
       }
 
-      // CRITICAL: Always process location data for ALL drivers to update markers
+      // CRITICAL: Re-fetch deliveries AFTER updating flags to get correct isNextDelivery values
+      const deliveriesWithUpdatedFlags = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesWithUpdatedFlags);
+      
+      // Update UI with fresh flags
+      if (updateDeliveriesLocally) {
+        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+        updateDeliveriesLocally([...otherDateDeliveries, ...deliveriesWithUpdatedFlags], true);
+      }
+
+      // CRITICAL: Process location data with deliveries that have updated flags
       driverLocationPoller.processLocationData(
         currentUser, 
-        freshDeliveries, 
+        deliveriesWithUpdatedFlags, 
         drivers, 
         stores, 
         latestAppUsers, 

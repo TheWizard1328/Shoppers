@@ -284,21 +284,24 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
                 />
               </div>
 
-              <div className="flex items-center space-x-2 p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
-                <input
-                  type="checkbox"
-                  id="isPrimary"
-                  checked={isPrimaryTracker}
-                  onChange={(e) => setIsPrimaryTracker(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                <Label htmlFor="isPrimary" className="text-sm cursor-pointer" style={{ color: 'var(--text-slate-700)' }}>
-                  Set as primary tracker
-                  <span className="block text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>
-                    Only the primary device updates your location on the map
-                  </span>
-                </Label>
-              </div>
+              {/* Only show primary tracker option for drivers (not dispatchers) */}
+              {currentUser?.app_roles?.includes('driver') && (
+                <div className="flex items-center space-x-2 p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
+                  <input
+                    type="checkbox"
+                    id="isPrimary"
+                    checked={isPrimaryTracker}
+                    onChange={(e) => setIsPrimaryTracker(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="isPrimary" className="text-sm cursor-pointer" style={{ color: 'var(--text-slate-700)' }}>
+                    Set as primary tracker
+                    <span className="block text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>
+                      Only the primary device updates your location on the map
+                    </span>
+                  </Label>
+                </div>
+              )}
 
               {existingDevices.length > 0 && (
                 <Button

@@ -62,24 +62,39 @@ export const determinePolylineSegment = (filteredDeliveries, driver, patients, s
       destLon = store?.longitude;
     }
     
-    // Origin: last completed stop or home
+    // Origin: Use driver's current location if available, otherwise last completed stop or home
     if (completedDeliveries.length > 0) {
-      segmentType = 'last_to_next';
-      const lastCompleted = completedDeliveries[completedDeliveries.length - 1];
+      segmentType = 'current_to_next';
       
-      if (lastCompleted.patient_id) {
-        const patient = patients.find(p => p && p.id === lastCompleted.patient_id);
-        originLat = patient?.latitude;
-        originLon = patient?.longitude;
+      // CRITICAL: Always use driver's current location when available (prevents bouncing)
+      if (driver?.current_latitude && driver?.current_longitude && driver?.location_updated_at) {
+        originLat = driver.current_latitude;
+        originLon = driver.current_longitude;
       } else {
-        const store = stores.find(s => s && s.id === lastCompleted.store_id);
-        originLat = store?.latitude;
-        originLon = store?.longitude;
+        // Fallback to last completed stop
+        const lastCompleted = completedDeliveries[completedDeliveries.length - 1];
+        
+        if (lastCompleted.patient_id) {
+          const patient = patients.find(p => p && p.id === lastCompleted.patient_id);
+          originLat = patient?.latitude;
+          originLon = patient?.longitude;
+        } else {
+          const store = stores.find(s => s && s.id === lastCompleted.store_id);
+          originLat = store?.latitude;
+          originLon = store?.longitude;
+        }
       }
     } else {
       segmentType = 'home_to_first';
-      originLat = driver?.home_latitude;
-      originLon = driver?.home_longitude;
+      
+      // Use current location if available, otherwise home
+      if (driver?.current_latitude && driver?.current_longitude && driver?.location_updated_at) {
+        originLat = driver.current_latitude;
+        originLon = driver.current_longitude;
+      } else {
+        originLat = driver?.home_latitude;
+        originLon = driver?.home_longitude;
+      }
     }
   }
 
