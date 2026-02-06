@@ -165,10 +165,24 @@ class DriverLocationPoller {
       if (user.location_updated_at) {
         const locationAge = now - new Date(user.location_updated_at).getTime();
         if (locationAge > maxStaleTime) {
+          if (isSelf) {
+            const ageMinutes = Math.floor(locationAge / 60000);
+            const ageHours = Math.floor(ageMinutes / 60);
+            const ageDays = Math.floor(ageHours / 24);
+            console.log(`❌ [Poller] SELF marker BLOCKED - location too old:`, {
+              location_updated_at: user.location_updated_at,
+              ageMinutes,
+              ageHours,
+              ageDays,
+              maxStaleMinutes: maxStaleTime / 60000
+            });
+          }
           return false;
         }
       } else {
-        // No timestamp - hide marker
+        if (isSelf) {
+          console.log(`❌ [Poller] SELF marker BLOCKED - no location_updated_at timestamp`);
+        }
         return false;
       }
 
