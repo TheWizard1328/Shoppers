@@ -24,9 +24,7 @@ export default function SettingsMenu({
   cities,
   onPatientImportClick,
   onDeliveryImportClick,
-  isMobile,
-  dataSource,
-  onDataSourceChange
+  isMobile
 }) {
   const isMobileDeviceForUI = isMobile !== undefined ? isMobile : isMobileDevice();
   const isMobileForTheme = isMobileDeviceForTheme();
@@ -126,57 +124,6 @@ export default function SettingsMenu({
           </Select>
         </div>
       )}
-
-      {/* Data Source Toggle */}
-      <div className="px-2 py-2">
-        <label 
-          className="font-medium mb-1.5 block" 
-          style={{ 
-            color: 'var(--text-slate-700)', 
-            fontSize: isMobileDeviceForUI ? '15px' : '14px' 
-          }}
-        >
-          Data Source
-        </label>
-        <Select value={dataSource || 'offline'} onValueChange={onDataSourceChange}>
-          <SelectTrigger 
-            className="w-full h-9" 
-            style={{ 
-              background: 'var(--bg-white)', 
-              borderColor: 'var(--border-slate-300)', 
-              color: 'var(--text-slate-900)', 
-              fontSize: isMobileDeviceForUI ? '16px' : '15px' 
-            }}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent 
-            className="z-[10003]" 
-            style={{ 
-              background: 'var(--bg-white)', 
-              borderColor: '#ffffff', 
-              fontSize: isMobileDeviceForUI ? '16px' : '15px' 
-            }}
-          >
-            <SelectItem value="offline" style={{ color: 'var(--text-slate-900)' }}>
-              <div className="flex items-center gap-2">
-                <Database className="w-4 h-4" />
-                Offline DB (Default)
-              </div>
-            </SelectItem>
-            <SelectItem value="online" style={{ color: 'var(--text-slate-900)' }}>
-              <div className="flex items-center gap-2">
-                <Cloud className="w-4 h-4" />
-                Online DB Only
-              </div>
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-xs mt-1.5" style={{ color: 'var(--text-slate-500)' }}>
-          {dataSource === 'online' ? 'Loading from server (slower, always fresh)' : 'Loading from local cache (faster, may have sync issues)'}
-        </p>
-      </div>
-      <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
 
       {/* Import Buttons */}
       {(realUser && isAppOwner || adminImportEnabled) && (
