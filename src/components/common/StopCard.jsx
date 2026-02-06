@@ -1630,6 +1630,13 @@ export default function StopCard({
                   description: `Dispatch has been notified. Reason: ${reason}`
                 });
 
+                // CRITICAL: Collapse the card after marking as failed/cancelled
+                if (onSelectionChange) {
+                  onSelectionChange(delivery.id, false);
+                } else if (onClick) {
+                  onClick(null);
+                }
+
               } catch (error) {
                 console.error('❌ [FAILURE] Error:', error);
                 toast.error(`Failed to mark as ${status}: ${error.message}`);
