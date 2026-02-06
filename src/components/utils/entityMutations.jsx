@@ -404,10 +404,10 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
     }
     
-    if (!skipSmartRefresh) await restartSmartRefresh();
+    if (!skipSmartRefresh && !isBatchOperation) await restartSmartRefresh();
     return updated;
   } catch (error) {
-    if (!skipSmartRefresh) await restartSmartRefresh();
+    if (!skipSmartRefresh && !isBatchOperation) await restartSmartRefresh();
     throw error;
   }
 };
