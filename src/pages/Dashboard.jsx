@@ -7059,6 +7059,7 @@ function Dashboard() {
         
         if (mountDeliveries && mountDeliveries.length > 0) {
           console.log(`✅ [Dashboard Mount] Loaded ${mountDeliveries.length} deliveries from offline DB`);
+          console.log(`📊 [Dashboard Mount] Sample isNextDelivery values:`, mountDeliveries.slice(0, 3).map(d => ({ id: d.id, patient_name: d.patient_name, isNextDelivery: d.isNextDelivery })));
           
           // Update context immediately
           if (updateDeliveriesLocally) {
