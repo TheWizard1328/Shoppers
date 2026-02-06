@@ -2636,7 +2636,6 @@ function Dashboard() {
         
         // CRITICAL: Also load from window.__mapDriverLocationMarkers (rendered on map)
         const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
-        console.log(`🗺️ [Phase 1] Map driver location markers count: ${mapDriverLocationMarkers.length}`);
 
         if (isViewingToday && shouldIncludeSharedLocations && (allDriverLocations.length > 0 || mapDriverLocationMarkers.length > 0) && (Array.isArray(allDriverLocations) || Array.isArray(mapDriverLocationMarkers))) {
           let addedCount = 0;
@@ -2654,14 +2653,12 @@ function Dashboard() {
           
           Array.from(uniqueLocations.values()).forEach((location) => {
             if (!location?.latitude || !location?.longitude || !location?.driver_id) {
-              console.log('⏭️ [Phase 1] Skipping location - missing coords/id:', location);
               return;
             }
 
             // CRITICAL: Skip current user on mobile (blue dot shows instead) - but NOT for dispatchers
             const isCurrentUserLocation = isMobile && !isDispatcher && location.driver_id === currentUser?.id;
             if (isCurrentUserLocation) {
-              console.log('🚫 [Phase 1] Skipping self shared location on mobile (driver):', location.driver_id);
               return;
             }
 
@@ -2679,7 +2676,6 @@ function Dashboard() {
               dispatcherStoreIds.has(delivery.store_id)
               );
               if (!hasDeliveryInDispatcherStore) {
-                console.log('⏭️ [Phase 1] Skipping location - no dispatcher store delivery:', location.driver_id);
                 return;
               }
             }
@@ -2687,11 +2683,8 @@ function Dashboard() {
             allCoordinates.push([location.latitude, location.longitude]);
             hasDriverMarkers = true;
             addedCount++;
-            console.log(`✅ [Phase 1] Added shared location: ${location.driver_id} (status: ${location.driver_status}, tracking: ${location.location_tracking_enabled})`);
           });
-          console.log(`🗺️ [Phase 1] Added ${addedCount} shared driver locations (from ${uniqueLocations.size} unique sources)`);
         } else {
-          console.log(`⏭️ [Phase 1] Not showing shared locations - conditions not met`);
         }
 
         // 3. HOME LOCATIONS: Use markers from DeliveryMap (already filtered and validated)
@@ -2699,21 +2692,17 @@ function Dashboard() {
         const mapHomeMarkers = window.__mapHomeMarkers || [];
         
         if (mapHomeMarkers.length > 0) {
-          console.log(`🏠 [Phase 1] Including ${mapHomeMarkers.length} home markers from map`);
           mapHomeMarkers.forEach((home) => {
             // CRITICAL: Skip markers flagged to exclude from bounds (after first stop completed)
             if (home.excludeFromBounds) {
-              console.log(`⏭️ [Phase 1] Skipping home marker ${home.id} from bounds (excludeFromBounds flag)`);
               return;
             }
             
             if (home.latitude && home.longitude) {
               allCoordinates.push([home.latitude, home.longitude]);
-              console.log(`✅ [Phase 1] Added home marker for driver ${home.driverName}`);
             }
           });
         } else {
-          console.log('⏭️ [Phase 1] No home markers available from map');
         }
 
         // 4. Add delivery/pickup markers based on mode
@@ -2739,7 +2728,6 @@ function Dashboard() {
             // Filter to only show deliveries from those drivers (ALL their stops for the date)
             deliveriesToMap = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
 
-            console.log(`🗺️ [Phase 1 - Dispatcher] Filtered to ${deliveriesToMap.length} deliveries from ${driversWithStoreDeliveries.size} drivers with store stops`);
           } else {
             deliveriesToMap = allDateDeliveries;
           }
@@ -2747,8 +2735,6 @@ function Dashboard() {
           // Single driver mode - show only that driver's deliveries
           deliveriesToMap = deliveriesWithStopOrder;
         }
-
-        console.log(`🗺️ [Phase 1] Processing ${deliveriesToMap.length} deliveries (mode: ${shouldShowAllMarkersForBounds ? 'All Markers' : 'Single Driver'})`);
 
         let coordsAdded = 0;
 
@@ -2772,7 +2758,6 @@ function Dashboard() {
               }
             }
           });
-          console.log(`🗺️ [Phase 1] Added ${coordsAdded} stop markers`);
         }
 
         // Get current city center
@@ -2869,7 +2854,6 @@ function Dashboard() {
         }
         // CASE 3: Normal case with stop markers
         else if (allCoordinates.length > 0) {
-          console.log(`🗺️ [Phase 1] Fitting ${allCoordinates.length} coordinates (hasStopMarkers: ${hasStopMarkers}, hasDriverMarkers: ${hasDriverMarkers})`);
 
           // Calculate span to determine appropriate maxZoom
           let minLat = Infinity,maxLat = -Infinity,minLon = Infinity,maxLon = -Infinity;
@@ -2888,7 +2872,6 @@ function Dashboard() {
           const baseZoom = 16 - Math.log2(spanKm + 1) * 1.5;
           const screenAdjustment = isMobile ? 0.5 : -0.5;
           const phase1MaxZoom = Math.max(8.0, Math.min(15, Math.round((baseZoom + screenAdjustment) * 10) / 10)).toFixed(1);
-          console.log(`🗺️ [Phase 1] maxZoom: ${phase1MaxZoom}, span: ${spanKm.toFixed(2)}km`);
 
           const padding = getMapPadding();
 
