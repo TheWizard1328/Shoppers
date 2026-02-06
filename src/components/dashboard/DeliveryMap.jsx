@@ -73,12 +73,12 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
   const statusColors = {
     'pending': '#3B82F6', // Blue
     'Ready For Pickup': '#3B82F6', // Blue
-    'in_transit': '#3B82F6', // Blue
-    'en_route': '#3B82F6', // Blue
-    'completed': '#059669', // Darker Green
-    'delivered': '#059669', // Darker Green
-    'failed': '#EF4444', // Red
-    'cancelled': '#EF4444', // Red
+    'in_transit': '#0EA5E9', // Very bright blue (sky-500)
+    'en_route': '#0EA5E9', // Very bright blue (sky-500)
+    'completed': '#10B981', // Very bright green (emerald-500)
+    'delivered': '#10B981', // Very bright green
+    'failed': '#EF4444', // Very hot red (red-500)
+    'cancelled': '#EF4444', // Very hot red
     'returned': '#F97316' // Orange
   };
 
@@ -112,7 +112,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
   
   // CRITICAL: Determine text color based on the background (driver) color
   // driverColor is the background color of the circle
-  const textColor = getDriverTextColor(driverColor);
+  const textColor = isNextDelivery ? 'black' : getDriverTextColor(driverColor);
 
   const icon = L.divIcon({
     html: `
@@ -3114,7 +3114,7 @@ export default function DeliveryMap({
             <Marker
               key={`pickup-${pickup.id}`}
               position={markerPosition}
-              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount) : createStoreIcon(
+              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount, pickup.isNextDelivery) : createStoreIcon(
                 pickup.status, 
                 pickup.pinColor, 
                 isFanned, 
@@ -3534,7 +3534,7 @@ export default function DeliveryMap({
             <Marker
               key={`delivery-${delivery.id}`}
               position={markerPosition}
-              icon={delivery.useSimpleCircle || delivery.isOtherDriver ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver, delivery.duplicateCount) : createDeliveryIcon(
+              icon={delivery.useSimpleCircle || delivery.isOtherDriver ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver, delivery.duplicateCount, delivery.isNextInLine) : createDeliveryIcon(
                 delivery.status,
                 delivery.pinColor,
                 isFanned,
