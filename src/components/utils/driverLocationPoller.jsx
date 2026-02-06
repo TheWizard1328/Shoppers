@@ -90,18 +90,23 @@ class DriverLocationPoller {
 
     // Update internal current user reference
     this.currentUser = currentUser;
-    
-    // CRITICAL: Load appUsers from offline DB first to prevent rate limiting
+
+    // CRITICAL: When forceNotify=true (SmartRefresh with fresh data), use provided appUsers directly
+    // Skipping offline DB prevents race conditions where fresh data hasn't been fully committed yet
     let usersData = appUsers;
-    try {
-      const { offlineDB } = await import('./offlineDatabase');
-      const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-      
-      if (offlineAppUsers && offlineAppUsers.length > 0) {
-        usersData = offlineAppUsers;
+    if (!forceNotify) {
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+
+        if (offlineAppUsers && offlineAppUsers.length > 0) {
+          usersData = offlineAppUsers;
+        }
+      } catch (offlineError) {
+        console.warn('⚠️ [DriverLocationPoller] Failed to load from offline DB, using props:', offlineError.message);
       }
-    } catch (offlineError) {
-      console.warn('⚠️ [DriverLocationPoller] Failed to load from offline DB, using props:', offlineError.message);
+    } else {
+      console.log('📍 [DriverLocationPoller] forceNotify=true - using provided fresh appUsers, skipping offline DB load');
     }
 
     // Process location data silently
