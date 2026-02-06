@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -310,7 +311,6 @@ export default function DeliveryForm({
             if (driver) {
               driverIdToSet = driverId;
               driverNameToSet = getDriverNameForStorage(driver);
-              console.log('🚗 [DeliveryForm] Setting driver (dispatcher):', driverNameToSet);
             }
           }
         }
@@ -580,12 +580,9 @@ export default function DeliveryForm({
       }
     }
 
-    // First try active patients only
+    // Search both active and inactive patients
     let results = availablePatients.filter((patient) => {
       if (!patient) return false;
-
-      // Filter out inactive patients
-      if (patient.status === 'inactive') return false;
 
       // Filter out Deceased and (Old
       const name = patient.full_name?.toLowerCase() || '';
@@ -597,27 +594,14 @@ export default function DeliveryForm({
       patient.notes?.toLowerCase().includes(searchLower);
     });
 
-    // If no active patients found, search inactive patients as fallback
-    if (results.length === 0) {
-      results = availablePatients.filter((patient) => {
-        if (!patient) return false;
-
-        // ONLY include inactive patients now
-        if (patient.status !== 'inactive') return false;
-
-        // Filter out Deceased and (Old
-        const name = patient.full_name?.toLowerCase() || '';
-        if (name.includes('deceased') || name.includes('(old')) return false;
-
-        return patient.full_name?.toLowerCase().includes(searchLower) ||
-        patient.address?.toLowerCase().includes(searchLower) ||
-        patient.phone?.toLowerCase().includes(searchLower) ||
-        patient.notes?.toLowerCase().includes(searchLower);
-      });
-    }
-
-    // Sort: Staged patients to bottom, then most recently delivered first, then (Temp to the bottom
+    // Sort: Inactive to bottom, staged to bottom, (Temp to bottom, then by recent delivery
     results.sort((a, b) => {
+      // Inactive patients always to the bottom
+      const aIsInactive = a.status === 'inactive';
+      const bIsInactive = b.status === 'inactive';
+      if (!aIsInactive && bIsInactive) return -1;
+      if (aIsInactive && !bIsInactive) return 1;
+
       const aIsStaged = stagedPatientIds.has(a.id);
       const bIsStaged = stagedPatientIds.has(b.id);
       
