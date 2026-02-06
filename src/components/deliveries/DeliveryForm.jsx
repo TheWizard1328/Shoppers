@@ -3081,9 +3081,21 @@ export default function DeliveryForm({
         );
 
         if (relatedDeliveries.length > 0) {
-          for (const relatedDelivery of relatedDeliveries) {
-            await base44.entities.Delivery.update(relatedDelivery.id, { status: 'in_transit' });
-          }
+          console.log(`🔄 [DeliveryForm] Transitioning ${relatedDeliveries.length} pending deliveries to in_transit...`);
+          
+          // CRITICAL: Update all pending deliveries in parallel and WAIT for all to complete
+          const updatePromises = relatedDeliveries.map(relatedDelivery =>
+            updateDeliveryLocal(relatedDelivery.id, { status: 'in_transit' })
+              .catch(err => console.error(`Failed to update ${relatedDelivery.patient_name}:`, err))
+          );
+          await Promise.all(updatePromises);
+          
+          console.log(`✅ [DeliveryForm] All ${relatedDeliveries.length} deliveries transitioned to in_transit`);
+          
+          // CRITICAL: Wait 500ms for route optimization to complete and isNextDelivery to be set
+          console.log('⏳ [DeliveryForm] Waiting for route optimization to complete...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          console.log('✅ [DeliveryForm] Route optimization complete');
         }
       }
 
