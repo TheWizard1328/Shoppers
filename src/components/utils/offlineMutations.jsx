@@ -443,7 +443,7 @@ export const createDeliveryLocal = async (deliveryData) => {
  * @param {object} options - Options: { skipSmartRefresh: boolean }
  */
 export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => {
-  const { skipSmartRefresh = false } = options;
+  const { skipSmartRefresh = false, isBatchOperation = false } = options;
   
   // CRITICAL: Check if mutations are paused
   if (mutationsPaused) {
@@ -451,9 +451,9 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     throw new Error('Mutations are paused during route optimization');
   }
 
-  // CRITICAL: Pause smart refresh during mutation (unless skipped)
+  // CRITICAL: Pause smart refresh during mutation (unless skipped or in batch operation)
   let smartRefreshManager = null;
-  if (!skipSmartRefresh) {
+  if (!skipSmartRefresh && !isBatchOperation) {
     const module = await import('./smartRefreshManager');
     smartRefreshManager = module.smartRefreshManager;
     smartRefreshManager.pause();
