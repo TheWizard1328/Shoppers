@@ -538,98 +538,7 @@ function Dashboard() {
     };
   }, [currentUser?.id, isDataLoaded, updateDeliveriesLocally, deliveries, refreshData, selectedDate, selectedDriverId, showAllDriverMarkers, appUsers, updateDeliveriesLocally]);
 
-  // Listen for deliveries imported event to refresh map immediately
-  useEffect(() => {
-    const handleDeliveriesImported = async (event) => {
-      const { deliveries: importedDeliveries, source } = event.detail || {};
-      console.log('📥 [Dashboard] Deliveries imported - refreshing map and data');
-      
-      // Skip if source is Dashboard itself to prevent loops
-      if (source === 'dashboard') return;
-      
-      try {
-        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        
-        // CRITICAL: Always load ALL drivers' deliveries to detect if import is for other drivers
-        invalidateDeliveriesForDate(selectedDateStr);
-        const freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-        console.log(`✅ [Import] Loaded ${freshDeliveries.length} deliveries for ALL drivers`);
-        
-        // CRITICAL: Check if imported deliveries are for a different driver
-        const importedDriverIds = new Set(freshDeliveries.map(d => d?.driver_id).filter(Boolean));
-        const isViewingSingleDriver = selectedDriverId !== 'all' && !showAllDriverMarkers;
-        const isForOtherDriver = isViewingSingleDriver && !importedDriverIds.has(selectedDriverId);
-        
-        // Auto-enable "Show All" if importing for other drivers (admin/dispatcher only)
-        if (isForOtherDriver && (isAdmin || isDispatcher)) {
-          console.log('📍 [Import] Imported for other driver(s) - auto-enabling Show All to display markers');
-          setShowAllDriverMarkers(true);
-          if (currentUser?.id) {
-            saveSetting(currentUser.id, 'show_all_driver_markers', true);
-          }
-        }
-        
-        // Update offline DB
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        
-        // Update UI with fresh data
-        if (updateDeliveriesLocally) {
-          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-          updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-        }
-        
-        // CRITICAL: Force refresh ALL AppUsers after import to update all driver markers
-        console.log('📍 [Import] Refreshing ALL driver locations after import...');
-        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
-        const latestAppUsers = locationUpdates?.appUsers || appUsers;
-        
-        // Dispatch location updates for ALL drivers
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: latestAppUsers, forceAll: true }
-        }));
-        
-        // Force map markers and routes to update
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { deliveryDate: selectedDateStr, triggeredBy: 'deliveriesImported' }
-        }));
-        
-        // Trigger FAB to re-center map (Phase 1 for 500ms)
-        if (mapViewPhase === 1) {
-          // Clear any existing timers
-          if (mapLockTimeoutRef.current) {
-            clearTimeout(mapLockTimeoutRef.current);
-            mapLockTimeoutRef.current = null;
-          }
-          mapLockExpiresAtRef.current = null;
-          
-          setIsMapViewLocked(true);
-          lastProgrammaticMapMoveRef.current = Date.now();
-          window._lastProgrammaticMapMove = Date.now();
-          setMapViewTrigger((prev) => prev + 1);
-          
-          // Auto-unlock after 500ms
-          const lockDuration = 500;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-          
-          mapLockTimeoutRef.current = setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
-            }
-          }, lockDuration);
-        }
-        
-        console.log('✅ [Dashboard] Map updated after import');
-      } catch (error) {
-        console.error('❌ [Dashboard] Failed to refresh after import:', error);
-      }
-    };
-    
-    window.addEventListener('deliveriesImported', handleDeliveriesImported);
-    return () => window.removeEventListener('deliveriesImported', handleDeliveriesImported);
-  }, [selectedDate, refreshData, showAllDriverMarkers, selectedDriverId, currentUser, deliveries, updateDeliveriesLocally, mapViewPhase]);
+
 
   // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
@@ -2208,16 +2117,9 @@ function Dashboard() {
       setAllDriverLocations(filteredLocations);
     });
 
-    // Listen for location update events
-    const handleLocationUpdate = () => {
-      console.log('📍 [Dashboard] driverLocationsUpdated event received');
-    };
-    window.addEventListener('driverLocationsUpdated', handleLocationUpdate);
-
     return () => {
       unsubscribe();
       driverLocationPoller.stop();
-      window.removeEventListener('driverLocationsUpdated', handleLocationUpdate);
     };
   }, [isDataLoaded, currentUser?.id, currentUser?.user_id, isMobile, isDriver]);
 
