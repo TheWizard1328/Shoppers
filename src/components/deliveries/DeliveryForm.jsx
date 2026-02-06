@@ -2374,6 +2374,10 @@ export default function DeliveryForm({
     setIsSaving(true);
     setError(null);
 
+    // CRITICAL: Set batch form saving flag to prevent SmartRefresh spam
+    setBatchFormSaving(true);
+    console.log('🔒 [AddToRoute] Batch form saving ACTIVE - SmartRefresh restarts will be skipped');
+
     // CRITICAL: Pause SmartRefresh ONCE for the entire batch operation
     try {
       const { smartRefreshManager } = await import('../utils/smartRefreshManager');
