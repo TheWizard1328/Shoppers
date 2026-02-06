@@ -1732,10 +1732,10 @@ export default function StopCard({
 
                   {/* COD Information - For active deliveries with COD required (always show, but disable editing for driver-stripped) */}
                   {hasCODRequired && !isPickup && !isFinishedDelivery &&
-                    <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: 'var(--bg-amber-50)', borderWidth: '1px', borderColor: 'var(--border-amber-200)' }}>
-                      <span className="text-lg md:text-xs font-semibold" style={{ color: 'var(--text-amber-800)' }}>COD Required: ${codTotalRequired.toFixed(2)}</span>
+                    <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: '#e5e7eb', borderWidth: '1px', borderColor: '#d1d5db' }}>
+                      <span className="text-lg md:text-xs font-semibold" style={{ color: '#374151' }}>COD Required: ${codTotalRequired.toFixed(2)}</span>
                       {userHasRole(currentUser, 'driver') && !isStrippedForDriver &&
-                        <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs hover:bg-amber-100 dark:hover:bg-amber-900/30" style={{ color: 'var(--text-amber-700)' }} onClick={(e) => {
+                        <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs hover:bg-gray-300" style={{ color: '#4b5563' }} onClick={(e) => {
                           e.stopPropagation();
                           setShowCODCollection(!showCODCollection);
                           // Auto-add payment when opening COD collection and focus dropdown
@@ -1752,11 +1752,11 @@ export default function StopCard({
                   {/* COD Collected - Show for active deliveries OR for finished deliveries with COD (disable editing for driver-stripped) */}
                   {hasCODRequired && !isPickup && codPayments.length > 0 &&
                     <div className="flex items-center justify-between rounded-md px-2 py-1" style={{
-                      background: isCODComplete ? 'var(--bg-emerald-50)' : 'var(--bg-amber-50)',
+                      background: '#10b981',
                       borderWidth: '1px',
-                      borderColor: isCODComplete ? 'var(--border-emerald-200)' : 'var(--border-amber-200)'
+                      borderColor: '#059669'
                     }}>
-                      <span className="text-lg md:text-xs font-semibold" style={{ color: isCODComplete ? 'var(--text-emerald-800)' : 'var(--text-amber-800)' }}>
+                      <span className="text-lg md:text-xs font-semibold" style={{ color: '#ffffff' }}>
                         COD Collected: {codPayments.map((payment, index) =>
                           <span key={index}>
                             {payment.type}: ${payment.amount.toFixed(2)}
@@ -1766,7 +1766,7 @@ export default function StopCard({
                       </span>
                       {!isStrippedForDriver && !isFinishedDelivery && userHasRole(currentUser, 'driver') ||
                         isFinishedDelivery && userHasRole(currentUser, 'admin') ?
-                        <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs" onClick={(e) => { e.stopPropagation(); setShowCODCollection(!showCODCollection); }}>Edit</Button> :
+                        <Button size="sm" variant="ghost" className="h-6 text-sm md:text-xs hover:bg-emerald-700" style={{ color: '#ffffff' }} onClick={(e) => { e.stopPropagation(); setShowCODCollection(!showCODCollection); }}>Edit</Button> :
                         null}
                     </div>
                   }
