@@ -216,24 +216,34 @@ export default function PullToSync({
   return (
     <>
 
-      {/* Pull indicator */}
+      {/* Pull indicator - inside stats card container with higher z-index */}
       <AnimatePresence>
         {(isPulling || isSyncing) && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-2 left-0 right-0 z-[9999] pointer-events-none flex justify-center"
+            className="absolute top-2 left-0 right-0 z-50 pointer-events-none flex justify-center"
           >
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border bg-white/95 backdrop-blur-sm">
+            <div 
+              className="flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border backdrop-blur-sm"
+              style={{
+                background: 'var(--bg-white-95)',
+                borderColor: 'var(--border-slate-200)'
+              }}
+            >
               <RefreshCw 
-                className="w-4 h-4 text-emerald-600"
+                className="w-4 h-4"
                 style={{ 
+                  color: 'var(--text-emerald-600)',
                   transform: isSyncing ? undefined : `rotate(${rotation}deg)`,
                   animation: isSyncing ? 'spin 1s linear infinite' : undefined
                 }}
               />
-              <span className="text-sm font-medium text-slate-700">
+              <span 
+                className="text-sm font-medium"
+                style={{ color: 'var(--text-slate-700)' }}
+              >
                 {isSyncing ? 'Syncing...' : pullProgress >= 1 ? 'Release to sync' : 'Pull to sync'}
               </span>
             </div>
@@ -250,11 +260,27 @@ export default function PullToSync({
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/20 backdrop-blur-sm pointer-events-none"
           >
-            <div className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4">
-              <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            <div 
+              className="rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4"
+              style={{ background: 'var(--bg-white)' }}
+            >
+              <div 
+                className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin"
+                style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }}
+              />
               <div className="text-center">
-                <p className="text-lg font-semibold text-slate-900">Syncing Data</p>
-                <p className="text-sm text-slate-600 mt-1">Updating deliveries, patients & drivers</p>
+                <p 
+                  className="text-lg font-semibold"
+                  style={{ color: 'var(--text-slate-900)' }}
+                >
+                  Syncing Data
+                </p>
+                <p 
+                  className="text-sm mt-1"
+                  style={{ color: 'var(--text-slate-600)' }}
+                >
+                  Updating deliveries, patients & drivers
+                </p>
               </div>
             </div>
           </motion.div>
