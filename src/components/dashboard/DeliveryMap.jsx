@@ -902,7 +902,7 @@ export default function DeliveryMap({
 
   const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
 
-  // CRITICAL: Listen for deliveriesImported event to refresh other drivers' markers
+  // CRITICAL: Listen for deliveriesImported AND deliveriesUpdated events to refresh other drivers' markers
   useEffect(() => {
     const handleDeliveriesImported = (event) => {
       const { deliveries: importedDeliveries } = event.detail || {};
@@ -915,9 +915,44 @@ export default function DeliveryMap({
       }
     };
     
+    // CRITICAL: Also refresh markers when deliveries are updated via smart refresh or Pull to Sync
+    const handleDeliveriesUpdatedForMarkers = async (event) => {
+      const { triggeredBy, allDrivers } = event.detail || {};
+      
+      // Only refresh if this update affects all drivers (smart refresh, Pull to Sync, etc.)
+      if (!allDrivers && triggeredBy !== 'pullToSyncComplete' && triggeredBy !== 'periodicRefresh' && triggeredBy !== 'manualRefresh') {
+        return;
+      }
+      
+      // Only refresh if showing other drivers
+      if (!showOtherDriverDeliveries || selectedDriverId === 'all' || !selectedDate) {
+        return;
+      }
+      
+      console.log(`📥 [DeliveryMap] Refreshing other driver markers (${triggeredBy})`);
+      
+      try {
+        // Load from offline DB (already updated by smart refresh/Pull to Sync)
+        const { offlineDB } = await import('./../../components/utils/offlineDatabase');
+        let allDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
+        
+        if (allDeliveries && allDeliveries.length > 0) {
+          const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== selectedDriverId);
+          console.log(`📍 [DeliveryMap] Updated ${others.length} other driver markers from offline DB`);
+          setOtherDriverDeliveries([...others]);
+        }
+      } catch (error) {
+        console.error('❌ [DeliveryMap] Failed to refresh markers:', error);
+      }
+    };
+    
     window.addEventListener('deliveriesImported', handleDeliveriesImported);
-    return () => window.removeEventListener('deliveriesImported', handleDeliveriesImported);
-  }, [showOtherDriverDeliveries, currentUser?.id]);
+    window.addEventListener('deliveriesUpdated', handleDeliveriesUpdatedForMarkers);
+    return () => {
+      window.removeEventListener('deliveriesImported', handleDeliveriesImported);
+      window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdatedForMarkers);
+    };
+  }, [showOtherDriverDeliveries, currentUser?.id, selectedDriverId, selectedDate]);
 
   useEffect(() => {
     const fetchOtherDrivers = async () => {
