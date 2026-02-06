@@ -2049,10 +2049,10 @@ class SmartRefreshManager {
   }
 
   /**
-   * NEW: Combined smart refresh - 15s active route, opportunistic historical
-   * @param {string} currentPage - Current page name (to check if on Dashboard)
-   * @param {Date} selectedDate - Selected date (to check if today)
-   */
+    * NEW: Combined smart refresh - 15s active route, opportunistic historical
+    * @param {string} currentPage - Current page name (to check if on Dashboard)
+    * @param {Date} selectedDate - Selected date (to check if today)
+    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false, showAllDrivers = false, currentPage = null, selectedDate = null) {
     // CRITICAL: When disabled, skip background polling
     if (!this._enabled) {
@@ -2091,6 +2091,36 @@ class SmartRefreshManager {
     this.isRefreshing = true;
     this._refreshStartTime = Date.now();
     const updates = {};
+
+    // CRITICAL: STEP 0 - Capture CURRENT state BEFORE refresh starts
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const activeDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : todayStr;
+    const activeDriverId = filters?.deliveryFilter?.driver_id;
+
+    // Capture state BEFORE refresh
+    const stateBeforeRefresh = {
+      incompleteCount: 0,
+      nextDeliveryStopId: null
+    };
+
+    if (activeDriverId && currentData.deliveries) {
+      const activeDriverDeliveries = currentData.deliveries.filter(d => 
+        d && d.driver_id === activeDriverId && d.delivery_date === activeDateStr
+      );
+
+      // Count incomplete deliveries
+      stateBeforeRefresh.incompleteCount = activeDriverDeliveries.filter(d => 
+        !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+      ).length;
+
+      // Find current isNextDelivery stop
+      const nextDeliveryStop = activeDriverDeliveries.find(d => d.isNextDelivery === true);
+      if (nextDeliveryStop) {
+        stateBeforeRefresh.nextDeliveryStopId = nextDeliveryStop.id;
+      }
+
+      console.log(`📸 [SmartRefresh] STEP 0: Captured state before refresh - incomplete: ${stateBeforeRefresh.incompleteCount}, nextStop: ${stateBeforeRefresh.nextDeliveryStopId}`);
+    }
 
     // CRITICAL: Run priority sync FIRST before any other refresh operations
     // This ensures AppUsers, active date Deliveries, and associated Patients are always fresh
