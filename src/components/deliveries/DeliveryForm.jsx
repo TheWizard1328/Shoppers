@@ -579,12 +579,9 @@ export default function DeliveryForm({
       }
     }
 
-    // First try active patients only
+    // Search both active and inactive patients
     let results = availablePatients.filter((patient) => {
       if (!patient) return false;
-
-      // Filter out inactive patients
-      if (patient.status === 'inactive') return false;
 
       // Filter out Deceased and (Old
       const name = patient.full_name?.toLowerCase() || '';
@@ -596,27 +593,14 @@ export default function DeliveryForm({
       patient.notes?.toLowerCase().includes(searchLower);
     });
 
-    // If no active patients found, search inactive patients as fallback
-    if (results.length === 0) {
-      results = availablePatients.filter((patient) => {
-        if (!patient) return false;
-
-        // ONLY include inactive patients now
-        if (patient.status !== 'inactive') return false;
-
-        // Filter out Deceased and (Old
-        const name = patient.full_name?.toLowerCase() || '';
-        if (name.includes('deceased') || name.includes('(old')) return false;
-
-        return patient.full_name?.toLowerCase().includes(searchLower) ||
-        patient.address?.toLowerCase().includes(searchLower) ||
-        patient.phone?.toLowerCase().includes(searchLower) ||
-        patient.notes?.toLowerCase().includes(searchLower);
-      });
-    }
-
-    // Sort: Staged patients to bottom, then most recently delivered first, then (Temp to the bottom
+    // Sort: Inactive to bottom, staged to bottom, (Temp to bottom, then by recent delivery
     results.sort((a, b) => {
+      // Inactive patients always to the bottom
+      const aIsInactive = a.status === 'inactive';
+      const bIsInactive = b.status === 'inactive';
+      if (!aIsInactive && bIsInactive) return -1;
+      if (aIsInactive && !bIsInactive) return 1;
+
       const aIsStaged = stagedPatientIds.has(a.id);
       const bIsStaged = stagedPatientIds.has(b.id);
       
@@ -977,65 +961,6 @@ export default function DeliveryForm({
       if (pickupResponse.data?.puid) {
         puid = pickupResponse.data.puid;
         console.log(`✅ [handlePatientSelect] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
-      }
-
-      // CRITICAL: Create all other default pickups for this driver on this date
-      if (autoSelectedDriverId && formData.delivery_date && stores) {
-        const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
-        const dayOfWeek = selectedDate.getDay();
-        
-        // Get all stores this driver is assigned to
-        const driverAssignedStores = stores.filter(s => {
-          if (!s || s.id === patientStore.id) return false; // Skip current store
-          
-          let driverIds = [];
-          if (dayOfWeek === 6) {
-            driverIds = [s.saturday_am_driver_id, s.saturday_pm_driver_id];
-          } else if (dayOfWeek === 0) {
-            driverIds = [s.sunday_am_driver_id, s.sunday_pm_driver_id];
-          } else {
-            driverIds = [s.weekday_am_driver_id, s.weekday_pm_driver_id];
-          }
-          
-          return driverIds.includes(autoSelectedDriverId);
-        });
-
-        console.log(`📦 [handlePatientSelect] Creating ${driverAssignedStores.length} default pickups for driver`);
-
-        // Create all pickups in parallel
-        const pickupPromises = driverAssignedStores.map(async (store) => {
-          const storeTimeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
-          
-          try {
-            const response = await base44.functions.invoke('ensurePickupForDelivery', {
-              storeId: store.id,
-              deliveryDate: formData.delivery_date,
-              driverId: autoSelectedDriverId,
-              ampmDeliveries: storeTimeSlot
-            });
-            
-            if (response.data?.puid) {
-              console.log(`✅ [handlePatientSelect] Created pickup for ${store.name}: ${response.data.puid}`);
-            }
-          } catch (err) {
-            console.warn(`⚠️ [handlePatientSelect] Failed to create pickup for ${store.name}:`, err.message);
-          }
-        });
-
-        // Don't wait for pickups to complete - let them create in background
-        Promise.all(pickupPromises).then(() => {
-          console.log('✅ [handlePatientSelect] All default pickups created');
-          // Trigger background refresh to show new pickups
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-              detail: { 
-                deliveryDate: formData.delivery_date, 
-                driverId: autoSelectedDriverId,
-                triggeredBy: 'autoPickupCreation'
-              }
-            }));
-          }, 100);
-        });
       }
     } catch (error) {
       console.warn('⚠️ [handlePatientSelect] ensurePickupForDelivery failed, using fallback PUID:', error.message);
@@ -1963,6 +1888,13 @@ export default function DeliveryForm({
 
       // Only auto-add pickups for non-special stores
       if (!isSpecialStore) {
+        // Check if this is the first delivery for ANY non-special store for this driver/date
+        const existingDeliveries = stagedDeliveries.filter(d => 
+          d.driver_id === formData.driver_id && 
+          d.delivery_date === formData.delivery_date &&
+          d.patient_id // Only count patient deliveries
+        );
+        
         // Get the stores this driver is assigned to for the delivery date
         const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
         const dayOfWeek = selectedDate.getDay();
@@ -1984,42 +1916,72 @@ export default function DeliveryForm({
 
         console.log(`📦 [AutoAddPickups] Driver ${formData.driver_id} assigned to ${driverAssignedStores.length} stores for ${formData.delivery_date}`);
 
-        // Auto-create en_route pickups for all assigned stores (except the one just staged)
-        (async () => {
-          for (const assignedStore of driverAssignedStores) {
-            if (!assignedStore || assignedStore.id === formData.store_id) continue; // Skip current store
-            
-            // Check if pickup already exists as en_route, in_transit, or completed
-            const pickupExists = allDeliveries?.some(d =>
-              !d.patient_id && d.store_id === assignedStore.id &&
-              d.delivery_date === formData.delivery_date &&
-              d.driver_id === formData.driver_id &&
-              (d.status === 'pending' || d.status === 'en_route' || d.status === 'in_transit' || d.status === 'completed')
-            );
+        // Check if this is the FIRST delivery for this driver/date (no existing deliveries)
+        const hasExistingDeliveries = existingDeliveries.length > 0 || allDeliveries?.some(d =>
+          d && d.patient_id &&
+          d.driver_id === formData.driver_id &&
+          d.delivery_date === formData.delivery_date
+        );
 
-            if (!pickupExists) {
-              const assignedTimeSlot = getStoreAssignedTimeSlot(assignedStore, formData.delivery_date, allDeliveries);
-              
-              try {
-                console.log(`📦 [AutoAddPickups] Creating en_route pickup for store: ${assignedStore.name}`);
-                
-                // Call backend to create actual en_route pickup with proper identifiers
-                const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
-                  storeId: assignedStore.id,
-                  deliveryDate: formData.delivery_date,
-                  driverId: formData.driver_id,
-                  ampmDeliveries: assignedTimeSlot
-                });
+        if (!hasExistingDeliveries) {
+          console.log(`📦 [AutoAddPickups] FIRST delivery detected - creating all default pickups`);
+          
+          // Create all default pickups in parallel using ensurePickupForDelivery
+          setTimeout(async () => {
+            const pickupPromises = driverAssignedStores
+              .filter(assignedStore => assignedStore && assignedStore.id !== formData.store_id)
+              .map(async (assignedStore) => {
+                // Check if pickup already exists
+                const pickupExists = allDeliveries?.some(d =>
+                  !d.patient_id && d.store_id === assignedStore.id &&
+                  d.delivery_date === formData.delivery_date &&
+                  d.driver_id === formData.driver_id &&
+                  (d.status === 'pending' || d.status === 'en_route' || d.status === 'in_transit' || d.status === 'completed')
+                );
 
-                if (pickupResponse.data?.puid) {
-                  console.log(`✅ [AutoAddPickups] Created en_route pickup for ${assignedStore.name}: ${pickupResponse.data.puid}`);
+                if (!pickupExists) {
+                  const assignedTimeSlot = getStoreAssignedTimeSlot(assignedStore, formData.delivery_date, allDeliveries);
+                  
+                  try {
+                    console.log(`📦 [AutoAddPickups] Creating en_route pickup for: ${assignedStore.name} [${assignedTimeSlot}]`);
+                    
+                    const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
+                      storeId: assignedStore.id,
+                      deliveryDate: formData.delivery_date,
+                      driverId: formData.driver_id,
+                      ampmDeliveries: assignedTimeSlot
+                    });
+
+                    if (pickupResponse.data?.puid) {
+                      console.log(`✅ [AutoAddPickups] Created en_route pickup for ${assignedStore.name}: ${pickupResponse.data.puid}`);
+                    }
+                    return true;
+                  } catch (error) {
+                    console.warn(`⚠️ [AutoAddPickups] Failed to create pickup for ${assignedStore.name}:`, error.message);
+                    return false;
+                  }
                 }
-              } catch (error) {
-                console.warn(`⚠️ [AutoAddPickups] Failed to create pickup for ${assignedStore.name}:`, error.message);
+                return false;
+              });
+
+            // Wait for all pickups to be created
+            await Promise.all(pickupPromises);
+            console.log(`✅ [AutoAddPickups] All default pickups created for driver`);
+
+            // Trigger data refresh to show new pickups
+            const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
+            invalidate('Delivery');
+            invalidateDeliveriesForDate(formData.delivery_date);
+            
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { 
+                deliveryDate: formData.delivery_date, 
+                driverId: formData.driver_id,
+                triggeredBy: 'autoPickupCreation'
               }
-            }
-          }
-        })();
+            }));
+          }, 100);
+        }
       }
     }
 
@@ -2909,7 +2871,7 @@ export default function DeliveryForm({
           recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
           recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
           recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
-          recurring_monthly: false, recurring_monthly: false
+          recurring_monthly: false, recurring_bimonthly: false
         }));
         setSelectedPickupOption('');
         setTimeout(() => patientSearchInputRef.current?.focus(), 100);
@@ -2929,7 +2891,7 @@ export default function DeliveryForm({
       } else if (buttonState === 'add' && isFormValid) {
         handleAddToStaging();
       } else if (buttonState === 'updateStaged' && isFormValid) {
-        handleUpdateStaging();
+        handleUpdateStaged();
       }
       return;
     }
