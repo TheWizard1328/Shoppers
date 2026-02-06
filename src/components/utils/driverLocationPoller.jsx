@@ -155,13 +155,20 @@ class DriverLocationPoller {
       }
 
       // ========================================
-      // RULE 1: Own location marker - ALWAYS visible on non-primary devices
+      // RULE 1: Own location marker - ALWAYS visible regardless of any status/toggle
       // ========================================
       if (isSelf) {
-        // CRITICAL: ALWAYS include self marker for non-primary devices
-        // Primary device filtering happens in DriverLocationMarkers
-        // This allows shared location to show on ALL non-primary devices
-        // regardless of driver_status or location_tracking_enabled
+        // CRITICAL: ALWAYS include self marker
+        // - Primary device filtering happens in DriverLocationMarkers (blocks self marker)
+        // - Non-primary devices ALWAYS show shared location marker
+        // - Bypasses driver_status check (on_duty/off_duty/on_break)
+        // - Bypasses location_tracking_enabled toggle
+        // - Bypasses active deliveries check
+        console.log(`✅ [Poller] Including SELF marker - bypasses all checks`, {
+          userId: user.id,
+          driver_status: user.driver_status,
+          location_tracking_enabled: user.location_tracking_enabled
+        });
         return true;
       }
 
