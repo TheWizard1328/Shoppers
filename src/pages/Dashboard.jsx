@@ -789,27 +789,26 @@ function Dashboard() {
             const selectedDateStr = settings.selected_date || format(new Date(), 'yyyy-MM-dd');
             const dispatcherStoreIds = currentUser.store_ids || [];
             
-            // Get drivers with deliveries (pending, in_transit, completed, failed) for dispatcher's stores
+            // Get drivers with at least 1 pickup or delivery for dispatcher's stores
             const driversWithDeliveries = new Set(
               deliveries?.
               filter((d) => {
                 if (!d || d.delivery_date !== selectedDateStr) return false;
                 if (!dispatcherStoreIds.includes(d.store_id)) return false;
-                return ['pending', 'in_transit', 'completed', 'failed'].includes(d.status);
+                return true; // Include ALL deliveries/pickups, not just active ones
               }).
               map((d) => d.driver_id).
               filter(Boolean)
             );
 
             if (driversWithDeliveries.size === 1) {
-              // Only 1 driver - select that driver
+              // Only 1 driver with stops - select that driver
               driverToSelect = Array.from(driversWithDeliveries)[0];
-            } else if (driversWithDeliveries.size > 1) {
-              // Multiple drivers - select "All Drivers"
-              driverToSelect = 'all';
+              console.log(`📊 [Driver Selection] Dispatcher: 1 driver with stops - auto-selecting ${driverToSelect}`);
             } else {
-              // No deliveries - select "All Drivers"
+              // 0 or multiple drivers - select "All Drivers"
               driverToSelect = 'all';
+              console.log(`📊 [Driver Selection] Dispatcher: ${driversWithDeliveries.size} drivers with stops - selecting All Drivers`);
             }
           } else if (userHasRole(currentUser, 'admin')) {
             // Admins - use saved or default
@@ -830,7 +829,7 @@ function Dashboard() {
     };
 
     loadSettings();
-  }, [currentUser?.id, userSettingsLoaded]);
+  }, [currentUser?.id, userSettingsLoaded, deliveries]);
 
   const isAllDriversMode = selectedDriverId === 'all';
 
