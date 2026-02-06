@@ -7215,139 +7215,16 @@ function Dashboard() {
                   <SmartRefreshIndicator
                     inline={true}
                     onManualRefresh={async () => {
-                      console.clear();
-                      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-
-                      // CRITICAL: ALWAYS fetch ALL drivers to ensure complete marker updates
-                      const shouldFetchAllDrivers = true; // Always true for complete marker data
-
-                      console.log(`🔄 [Manual Refresh] Mode: ALL DRIVERS (always), showAllDriverMarkers: ${showAllDriverMarkers}`);
-
-                      const now = new Date();
-                      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-                      // Reset smart refresh timers for fresh start
-                      smartRefreshManager.lastRefreshTimes = {
-                        driverLocation: 0,
-                        activeDeliveries: 0,
-                        todayDeliveries: 0,
-                        appUsers: 0,
-                        patients: 0,
-                        stores: 0
-                      };
-
-                      // STEP 2: Force reload deliveries for ALL drivers - ensures complete marker data
-                      console.log(`📥 [Manual Refresh] Fetching ALL drivers for ${selectedDateStr} (mode: ${dataSource})...`);
-                      invalidateDeliveriesForDate(selectedDateStr);
+                      // CRITICAL: Just trigger offline sync button click instead of manual refresh
+                      console.log('🔄 [Manual Refresh] Triggering offline sync...');
                       
-                      let finalDeliveries;
-                      if (dataSource === 'online') {
-                        console.log('🌐 [Manual Refresh - ONLINE MODE] Fetching ALL from API');
-                        finalDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-                        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries).catch(() => {});
+                      const syncButton = document.querySelector('[data-offline-sync-button]');
+                      if (syncButton) {
+                        syncButton.click();
+                        console.log('✅ [Manual Refresh] Offline sync button clicked');
                       } else {
-                        finalDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-                        if (!finalDeliveries || finalDeliveries.length === 0) {
-                          console.log('📥 [Manual Refresh] Offline DB empty - fetching ALL from API');
-                          finalDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-                          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries);
-                        }
+                        console.warn('⚠️ [Manual Refresh] Offline sync button not found');
                       }
-                      
-                      console.log(`✅ [Manual Refresh] Loaded ${finalDeliveries.length} deliveries for ${selectedDateStr}`);
-
-                      // STEP 2.5: Force fresh AppUsers from backend
-                      console.log('📍 [Refresh Spinner] Loading fresh AppUsers from backend...');
-                      const freshAppUsers = await base44.entities.AppUser.list();
-                      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-                      console.log(`   ✅ Loaded ${freshAppUsers.length} fresh AppUsers from backend`);
-
-                      // CRITICAL: Process updated locations through poller to update markers immediately
-                      driverLocationPoller.processLocationData(currentUser, finalDeliveries, drivers, stores, freshAppUsers, selectedDate, true);
-
-                      // STEP 3: Route optimization removed from manual refresh
-                      // Optimization now only runs on 5-minute timer when driver moves 100m+
-                      console.log('⏭️ [Refresh Spinner] Skipping route optimization (runs on timer only)');
-
-                      // STEP 4: Update isNextDelivery flags for active driver only
-                      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-                      const updatedDeliveries = activeDriverId ? 
-                        finalDeliveries.filter((d) => d.driver_id === activeDriverId) : 
-                        [];
-
-                      // Reset all isNextDelivery flags for this driver
-                      const resetPromises = updatedDeliveries.
-                      filter((d) => d.isNextDelivery).
-                      map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
-                      await Promise.all(resetPromises);
-
-                      // Find first incomplete and mark as next (NO reordering, SKIP PENDING)
-                      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                      const firstIncomplete = updatedDeliveries.
-                      filter((d) => !finishedStatuses.includes(d.status) && d.status !== 'pending').
-                      sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
-
-                      if (firstIncomplete) {
-                        await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
-                      }
-
-                      // STEP 5: Update UI state with ALL deliveries
-                      if (updateDeliveriesLocally) {
-                        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-                        const mergedDeliveries = [...otherDateDeliveries, ...finalDeliveries];
-                        updateDeliveriesLocally(mergedDeliveries, true);
-                      }
-
-                      // CRITICAL: Update offline database with fresh deliveries
-                      try {
-                        const { offlineDB } = await import('../components/utils/offlineDatabase');
-                        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries);
-                        console.log('✅ [Refresh] Updated offline database with fresh deliveries');
-                      } catch (dbError) {
-                        console.warn('⚠️ [Refresh] Failed to update offline database:', dbError);
-                      }
-
-                      // Apply any smart refresh updates (handled by context)
-                       if (updates) {
-                         console.log('✅ [Manual Refresh] Smart refresh updates received');
-                       }
-
-                      // CRITICAL: Dispatch event to update driver location markers for ALL drivers
-                      console.log('📍 [Refresh Spinner] Dispatching driverLocationsUpdated event for ALL drivers...');
-                      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                        detail: { appUsers: freshAppUsers, forceAll: true }
-                      }));
-
-                      // CRITICAL: Force deliveries update event to refresh map markers
-                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                        detail: { deliveryDate: selectedDateStr, triggeredBy: 'manualRefresh' }
-                      }));
-
-                      // CRITICAL: Only re-lock and re-trigger FAB if current phase is Phase 2
-                      if (mapViewPhase === 2) {
-                        console.log(`🔒 [Refresh Spinner] Re-locking FAB to Phase 2 after optimization`);
-                        setIsMapViewLocked(true);
-                        lastProgrammaticMapMoveRef.current = Date.now();
-                        window._lastProgrammaticMapMove = Date.now();
-                        setMapViewTrigger((prev) => prev + 1);
-
-                        // Phase 2 stays locked permanently - clear any timers
-                        if (mapLockTimeoutRef.current) {
-                          clearTimeout(mapLockTimeoutRef.current);
-                          mapLockTimeoutRef.current = null;
-                        }
-                        mapLockExpiresAtRef.current = null;
-                      } else {
-                        // CRITICAL: For Phase 1 - trigger re-render to show all new markers
-                        setIsMapViewLocked(true);
-                        lastProgrammaticMapMoveRef.current = Date.now();
-                        window._lastProgrammaticMapMove = Date.now();
-                        setMapViewTrigger((prev) => prev + 1);
-
-                        // Auto-unlock after 500ms
-                        setTimeout(() => setIsMapViewLocked(false), 500);
-                      }
-
                     }} />
                   
                   {/* Connection Quality Indicator - App Owner Only */}

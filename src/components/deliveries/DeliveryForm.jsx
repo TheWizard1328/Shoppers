@@ -103,6 +103,31 @@ export default function DeliveryForm({
   onCreatePatient
 }) {
   const { setIsFormOverlayOpen } = useAppData();
+  
+  // CRITICAL: Load fresh stores from offline DB on mount to prevent "Store information missing" error
+  const [freshStores, setFreshStores] = useState(stores);
+  
+  useEffect(() => {
+    const loadFreshStores = async () => {
+      try {
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const offlineStores = await offlineDB.getAll(offlineDB.STORES.STORES);
+        
+        if (offlineStores && offlineStores.length > 0) {
+          console.log('✅ [DeliveryForm] Loaded fresh stores from offline DB:', offlineStores.length);
+          setFreshStores(offlineStores);
+        } else {
+          console.log('📦 [DeliveryForm] Using stores from props:', stores?.length || 0);
+          setFreshStores(stores);
+        }
+      } catch (error) {
+        console.warn('⚠️ [DeliveryForm] Failed to load stores from offline DB:', error);
+        setFreshStores(stores);
+      }
+    };
+    
+    loadFreshStores();
+  }, []);
 
   const allDrivers = useMemo(() => {
     // Layout already filters drivers correctly via getActiveDriversForCity
@@ -490,9 +515,10 @@ export default function DeliveryForm({
   }, [formData.delivery_date]);
 
   const availableStores = useMemo(() => {
-    if (!stores || !Array.isArray(stores)) return [];
+    const storesToUse = freshStores || stores;
+    if (!storesToUse || !Array.isArray(storesToUse)) return [];
 
-    let relevantStores = stores;
+    let relevantStores = storesToUse;
 
     // Admins always see ALL stores
     if (userHasRole(currentUser, 'admin')) {
@@ -559,7 +585,7 @@ export default function DeliveryForm({
     });
 
     return sortStores(processedStores);
-  }, [stores, isPickupMode, formData.patient_id, formData.delivery_date, patients, currentUser]);
+  }, [freshStores, stores, isPickupMode, formData.patient_id, formData.delivery_date, patients, currentUser]);
 
   const filteredPatients = useMemo(() => {
     if (!patientSearch || !patients || formData.patient_id) return [];
