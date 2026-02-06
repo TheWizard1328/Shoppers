@@ -161,19 +161,12 @@ class DriverLocationPoller {
       }
 
       // ========================================
-      // RULE 1: Own location marker - always visible (except on current mobile device with active GPS)
+      // RULE 1: Own location marker - always visible (will be filtered by Dashboard on mobile with live GPS)
       // ========================================
       if (isSelf) {
-        // Skip inactive check for self - always show own marker if active location exists
-        // EXCEPTION: On mobile, hide shared marker ONLY if THIS device is actively tracking GPS
-        // Use locationTracker.isTracking to detect if GPS is running on THIS specific device
-        const isTrackingOnThisDevice = locationTracker.isTracking === true;
-        
-        if (isMobileDevice && isTrackingOnThisDevice) {
-          return false;
-        }
-        
-        // Show own marker on all other devices OR if GPS is not actively running
+        // CRITICAL: ALWAYS include self marker in the output
+        // Dashboard will filter it out on mobile devices with active GPS tracking
+        // This allows the marker to show on desktop, other devices, and when GPS is off
         return true;
       }
 

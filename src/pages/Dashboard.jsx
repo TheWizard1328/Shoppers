@@ -2256,23 +2256,22 @@ function Dashboard() {
     }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {
       if (!locations || !Array.isArray(locations)) return;
 
-      const currentUserId = currentUser?.id;
-      const currentUserUserId = currentUser?.user_id;
-      const filteredLocations = isMobile && isDriver ?
+      // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
+      // On all other devices/scenarios, show the shared marker
+      const isTrackingOnThisDevice = locationTracker.isTracking === true;
+      const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;
+      
+      const filteredLocations = shouldFilterSelf ?
       locations.filter((loc) => {
-        const locId = loc.driver_id || loc.user_id || loc.id;
-        const isSelfMarker = locId === currentUserId ||
-        locId === currentUserUserId ||
-        loc._isSelf === true;
-        if (isSelfMarker) {
-          console.log('🚫 [Dashboard] BLOCKING self shared marker on mobile (ID match)', { locId, currentUserId });
+        if (loc._isSelf === true) {
+          console.log('🚫 [Dashboard] Hiding self shared marker on mobile (live GPS active)');
           return false;
         }
         return true;
       }) :
       locations;
 
-      console.log(`📍 [Dashboard] Setting ${filteredLocations.length} driver locations (mobile: ${isMobile}, filtered self: ${locations.length - filteredLocations.length})`);
+      console.log(`📍 [Dashboard] Setting ${filteredLocations.length} driver locations (mobile: ${isMobile}, GPS tracking: ${isTrackingOnThisDevice}, filtered self: ${locations.length - filteredLocations.length})`);
 
       setAllDriverLocations(filteredLocations);
     });
