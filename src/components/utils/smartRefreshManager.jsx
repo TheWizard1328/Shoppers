@@ -2654,13 +2654,13 @@ class SmartRefreshManager {
 
        const merged = mergeEntityChanges(currentAppUsers, diff);
 
-       // CRITICAL: Process fresh locations through poller FIRST to update markers
+       // CRITICAL: STEP 4: Process fresh locations through poller to update ALL markers
        try {
          const { driverLocationPoller } = await import('./driverLocationPoller');
          const currentUser = this._currentUser;
 
          if (currentUser) {
-           console.log(`📍 [SmartRefresh] Processing ${allAppUsers.length} fresh AppUsers through poller for marker updates`);
+           console.log(`📍 [SmartRefresh] STEP 4: Processing ${allAppUsers.length} fresh AppUsers through poller for marker updates`);
            driverLocationPoller.processLocationData(
              currentUser, 
              [], // deliveries not needed for location processing
@@ -2670,19 +2670,19 @@ class SmartRefreshManager {
              selectedDate || new Date(), // Use actual selected date from context
              true, // forceNotify - always trigger marker updates
              currentPageName || 'Dashboard', // Use actual current page from context
-             false // showAllDrivers - not needed here
+             true // CRITICAL: showAllDrivers=true to update ALL markers every cycle
            );
          }
        } catch (pollerError) {
          console.warn('⚠️ [SmartRefresh] Failed to process through poller:', pollerError.message);
        }
 
-       // CRITICAL: ALWAYS dispatch driver location update event to refresh map markers
-       // Use fresh API data (allAppUsers), not just merged diff
+       // CRITICAL: STEP 5: ALWAYS dispatch driver location update event to refresh map markers
+       // Use fresh API data (allAppUsers), not just merged diff - triggers ALL markers to update
        if (typeof window !== 'undefined') {
-         console.log(`📍 [SmartRefresh] Dispatching driverLocationsUpdated with ${allAppUsers.length} fresh locations`);
+         console.log(`📍 [SmartRefresh] STEP 5: Dispatching driverLocationsUpdated with ${allAppUsers.length} fresh locations (forceAll=true)`);
          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-           detail: { appUsers: allAppUsers } // Use FRESH API data, not merged
+           detail: { appUsers: allAppUsers, forceAll: true } // CRITICAL: forceAll flag for ALL markers
          }));
        }
 
