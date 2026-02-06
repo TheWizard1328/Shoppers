@@ -32,7 +32,8 @@ import {
   createDelivery as createDeliveryLocal,
   updateDelivery as updateDeliveryLocal,
   deleteDelivery as deleteDeliveryLocal,
-  batchCreateDeliveries as batchCreateDeliveriesLocal
+  batchCreateDeliveries as batchCreateDeliveriesLocal,
+  setBatchFormSaving
 } from '../utils/entityMutations';
 import DeliveryFormStaged from './DeliveryFormStaged';
 import { checkPayrollLock } from '../utils/payrollLockManager';
