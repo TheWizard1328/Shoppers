@@ -341,9 +341,9 @@ export const createDelivery = async (deliveryData, options = {}) => {
  * Update a Delivery (local-first with guaranteed cache refresh)
  */
 export const updateDelivery = async (deliveryId, updates, options = {}) => {
-  const { skipSmartRefresh = false } = options;
+  const { skipSmartRefresh = false, isBatchOperation = false } = options;
   if (mutationsPaused) throw new Error('Mutations are paused');
-  if (!skipSmartRefresh) await pauseSmartRefresh();
+  if (!skipSmartRefresh && !isBatchOperation) await pauseSmartRefresh();
 
   try {
     const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
