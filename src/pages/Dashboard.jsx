@@ -1169,12 +1169,14 @@ function Dashboard() {
       return driversSource;
     }
 
-    // DISPATCHER: Show drivers assigned to dispatcher's stores
+    // DISPATCHER: Show drivers assigned to dispatcher's stores OR who have deliveries for dispatcher's stores on selected date
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
       const dispatcherStores = stores?.filter(s => s && dispatcherStoreIds.includes(s.id)) || [];
       
       const assignedDriverIds = new Set();
+      
+      // Add drivers assigned to store slots
       dispatcherStores.forEach(store => {
         ['weekday_am_driver_id', 'weekday_pm_driver_id',
          'saturday_am_driver_id', 'saturday_pm_driver_id',
@@ -1184,8 +1186,17 @@ function Dashboard() {
           });
       });
       
+      // CRITICAL: Also add drivers who have ANY deliveries for dispatcher's stores on selected date
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      const driversWithDeliveries = deliveries
+        ?.filter(d => d && d.delivery_date === selectedDateStr && dispatcherStoreIds.includes(d.store_id))
+        .map(d => d.driver_id)
+        .filter(Boolean);
+      
+      driversWithDeliveries?.forEach(driverId => assignedDriverIds.add(driverId));
+      
       const filteredDrivers = driversSource.filter(d => assignedDriverIds.has(d.id));
-      console.log(`   - Role: dispatcher, showing ${filteredDrivers.length}/${driversSource.length} assigned drivers`);
+      console.log(`   - Role: dispatcher, showing ${filteredDrivers.length}/${driversSource.length} drivers (assigned + active)`);
       return filteredDrivers;
     }
 
