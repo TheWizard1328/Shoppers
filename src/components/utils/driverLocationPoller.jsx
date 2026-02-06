@@ -273,12 +273,6 @@ class DriverLocationPoller {
       };
     });
 
-    // CRITICAL: ALWAYS notify to prevent disappearing markers
-    // The deduplication check was causing markers to disappear
-    if (forceNotify) {
-      console.log(`📢 [DriverLocationPoller] Notifying ${this.subscribers.size} subscribers - ${locationObjects.length} locations`);
-    }
-
     this.subscribers.forEach(callback => {
       try {
         callback(locationObjects);
