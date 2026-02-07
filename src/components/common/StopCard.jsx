@@ -2843,16 +2843,15 @@ export default function StopCard({
                                      onClick(null);
                                    }
                                   }
-                                }}
-                                size="sm"
-                                disabled={isCompleting || isProcessingBackground}
-                                className="rounded-md bg-emerald-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-emerald-700 h-10 md:h-8 border-r border-emerald-500 !text-white">
-                                {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-                                <span className="text-white">Complete</span>
-                              </Button>
-                        )}
-                        
-                        {isNextDelivery && onStartDelivery && (
+                                  }}
+                                  size="sm"
+                                  disabled={isCompleting || isProcessingBackground}
+                                  className="rounded-md bg-emerald-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-emerald-700 h-10 md:h-8 border-r border-emerald-500 !text-white">
+                                  {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                                  <span className="text-white">Complete</span>
+                                  </Button>
+
+                                  <DropdownMenu modal={false}>
                           <Button type="button" onClick={async (e) => {
                                 e.stopPropagation();
                                 setIsStarting(true);
