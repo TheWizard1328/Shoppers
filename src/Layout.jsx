@@ -3379,7 +3379,9 @@ export default function Layout({ children, currentPageName }) {
                       style={{ filter: 'var(--image-filter, none)' }} />
 
                       <div>
-                        <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>RxDeliver</h2>
+                        <h2 className="font-bold text-lg" style={{ color: branding.primary_color || 'var(--text-slate-900)' }}>
+                          {currentUser?.company_id ? 'Company App' : 'RxDeliver'}
+                        </h2>
                         <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Pharmacy Logistics</p>
                         <div className="flex items-center">
                           <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{appVersion}</p>
