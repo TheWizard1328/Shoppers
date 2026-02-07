@@ -466,6 +466,42 @@ export default function StopCard({
     return `(***) ***-${displayPhone.replace(/\D/g, '').slice(-4)}`;
   }, [isStrippedDelivery, shouldRedact, displayPhone, isInterStore, isInterStorePickup]);
 
+  // Check if retry/return should be disabled based on duplicate deliveries
+  const shouldDisableRetryReturn = useMemo(() => {
+    if (delivery.status !== 'failed' || isPickup || !patient) return false;
+    
+    // Get all deliveries for this patient on this date
+    const patientDeliveries = allDeliveries.filter((d) =>
+      d && d.patient_id === delivery.patient_id &&
+      d.delivery_date === delivery.delivery_date
+    );
+    
+    // Count total deliveries and failed deliveries
+    const totalDeliveries = patientDeliveries.length;
+    const failedDeliveries = patientDeliveries.filter(d => d.status === 'failed');
+    
+    // If 3+ deliveries total (including this one), disable all failed except the highest stop order
+    if (totalDeliveries >= 3) {
+      const maxFailedStopOrder = Math.max(...failedDeliveries.map(d => d.stop_order || 0));
+      return delivery.stop_order !== maxFailedStopOrder;
+    }
+    
+    // If exactly 2 failed deliveries, disable the one with lower stop order
+    if (failedDeliveries.length === 2) {
+      const otherFailed = failedDeliveries.find(d => d.id !== delivery.id);
+      if (otherFailed) {
+        return delivery.stop_order < otherFailed.stop_order;
+      }
+    }
+    
+    // If there's a non-failed duplicate, disable this failed one
+    if (patientDeliveries.some(d => d.id !== delivery.id && d.status !== 'failed' && d.status !== 'cancelled')) {
+      return true;
+    }
+    
+    return false;
+  }, [delivery, allDeliveries, patient, isPickup]);
+
   const { hasFutureRetry, hasFutureReturn, hasCompletedDelivery } = useMemo(() => {
     if (delivery.status !== 'failed' || isPickup || !patient) {
       return { hasFutureRetry: false, hasFutureReturn: false, hasCompletedDelivery: false };
