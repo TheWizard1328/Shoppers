@@ -2261,14 +2261,19 @@ export default function StopCard({
                                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                                 await ensureDriverOnline();
 
-                                // Find next sequential tracking number
+                                // Find next tracking number within the same group of 20
+                                const originalTR = parseInt(delivery.tracking_number, 10);
+                                const groupStart = Math.floor(originalTR / 20) * 20;
+                                const groupEnd = groupStart + 19;
+                                
                                 const driverDeliveries = allDeliveries.filter((d) =>
                                   d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                                 );
-                                const existingTRs = driverDeliveries
+                                const existingTRsInGroup = driverDeliveries
                                   .map((d) => parseInt(d.tracking_number, 10))
-                                  .filter((tr) => !isNaN(tr));
-                                const nextTR = existingTRs.length > 0 ? Math.max(...existingTRs) + 1 : 1;
+                                  .filter((tr) => !isNaN(tr) && tr >= groupStart && tr <= groupEnd);
+                                
+                                const nextTR = existingTRsInGroup.length > 0 ? Math.max(...existingTRsInGroup) + 1 : groupStart;
 
                                 // Create duplicate delivery
                                 const retryDelivery = {
