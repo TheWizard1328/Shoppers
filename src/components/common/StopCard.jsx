@@ -2233,175 +2233,11 @@ export default function StopCard({
               <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
                   <>
-                    {/* Proof of Delivery Buttons - Only on next delivery, OR completed with captured proof */}
-                    {!isPickup &&
-                      <div className="flex items-center gap-2">
-                        {/* Signature Button - show ONLY on next delivery OR completed with signature */}
-                        {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.signature_image_url ?
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (delivery.status !== 'completed') {
-                                setShowSignatureCapture(true);
-                              }
-                            }}
-                            size="sm"
-                            variant="outline"
-                            disabled={delivery.status === 'completed'}
-                            className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
-                              delivery.signature_image_url ?
-                                'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
-                                'border-white hover:bg-slate-100'}`
-                            }>
-
-                            <Pen className={`w-5 h-5 md:w-4 md:h-4 ${
-                              delivery.signature_image_url ? 'text-emerald-700' : 'text-white'}`
-                            } />
-                          </Button> :
-                          null}
-
-                        {/* Photo Button - show ONLY on next delivery OR completed with photos */}
-                        {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (delivery.status !== 'completed') {
-                                setShowPhotoCapture(true);
-                              }
-                            }}
-                            size="sm"
-                            variant="outline"
-                            disabled={delivery.status === 'completed'}
-                            className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
-                              delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
-                                'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
-                                'border-white hover:bg-slate-100'}`
-                            }>
-
-                            <Camera className={`w-5 h-5 md:w-4 md:h-4 ${
-                              delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-white'}`
-                            } />
-                          </Button> :
-                          null}
-                      </div>
-                    }
-
-                    {/* Return button for failed deliveries - creates new return delivery */}
-                    {delivery.status === 'failed' && !isPickup &&
-                      <Button
-                        onClick={handleReturnClick}
-                        size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 md:px-3 text-sm md:text-xs bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8"
-
-                        disabled={isPreparingReturn || hasFutureReturn || hasCompletedDelivery}>
-                        {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-                        Return
-                      </Button>
-                    }
-
-                    {/* Start/Complete/Restart button and menu - right aligned */}
-                    <div className="flex items-center ml-auto">
-                      {/* Restart button for completed/failed/cancelled on today's date when route not finished */}
-                      {FINISHED_STATUSES.includes(delivery.status) && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted ?
-                        <Button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            fabControlEvents.deactivateFAB();
-                            setIsEntityUpdating(true);
-                            setIsProcessingBackground(true);
-                            console.log('⏸️ [Restart] Pausing location poller...');
-                            const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                            driverLocationPoller.pause();
-
-                            await new Promise((resolve) => setTimeout(resolve, 100));
-
-                            try {
-                              // CRITICAL: Verify delivery still exists before restarting
-                              const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                              if (!deliveryExists || deliveryExists.length === 0) {
-                                console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
-                                throw new Error('This delivery has been deleted. Please refresh the page.');
-                              }
-
-                              console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
-
-                              // Step 1: Clear all isNextDelivery flags for this driver/date
-                              const driverDeliveries = allDeliveries.filter((d) =>
-                                d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                              );
-
-                              for (const d of driverDeliveries) {
-                                if (d.isNextDelivery) {
-                                  await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
-                                }
-                              }
-
-                              // Step 2: Set restarted delivery to in_transit/en_route and isNextDelivery: true
-                              const newStatus = isPickup ? 'en_route' : 'in_transit';
-                              await updateDeliveryLocal(delivery.id, {
-                                status: newStatus,
-                                isNextDelivery: true,
-                                actual_delivery_time: null,
-                                delivery_notes: ''
-                              }, { skipSmartRefresh: true });
-
-                              // Step 3: Run recursive route optimization
-                              try {
-                                const now = new Date();
-                                const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                console.log('🔄 [Restart Delivery] Running optimizeRouteRealTime...');
-                                await base44.functions.invoke('optimizeRouteRealTime', {
-                                  driverId: delivery.driver_id,
-                                  deliveryDate: delivery.delivery_date,
-                                  currentLocalTime: currentLocalTime,
-                                  generatePolyline: false
-                                });
-                                console.log('✅ [Restart Delivery] Route optimized');
-
-                                // CRITICAL: Refresh UI to show reordered stops
-                                invalidate('Delivery');
-                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                console.log('✅ [Restart Delivery] UI refreshed with new stop order');
-                              } catch (optimizeError) {
-                                console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
-                              }
-
-                              // Step 4: Refresh data and sync UI
-                              invalidate('Delivery');
-                              await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                              console.log('✅ [RESTART] Delivery restarted successfully');
-
-                              // CRITICAL: Trigger map update
-                              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                              }));
-
-                              // Send notification to dispatchers
-                              if (userHasRole(currentUser, 'driver')) {
-                                await notifyDriverRetry({
-                                  driver: currentUser,
-                                  patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                  delivery,
-                                  store,
-                                  appUsers
-                                });
-                              }
-                            } finally {
-                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                              driverLocationPoller.resume();
-
-                              // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
-                              fabControlEvents.reactivateFAB(true);
-                              setIsProcessingBackground(false);
-                            }
-                          }}
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
-                          disabled={isProcessingBackground}>
-                          <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
-                          <span className="text-white">Restart</span>
-                        </Button> :
-                        delivery.status === 'failed' && onStatusUpdate ?
+                    {/* FAILED DELIVERY FOOTER - Special layout */}
+                    {delivery.status === 'failed' && !isPickup ?
+                      <div className="flex items-center gap-2 w-full">
+                        {/* 1. Retry button */}
+                        {onStatusUpdate &&
                           <Button
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -2417,7 +2253,6 @@ export default function StopCard({
                               await new Promise((resolve) => setTimeout(resolve, 50));
 
                               try {
-                                // CRITICAL: Verify delivery still exists before retrying
                                 const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
                                 if (!deliveryExists || deliveryExists.length === 0) {
                                   console.warn('⚠️ [RETRY] Delivery no longer exists - aborting');
@@ -2425,20 +2260,16 @@ export default function StopCard({
                                 }
 
                                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
                                 await ensureDriverOnline();
 
-                                // CRITICAL: Save to both offline and online databases
                                 await updateDeliveryLocal(delivery.id, {
                                   status: isPickup ? 'en_route' : 'in_transit'
                                 }, { skipSmartRefresh: true });
 
-                                // Also call onStatusUpdate if available for additional UI updates
                                 if (onStatusUpdate) {
                                   await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
                                 }
 
-                                // CRITICAL: Run route optimizer to insert retry at optimal position
                                 try {
                                   const now = new Date();
                                   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -2451,7 +2282,6 @@ export default function StopCard({
                                   });
                                   console.log('✅ [Retry] Route optimized');
 
-                                  // CRITICAL: Refresh UI to show reordered stops
                                   invalidate('Delivery');
                                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                                   console.log('✅ [Retry] UI refreshed with new stop order');
@@ -2459,12 +2289,10 @@ export default function StopCard({
                                   console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);
                                 }
 
-                                // CRITICAL: Trigger immediate map update
                                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                                   detail: { triggeredBy: 'retry', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                                 }));
 
-                                // Send notification to dispatchers
                                 if (userHasRole(currentUser, 'driver')) {
                                   await notifyDriverRetry({
                                     driver: currentUser,
@@ -2482,17 +2310,222 @@ export default function StopCard({
                                 setIsProcessingBackground(false);
                                 console.log('✅ [RETRY] Retry cycle complete');
 
-                                // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
                                 fabControlEvents.reactivateFAB(true);
                               }
                             }}
                             size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
+                            className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
                             disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery}>
                             {isRetrying ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                             <span className="text-white">Retry</span>
-                          </Button> :
-                          delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
+                          </Button>
+                        }
+
+                        {/* 2. Return button */}
+                        <Button
+                          onClick={handleReturnClick}
+                          size="sm"
+                          className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 md:px-3 text-sm md:text-xs bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8 flex-1"
+                          disabled={isPreparingReturn || hasFutureReturn || hasCompletedDelivery}>
+                          {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                          Return
+                        </Button>
+
+                        {/* 3. Restart button */}
+                        {onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted &&
+                          <Button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              fabControlEvents.deactivateFAB();
+                              setIsEntityUpdating(true);
+                              setIsProcessingBackground(true);
+                              console.log('⏸️ [Restart] Pausing location poller...');
+                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                              driverLocationPoller.pause();
+
+                              await new Promise((resolve) => setTimeout(resolve, 100));
+
+                              try {
+                                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                                if (!deliveryExists || deliveryExists.length === 0) {
+                                  console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
+                                  throw new Error('This delivery has been deleted. Please refresh the page.');
+                                }
+
+                                console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
+
+                                const driverDeliveries = allDeliveries.filter((d) =>
+                                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                                );
+
+                                for (const d of driverDeliveries) {
+                                  if (d.isNextDelivery) {
+                                    await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+                                  }
+                                }
+
+                                const newStatus = isPickup ? 'en_route' : 'in_transit';
+                                await updateDeliveryLocal(delivery.id, {
+                                  status: newStatus,
+                                  isNextDelivery: true,
+                                  actual_delivery_time: null,
+                                  delivery_notes: ''
+                                }, { skipSmartRefresh: true });
+
+                                try {
+                                  const now = new Date();
+                                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                  console.log('🔄 [Restart Delivery] Running optimizeRouteRealTime...');
+                                  await base44.functions.invoke('optimizeRouteRealTime', {
+                                    driverId: delivery.driver_id,
+                                    deliveryDate: delivery.delivery_date,
+                                    currentLocalTime: currentLocalTime,
+                                    generatePolyline: false
+                                  });
+                                  console.log('✅ [Restart Delivery] Route optimized');
+
+                                  invalidate('Delivery');
+                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                  console.log('✅ [Restart Delivery] UI refreshed with new stop order');
+                                } catch (optimizeError) {
+                                  console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
+                                }
+
+                                invalidate('Delivery');
+                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+                                console.log('✅ [RESTART] Delivery restarted successfully');
+
+                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                  detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                }));
+
+                                if (userHasRole(currentUser, 'driver')) {
+                                  await notifyDriverRetry({
+                                    driver: currentUser,
+                                    patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                    delivery,
+                                    store,
+                                    appUsers
+                                  });
+                                }
+                              } finally {
+                                const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                driverLocationPoller.resume();
+
+                                fabControlEvents.reactivateFAB(true);
+                                setIsProcessingBackground(false);
+                              }
+                            }}
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
+                            disabled={isProcessingBackground}>
+                            <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
+                            <span className="text-white">Restart</span>
+                          </Button>
+                        }
+
+                        {/* 4. Menu button */}
+                        <DropdownMenu modal={false}>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
+                              onClick={(e) => e.stopPropagation()}>
+                              <MoreVertical className="w-5 h-5 md:w-4 md:h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                            {onEditDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDelivery(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5">
+                                <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                Edit Delivery
+                              </DropdownMenuItem>
+                            }
+
+                            {patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }} className="text-base md:text-sm py-2.5 md:py-1.5">
+                                <User className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                Edit Patient
+                              </DropdownMenuItem>
+                            }
+
+                            {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                              <>
+                                <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                                <DropdownMenuItem
+                                  onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
+                                  className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
+                                  disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
+                                  <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
+                            }
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    :
+                      /* NON-FAILED DELIVERY FOOTER - Original layout */
+                      <>
+                        {/* Proof of Delivery Buttons - Only on next delivery, OR completed with captured proof */}
+                        {!isPickup &&
+                          <div className="flex items-center gap-2">
+                            {/* Signature Button - show ONLY on next delivery OR completed with signature */}
+                            {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.signature_image_url ?
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (delivery.status !== 'completed') {
+                                    setShowSignatureCapture(true);
+                                  }
+                                }}
+                                size="sm"
+                                variant="outline"
+                                disabled={delivery.status === 'completed'}
+                                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                                  delivery.signature_image_url ?
+                                    'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
+                                    'border-white hover:bg-slate-100'}`
+                                }>
+
+                                <Pen className={`w-5 h-5 md:w-4 md:h-4 ${
+                                  delivery.signature_image_url ? 'text-emerald-700' : 'text-white'}`
+                                } />
+                              </Button> :
+                              null}
+
+                            {/* Photo Button - show ONLY on next delivery OR completed with photos */}
+                            {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (delivery.status !== 'completed') {
+                                    setShowPhotoCapture(true);
+                                  }
+                                }}
+                                size="sm"
+                                variant="outline"
+                                disabled={delivery.status === 'completed'}
+                                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                                  delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
+                                    'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
+                                    'border-white hover:bg-slate-100'}`
+                                }>
+
+                                <Camera className={`w-5 h-5 md:w-4 md:h-4 ${
+                                  delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-white'}`
+                                } />
+                              </Button> :
+                              null}
+                          </div>
+                        }
+
+                        {/* Start/Complete/Restart button and menu - right aligned */}
+                        <div className="flex items-center ml-auto">
+                      {/* Start button for active non-failed deliveries */}
+                      {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
                             isNextDelivery ?
                               <Button
                                 onClick={async (e) => {
@@ -2898,7 +2931,102 @@ export default function StopCard({
                               }} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
                                 {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                                 <span className="text-white">Start</span>
-                              </Button>)
+                              </Button> :
+                              null)
+                      }
+
+                      {/* Restart button for completed/cancelled on today's date when route not finished (NOT failed) */}
+                      {delivery.status !== 'failed' && FINISHED_STATUSES.includes(delivery.status) && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted &&
+                        <Button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            fabControlEvents.deactivateFAB();
+                            setIsEntityUpdating(true);
+                            setIsProcessingBackground(true);
+                            console.log('⏸️ [Restart] Pausing location poller...');
+                            const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                            driverLocationPoller.pause();
+
+                            await new Promise((resolve) => setTimeout(resolve, 100));
+
+                            try {
+                              const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                              if (!deliveryExists || deliveryExists.length === 0) {
+                                console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
+                                throw new Error('This delivery has been deleted. Please refresh the page.');
+                              }
+
+                              console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
+
+                              const driverDeliveries = allDeliveries.filter((d) =>
+                                d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                              );
+
+                              for (const d of driverDeliveries) {
+                                if (d.isNextDelivery) {
+                                  await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+                                }
+                              }
+
+                              const newStatus = isPickup ? 'en_route' : 'in_transit';
+                              await updateDeliveryLocal(delivery.id, {
+                                status: newStatus,
+                                isNextDelivery: true,
+                                actual_delivery_time: null,
+                                delivery_notes: ''
+                              }, { skipSmartRefresh: true });
+
+                              try {
+                                const now = new Date();
+                                const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                console.log('🔄 [Restart Delivery] Running optimizeRouteRealTime...');
+                                await base44.functions.invoke('optimizeRouteRealTime', {
+                                  driverId: delivery.driver_id,
+                                  deliveryDate: delivery.delivery_date,
+                                  currentLocalTime: currentLocalTime,
+                                  generatePolyline: false
+                                });
+                                console.log('✅ [Restart Delivery] Route optimized');
+
+                                invalidate('Delivery');
+                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                console.log('✅ [Restart Delivery] UI refreshed with new stop order');
+                              } catch (optimizeError) {
+                                console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
+                              }
+
+                              invalidate('Delivery');
+                              await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+                              console.log('✅ [RESTART] Delivery restarted successfully');
+
+                              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                              }));
+
+                              if (userHasRole(currentUser, 'driver')) {
+                                await notifyDriverRetry({
+                                  driver: currentUser,
+                                  patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                  delivery,
+                                  store,
+                                  appUsers
+                                });
+                              }
+                            } finally {
+                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                              driverLocationPoller.resume();
+
+                              fabControlEvents.reactivateFAB(true);
+                              setIsProcessingBackground(false);
+                            }
+                          }}
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
+                          disabled={isProcessingBackground}>
+                          <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
+                          <span className="text-white">Restart</span>
+                        </Button>
                       }
 
                       <DropdownMenu modal={false}>
@@ -2959,6 +3087,8 @@ export default function StopCard({
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
+                      </>
+                    }
                   </>
                 }
               </div>
