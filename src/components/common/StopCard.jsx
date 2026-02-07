@@ -2300,8 +2300,8 @@ export default function StopCard({
 
                     {/* Start/Complete/Restart button and menu - right aligned */}
                     <div className="flex items-center ml-auto">
-                      {/* Restart button for completed/failed/cancelled on today's date when route not finished */}
-                      {FINISHED_STATUSES.includes(delivery.status) && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted &&
+                      {/* Restart button for failed deliveries on today's date OR other finished statuses when route not finished */}
+                      {FINISHED_STATUSES.includes(delivery.status) && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && (delivery.status === 'failed' || !isRouteCompleted) &&
                         <Button
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -2405,7 +2405,7 @@ export default function StopCard({
                       
                       {/* Start/Complete buttons for active deliveries */}
                       {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
-                        isNextDelivery ?
+                        delivery.status === 'failed' && onStatusUpdate ?
                           <Button
                             onClick={async (e) => {
                               e.stopPropagation();
