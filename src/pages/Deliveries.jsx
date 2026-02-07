@@ -183,6 +183,9 @@ export default function DeliveriesPage() {
     return saved || 'cards';
   });
   
+  // Track if this is initial page load (not refresh)
+  const isInitialPageLoadRef = useRef(true);
+  
   // Wrap setViewMode to immediately persist and prevent re-renders
   const setViewMode = useCallback((mode) => {
     localStorage.setItem('rxdeliver_routes_view_mode', mode);
@@ -1104,7 +1107,8 @@ export default function DeliveriesPage() {
       year: initialSelectedYear,
       month: initialSelectedMonth,
       monthParam,
-      hasMonthParam: !!monthParam
+      hasMonthParam: !!monthParam,
+      isInitialLoad: isInitialPageLoadRef.current
     });
 
     setSelectedYear(initialSelectedYear);
@@ -1299,18 +1303,14 @@ export default function DeliveriesPage() {
 
   const filteredDatesByMonth = useMemo(() => {
     if (!sortedDates) return [];
-    // CRITICAL: If no dates match the selected month/year, return all dates for current month
+    
+    // Filter dates by selected year and month
     const filtered = sortedDates.filter((date) => {
-      // Parse date as local time, not UTC (YYYY-MM-DD format)
       const [y, m, d] = date.split('-').map(Number);
       return !isNaN(y) && !isNaN(m) && !isNaN(d) && y === selectedYear && m - 1 === selectedMonth;
     });
     
-    // If no matches, return first 10 most recent dates (fallback to show something)
-    if (filtered.length === 0 && sortedDates.length > 0) {
-      console.log(`⚠️ [Deliveries] No dates match month ${selectedMonth + 1}/${selectedYear}, showing recent dates`);
-      return sortedDates.slice(0, 10);
-    }
+    console.log(`📅 [Deliveries] Filtered dates for ${selectedMonth + 1}/${selectedYear}: ${filtered.length} dates`);
     
     return filtered;
   }, [sortedDates, selectedYear, selectedMonth]);
@@ -1368,8 +1368,22 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // CRITICAL: Only auto-select if the current selection is invalid for the selected month/year
-    // Do NOT auto-select on every data refresh - that breaks user selection
+    // On initial page load: select most recent date
+    // On refresh: keep selected date or auto-select if invalid
+    if (isInitialPageLoadRef.current) {
+      console.log('📅 [Deliveries] Initial page load - selecting most recent date');
+      if (dateListWithStats.length > 0) {
+        const mostRecentDate = dateListWithStats[0].date;
+        const topDateObj = new Date(mostRecentDate.replace(/-/g, '/'));
+        topDateObj.setHours(0, 0, 0, 0);
+        console.log(`📅 [Deliveries] Most recent date selected: ${format(topDateObj, 'yyyy-MM-dd')}`);
+        setSelectedDate(topDateObj);
+      }
+      isInitialPageLoadRef.current = false;
+      return;
+    }
+
+    // On refresh: only auto-select if current selection is invalid for the selected month/year
     if (selectedDate) {
       const selectedDateYear = selectedDate.getFullYear();
       const selectedDateMonth = selectedDate.getMonth();
@@ -1385,16 +1399,15 @@ export default function DeliveriesPage() {
           setSelectedDate(topDateObj);
         }
       }
-      // Otherwise: KEEP the user's selection even if data refreshes
     } else if (!selectedDate && dateListWithStats.length > 0) {
-      // CRITICAL: Only set initial date if nothing is selected
+      // No date selected - select most recent
       const topDate = dateListWithStats[0].date;
       const topDateObj = new Date(topDate.replace(/-/g, '/'));
       topDateObj.setHours(0, 0, 0, 0);
-      console.log(`📅 [Deliveries] Initial date selection: ${format(topDateObj, 'yyyy-MM-dd')}`);
+      console.log(`📅 [Deliveries] No date selected, selecting most recent: ${format(topDateObj, 'yyyy-MM-dd')}`);
       setSelectedDate(topDateObj);
     }
-  }, [selectedMonth, selectedYear, isDriverOverviewMode, isLoading, isLoadingData]);
+  }, [selectedMonth, selectedYear, isDriverOverviewMode, isLoading, isLoadingData, dateListWithStats.length]);
 
 
   useEffect(() => {
