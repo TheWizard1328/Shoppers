@@ -50,7 +50,6 @@ import SignatureCapture from './SignatureCapture';
 import PhotoCapture from './PhotoCapture';
 import HelpTooltip, { HELP_CONTENT } from './HelpTooltip';
 import { Pen, Camera } from 'lucide-react';
-import StopCardFooter from './StopCardFooter';
 
 // Global statusConfig
 const statusConfig = {
@@ -2232,34 +2231,82 @@ export default function StopCard({
                 <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
                   {(isAssignedDriverOrAppOwner || canEdit) && (
                     <>
-                      <StopCardFooter
-                        delivery={delivery}
-                        isPickup={isPickup}
-                        isNextDelivery={isNextDelivery}
-                        patient={patient}
-                        currentUser={currentUser}
-                        isStrippedForDispatcher={isStrippedForDispatcher}
-                        isRouteCompleted={isRouteCompleted}
-                        onEditDelivery={onEditDelivery}
-                        onEditPatient={onEditPatient}
-                        onDeleteDelivery={onDeleteDelivery}
-                        onStatusUpdate={onStatusUpdate}
-                        setPendingFailureStatus={setPendingFailureStatus}
-                        setShowFailureReasonDialog={setShowFailureReasonDialog}
-                        setShowSignatureCapture={setShowSignatureCapture}
-                        setShowPhotoCapture={setShowPhotoCapture}
-                        isCompleting={isCompleting}
-                        isProcessingBackground={isProcessingBackground}
-                        isStarting={isStarting}
-                        isRetrying={isRetrying}
-                        isPreparingReturn={isPreparingReturn}
-                        handleReturnClick={handleReturnClick}
-                        hasFutureReturn={hasFutureReturn}
-                        hasCompletedDelivery={hasCompletedDelivery}
-                        canRetry={canRetry}
-                        hasFutureRetry={hasFutureRetry}
-                        onRestart={onRestart}
-                        onCompleteClick={async (e) => {
+                      {/* Failed Delivery: Return, Retry, Restart, Menu */}
+                      {delivery.status === 'failed' && !isPickup && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && (
+                        <div className="flex items-center gap-2 w-full">
+                          <Button
+                            onClick={handleReturnClick}
+                            size="sm"
+                            className="bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8 px-3 text-sm md:text-xs"
+                            disabled={isPreparingReturn || hasFutureReturn || hasCompletedDelivery}>
+                            {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                            Return
+                          </Button>
+
+                          {onStatusUpdate && (
+                            <Button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                fabControlEvents.deactivateFAB();
+                                setIsRetrying(true);
+                                setIsProcessingBackground(true);
+                                const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                driverLocationPoller.pause();
+                                smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+                                await new Promise((resolve) => setTimeout(resolve, 50));
+
+                                try {
+                                  const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                                  if (!deliveryExists || deliveryExists.length === 0) {
+                                    throw new Error('This delivery has been deleted. Please refresh the page.');
+                                  }
+
+                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                  await ensureDriverOnline();
+                                  await updateDeliveryLocal(delivery.id, { status: isPickup ? 'en_route' : 'in_transit' }, { skipSmartRefresh: true });
+                                  
+                                  if (onStatusUpdate) {
+                                    await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
+                                  }
+
+                                  const now = new Date();
+                                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                  await base44.functions.invoke('optimizeRouteRealTime', {
+                                    driverId: delivery.driver_id,
+                                    deliveryDate: delivery.delivery_date,
+                                    currentLocalTime: currentLocalTime,
+                                    generatePolyline: false
+                                  });
+
+                                  invalidate('Delivery');
+                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                    detail: { triggeredBy: 'retry', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                  }));
+
+                                  if (userHasRole(currentUser, 'driver')) {
+                                    await notifyDriverRetry({ driver: currentUser, patientName: patient?.full_name, delivery, store, appUsers });
+                                  }
+                                } finally {
+                                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                  driverLocationPoller.resume();
+                                  setIsRetrying(false);
+                                  setIsProcessingBackground(false);
+                                  fabControlEvents.reactivateFAB(true);
+                                }
+                              }}
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs px-3"
+                              disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery}>
+                              {isRetrying ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                              Retry
+                            </Button>
+                          )}
+
+                          {onRestart && (
+                            <Button
+                              onClick={async (e) => {
+                          {(isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.signature_image_url) && (
                             <Button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -2951,24 +2998,18 @@ export default function StopCard({
                                       Delete
                                     </DropdownMenuItem>
                                   )}
-                                </DropdownMenuContent>
-                                </DropdownMenu>
-                                </div>
-                                </>
-
-                                ) : delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && !isNextDelivery && onStartDelivery ? (
-                                /* LAYOUT 4: Active NOT isNextDelivery - RIGHT: Start+Menu only */
-                                <div className="flex items-center gap-2 ml-auto">
-                                <Button type="button" onClick={async (e) => {
-                  </>
-                }
-              </div>
-
-
-            </div>
-          </div>}
-        </CardContent>
-      </Card>
-    </motion.div>);
-
-}
+                                  </DropdownMenuContent>
+                                  </DropdownMenu>
+                                  </div>
+                                  )}
+                                  </>
+                                  )}
+                                  </div>
+                                  </div>
+                                  </div>
+                                  )}
+                                  </CardContent>
+                                  </Card>
+                                  </motion.div>
+                                  );
+                                  }
