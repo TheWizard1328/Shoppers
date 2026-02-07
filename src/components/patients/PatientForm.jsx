@@ -849,8 +849,8 @@ export default function PatientForm({
                       id="unit_number"
                       value={formData.unit_number}
                       onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
-                      className="h-10 md:h-9 text-sm"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''}`}
+                      style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
                 </div>
               </div>
