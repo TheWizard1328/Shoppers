@@ -1216,13 +1216,7 @@ export default function StopCard({
                   // Badge for extra pay or after hours
                   return (
                     <Badge
-                      variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 text-gray-800">
-
-
-
-
-
-
+                      variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 !text-gray-800">
                       {formatPay(pay)}
                     </Badge>);
 
