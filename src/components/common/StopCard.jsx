@@ -2249,7 +2249,6 @@ export default function StopCard({
                               const { driverLocationPoller } = await import('../utils/driverLocationPoller');
                               driverLocationPoller.pause();
 
-                              smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
                               await new Promise((resolve) => setTimeout(resolve, 50));
 
                               try {
@@ -2262,13 +2261,37 @@ export default function StopCard({
                                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                                 await ensureDriverOnline();
 
-                                await updateDeliveryLocal(delivery.id, {
-                                  status: isPickup ? 'en_route' : 'in_transit'
-                                }, { skipSmartRefresh: true });
+                                // Find next sequential tracking number
+                                const driverDeliveries = allDeliveries.filter((d) =>
+                                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                                );
+                                const existingTRs = driverDeliveries
+                                  .map((d) => parseInt(d.tracking_number, 10))
+                                  .filter((tr) => !isNaN(tr));
+                                const nextTR = existingTRs.length > 0 ? Math.max(...existingTRs) + 1 : 1;
 
-                                if (onStatusUpdate) {
-                                  await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
-                                }
+                                // Create duplicate delivery
+                                const retryDelivery = {
+                                  ...delivery,
+                                  status: 'in_transit',
+                                  tracking_number: String(nextTR),
+                                  delivery_notes: '[Redelivered]',
+                                  actual_delivery_time: null,
+                                  isNextDelivery: false,
+                                  signature_image_url: null,
+                                  proof_photo_urls: [],
+                                  cod_payments: []
+                                };
+
+                                // Remove internal fields
+                                delete retryDelivery.id;
+                                delete retryDelivery.created_date;
+                                delete retryDelivery.updated_date;
+                                delete retryDelivery.created_by;
+
+                                console.log('🔄 [Retry] Creating duplicate delivery with TR#', nextTR);
+                                const newDelivery = await base44.entities.Delivery.create(retryDelivery);
+                                console.log('✅ [Retry] Duplicate created:', newDelivery.id);
 
                                 try {
                                   const now = new Date();
