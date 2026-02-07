@@ -1403,12 +1403,14 @@ export default function DeliveryForm({
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
     
-    // Find patient's store
-    const patientStore = stores.find((s) => s && s.id === patient.store_id);
-    
-    // Auto-select driver based on patient's store
-    let autoSelectedDriverId = '';
-    let autoSelectedDriverName = '';
+    // Create patient object with all pre-filled data but empty name
+    const patientWithoutName = {
+      ...fullPatient,
+      full_name: '', // Empty name - user will enter new name
+      _duplicateSource: true,
+      _isNew: true,
+      _focusName: !isMobileDevice
+    };
     
     if (patient.store_id && formData.delivery_date && stores && drivers && patientStore) {
       const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
