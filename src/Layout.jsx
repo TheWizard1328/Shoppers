@@ -3373,8 +3373,8 @@ export default function Layout({ children, currentPageName }) {
                     }
 
                       <img
-                      src="https://cdn-icons-png.flaticon.com/512/3843/3843479.png"
-                      alt="RxDeliver"
+                      src={branding.logo_url || "https://cdn-icons-png.flaticon.com/512/3843/3843479.png"}
+                      alt="Company Logo"
                       className="w-10 h-10 rounded object-contain"
                       style={{ filter: 'var(--image-filter, none)' }} />
 
