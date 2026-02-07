@@ -2286,24 +2286,102 @@ export default function StopCard({
                       </div>
                     }
 
-                    {/* Return button for failed deliveries - creates new return delivery */}
-                    {delivery.status === 'failed' && !isPickup &&
-                      <Button
-                        onClick={handleReturnClick}
-                        size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 md:px-3 text-sm md:text-xs bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8"
-
-                        disabled={isPreparingReturn || hasFutureReturn || hasCompletedDelivery}>
-                        {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-                        Return
-                      </Button>
-                    }
-
-                    {/* Start/Complete/Restart button and menu - right aligned */}
-                    <div className="flex items-center ml-auto">
-                      {/* Restart button for failed deliveries on today's date OR other finished statuses when route not finished */}
-                      {FINISHED_STATUSES.includes(delivery.status) && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && (delivery.status === 'failed' || !isRouteCompleted) &&
+                    {/* Failed delivery buttons: Return, Retry, Restart */}
+                    {delivery.status === 'failed' && !isPickup && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && (
+                      <div className="flex items-center gap-2 ml-auto">
+                        {/* Return Button */}
                         <Button
-                          onClick={async (e) => {
+                          onClick={handleReturnClick}
+                          size="sm"
+                          className="bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8 px-3 text-sm md:text-xs"
+                          disabled={isPreparingReturn || hasFutureReturn || hasCompletedDelivery}>
+                          {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                          Return
+                        </Button>
+
+                        {/* Retry Button */}
+                        {onStatusUpdate && (
+                          <Button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+
+                              fabControlEvents.deactivateFAB();
+                              setIsRetrying(true);
+                              setIsProcessingBackground(true);
+                              console.log('⏸️ [Retry] Pausing location poller...');
+                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                              driverLocationPoller.pause();
+
+                              smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+                              await new Promise((resolve) => setTimeout(resolve, 50));
+
+                              try {
+                                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                                if (!deliveryExists || deliveryExists.length === 0) {
+                                  console.warn('⚠️ [RETRY] Delivery no longer exists - aborting');
+                                  throw new Error('This delivery has been deleted. Please refresh the page.');
+                                }
+
+                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                await ensureDriverOnline();
+
+                                await updateDeliveryLocal(delivery.id, {
+                                  status: isPickup ? 'en_route' : 'in_transit'
+                                }, { skipSmartRefresh: true });
+
+                                if (onStatusUpdate) {
+                                  await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
+                                }
+
+                                try {
+                                  const now = new Date();
+                                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                  await base44.functions.invoke('optimizeRouteRealTime', {
+                                    driverId: delivery.driver_id,
+                                    deliveryDate: delivery.delivery_date,
+                                    currentLocalTime: currentLocalTime,
+                                    generatePolyline: false
+                                  });
+
+                                  invalidate('Delivery');
+                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                } catch (optimizeError) {
+                                  console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);
+                                }
+
+                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                  detail: { triggeredBy: 'retry', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                }));
+
+                                if (userHasRole(currentUser, 'driver')) {
+                                  await notifyDriverRetry({
+                                    driver: currentUser,
+                                    patientName: patient?.full_name,
+                                    delivery,
+                                    store,
+                                    appUsers
+                                  });
+                                }
+                              } finally {
+                                const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                driverLocationPoller.resume();
+                                setIsRetrying(false);
+                                setIsProcessingBackground(false);
+                                fabControlEvents.reactivateFAB(true);
+                              }
+                            }}
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs px-3"
+                            disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery}>
+                            {isRetrying ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                            Retry
+                          </Button>
+                        )}
+
+                        {/* Restart Button */}
+                        {onRestart && (
+                          <Button
+                            onClick={async (e) => {
                             e.stopPropagation();
                             fabControlEvents.deactivateFAB();
                             setIsEntityUpdating(true);
@@ -2396,15 +2474,19 @@ export default function StopCard({
                             }
                           }}
                           size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
+                          className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs px-3"
                           disabled={isProcessingBackground}>
                           <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
-                          <span className="text-white">Restart</span>
-                        </Button>
-                      }
-                      
-                      {/* Start/Complete buttons for active deliveries */}
-                      {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
+                          Restart
+                          </Button>
+                          )}
+                          </div>
+                          )}
+
+                          {/* Start/Complete button and menu - for active deliveries */}
+                          {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
+                          <div className="flex items-center ml-auto">
+                          {(
                         isNextDelivery ?
                           <Button
                             onClick={async (e) => {
@@ -2902,10 +2984,10 @@ export default function StopCard({
                               }} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
                                 {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                                 <span className="text-white">Start</span>
-                              </Button>)
-                      )}
+                              </Button>
+                          )}
 
-                      <DropdownMenu modal={false}>
+                        <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
@@ -2962,7 +3044,8 @@ export default function StopCard({
                           }
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </div>
+                      </div>
+                    )}
                   </>
                 }
               </div>
