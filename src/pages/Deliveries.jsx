@@ -1415,6 +1415,11 @@ export default function DeliveriesPage() {
       return;
     }
 
+    // Skip on initial page load - let the initial date selection effect handle it
+    if (isInitialPageLoadRef.current) {
+      return;
+    }
+
     const now = new Date();
     const todayString = format(now, 'yyyy-MM-dd');
     const tomorrowString = format(addDays(now, 1), 'yyyy-MM-dd');
