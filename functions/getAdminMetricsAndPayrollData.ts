@@ -320,10 +320,11 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       metrics.monthlyData[monthIndex].total++;
       if (store?.pays_app_fees) {
         metrics.monthlyData[monthIndex].billable++;
+        metrics.yearTotals.billable++;
       } else {
         metrics.monthlyData[monthIndex].nonBillable++;
+        metrics.yearTotals.nonBillable++;
       }
-      metrics.yearTotals.billable++;
       
       // Daily delivery data (for Monthly Deliveries chart when month is selected)
       if (!metrics.dailyDeliveryData[monthIndex + 1]) metrics.dailyDeliveryData[monthIndex + 1] = [];
