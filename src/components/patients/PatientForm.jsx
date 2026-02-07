@@ -803,24 +803,28 @@ export default function PatientForm({
                       style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
 
-                  <div className="col-span-3 space-y-1">
+                  <div className={`col-span-3 space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded' : ''}`}
+                    style={{ padding: duplicateMode === 'duplicate' ? '0.25rem' : '0' }}>
                     <Label htmlFor="phone" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Phone Number</Label>
                     <PhoneInput
                       id="phone"
                       value={formData.phone}
                       onChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
                       placeholder="Phone number"
-                      className="h-10 md:h-9 text-sm" />
+                      className={`h-10 md:h-9 text-sm`}
+                      style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)' }} />
                   </div>
 
-                  <div className="col-span-3 space-y-1">
+                  <div className={`col-span-3 space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded' : ''}`}
+                    style={{ padding: duplicateMode === 'duplicate' ? '0.25rem' : '0' }}>
                     <Label htmlFor="phone_secondary" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Alt. Phone</Label>
                     <PhoneInput
                       id="phone_secondary"
                       value={formData.phone_secondary}
                       onChange={(value) => setFormData((prev) => ({ ...prev, phone_secondary: value }))}
                       placeholder="Alt. phone"
-                      className="h-10 md:h-9 text-sm" />
+                      className={`h-10 md:h-9 text-sm`}
+                      style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)' }} />
                   </div>
                 </div>
 
