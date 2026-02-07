@@ -1343,11 +1343,15 @@ export default function DeliveriesPage() {
 
   useEffect(() => {
     if (isDriverOverviewMode || isLoading || isLoadingData) {
+      prevModeRef.current = isDriverOverviewMode;
       return;
     }
 
+    // CRITICAL: When transitioning FROM Driver Overview TO Route Management, auto-select most recent date
+    const transitionedToRouteManagement = prevModeRef.current === true && isDriverOverviewMode === false;
+    prevModeRef.current = isDriverOverviewMode;
+
     // On initial page load: select most recent date
-    // On refresh: keep selected date or auto-select if invalid
     if (isInitialPageLoadRef.current) {
       console.log('📅 [Deliveries] Initial page load - selecting most recent date');
       if (dateListWithStats.length > 0) {
@@ -1361,7 +1365,20 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // On refresh: only auto-select if current selection is invalid for the selected month/year
+    // When transitioning to Route Management from Driver Overview, always select most recent date
+    if (transitionedToRouteManagement) {
+      console.log('📅 [Deliveries] Transitioned to Route Management - selecting most recent date');
+      if (dateListWithStats.length > 0) {
+        const mostRecentDate = dateListWithStats[0].date;
+        const topDateObj = new Date(mostRecentDate.replace(/-/g, '/'));
+        topDateObj.setHours(0, 0, 0, 0);
+        console.log(`📅 [Deliveries] Most recent date selected: ${format(topDateObj, 'yyyy-MM-dd')}`);
+        setSelectedDate(topDateObj);
+        return;
+      }
+    }
+
+    // On refresh/month-year change: keep selected date or auto-select if invalid
     if (selectedDate) {
       const selectedDateYear = selectedDate.getFullYear();
       const selectedDateMonth = selectedDate.getMonth();
