@@ -641,7 +641,7 @@ export default function PatientForm({
             <div className="flex items-center justify-between">
               <CardTitle className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 <UserPlus className="w-5 h-5 text-emerald-600" />
-                {patient ? 'Edit Patient' : 'Add New Patient'}
+                {patient && !duplicateMode ? 'Edit Patient' : 'Add New Patient'}
               </CardTitle>
               <Button variant="ghost" size="icon" onClick={onCancel}>
                 <X className="w-4 h-4" style={{ color: 'var(--text-slate-700)' }} />
