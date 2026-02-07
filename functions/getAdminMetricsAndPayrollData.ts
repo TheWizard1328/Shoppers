@@ -193,6 +193,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       app_fee_rate: appFeeRate,
       stores_paying_fees: 0,
       total_stores: stores.length,
+      active_stores: stores.filter(s => s.status === 'active').length,
       total_billable_while_paying: 0,
       monthlyFees: Array(12).fill(0)
     },
