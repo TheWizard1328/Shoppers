@@ -76,15 +76,16 @@ const dayAbbrevs = {
 };
 
 export default function PatientForm({
-  patient,
-  stores = [],
-  onSave,
-  onCancel,
-  currentUser,
-  cities: citiesProp = [],
-  allPatients = [],
-  returnPatientOnSave = false
-}) {
+        patient,
+        stores = [],
+        onSave,
+        onCancel,
+        currentUser,
+        cities: citiesProp = [],
+        allPatients = [],
+        returnPatientOnSave = false,
+        duplicateMode = null
+      }) {
   const { setIsFormOverlayOpen, cities: contextCities = [] } = useAppData();
 
   // CRITICAL: Use cities from context if available, otherwise fall back to prop
