@@ -185,6 +185,8 @@ export default function DeliveriesPage() {
   
   // Track if this is initial page load (not refresh)
   const isInitialPageLoadRef = useRef(true);
+  // Track previous mode to detect transition INTO Route Management
+  const prevModeRef = useRef(isDriverOverviewMode);
   
   // Wrap setViewMode to immediately persist and prevent re-renders
   const setViewMode = useCallback((mode) => {
