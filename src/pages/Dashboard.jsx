@@ -7097,43 +7097,68 @@ function Dashboard() {
     const loadDeliveriesOnMount = async () => {
       console.log(`📦 [Dashboard Mount] Loading deliveries for ${selectedDateStr} (mode: ${dataSource})`);
       
+      // CRITICAL: Trigger instant smart refresh cycle on mount to refresh all route data
+      console.log('🔄 [Dashboard Mount] Triggering instant smart refresh cycle...');
       try {
-        let mountDeliveries;
+        const shouldLoadAllDeliveries = showAllDriverMarkers || selectedDriverId === 'all';
         
-        // CRITICAL: Always try offline DB first to avoid rate limits
-        mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        // Force refresh from API for complete, up-to-date data
+        let freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
         
-        if (mountDeliveries && mountDeliveries.length > 0) {
-          console.log(`✅ [Dashboard Mount] Loaded ${mountDeliveries.length} deliveries from offline DB`);
-          console.log(`📊 [Dashboard Mount] Sample isNextDelivery values:`, mountDeliveries.slice(0, 3).map(d => ({ id: d.id, patient_name: d.patient_name, isNextDelivery: d.isNextDelivery })));
-          
-          // Update context immediately
-          if (updateDeliveriesLocally) {
-            const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-            updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
-          }
-          setForceRender((prev) => prev + 1);
-          return; // Skip API fetch
+        // Refresh driver locations
+        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
+        const latestAppUsers = locationUpdates?.appUsers || appUsers;
+        
+        if (latestAppUsers && latestAppUsers.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, latestAppUsers);
         }
         
-        // Offline DB empty - fetch from API ONLY if in online mode
-        if (dataSource === 'online') {
-          console.log('🌐 [Dashboard Mount - ONLINE MODE] Fetching from API');
-          mountDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mountDeliveries);
-          
-          if (mountDeliveries.length > 0 && updateDeliveriesLocally) {
-            const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-            updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
-            setForceRender((prev) => prev + 1);
-          }
-        } else {
-          console.log('📦 [Dashboard Mount] Offline DB empty - waiting for periodic refresh');
+        // Update context
+        if (updateDeliveriesLocally) {
+          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+          updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
         }
+        
+        // Process location data through poller
+        driverLocationPoller.processLocationData(
+          currentUser, 
+          freshDeliveries, 
+          drivers, 
+          stores, 
+          latestAppUsers, 
+          selectedDate, 
+          true,
+          'Dashboard',
+          showAllDriverMarkers
+        );
+        
+        // Dispatch events
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: latestAppUsers, forceAll: true }
+        }));
+        
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { deliveryDate: selectedDateStr, triggeredBy: 'dashboardMount', allDrivers: true }
+        }));
+        
+        console.log(`✅ [Dashboard Mount] Smart refresh cycle complete - ${freshDeliveries.length} deliveries loaded`);
+        setForceRender((prev) => prev + 1);
+        
       } catch (error) {
         // CRITICAL: Silently fail on rate limits - periodic refresh will handle it
         if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
-          console.log('⏰ [Dashboard Mount] Rate limited - waiting for periodic refresh');
+          console.log('⏰ [Dashboard Mount] Rate limited - falling back to offline DB');
+          try {
+            const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+            if (mountDeliveries && mountDeliveries.length > 0 && updateDeliveriesLocally) {
+              const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+              updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
+              setForceRender((prev) => prev + 1);
+            }
+          } catch (offlineError) {
+            console.warn('⚠️ [Dashboard Mount] Offline DB fallback failed:', offlineError.message);
+          }
           return;
         }
         console.warn('⚠️ [Dashboard Mount] Failed to load deliveries:', error.message);
@@ -7141,7 +7166,7 @@ function Dashboard() {
     };
 
     loadDeliveriesOnMount();
-  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, dataSource]);
+  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, dataSource, showAllDriverMarkers, selectedDriverId]);
 
   useEffect(() => {
     if (!isDataLoaded || !deliveries) return;
