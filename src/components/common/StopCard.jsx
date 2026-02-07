@@ -2405,7 +2405,7 @@ export default function StopCard({
                       
                       {/* Start/Complete buttons for active deliveries */}
                       {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
-                        delivery.status === 'failed' && onStatusUpdate ?
+                        isNextDelivery ?
                           <Button
                             onClick={async (e) => {
                               e.stopPropagation();
