@@ -1389,17 +1389,30 @@ export default function DeliveryForm({
     await handlePatientSelect(patient, false);
   }, [handlePatientSelect]);
 
-  // Handler for "Duplicate Patient" button - creates new patient with same info but empty name
+  // Handler for "Duplicate Patient" button - opens PatientForm to create new patient
   const handleDuplicatePatient = useCallback((patient) => {
-    if (!patient) return;
+    if (!patient || !onCreatePatient) return;
     
-    // CRITICAL: Get full patient data to ensure all fields are populated
+    // Get full patient data
     const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
     
-    if (isAppOwner(currentUser)) { console.log('DEBUG: Duplicating patient:', fullPatient); }
+    // Create patient object for form with empty name/phone (indicating duplicate mode)
+    const patientWithEmpty = {
+      ...fullPatient,
+      full_name: '',
+      phone: '',
+      phone_secondary: '',
+      _duplicateSource: true,
+      _isNew: true
+    };
     
-    setNewPatientMode('duplicate');
-    setSelectedPatient(null); // Clear selected patient since we're creating new
+    // Open patient form with duplicate mode
+    setIsPatientFormOpen(true);
+    onCreatePatient((createdPatient) => {
+      setIsPatientFormOpen(false);
+      handlePatientSelect(createdPatient, true);
+    }, patientWithEmpty, 'duplicate');
+    
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
     
