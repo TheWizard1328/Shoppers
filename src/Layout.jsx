@@ -107,6 +107,7 @@ import PWAInstallPrompt from './components/common/PWAInstallPrompt';
 import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
 import BatteryIndicator from './components/layout/BatteryIndicator';
 import SettingsMenu from './components/layout/SettingsMenu';
+import { getCompanyBranding, applyBrandingStyles } from './components/utils/brandingManager';
 
 
 // App version will be loaded from AppSettings
