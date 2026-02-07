@@ -3640,6 +3640,8 @@ export default function Layout({ children, currentPageName }) {
                       </Link>
                     }
 
+                    <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+
                     {/* Snapshot Mode - App Owner Only */}
                     {isAppOwner(currentUser) &&
                     <button
