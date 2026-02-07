@@ -35,10 +35,43 @@ export default function DateListPanel({
   { value: 11, label: 'December' }];
 
 
-  const years = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    return Array.from({ length: 3 }, (_, i) => currentYear - 1 + i).reverse();
-  }, []);
+  // Extract years where the selected driver has deliveries
+  const availableYears = useMemo(() => {
+    if (!deliveries || deliveries.length === 0) return [];
+    
+    const yearsSet = new Set();
+    deliveries.forEach((d) => {
+      if (!d || !d.delivery_date) return;
+      try {
+        const year = new Date(d.delivery_date.replace(/-/g, '/')).getFullYear();
+        yearsSet.add(year);
+      } catch (error) {
+        console.warn('Invalid delivery_date:', d.delivery_date);
+      }
+    });
+    
+    return Array.from(yearsSet).sort((a, b) => b - a);
+  }, [deliveries]);
+
+  // Extract months with deliveries for the selected year
+  const availableMonths = useMemo(() => {
+    if (!deliveries || deliveries.length === 0) return [];
+    
+    const monthsSet = new Set();
+    deliveries.forEach((d) => {
+      if (!d || !d.delivery_date) return;
+      try {
+        const date = new Date(d.delivery_date.replace(/-/g, '/'));
+        if (date.getFullYear() === selectedYear) {
+          monthsSet.add(date.getMonth());
+        }
+      } catch (error) {
+        console.warn('Invalid delivery_date:', d.delivery_date);
+      }
+    });
+    
+    return Array.from(monthsSet).sort((a, b) => b - a);
+  }, [deliveries, selectedYear]);
 
   // Get all dates in selected month that have deliveries
   // CRITICAL: Extract dates directly from deliveries to avoid UTC conversion issues
@@ -127,7 +160,7 @@ export default function DateListPanel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-[300px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-              {months.map((m) =>
+              {months.filter((m) => availableMonths.includes(m.value)).map((m) =>
               <SelectItem key={m.value} value={m.value.toString()} style={{ color: 'var(--text-slate-900)' }}>
                   {m.label}
                 </SelectItem>
@@ -140,7 +173,7 @@ export default function DateListPanel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-              {years.map((y) =>
+              {availableYears.map((y) =>
               <SelectItem key={y} value={y.toString()} style={{ color: 'var(--text-slate-900)' }}>
                   {y}
                 </SelectItem>
