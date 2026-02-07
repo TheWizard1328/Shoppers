@@ -2343,7 +2343,7 @@ export default function StopCard({
                             }}
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs flex-1"
-                            disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery || hasDuplicateDelivery}>
+                            disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery || shouldDisableRetryReturn}>
                             {isRetrying ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                             <span className="text-white">Retry</span>
                           </Button>
@@ -2354,7 +2354,7 @@ export default function StopCard({
                           onClick={handleReturnClick}
                           size="sm"
                           className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 md:px-3 text-sm md:text-xs bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8 flex-1"
-                          disabled={isPreparingReturn || hasFutureReturn || hasCompletedDelivery || hasDuplicateDelivery}>
+                          disabled={isPreparingReturn || hasFutureReturn || hasCompletedDelivery || shouldDisableRetryReturn}>
                           {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                           Return
                         </Button>
