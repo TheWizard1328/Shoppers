@@ -2999,52 +2999,6 @@ export default function StopCard({
                                   </>
                                   )}
 
-                                  {/* Active NOT Next Delivery: Start+Menu on right */}
-                                  {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && !isNextDelivery && onStartDelivery && (
-                                  <div className="flex items-center gap-2 ml-auto">
-                                  <Button
-                                  onClick={async (e) => {
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
-                                    onClick={(e) => e.stopPropagation()}>
-                                    <MoreVertical className="w-5 h-5 md:w-4 md:h-4" />
-                                  </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="p-1 rounded-md min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
-                                  {onEditDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
-                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDelivery(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5">
-                                      <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                                      {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
-                                    </DropdownMenuItem>
-                                  )}
-
-                                  {!isPickup && patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) && (
-                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }} className="text-base md:text-sm py-2.5 md:py-1.5">
-                                      <User className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                                      Edit Patient
-                                    </DropdownMenuItem>
-                                  )}
-
-                                  {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient) && (
-                                    <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                                  )}
-
-                                  {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
-                                    <DropdownMenuItem
-                                      onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
-                                      className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
-                                      disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
-                                      <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  )}
-                                  </DropdownMenuContent>
-                                  </DropdownMenu>
-                                  </div>
-                                  </div>
-                                  )}
                                   </>
                                   )}
                                   </div>
