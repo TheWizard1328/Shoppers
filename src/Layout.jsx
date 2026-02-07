@@ -694,6 +694,13 @@ export default function Layout({ children, currentPageName }) {
   const [themePreference, setThemePreference] = useState('auto');
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
   const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
+  const [branding, setBranding] = useState({
+    logo_url: '',
+    favicon_url: '',
+    primary_color: '#000000',
+    secondary_color: '#FFFFFF',
+    accent_color: '#0066CC'
+  });
 
   // Apply theme class - mobile phones can use dark mode, desktops and tablets always light
   // CRITICAL: Apply theme IMMEDIATELY to prevent flash of light mode
