@@ -1389,14 +1389,54 @@ export default function DeliveryForm({
     await handlePatientSelect(patient, false);
   }, [handlePatientSelect]);
 
-  // Handler for "Duplicate Patient" button - opens PatientForm to create new patient with duplicated data
+  // Handler for "Duplicate Patient" button - opens PatientForm to create new patient
   const handleDuplicatePatient = useCallback((patient) => {
     if (!patient) return;
     
+    // CRITICAL: Get full patient data to ensure all fields are populated
     const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
     
+    if (isAppOwner(currentUser)) { console.log('DEBUG: Duplicating patient:', fullPatient); }
+    
     setNewPatientMode('duplicate');
-    setSelectedPatient(null);
+    setSelectedPatient(null); // Clear selected patient since we're creating new
+    setPatientSearch('');
+    setHighlightedPatientIndex(-1);
+    
+    // Create patient object with all pre-filled data but empty name
+    const patientWithoutName = {
+      ...fullPatient,
+      full_name: '', // Empty name - user will enter new name
+      _duplicateSource: true,
+      _isNew: true,
+      _focusName: !isMobileDevice
+    };
+    
+    setSelectedPatient(patientWithoutName);
+    
+    // Trigger patient form to open with pre-filled data
+    if (onCreatePatient) {
+      setIsPatientFormOpen(true);
+      onCreatePatient((createdPatient) => {
+        setIsPatientFormOpen(false);
+        setNewPatientMode(null);
+        // CRITICAL: Auto-add new patient to staged (true parameter)
+        handlePatientSelect(createdPatient, true);
+      }, patientWithoutName);
+    }
+  }, [onCreatePatient, handlePatientSelect, patients, isMobileDevice]);
+
+  // Handler for "New Address" button - opens PatientForm to create new patient
+  const handleNewAddressPatient = useCallback((patient) => {
+    if (!patient) return;
+    
+    // CRITICAL: Get full patient data to ensure all fields are populated
+    const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
+    
+    if (isAppOwner(currentUser)) { console.log('DEBUG: Creating new address for patient:', fullPatient); }
+    
+    setNewPatientMode('new_address');
+    setSelectedPatient(null); // Clear selected patient since we're creating new
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
     
@@ -1440,60 +1480,46 @@ export default function DeliveryForm({
       }
     }
     
-    // Fill form with all patient data but clear patient_id (to create new)
+    // Fill form with patient data but clear patient_id (to create new) and name
     setFormData((prev) => ({
       ...prev,
       patient_id: '', // Empty to create new patient
-      patient_name: fullPatient.full_name || '',
-      patient_phone: fullPatient.phone || '',
-      unit_number: fullPatient.unit_number || '',
-      time_window_start: fullPatient.time_window_start || '',
-      time_window_end: fullPatient.time_window_end || '',
-      mailbox_ok: fullPatient.mailbox_ok || false,
-      call_upon_arrival: fullPatient.call_upon_arrival || false,
-      ring_bell: fullPatient.ring_bell || false,
-      dont_ring_bell: fullPatient.dont_ring_bell || false,
-      back_door: fullPatient.back_door || false,
-      signature_needed: fullPatient.signature_needed || false,
-      delivery_instructions: fullPatient.notes || '',
-      store_id: fullPatient.store_id || '',
+      patient_name: '', // Clear name for user to enter
+      patient_phone: patient.phone || '',
+      unit_number: patient.unit_number || '',
+      time_window_start: patient.time_window_start || '',
+      time_window_end: patient.time_window_end || '',
+      mailbox_ok: patient.mailbox_ok || false,
+      call_upon_arrival: patient.call_upon_arrival || false,
+      ring_bell: patient.ring_bell || false,
+      dont_ring_bell: patient.dont_ring_bell || false,
+      back_door: patient.back_door || false,
+      signature_needed: patient.signature_needed || false,
+      delivery_instructions: patient.notes || '',
+      store_id: patient.store_id || '',
       driver_id: autoSelectedDriverId,
       driver_name: autoSelectedDriverName,
-      recurring: fullPatient.recurring || false,
-      recurring_daily: fullPatient.recurring_daily || false,
-      recurring_weekly_mon: fullPatient.recurring_weekly_mon || false,
-      recurring_weekly_tue: fullPatient.recurring_weekly_tue || false,
-      recurring_weekly_wed: fullPatient.recurring_weekly_wed || false,
-      recurring_weekly_thu: fullPatient.recurring_weekly_thu || false,
-      recurring_weekly_fri: fullPatient.recurring_weekly_fri || false,
-      recurring_weekly_sat: fullPatient.recurring_weekly_sat || false,
-      recurring_weekly_sun: fullPatient.recurring_weekly_sun || false,
-      recurring_biweekly: fullPatient.recurring_biweekly || false,
-      recurring_weekly_x4: fullPatient.recurring_weekly_x4 || false,
-      recurring_monthly: fullPatient.recurring_monthly || false,
-      recurring_bimonthly: fullPatient.recurring_bimonthly || false
+      recurring: patient.recurring || false,
+      recurring_daily: patient.recurring_daily || false,
+      recurring_weekly_mon: patient.recurring_weekly_mon || false,
+      recurring_weekly_tue: patient.recurring_weekly_tue || false,
+      recurring_weekly_wed: patient.recurring_weekly_wed || false,
+      recurring_weekly_thu: patient.recurring_weekly_thu || false,
+      recurring_weekly_fri: patient.recurring_weekly_fri || false,
+      recurring_weekly_sat: patient.recurring_weekly_sat || false,
+      recurring_weekly_sun: patient.recurring_weekly_sun || false,
+      recurring_biweekly: patient.recurring_biweekly || false,
+      recurring_weekly_x4: patient.recurring_weekly_x4 || false,
+      recurring_monthly: patient.recurring_monthly || false,
+      recurring_bimonthly: patient.recurring_bimonthly || false
     }));
     
-    // Create patient object with all duplicated data
-    const duplicatedPatient = {
-      ...fullPatient,
-      _duplicateSource: true,
-      _isNew: true
-    };
+    // Store original patient data for reference when creating new patient
+    setSelectedPatient({ ...patient, _duplicateSource: true });
     
-    setSelectedPatient(duplicatedPatient);
-    
-    // Trigger patient form to open with duplicated data
-    if (onCreatePatient) {
-      setIsPatientFormOpen(true);
-      onCreatePatient((createdPatient) => {
-        setIsPatientFormOpen(false);
-        setNewPatientMode(null);
-        // CRITICAL: Auto-add new patient to staged (true parameter)
-        handlePatientSelect(createdPatient, true);
-      }, duplicatedPatient);
-    }
-  }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect, patients, isMobileDevice]);
+    // Focus name input after a short delay
+    setTimeout(() => patientNameInputRef.current?.focus(), 150);
+  }, [formData.delivery_date, stores, drivers]);
 
   // Handler for "New Address" button - creates new patient with same info but empty address/unit
   const handleNewAddressPatient = useCallback((patient) => {
