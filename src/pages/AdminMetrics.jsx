@@ -395,7 +395,7 @@ export default function AdminMetrics() {
                   <Store className="w-5 h-5" style={{ color: '#1e40af' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                  {metricsData.storeFeeTotals?.stores_paying_fees || 0} / {metricsData.storeFeeTotals?.total_stores || 0}
+                  {metricsData.storeFeeTotals?.stores_paying_fees || 0} / {metricsData.storeFeeTotals?.active_stores || metricsData.storeFeeTotals?.total_stores || 0}
                 </p>
               </div>
             </CardContent>
