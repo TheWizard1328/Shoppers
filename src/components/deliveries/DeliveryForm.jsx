@@ -1389,7 +1389,7 @@ export default function DeliveryForm({
     await handlePatientSelect(patient, false);
   }, [handlePatientSelect]);
 
-  // Handler for "Duplicate Patient" button - creates new patient with same info but empty name
+  // Handler for "Duplicate Patient" button - opens PatientForm to create new patient
   const handleDuplicatePatient = useCallback((patient) => {
     if (!patient) return;
     
