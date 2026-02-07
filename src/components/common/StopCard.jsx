@@ -2903,7 +2903,7 @@ export default function StopCard({
                                 {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                                 <span className="text-white">Start</span>
                               </Button>)
-                      }
+                      )}
 
                       <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
