@@ -2231,9 +2231,9 @@ export default function StopCard({
                 <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
                   {(isAssignedDriverOrAppOwner || canEdit) && (
                     <>
-                      {/* LEFT SIDE: Signature + Photo Buttons (incomplete next OR completed with proof) */}
-                      {!isPickup && (isNextDelivery && !isFinishedDelivery || delivery.status === 'completed') && (
-                        <div className="flex items-center gap-2">
+                      {/* LAYOUT 1: Failed Delivery - Return, Retry, Restart, Menu (all across bottom) */}
+                      {delivery.status === 'failed' && !isPickup && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') ? (
+                        <div className="flex items-center gap-2 w-full">
                           {(isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.signature_image_url) && (
                             <Button
                               onClick={(e) => {
@@ -2889,65 +2889,52 @@ export default function StopCard({
                                 </Button>
                                 )}
 
-                                <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
+                                    onClick={(e) => e.stopPropagation()}>
+                                    <MoreVertical className="w-5 h-5 md:w-4 md:h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                                  {onEditDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDelivery(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5">
+                                      <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                      {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
+                                    </DropdownMenuItem>
+                                  )}
 
-                            onClick={(e) => e.stopPropagation()}>
-                            <MoreVertical className="w-5 h-5 md:w-4 md:h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
-                          {onEditDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDelivery(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5">
-                              <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                              {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
-                            </DropdownMenuItem>
-                          }
+                                  {!isPickup && patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) && (
+                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }} className="text-base md:text-sm py-2.5 md:py-1.5">
+                                      <User className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                      Edit Patient
+                                    </DropdownMenuItem>
+                                  )}
 
-                          {!isPickup && patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }} className="text-base md:text-sm py-2.5 md:py-1.5">
-                              <User className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                              Edit Patient
-                            </DropdownMenuItem>
-                          }
+                                  {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient) && (
+                                    <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                                  )}
 
+                                  {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                                    <DropdownMenuItem
+                                      onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
+                                      className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
+                                      disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
+                                      <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                                </DropdownMenu>
+                                </div>
+                                </>
 
-
-                          {/* Failed/Cancel menu item - for active deliveries */}
-                          {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate &&
-                            <>
-                              <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
-                                  setShowFailureReasonDialog(true);
-                                }}
-                                className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5">
-                                <XCircle className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                                {isPickup ? 'Cancel Pickup' : 'Mark as Failed'}
-                              </DropdownMenuItem>
-                            </>
-                          }
-
-                          {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />}
-
-                          {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                            <DropdownMenuItem
-                              onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
-                              className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
-                              disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
-                              <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          }
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      </div>
-                    )}
+                                ) : delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && !isNextDelivery && onStartDelivery ? (
+                                /* LAYOUT 4: Active NOT isNextDelivery - RIGHT: Start+Menu only */
+                                <div className="flex items-center gap-2 ml-auto">
+                                <Button type="button" onClick={async (e) => {
                   </>
                 }
               </div>
