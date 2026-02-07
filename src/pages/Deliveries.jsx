@@ -483,7 +483,7 @@ export default function DeliveriesPage() {
           console.log(`📅 [Deliveries] Delivery date range: ${dates[0]} to ${dates[dates.length - 1]}`);
         }
       } else {
-        // CRITICAL: Load ENTIRE MONTH's data for Route Management
+        // CRITICAL: Load ENTIRE MONTH's data for Route Management - bypass offline DB to get fresh data
         const currentYear = selectedYear;
         const currentMonth = selectedMonth;
         const startOfMonth = new Date(currentYear, currentMonth, 1);
@@ -491,55 +491,20 @@ export default function DeliveriesPage() {
         const startDateStr = format(startOfMonth, 'yyyy-MM-dd');
         const endDateStr = format(endDate, 'yyyy-MM-dd');
 
-        console.log('📅 [Deliveries] Fetching entire month:', format(startOfMonth, 'MMMM yyyy'));
+        console.log('📅 [Deliveries] Fetching entire month:', format(startOfMonth, 'MMMM yyyy'), `(${startDateStr} to ${endDateStr})`);
 
-        // Load from offline DB first, then sync if forced refresh
+        // CRITICAL: Always fetch fresh from server for Route Management (don't rely on offline DB which may be stale)
         try {
-          const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
-          const offlineDeliveries = await offlineDBInstance.getAll(offlineDBInstance.STORES.DELIVERIES);
-          
-          if (offlineDeliveries && offlineDeliveries.length > 0) {
-            // Filter offline data for this month
-            const monthFilteredDeliveries = offlineDeliveries.filter((d) => {
-              if (!d || !d.delivery_date) return false;
-              return d.delivery_date >= startDateStr && d.delivery_date <= endDateStr;
-            });
-            
-            console.log(`📦 [Deliveries] Loaded ${monthFilteredDeliveries.length} deliveries from offline DB for ${format(startOfMonth, 'MMMM yyyy')}`);
-            deliveriesData = monthFilteredDeliveries;
-            
-            // If force refresh, also fetch from server to update offline DB
-            if (forceRefresh) {
-              console.log('🔄 [Deliveries] Force refresh requested, fetching from server...');
-              const serverData = await getData(
-                'Delivery',
-                '-delivery_date',
-                { delivery_date: { $gte: startDateStr, $lte: endDateStr } },
-                true
-              );
-              if (serverData && serverData.length > 0) {
-                deliveriesData = serverData;
-                console.log(`✅ [Deliveries] Fetched ${serverData.length} deliveries from server`);
-              }
-            }
-          } else {
-            console.log('❌ [Deliveries] No offline data found, fetching from server...');
-            deliveriesData = await getData(
-              'Delivery',
-              '-delivery_date',
-              { delivery_date: { $gte: startDateStr, $lte: endDateStr } },
-              forceRefresh
-            );
-            console.log('Found deliveries:', deliveriesData?.length || 0);
-          }
-        } catch (offlineError) {
-          console.warn('⚠️ [Deliveries] Offline DB error, falling back to server:', offlineError.message);
           deliveriesData = await getData(
             'Delivery',
             '-delivery_date',
             { delivery_date: { $gte: startDateStr, $lte: endDateStr } },
-            forceRefresh
+            true  // Force refresh to ensure we get complete month data
           );
+          console.log(`✅ [Deliveries] Fetched ${deliveriesData?.length || 0} deliveries from server for month`);
+        } catch (error) {
+          console.error('❌ [Deliveries] Error fetching month deliveries:', error.message);
+          deliveriesData = [];
         }
       }
 
