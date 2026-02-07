@@ -215,13 +215,19 @@ export default function PatientForm({
 
       const hasRecurring = initialFrequency !== '';
 
+      // Generate new patient ID for duplicate modes
+      let newPID = patient.patient_id || "";
+      if (duplicateMode === 'newAddress' || duplicateMode === 'duplicate') {
+        newPID = generatePatientId(allPatients.map((p) => p.patient_id));
+      }
+
       setFormData({
-        patient_id: patient.patient_id || "",
-        full_name: patient.full_name || "",
-        phone: patient.phone || "",
-        phone_secondary: patient.phone_secondary || "",
-        address: patient.address || "",
-        unit_number: patient.unit_number || "",
+        patient_id: newPID,
+        full_name: duplicateMode === 'duplicate' ? "" : (patient.full_name || ""),
+        phone: duplicateMode === 'duplicate' ? "" : (patient.phone || ""),
+        phone_secondary: duplicateMode === 'duplicate' ? "" : (patient.phone_secondary || ""),
+        address: duplicateMode === 'newAddress' ? "" : (patient.address || ""),
+        unit_number: duplicateMode === 'newAddress' ? "" : (patient.unit_number || ""),
         notes: patient.notes || "",
         store_id: patient.store_id || "",
         time_window_start: patient.time_window_start || "",
@@ -246,7 +252,7 @@ export default function PatientForm({
         isInitialLoad.current = false;
       }, 0);
     }
-  }, [patient]);
+  }, [patient, duplicateMode, allPatients]);
 
   useEffect(() => {
     const handleEscKey = (event) => {
