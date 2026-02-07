@@ -761,22 +761,18 @@ export default function DeliveriesPage() {
     });
   }, [hasAccess]);
 
-  // CRITICAL: Force data reload when driver is selected in Route Management mode
+  // CRITICAL: Reload data when transitioning from Driver Overview to Route Management
   useEffect(() => {
-    if (isDriverOverviewMode || !driverFilter || driverFilter === 'all' || !dataLoaded) {
-      return;
+    if (prevModeRef.current === null) return;
+    
+    // Detect transition from Driver Overview to Route Management
+    const transitionedToRouteManagement = prevModeRef.current === true && isDriverOverviewMode === false;
+    
+    if (transitionedToRouteManagement && driverFilter !== 'all') {
+      console.log('🔄 [Deliveries] Transitioned to Route Management - reloading month data for selected driver');
+      loadData(true).catch(() => {});
     }
-
-    // CRITICAL: Don't reload if we just transitioned from Driver Overview
-    // The data should already be loaded from Driver Overview
-    if (!isInitialPageLoadRef.current) {
-      console.log('🚗 [Deliveries] Driver selected - data already loaded from Driver Overview');
-      return;
-    }
-
-    console.log('🚗 [Deliveries] Driver selected in Route Management, refreshing month data...');
-    loadData(true).catch(() => {});
-  }, [driverFilter, isDriverOverviewMode, dataLoaded, loadData]);
+  }, [isDriverOverviewMode, driverFilter, loadData]);
 
 
   const availableOverviewYears = useMemo(() => {
@@ -1098,30 +1094,8 @@ export default function DeliveriesPage() {
     }
     setSelectedCityId(initialSelectedCityId);
 
-    // CRITICAL: Don't set selectedDate here in Route Management mode
-    // Let the date cards auto-selection effect handle it (most recent date on load)
-    if (isDriverOverviewMode) {
-      // Driver Overview: use global dashboard date if available
-      let initialSelectedDate = new Date();
-      initialSelectedDate.setHours(0, 0, 0, 0);
-      
-      const globalDate = globalFilters.getSelectedDate();
-      if (globalDate) {
-        try {
-          const globalDateObj = new Date(globalDate);
-          if (!isNaN(globalDateObj.getTime())) {
-            initialSelectedDate = globalDateObj;
-          }
-        } catch (e) {
-          console.warn('[Deliveries] Error parsing global date:', e);
-        }
-      } else {
-        initialSelectedDate = new Date(initialSelectedYear, initialSelectedMonth, 1);
-      }
-      
-      setSelectedDate(initialSelectedDate);
-    }
-    // Route Management: selectedDate is managed by date cards selection effect
+    // CRITICAL: Driver Overview doesn't use selectedDate - it shows stats for the entire year/period
+    // Route Management: selectedDate is managed by date cards selection effect (auto-selected after data loads)
 
     let newDriverFilter = globalFilters.getSelectedDriverId() || 'all';
 
