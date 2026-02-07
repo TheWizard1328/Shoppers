@@ -337,7 +337,7 @@ export default function AdminMetrics() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="pt-4 pb-4">
-              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? MONTH_NAMES[selectedMonth - 1] & ' Billable': selectedYear & ' Deliveries'}</p>
+              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? MONTH_NAMES[selectedMonth - 1] & ' Billable': selectedYear && ' Deliveries'}</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#d1fae5' }}>
                   <Package className="w-5 h-5" style={{ color: '#059669' }} />
@@ -360,7 +360,7 @@ export default function AdminMetrics() {
 
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="pt-4 pb-4">
-              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? MONTH_NAMES[selectedMonth - 1] & ' Non-Billable': selectedYear & ' Non-Billable'}</p>
+              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? MONTH_NAMES[selectedMonth - 1] & ' Non-Billable': selectedYear && ' Non-Billable'}</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#fed7aa' }}>
                   <TrendingUp className="w-5 h-5" style={{ color: '#b45309' }} />
