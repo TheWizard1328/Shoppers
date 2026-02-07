@@ -4417,7 +4417,7 @@ export default function DeliveryForm({
                                     {patient.phone && (
                                       <div className="text-xs text-slate-500 truncate">
                                         {formatPhoneNumber(patient.phone)}
-                                        {patient.unit_number && <> • {patient.unit_number}</>}
+                                        {patient.unit_number && <> • #{patient.unit_number}</>}
                                       </div>
                                     )}
                                   </button>
