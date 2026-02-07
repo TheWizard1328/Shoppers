@@ -3578,7 +3578,7 @@ export default function Layout({ children, currentPageName }) {
                           </button>
                     }
 
-                    {(isAppOwner(currentUser) || userHasRole(currentUser, 'driver')) &&
+                    {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                     <Link
                     to={createPageUrl('SquareManagement')}
                     onClick={(e) => {
