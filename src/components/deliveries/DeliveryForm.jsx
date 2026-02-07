@@ -4433,7 +4433,7 @@ export default function DeliveryForm({
                                         e.stopPropagation();
                                         handleDuplicatePatient(patient);
                                       }}
-                                      title="Duplicate Patient (same address, new name)">
+                                      title="Duplicate Patient (same address, new patient)">
                                       <Copy className="w-3 h-3 text-blue-600" />
                                     </Button>
                                     <Button
@@ -4445,7 +4445,7 @@ export default function DeliveryForm({
                                         e.stopPropagation();
                                         handleNewAddressPatient(patient);
                                       }}
-                                      title="New Address (same name, new address)">
+                                      title="New Address (same patient, new address)">
                                       <MapPin className="w-3 h-3 text-purple-600" />
                                     </Button>
                                   </div>
