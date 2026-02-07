@@ -1342,6 +1342,10 @@ export default function DeliveriesPage() {
   }, [filteredDatesByMonth, groupedDeliveries, effectivePatients, selectedYear, selectedMonth, refreshKey]);
 
   useEffect(() => {
+    if (prevModeRef.current === null) {
+      prevModeRef.current = isDriverOverviewMode;
+    }
+
     if (isDriverOverviewMode || isLoading || isLoadingData) {
       prevModeRef.current = isDriverOverviewMode;
       return;
