@@ -2693,6 +2693,10 @@ export default function Layout({ children, currentPageName }) {
             --shadow-color: rgba(0, 0, 0, 0.1);
             --image-filter: none;
             --menu-border: #000000;
+            /* Company branding colors */
+            --primary-color: ${branding.primary_color};
+            --secondary-color: ${branding.secondary_color};
+            --accent-color: ${branding.accent_color};
           }
 
           /* Dark mode via class (explicit user selection) */
