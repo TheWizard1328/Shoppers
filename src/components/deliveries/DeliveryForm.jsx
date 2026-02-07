@@ -4414,7 +4414,12 @@ export default function DeliveryForm({
                                 })()}
                                     </div>
                                     <div className="text-xs text-slate-600 truncate">{patient.address}</div>
-                                    {patient.phone && <div className="text-xs text-slate-500 truncate">{formatPhoneNumber(patient.phone)}</div>}
+                                    {patient.phone && (
+                                      <div className="text-xs text-slate-500 truncate">
+                                        {formatPhoneNumber(patient.phone)}
+                                        {patient.unit_number && <> • {patient.unit_number}</>}
+                                      </div>
+                                    )}
                                   </button>
                                   
                                   {/* Duplicate and New Address buttons */}
