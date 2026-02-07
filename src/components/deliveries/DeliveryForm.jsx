@@ -3134,7 +3134,7 @@ export default function DeliveryForm({
       // Send message if driver changed (from active driver to new driver)
       if (driverChanged && oldDriver && newDriver && currentUser && userHasRole(currentUser, 'driver')) {
         const patientName = delivery.patient_name || selectedPatient?.full_name || 'Unknown';
-        const messageContent = `🚚 Delivery reassigned to you:\n• Patient: ${patientName}\n• Date: ${format(new Date(formData.delivery_date), 'MMM d, yyyy')}\n• From: ${getDriverDisplayName(oldDriver)}`;
+        const messageContent = `🚚 ${getDriverDisplayName(oldDriver)} reassigned a Delivery to you:\n• ${patientName}\n• ${format(new Date(formData.delivery_date), 'MMM d, yyyy')}`;
 
         await sendDeliveryMessage({
           senderId: currentUser.id,
