@@ -2306,7 +2306,117 @@ export default function StopCard({
                           {onRestart && (
                             <Button
                               onClick={async (e) => {
-                          {(isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.signature_image_url) && (
+                                e.stopPropagation();
+                                fabControlEvents.deactivateFAB();
+                                setIsEntityUpdating(true);
+                                setIsProcessingBackground(true);
+                                const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                driverLocationPoller.pause();
+
+                                try {
+                                  const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                                  if (!deliveryExists || deliveryExists.length === 0) {
+                                    throw new Error('This delivery has been deleted. Please refresh the page.');
+                                  }
+
+                                  const driverDeliveries = allDeliveries.filter((d) =>
+                                    d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                                  );
+
+                                  for (const d of driverDeliveries) {
+                                    if (d.isNextDelivery) {
+                                      await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+                                    }
+                                  }
+
+                                  const newStatus = isPickup ? 'en_route' : 'in_transit';
+                                  await updateDeliveryLocal(delivery.id, {
+                                    status: newStatus,
+                                    isNextDelivery: true,
+                                    actual_delivery_time: null,
+                                    delivery_notes: ''
+                                  }, { skipSmartRefresh: true });
+
+                                  const now = new Date();
+                                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                  await base44.functions.invoke('optimizeRouteRealTime', {
+                                    driverId: delivery.driver_id,
+                                    deliveryDate: delivery.delivery_date,
+                                    currentLocalTime: currentLocalTime,
+                                    generatePolyline: false
+                                  });
+
+                                  invalidate('Delivery');
+                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                    detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                  }));
+
+                                  if (userHasRole(currentUser, 'driver')) {
+                                    await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers });
+                                  }
+                                } finally {
+                                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                  driverLocationPoller.resume();
+                                  fabControlEvents.reactivateFAB(true);
+                                  setIsProcessingBackground(false);
+                                }
+                              }}
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs px-3"
+                              disabled={isProcessingBackground}>
+                              <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
+                              Restart
+                            </Button>
+                          )}
+
+                          <DropdownMenu modal={false}>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
+                                onClick={(e) => e.stopPropagation()}>
+                                <MoreVertical className="w-5 h-5 md:w-4 md:h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="p-1 rounded-md min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                              {onEditDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDelivery(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5">
+                                  <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                  {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
+                                </DropdownMenuItem>
+                              )}
+
+                              {!isPickup && patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) && (
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }} className="text-base md:text-sm py-2.5 md:py-1.5">
+                                  <User className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                  Edit Patient
+                                </DropdownMenuItem>
+                              )}
+
+                              {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient) && (
+                                <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                              )}
+
+                              {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                                <DropdownMenuItem
+                                  onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
+                                  className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
+                                  disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
+                                  <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          </div>
+                          )}
+
+                          {/* Active Next Delivery: Signature+Camera on left, Complete+Menu on right */}
+                          {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && !isPickup && (
+                          <>
+                          <div className="flex items-center gap-2">
                             <Button
                               onClick={(e) => {
                                 e.stopPropagation();
