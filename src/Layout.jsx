@@ -3555,6 +3555,8 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                     }
 
+                    <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+
                     {/* Square COD - Admins and Drivers only */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                     <Link
