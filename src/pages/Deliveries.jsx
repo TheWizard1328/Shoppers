@@ -1124,11 +1124,13 @@ export default function DeliveriesPage() {
     }
     setSelectedCityId(initialSelectedCityId);
 
-    let initialSelectedDate = new Date();
-    initialSelectedDate.setHours(0, 0, 0, 0);
-
+    // CRITICAL: Don't set selectedDate here in Route Management mode
+    // Let the date cards auto-selection effect handle it (most recent date on load)
     if (isDriverOverviewMode) {
       // Driver Overview: use global dashboard date if available
+      let initialSelectedDate = new Date();
+      initialSelectedDate.setHours(0, 0, 0, 0);
+      
       const globalDate = globalFilters.getSelectedDate();
       if (globalDate) {
         try {
@@ -1142,11 +1144,10 @@ export default function DeliveriesPage() {
       } else {
         initialSelectedDate = new Date(initialSelectedYear, initialSelectedMonth, 1);
       }
-    } else {
-      // Route Management: default to first of month (date is selected via date cards, not URL)
-      initialSelectedDate = new Date(initialSelectedYear, initialSelectedMonth, 1);
-      initialSelectedDate.setHours(0, 0, 0, 0);
+      
+      setSelectedDate(initialSelectedDate);
     }
+    // Route Management: selectedDate is managed by date cards selection effect
 
     let newDriverFilter = globalFilters.getSelectedDriverId() || 'all';
 
@@ -1161,38 +1162,6 @@ export default function DeliveriesPage() {
     }
     setDriverFilter(newDriverFilter);
 
-    // CRITICAL: In Route Management, default to first day of selected month for full month view
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayString = format(today, 'yyyy-MM-dd');
-    
-    if (!globalFilters.getSelectedDate()) {
-      if (!isDriverOverviewMode) {
-        // Route Management: default to first day of the selected month
-        const firstDayOfMonth = new Date(initialSelectedYear, initialSelectedMonth, 1);
-        firstDayOfMonth.setHours(0, 0, 0, 0);
-        initialSelectedDate = firstDayOfMonth;
-        console.log('📅 [Deliveries] Route Management mode, defaulting to first day of month:', format(firstDayOfMonth, 'yyyy-MM-dd'));
-      } else {
-        // Driver Overview: use today if available, otherwise latest delivery
-        const todayHasDeliveries = (effectiveDeliveries || []).some((d) => d.delivery_date === todayString);
-        if (todayHasDeliveries) {
-          initialSelectedDate = today;
-          console.log('📅 [Deliveries] Today has deliveries, defaulting to today:', todayString);
-        } else {
-          initialSelectedDate = today;
-        }
-      }
-    }
-
-    console.log('📅 [Deliveries] Final initial state:', {
-      date: format(initialSelectedDate, 'yyyy-MM-dd'),
-      year: initialSelectedYear,
-      month: initialSelectedMonth,
-      driver: newDriverFilter
-    });
-
-    setSelectedDate(initialSelectedDate);
     setStatusFilter(statusParam || '');
     setSearchTerm(searchParam || '');
 
