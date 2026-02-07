@@ -2823,54 +2823,114 @@ function Dashboard() {
         }
         break;
 
-      case 3: // "Center on Driver"
+      case 3: // "Show All Active Drivers"
         console.clear;
-
-        // CRITICAL: Check if selected date is in the past
+        const allCoordinatesPhase3 = [];
+        
+        // Check if viewing today's date
         const todayStrPhase3 = format(new Date(), 'yyyy-MM-dd');
         const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
-        const isPastDatePhase3 = selectedDateStrPhase3 < todayStrPhase3;
-
-        // CRITICAL: Check driver status
-        const driverPhase3 = users.find((u) => u && u.id === currentUser?.id);
-        const isDriverOnDutyPhase3 = driverPhase3 && driverPhase3.driver_status === 'on_duty';
-
-        // CRITICAL: Reactivate Phase 1 if driver is off duty OR date is in the past
-        if (!isDriverOnDutyPhase3 || isPastDatePhase3) {
-          setMapViewPhase(1);
-          setMapViewTrigger((prev) => prev + 1);
-
-          // Set 3-second unlock timer for Phase 1
-          const lockDuration = 3000;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-          mapLockTimeoutRef.current = setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
+        const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
+        
+        // 1. Include all active driver locations (shared markers + blue dot)
+        if (isViewingTodayPhase3) {
+          // Include current driver's blue dot
+          const shouldIncludeBlueDot = isMobile && isDriver && driverLocation?.latitude && driverLocation?.longitude;
+          if (shouldIncludeBlueDot) {
+            allCoordinatesPhase3.push([driverLocation.latitude, driverLocation.longitude]);
+          }
+          
+          // Include all shared driver location markers
+          const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
+          const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
+          
+          // Deduplicate by driver_id
+          const uniqueLocations = new Map();
+          allLocationSources.forEach(loc => {
+            if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
+              uniqueLocations.set(loc.driver_id, loc);
             }
-          }, lockDuration);
-          return;
+          });
+          
+          Array.from(uniqueLocations.values()).forEach((location) => {
+            // Skip current user on mobile (blue dot already added above)
+            if (isMobile && location.driver_id === currentUser?.id) {
+              return;
+            }
+            allCoordinatesPhase3.push([location.latitude, location.longitude]);
+          });
         }
-
-        if (!driverLocation?.latitude || !driverLocation?.longitude) {
-          console.warn('⚠️ [FAB Click] Phase 3 - No driver location available');
-          return;
-        }
-
-        const padding = getMapPadding();
-
-        setShouldFitBounds({
-          bounds: [[driverLocation.latitude, driverLocation.longitude]],
-          options: {
-            ...padding,
-            maxZoom: 15,
-            animate: true
+        
+        // 2. Include all incomplete stops from all active drivers
+        const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+        const incompleteStopsAllDrivers = deliveries.filter((d) => {
+          if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
+          if (finishedStatusesPhase3.includes(d.status)) return false;
+          
+          // Filter by dispatcher stores if applicable
+          if (isDispatcher && !isAdmin && currentUser?.store_ids) {
+            const dispatcherStoreIds = new Set(currentUser.store_ids);
+            if (!dispatcherStoreIds.has(d.store_id)) return false;
+          }
+          
+          return true;
+        });
+        
+        incompleteStopsAllDrivers.forEach((delivery) => {
+          if (delivery.patient_id) {
+            const patient = patients.find((p) => p?.id === delivery.patient_id);
+            if (patient?.latitude && patient?.longitude) {
+              allCoordinatesPhase3.push([patient.latitude, patient.longitude]);
+            }
+          } else if (delivery.store_id) {
+            const store = stores.find((s) => s?.id === delivery.store_id);
+            if (store?.latitude && store?.longitude) {
+              allCoordinatesPhase3.push([store.latitude, store.longitude]);
+            }
           }
         });
-        setMapCenter(null);
-        setMapZoom(null);
+        
+        // 3. Fallback to city center if no coordinates
+        if (allCoordinatesPhase3.length === 0) {
+          const selectedCityId = globalFilters.getSelectedCityId();
+          const currentCity = cities?.find((c) => c && c.id === selectedCityId);
+          if (currentCity?.latitude && currentCity?.longitude) {
+            allCoordinatesPhase3.push([currentCity.latitude, currentCity.longitude]);
+          }
+        }
+        
+        // 4. Fit bounds to show all driver locations and incomplete stops
+        if (allCoordinatesPhase3.length > 0) {
+          const padding = getMapPadding();
+          
+          // Calculate appropriate zoom based on span
+          let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+          allCoordinatesPhase3.forEach(([lat, lon]) => {
+            minLat = Math.min(minLat, lat);
+            maxLat = Math.max(maxLat, lat);
+            minLon = Math.min(minLon, lon);
+            maxLon = Math.max(maxLon, lon);
+          });
+          
+          const latSpan = maxLat - minLat;
+          const lonSpan = maxLon - minLon;
+          const maxSpan = Math.max(latSpan, lonSpan);
+          const spanKm = maxSpan * 111.0;
+          const baseZoom = 16 - Math.log2(spanKm + 1) * 1.5;
+          const screenAdjustment = isMobile ? 0.5 : -0.5;
+          const phase3MaxZoom = Math.max(10.0, Math.min(16, Math.round((baseZoom + screenAdjustment) * 10) / 10));
+          
+          setShouldFitBounds({
+            bounds: allCoordinatesPhase3,
+            options: {
+              ...padding,
+              maxZoom: phase3MaxZoom,
+              animate: true
+            }
+          });
+          setMapCenter(null);
+          setMapZoom(null);
+        }
         break;
 
       default:

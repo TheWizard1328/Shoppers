@@ -46,7 +46,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
       case 2:
         return 'Center on Driver & Next Stop';
       case 3:
-        return 'Center on Driver';
+        return 'Show All Active Drivers';
       default:
         return 'Cycle Map View';
     }
