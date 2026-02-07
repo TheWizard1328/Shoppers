@@ -426,57 +426,60 @@ export default function DeliveriesPage() {
       let deliveriesData = [];
 
       if (isDriverOverviewMode) {
-        console.log('📋 [Deliveries] Loading Driver Overview - fetching FRESH data from server for accurate stats');
+         console.log('📋 [Deliveries] Loading Driver Overview - fetching FRESH data from server for accurate stats');
 
-        // CRITICAL: For accurate driver stats, ALWAYS fetch from server (not offline DB)
-        const targetYear = selectedOverviewYear === 'all' ? new Date().getFullYear() : parseInt(selectedOverviewYear, 10);
-        
-        console.log(`📅 [Deliveries] Fetching deliveries for year ${targetYear} in quarterly chunks`);
+         // CRITICAL: Load all years of historical data for complete stats
+         // Fetch from current year back to 2020 to cover all historical data
+         const currentYear = new Date().getFullYear();
+         const startYear = 2020;
 
-        try {
-          // Fetch each quarter separately to avoid hitting the 5000 limit
-          const quarters = [
-            { start: `${targetYear}-01-01`, end: `${targetYear}-03-31`, label: 'Q1' },
-            { start: `${targetYear}-04-01`, end: `${targetYear}-06-30`, label: 'Q2' },
-            { start: `${targetYear}-07-01`, end: `${targetYear}-09-30`, label: 'Q3' },
-            { start: `${targetYear}-10-01`, end: `${targetYear}-12-31`, label: 'Q4' }
-          ];
+         console.log(`📅 [Deliveries] Fetching deliveries from ${startYear} to ${currentYear}`);
 
-          const allQuarterData = [];
+         try {
+           const allYearData = [];
 
-          for (const quarter of quarters) {
-            console.log(`📅 [Deliveries] Fetching ${quarter.label}: ${quarter.start} to ${quarter.end}`);
-            const quarterData = await base44.entities.Delivery.filter({
-              delivery_date: { $gte: quarter.start, $lte: quarter.end }
-            }, '-delivery_date');
-            console.log(`✅ [Deliveries] ${quarter.label}: ${quarterData?.length || 0} deliveries`);
-            if (quarterData && quarterData.length > 0) {
-              allQuarterData.push(...quarterData);
-            }
-          }
+           // Fetch each year
+           for (let year = currentYear; year >= startYear; year--) {
+             console.log(`📅 [Deliveries] Fetching year ${year}...`);
+             const quarters = [
+               { start: `${year}-01-01`, end: `${year}-03-31`, label: 'Q1' },
+               { start: `${year}-04-01`, end: `${year}-06-30`, label: 'Q2' },
+               { start: `${year}-07-01`, end: `${year}-09-30`, label: 'Q3' },
+               { start: `${year}-10-01`, end: `${year}-12-31`, label: 'Q4' }
+             ];
 
-          deliveriesData = allQuarterData;
-          console.log(`✅ [Deliveries] Total loaded: ${deliveriesData.length} deliveries for year ${targetYear}`);
-          
-          // Also save to offline DB for fallback
-          if (deliveriesData.length > 0) {
-            const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
-            await offlineDBInstance.bulkSave(offlineDBInstance.STORES.DELIVERIES, deliveriesData);
-            console.log(`💾 [Deliveries] Cached ${deliveriesData.length} deliveries to offline DB`);
-          }
-        } catch (error) {
-          console.error('Failed to fetch year deliveries, falling back to offline DB:', error);
-          try {
-            const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
-            const offlineDeliveries = await offlineDBInstance.getAll(offlineDBInstance.STORES.DELIVERIES);
-            if (offlineDeliveries && offlineDeliveries.length > 0) {
-              deliveriesData = offlineDeliveries;
-              console.log(`⚠️ [Deliveries] Using ${deliveriesData.length} deliveries from offline DB (fallback)`);
-            }
-          } catch (offlineError) {
-            console.error('Offline DB fallback also failed:', offlineError);
-          }
-        }
+             for (const quarter of quarters) {
+               const quarterData = await base44.entities.Delivery.filter({
+                 delivery_date: { $gte: quarter.start, $lte: quarter.end }
+               }, '-delivery_date');
+               if (quarterData && quarterData.length > 0) {
+                 allYearData.push(...quarterData);
+               }
+             }
+           }
+
+           deliveriesData = allYearData;
+           console.log(`✅ [Deliveries] Total loaded: ${deliveriesData.length} deliveries from ${startYear}-${currentYear}`);
+
+           // Also save to offline DB for fallback
+           if (deliveriesData.length > 0) {
+             const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
+             await offlineDBInstance.bulkSave(offlineDBInstance.STORES.DELIVERIES, deliveriesData);
+             console.log(`💾 [Deliveries] Cached ${deliveriesData.length} deliveries to offline DB`);
+           }
+         } catch (error) {
+           console.error('Failed to fetch all year deliveries, falling back to offline DB:', error);
+           try {
+             const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
+             const offlineDeliveries = await offlineDBInstance.getAll(offlineDBInstance.STORES.DELIVERIES);
+             if (offlineDeliveries && offlineDeliveries.length > 0) {
+               deliveriesData = offlineDeliveries;
+               console.log(`⚠️ [Deliveries] Using ${deliveriesData.length} deliveries from offline DB (fallback)`);
+             }
+           } catch (offlineError) {
+             console.error('Offline DB fallback also failed:', offlineError);
+           }
+         }
 
         if (deliveriesData && deliveriesData.length > 0) {
           const dates = deliveriesData.map((d) => d.delivery_date).filter(Boolean).sort();
