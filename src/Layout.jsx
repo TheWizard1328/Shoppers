@@ -910,9 +910,14 @@ export default function Layout({ children, currentPageName }) {
 
         // Load company branding if user has company_id
         if (fetchedUser?.company_id) {
-          const companyBranding = await getCompanyBranding(fetchedUser.company_id);
-          setBranding(companyBranding);
-          applyBrandingStyles(companyBranding);
+          try {
+            const companyBranding = await getCompanyBranding(fetchedUser.company_id);
+            setBranding(companyBranding);
+            applyBrandingStyles(companyBranding);
+          } catch (brandingError) {
+            console.warn('⚠️ [Layout] Branding fetch failed, using defaults:', brandingError);
+            // Continue with default branding - don't break initialization
+          }
         }
 
         // Load cities from offline DB first to prevent rate limits
