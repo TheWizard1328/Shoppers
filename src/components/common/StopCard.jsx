@@ -2926,19 +2926,18 @@ export default function StopCard({
                                       Delete
                                     </DropdownMenuItem>
                                   )}
-                                </DropdownMenuContent>
-                                </DropdownMenuContent>
-                                </DropdownMenu>
-                                </div>
-                                )}
-                                </>
-                                )}
-                                </div>
-                                </div>
-                                </div>
-                                )}
-        </CardContent>
-      </Card>
-    </motion.div>);
-
-}
+                                  </DropdownMenuContent>
+                                  </DropdownMenu>
+                                  </div>
+                                  )}
+                                  </>
+                                  )}
+                                  </div>
+                                  </div>
+                                  </div>
+                                  )}
+                                  </CardContent>
+                                  </Card>
+                                  </motion.div>
+                                  );
+                                  }
