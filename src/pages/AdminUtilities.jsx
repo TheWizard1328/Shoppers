@@ -1177,7 +1177,7 @@ const DeliveryDataTable = ({
                                   {driverName}
                                 </span>
                                 {delivery.isNextDelivery && (
-                                  <Badge className="bg-green-100 text-green-800 border-green-300 w-fit">
+                                  <Badge className="bg-green-100 !text-green-800 border-green-300 w-fit">
                                     Next
                                   </Badge>
                                 )}
