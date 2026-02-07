@@ -3555,29 +3555,7 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                     }
 
-                    {/* Snapshot Mode - App Owner Only */}
-                    {isAppOwner(currentUser) &&
-                    <button
-                    onClick={() => {
-                      setIsSnapshotModeActive(!isSnapshotModeActive);
-                      setSidebarOpen(false);
-                    }}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    isSnapshotModeActive ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
-                    style={isSnapshotModeActive ? {
-                      background: 'var(--bg-slate-100)',
-                      color: 'var(--text-slate-900)'
-                    } : {
-                      color: 'var(--text-slate-600)'
-                    }}>
-                          <Clock className="w-5 h-5" />
-                          <span className="font-semibold">Snapshot Mode</span>
-                          </button>
-                    }
-
+                    {/* Square COD - Admins and Drivers only */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                     <Link
                     to={createPageUrl('SquareManagement')}
@@ -3607,6 +3585,7 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                     }
 
+                    {/* Driver Payroll - Admins and Drivers */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                     <Link
                     to={createPageUrl('DriverPayroll')}
@@ -3657,6 +3636,29 @@ export default function Layout({ children, currentPageName }) {
                         <BarChart3 className="w-5 h-5" />
                         <span className="font-semibold">Route Metrics</span>
                       </Link>
+                    }
+
+                    {/* Snapshot Mode - App Owner Only */}
+                    {isAppOwner(currentUser) &&
+                    <button
+                    onClick={() => {
+                      setIsSnapshotModeActive(!isSnapshotModeActive);
+                      setSidebarOpen(false);
+                    }}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    isSnapshotModeActive ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
+                    style={isSnapshotModeActive ? {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)'
+                    } : {
+                      color: 'var(--text-slate-600)'
+                    }}>
+                          <Clock className="w-5 h-5" />
+                          <span className="font-semibold">Snapshot Mode</span>
+                          </button>
                     }
 
                     {(userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
