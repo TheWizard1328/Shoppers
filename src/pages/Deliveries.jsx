@@ -3164,6 +3164,11 @@ export default function DeliveriesPage() {
       month: targetMonth + 1
     });
 
+    // CRITICAL: Set driver filter immediately to prevent it from being cleared
+    setDriverFilter(driver.id);
+    setSelectedYear(targetYear);
+    setSelectedMonth(targetMonth);
+
     // CRITICAL: Only use year/month/driver in URL, NO date param
     const params = new URLSearchParams();
     params.set('driver', driver.id);
