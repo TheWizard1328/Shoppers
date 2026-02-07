@@ -1110,7 +1110,7 @@ export default function DeliveriesPage() {
     }
     setDriverFilter(newDriverFilter);
 
-    setStatusFilter(statusParam || '');
+    setStatusFilter(statusParam || 'all');
     setSearchTerm(searchParam || '');
 
     const currentDriver = (effectiveDrivers || []).find((d) => d.id === newDriverFilter);
