@@ -800,6 +800,13 @@ export default function DeliveriesPage() {
       return;
     }
 
+    // CRITICAL: Don't reload if we just transitioned from Driver Overview
+    // The data should already be loaded from Driver Overview
+    if (!isInitialPageLoadRef.current) {
+      console.log('🚗 [Deliveries] Driver selected - data already loaded from Driver Overview');
+      return;
+    }
+
     console.log('🚗 [Deliveries] Driver selected in Route Management, refreshing month data...');
     loadData(true).catch(() => {});
   }, [driverFilter, isDriverOverviewMode, dataLoaded, loadData]);
