@@ -2488,98 +2488,6 @@ export default function StopCard({
                             <div className="flex items-center ml-auto">
                               {isNextDelivery ?
                                 <Button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-
-                              fabControlEvents.deactivateFAB();
-                              setIsRetrying(true);
-                              setIsProcessingBackground(true);
-                              console.log('⏸️ [Retry] Pausing location poller...');
-                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                              driverLocationPoller.pause();
-
-                              smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-                              await new Promise((resolve) => setTimeout(resolve, 50));
-
-                              try {
-                                // CRITICAL: Verify delivery still exists before retrying
-                                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                                if (!deliveryExists || deliveryExists.length === 0) {
-                                  console.warn('⚠️ [RETRY] Delivery no longer exists - aborting');
-                                  throw new Error('This delivery has been deleted. Please refresh the page.');
-                                }
-
-                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                                await ensureDriverOnline();
-
-                                // CRITICAL: Save to both offline and online databases
-                                await updateDeliveryLocal(delivery.id, {
-                                  status: isPickup ? 'en_route' : 'in_transit'
-                                }, { skipSmartRefresh: true });
-
-                                // Also call onStatusUpdate if available for additional UI updates
-                                if (onStatusUpdate) {
-                                  await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
-                                }
-
-                                // CRITICAL: Run route optimizer to insert retry at optimal position
-                                try {
-                                  const now = new Date();
-                                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                  console.log('🔄 [Retry] Running optimizeRouteRealTime...');
-                                  await base44.functions.invoke('optimizeRouteRealTime', {
-                                    driverId: delivery.driver_id,
-                                    deliveryDate: delivery.delivery_date,
-                                    currentLocalTime: currentLocalTime,
-                                    generatePolyline: false
-                                  });
-                                  console.log('✅ [Retry] Route optimized');
-
-                                  // CRITICAL: Refresh UI to show reordered stops
-                                  invalidate('Delivery');
-                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                  console.log('✅ [Retry] UI refreshed with new stop order');
-                                } catch (optimizeError) {
-                                  console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);
-                                }
-
-                                // CRITICAL: Trigger immediate map update
-                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                  detail: { triggeredBy: 'retry', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                }));
-
-                                // Send notification to dispatchers
-                                if (userHasRole(currentUser, 'driver')) {
-                                  await notifyDriverRetry({
-                                    driver: currentUser,
-                                    patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                    delivery,
-                                    store,
-                                    appUsers
-                                  });
-                                }
-                              } finally {
-                                const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                driverLocationPoller.resume();
-
-                                setIsRetrying(false);
-                                setIsProcessingBackground(false);
-                                console.log('✅ [RETRY] Retry cycle complete');
-
-                                // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
-                                fabControlEvents.reactivateFAB(true);
-                              }
-                            }}
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
-                            disabled={isRetrying || isProcessingBackground || !canRetry || hasFutureRetry || hasCompletedDelivery}>
-                            {isRetrying ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-                            <span className="text-white">Retry</span>
-                          </Button> :
-                          delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
-                            isNextDelivery ?
-                              <Button
                                 onClick={async (e) => {
                                   e.stopPropagation();
 
@@ -2983,8 +2891,7 @@ export default function StopCard({
                               }} size="sm" disabled={isStarting || isProcessingBackground} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white" title="Start this delivery">
                                 {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                                 <span className="text-white">Start</span>
-                                </Button> :
-                                null
+                                </Button>
                                 }
 
                                 <DropdownMenu modal={false}>
