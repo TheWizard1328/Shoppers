@@ -2919,7 +2919,7 @@ export default function PayrollSummaryCard({
                         <td className="text-right pr-0.5">+$</td>
                         <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.bonusPay || 0).toFixed(2)}</td>
                       </tr>
-                      {isAdmin && (isPeriodEndOfMonth || (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0) > 0) && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0) > 0) &&
+                      {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0) &&
                               <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
                         <td className="text-left pr-2">
                           <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
@@ -2966,7 +2966,7 @@ export default function PayrollSummaryCard({
                             <td className="text-right pr-0.5">+$</td>
                             <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0).toFixed(2)}</td>
                           </tr>
-                          {isAdmin && (isPeriodEndOfMonth || (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0) > 0) && (isAppOwner(currentUser) || (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0) > 0) &&
+                          {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || driverEdits[data.driver.id]?.appFeePercent > 0) &&
                               <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-ytd-row="true">
                             <td className="text-right pr-0.5">+$</td>
                             <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0).toFixed(2)}</td>
@@ -2991,7 +2991,7 @@ export default function PayrollSummaryCard({
             })}
           
           {/* Total App Fees Collected - App Owner Only */}
-          {payrollData.length > 1 && isAdmin && (isPeriodEndOfMonth || Object.values(ytdDataByDriver).some(ytd => (ytd?.ytdAppFeeAmount || 0) > 0)) && isAppOwner(currentUser) &&
+          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) && isAppOwner(currentUser) &&
             <div className="pt-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-slate-50)', borderLeft: '3px solid #8b5cf6' }}>
             {/* Desktop View */}
             <div className="hidden md:block">
@@ -3365,7 +3365,7 @@ export default function PayrollSummaryCard({
                               <td className="text-right pr-0.5">+$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalBonus.toFixed(2)}</td>
                             </tr>
-                            {(isPeriodEndOfMonth || Object.values(ytdDataByDriver).some(ytd => (ytd?.ytdAppFeeAmount || 0) > 0)) &&
+                            {isPeriodEndOfMonth &&
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-right pr-0.5">-$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
@@ -3475,8 +3475,8 @@ export default function PayrollSummaryCard({
                       <div className="text-right font-semibold">{ytdGrandTotalBonus.toFixed(2)}</div>
                     </div>
 
-                    {/* App Fee Cut (if end of month or has YTD values) */}
-                    {(isPeriodEndOfMonth || Object.values(ytdDataByDriver).some(ytd => (ytd?.ytdAppFeeAmount || 0) > 0)) &&
+                    {/* App Fee Cut (if end of month) */}
+                    {isPeriodEndOfMonth &&
                     <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
                       <div className="text-left">App Fee Cut:</div>
                       <div className="text-right pr-0.5">-$</div>
