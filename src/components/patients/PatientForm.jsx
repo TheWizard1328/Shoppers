@@ -521,6 +521,33 @@ export default function PatientForm({
     }
   }, [patient, formData.store_id]);
 
+  // Auto-focus address or name field based on duplicateMode for non-mobile devices
+  useEffect(() => {
+    const isMobile = isMobileDevice();
+    if (isMobile || !duplicateMode) return;
+
+    if (duplicateMode === 'newAddress' && addressInputRef.current) {
+      setTimeout(() => {
+        const inputElement = addressInputRef.current instanceof HTMLInputElement 
+          ? addressInputRef.current 
+          : addressInputRef.current?.querySelector('input');
+        if (inputElement) {
+          inputElement.focus();
+          inputElement.select?.();
+        }
+      }, 100);
+    } else if (duplicateMode === 'duplicate') {
+      // Find the full_name input and focus it
+      setTimeout(() => {
+        const fullNameInput = document.querySelector('input[id="full_name"]');
+        if (fullNameInput) {
+          fullNameInput.focus();
+          fullNameInput.select?.();
+        }
+      }, 100);
+    }
+  }, [duplicateMode]);
+
   // Auto-focus address field after store is selected (non-mobile only)
   useEffect(() => {
     const isMobile = isMobileDevice();
