@@ -2217,80 +2217,73 @@ export default function StopCard({
             }
           </AnimatePresence>
 
-          {/* FOOTER SECTION - Driver-stripped: hide UNLESS Retry or Return buttons are available */}
+          {/* FOOTER SECTION */}
           {(() => {
-            // For drivers: hide footer unless Retry or Return buttons are available
             if (isStrippedForDriver) {
               const hasRetryButton = delivery.status === 'failed' && canRetry && !hasFutureRetry && !hasCompletedDelivery;
               const hasReturnButton = delivery.status === 'failed' && !isPickup && !hasFutureReturn && !hasCompletedDelivery;
               if (!hasRetryButton && !hasReturnButton) return null;
             }
-
-            // For dispatchers and others: show footer normally
             return isAssignedDriverOrAppOwner && (!isFinishedDelivery || isExpanded);
-          })() && <div className="space-y-3 mt-2">
-            <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-              <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
-                {(isAssignedDriverOrAppOwner || canEdit) &&
-                  <>
-                    {/* Proof of Delivery Buttons - Only on next delivery, OR completed with captured proof */}
-                    {!isPickup &&
-                      <div className="flex items-center gap-2">
-                        {/* Signature Button - show ONLY on next delivery OR completed with signature */}
-                        {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.signature_image_url ?
+          })() && (
+            <div className="space-y-3 mt-2">
+              <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
+                  {(isAssignedDriverOrAppOwner || canEdit) && (
+                    <>
+                      {/* LEFT SIDE: Signature + Photo Buttons (incomplete next OR completed with proof) */}
+                      {!isPickup && (isNextDelivery && !isFinishedDelivery || delivery.status === 'completed') && (
+                        <div className="flex items-center gap-2">
+                          {(isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.signature_image_url) && (
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (delivery.status !== 'completed') {
+                                  setShowSignatureCapture(true);
+                                }
+                              }}
+                              size="sm"
+                              variant="outline"
+                              disabled={delivery.status === 'completed'}
+                              className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                                delivery.signature_image_url ?
+                                  'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
+                                  'border-white hover:bg-slate-100'}`
+                              }>
+                              <Pen className={`w-5 h-5 md:w-4 md:h-4 ${
+                                delivery.signature_image_url ? 'text-emerald-700' : 'text-white'}`
+                              } />
+                            </Button>
+                          )}
+
+                          {(isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0) && (
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (delivery.status !== 'completed') {
+                                  setShowPhotoCapture(true);
+                                }
+                              }}
+                              size="sm"
+                              variant="outline"
+                              disabled={delivery.status === 'completed'}
+                              className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                                delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
+                                  'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
+                                  'border-white hover:bg-slate-100'}`
+                              }>
+                              <Camera className={`w-5 h-5 md:w-4 md:h-4 ${
+                                delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-white'}`
+                              } />
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* RIGHT SIDE: Failed Delivery Actions (full width) */}
+                      {delivery.status === 'failed' && !isPickup && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && (
+                        <div className="flex items-center gap-2 ml-auto">
                           <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (delivery.status !== 'completed') {
-                                setShowSignatureCapture(true);
-                              }
-                            }}
-                            size="sm"
-                            variant="outline"
-                            disabled={delivery.status === 'completed'}
-                            className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
-                              delivery.signature_image_url ?
-                                'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
-                                'border-white hover:bg-slate-100'}`
-                            }>
-
-                            <Pen className={`w-5 h-5 md:w-4 md:h-4 ${
-                              delivery.signature_image_url ? 'text-emerald-700' : 'text-white'}`
-                            } />
-                          </Button> :
-                          null}
-
-                        {/* Photo Button - show ONLY on next delivery OR completed with photos */}
-                        {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (delivery.status !== 'completed') {
-                                setShowPhotoCapture(true);
-                              }
-                            }}
-                            size="sm"
-                            variant="outline"
-                            disabled={delivery.status === 'completed'}
-                            className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
-                              delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
-                                'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
-                                'border-white hover:bg-slate-100'}`
-                            }>
-
-                            <Camera className={`w-5 h-5 md:w-4 md:h-4 ${
-                              delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-white'}`
-                            } />
-                          </Button> :
-                          null}
-                      </div>
-                    }
-
-                    {/* Failed delivery buttons: Return, Retry, Restart */}
-                    {delivery.status === 'failed' && !isPickup && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && (
-                      <div className="flex items-center gap-2 ml-auto">
-                        {/* Return Button */}
-                        <Button
                           onClick={handleReturnClick}
                           size="sm"
                           className="bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8 px-3 text-sm md:text-xs"
