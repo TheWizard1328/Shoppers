@@ -2231,8 +2231,8 @@ export default function StopCard({
                 <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
                   {(isAssignedDriverOrAppOwner || canEdit) && (
                     <>
-                      {/* LAYOUT 1: Failed Delivery - Return, Retry, Restart, Menu (all across bottom) */}
-                      {delivery.status === 'failed' && !isPickup && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') ? (
+                      {/* Failed Delivery: Return, Retry, Restart, Menu */}
+                      {delivery.status === 'failed' && !isPickup && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && (
                         <div className="flex items-center gap-2 w-full">
                           {(isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.signature_image_url) && (
                             <Button
@@ -2927,21 +2927,16 @@ export default function StopCard({
                                     </DropdownMenuItem>
                                   )}
                                 </DropdownMenuContent>
+                                </DropdownMenuContent>
                                 </DropdownMenu>
                                 </div>
+                                )}
                                 </>
-
-                                ) : delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && !isNextDelivery && onStartDelivery ? (
-                                /* LAYOUT 4: Active NOT isNextDelivery - RIGHT: Start+Menu only */
-                                <div className="flex items-center gap-2 ml-auto">
-                                <Button type="button" onClick={async (e) => {
-                  </>
-                }
-              </div>
-
-
-            </div>
-          </div>}
+                                )}
+                                </div>
+                                </div>
+                                </div>
+                                )}
         </CardContent>
       </Card>
     </motion.div>);
