@@ -276,6 +276,9 @@ function Dashboard() {
     const saved = globalFilters.getSelectedDate();
     return typeof saved === 'string' && saved ? new Date(saved + 'T00:00:00') : new Date();
   });
+  
+  // Track if this is initial page load (not refresh)
+  const isInitialPageLoadRef = useRef(true);
   // Driver selection state - initialized from globalFilters, then overridden by user settings
   const [selectedDriverId, setSelectedDriverId] = useState('all');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -745,8 +748,30 @@ function Dashboard() {
       try {
         const settings = await loadUserSettings(currentUser.id);
 
-        // Apply saved date selection FIRST (before FAB phase)
-        if (settings.selected_date) {
+        // CRITICAL: On initial page load, select most recent date with deliveries
+        // On refresh, use saved date
+        if (isInitialPageLoadRef.current) {
+          console.log('📅 [Dashboard Init] Initial page load detected - selecting most recent date');
+          
+          // Find most recent date with deliveries
+          const allDeliveryDates = [...new Set(
+            (deliveries || [])
+              .filter(d => d?.delivery_date)
+              .map(d => d.delivery_date)
+          )].sort().reverse();
+          
+          if (allDeliveryDates.length > 0) {
+            const mostRecentDate = new Date(allDeliveryDates[0] + 'T00:00:00');
+            console.log(`📅 [Dashboard Init] Most recent date with deliveries: ${allDeliveryDates[0]}`);
+            setSelectedDate(mostRecentDate);
+            globalFilters.setSelectedDate(mostRecentDate);
+            setCalendarMonth(mostRecentDate);
+          }
+          
+          isInitialPageLoadRef.current = false; // Mark as no longer initial load
+        } else if (settings.selected_date) {
+          // On refresh, use saved date
+          console.log('🔄 [Dashboard Init] Refresh detected - using saved date');
           const savedDate = new Date(settings.selected_date + 'T00:00:00');
           setSelectedDate(savedDate);
           globalFilters.setSelectedDate(savedDate);
