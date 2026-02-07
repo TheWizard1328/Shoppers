@@ -50,6 +50,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   const [isSmartRefreshActive, setIsSmartRefreshActive] = useState(false);
   const [isOfflineSyncActive, setIsOfflineSyncActive] = useState(false);
   const [isPollingActive, setIsPollingActive] = useState(false);
+  
+  // CRITICAL: Track smartRefreshManager.isRefreshing directly
+  const isRefreshingRef = React.useRef(false);
 
   // Track which entities were updated and reset index
   // CRITICAL: Use a ref to track the timeout so we can clear it properly
@@ -123,10 +126,21 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   // Track smart refresh, offline sync, and polling manager states
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Track smart refresh state
+      // CRITICAL: Track smart refresh state by polling isRefreshing flag every 50ms
       const checkSmartRefresh = () => {
         const isRefreshing = smartRefreshManager?.isRefreshing || false;
-        setIsSmartRefreshActive(isRefreshing);
+        
+        // Update state only when it changes to prevent re-renders
+        if (isRefreshing !== isRefreshingRef.current) {
+          isRefreshingRef.current = isRefreshing;
+          setIsSmartRefreshActive(isRefreshing);
+          
+          if (isRefreshing) {
+            console.log('🟢 [Indicator] Smart refresh STARTED - showing green spinner');
+          } else {
+            console.log('⚪ [Indicator] Smart refresh ENDED - hiding green spinner');
+          }
+        }
       };
       
       // Track offline sync state
@@ -137,8 +151,8 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       const handlePollingStart = () => setIsPollingActive(true);
       const handlePollingComplete = () => setIsPollingActive(false);
       
-      // Check smart refresh every 100ms
-      const smartRefreshInterval = setInterval(checkSmartRefresh, 100);
+      // Check smart refresh every 50ms for responsive updates
+      const smartRefreshInterval = setInterval(checkSmartRefresh, 50);
       
       window.addEventListener('offlineSyncStarted', handleOfflineSyncStart);
       window.addEventListener('offlineSyncComplete', handleOfflineSyncComplete);
