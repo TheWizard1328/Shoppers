@@ -1412,6 +1412,41 @@ export default function DeliveryForm({
       _focusName: !isMobileDevice
     };
     
+    setSelectedPatient(patientWithoutName);
+    
+    // Trigger patient form to open with pre-filled data
+    if (onCreatePatient) {
+      setIsPatientFormOpen(true);
+      onCreatePatient((createdPatient) => {
+        setIsPatientFormOpen(false);
+        setNewPatientMode(null);
+        // CRITICAL: Auto-add new patient to staged (true parameter)
+        handlePatientSelect(createdPatient, true);
+      }, patientWithoutName);
+    }
+  }, [onCreatePatient, handlePatientSelect, patients, isMobileDevice]);
+
+  // Handler for "New Address" button - creates new patient with same info but empty address/unit
+  const handleNewAddressPatient = useCallback((patient) => {
+    if (!patient) return;
+    
+    // CRITICAL: Get full patient data to ensure all fields are populated
+    const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
+    
+    if (isAppOwner(currentUser)) { console.log('DEBUG: Creating new address for patient:', fullPatient); }
+    
+    setNewPatientMode('new_address');
+    setSelectedPatient(null); // Clear selected patient since we're creating new
+    setPatientSearch('');
+    setHighlightedPatientIndex(-1);
+    
+    // Find patient's store
+    const patientStore = stores.find((s) => s && s.id === fullPatient.store_id);
+    
+    // Auto-select driver based on patient's store
+    let autoSelectedDriverId = '';
+    let autoSelectedDriverName = '';
+    
     if (patient.store_id && formData.delivery_date && stores && drivers && patientStore) {
       const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
       const dayOfWeek = selectedDate.getDay();
