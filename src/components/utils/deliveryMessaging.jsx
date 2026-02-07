@@ -471,9 +471,7 @@ export async function notifyDriverFailed({
   const trackingNum = delivery?.tracking_number ? ` [TR#${delivery.tracking_number}]` : '';
   
   // Build custom message with reason
-  const customContent = `🚨 FAILED: ${driverName} marked ${patientName} as failed${
-    store ? ` (${store.name})` : ''
-  }${trackingNum}${reasonText}`;
+  const customContent = `🚨 FAILED: ${driverName} marked ${patientName} as failed {trackingNum}${reasonText}`;
 
   for (const recipient of recipients) {
     if (recipient.id === driver?.id) continue;
