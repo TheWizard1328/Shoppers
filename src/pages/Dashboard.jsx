@@ -1488,7 +1488,7 @@ function Dashboard() {
         setMapViewTrigger((prev) => prev + 1);
 
         // Set up appropriate timer based on restored phase
-        if (phaseToRestore === 1 || phaseToRestore === 3) {
+        if (phaseToRestore === 1) {
           const lockDuration = 3000;
           const expiresAt = Date.now() + lockDuration;
           mapLockExpiresAtRef.current = expiresAt;
@@ -1501,7 +1501,7 @@ function Dashboard() {
             }
           }, lockDuration);
         }
-        // Phase 2 stays locked permanently
+        // Phase 2 & 3 stay locked permanently
 
         phaseBeforeBreakRef.current = null;
       } else if (event.type === 'DATA_READY') {
