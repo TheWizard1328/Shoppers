@@ -1895,7 +1895,7 @@ export default function DeliveryForm({
       cod_total_amount_required: codAmount,
       puid: puid || '',
       ampm_deliveries: timeSlot,
-      status: 'Staged',
+      status: 'pending',
       _tempId: Date.now() + Math.random(),
       patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
       store_name: store.name,
