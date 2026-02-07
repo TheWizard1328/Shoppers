@@ -1389,7 +1389,7 @@ export default function DeliveryForm({
     await handlePatientSelect(patient, false);
   }, [handlePatientSelect]);
 
-  // Handler for "Duplicate Patient" button - opens PatientForm to create new patient
+  // Handler for "Duplicate Patient" button - creates new patient with same info but empty name
   const handleDuplicatePatient = useCallback((patient) => {
     if (!patient) return;
     
@@ -1403,45 +1403,8 @@ export default function DeliveryForm({
     setPatientSearch('');
     setHighlightedPatientIndex(-1);
     
-    // Create patient object with all pre-filled data but empty name
-    const patientWithoutName = {
-      ...fullPatient,
-      full_name: '', // Empty name - user will enter new name
-      _duplicateSource: true,
-      _isNew: true,
-      _focusName: !isMobileDevice
-    };
-    
-    setSelectedPatient(patientWithoutName);
-    
-    // Trigger patient form to open with pre-filled data
-    if (onCreatePatient) {
-      setIsPatientFormOpen(true);
-      onCreatePatient((createdPatient) => {
-        setIsPatientFormOpen(false);
-        setNewPatientMode(null);
-        // CRITICAL: Auto-add new patient to staged (true parameter)
-        handlePatientSelect(createdPatient, true);
-      }, patientWithoutName);
-    }
-  }, [onCreatePatient, handlePatientSelect, patients, isMobileDevice]);
-
-  // Handler for "New Address" button - creates new patient with same info but empty address/unit
-  const handleNewAddressPatient = useCallback((patient) => {
-    if (!patient) return;
-    
-    // CRITICAL: Get full patient data to ensure all fields are populated
-    const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
-    
-    if (isAppOwner(currentUser)) { console.log('DEBUG: Creating new address for patient:', fullPatient); }
-    
-    setNewPatientMode('new_address');
-    setSelectedPatient(null); // Clear selected patient since we're creating new
-    setPatientSearch('');
-    setHighlightedPatientIndex(-1);
-    
     // Find patient's store
-    const patientStore = stores.find((s) => s && s.id === fullPatient.store_id);
+    const patientStore = stores.find((s) => s && s.id === patient.store_id);
     
     // Auto-select driver based on patient's store
     let autoSelectedDriverId = '';
