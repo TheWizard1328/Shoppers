@@ -7082,26 +7082,57 @@ function Dashboard() {
     return () => window.removeEventListener('dataSourceChanged', handleDataSourceChange);
   }, [selectedDate, updateDeliveriesLocally, deliveries, setForceRender]);
 
-  // CRITICAL: Load deliveries based on data source preference
-  // DISABLED: This was causing duplicate API calls on mount
-  // The periodic refresh (line 1957) handles loading deliveries every 15s
-  // The render sequence effect handles initial sync if needed
-  const hasLoadedOnMountRef = useRef(false);
+  // CRITICAL: STEP 1 - Load deliveries from offline DB first and show initial UI
+  const hasLoadedOfflineDataRef = useRef(false);
+  const hasTriggeredSmartRefreshRef = useRef(false);
   
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
-    if (hasLoadedOnMountRef.current) return; // Only run once
+    if (hasLoadedOfflineDataRef.current) return;
     
-    hasLoadedOnMountRef.current = true;
+    hasLoadedOfflineDataRef.current = true;
     
-    const loadDeliveriesOnMount = async () => {
-      console.log(`📦 [Dashboard Mount] Loading deliveries for ${selectedDateStr} (mode: ${dataSource})`);
+    const loadOfflineDataFirst = async () => {
+      console.log(`📦 [Dashboard Mount - STEP 1] Loading offline DB for initial UI...`);
       
-      // CRITICAL: Trigger instant smart refresh cycle on mount to refresh all route data
-      console.log('🔄 [Dashboard Mount] Triggering instant smart refresh cycle...');
       try {
-        const shouldLoadAllDeliveries = showAllDriverMarkers || selectedDriverId === 'all';
+        // Load from offline DB for instant UI
+        const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
         
+        if (mountDeliveries && mountDeliveries.length > 0) {
+          console.log(`✅ [Dashboard Mount - STEP 1] Loaded ${mountDeliveries.length} deliveries from offline DB`);
+          
+          // Update UI immediately
+          if (updateDeliveriesLocally) {
+            const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+            updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
+          }
+          setForceRender((prev) => prev + 1);
+          
+          console.log(`✅ [Dashboard Mount - STEP 1] Initial UI updated - user can see data now`);
+        } else {
+          console.log(`📭 [Dashboard Mount - STEP 1] No offline data - will wait for smart refresh`);
+        }
+      } catch (error) {
+        console.warn('⚠️ [Dashboard Mount - STEP 1] Offline DB load failed:', error.message);
+      }
+    };
+    
+    loadOfflineDataFirst();
+  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr]);
+  
+  // CRITICAL: STEP 2 - After offline data is shown, trigger smart refresh for fresh data
+  useEffect(() => {
+    if (!currentUser || !isDataLoaded || !isFiltersReady) return;
+    if (!hasLoadedOfflineDataRef.current) return; // Wait for offline data to load first
+    if (hasTriggeredSmartRefreshRef.current) return; // Only run once
+    
+    hasTriggeredSmartRefreshRef.current = true;
+    
+    const triggerSmartRefreshCycle = async () => {
+      console.log(`🔄 [Dashboard Mount - STEP 2] Triggering smart refresh for fresh data...`);
+      
+      try {
         // Force refresh from API for complete, up-to-date data
         let freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
@@ -7114,7 +7145,7 @@ function Dashboard() {
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, latestAppUsers);
         }
         
-        // Update context
+        // Update context with fresh data
         if (updateDeliveriesLocally) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
@@ -7139,34 +7170,25 @@ function Dashboard() {
         }));
         
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { deliveryDate: selectedDateStr, triggeredBy: 'dashboardMount', allDrivers: true }
+          detail: { deliveryDate: selectedDateStr, triggeredBy: 'dashboardSmartRefresh', allDrivers: true }
         }));
         
-        console.log(`✅ [Dashboard Mount] Smart refresh cycle complete - ${freshDeliveries.length} deliveries loaded`);
+        console.log(`✅ [Dashboard Mount - STEP 2] Smart refresh complete - ${freshDeliveries.length} fresh deliveries loaded`);
         setForceRender((prev) => prev + 1);
         
       } catch (error) {
         // CRITICAL: Silently fail on rate limits - periodic refresh will handle it
         if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
-          console.log('⏰ [Dashboard Mount] Rate limited - falling back to offline DB');
-          try {
-            const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-            if (mountDeliveries && mountDeliveries.length > 0 && updateDeliveriesLocally) {
-              const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-              updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
-              setForceRender((prev) => prev + 1);
-            }
-          } catch (offlineError) {
-            console.warn('⚠️ [Dashboard Mount] Offline DB fallback failed:', offlineError.message);
-          }
+          console.log('⏰ [Dashboard Mount - STEP 2] Rate limited - skipping smart refresh (offline data already shown)');
           return;
         }
-        console.warn('⚠️ [Dashboard Mount] Failed to load deliveries:', error.message);
+        console.warn('⚠️ [Dashboard Mount - STEP 2] Smart refresh failed:', error.message);
       }
     };
-
-    loadDeliveriesOnMount();
-  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, dataSource, showAllDriverMarkers, selectedDriverId]);
+    
+    // Delay smart refresh to allow UI to fully render first
+    setTimeout(triggerSmartRefreshCycle, 500);
+  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, dataSource, showAllDriverMarkers, selectedDriverId, hasLoadedOfflineDataRef.current]);
 
   useEffect(() => {
     if (!isDataLoaded || !deliveries) return;
