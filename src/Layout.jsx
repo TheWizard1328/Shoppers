@@ -908,6 +908,13 @@ export default function Layout({ children, currentPageName }) {
         setCurrentUser(fetchedUser);
         setHasAccess(true);
 
+        // Load company branding if user has company_id
+        if (fetchedUser?.company_id) {
+          const companyBranding = await getCompanyBranding(fetchedUser.company_id);
+          setBranding(companyBranding);
+          applyBrandingStyles(companyBranding);
+        }
+
         // Load cities from offline DB first to prevent rate limits
         let citiesData = [];
         try {
