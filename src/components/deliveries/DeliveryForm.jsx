@@ -3170,6 +3170,51 @@ export default function DeliveryForm({
         }
       }
 
+      // CRITICAL: Resort completed/failed/cancelled deliveries and update stop order after status change
+      if (delivery && formData.driver_id && formData.delivery_date && statusChangedToCompletion) {
+        console.log('🔄 [DeliveryForm] Resorting completed/failed/cancelled deliveries...');
+        try {
+          const { base44 } = await import('@/api/base44Client');
+          
+          // Get all deliveries for this driver/date
+          const driverDeliveries = allDeliveries.filter(d => 
+            d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date
+          );
+          
+          // Get completed/failed/cancelled deliveries (including the one just updated)
+          const completedDeliveries = driverDeliveries.filter(d => 
+            ['completed', 'failed', 'cancelled'].includes(d.id === delivery.id ? formData.status : d.status)
+          );
+          
+          // Sort by actual_delivery_time (earliest first)
+          completedDeliveries.sort((a, b) => {
+            const timeA = a.id === delivery.id && dataToSave.actual_delivery_time 
+              ? new Date(dataToSave.actual_delivery_time).getTime()
+              : a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
+            const timeB = b.id === delivery.id && dataToSave.actual_delivery_time 
+              ? new Date(dataToSave.actual_delivery_time).getTime()
+              : b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
+            return timeA - timeB;
+          });
+          
+          // Update stop_order for all completed/failed/cancelled deliveries
+          let stopOrder = 1;
+          const updatePromises = completedDeliveries.map(d => {
+            const newStopOrder = stopOrder++;
+            if (d.stop_order !== newStopOrder) {
+              console.log(`📝 [DeliveryForm] Updating stop_order for ${d.patient_name}: ${d.stop_order} → ${newStopOrder}`);
+              return base44.entities.Delivery.update(d.id, { stop_order: newStopOrder });
+            }
+            return Promise.resolve();
+          });
+          
+          await Promise.all(updatePromises);
+          console.log('✅ [DeliveryForm] Completed deliveries resorted and stop orders updated');
+        } catch (error) {
+          console.error('❌ [DeliveryForm] Resort failed:', error);
+        }
+      }
+      
       // CRITICAL: Always reorder stops after any delivery update or status change
       if (delivery && formData.driver_id && formData.delivery_date) {
         console.log('🔄 [DeliveryForm] Reordering stops after delivery update...');
