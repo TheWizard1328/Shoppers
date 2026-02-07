@@ -2447,111 +2447,155 @@ export default function StopCard({
                         {onRestart && (
                           <Button
                             onClick={async (e) => {
-                            e.stopPropagation();
-                            fabControlEvents.deactivateFAB();
-                            setIsEntityUpdating(true);
-                            setIsProcessingBackground(true);
-                            console.log('⏸️ [Restart] Pausing location poller...');
-                            const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                            driverLocationPoller.pause();
+                              e.stopPropagation();
+                              fabControlEvents.deactivateFAB();
+                              setIsEntityUpdating(true);
+                              setIsProcessingBackground(true);
+                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                              driverLocationPoller.pause();
 
-                            await new Promise((resolve) => setTimeout(resolve, 100));
-
-                            try {
-                              // CRITICAL: Verify delivery still exists before restarting
-                              const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                              if (!deliveryExists || deliveryExists.length === 0) {
-                                console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
-                                throw new Error('This delivery has been deleted. Please refresh the page.');
-                              }
-
-                              console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
-
-                              // Step 1: Clear all isNextDelivery flags for this driver/date
-                              const driverDeliveries = allDeliveries.filter((d) =>
-                                d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                              );
-
-                              for (const d of driverDeliveries) {
-                                if (d.isNextDelivery) {
-                                  await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
-                                }
-                              }
-
-                              // Step 2: Set restarted delivery to in_transit/en_route and isNextDelivery: true
-                              const newStatus = isPickup ? 'en_route' : 'in_transit';
-                              await updateDeliveryLocal(delivery.id, {
-                                status: newStatus,
-                                isNextDelivery: true,
-                                actual_delivery_time: null,
-                                delivery_notes: ''
-                              }, { skipSmartRefresh: true });
-
-                              // Step 3: Run recursive route optimization
                               try {
+                                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                                if (!deliveryExists || deliveryExists.length === 0) {
+                                  throw new Error('This delivery has been deleted. Please refresh the page.');
+                                }
+
+                                const driverDeliveries = allDeliveries.filter((d) =>
+                                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                                );
+
+                                for (const d of driverDeliveries) {
+                                  if (d.isNextDelivery) {
+                                    await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+                                  }
+                                }
+
+                                const newStatus = isPickup ? 'en_route' : 'in_transit';
+                                await updateDeliveryLocal(delivery.id, {
+                                  status: newStatus,
+                                  isNextDelivery: true,
+                                  actual_delivery_time: null,
+                                  delivery_notes: ''
+                                }, { skipSmartRefresh: true });
+
                                 const now = new Date();
                                 const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                console.log('🔄 [Restart Delivery] Running optimizeRouteRealTime...');
                                 await base44.functions.invoke('optimizeRouteRealTime', {
                                   driverId: delivery.driver_id,
                                   deliveryDate: delivery.delivery_date,
                                   currentLocalTime: currentLocalTime,
                                   generatePolyline: false
                                 });
-                                console.log('✅ [Restart Delivery] Route optimized');
 
-                                // CRITICAL: Refresh UI to show reordered stops
                                 invalidate('Delivery');
                                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                console.log('✅ [Restart Delivery] UI refreshed with new stop order');
-                              } catch (optimizeError) {
-                                console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
+                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                  detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                }));
+
+                                if (userHasRole(currentUser, 'driver')) {
+                                  await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers });
+                                }
+                              } finally {
+                                const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                driverLocationPoller.resume();
+                                fabControlEvents.reactivateFAB(true);
+                                setIsProcessingBackground(false);
                               }
-
-                              // Step 4: Refresh data and sync UI
-                              invalidate('Delivery');
-                              await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                              console.log('✅ [RESTART] Delivery restarted successfully');
-
-                              // CRITICAL: Trigger map update
-                              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                              }));
-
-                              // Send notification to dispatchers
-                              if (userHasRole(currentUser, 'driver')) {
-                                await notifyDriverRetry({
-                                  driver: currentUser,
-                                  patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                  delivery,
-                                  store,
-                                  appUsers
-                                });
-                              }
-                            } finally {
-                              const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                              driverLocationPoller.resume();
-
-                              // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
-                              fabControlEvents.reactivateFAB(true);
-                              setIsProcessingBackground(false);
-                            }
-                          }}
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs px-3"
-                          disabled={isProcessingBackground}>
-                          <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
-                          Restart
+                            }}
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 !text-white text-sm md:text-xs px-3"
+                            disabled={isProcessingBackground}>
+                            <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
+                            Restart
                           </Button>
-                          )}
-                          </div>
-                          )}
+                        )}
 
-                          {/* Start/Complete button and menu - for active deliveries */}
-                          {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && (
-                            <div className="flex items-center ml-auto">
-                              {isNextDelivery && (
+                        <DropdownMenu modal={false}>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
+                              onClick={(e) => e.stopPropagation()}>
+                              <MoreVertical className="w-5 h-5 md:w-4 md:h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="p-1 rounded-md min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                            {onEditDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDelivery(delivery); }} className="text-base md:text-sm py-2.5 md:py-1.5">
+                                <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
+                              </DropdownMenuItem>
+                            )}
+
+                            {!isPickup && patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) && (
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }} className="text-base md:text-sm py-2.5 md:py-1.5">
+                                <User className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                Edit Patient
+                              </DropdownMenuItem>
+                            )}
+
+                            {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient) && (
+                              <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                            )}
+
+                            {onDeleteDelivery && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+                              <DropdownMenuItem
+                                onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
+                                className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
+                                disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
+                                <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        </div>
+                        )}
+
+                        {/* Active Next Delivery: Signature+Camera on left, Complete+Menu on right */}
+                        {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && (
+                        <>
+                        {!isPickup && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowSignatureCapture(true);
+                              }}
+                              size="sm"
+                              variant="outline"
+                              className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                                delivery.signature_image_url ?
+                                  'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
+                                  'border-white hover:bg-slate-100'}`
+                              }>
+                              <Pen className={`w-5 h-5 md:w-4 md:h-4 ${
+                                delivery.signature_image_url ? 'text-emerald-700' : 'text-white'}`
+                              } />
+                            </Button>
+
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowPhotoCapture(true);
+                              }}
+                              size="sm"
+                              variant="outline"
+                              className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
+                                delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
+                                  'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
+                                  'border-white hover:bg-slate-100'}`
+                              }>
+                              <Camera className={`w-5 h-5 md:w-4 md:h-4 ${
+                                delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-white'}`
+                              } />
+                            </Button>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 ml-auto">
                                 <Button
                                 onClick={async (e) => {
                                   e.stopPropagation();
