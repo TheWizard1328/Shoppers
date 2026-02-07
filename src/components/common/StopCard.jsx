@@ -2218,14 +2218,7 @@ export default function StopCard({
           </AnimatePresence>
 
           {/* FOOTER SECTION */}
-          {(() => {
-            if (isStrippedForDriver) {
-              const hasRetryButton = delivery.status === 'failed' && canRetry && !hasFutureRetry && !hasCompletedDelivery;
-              const hasReturnButton = delivery.status === 'failed' && !isPickup && !hasFutureReturn && !hasCompletedDelivery;
-              if (!hasRetryButton && !hasReturnButton) return null;
-            }
-            return isAssignedDriverOrAppOwner && (!isFinishedDelivery || isExpanded);
-          })() && (
+          {isAssignedDriverOrAppOwner && (!isFinishedDelivery || isExpanded) && (
             <div className="space-y-3 mt-2">
               <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                 <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
