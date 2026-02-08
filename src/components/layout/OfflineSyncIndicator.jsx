@@ -220,6 +220,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   // Inline mode for stats card (mobile) or upper-left (desktop)
   if (embedded || inline) {
+    // Only render expanded content once all data is loaded
+    const shouldRenderStats = isFullyLoaded && stats;
+    
     return (
       <div className="w-full">
         <button
@@ -231,7 +234,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
             <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
               {isSyncing ? 'Syncing...' : 'Offline DB'}
             </span>
-            {stats && !isSyncing &&
+            {shouldRenderStats && !isSyncing &&
             <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                 ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0) + (stats.driverOverviewStats?.count || 0)})
               </span>
