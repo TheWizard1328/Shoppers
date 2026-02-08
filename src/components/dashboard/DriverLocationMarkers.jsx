@@ -329,7 +329,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
             width: ${size * 2}px; 
             height: ${size * 2}px; 
             background: ${color}; 
-            border: 3px solid ${borderColor}; 
+            border: 3px solid white; 
             border-radius: 50%; 
             display: flex; 
             align-items: center; 
@@ -340,7 +340,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
             font-size: ${size}px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
           ">${firstInitial}</div>
-          ${isActive ? `<div style="position: absolute; top: -4px; left: -4px; width: ${size * 2 + 8}px; height: ${size * 2 + 8}px; border-radius: 50%; border: 2px solid ${color}; animation: pulse 2s infinite;"></div>` : ''}
+          ${isActive ? `<div style="position: absolute; top: -4px; left: -4px; width: ${size * 2 + 8}px; height: ${size * 2 + 8}px; border-radius: 50%; border: 2px solid white; animation: pulse 2s infinite;"></div>` : ''}
         </div>
       `,
       iconSize: [size * 2 + 8, size * 2 + 8],
