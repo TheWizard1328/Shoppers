@@ -320,18 +320,18 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const firstInitial = displayName.charAt(0).toUpperCase();
     const size = isActive ? 18 : 14;
 
-    // CRITICAL: Uniform status color logic for ALL markers (including self shared location)
+    // CRITICAL: Status-based color with staleness check only for on_duty
     const locationAge = user.location_updated_at ? 
       Date.now() - new Date(user.location_updated_at).getTime() : Infinity;
     const isStale = locationAge > 5 * 60 * 1000;
 
     let color;
-    if (isStale) {
-      color = '#FFA500'; // Orange for stale
-    } else if (user.driver_status === 'on_break') {
-      color = '#3b82f6'; // Blue for on break
+    if (user.driver_status === 'on_break') {
+      color = '#3b82f6'; // Blue for on break (always blue regardless of staleness)
+    } else if (user.driver_status === 'on_duty') {
+      color = isStale ? '#FFA500' : '#10b981'; // Orange if stale, green if fresh
     } else {
-      color = '#10b981'; // Green for on duty
+      color = '#10b981'; // Default green
     }
 
     const pulseClass = isActive ? 'driver-marker-pulse' : '';
