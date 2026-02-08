@@ -2660,12 +2660,27 @@ class SmartRefreshManager {
 
        console.log(`📥 [SmartRefresh] Fetched ${allAppUsers.length} AppUsers from API`);
 
-       // CRITICAL: STEP 4 - Copy fresh API data to offline DB
+       // CRITICAL: STEP 4 - Copy fresh API data to offline DB (deduplicate first)
        try {
+         // CRITICAL: Deduplicate by user_id (keep most recent by sort_order)
+         const appUsersByUserId = new Map();
+         allAppUsers.forEach(au => {
+           if (!au || !au.user_id) return;
+           const existing = appUsersByUserId.get(au.user_id);
+           if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+             appUsersByUserId.set(au.user_id, au);
+           }
+         });
+         const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
+         const duplicatesRemoved = allAppUsers.length - deduplicatedAppUsers.length;
+         if (duplicatesRemoved > 0) {
+           console.warn(`⚠️ [SmartRefresh] Removed ${duplicatesRemoved} duplicate AppUsers before saving`);
+         }
+
          const { offlineDB } = await import('./offlineDatabase');
-         console.log(`💾 [SmartRefresh] STEP 4: Copying ${allAppUsers.length} fresh AppUsers to offline DB...`);
-         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
-         console.log(`✅ [SmartRefresh] AppUsers copied to offline DB`);
+         console.log(`💾 [SmartRefresh] STEP 4: Copying ${deduplicatedAppUsers.length} deduped AppUsers to offline DB...`);
+         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
+         console.log(`✅ [SmartRefresh] ${deduplicatedAppUsers.length} AppUsers copied to offline DB`);
 
          await offlineDB.updateSyncStatus('AppUser', {
            recordCount: allAppUsers.length,

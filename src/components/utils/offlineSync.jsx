@@ -200,11 +200,26 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     // STEP 1: Fetch and sync ENTIRE AppUser entity (all drivers)
     console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching AppUsers...');
     const allAppUsers = await AppUser.list();
-    console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers:`, allAppUsers?.map(u => ({ id: u.id, user_name: u.user_name })));
+    console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers:`, allAppUsers?.map(u => ({ id: u.id, user_id: u.user_id, user_name: u.user_name })));
 
     if (allAppUsers && allAppUsers.length > 0) {
-      const saveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
-      console.log(`✅ [PrioritySyncBeforeRefresh] Saved AppUsers to offline DB:`, saveResult);
+      // CRITICAL: Deduplicate by user_id (keep most recent by sort_order)
+      const appUsersByUserId = new Map();
+      allAppUsers.forEach(au => {
+        if (!au || !au.user_id) return;
+        const existing = appUsersByUserId.get(au.user_id);
+        if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+          appUsersByUserId.set(au.user_id, au);
+        }
+      });
+      const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
+      const duplicatesRemoved = allAppUsers.length - deduplicatedAppUsers.length;
+      if (duplicatesRemoved > 0) {
+        console.warn(`⚠️ [PrioritySyncBeforeRefresh] Removed ${duplicatesRemoved} duplicate AppUsers`);
+      }
+
+      const saveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
+      console.log(`✅ [PrioritySyncBeforeRefresh] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, saveResult);
       await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
     } else {
@@ -296,13 +311,28 @@ export const preRenderFreshSync = async (smartRefreshMgr = null) => {
     // CRITICAL: FORCE fresh fetch of AppUsers (ignore offline DB age)
     console.log('📍 [PreRenderSync] Fetching fresh AppUsers...');
     const appUsers = await AppUser.list();
-    console.log(`📍 [PreRenderSync] Fetched ${appUsers?.length || 0} AppUsers:`, appUsers?.map(u => ({ id: u.id, user_name: u.user_name })));
+    console.log(`📍 [PreRenderSync] Fetched ${appUsers?.length || 0} AppUsers:`, appUsers?.map(u => ({ id: u.id, user_id: u.user_id, user_name: u.user_name })));
 
     if (appUsers && appUsers.length > 0) {
-      const appUserSaveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
-      console.log(`✅ [PreRenderSync] Saved AppUsers to offline DB:`, appUserSaveResult);
+      // CRITICAL: Deduplicate by user_id (keep most recent by sort_order)
+      const appUsersByUserId = new Map();
+      appUsers.forEach(au => {
+        if (!au || !au.user_id) return;
+        const existing = appUsersByUserId.get(au.user_id);
+        if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+          appUsersByUserId.set(au.user_id, au);
+        }
+      });
+      const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
+      const duplicatesRemoved = appUsers.length - deduplicatedAppUsers.length;
+      if (duplicatesRemoved > 0) {
+        console.warn(`⚠️ [PreRenderSync] Removed ${duplicatesRemoved} duplicate AppUsers`);
+      }
+
+      const appUserSaveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
+      console.log(`✅ [PreRenderSync] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, appUserSaveResult);
       await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
-      console.log(`✅ [PreRenderSync] Synced ${appUsers.length} fresh AppUsers to offline DB`);
+      console.log(`✅ [PreRenderSync] Synced ${deduplicatedAppUsers.length} fresh AppUsers to offline DB`);
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
     } else {
       console.warn('⚠️ [PreRenderSync] No AppUsers returned from API');
