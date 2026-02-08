@@ -2737,6 +2737,17 @@ export default function DeliveryForm({
 
         onCancel(); // Close form IMMEDIATELY
 
+        // CRITICAL: Immediate UI refresh events
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { 
+            deliveryDate: formData.delivery_date, 
+            driverId: formData.driver_id,
+            triggeredBy: 'doneButtonUpdates',
+            immediate: true
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
         // Background refresh (non-blocking)
         setTimeout(async () => {
           try {
@@ -2753,15 +2764,6 @@ export default function DeliveryForm({
               });
               console.log(`✅ [AddToRoute] Background: ${freshDeliveries.length} deliveries`);
             }
-            
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-              detail: { 
-                deliveryDate: formData.delivery_date, 
-                driverId: formData.driver_id,
-                triggeredBy: 'doneButtonUpdates' 
-              }
-            }));
-            window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
             const { fabControlEvents } = await import('../utils/fabControlEvents');
             fabControlEvents.notifyDataReady();
