@@ -154,6 +154,30 @@ class DriverLocationPoller {
     
     let users = Array.isArray(usersData) ? [...usersData] : [];
     
+    // CRITICAL: Deduplicate users by ID, keeping the one with the most recent location_updated_at
+    const userMap = new Map();
+    users.forEach(user => {
+      if (!user || !(user.id || user.user_id)) return;
+      
+      const userId = user.id || user.user_id;
+      const existingUser = userMap.get(userId);
+      
+      if (!existingUser) {
+        userMap.set(userId, user);
+      } else {
+        // Keep the user with the most recent location timestamp
+        const newTimestamp = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+        const existingTimestamp = existingUser.location_updated_at ? new Date(existingUser.location_updated_at).getTime() : 0;
+        
+        if (newTimestamp > existingTimestamp) {
+          console.log(`⚠️ [Poller] Duplicate user ${userId} detected - keeping newer location (${user.location_updated_at} vs ${existingUser.location_updated_at})`);
+          userMap.set(userId, user);
+        }
+      }
+    });
+    
+    users = Array.from(userMap.values());
+    
     if (users.length === 0) {
       // CRITICAL: Still notify subscribers with empty array to clear markers
       this.notifySubscribers([]);
