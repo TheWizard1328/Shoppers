@@ -389,11 +389,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const userId = user.id || user.user_id;
         const isSelf = userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
         const isSharedLocation = isSelf && !isPrimaryDevice;
-        
-        // CRITICAL: Use stable key that includes lat/lng to force React to unmount stale markers
-        // This prevents ghost markers and shadows from old positions
-        const stableKey = `${user.id}_${user.current_latitude}_${user.current_longitude}`;
-        
+
+        // Use user.id as stable key to prevent flickering during updates
+        const stableKey = user.id;
+
         markersRef.current[user.id] = true;
         
         return (
