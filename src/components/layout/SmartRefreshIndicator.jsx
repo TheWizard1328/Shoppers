@@ -213,14 +213,22 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
     // If onManualRefresh is provided, call it (Dashboard provides PullToSync logic)
     if (onManualRefresh) {
-      console.log('🔄 [SmartRefreshIndicator] Triggering onManualRefresh callback...');
+      console.log('🔄 [SmartRefreshIndicator] Triggering onManualRefresh callback (PullToSync logic)...');
       setIsManualRefreshing(true);
+      
       try {
+        // Dispatch event to show syncing state
+        window.dispatchEvent(new CustomEvent('offlineSyncStarted'));
+        
         await onManualRefresh();
+        
+        // Dispatch event to clear syncing state
+        window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       } catch (error) {
         console.error('❌ [SmartRefreshIndicator] Manual refresh failed:', error);
         setHasError(true);
         setTimeout(() => setHasError(false), 3000);
+        window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       } finally {
         setTimeout(() => setIsManualRefreshing(false), 1000);
       }
