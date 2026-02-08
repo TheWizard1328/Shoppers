@@ -119,16 +119,16 @@ class DriverLocationPoller {
           
           // First, add offline users to map
           offlineAppUsers.forEach(user => {
-            if (user && (user.id || user.user_id)) {
-              const userId = user.id || user.user_id;
+            if (user && (user.id || user.user_name)) {
+              const userId = user.id || user.user_name;
               userMap.set(userId, user);
             }
           });
           
           // Then, add/override with online users (prioritizing newer data)
           appUsers.forEach(user => {
-            if (user && (user.id || user.user_id)) {
-              const userId = user.id || user.user_id;
+            if (user && (user.id || user.user_name)) {
+              const userId = user.id || user.user_name;
               const existingUser = userMap.get(userId);
               
               // If no existing user OR online data has newer location timestamp
@@ -177,9 +177,9 @@ class DriverLocationPoller {
     // CRITICAL: First deduplicate by user ID across ALL users (including stale), keeping most recent
     const userMap = new Map();
     users.forEach(user => {
-      if (!user || !(user.id || user.user_id)) return;
+      if (!user || !(user.id || user.user_name)) return;
       
-      const userId = user.id || user.user_id;
+      const userId = user.id || user.user_name;
       const existingUser = userMap.get(userId);
       
       if (!existingUser) {
@@ -205,7 +205,6 @@ class DriverLocationPoller {
     users = users.filter(user => {
       // Skip users without location timestamps or coordinates
       if (!user.location_updated_at || !user.current_latitude || !user.current_longitude) {
-        console.log(`⏭️ [Poller] Skipping user ${user.id || user.user_id} - missing location data`);
         return false;
       }
       
@@ -214,11 +213,11 @@ class DriverLocationPoller {
       const ageMinutes = Math.floor(locationAge / 60000);
       
       if (locationAge > maxStaleTime) {
-        console.log(`⏭️ [Poller] Skipping user ${user.id || user.user_id} - location too old (${ageMinutes} min): ${user.location_updated_at}`);
+        console.log(`⏭️ [Poller] Skipping user ${user.id || user.user_name} - location too old (${ageMinutes} min): ${user.location_updated_at}`);
         return false; // Skip stale locations entirely
       }
       
-      console.log(`✅ [Poller] Including user ${user.id || user.user_id} - fresh location (${ageMinutes} min old): ${user.location_updated_at}`);
+      console.log(`✅ [Poller] Including user ${user.id || user.user_name} - fresh location (${ageMinutes} min old): ${user.location_updated_at}`);
       return true;
     });
     
@@ -242,16 +241,16 @@ class DriverLocationPoller {
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
 
-      const driverId = user.id || user.user_id;
-      const isSelf = user.user_id === currentUserId || 
+      const driverId = user.id || user.user_name;
+      const isSelf = user.user_name === currentUserId || 
                      user.id === currentUserId || 
-                     user.user_id === currentUserUserId ||
+                     user.user_name === currentUserUserId ||
                      user.id === currentUserUserId;
 
       // CRITICAL: Check self BEFORE coordinates to enable debugging
       if (isSelf) {
         console.log(`🔍 [Poller] SELF MARKER CHECK:`, {
-          userId: user.id || user.user_id,
+          userId: user.id || user.user_name,
           hasCoordinates: !!(user.current_latitude && user.current_longitude),
           current_latitude: user.current_latitude,
           current_longitude: user.current_longitude,
@@ -385,9 +384,9 @@ class DriverLocationPoller {
     const currentUserUserId = this.currentUser?.user_id;
 
     const locationObjects = activeDriversWithLocation.map(user => {
-      const isSelf = user.user_id === currentUserId || 
+      const isSelf = user.user_name === currentUserId || 
                      user.id === currentUserId ||
-                     user.user_id === currentUserUserId ||
+                     user.user_name === currentUserUserId ||
                      user.id === currentUserUserId;
       const isOnBreak = user.driver_status === 'on_break';
 
