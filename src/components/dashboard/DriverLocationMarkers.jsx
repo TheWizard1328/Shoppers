@@ -200,6 +200,26 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     
   }, [users, currentUser, isMobile, deliveries]);
 
+  // Listen for driver status changes to update self marker immediately
+  useEffect(() => {
+    const handleStatusChange = (event) => {
+      const { userId, newStatus } = event.detail || {};
+      const currentUserId = currentUser?.id;
+      
+      if (userId === currentUserId) {
+        console.log(`🎨 [DriverLocationMarkers] Self status changed to ${newStatus} - updating marker color`);
+        setVisibleDrivers(prev => prev.map(driver => 
+          (driver.id === userId || driver.user_id === userId) 
+            ? { ...driver, driver_status: newStatus }
+            : driver
+        ));
+      }
+    };
+
+    window.addEventListener('driverStatusChanged', handleStatusChange);
+    return () => window.removeEventListener('driverStatusChanged', handleStatusChange);
+  }, [currentUser?.id]);
+
   // Listen for location cleared events
   useEffect(() => {
     const handleLocationCleared = (event) => {

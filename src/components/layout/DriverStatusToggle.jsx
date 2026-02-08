@@ -214,6 +214,11 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       // CRITICAL: Broadcast status change to other devices via WebSocket
       broadcastMutation('AppUser', 'update', appUserId, updatedAppUser);
       
+      // CRITICAL: Dispatch event to update self marker color immediately
+      window.dispatchEvent(new CustomEvent('driverStatusChanged', {
+        detail: { userId: currentUser.id, newStatus }
+      }));
+      
       // CRITICAL: Call backend function to enforce single active device
       console.log('📱 Calling setDriverStatus backend function...');
       const result = await base44.functions.invoke('setDriverStatus', {
