@@ -211,14 +211,12 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   const handleManualRefresh = async () => {
     if (isManualRefreshing || isPaused) return;
 
-    console.log('🔄 [SmartRefreshIndicator] Manual refresh triggered - Restarting delivery/patient sync cycle');
+    console.log('🔄 [SmartRefreshIndicator] Manual refresh triggered');
     setIsManualRefreshing(true);
 
     try {
       // Step 1: Invalidate caches
       const { invalidate, invalidateDeliveryRangeCache } = await import('../utils/dataManager');
-      const { offlineDB } = await import('../utils/offlineDatabase');
-      const { base44 } = await import('@/api/base44Client');
       
       console.log('   🗑️ Invalidating caches...');
       invalidate('Patient');
@@ -237,36 +235,12 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         stores: 0
       };
 
-      // Step 3: Restart delivery/patient sync cycle
-      console.log('   🔄 Restarting delivery and patient sync from beginning...');
-      const { restartDeliveryPatientSync } = await import('../utils/offlineSync');
-      await restartDeliveryPatientSync();
-
-      // Step 4: Reload data for current screen
-      try {
-        if (onManualRefresh) {
-          await onManualRefresh();
-        } else if (refreshData) {
-          await refreshData(true);
-        }
-      } catch (refreshError) {
-        console.warn('   ⚠️ Data refresh failed:', refreshError.message);
-      }
-
-      // Step 5: Load fresh AppUsers for driver locations
-      let freshAppUsers = [];
-      try {
-        freshAppUsers = await base44.entities.AppUser.list();
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-        console.log(`   ✅ Loaded ${freshAppUsers.length} fresh AppUsers`);
-      } catch (appUserError) {
-        console.warn('   ⚠️ Failed to load AppUsers:', appUserError.message);
-      }
-
-      // Step 6: Trigger events to update UI
-      window.dispatchEvent(new CustomEvent('triggerRouteReoptimization'));
-      if (freshAppUsers.length > 0) {
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: freshAppUsers } }));
+      // Step 3: Reload data for current screen ONLY
+      // Let normal background sync handle the rest
+      if (onManualRefresh) {
+        await onManualRefresh();
+      } else if (refreshData) {
+        await refreshData(true);
       }
       
       console.log('✅ [SmartRefreshIndicator] Manual refresh complete');
