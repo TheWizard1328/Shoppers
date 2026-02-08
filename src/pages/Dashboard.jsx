@@ -6041,6 +6041,13 @@ function Dashboard() {
         updateData.actual_delivery_time = null;
       }
 
+      // CRITICAL: Collapse all expanded stop cards when completing or failing a delivery
+      if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
+        setSelectedCardId(null);
+        setHighlightedCardId(null);
+        cardExpandedAtRef.current = null;
+      }
+
       // STEP 1: Update isNextDelivery flags LOCALLY (instant)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter((d) =>
