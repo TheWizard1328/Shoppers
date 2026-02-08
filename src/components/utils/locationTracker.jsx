@@ -173,8 +173,15 @@ class LocationTracker {
 
     // CRITICAL: ALWAYS update every 15 seconds (heartbeat) - no movement check
     if (!timeForHeartbeat) {
+      const secondsRemaining = Math.ceil((this.updateInterval - (now - this.lastUpdate)) / 1000);
+      console.log(`⏳ [LocationTracker] Waiting ${secondsRemaining}s until next heartbeat`);
       return; // Silently skip if heartbeat not due
     }
+
+    console.log(`⏰ [LocationTracker] 15s heartbeat triggered - uploading location`);
+
+    // CRITICAL: Set lastUpdate IMMEDIATELY to prevent double-uploads
+    this.lastUpdate = now;
 
     let distance = 0;
     if (this.lastPosition) {
