@@ -252,7 +252,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
             className="overflow-hidden">
 
               <div className="px-1 py-1 space-y-1 border-t border-slate-200">
-                {stats &&
+                {shouldRenderStats &&
               <>
                     <div className="text-xs space-y-0">
                       {/* AppUsers */}
