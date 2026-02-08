@@ -111,7 +111,9 @@ const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter
     
     if (!checkResult.needsSync || checkResult.skipped) {
       // CRITICAL: Update sync time even when skipping to prevent repeated checks
-      await offlineDB.updateSyncMetadata(entityName, null, new Date().toISOString());
+      if (checkResult.skipped) {
+        await offlineDB.updateSyncMetadata(entityName, checkResult.lastClientTimestamp, new Date().toISOString());
+      }
       return { skipped: true, reason: checkResult.skipped ? 'recently_synced' : 'no_updates' };
     }
     
