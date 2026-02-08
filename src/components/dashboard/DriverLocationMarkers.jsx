@@ -415,6 +415,15 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const displayName = user.user_name || user.full_name || 'Unknown Driver';
         const firstName = displayName.split(' ')[0];
         
+        // DEBUG: Log each user being rendered
+        console.log(`🗺️ [Rendering Marker] ${displayName}:`, {
+          driver_status: user.driver_status,
+          location_updated_at: user.location_updated_at,
+          current_latitude: user.current_latitude,
+          current_longitude: user.current_longitude,
+          location_tracking_enabled: user.location_tracking_enabled
+        });
+        
         // CRITICAL: Check if this is the current user's shared location (non-primary device)
         const currentUserId = currentUser?.id;
         const currentUserUserId = currentUser?.user_id;
