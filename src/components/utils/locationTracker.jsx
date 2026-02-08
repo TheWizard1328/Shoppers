@@ -286,7 +286,7 @@ class LocationTracker {
       this.failedUpdateCount = 0;
       this.backoffTime = 0;
 
-      console.log(`✅ [LocationTracker] Location updated - Accuracy: ${accuracy?.toFixed(0)}m`);
+      console.log(`✅✅✅ [LocationTracker] UPLOAD COMPLETE - Next in ${this.updateInterval/1000}s`);
 
       window.dispatchEvent(new CustomEvent('driverLocationUpdated', {
         detail: {
