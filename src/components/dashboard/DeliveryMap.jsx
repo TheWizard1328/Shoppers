@@ -273,10 +273,7 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
     baseSize *= 0.75;
   }
   
-  // NEW: Reduce size for other drivers' faded markers (but not as small as before)
-  if (isOtherDriver) {
-    baseSize *= 0.86; // 15% larger than previous 0.75
-  }
+  // CRITICAL: Store markers are NEVER reduced in size - keep full size regardless of isOtherDriver
 
   // Increase size for mobile devices
   if (isMobile) {
