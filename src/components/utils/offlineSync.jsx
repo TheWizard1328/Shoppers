@@ -198,12 +198,20 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     // STEP 1: Fetch and sync ENTIRE AppUser entity (all drivers)
     const allAppUsers = await AppUser.list();
     if (allAppUsers && allAppUsers.length > 0) {
+      console.log(`📥 [PrioritySync] Syncing ${allAppUsers.length} AppUsers to offline DB...`);
       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+      console.log(`✅ [PrioritySync] Synced ${allAppUsers.length} AppUsers`);
       await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
     }
     
-    await new Promise(r => setTimeout(r, 500));
+    // CRITICAL: Wait for IndexedDB to persist before proceeding
+    await new Promise(r => setTimeout(r, 800));
+    
+    // CRITICAL: Verify data was actually saved
+    const verifyAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+    console.log(`🔍 [PrioritySync] Verified AppUsers in offline DB: ${verifyAppUsers?.length || 0} records`);
+    
     notifySyncStatus({ status: 'priority_sync', phase: 'deliveries' });
     
     // CRITICAL: Wait for rate limit before next fetch
