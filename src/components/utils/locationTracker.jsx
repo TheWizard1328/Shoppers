@@ -192,10 +192,12 @@ class LocationTracker {
     try {
       // Check if online before attempting update
       if (!navigator.onLine) {
+        console.log('❌ [LocationTracker] Device offline - skipping upload');
         return;
       }
 
       if (!this.appUserId || !this.currentUser) {
+        console.log('❌ [LocationTracker] Missing appUserId or currentUser - skipping upload');
         return;
       }
 
@@ -206,17 +208,19 @@ class LocationTracker {
 
       const nowISO = new Date().toISOString();
 
-      console.log(`📤 [LocationTracker] Device check:`, {
-        currentDevice: currentDevice?.device_name || 'NO DEVICE RECORD',
+      console.log(`📤 [LocationTracker] Uploading location:`, {
+        appUserId: this.appUserId,
+        device: currentDevice?.device_name || 'NO DEVICE RECORD',
         isPrimary: isPrimaryTracker,
-        deviceExists: !!currentDevice,
         lat: latitude.toFixed(6),
-        lng: longitude.toFixed(6)
+        lng: longitude.toFixed(6),
+        timestamp: nowISO
       });
 
-      // CRITICAL: Update API first, then pull down ALL AppUsers to sync everyone's locations
-      let updatedAppUser = null;
-      if (isPrimaryTracker) {
+      // CRITICAL: Always upload if primary device (or no device record)
+      if (!isPrimaryTracker) {
+        console.log('⚠️ [LocationTracker] Non-primary device - skipping AppUser location update');
+      } else {
         const updateData = {
           current_latitude: latitude,
           current_longitude: longitude,
@@ -224,12 +228,12 @@ class LocationTracker {
         };
 
         // Step 1: Upload this driver's location to API
-        updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
-        console.log(`✅ [LocationTracker] Uploaded to API - AppUser ${this.appUserId} updated with:`, {
+        const updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
+        console.log(`✅ [LocationTracker] UPLOADED TO API - AppUser ${this.appUserId}:`, {
           lat: latitude.toFixed(6),
           lon: longitude.toFixed(6),
           timestamp: nowISO,
-          isPrimaryDevice: true
+          response: updatedAppUser ? 'SUCCESS' : 'FAILED'
         });
 
         // Step 2: Immediately pull down ALL AppUsers from API (fresh data for everyone)
