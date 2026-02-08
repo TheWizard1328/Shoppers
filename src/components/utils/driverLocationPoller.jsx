@@ -106,9 +106,26 @@ class DriverLocationPoller {
     // Update internal current user reference
     this.currentUser = currentUser;
 
-    // CRITICAL: Merge offline and online data, deduplicating by user ID and prioritizing most recent location
+    // CRITICAL: When forceNotify=true, always pull fresh data from API FIRST
     let usersData = appUsers;
-    if (!forceNotify) {
+    if (forceNotify) {
+      console.log('📍 [DriverLocationPoller] forceNotify=true - pulling fresh data from API');
+      try {
+        const { base44 } = await import('@/api/base44Client');
+        const freshAppUsers = await base44.entities.AppUser.list();
+        console.log(`📡 [DriverLocationPoller] Pulled ${freshAppUsers.length} fresh AppUsers from API`);
+        
+        // Save to offline DB immediately
+        const { offlineDB } = await import('./offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+        console.log(`💾 [DriverLocationPoller] Synced fresh data to offline DB`);
+        
+        usersData = freshAppUsers;
+      } catch (apiError) {
+        console.warn('⚠️ [DriverLocationPoller] Failed to pull fresh data from API:', apiError.message);
+        // Fall back to provided appUsers
+      }
+    } else if (!forceNotify) {
       try {
         const { offlineDB } = await import('./offlineDatabase');
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);

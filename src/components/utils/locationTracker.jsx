@@ -26,6 +26,9 @@ class LocationTracker {
     this.driverStatus = 'off_duty';
     this.updateInterval = 15000; // 15 seconds heartbeat - ALWAYS updates timestamp even if stationary
     this.coordinateUpdateInterval = 15000; // 15 seconds max without coordinate update
+
+    // CRITICAL: Lock interval to 15 seconds - override any settings that try to change it
+    this._lockedUpdateInterval = 15000;
     this.minDistanceChange = 50; // 50 meters - reduced threshold so stationary drivers still update
     this.failedUpdateCount = 0;
     this.maxFailedUpdates = 3;
@@ -43,14 +46,17 @@ class LocationTracker {
   loadSettings() {
     try {
       const settings = getRouteOptimizationSettings();
-      if (settings.locationUpdateIntervalSeconds) {
-        this.updateInterval = settings.locationUpdateIntervalSeconds * 1000;
-      }
+      // CRITICAL: Always use locked 15-second interval regardless of settings
+      this.updateInterval = this._lockedUpdateInterval || 15000;
+
       if (settings.minMovementDistanceMeters) {
         this.minDistanceChange = settings.minMovementDistanceMeters;
       }
+
+      console.log(`📍 [LocationTracker] Interval locked to ${this.updateInterval / 1000}s`);
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
+      this.updateInterval = 15000;
     }
   }
 
