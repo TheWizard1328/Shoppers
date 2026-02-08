@@ -347,7 +347,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
             width: ${size * 2}px; 
             height: ${size * 2}px; 
             background: ${color}; 
-            border: 3px solid white; 
+            border: 2px solid white; 
             border-radius: 50%; 
             display: flex; 
             align-items: center; 
