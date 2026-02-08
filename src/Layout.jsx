@@ -11,6 +11,7 @@ import { Store } from "@/entities/Store";
 import { format } from "date-fns";
 import { getData, invalidate, loadDeliveries, loadDeliveriesForDate, loadFullMonthDeliveries } from './components/utils/dataManager';
 import { smartRefreshManager } from './components/utils/smartRefreshManager';
+import { backgroundSyncManager } from './components/utils/backgroundSyncManager';
 import { offlineDB } from './components/utils/offlineDatabase';
 import {
   LayoutDashboard,
