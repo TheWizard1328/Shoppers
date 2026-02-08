@@ -296,28 +296,29 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const firstInitial = displayName.charAt(0).toUpperCase();
     const size = isActive ? 18 : 14;
 
-    // Determine border color based on driver status and location age (for ALL users)
-    let borderColor = 'white';
+    // Border always white (or gray for shared location)
+    const borderColor = isSharedLocation ? '#64748b' : 'white';
 
-    if (!isSharedLocation) {
+    // Determine fill color based on driver status and location age (for ALL users)
+    let color;
+
+    if (isSharedLocation) {
+      color = '#64748b'; // Gray for shared location
+    } else {
       // Check if location is stale (older than 5 minutes)
       const locationAge = user.location_updated_at ? 
         Date.now() - new Date(user.location_updated_at).getTime() : Infinity;
       const isStale = locationAge > 5 * 60 * 1000;
 
       if (isStale) {
-        borderColor = '#ef4444'; // Red for stale
+        color = '#ef4444'; // Red fill for stale
       } else if (user.driver_status === 'on_break') {
-        borderColor = '#3b82f6'; // Blue for on break
+        color = '#3b82f6'; // Blue fill for on break
       } else {
-        borderColor = 'white'; // White for on duty
+        color = isActive ? '#10b981' : '#3b82f6'; // Green for active on duty, blue otherwise
       }
-    } else {
-      borderColor = '#64748b'; // Gray for shared location
     }
 
-    // Use gray color for shared location markers, otherwise use green/blue
-    const color = isSharedLocation ? '#64748b' : (isActive ? '#10b981' : '#3b82f6');
     const pulseClass = isActive ? 'driver-marker-pulse' : '';
 
     return L.divIcon({
