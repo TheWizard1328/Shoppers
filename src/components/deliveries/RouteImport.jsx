@@ -1895,12 +1895,22 @@ export default function RouteImport({
       // STEP 2: CRITICAL - Use ALL preview deliveries (creates + updates) as CREATES via bulkCreate
       // Since we purge everything first, ALL CSV data becomes fresh creates
       // This prevents duplicates and ensures CSV is the sole source of truth
+      console.log(`📦 [RouteImport Confirm] Starting import with ${previewData.deliveriesToCreate.length} creates + ${previewData.deliveriesToUpdate.length} updates`);
+
       const allDeliveriesToImport = [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate];
+
+      if (!allDeliveriesToImport || allDeliveriesToImport.length === 0) {
+        console.error('❌ [RouteImport Confirm] ERROR: No deliveries to import!');
+        throw new Error('No deliveries found in preview data to import');
+      }
+
       const deliveriesToCreateFiltered = allDeliveriesToImport.map(d => {
         const { id, _changes, action, _matchReason, ...cleanData } = d;
         return cleanData;
       });
       const deliveriesToUpdateFiltered = []; // No updates - full purge means everything is a create
+
+      console.log(`📦 [RouteImport Confirm] Filtered to ${deliveriesToCreateFiltered.length} deliveries for creation`);
 
       // STEP 3: Get drivers being imported
       const importedDriverIds = [...new Set(
