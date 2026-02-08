@@ -318,17 +318,28 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const locationAge = user.location_updated_at ? 
       Date.now() - new Date(user.location_updated_at).getTime() : Infinity;
     const isStale = locationAge > 5 * 60 * 1000; // 5 minutes
+    
+    // DEBUG: Log what we're receiving
+    console.log(`🎨 [Marker Color] ${displayName}:`, {
+      driver_status: user.driver_status,
+      locationAge: Math.floor(locationAge / 1000),
+      isStale,
+      location_updated_at: user.location_updated_at
+    });
 
     let color;
     if (isStale) {
       // Stale data = orange (regardless of status)
       color = '#FFA500';
+      console.log(`🟠 [Marker] ${displayName} = ORANGE (stale)`);
     } else if (user.driver_status === 'on_break') {
       // On break = blue
       color = '#3b82f6';
+      console.log(`🔵 [Marker] ${displayName} = BLUE (on_break)`);
     } else {
       // On duty or other = green
       color = '#10b981';
+      console.log(`🟢 [Marker] ${displayName} = GREEN (on_duty or default)`);
     }
 
     const pulseClass = isActive ? 'driver-marker-pulse' : '';
