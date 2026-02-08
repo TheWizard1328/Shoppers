@@ -408,8 +408,11 @@ class LocationTracker {
     }
 
     if (this.isTracking) {
+      console.log('📍 [LocationTracker] Already tracking - skipping start');
       return;
     }
+    
+    console.log('🚀 [LocationTracker] Starting location tracking for user:', user.id);
 
     if (!navigator.geolocation) {
       throw new Error('Geolocation is not supported by this browser');
