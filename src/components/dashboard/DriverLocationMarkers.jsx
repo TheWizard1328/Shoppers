@@ -76,7 +76,7 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocatio
   });
 };
 
-const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [] }) => {
+const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [], selectedDate = null }) => {
   console.log('🚀 [DriverLocationMarkers] COMPONENT RENDERING', {
     usersCount: users?.length || 0,
     users: users?.map(u => ({
