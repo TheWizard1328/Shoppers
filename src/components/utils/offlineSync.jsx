@@ -1117,6 +1117,27 @@ export const restartDeliveryPatientSync = async () => {
   }
 };
 
+/**
+ * Initialize offline DB with fresh data before Dashboard renders
+ * Call this in Dashboard useEffect BEFORE any render of map/markers
+ */
+export const initializeOfflineDBBeforeRender = async (smartRefreshMgr = null) => {
+  try {
+    // Pre-render sync: force fresh AppUsers and Cities
+    const preRenderResult = await preRenderFreshSync(smartRefreshMgr);
+    
+    if (!preRenderResult.success) {
+      console.warn('⚠️ [InitOfflineDB] Pre-render sync had issues, continuing...');
+    }
+    
+    // Return fresh data for initial render
+    return preRenderResult;
+  } catch (error) {
+    console.error('❌ [InitOfflineDB] Error:', error);
+    return { success: false, appUsers: [], cities: [], error: error.message };
+  }
+};
+
 export const getSyncStats = async () => {
   const stats = await offlineDB.getStats();
   const pendingMutations = await offlineDB.getPendingMutations();
