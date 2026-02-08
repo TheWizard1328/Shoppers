@@ -365,6 +365,7 @@ class LocationTracker {
 
   handleLocationSuccess(position) {
     const { latitude, longitude, accuracy } = position.coords;
+    console.log(`📍 [LocationTracker] GPS position received - lat: ${latitude.toFixed(6)}, lon: ${longitude.toFixed(6)}, accuracy: ${accuracy?.toFixed(0)}m`);
     this.updateLocationInDatabase(latitude, longitude, accuracy);
   }
 
