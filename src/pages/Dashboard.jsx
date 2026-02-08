@@ -1514,7 +1514,7 @@ function Dashboard() {
           }
           mapLockExpiresAtRef.current = null;
 
-          const lockDuration = 3000;
+          const lockDuration = 500;
           const expiresAt = Date.now() + lockDuration;
           mapLockExpiresAtRef.current = expiresAt;
 
