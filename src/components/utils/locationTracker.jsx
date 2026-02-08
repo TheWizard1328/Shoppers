@@ -258,7 +258,7 @@ class LocationTracker {
             detail: { appUsers: allAppUsers }
           }));
         }
-        }
+      }
 
       // CRITICAL: Always update UserDevice last_active_at regardless of primary status
       if (currentDevice) {
