@@ -192,12 +192,11 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         updatePayload.current_latitude = currentLat;
         updatePayload.current_longitude = currentLng;
       } else if (newStatus === 'on_break') {
-        console.log('📍 [DriverStatusToggle] Going ON BREAK - disabling location sharing...');
-        updatePayload.location_tracking_enabled = false;
-        // Keep coordinates but clear timestamp to signal sharing is OFF
+        console.log('📍 [DriverStatusToggle] Going ON BREAK - keeping location sharing active...');
+        updatePayload.location_tracking_enabled = true; // CRITICAL: Keep sharing enabled for on_break
         updatePayload.current_latitude = currentLat;
         updatePayload.current_longitude = currentLng;
-        updatePayload.location_updated_at = null; // CRITICAL: Null timestamp = not sharing
+        updatePayload.location_updated_at = nowTimestamp; // CRITICAL: Keep timestamp active for on_break
       } else if (newStatus === 'off_duty') {
         console.log('📍 [DriverStatusToggle] Going OFF DUTY - disabling location sharing...');
         updatePayload.location_tracking_enabled = false;
@@ -220,7 +219,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       const result = await base44.functions.invoke('setDriverStatus', {
         newStatus,
         deviceId,
-        disableLocationTracking: newStatus !== 'on_duty' // Disable tracking when off duty OR on break
+        disableLocationTracking: newStatus === 'off_duty' // Only disable tracking when off duty
       });
       
       console.log('✅ Backend status update result:', result.data);
@@ -242,14 +241,12 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       invalidate('Delivery');
       
       // Update location tracker based on new status
-      const shouldEnableTracking = newStatus === 'on_duty';
+      const shouldEnableTracking = newStatus === 'on_duty' || newStatus === 'on_break';
       
       if (!shouldEnableTracking) {
-        // CRITICAL: Don't stop tracking on mobile - just update status
-        // locationTracker continues to update coordinates but won't update location_updated_at
-        // This allows drivers to see their own marker on desktop while not sharing location
+        // Going OFF DUTY - stop sharing location
         locationTracker.setDriverStatus(newStatus);
-        console.log('📍 [DriverStatusToggle] Status set to ' + newStatus + ' - tracking continues but sharing disabled');
+        console.log('📍 [DriverStatusToggle] Status set to ' + newStatus + ' - location sharing disabled');
         
         // CRITICAL: Dispatch event to force LocationTrackingToggle UI refresh
         window.dispatchEvent(new CustomEvent('locationSharingDisabled'));
