@@ -414,6 +414,7 @@ const needsInitialSync = async (entityName) => {
 
 /**
  * Get database statistics
+ * CRITICAL: Always return valid stats object, never null
  */
 const getStats = async () => {
   try {
@@ -435,36 +436,46 @@ const getStats = async () => {
 
     return {
       patients: {
-        count: patients.length,
+        count: patients?.length || 0,
         lastSync: patientSync?.lastSync || patientSync?.lastSyncDate || 'Never'
       },
       deliveries: {
-        count: deliveries.length,
+        count: deliveries?.length || 0,
         lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never'
       },
       appUsers: {
-        count: appUsers.length,
+        count: appUsers?.length || 0,
         lastSync: appUserSync?.lastSync || appUserSync?.lastSyncDate || 'Never'
       },
       cities: {
-        count: cities.length,
+        count: cities?.length || 0,
         lastSync: citySync?.lastSync || citySync?.lastSyncDate || 'Never'
       },
       stores: {
-        count: stores.length,
+        count: stores?.length || 0,
         lastSync: storeSync?.lastSync || storeSync?.lastSyncDate || 'Never'
       },
       squareTransactions: {
-        count: squareTx.length,
+        count: squareTx?.length || 0,
         lastSync: squareTxSync?.lastSync || squareTxSync?.lastSyncDate || 'Never'
       },
       driverOverviewStats: {
-        count: driverStats.length,
-        lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never' // Use delivery sync time since they're related
+        count: driverStats?.length || 0,
+        lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never'
       }
     };
   } catch (error) {
-    return null;
+    console.error('❌ [getStats] Error retrieving stats:', error);
+    // CRITICAL: Return default stats structure instead of null
+    return {
+      patients: { count: 0, lastSync: 'Never' },
+      deliveries: { count: 0, lastSync: 'Never' },
+      appUsers: { count: 0, lastSync: 'Never' },
+      cities: { count: 0, lastSync: 'Never' },
+      stores: { count: 0, lastSync: 'Never' },
+      squareTransactions: { count: 0, lastSync: 'Never' },
+      driverOverviewStats: { count: 0, lastSync: 'Never' }
+    };
   }
 };
 
