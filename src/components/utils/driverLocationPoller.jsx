@@ -213,7 +213,7 @@ class DriverLocationPoller {
       const ageMinutes = Math.floor(locationAge / 60000);
       
       if (locationAge > maxStaleTime) {
-        console.log(`⏭️ [Poller] Skipping user ${user.id || user.user_name} - location too old (${ageMinutes} min): ${user.location_updated_at}`);
+        console.log(`⏭️ [Poller] Skipping user ${user.user_name} - location too old (${ageMinutes} min): ${user.location_updated_at}`);
         return false; // Skip stale locations entirely
       }
       
