@@ -26,15 +26,30 @@ export const AppDataProvider = ({ children, value }) => {
   
   // CRITICAL: Direct data refresh for a specific driver and date (bypasses isEntityUpdating flag)
   const forceRefreshDriverDeliveries = async (driverId, deliveryDate) => {
-    console.log(`🔄 [Force Refresh] Fetching latest deliveries for driver ${driverId} on ${deliveryDate}...`);
+    console.log(`🔄 [Force Refresh] Loading deliveries for driver ${driverId} on ${deliveryDate}...`);
     
     try {
-      const freshDeliveriesForDriver = await base44.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      });
+      // CRITICAL: Try offline DB FIRST to prevent rate limits
+      const { offlineDB } = await import('./offlineDatabase');
+      let freshDeliveriesForDriver = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
       
-      console.log(`✅ [Force Refresh] Got ${freshDeliveriesForDriver.length} deliveries from database`);
+      if (freshDeliveriesForDriver && freshDeliveriesForDriver.length > 0) {
+        // Filter to specific driver from offline data
+        freshDeliveriesForDriver = freshDeliveriesForDriver.filter(d => d.driver_id === driverId);
+        console.log(`✅ [Force Refresh] Got ${freshDeliveriesForDriver.length} deliveries from offline DB`);
+      } else {
+        // Fallback to API only if offline DB is empty
+        console.log('📥 [Force Refresh] Offline DB empty - fetching from API');
+        freshDeliveriesForDriver = await base44.entities.Delivery.filter({
+          driver_id: driverId,
+          delivery_date: deliveryDate
+        });
+        
+        // Save to offline DB for next time
+        if (freshDeliveriesForDriver && freshDeliveriesForDriver.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveriesForDriver);
+        }
+      }
       
       // CRITICAL: Clear ALL pending updates for this driver/route FIRST
       smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
@@ -53,7 +68,7 @@ export const AppDataProvider = ({ children, value }) => {
       
       return freshDeliveriesForDriver;
     } catch (error) {
-      console.error('❌ [Force Refresh] Failed to fetch deliveries:', error);
+      console.error('❌ [Force Refresh] Failed to load deliveries:', error);
       throw error;
     }
   };

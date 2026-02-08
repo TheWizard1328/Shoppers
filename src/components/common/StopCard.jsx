@@ -201,30 +201,38 @@ export default function StopCard({
     if (!currentUser?.id) return;
 
     try {
-      const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
-      if (appUsers && appUsers.length > 0) {
-        const appUser = appUsers[0];
-        if (appUser.driver_status !== 'on_duty') {
-          console.log('🔄 Auto-toggling driver to on_duty');
-          await base44.entities.AppUser.update(appUser.id, {
-            driver_status: 'on_duty',
-            location_tracking_enabled: true
+      // CRITICAL: Try offline DB FIRST to prevent rate limits
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      let appUserData = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+      let appUser = appUserData?.find(au => au.user_id === currentUser.id);
+      
+      if (!appUser) {
+        // Fallback to API only if offline DB doesn't have data
+        console.log('📥 [ensureDriverOnline] Offline DB empty - fetching from API');
+        const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+        appUser = appUsers?.[0];
+      }
+      
+      if (appUser && appUser.driver_status !== 'on_duty') {
+        console.log('🔄 Auto-toggling driver to on_duty');
+        await base44.entities.AppUser.update(appUser.id, {
+          driver_status: 'on_duty',
+          location_tracking_enabled: true
+        });
+
+        // Start location tracking
+        try {
+          await locationTracker.startTracking({
+            ...currentUser,
+            appUserId: appUser.id
           });
+        } catch (trackingError) {
+          console.warn('Could not start location tracking:', trackingError.message);
+        }
 
-          // Start location tracking
-          try {
-            await locationTracker.startTracking({
-              ...currentUser,
-              appUserId: appUser.id
-            });
-          } catch (trackingError) {
-            console.warn('Could not start location tracking:', trackingError.message);
-          }
-
-          // Notify parent to refresh UI
-          if (onDriverStatusChange) {
-            onDriverStatusChange('on_duty');
-          }
+        // Notify parent to refresh UI
+        if (onDriverStatusChange) {
+          onDriverStatusChange('on_duty');
         }
       }
     } catch (error) {
