@@ -157,27 +157,13 @@ class DriverLocationPoller {
     const now = Date.now();
     const maxStaleTime = 5 * 60 * 1000; // 5 minutes - hide marker if no updates
     
-    // CRITICAL: Pre-filter out stale locations BEFORE deduplication to avoid processing old data
-    users = users.filter(user => {
-      if (!user || !(user.id || user.user_id)) return false;
-      
-      // Skip users without location timestamps or coordinates
-      if (!user.location_updated_at || !user.current_latitude || !user.current_longitude) {
-        return false;
-      }
-      
-      // Check if location is too old (more than 5 minutes)
-      const locationAge = now - new Date(user.location_updated_at).getTime();
-      if (locationAge > maxStaleTime) {
-        return false; // Skip stale locations entirely
-      }
-      
-      return true;
-    });
+    console.log(`🔍 [Poller] Processing ${users.length} users before deduplication/filtering`);
     
-    // CRITICAL: Deduplicate remaining users by ID, keeping the one with the most recent location_updated_at
+    // CRITICAL: First deduplicate by user ID across ALL users (including stale), keeping most recent
     const userMap = new Map();
     users.forEach(user => {
+      if (!user || !(user.id || user.user_id)) return;
+      
       const userId = user.id || user.user_id;
       const existingUser = userMap.get(userId);
       
@@ -185,17 +171,43 @@ class DriverLocationPoller {
         userMap.set(userId, user);
       } else {
         // Keep the user with the most recent location timestamp
-        const newTimestamp = new Date(user.location_updated_at).getTime();
-        const existingTimestamp = new Date(existingUser.location_updated_at).getTime();
+        const newTimestamp = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+        const existingTimestamp = existingUser.location_updated_at ? new Date(existingUser.location_updated_at).getTime() : 0;
         
         if (newTimestamp > existingTimestamp) {
-          console.log(`⚠️ [Poller] Duplicate user ${userId} detected - keeping newer location (${user.location_updated_at} vs ${existingUser.location_updated_at})`);
+          console.log(`⚠️ [Poller] Duplicate user ${userId} - keeping NEWER: ${user.location_updated_at} (vs old: ${existingUser.location_updated_at})`);
           userMap.set(userId, user);
+        } else {
+          console.log(`⚠️ [Poller] Duplicate user ${userId} - keeping EXISTING: ${existingUser.location_updated_at} (vs old: ${user.location_updated_at})`);
         }
       }
     });
     
     users = Array.from(userMap.values());
+    console.log(`✅ [Poller] After deduplication: ${users.length} unique users`);
+    
+    // CRITICAL: Now filter out stale locations (older than 5 minutes)
+    users = users.filter(user => {
+      // Skip users without location timestamps or coordinates
+      if (!user.location_updated_at || !user.current_latitude || !user.current_longitude) {
+        console.log(`⏭️ [Poller] Skipping user ${user.id || user.user_id} - missing location data`);
+        return false;
+      }
+      
+      // Check if location is too old (more than 5 minutes)
+      const locationAge = now - new Date(user.location_updated_at).getTime();
+      const ageMinutes = Math.floor(locationAge / 60000);
+      
+      if (locationAge > maxStaleTime) {
+        console.log(`⏭️ [Poller] Skipping user ${user.id || user.user_id} - location too old (${ageMinutes} min): ${user.location_updated_at}`);
+        return false; // Skip stale locations entirely
+      }
+      
+      console.log(`✅ [Poller] Including user ${user.id || user.user_id} - fresh location (${ageMinutes} min old): ${user.location_updated_at}`);
+      return true;
+    });
+    
+    console.log(`✅ [Poller] After staleness filter: ${users.length} users with fresh locations`);
     
     if (users.length === 0) {
       // CRITICAL: Still notify subscribers with empty array to clear markers
