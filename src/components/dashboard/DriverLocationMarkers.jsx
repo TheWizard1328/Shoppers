@@ -158,6 +158,11 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           if (!user) return false;
           if (!user.current_latitude || !user.current_longitude) return false;
 
+          // CRITICAL: Only show on_duty drivers - don't show on_break or off_duty
+          if (user.driver_status !== 'on_duty') {
+            return false;
+          }
+
           const currentUserId = currentUser?.id;
           const currentUserUserId = currentUser?.user_id;
           const userId = user.id || user.user_id;
