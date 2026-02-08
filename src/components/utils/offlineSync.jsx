@@ -296,11 +296,16 @@ export const preRenderFreshSync = async (smartRefreshMgr = null) => {
     // CRITICAL: FORCE fresh fetch of AppUsers (ignore offline DB age)
     console.log('📍 [PreRenderSync] Fetching fresh AppUsers...');
     const appUsers = await AppUser.list();
+    console.log(`📍 [PreRenderSync] Fetched ${appUsers?.length || 0} AppUsers:`, appUsers?.map(u => ({ id: u.id, user_name: u.user_name })));
+
     if (appUsers && appUsers.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+      const appUserSaveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+      console.log(`✅ [PreRenderSync] Saved AppUsers to offline DB:`, appUserSaveResult);
       await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
       console.log(`✅ [PreRenderSync] Synced ${appUsers.length} fresh AppUsers to offline DB`);
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
+    } else {
+      console.warn('⚠️ [PreRenderSync] No AppUsers returned from API');
     }
     
     // Wait for rate limit
