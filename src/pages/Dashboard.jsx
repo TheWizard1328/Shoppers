@@ -2084,6 +2084,12 @@ function Dashboard() {
       const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
       const latestAppUsers = locationUpdates?.appUsers || appUsers;
 
+      console.log(`📍 [Periodic Refresh] Location updates result:`, {
+        hasLocationUpdates: !!locationUpdates,
+        latestAppUsersCount: latestAppUsers?.length || 0,
+        originalAppUsersCount: appUsers?.length || 0
+      });
+
       if (latestAppUsers && latestAppUsers.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, latestAppUsers);
       }
