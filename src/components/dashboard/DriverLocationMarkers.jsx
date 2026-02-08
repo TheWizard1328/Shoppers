@@ -209,10 +209,13 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const validDrivers = (users || []).filter(user => {
       if (!user) return false;
 
-      // CRITICAL: Don't show markers for past dates
+      // CRITICAL: Don't show ANY markers for past dates - enforce immediately
       if (selectedDate) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        if (selectedDate < todayStr) {
+        const selectedDateStr = selectedDate instanceof Date 
+          ? selectedDate.toISOString().split('T')[0]
+          : selectedDate;
+        if (selectedDateStr < todayStr) {
           return false;
         }
       }
