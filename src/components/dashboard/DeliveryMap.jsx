@@ -3826,7 +3826,7 @@ export default function DeliveryMap({
             <Marker
               key={uniqueKey}
               position={[location.latitude, location.longitude]}
-              icon={createDriverIcon(location.driver_status, location.driverInitial, location.isStaleLocation, isOnBreakSelf)}
+              icon={createDriverIcon(location.driver_status, location.driverInitial, location.isStaleLocation)}
               zIndexOffset={3000}
               data-driver-location-id={location.id}
               eventHandlers={{
