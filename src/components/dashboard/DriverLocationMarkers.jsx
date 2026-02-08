@@ -6,6 +6,76 @@ import { userHasRole } from '../utils/userRoles';
 import { isMobileDevice } from '../utils/deviceUtils';
 import { getCurrentDevice } from '../utils/deviceManager';
 
+// Create driver icon with thin white border ring
+const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocation = false) => {
+  const size = 15;
+  
+  // Determine fill color based on status and staleness
+  let fillColor;
+  if (isStaleLocation) {
+    fillColor = '#EA580C'; // Orange for stale location
+  } else if (driverStatus === 'on_break') {
+    fillColor = '#3b82f6'; // Blue for on break
+  } else {
+    fillColor = '#10B981'; // Green for on duty
+  }
+  
+  // Thin white border ring
+  const borderColor = '#FFFFFF';
+  const borderWidth = 2;
+  
+  return L.divIcon({
+    html: `
+      <div class="driver-marker" style="
+        position: relative;
+        width: ${size}px;
+        height: ${size}px;
+      ">
+        <div style="
+          background-color: ${fillColor};
+          border: ${borderWidth}px solid ${borderColor};
+          border-radius: 50%;
+          width: ${size}px;
+          height: ${size}px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+          animation: driverPulse 2s infinite;
+          cursor: pointer;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        ">
+          <span style="
+            font-size: 8px;
+            font-weight: bold;
+            color: white;
+            text-transform: uppercase;
+          ">${initial || 'D'}</span>
+        </div>
+      </div>
+      <style>
+        @keyframes driverPulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 3px 10px rgba(0,0,0,0.4); }
+          50% { transform: scale(1.15); box-shadow: 0 3px 15px rgba(0,0,0,0.5); }
+        }
+        .driver-marker:hover {
+          z-index: 9999 !important;
+        }
+        .driver-marker:hover > div {
+          transform: scale(1.2);
+          box-shadow: 0 5px 20px rgba(0,0,0,0.6) !important;
+        }
+        .leaflet-marker-icon:has(.driver-marker:hover) {
+          z-index: 9999 !important;
+        }
+      </style>
+    `,
+    className: 'custom-driver-icon',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
+  });
+};
+
 const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [] }) => {
   console.log('🚀 [DriverLocationMarkers] COMPONENT RENDERING', {
     usersCount: users?.length || 0,
