@@ -385,7 +385,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       // CRITICAL: Don't show off-duty drivers or past date markers
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const isViewingPastDate = selectedDate && selectedDate < todayStr;
-      const isOffDuty = user.driver_status === 'off_duty';
+      const isOffDuty = user.driver_status !== 'on_duty' && user.driver_status !== 'on_break';
       
       const shouldShowMarker = (user.location_tracking_enabled === true || isCurrentUserOnNonPrimaryDevice) && 
                                user.status !== 'inactive' && 
