@@ -444,6 +444,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   }
 
   // Floating mode for map (desktop)
+  const shouldRenderStats = isFullyLoaded && stats;
+  
   return (
     <div className="fixed top-2 left-1 z-[100000]">
       <motion.div
@@ -465,7 +467,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
           <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
             {isSyncing ? 'Syncing...' : 'Offline DB'}
           </span>
-          {stats && !isSyncing &&
+          {shouldRenderStats && !isSyncing &&
           <span className="text-xs ml-1" style={{ color: 'var(--text-slate-500)' }}>
               ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0) + (stats.driverOverviewStats?.count || 0)} records)
             </span>
