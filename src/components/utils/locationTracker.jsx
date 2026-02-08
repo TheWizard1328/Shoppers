@@ -208,8 +208,10 @@ class LocationTracker {
 
       const nowISO = new Date().toISOString();
 
-      console.log(`📤 [LocationTracker] Uploading location:`, {
-        appUserId: this.appUserId,
+      const userName = this.currentUser?.user_name || this.currentUser?.full_name || 'Unknown';
+      const userIdLast4 = this.currentUser?.id ? this.currentUser.id.slice(-4) : '????';
+      
+      console.log(`📤 [LocationTracker] Uploading location for ${userName} (...${userIdLast4}):`, {
         device: currentDevice?.device_name || 'NO DEVICE RECORD',
         isPrimary: isPrimaryTracker,
         lat: latitude.toFixed(6),
