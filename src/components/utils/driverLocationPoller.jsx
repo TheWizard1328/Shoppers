@@ -86,7 +86,22 @@ class DriverLocationPoller {
     }
     
     console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} driver locations (forceNotify: ${forceNotify})`);
-
+    
+    // DEBUG: Log first few users to see what data we're getting
+    if (appUsers.length > 0) {
+      console.log(`📊 [Poller] Sample appUsers data:`, appUsers.slice(0, 2).map(u => ({
+        id: u.id,
+        user_id: u.user_id,
+        user_name: u.user_name,
+        driver_status: u.driver_status,
+        location_tracking_enabled: u.location_tracking_enabled,
+        current_latitude: u.current_latitude,
+        current_longitude: u.current_longitude,
+        location_updated_at: u.location_updated_at
+      })));
+    } else {
+      console.warn(`⚠️ [Poller] No appUsers data provided to processLocationData!`);
+    }
 
     // Update internal current user reference
     this.currentUser = currentUser;
