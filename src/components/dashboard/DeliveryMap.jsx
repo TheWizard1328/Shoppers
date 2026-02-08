@@ -1521,14 +1521,7 @@ export default function DeliveryMap({
   const prevDriverLocationMarkersRef = useRef([]);
   
   const driverLocationMarkers = useMemo(() => {
-    // CRITICAL: Only show on today or future dates
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const isViewingTodayOrFuture = !selectedDate || selectedDate >= today;
-    
-    if (!isViewingTodayOrFuture) {
-      prevDriverLocationMarkersRef.current = [];
-      return [];
-    }
+    // Show markers for any date
 
     const isCurrentUserAdmin = currentUser && userHasRole(currentUser, 'admin');
     const isCurrentUserDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
