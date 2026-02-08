@@ -2320,16 +2320,24 @@ function Dashboard() {
       } else {
         newMapViewPhase = nextPhase;
 
-        // Skip phase 2 if no next stop coordinates
-        if (newMapViewPhase === 2 && !nextStopCoordinates) {
+        // CRITICAL: Check if there are incomplete deliveries for current driver
+        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+        const hasIncompleteDeliveries = deliveriesWithStopOrder.some((d) => 
+          d && d.driver_id === currentUser?.id && !finishedStatuses.includes(d.status)
+        );
+
+        // Skip phase 2 if no incomplete deliveries OR no next stop coordinates
+        if (newMapViewPhase === 2 && (!hasIncompleteDeliveries || !nextStopCoordinates)) {
           newMapViewPhase = 3;
+          console.log('⏭️ [FAB] Skipping Phase 2 - no incomplete deliveries');
         }
-        // Skip phase 3 if not on mobile
-        if (newMapViewPhase === 3 && !isMobile) {
+        // Skip phase 3 if not on mobile AND no driver markers
+        const hasDriverMarkers = allDriverLocations.length > 0 || (driverLocation?.latitude && driverLocation?.longitude);
+        if (newMapViewPhase === 3 && !isMobile && !hasDriverMarkers) {
           newMapViewPhase = 1;
         }
         // Double-check phase 2 validity
-        if (newMapViewPhase === 2 && !nextStopCoordinates) {
+        if (newMapViewPhase === 2 && (!hasIncompleteDeliveries || !nextStopCoordinates)) {
           newMapViewPhase = 1;
         }
       }
@@ -2810,7 +2818,7 @@ function Dashboard() {
         const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
         const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
         
-        // 1. Include all active driver locations (shared markers + blue dot)
+        // 1. ALWAYS include all driver locations (shared markers + blue dot) - even if no incomplete stops
         if (isViewingTodayPhase3) {
           // Include current driver's blue dot
           const shouldIncludeBlueDot = isMobile && isDriver && driverLocation?.latitude && driverLocation?.longitude;
@@ -2839,7 +2847,7 @@ function Dashboard() {
           });
         }
         
-        // 2. Include all incomplete stops from all active drivers
+        // 2. Include all incomplete stops from all active drivers (if any)
         const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
         const incompleteStopsAllDrivers = deliveries.filter((d) => {
           if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
@@ -2868,7 +2876,7 @@ function Dashboard() {
           }
         });
         
-        // 3. Fallback to city center if no coordinates
+        // 3. Fallback to city center if no driver markers and no stops
         if (allCoordinatesPhase3.length === 0) {
           const selectedCityId = globalFilters.getSelectedCityId();
           const currentCity = cities?.find((c) => c && c.id === selectedCityId);
