@@ -2607,32 +2607,44 @@ class SmartRefreshManager {
 
    /**
     * NEW: Full AppUser sync - every 15 seconds, entire dataset in one API hit
-    * CRITICAL: Ensures offline DB is updated AND dispatches event with fresh location data
+    * CRITICAL: Workflow: 1) Push current driver location to online DB 2) Delete offline AppUsers 3) Fetch fresh AppUsers from API 4) Save to offline DB 5) Load all driver locations 6) Update UI
     */
    async refreshAllAppUsersFullSync(currentAppUsers, currentPageName = null, selectedDate = null) {
      try {
-       // CRITICAL: FIRST update current driver's location to online DB (if tracking on this device)
-       if (this._currentUser) {
+       // CRITICAL: STEP 1 - If active user is a driver, push their current location to online DB
+       const { isDriver } = await import('./userRoles');
+       if (this._currentUser && isDriver(this._currentUser)) {
          try {
            const { locationTracker } = await import('./locationTracker');
            if (locationTracker.isTracking && locationTracker.lastLocation) {
              const currentAppUser = currentAppUsers.find(au => au.user_id === this._currentUser.id);
              if (currentAppUser) {
-               console.log('📍 [SmartRefresh] STEP 1: Pushing current driver location to online DB...');
+               console.log('📍 [SmartRefresh] STEP 1: Driver detected - pushing location to online DB...');
                await base44.entities.AppUser.update(currentAppUser.id, {
                  current_latitude: locationTracker.lastLocation.latitude,
                  current_longitude: locationTracker.lastLocation.longitude,
-                 location_updated_at: locationTracker.lastLocation.timestamp
+                 location_updated_at: new Date().toISOString()
                });
                console.log('✅ [SmartRefresh] Current driver location pushed to online DB');
              }
            }
          } catch (locationUpdateError) {
-           console.warn('⚠️ [SmartRefresh] Failed to push current location (non-fatal):', locationUpdateError.message);
+           console.warn('⚠️ [SmartRefresh] Failed to push current driver location (non-fatal):', locationUpdateError.message);
          }
        }
-       
-       console.log('🔄 [SmartRefresh] STEP 2: Fetching fresh AppUsers from API...');
+
+       // CRITICAL: STEP 2 - Delete entire offline AppUsers store
+       try {
+         const { offlineDB } = await import('./offlineDatabase');
+         console.log('🗑️ [SmartRefresh] STEP 2: Deleting entire offline AppUsers store...');
+         await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+         console.log('✅ [SmartRefresh] Offline AppUsers deleted');
+       } catch (clearError) {
+         console.warn('⚠️ [SmartRefresh] Failed to clear offline AppUsers (continuing):', clearError.message);
+       }
+
+       // CRITICAL: STEP 3 - Fetch fresh AppUsers from API
+       console.log('🔄 [SmartRefresh] STEP 3: Fetching fresh AppUsers from API...');
        await this.waitForRateLimit();
        const allAppUsers = await queueEntityRequest(
          () => base44.entities.AppUser.list(),
@@ -2648,15 +2660,12 @@ class SmartRefreshManager {
 
        console.log(`📥 [SmartRefresh] Fetched ${allAppUsers.length} AppUsers from API`);
 
-       // CRITICAL: STEP 3: Completely replace offline DB with fresh API data (no merging)
-       // This ensures shared location markers are always up-to-date every 15 seconds
+       // CRITICAL: STEP 4 - Copy fresh API data to offline DB
        try {
          const { offlineDB } = await import('./offlineDatabase');
-         console.log(`💾 [SmartRefresh] STEP 3: Replacing offline DB with ${allAppUsers.length} fresh AppUsers...`);
-
-         // CRITICAL: Replace entire dataset (don't merge - use fresh API data as authoritative)
+         console.log(`💾 [SmartRefresh] STEP 4: Copying ${allAppUsers.length} fresh AppUsers to offline DB...`);
          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
-         console.log(`✅ [SmartRefresh] Replaced offline DB with ${allAppUsers.length} fresh AppUsers`);
+         console.log(`✅ [SmartRefresh] AppUsers copied to offline DB`);
 
          await offlineDB.updateSyncStatus('AppUser', {
            recordCount: allAppUsers.length,
@@ -2667,52 +2676,55 @@ class SmartRefreshManager {
          console.error('❌ [SmartRefresh] Failed to sync AppUsers to offline DB:', offlineError.message);
        }
 
-       const diff = diffEntityArrays(currentAppUsers, allAppUsers);
-
-       console.log(`📊 [SmartRefresh] AppUser diff: +${diff.toAdd.length} ~${diff.toUpdate.length} -${diff.toRemove.length}`);
-
-       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
-         console.log('ℹ️ [SmartRefresh] No AppUser changes detected');
-         return null;
-       }
-
-       const merged = mergeEntityChanges(currentAppUsers, diff);
-
-       // CRITICAL: STEP 4: Process fresh locations through poller to update ALL markers
+       // CRITICAL: STEP 5 - Load all driver locations from offline DB and update UI
+       // ALWAYS update UI with ALL driver locations, regardless of diff (every 15 seconds)
+       console.log(`📍 [SmartRefresh] STEP 5: Loading all driver locations from offline DB...`);
        try {
-         const { driverLocationPoller } = await import('./driverLocationPoller');
-         const currentUser = this._currentUser;
+         const { offlineDB } = await import('./offlineDatabase');
+         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
 
-         if (currentUser) {
-           console.log(`📍 [SmartRefresh] STEP 4: Processing ${allAppUsers.length} fresh AppUsers through poller for marker updates`);
-           driverLocationPoller.processLocationData(
-             currentUser, 
-             [], // deliveries not needed for location processing
-             [], // drivers not needed
-             [], // stores not needed
-             allAppUsers, 
-             selectedDate || new Date(), // Use actual selected date from context
-             true, // forceNotify - always trigger marker updates
-             currentPageName || 'Dashboard', // Use actual current page from context
-             true // CRITICAL: showAllDrivers=true to update ALL markers every cycle
-           );
+         if (offlineAppUsers && offlineAppUsers.length > 0) {
+           console.log(`📍 [SmartRefresh] Loaded ${offlineAppUsers.length} driver locations from offline DB`);
+
+           // CRITICAL: STEP 6 - Process through poller for marker updates
+           try {
+             const { driverLocationPoller } = await import('./driverLocationPoller');
+             const currentUser = this._currentUser;
+
+             if (currentUser) {
+               console.log(`📍 [SmartRefresh] STEP 6: Processing ${offlineAppUsers.length} locations through poller`);
+               driverLocationPoller.processLocationData(
+                 currentUser, 
+                 [], // deliveries not needed
+                 [], // drivers not needed
+                 [], // stores not needed
+                 offlineAppUsers, 
+                 selectedDate || new Date(),
+                 true, // forceNotify
+                 currentPageName || 'Dashboard',
+                 true // showAllDrivers - update ALL markers
+               );
+             }
+           } catch (pollerError) {
+             console.warn('⚠️ [SmartRefresh] Failed to process through poller:', pollerError.message);
+           }
+
+           // CRITICAL: STEP 7 - Dispatch event to update UI with all driver locations
+           if (typeof window !== 'undefined') {
+             console.log(`📍 [SmartRefresh] STEP 7: Updating UI with ${offlineAppUsers.length} driver locations`);
+             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+               detail: { appUsers: offlineAppUsers, forceAll: true }
+             }));
+           }
          }
-       } catch (pollerError) {
-         console.warn('⚠️ [SmartRefresh] Failed to process through poller:', pollerError.message);
+       } catch (offlineReadError) {
+         console.warn('⚠️ [SmartRefresh] Failed to load locations from offline DB:', offlineReadError.message);
        }
 
-       // CRITICAL: STEP 5: ALWAYS dispatch driver location update event to refresh map markers
-       // Use fresh API data (allAppUsers), not just merged diff - triggers ALL markers to update
-       if (typeof window !== 'undefined') {
-         console.log(`📍 [SmartRefresh] STEP 5: Dispatching driverLocationsUpdated with ${allAppUsers.length} fresh locations (forceAll=true)`);
-         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-           detail: { appUsers: allAppUsers, forceAll: true } // CRITICAL: forceAll flag for ALL markers
-         }));
-       }
-
+       // Return with fresh API data
        return {
          hasChanges: true,
-         appUsers: merged
+         appUsers: allAppUsers
        };
      } catch (error) {
        this.recordError();
