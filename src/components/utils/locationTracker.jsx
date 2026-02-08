@@ -288,7 +288,7 @@ class LocationTracker {
         }
       }
 
-      this.lastUpdate = now;
+      // NOTE: lastUpdate already set BEFORE upload to prevent double-uploads
       this.lastSuccessfulUpdate = now;
       this.lastCoordinateUpdate = now;
       this.lastPosition = { latitude, longitude, accuracy };
