@@ -111,12 +111,22 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
         }, 300);
       }
     };
+    
+    // CRITICAL: Listen for auto-sync trigger from Layout
+    const handleTriggerSyncNow = () => {
+      console.log('⚡ [OfflineSyncIndicator] Received triggerOfflineSyncNow event - starting sync');
+      if (!isSyncing) {
+        handleForceSync();
+      }
+    };
 
     window.addEventListener('periodicSyncProgress', handlePeriodicSync);
+    window.addEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
 
     return () => {
       unsubscribe();
       window.removeEventListener('periodicSyncProgress', handlePeriodicSync);
+      window.removeEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
     };
   }, [isVisible]);
 
@@ -430,6 +440,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                 size="sm"
                 variant="outline"
                 className="w-full text-xs font-medium"
+                data-offline-sync-button
                 style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
 
                   <RefreshCw className={`w-3 h-3 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -662,7 +673,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                 disabled={isSyncing}
                 size="sm"
                 variant="outline"
-                className="w-full text-xs font-medium">
+                className="w-full text-xs font-medium"
+                data-offline-sync-button>
 
                   <RefreshCw className={`w-3 h-3 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
                   {isSyncing ? 'Syncing...' : 'Manual Sync'}
