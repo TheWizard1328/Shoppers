@@ -14,6 +14,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [runtimeStats, setRuntimeStats] = useState({});
+  const [isFullyLoaded, setIsFullyLoaded] = useState(false);
 
   const isVisible = currentUser && isAppOwner(currentUser);
 
