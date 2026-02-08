@@ -180,6 +180,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       isMobile,
       usersCount: users?.length || 0,
       currentUserId: currentUser?.id,
+      selectedDate,
       users: users?.map(u => ({
         id: u?.id,
         name: u?.user_name || u?.full_name,
@@ -194,12 +195,25 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const validDrivers = (users || []).filter(user => {
       if (!user) return false;
 
+      // CRITICAL: Don't show markers for past dates
+      if (selectedDate) {
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        if (selectedDate < todayStr) {
+          return false;
+        }
+      }
+
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) {
         console.log('🚫 [DriverLocationMarkers] Missing coordinates', { 
           id: user.id, 
           name: user.user_name 
         });
+        return false;
+      }
+      
+      // CRITICAL: Don't show markers for off-duty drivers
+      if (user.driver_status === 'off_duty') {
         return false;
       }
       
