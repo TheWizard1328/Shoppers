@@ -355,6 +355,19 @@ class DriverLocationPoller {
     }
 
   notifySubscribers(activeDriversWithLocation, forceNotify = false) {
+    // CRITICAL: Create unique key from location data to detect changes
+    const currentKey = activeDriversWithLocation
+      .map(u => `${u.id}:${u.location_updated_at}:${u.current_latitude},${u.current_longitude}`)
+      .sort()
+      .join('|');
+    
+    // Skip notification if data hasn't changed (prevents stale marker flashing)
+    if (currentKey === this._lastNotifiedKey && !forceNotify) {
+      return;
+    }
+    
+    this._lastNotifiedKey = currentKey;
+    
     // Convert array of users to array of location objects
     const currentUserId = this.currentUser?.id;
     const currentUserUserId = this.currentUser?.user_id;
@@ -400,7 +413,7 @@ class DriverLocationPoller {
           forceAll: forceNotify
         }
       }));
-      console.log(`📡 [Poller] Dispatched driverLocationsUpdated event with ${activeDriversWithLocation.length} drivers`);
+      console.log(`📡 [Poller] Dispatched driverLocationsUpdated with ${activeDriversWithLocation.length} drivers (key: ${currentKey.substring(0, 50)}...)`);
     }
   }
 
