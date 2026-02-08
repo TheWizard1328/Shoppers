@@ -139,6 +139,13 @@ const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter
     
     // CRITICAL: Always update sync metadata even if no records, to mark check timestamp
     await offlineDB.updateSyncMetadata(entityName, checkResult.latestServerTimestamp, new Date().toISOString());
+
+    // Dispatch event for indicator to show last sync time updated
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('periodicSyncProgress', {
+        detail: { entity: entityName, count: records.length, isComplete: true }
+      }));
+    }
     
     return { success: true, recordCount: records.length };
   } catch (error) {
@@ -173,7 +180,14 @@ const syncPatientsBatched = async (Entity, filter, latestServerTimestamp) => {
   
   // Update metadata after all batches
   await offlineDB.updateSyncMetadata('Patient', latestServerTimestamp, new Date().toISOString());
-  
+
+  // Dispatch event for indicator
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('periodicSyncProgress', {
+      detail: { entity: 'Patient', count: totalRecords, isComplete: true }
+    }));
+  }
+
   return { success: true, recordCount: totalRecords };
 };
 
@@ -283,6 +297,13 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     // Clean patients
     patients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
     await offlineDB.updateSyncMetadata('Patient', new Date().toISOString(), new Date().toISOString());
+
+    // Dispatch event for indicator
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('offlineSyncProgress', {
+        detail: { entity: 'Patient', count: patients.length }
+      }));
+    }
     
     notifySyncStatus({ status: 'priority_sync_complete', appUsers: allAppUsers?.length || 0, deliveries: deliveries?.length || 0, patients: patients.length });
     
