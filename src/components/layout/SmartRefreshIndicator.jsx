@@ -207,35 +207,10 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     }
   };
 
-  // Handle manual refresh click - Use PullToSync callback if provided
+  // Handle manual refresh click - Smart page-specific sync
   const handleManualRefresh = async () => {
     if (isManualRefreshing || isPaused) return;
 
-    // If onManualRefresh is provided, call it (Dashboard provides PullToSync logic)
-    if (onManualRefresh) {
-      console.log('🔄 [SmartRefreshIndicator] Triggering onManualRefresh callback (PullToSync logic)...');
-      setIsManualRefreshing(true);
-      
-      try {
-        // Dispatch event to show syncing state
-        window.dispatchEvent(new CustomEvent('offlineSyncStarted'));
-        
-        await onManualRefresh();
-        
-        // Dispatch event to clear syncing state
-        window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-      } catch (error) {
-        console.error('❌ [SmartRefreshIndicator] Manual refresh failed:', error);
-        setHasError(true);
-        setTimeout(() => setHasError(false), 3000);
-        window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-      } finally {
-        setTimeout(() => setIsManualRefreshing(false), 1000);
-      }
-      return;
-    }
-
-    // Fallback: Page-specific sync for other pages
     const currentPath = window.location.pathname;
     console.log(`🔄 [SmartRefreshIndicator] Manual refresh triggered on ${currentPath}`);
     setIsManualRefreshing(true);
@@ -290,7 +265,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       
       // Refresh current page UI
-      if (refreshData) {
+      if (onManualRefresh) {
+        await onManualRefresh();
+      } else if (refreshData) {
         await refreshData(true);
       }
       
