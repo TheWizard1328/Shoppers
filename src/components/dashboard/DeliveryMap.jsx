@@ -3064,7 +3064,7 @@ export default function DeliveryMap({
                 pickup.duplicateCount,
                 isMobile,
                 highlightedDeliveryId === pickup.id,
-                pickup.isNextDelivery,
+                false, // CRITICAL: Store pickups NEVER show isNextDelivery indicator
                 hasIncompleteStops,
                 pickup.isOtherDriver // NEW
               )}
@@ -3475,7 +3475,7 @@ export default function DeliveryMap({
             <Marker
               key={`delivery-${delivery.id}`}
               position={markerPosition}
-              icon={delivery.useSimpleCircle || delivery.isOtherDriver ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver, delivery.duplicateCount, delivery.isNextInLine) : createDeliveryIcon(
+              icon={delivery.useSimpleCircle ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver, delivery.duplicateCount, delivery.isNextInLine) : delivery.isOtherDriver ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, true, delivery.duplicateCount, delivery.isNextInLine) : createDeliveryIcon(
                 delivery.status,
                 delivery.pinColor,
                 isFanned,
