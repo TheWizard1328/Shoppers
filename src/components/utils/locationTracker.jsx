@@ -244,23 +244,21 @@ class LocationTracker {
         try {
           const { offlineDB } = await import('./offlineDatabase');
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
-          console.log(`💾 [LocationTracker] Overwritten offline DB with fresh AppUser data`);
+          console.log(`💾 [LocationTracker] Synced to offline DB`);
         } catch (offlineError) {
           console.warn('⚠️ [LocationTracker] Failed to sync to offline DB:', offlineError.message);
         }
 
         // Step 4: Broadcast update and trigger UI refresh
         broadcastMutation('AppUser', 'update', this.appUserId, updatedAppUser);
-        
+
         // Dispatch event with ALL fresh driver locations
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
             detail: { appUsers: allAppUsers }
           }));
         }
-      } else {
-        console.log(`ℹ️ [LocationTracker] Non-primary device - skipped AppUser location update`);
-      }
+        }
 
       // CRITICAL: Always update UserDevice last_active_at regardless of primary status
       if (currentDevice) {
