@@ -241,6 +241,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       
       console.log(`   📊 Syncing entities for current page: ${entitiesToSync.join(', ')}`);
       
+      // Notify offline sync started
+      window.dispatchEvent(new CustomEvent('offlineSyncStarted'));
+      
       // Sync each entity from API to offline DB
       for (const entityName of entitiesToSync) {
         try {
@@ -248,10 +251,18 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           const data = await base44.entities[entityName].list();
           await offlineDB.bulkSave(offlineDB.STORES[entityName.toUpperCase() + 'S'] || entityName.toLowerCase() + 's', data);
           console.log(`   ✅ Synced ${data.length} ${entityName} records to offline DB`);
+          
+          // Dispatch progress event for offline DB indicator to update stats
+          window.dispatchEvent(new CustomEvent('offlineSyncProgress', {
+            detail: { entity: entityName, count: data.length }
+          }));
         } catch (error) {
           console.warn(`   ⚠️ Failed to sync ${entityName}:`, error.message);
         }
       }
+      
+      // Notify offline sync complete
+      window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       
       // Refresh current page UI
       if (onManualRefresh) {
