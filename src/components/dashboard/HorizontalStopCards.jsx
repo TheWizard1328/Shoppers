@@ -185,7 +185,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   // NOW we can do the safety check and early return
   if (!pickupCards || !Array.isArray(pickupCards) || pickupCards.length === 0) {
     return (
-      <div className="text-center py-1 text-slate-500">
+      <div className="text-center py-1 text-slate-500 z-[100]">
         No pickups scheduled
       </div>);
 
