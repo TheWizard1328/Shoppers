@@ -455,12 +455,14 @@ class LocationTracker {
     }
 
     return new Promise((resolve, reject) => {
+      console.log('📍 [LocationTracker] Starting watchPosition with high accuracy GPS...');
       this.watchId = navigator.geolocation.watchPosition(
         (position) => {
           this.handleLocationSuccess(position);
           
           if (!this.isTracking) {
             this.isTracking = true;
+            console.log('✅ [LocationTracker] GPS watch established successfully');
             resolve();
           }
         },
