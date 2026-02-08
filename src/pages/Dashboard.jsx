@@ -2818,16 +2818,17 @@ function Dashboard() {
         const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
         const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
         
-        // 1. ALWAYS include all driver locations (shared markers + blue dot) - even if no incomplete stops
-        // CRITICAL: Exclude off-duty drivers from Phase 3 bounds
+        // 1. Include driver locations (shared markers + blue dot) - EXCLUDE off-duty drivers
         if (isViewingTodayPhase3) {
-          // Include current driver's blue dot
-          const shouldIncludeBlueDot = isMobile && isDriver && driverLocation?.latitude && driverLocation?.longitude;
+          // Include current driver's blue dot (only if on_duty or on_break)
+          const currentDriverStatus = appUsers?.find(au => au?.user_id === currentUser?.id)?.driver_status;
+          const shouldIncludeBlueDot = isMobile && isDriver && driverLocation?.latitude && driverLocation?.longitude &&
+            currentDriverStatus !== 'off_duty';
           if (shouldIncludeBlueDot) {
             allCoordinatesPhase3.push([driverLocation.latitude, driverLocation.longitude]);
           }
           
-          // Include all shared driver location markers (EXCLUDE off-duty drivers)
+          // Include shared driver location markers (EXCLUDE off-duty drivers)
           const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
           const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
           
@@ -2839,7 +2840,7 @@ function Dashboard() {
               const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
               const driverStatus = driver?.driver_status;
               
-              // Skip off-duty drivers
+              // CRITICAL: Exclude off-duty drivers
               if (driverStatus === 'off_duty') {
                 return;
               }
@@ -2890,16 +2891,7 @@ function Dashboard() {
           }
         });
         
-        // 3. Fallback to city center if no driver markers and no stops
-        if (allCoordinatesPhase3.length === 0) {
-          const selectedCityId = globalFilters.getSelectedCityId();
-          const currentCity = cities?.find((c) => c && c.id === selectedCityId);
-          if (currentCity?.latitude && currentCity?.longitude) {
-            allCoordinatesPhase3.push([currentCity.latitude, currentCity.longitude]);
-          }
-        }
-        
-        // 4. Fit bounds to show all driver locations and incomplete stops
+        // 3. Only fit bounds if we have actual markers to show (NO city center fallback)
         if (allCoordinatesPhase3.length > 0) {
           const padding = getMapPadding();
           
@@ -2916,9 +2908,11 @@ function Dashboard() {
           const lonSpan = maxLon - minLon;
           const maxSpan = Math.max(latSpan, lonSpan);
           const spanKm = maxSpan * 111.0;
-          const baseZoom = 16 - Math.log2(spanKm + 1) * 1.5;
-          const screenAdjustment = isMobile ? 0.5 : -0.5;
-          const phase3MaxZoom = Math.max(10.0, Math.min(16, Math.round((baseZoom + screenAdjustment) * 10) / 10));
+          
+          // CRITICAL: Better zoom calculation - tighter bounds for Phase 3
+          const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
+          const screenAdjustment = isMobile ? 0.8 : 0;
+          const phase3MaxZoom = Math.max(12.0, Math.min(17, Math.round((baseZoom + screenAdjustment) * 10) / 10));
           
           setShouldFitBounds({
             bounds: allCoordinatesPhase3,
