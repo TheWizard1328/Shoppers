@@ -2847,11 +2847,15 @@ function Dashboard() {
           });
         }
         
-        // 2. Include all incomplete stops from all active drivers (if any)
+        // 2. Include incomplete stops for active/selected driver only (if any)
         const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
-        const incompleteStopsAllDrivers = deliveries.filter((d) => {
+        const incompleteStopsActiveDriver = deliveries.filter((d) => {
           if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
           if (finishedStatusesPhase3.includes(d.status)) return false;
+          
+          // CRITICAL: Filter by selected driver (or current user if viewing own route)
+          const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
+          if (d.driver_id !== targetDriverId) return false;
           
           // Filter by dispatcher stores if applicable
           if (isDispatcher && !isAdmin && currentUser?.store_ids) {
@@ -2862,7 +2866,7 @@ function Dashboard() {
           return true;
         });
         
-        incompleteStopsAllDrivers.forEach((delivery) => {
+        incompleteStopsActiveDriver.forEach((delivery) => {
           if (delivery.patient_id) {
             const patient = patients.find((p) => p?.id === delivery.patient_id);
             if (patient?.latitude && patient?.longitude) {
