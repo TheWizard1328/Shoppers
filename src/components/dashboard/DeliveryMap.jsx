@@ -1033,6 +1033,28 @@ export default function DeliveryMap({
     // Check if route has any incomplete stops
     const hasIncompleteStops = safeDeliveries.some(d => d && !FINISHED_STATUSES.includes(d.status));
 
+    // CRITICAL: Pre-calculate next delivery for each driver (for Show All mode)
+    // Group deliveries by driver and find first incomplete for each
+    const nextDeliveryByDriver = new Map();
+    const deliveriesByDriver = new Map();
+    
+    patientDeliveries.forEach(d => {
+      if (!d || !d.driver_id) return;
+      if (!deliveriesByDriver.has(d.driver_id)) {
+        deliveriesByDriver.set(d.driver_id, []);
+      }
+      deliveriesByDriver.get(d.driver_id).push(d);
+    });
+    
+    // For each driver, find first incomplete delivery
+    deliveriesByDriver.forEach((driverDeliveries, driverId) => {
+      const sorted = [...driverDeliveries].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      const nextDelivery = sorted.find(d => !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending');
+      if (nextDelivery) {
+        nextDeliveryByDriver.set(driverId, nextDelivery.id);
+      }
+    });
+
     // Process delivery markers
     const deliveryMarkersRaw = patientDeliveries.map((delivery) => {
       if (!delivery) return null;
@@ -1061,8 +1083,8 @@ export default function DeliveryMap({
       const isStopInDispatcherStore = isCurrentUserDispatcher && currentUser.store_ids && store && currentUser.store_ids.includes(store.id);
       const useSimpleCircle = isCurrentUserDispatcher && !isStopInDispatcherStore;
 
-      // CRITICAL: Use backend isNextDelivery flag for blue marker circle
-      const isNextInLine = delivery.isNextDelivery || false;
+      // CRITICAL: Use backend isNextDelivery flag for selected driver, or calculated next delivery for other drivers
+      const isNextInLine = delivery.isNextDelivery || (nextDeliveryByDriver.get(delivery.driver_id) === delivery.id);
       
       // CRITICAL: Track delivery status and isNextDelivery in stable key
       const stableKey = `${delivery.id}:${delivery.status}:${isNextInLine}:${delivery.stop_order}`;
