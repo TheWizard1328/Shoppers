@@ -210,7 +210,11 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         console.log(`🎨 [DriverLocationMarkers] Self status changed to ${newStatus} - updating marker color`);
         setVisibleDrivers(prev => prev.map(driver => 
           (driver.id === userId || driver.user_id === userId) 
-            ? { ...driver, driver_status: newStatus }
+            ? { 
+                ...driver, 
+                driver_status: newStatus,
+                location_updated_at: new Date().toISOString() // CRITICAL: Update timestamp to prevent stale detection
+              }
             : driver
         ));
       }
