@@ -1521,7 +1521,14 @@ export default function DeliveryMap({
   const prevDriverLocationMarkersRef = useRef([]);
   
   const driverLocationMarkers = useMemo(() => {
-    // Show markers for any date
+    // CRITICAL: Only show on today or future dates
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const isViewingTodayOrFuture = !selectedDate || selectedDate >= today;
+    
+    if (!isViewingTodayOrFuture) {
+      prevDriverLocationMarkersRef.current = [];
+      return [];
+    }
 
     const isCurrentUserAdmin = currentUser && userHasRole(currentUser, 'admin');
     const isCurrentUserDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
@@ -1557,7 +1564,10 @@ export default function DeliveryMap({
         return null;
       }
       
-      // Show all driver statuses
+      // CRITICAL: Only show on_duty or on_break drivers
+      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
+        return null;
+      }
       
       // CRITICAL: Must have valid coordinates
       if (!user.current_latitude || !user.current_longitude) {
