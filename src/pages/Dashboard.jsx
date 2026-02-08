@@ -7355,16 +7355,73 @@ function Dashboard() {
                   <SmartRefreshIndicator
                     inline={true}
                     onManualRefresh={async () => {
-                      // CRITICAL: Just trigger offline sync button click instead of manual refresh
-                      console.log('🔄 [Manual Refresh] Triggering offline sync...');
+                      // CRITICAL: Use same logic as PullToSync for consistent behavior
+                      console.log('🔄 [Manual Refresh] Starting PullToSync-style refresh...');
                       
-                      const syncButton = document.querySelector('[data-offline-sync-button]');
-                      if (syncButton) {
-                        syncButton.click();
-                        console.log('✅ [Manual Refresh] Offline sync button clicked');
-                      } else {
-                        console.warn('⚠️ [Manual Refresh] Offline sync button not found');
+                      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                      const selectedCityId = globalFilters.getSelectedCityId();
+                      const shouldLoadAll = showAllDriverMarkers || selectedDriverId === 'all';
+                      
+                      // Fetch fresh deliveries
+                      const freshDeliveries = await base44.entities.Delivery.filter({ 
+                        delivery_date: selectedDateStr 
+                      });
+                      
+                      // Fetch fresh patients (for the city)
+                      const freshPatients = await base44.entities.Patient.filter({
+                        city_id: selectedCityId
+                      });
+                      
+                      // Fetch fresh AppUsers
+                      const freshAppUsers = await base44.entities.AppUser.list();
+                      
+                      // Update deliveries in context
+                      if (updateDeliveriesLocally) {
+                        const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== selectedDateStr);
+                        updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
                       }
+                      
+                      // Process driver locations through poller
+                      driverLocationPoller.processLocationData(
+                        currentUser, 
+                        freshDeliveries, 
+                        drivers, 
+                        stores, 
+                        freshAppUsers, 
+                        selectedDate, 
+                        true,
+                        'Dashboard',
+                        showAllDriverMarkers
+                      );
+                      
+                      // Dispatch location updates
+                      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                        detail: { appUsers: freshAppUsers, forceAll: true }
+                      }));
+                      
+                      // Force map update
+                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                        detail: { 
+                          deliveryDate: selectedDateStr, 
+                          triggeredBy: 'manualRefresh',
+                          allDrivers: true 
+                        }
+                      }));
+                      
+                      // Trigger map repositioning
+                      setIsMapViewLocked(true);
+                      lastProgrammaticMapMoveRef.current = Date.now();
+                      window._lastProgrammaticMapMove = Date.now();
+                      setMapViewTrigger(prev => prev + 1);
+                      
+                      setTimeout(() => {
+                        setIsMapViewLocked(false);
+                      }, 500);
+                      
+                      // Force stats refresh
+                      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                      
+                      console.log('✅ [Manual Refresh] Complete - UI updated with fresh data');
                     }} />
                   
                   {/* Connection Quality Indicator - App Owner Only */}
