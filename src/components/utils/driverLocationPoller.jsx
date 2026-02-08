@@ -109,32 +109,8 @@ class DriverLocationPoller {
     // CRITICAL: ALWAYS pull fresh data from API - don't use stale prop data at all
     let usersData = null;
     
-    console.log('📍 [DriverLocationPoller] Fetching LATEST data from API (forceNotify:', forceNotify, ')');
-    try {
-      const { base44 } = await import('@/api/base44Client');
-      const freshAppUsers = await base44.entities.AppUser.list();
-      console.log(`📡 [DriverLocationPoller] Pulled ${freshAppUsers.length} fresh AppUsers from API`);
-      
-      // Save to offline DB immediately, replacing all old data
-      const { offlineDB } = await import('./offlineDatabase');
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-      console.log(`💾 [DriverLocationPoller] Replaced offline DB with fresh data`);
-      
-      usersData = freshAppUsers;
-      
-      // Log first few for debugging
-      if (freshAppUsers.length > 0) {
-        console.log(`📊 [Poller] Fresh API data sample:`, freshAppUsers.slice(0, 2).map(u => ({
-          user_name: u.user_name,
-          location_updated_at: u.location_updated_at,
-          id: u.id
-        })));
-      }
-    } catch (apiError) {
-      console.warn('⚠️ [DriverLocationPoller] Failed to pull fresh data from API:', apiError.message);
-      // Fall back to provided appUsers only on error
-      usersData = appUsers;
-    }
+    // CRITICAL: Use provided appUsers - don't make additional API calls to avoid rate limits
+    usersData = appUsers;
     
     // If we still don't have data, skip processing
     if (!usersData || usersData.length === 0) {
