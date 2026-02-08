@@ -169,20 +169,11 @@ class LocationTracker {
       return;
     }
 
-    // CRITICAL: Check if driver has moved enough from last position
-    const hasMovedEnough = this.lastPosition ? 
-                            this.calculateDistance(this.lastPosition.latitude, this.lastPosition.longitude, latitude, longitude) >= this.minDistanceChange : 
-                            true; // First update - always proceed
-
     const timeForHeartbeat = (now - this.lastUpdate) >= this.updateInterval;
-    const timeForCoordinateUpdate = (now - this.lastCoordinateUpdate) >= this.coordinateUpdateInterval;
 
-    // CRITICAL: ALWAYS update if heartbeat interval is met (15 seconds)
-    // This keeps the location_updated_at timestamp fresh even when stationary
-    // ensuring markers show accurate "last seen" times and stay visible
-    if (!hasMovedEnough && !timeForHeartbeat) {
-      console.log(`⏭️ [LocationTracker] Skipping - no movement (${this.lastPosition ? Math.floor(this.calculateDistance(this.lastPosition.latitude, this.lastPosition.longitude, latitude, longitude)) : 0}m) and heartbeat not due`);
-      return;
+    // CRITICAL: ALWAYS update every 15 seconds (heartbeat) - no movement check
+    if (!timeForHeartbeat) {
+      return; // Silently skip if heartbeat not due
     }
 
     let distance = 0;
@@ -193,17 +184,10 @@ class LocationTracker {
         latitude,
         longitude
       );
-
-      if (distance >= this.minDistanceChange) {
-        console.log(`📍 [LocationTracker] Updating - MOVED ${distance.toFixed(0)}m`);
-      } else if (timeForHeartbeat) {
-        console.log(`📍 [LocationTracker] Updating - STATIONARY heartbeat (${Math.floor((now - this.lastUpdate)/1000)}s since last update) - keeps timestamp fresh`);
-      }
+      console.log(`📍 [LocationTracker] Heartbeat update - moved ${distance.toFixed(0)}m (${Math.floor((now - this.lastUpdate)/1000)}s since last)`);
     } else {
       console.log('🚀 [LocationTracker] First location update');
     }
-    
-    console.log(`📍 [LocationTracker] Upload details - moved: ${hasMovedEnough}, heartbeat: ${timeForHeartbeat}, status: ${this.driverStatus}`);
 
     try {
       // Check if online before attempting update
