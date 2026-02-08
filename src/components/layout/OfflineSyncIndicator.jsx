@@ -20,19 +20,15 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   useEffect(() => {
     if (!isVisible) return;
-    // Load initial stats - wait for full load
+    // Load initial stats
     getSyncStats().then(stats => {
+      console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', stats);
       setStats(stats);
-      // Check if all entities have meaningful data
-      const hasAllData = stats && 
-        stats.patients?.count > 0 &&
-        stats.deliveries?.count > 0 &&
-        stats.appUsers?.count > 0 &&
-        stats.cities?.count > 0;
-      
-      if (hasAllData) {
-        setIsFullyLoaded(true);
-      }
+      // CRITICAL: Always mark as loaded - show counts even if 0
+      setIsFullyLoaded(true);
+    }).catch(error => {
+      console.error('❌ [OfflineSyncIndicator] Failed to load stats:', error);
+      setIsFullyLoaded(true); // Still show UI with empty stats
     });
 
     // Subscribe to sync updates (manual sync)
@@ -52,19 +48,12 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // CRITICAL: Refresh stats on sync complete
       if (status.status === 'complete' || status.status === 'synced') {
         getSyncStats().then(newStats => {
+          console.log('📊 [OfflineSyncIndicator] Sync complete - updated stats:', newStats);
           setStats(newStats);
           setRuntimeStats({}); // Clear runtime stats when sync completes
-          
-          // Check if all entities now have data
-          const hasAllData = newStats && 
-            newStats.patients?.count > 0 &&
-            newStats.deliveries?.count > 0 &&
-            newStats.appUsers?.count > 0 &&
-            newStats.cities?.count > 0;
-          
-          if (hasAllData) {
-            setIsFullyLoaded(true);
-          }
+          setIsFullyLoaded(true); // Always show stats after sync
+        }).catch(error => {
+          console.error('❌ [OfflineSyncIndicator] Failed to refresh stats:', error);
         });
       }
       
@@ -104,8 +93,12 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       if (isComplete) {
         setTimeout(() => {
           getSyncStats().then(newStats => {
+            console.log('📊 [OfflineSyncIndicator] Periodic sync complete - stats:', newStats);
             setStats(newStats);
             setRuntimeStats({});
+            setIsSyncing(false);
+          }).catch(error => {
+            console.error('❌ [OfflineSyncIndicator] Failed to load stats after periodic sync:', error);
             setIsSyncing(false);
           });
         }, 300);
@@ -230,8 +223,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   // Inline mode for stats card (mobile) or upper-left (desktop)
   if (embedded || inline) {
-    // Only render expanded content once all data is loaded
-    const shouldRenderStats = isFullyLoaded && stats;
+    // CRITICAL: Always render stats if we have the object (even with 0 counts)
+    const shouldRenderStats = stats;
     
     return (
       <div className="w-full">
