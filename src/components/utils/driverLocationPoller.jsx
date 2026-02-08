@@ -280,12 +280,6 @@ class DriverLocationPoller {
       // RULE 1: Own location marker - ALWAYS visible regardless of any status/toggle
       // ========================================
       if (isSelf) {
-        // CRITICAL: ALWAYS include self marker
-        // - Primary device filtering happens in DriverLocationMarkers (blocks self marker)
-        // - Non-primary devices ALWAYS show shared location marker
-        // - Bypasses driver_status check (on_duty/off_duty/on_break)
-        // - Bypasses location_tracking_enabled toggle
-        // - Bypasses active deliveries check
         console.log(`✅ [Poller] Including SELF marker - bypasses all checks`, {
           userId: user.user_name,
           driver_status: user.driver_status,
@@ -301,9 +295,27 @@ class DriverLocationPoller {
       if (currentUserCityId && user.city_id !== currentUserCityId) return false;
 
       // ========================================
-      // RULE 2: Dispatchers viewing assigned drivers
+      // RULE 2: Admins (AppOwners) - can see all drivers in city if On Duty OR On Break
       // ========================================
-      if (isDispatcher && !isAdmin && !isDriver) {
+      if (isAdmin) {
+        // Must be in "show all" or "all drivers" mode
+        if (!showAllDrivers) {
+          return false;
+        }
+
+        // Admin sees drivers if they are On Duty OR On Break (regardless of location_tracking_enabled)
+        if (user.driver_status === 'on_duty' || user.driver_status === 'on_break') {
+          console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - status: ${user.driver_status}`);
+          return true;
+        }
+
+        return false;
+      }
+
+      // ========================================
+      // RULE 3: Dispatchers viewing assigned drivers
+      // ========================================
+      if (isDispatcher && !isDriver) {
         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
 
         // Check if driver has ANY deliveries for dispatcher's stores (today)
@@ -312,40 +324,46 @@ class DriverLocationPoller {
           if (delivery.driver_id !== driverId) return false;
           if (delivery.delivery_date !== todayStr) return false;
           if (!dispatcherStoreIds.has(delivery.store_id)) return false;
-          return true; // Include all deliveries, not just active ones
+          return true;
         });
 
         if (!hasDeliveriesFromDispatcherStores) {
           return false;
         }
 
-        // Dispatchers ALWAYS see their assigned drivers' markers
-        // Regardless of driver_status, location_tracking_enabled, or showAllDrivers mode
+        // Dispatchers see assigned drivers if On Duty (location_tracking_enabled doesn't matter)
+        if (user.driver_status === 'on_duty') {
+          console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name}`);
+          return true;
+        }
+
+        return false;
+      }
+
+      // ========================================
+      // RULE 4: Drivers viewing other drivers
+      // ========================================
+      if (isDriver) {
+        // Must be in "show all" or "all drivers" mode
+        if (!showAllDrivers) {
+          return false;
+        }
+
+        // Other driver must be On Duty OR On Break
+        if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
+          return false;
+        }
+
+        // Other driver must have location sharing enabled
+        if (user.location_tracking_enabled !== true) {
+          return false;
+        }
+
+        console.log(`✅ [Poller] Driver seeing other driver ${user.user_name}`);
         return true;
       }
 
-      // ========================================
-      // RULE 3: Admins and Drivers viewing other drivers
-      // ========================================
-
-      // CRITICAL: Must be in "show all" or "all drivers" mode
-      if (!showAllDrivers) {
-        return false;
-      }
-
-      // Must be on_duty or on_break
-      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
-        return false;
-      }
-
-      // For non-admin drivers, must have location_tracking_enabled = true
-      // Admins bypass this check (admin override)
-      if (!isAdmin && user.location_tracking_enabled !== true) {
-        return false;
-      }
-
-      // Show marker for admin or driver in show all/all drivers mode
-      return true;
+      return false;
     });
 
     // CRITICAL: ALWAYS notify subscribers with current locations to prevent disappearing markers
