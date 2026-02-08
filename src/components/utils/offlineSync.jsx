@@ -274,6 +274,59 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
 };
 
 /**
+ * CRITICAL: Pre-render sync - force fresh AppUsers and Cities BEFORE map renders
+ * Always fetches from API (ignores offline DB age) to ensure correct driver locations
+ * @param {object} smartRefreshMgr - SmartRefreshManager instance for rate limiting
+ */
+export const preRenderFreshSync = async (smartRefreshMgr = null) => {
+  try {
+    console.log('🔄 [PreRenderSync] FORCING fresh AppUsers and Cities from API before map render...');
+    
+    // Wait for rate limit
+    if (smartRefreshMgr) {
+      await smartRefreshMgr.waitForRateLimit();
+    }
+    
+    // CRITICAL: FORCE fresh fetch of AppUsers (ignore offline DB age)
+    console.log('📍 [PreRenderSync] Fetching fresh AppUsers...');
+    const appUsers = await AppUser.list();
+    if (appUsers && appUsers.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+      await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
+      console.log(`✅ [PreRenderSync] Synced ${appUsers.length} fresh AppUsers to offline DB`);
+      if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
+    }
+    
+    // Wait for rate limit
+    if (smartRefreshMgr) {
+      await smartRefreshMgr.waitForRateLimit();
+    }
+    
+    // CRITICAL: FORCE fresh fetch of Cities (ignore offline DB age)
+    console.log('🏙️ [PreRenderSync] Fetching fresh Cities...');
+    const cities = await City.list();
+    if (cities && cities.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+      await offlineDB.updateSyncMetadata('City', new Date().toISOString(), new Date().toISOString());
+      console.log(`✅ [PreRenderSync] Synced ${cities.length} fresh Cities to offline DB`);
+      if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
+    }
+    
+    // Load fresh data from offline DB for initial render
+    const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+    const freshCities = await offlineDB.getAll(offlineDB.STORES.CITIES);
+    
+    console.log(`✅ [PreRenderSync] Ready for render: ${freshAppUsers?.length || 0} users, ${freshCities?.length || 0} cities`);
+    return { success: true, appUsers: freshAppUsers, cities: freshCities };
+  } catch (error) {
+    console.error('❌ [PreRenderSync] Error:', error.message);
+    if (smartRefreshMgr) smartRefreshMgr.recordError();
+    // Return empty but valid data so render can continue
+    return { success: false, appUsers: [], cities: [], error: error.message };
+  }
+};
+
+/**
  * Load priority data for initial display
  * Order: Cities → AppUsers → Deliveries (selected date) → ALL Patients (critical for map markers)
  * CRITICAL: Validates offline DB is populated; forces full sync if underpopulated
