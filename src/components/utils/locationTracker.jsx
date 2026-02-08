@@ -185,8 +185,6 @@ class LocationTracker {
       return;
     }
 
-    console.log(`📍 [LocationTracker] Updating location - moved: ${hasMovedEnough}, heartbeat: ${timeForHeartbeat}, coordinate: ${timeForCoordinateUpdate}, status: ${this.driverStatus}`);
-
     let distance = 0;
     if (this.lastPosition) {
       distance = this.calculateDistance(
@@ -197,13 +195,15 @@ class LocationTracker {
       );
 
       if (distance >= this.minDistanceChange) {
-        console.log(`📍 [LocationTracker] Updating - moved ${distance.toFixed(0)}m`);
-      } else if (timeForCoordinateUpdate) {
-        console.log(`📍 [LocationTracker] Updating - time threshold met (${Math.floor((now - this.lastCoordinateUpdate)/1000)}s)`);
+        console.log(`📍 [LocationTracker] Updating - MOVED ${distance.toFixed(0)}m`);
+      } else if (timeForHeartbeat) {
+        console.log(`📍 [LocationTracker] Updating - STATIONARY heartbeat (${Math.floor((now - this.lastUpdate)/1000)}s since last update) - keeps timestamp fresh`);
       }
     } else {
       console.log('🚀 [LocationTracker] First location update');
     }
+    
+    console.log(`📍 [LocationTracker] Upload details - moved: ${hasMovedEnough}, heartbeat: ${timeForHeartbeat}, status: ${this.driverStatus}`);
 
     try {
       // Check if online before attempting update
