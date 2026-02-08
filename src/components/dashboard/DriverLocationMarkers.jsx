@@ -296,24 +296,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const firstInitial = displayName.charAt(0).toUpperCase();
     const size = isActive ? 18 : 14;
 
-    // Border always white
-    const borderColor = 'white';
-
-    // Determine fill color based on driver status and location age (for ALL users including shared location)
-    let color;
-
-    // Check if location is stale (older than 5 minutes)
-    const locationAge = user.location_updated_at ? 
-      Date.now() - new Date(user.location_updated_at).getTime() : Infinity;
-    const isStale = locationAge > 5 * 60 * 1000;
-
-    if (isStale) {
-      color = '#ef4444'; // Red fill for stale
-    } else if (user.driver_status === 'on_break') {
-      color = '#3b82f6'; // Blue fill for on break
-    } else {
-      color = isActive ? '#10b981' : '#3b82f6'; // Green for active on duty, blue otherwise
-    }
+    // Use color from poller (already calculated based on status/staleness)
+    const color = user._markerColor || '#3b82f6';
 
     const pulseClass = isActive ? 'driver-marker-pulse' : '';
 
