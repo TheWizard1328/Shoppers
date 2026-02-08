@@ -3208,12 +3208,29 @@ export default function RouteImport({
                    <Button
                    onClick={async () => {
 
-                     // Data is already on backend from handleConfirmImport
-                     // Just trigger parent refresh callback
-                     if (onImportComplete) {
-                       await onImportComplete();
-                     }
-                   }}
+                      // Data is already on backend from handleConfirmImport
+                      // Dispatch immediate UI refresh events
+                      window.dispatchEvent(new CustomEvent('deliveriesImported', {
+                        detail: { 
+                          source: 'route_import',
+                          created: importResult.created,
+                          updated: importResult.updated
+                        }
+                      }));
+
+                      // Trigger dashboard refresh
+                      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
+                      // Trigger driver location update for map
+                      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                        detail: { appUsers: null }
+                      }));
+
+                      // Just trigger parent refresh callback
+                      if (onImportComplete) {
+                        await onImportComplete();
+                      }
+                    }}
                    className="flex-1 bg-emerald-600 hover:bg-emerald-700"
                    disabled={isProcessing}>
                      Done - Close Import
