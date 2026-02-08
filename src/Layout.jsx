@@ -1294,6 +1294,16 @@ export default function Layout({ children, currentPageName }) {
     };
     window.addEventListener('offlineSyncComplete', handleSyncComplete);
 
+    // Listen for messaging requests from map markers
+    const handleOpenMessaging = (event) => {
+      const { otherUserId, otherUserName } = event.detail || {};
+      if (otherUserId && otherUserName) {
+        setInitialConversation({ otherUserId, otherUserName });
+        setShowMessaging(true);
+      }
+    };
+    window.addEventListener('openMessaging', handleOpenMessaging);
+
     // Listen for user role changes and update UI immediately
     const handleUserRolesChanged = async (event) => {
       const { appUsers: changedAppUsers } = event.detail || {};
@@ -1737,6 +1747,7 @@ export default function Layout({ children, currentPageName }) {
       window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
       window.removeEventListener('dataConflictsDetected', handleConflict);
       window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
+      window.removeEventListener('openMessaging', handleOpenMessaging);
     };
   }, [currentUser]);
 
