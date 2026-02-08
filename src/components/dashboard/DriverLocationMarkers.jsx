@@ -174,14 +174,16 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       [...newVisibleIds].some(id => !prevIds.has(id)) ||
       [...prevIds].some(id => !newVisibleIds.has(id));
     
-    // Check if any driver's location has significantly changed
+    // Check if any driver's location OR timestamp has changed
     const locationsChanged = validDrivers.some(driver => {
       const existing = visibleDrivers.find(d => d.id === driver.id);
       if (!existing) return true;
-      // Only consider it changed if coordinates differ by more than a tiny amount
+      // Check if coordinates differ by more than a tiny amount
       const latDiff = Math.abs((driver.current_latitude || 0) - (existing.current_latitude || 0));
       const lngDiff = Math.abs((driver.current_longitude || 0) - (existing.current_longitude || 0));
-      return latDiff > 0.00001 || lngDiff > 0.00001;
+      // CRITICAL: Also check if timestamp changed - forces marker popup update
+      const timestampChanged = driver.location_updated_at !== existing.location_updated_at;
+      return latDiff > 0.00001 || lngDiff > 0.00001 || timestampChanged;
     });
     
     // Only update state if there's an actual meaningful change
