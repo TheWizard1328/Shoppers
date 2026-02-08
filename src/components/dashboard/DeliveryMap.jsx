@@ -1557,10 +1557,7 @@ export default function DeliveryMap({
         return null;
       }
       
-      // CRITICAL: Only show on_duty or on_break drivers
-      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
-        return null;
-      }
+      // Show all driver statuses
       
       // CRITICAL: Must have valid coordinates
       if (!user.current_latitude || !user.current_longitude) {
