@@ -3052,7 +3052,7 @@ export default function DeliveryMap({
             <Marker
               key={`pickup-${pickup.id}`}
               position={markerPosition}
-              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount, pickup.isNextDelivery) : createStoreIcon(
+              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount, false) : createStoreIcon(
                 pickup.status, 
                 pickup.pinColor, 
                 isFanned, 
@@ -3063,7 +3063,7 @@ export default function DeliveryMap({
                 highlightedDeliveryId === pickup.id,
                 false, // CRITICAL: Store pickups NEVER show isNextDelivery indicator
                 hasIncompleteStops,
-                pickup.isOtherDriver // NEW
+                false // CRITICAL: Store pickups always full-size, never reduce for other drivers
               )}
               zIndexOffset={dynamicZIndex}
               draggable={!pickup.useSimpleCircle && !pickup.isOtherDriver && isFanned}
