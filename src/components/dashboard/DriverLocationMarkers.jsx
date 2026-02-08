@@ -390,15 +390,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const displayName = user.user_name || user.full_name || 'Unknown Driver';
         const firstName = displayName.split(' ')[0];
         
-        console.log('═══════════════════════════════════════════════════');
-        console.log(`🗺️ [Rendering Marker] ${displayName}`);
-        console.log('   driver_status:', user.driver_status);
-        console.log('   location_updated_at:', user.location_updated_at);
-        console.log('   current_latitude:', user.current_latitude);
-        console.log('   current_longitude:', user.current_longitude);
-        console.log('   location_tracking_enabled:', user.location_tracking_enabled);
-        console.log('═══════════════════════════════════════════════════');
-        
         // CRITICAL: Check if this is the current user's shared location (non-primary device)
         const currentUserId = currentUser?.id;
         const currentUserUserId = currentUser?.user_id;
