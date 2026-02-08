@@ -3808,6 +3808,7 @@ export default function DeliveryMap({
           currentUser={currentUser}
           activeDriver={null}
           deliveries={deliveriesForLocationFilter}
+          selectedDate={selectedDate}
         />
 
         {/* Breadcrumb Trails - Historical and Current */}
