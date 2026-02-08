@@ -268,12 +268,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         status: user.status 
       });
       
-      // CRITICAL: Only block current user's shared marker if live GPS tracking is active
-      const isCurrentUserOnMobile = isMobile && currentUser && userId === currentUser.id;
-      const isLiveTrackingActive = currentUser?.driver_status === 'on_duty' && 
-                                   currentUser?.location_tracking_enabled === true;
-      const shouldBlockSelfMarker = isCurrentUserOnMobile && isLiveTrackingActive;
-      
       // CRITICAL: Check if this is the current user on a non-primary device
       const isCurrentUserMarker = userId === currentUser?.id || userId === currentUser?.user_id;
       const isCurrentUserOnNonPrimaryDevice = isCurrentUserMarker && !isPrimaryDevice;
