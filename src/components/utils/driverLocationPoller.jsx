@@ -154,11 +154,30 @@ class DriverLocationPoller {
     
     let users = Array.isArray(usersData) ? [...usersData] : [];
     
-    // CRITICAL: Deduplicate users by ID, keeping the one with the most recent location_updated_at
+    const now = Date.now();
+    const maxStaleTime = 5 * 60 * 1000; // 5 minutes - hide marker if no updates
+    
+    // CRITICAL: Pre-filter out stale locations BEFORE deduplication to avoid processing old data
+    users = users.filter(user => {
+      if (!user || !(user.id || user.user_id)) return false;
+      
+      // Skip users without location timestamps or coordinates
+      if (!user.location_updated_at || !user.current_latitude || !user.current_longitude) {
+        return false;
+      }
+      
+      // Check if location is too old (more than 5 minutes)
+      const locationAge = now - new Date(user.location_updated_at).getTime();
+      if (locationAge > maxStaleTime) {
+        return false; // Skip stale locations entirely
+      }
+      
+      return true;
+    });
+    
+    // CRITICAL: Deduplicate remaining users by ID, keeping the one with the most recent location_updated_at
     const userMap = new Map();
     users.forEach(user => {
-      if (!user || !(user.id || user.user_id)) return;
-      
       const userId = user.id || user.user_id;
       const existingUser = userMap.get(userId);
       
@@ -166,8 +185,8 @@ class DriverLocationPoller {
         userMap.set(userId, user);
       } else {
         // Keep the user with the most recent location timestamp
-        const newTimestamp = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
-        const existingTimestamp = existingUser.location_updated_at ? new Date(existingUser.location_updated_at).getTime() : 0;
+        const newTimestamp = new Date(user.location_updated_at).getTime();
+        const existingTimestamp = new Date(existingUser.location_updated_at).getTime();
         
         if (newTimestamp > existingTimestamp) {
           console.log(`⚠️ [Poller] Duplicate user ${userId} detected - keeping newer location (${user.location_updated_at} vs ${existingUser.location_updated_at})`);
@@ -183,9 +202,6 @@ class DriverLocationPoller {
       this.notifySubscribers([]);
       return;
     }
-
-    const now = Date.now();
-    const maxStaleTime = 5 * 60 * 1000; // 5 minutes - hide marker if no updates
     const thirtyMinutesInMs = 30 * 60 * 1000;
     
     const isAdmin = this.currentUser && userHasRole(this.currentUser, 'admin');
