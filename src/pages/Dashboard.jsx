@@ -7052,12 +7052,42 @@ function Dashboard() {
     return () => window.removeEventListener('dataSourceChanged', handleDataSourceChange);
   }, [selectedDate, updateDeliveriesLocally, deliveries, setForceRender]);
 
+  // CRITICAL: STEP 0 - Force fresh AppUsers and Cities sync BEFORE initial render
+  const hasPreRenderSyncRef = useRef(false);
+  
+  useEffect(() => {
+    if (!currentUser || !isFiltersReady) return;
+    if (hasPreRenderSyncRef.current) return;
+    
+    hasPreRenderSyncRef.current = true;
+    
+    const preRenderSync = async () => {
+      console.log('🔄 [Dashboard Mount - STEP 0] Pre-render sync: forcing fresh AppUsers and Cities...');
+      
+      try {
+        const { initializeOfflineDBBeforeRender } = await import('@/components/utils/offlineSync');
+        const result = await initializeOfflineDBBeforeRender(smartRefreshManager);
+        
+        if (result.success) {
+          console.log(`✅ [Dashboard Mount - STEP 0] Pre-render sync complete: ${result.appUsers?.length || 0} users, ${result.cities?.length || 0} cities`);
+        } else {
+          console.warn('⚠️ [Dashboard Mount - STEP 0] Pre-render sync had issues:', result.error);
+        }
+      } catch (error) {
+        console.error('❌ [Dashboard Mount - STEP 0] Pre-render sync failed:', error);
+      }
+    };
+    
+    preRenderSync();
+  }, [currentUser?.id, isFiltersReady]);
+  
   // CRITICAL: STEP 1 - Load deliveries from offline DB first and show initial UI
   const hasLoadedOfflineDataRef = useRef(false);
   const hasTriggeredSmartRefreshRef = useRef(false);
   
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
+    if (!hasPreRenderSyncRef.current) return; // Wait for pre-render sync first
     if (hasLoadedOfflineDataRef.current) return;
     
     hasLoadedOfflineDataRef.current = true;
@@ -7089,7 +7119,7 @@ function Dashboard() {
     };
     
     loadOfflineDataFirst();
-  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr]);
+  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, hasPreRenderSyncRef.current]);
   
   // CRITICAL: STEP 2 - After offline data is shown, trigger smart refresh for fresh data
   useEffect(() => {
