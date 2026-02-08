@@ -380,7 +380,17 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     }
   };
 
+  console.log(`🗺️ [DriverLocationMarkers RENDER]`, {
+    visibleDriversCount: visibleDrivers?.length || 0,
+    visibleDrivers: visibleDrivers?.map(u => ({
+      name: u.user_name || u.full_name,
+      status: u.driver_status,
+      timestamp: u.location_updated_at
+    }))
+  });
+
   if (!visibleDrivers || visibleDrivers.length === 0) {
+    console.log('❌ [DriverLocationMarkers] No visible drivers - returning null');
     return null;
   }
 
