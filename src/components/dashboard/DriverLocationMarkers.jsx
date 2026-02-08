@@ -29,19 +29,18 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   useEffect(() => {
     const handleLocationUpdates = (event) => {
       const { appUsers: updatedAppUsers, singleUpdate, forceAll } = event.detail || {};
-      
+
       console.log(`📍 [DriverLocationMarkers] driverLocationsUpdated event:`, { 
         appUsersCount: updatedAppUsers?.length || 0,
         hasSingleUpdate: !!singleUpdate,
-        forceAll,
-        currentVisibleCount: visibleDrivers.length
+        forceAll
       });
-      
+
       // Handle single driver update
       if (singleUpdate) {
         const { current_latitude, current_longitude, location_updated_at, user_id, id } = singleUpdate;
         const userId = id || user_id;
-        
+
         if (userId && current_latitude && current_longitude) {
           console.log(`📍 [DriverLocationMarkers] Updating single driver: ${userId}`);
           setVisibleDrivers(prev => {
@@ -62,37 +61,36 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         }
         return;
       }
-      
-      // CRITICAL: Handle bulk appUsers update - reprocess through filter logic
+
+      // CRITICAL: Handle bulk appUsers update with FRESH DATA from event
       if (updatedAppUsers && updatedAppUsers.length > 0) {
-        console.log(`📍 [DriverLocationMarkers] Bulk update: reprocessing ${updatedAppUsers.length} drivers`);
-        
-        // CRITICAL: Recreate visible drivers from scratch with fresh data
+        console.log(`📍 [DriverLocationMarkers] Bulk update: processing ${updatedAppUsers.length} drivers with FRESH data`);
+
         const validDrivers = updatedAppUsers.filter(user => {
           if (!user) return false;
           if (!user.current_latitude || !user.current_longitude) return false;
-          
+
           const currentUserId = currentUser?.id;
           const currentUserUserId = currentUser?.user_id;
           const userId = user.id || user.user_id;
           const isSelf = userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
-          
-          // Block self marker if primary device
+
           if (isSelf && isPrimaryDevice) {
             return false;
           }
-          
+
           return true;
         });
-        
-        console.log(`📍 [DriverLocationMarkers] Filtered to ${validDrivers.length} valid drivers with fresh locations`);
+
+        console.log(`📍 [DriverLocationMarkers] Setting ${validDrivers.length} drivers - timestamps:`, 
+          validDrivers.map(u => `${u.user_name}: ${u.location_updated_at}`));
         setVisibleDrivers(validDrivers);
       }
     };
-    
+
     window.addEventListener('driverLocationsUpdated', handleLocationUpdates);
     return () => window.removeEventListener('driverLocationsUpdated', handleLocationUpdates);
-  }, [currentUser, isPrimaryDevice, visibleDrivers.length]);
+  }, [currentUser, isPrimaryDevice]);
 
   useEffect(() => {
     // CRITICAL: The `users` prop comes pre-filtered from driverLocationPoller
