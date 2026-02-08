@@ -307,7 +307,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         <button
           onClick={handleManualRefresh}
           disabled={isPaused}
-          className={`w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 relative ${getSpinnerColor()}`}
+          className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors duration-200 hover:scale-110 relative ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-lg' : ''}`}
           title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 
                  activeManager === 'smart' ? 'Smart Refresh active' : 
                  activeManager === 'offline' ? 'Offline Sync active' : 
@@ -316,9 +316,10 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           
           {isActive && !isPaused ? (
             <motion.div
+              key="spinner-active"
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-              <RefreshCw className="w-3 h-3 text-white" />
+              <RefreshCw className="w-3 h-3 text-white drop-shadow-md" />
             </motion.div>
           ) : isPaused ? (
             <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
@@ -356,7 +357,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       <button
         onClick={handleManualRefresh}
         disabled={isPaused}
-        className={`w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 relative ${getSpinnerColor()}`}
+        className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors duration-200 hover:scale-110 relative ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-xl' : ''}`}
         title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : 
                activeManager === 'smart' ? 'Smart Refresh active' : 
                activeManager === 'offline' ? 'Offline Sync active' : 
@@ -367,15 +368,17 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           <RefreshCw className="w-3.5 h-3.5 text-white" />
         ) : !isOnline ? (
           <motion.div
+            key="spinner-offline"
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-            <RefreshCw className="w-3.5 h-3.5 text-white" />
+            <RefreshCw className="w-3.5 h-3.5 text-white drop-shadow-lg" />
           </motion.div>
         ) : isActive && !isPaused ? (
           <motion.div
+            key="spinner-active"
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-            <RefreshCw className="w-3.5 h-3.5 text-white" />
+            <RefreshCw className="w-3.5 h-3.5 text-white drop-shadow-lg" />
           </motion.div>
         ) : isPaused ? (
           <div className="w-2 h-2 rounded-full bg-yellow-500" />
