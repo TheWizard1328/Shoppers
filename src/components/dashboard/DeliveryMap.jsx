@@ -1564,8 +1564,8 @@ export default function DeliveryMap({
         return null;
       }
       
-      // CRITICAL: Only show on_duty or on_break drivers
-      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
+      // CRITICAL: Only show on_duty drivers (exclude off_duty and on_break)
+      if (user.driver_status !== 'on_duty') {
         return null;
       }
       
