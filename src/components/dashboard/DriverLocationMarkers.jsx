@@ -328,28 +328,30 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       Date.now() - new Date(user.location_updated_at).getTime() : Infinity;
     const isStale = locationAge > 5 * 60 * 1000; // 5 minutes
     
-    // DEBUG: Log what we're receiving
-    console.log(`🎨 [Marker Color] ${displayName}:`, {
-      driver_status: user.driver_status,
-      locationAge: Math.floor(locationAge / 1000),
-      isStale,
-      location_updated_at: user.location_updated_at
-    });
+    console.log('═══════════════════════════════════════════════════');
+    console.log(`🎨 [Marker Color Decision] ${displayName}`);
+    console.log('   driver_status:', user.driver_status);
+    console.log('   location_updated_at:', user.location_updated_at);
+    console.log('   locationAge (seconds):', Math.floor(locationAge / 1000));
+    console.log('   isStale:', isStale);
+    console.log('═══════════════════════════════════════════════════');
 
     let color;
     if (isStale) {
       // Stale data = orange (regardless of status)
       color = '#FFA500';
-      console.log(`🟠 [Marker] ${displayName} = ORANGE (stale)`);
+      console.log(`🟠🟠🟠 [Marker Color] ${displayName} = ORANGE (stale)`);
     } else if (user.driver_status === 'on_break') {
       // On break = blue
       color = '#3b82f6';
-      console.log(`🔵 [Marker] ${displayName} = BLUE (on_break)`);
+      console.log(`🔵🔵🔵 [Marker Color] ${displayName} = BLUE (on_break)`);
     } else {
       // On duty or other = green
       color = '#10b981';
-      console.log(`🟢 [Marker] ${displayName} = GREEN (on_duty or default)`);
+      console.log(`🟢🟢🟢 [Marker Color] ${displayName} = GREEN (on_duty or default)`);
     }
+    
+    console.log(`   FINAL COLOR for ${displayName}:`, color);
 
     const pulseClass = isActive ? 'driver-marker-pulse' : '';
 
@@ -389,19 +391,24 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     }
   };
 
-  console.log(`🗺️ [DriverLocationMarkers RENDER]`, {
-    visibleDriversCount: visibleDrivers?.length || 0,
-    visibleDrivers: visibleDrivers?.map(u => ({
-      name: u.user_name || u.full_name,
-      status: u.driver_status,
-      timestamp: u.location_updated_at
-    }))
-  });
+  console.log('═══════════════════════════════════════════════════');
+  console.log('🗺️ [DriverLocationMarkers RENDER START]');
+  console.log('   visibleDriversCount:', visibleDrivers?.length || 0);
+  console.log('   visibleDrivers data:', visibleDrivers?.map(u => ({
+    name: u.user_name || u.full_name,
+    status: u.driver_status,
+    timestamp: u.location_updated_at,
+    lat: u.current_latitude,
+    lng: u.current_longitude
+  })));
+  console.log('═══════════════════════════════════════════════════');
 
   if (!visibleDrivers || visibleDrivers.length === 0) {
     console.log('❌ [DriverLocationMarkers] No visible drivers - returning null');
     return null;
   }
+
+  console.log(`✅ [DriverLocationMarkers] Rendering ${visibleDrivers.length} markers...`);
 
   return (
     <>
@@ -434,14 +441,14 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const displayName = user.user_name || user.full_name || 'Unknown Driver';
         const firstName = displayName.split(' ')[0];
         
-        // DEBUG: Log each user being rendered
-        console.log(`🗺️ [Rendering Marker] ${displayName}:`, {
-          driver_status: user.driver_status,
-          location_updated_at: user.location_updated_at,
-          current_latitude: user.current_latitude,
-          current_longitude: user.current_longitude,
-          location_tracking_enabled: user.location_tracking_enabled
-        });
+        console.log('═══════════════════════════════════════════════════');
+        console.log(`🗺️ [Rendering Marker] ${displayName}`);
+        console.log('   driver_status:', user.driver_status);
+        console.log('   location_updated_at:', user.location_updated_at);
+        console.log('   current_latitude:', user.current_latitude);
+        console.log('   current_longitude:', user.current_longitude);
+        console.log('   location_tracking_enabled:', user.location_tracking_enabled);
+        console.log('═══════════════════════════════════════════════════');
         
         // CRITICAL: Check if this is the current user's shared location (non-primary device)
         const currentUserId = currentUser?.id;
