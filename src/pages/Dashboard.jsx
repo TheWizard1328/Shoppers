@@ -2819,6 +2819,7 @@ function Dashboard() {
         const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
         
         // 1. ALWAYS include all driver locations (shared markers + blue dot) - even if no incomplete stops
+        // CRITICAL: Exclude off-duty drivers from Phase 3 bounds
         if (isViewingTodayPhase3) {
           // Include current driver's blue dot
           const shouldIncludeBlueDot = isMobile && isDriver && driverLocation?.latitude && driverLocation?.longitude;
@@ -2826,14 +2827,23 @@ function Dashboard() {
             allCoordinatesPhase3.push([driverLocation.latitude, driverLocation.longitude]);
           }
           
-          // Include all shared driver location markers
+          // Include all shared driver location markers (EXCLUDE off-duty drivers)
           const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
           const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
           
-          // Deduplicate by driver_id
+          // Deduplicate by driver_id and filter out off-duty drivers
           const uniqueLocations = new Map();
           allLocationSources.forEach(loc => {
             if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
+              // CRITICAL: Find driver's status from appUsers
+              const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
+              const driverStatus = driver?.driver_status;
+              
+              // Skip off-duty drivers
+              if (driverStatus === 'off_duty') {
+                return;
+              }
+              
               uniqueLocations.set(loc.driver_id, loc);
             }
           });
