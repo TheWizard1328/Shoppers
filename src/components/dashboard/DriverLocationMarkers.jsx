@@ -7,6 +7,15 @@ import { isMobileDevice } from '../utils/deviceUtils';
 import { getCurrentDevice } from '../utils/deviceManager';
 
 const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [] }) => {
+  console.log('🚀 [DriverLocationMarkers] COMPONENT RENDERING', {
+    usersCount: users?.length || 0,
+    users: users?.map(u => ({
+      name: u?.user_name,
+      status: u?.driver_status,
+      timestamp: u?.location_updated_at
+    }))
+  });
+  
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const markersRef = useRef({});
