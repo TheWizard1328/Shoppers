@@ -207,36 +207,28 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     }
   };
 
-  // Handle manual refresh click
+  // Handle manual refresh click - Trigger offline DB sync then refresh page
   const handleManualRefresh = async () => {
     if (isManualRefreshing || isPaused) return;
 
-    console.log('🔄 [SmartRefreshIndicator] Manual refresh triggered');
+    console.log('🔄 [SmartRefreshIndicator] Manual refresh triggered - triggering offline sync');
     setIsManualRefreshing(true);
 
     try {
-      // Step 1: Invalidate caches
-      const { invalidate, invalidateDeliveryRangeCache } = await import('../utils/dataManager');
+      // Step 1: Trigger offline database sync (same as clicking the Offline Sync button)
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      const { restartDeliveryPatientSync } = await import('../utils/offlineSync');
       
-      console.log('   🗑️ Invalidating caches...');
-      invalidate('Patient');
-      invalidate('Delivery');
-      invalidate('Store');
-      invalidate('AppUser');
-      invalidateDeliveryRangeCache();
+      console.log('   🗑️ Clearing offline database...');
+      await offlineDB.clearAllData();
+      
+      console.log('   🔄 Restarting full offline sync...');
+      await restartDeliveryPatientSync();
+      
+      // Dispatch event to notify offline sync indicator
+      window.dispatchEvent(new CustomEvent('offlineSyncStarted'));
 
-      // Step 2: Reset refresh timers
-      smartRefreshManager.lastRefreshTimes = {
-        driverLocation: 0,
-        activeDeliveries: 0,
-        todayDeliveries: 0,
-        appUsers: 0,
-        patients: 0,
-        stores: 0
-      };
-
-      // Step 3: Reload data for current screen ONLY
-      // Let normal background sync handle the rest
+      // Step 2: Refresh current page UI
       if (onManualRefresh) {
         await onManualRefresh();
       } else if (refreshData) {
