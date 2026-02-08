@@ -85,6 +85,7 @@ import DualStatsMarquee from '../components/dashboard/DualStatsMarquee';
 import EndOfDayStatsDialog from '../components/dashboard/EndOfDayStatsDialog';
 import { toast } from 'sonner';
 import PullToSync from '../components/dashboard/PullToSync';
+import { deliveryUpdateDebouncer } from '@/components/utils/deliveryUpdateDebouncer';
 
 // FIXED: StatBadge - simple component without hooks to avoid violations
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
@@ -377,6 +378,34 @@ function Dashboard() {
 
     console.log('🔌 [Real-time] Subscribing to Patient and Delivery changes...');
     
+    // CRITICAL: Set smart refresh manager in debouncer for rate limit coordination
+    deliveryUpdateDebouncer.setSmartRefreshManager(smartRefreshManager);
+    
+    // CRITICAL: Listen for batched delivery updates from debouncer
+    const handleDebouncedUpdate = (event) => {
+      const { date, deliveries: freshDeliveries } = event.detail;
+      
+      if (freshDeliveries && freshDeliveries.length > 0) {
+        console.log(`✅ [Debounced Update] Got ${freshDeliveries.length} deliveries for ${date}`);
+        
+        // Update offline DB
+        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(console.error);
+        
+        // Update UI
+        if (updateDeliveriesLocally) {
+          const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== date);
+          updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+        }
+        
+        // Trigger map update
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { deliveryDate: date, triggeredBy: 'realtimeBatched' }
+        }));
+      }
+    };
+    
+    window.addEventListener('deliveriesRefreshedFromRealtime', handleDebouncedUpdate);
+    
     // CRITICAL: Listen for immediate updates from Done button (includes fresh data)
     const handleImmediateDeliveryUpdate = async (event) => {
       const { immediate, freshDeliveries, deliveryDate, driverId } = event.detail || {};
@@ -449,20 +478,10 @@ function Dashboard() {
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
           
-          // CRITICAL: For other drivers in All Drivers or Show All mode, fetch full delivery set
+          // CRITICAL: For other drivers in All Drivers or Show All mode, queue update for batching
           if (isOtherDriver && isForSelectedDate && (selectedDriverId === 'all' || showAllDriverMarkers)) {
-            console.log(`🔄 [Real-time] Other driver created delivery - refreshing for ${deliveryDate}`);
-            base44.entities.Delivery.filter({ delivery_date: deliveryDate }).then(freshDeliveries => {
-              offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(console.error);
-              if (updateDeliveriesLocally) {
-                const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== deliveryDate);
-                updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-              }
-              // Trigger map and legend update
-              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                detail: { deliveryDate, triggeredBy: 'realtimeCreateOtherDriver' }
-              }));
-            }).catch(console.error);
+            console.log(`📥 [Real-time] Other driver created delivery - queuing for batch refresh`);
+            deliveryUpdateDebouncer.queueUpdate(deliveryDate, event.data.id);
           } else {
             // Own change or single driver mode - update incrementally
             if (updateDeliveriesLocally) {
@@ -479,20 +498,10 @@ function Dashboard() {
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
           
-          // CRITICAL: For other drivers in All Drivers or Show All mode, fetch full delivery set
+          // CRITICAL: For other drivers in All Drivers or Show All mode, queue update for batching
           if (isOtherDriver && isForSelectedDate && (selectedDriverId === 'all' || showAllDriverMarkers)) {
-            console.log(`🔄 [Real-time] Other driver updated delivery - refreshing for ${deliveryDate}`);
-            base44.entities.Delivery.filter({ delivery_date: deliveryDate }).then(freshDeliveries => {
-              offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(console.error);
-              if (updateDeliveriesLocally) {
-                const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== deliveryDate);
-                updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-              }
-              // Trigger map and legend update
-              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                detail: { deliveryDate, triggeredBy: 'realtimeUpdateOtherDriver' }
-              }));
-            }).catch(console.error);
+            console.log(`📥 [Real-time] Other driver updated delivery - queuing for batch refresh`);
+            deliveryUpdateDebouncer.queueUpdate(deliveryDate, event.data.id);
           } else {
             // Own change or single driver mode - update incrementally
             if (updateDeliveriesLocally) {
@@ -508,18 +517,10 @@ function Dashboard() {
         // Remove delivery from offline DB and context
         offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id).catch(console.error);
         
-        // CRITICAL: Fetch fresh data after delete to ensure correct state
+        // CRITICAL: Queue delete refresh for batching
         if (isForSelectedDate && (selectedDriverId === 'all' || showAllDriverMarkers)) {
-          base44.entities.Delivery.filter({ delivery_date: selectedDateStr }).then(freshDeliveries => {
-            offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries).catch(console.error);
-            if (updateDeliveriesLocally) {
-              const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== selectedDateStr);
-              updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-            }
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-              detail: { deliveryDate: selectedDateStr, triggeredBy: 'realtimeDeleteOtherDriver' }
-            }));
-          }).catch(console.error);
+          console.log(`📥 [Real-time] Delivery deleted - queuing for batch refresh`);
+          deliveryUpdateDebouncer.queueUpdate(selectedDateStr, event.id);
         } else {
           // Single driver mode - simple filter
           if (updateDeliveriesLocally && deliveries) {
@@ -536,10 +537,12 @@ function Dashboard() {
     return () => {
       console.log('🔌 [Real-time] Unsubscribing from Patient and Delivery changes');
       window.removeEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
+      window.removeEventListener('deliveriesRefreshedFromRealtime', handleDebouncedUpdate);
+      deliveryUpdateDebouncer.clear();
       unsubscribePatients();
       unsubscribeDeliveries();
     };
-  }, [currentUser?.id, isDataLoaded]);
+  }, [currentUser?.id, isDataLoaded, deliveries, updateDeliveriesLocally]);
 
 
 
