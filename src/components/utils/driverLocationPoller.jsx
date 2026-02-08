@@ -168,13 +168,11 @@ class DriverLocationPoller {
           
           usersData = Array.from(userMap.values());
           console.log(`📍 [DriverLocationPoller] Merged offline+online data: ${usersData.length} unique users`);
-        }
-      } catch (offlineError) {
-        console.warn('⚠️ [DriverLocationPoller] Failed to load from offline DB, using props:', offlineError.message);
-      }
-    } else {
-      console.log('📍 [DriverLocationPoller] forceNotify=true - using provided fresh appUsers, skipping offline DB load');
-    }
+          }
+          } catch (offlineError) {
+          console.warn('⚠️ [DriverLocationPoller] Failed to load from offline DB, using props:', offlineError.message);
+          }
+          }
 
     // Process location data silently
 
