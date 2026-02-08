@@ -1011,9 +1011,11 @@ export default function Layout({ children, currentPageName }) {
         try {
           console.log('🔄 [Layout Init] Priming offline DB with essential data...');
           
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
+          
           // Fetch and save essential entities to offline DB in parallel
           const [deliveryData, patientData, appUserData, storeData] = await Promise.all([
-            base44.entities.Delivery.filter({ delivery_date: selectedDateStr }).catch(() => []),
+            base44.entities.Delivery.filter({ delivery_date: todayStr }).catch(() => []),
             base44.entities.Patient.list().catch(() => []),
             base44.entities.AppUser.list().catch(() => []),
             base44.entities.Store.list().catch(() => [])
