@@ -1042,6 +1042,39 @@ export default function Layout({ children, currentPageName }) {
 
   // Real-time sync broadcasts removed - relying on smart refresh only
 
+  // Initialize background sync manager
+  useEffect(() => {
+    if (!currentUser || !dataLoaded) return;
+
+    // Start background sync manager after data is loaded
+    const startBackgroundSync = async () => {
+      try {
+        await backgroundSyncManager.loadConfig();
+        backgroundSyncManager.start();
+        console.log('✅ [Layout] Background sync manager started');
+      } catch (error) {
+        console.warn('⚠️ [Layout] Failed to start background sync:', error);
+      }
+    };
+
+    // Delay start by 2 minutes to let initial data settle
+    const timer = setTimeout(startBackgroundSync, 120000);
+
+    return () => {
+      clearTimeout(timer);
+      backgroundSyncManager.stop();
+    };
+  }, [currentUser, dataLoaded]);
+
+  // Pause background sync when forms are open
+  useEffect(() => {
+    if (isFormOverlayOpen) {
+      backgroundSyncManager.pause();
+    } else {
+      backgroundSyncManager.resume();
+    }
+  }, [isFormOverlayOpen]);
+
   // Initialize offline database sync
   useEffect(() => {
     if (!currentUser) return;
