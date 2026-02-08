@@ -296,11 +296,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const firstInitial = displayName.charAt(0).toUpperCase();
     const size = isActive ? 18 : 14;
 
-    // Determine border color for AppOwners based on driver status and location age
+    // Determine border color based on driver status and location age (for ALL users)
     let borderColor = 'white';
-    const isAdmin = currentUser && userHasRole(currentUser, 'admin');
 
-    if (isAdmin && !isSharedLocation) {
+    if (!isSharedLocation) {
       // Check if location is stale (older than 5 minutes)
       const locationAge = user.location_updated_at ? 
         Date.now() - new Date(user.location_updated_at).getTime() : Infinity;
@@ -313,7 +312,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       } else {
         borderColor = 'white'; // White for on duty
       }
-    } else if (isSharedLocation) {
+    } else {
       borderColor = '#64748b'; // Gray for shared location
     }
 
