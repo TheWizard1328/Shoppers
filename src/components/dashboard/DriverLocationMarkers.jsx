@@ -368,10 +368,17 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       // CRITICAL: Determine if we should block the self marker based on primary device status
       const shouldBlockSelfMarker = isCurrentUserMarker && isPrimaryDevice;
       
+      // CRITICAL: Don't show off-duty drivers or past date markers
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const isViewingPastDate = selectedDate && selectedDate < todayStr;
+      const isOffDuty = user.driver_status === 'off_duty';
+      
       const shouldShowMarker = (user.location_tracking_enabled === true || isCurrentUserOnNonPrimaryDevice) && 
                                user.status !== 'inactive' && 
                                canView && 
-                               !shouldBlockSelfMarker;
+                               !shouldBlockSelfMarker &&
+                               !isOffDuty &&
+                               !isViewingPastDate;
       
       if (shouldShowMarker) {
         console.log('✅ [DriverLocationMarkers] Adding/updating visible driver:', user.user_name || user.full_name);
