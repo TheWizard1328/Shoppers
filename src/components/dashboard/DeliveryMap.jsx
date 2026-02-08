@@ -506,15 +506,25 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
 };
 
 const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocation = false, isOnBreakSelf = false) => {
+  console.log('═══════════════════════════════════════════════════');
+  console.log('🎨 [createDriverIcon] Creating icon');
+  console.log('   driverStatus:', driverStatus);
+  console.log('   initial:', initial);
+  console.log('   isStaleLocation:', isStaleLocation);
+  console.log('   isOnBreakSelf:', isOnBreakSelf);
+  console.log('═══════════════════════════════════════════════════');
+  
   const size = 15; // Reduced by 50% from 30 to 15
   
-  // Green for on_duty, Orange for on_break, Grey for off_duty
+  // Green for on_duty, Blue for on_break, Grey for off_duty
   const statusColors = {
     'on_duty': '#10B981', // Green
-    'on_break': '#F97316', // Orange
+    'on_break': '#3b82f6', // Blue (CHANGED from Orange)
     'off_duty': '#6B7280' // Grey
   };
   const color = statusColors[driverStatus] || statusColors['on_duty'];
+  
+  console.log(`   FINAL COLOR for status "${driverStatus}":`, color);
   
   // CRITICAL: Blue ring for viewing own location while on break (from other device)
   // Orange ring for stale location, White ring for fresh location
