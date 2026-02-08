@@ -7121,74 +7121,90 @@ function Dashboard() {
     loadOfflineDataFirst();
   }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, hasPreRenderSyncRef.current]);
   
-  // CRITICAL: STEP 2 - After offline data is shown, trigger smart refresh for fresh data
+  // CRITICAL: STEP 2 - Trigger priority sync to update offline DB, then load UI from fresh offline data
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
+    if (!hasPreRenderSyncRef.current) return; // Wait for pre-render sync first
     if (!hasLoadedOfflineDataRef.current) return; // Wait for offline data to load first
     if (hasTriggeredSmartRefreshRef.current) return; // Only run once
     
     hasTriggeredSmartRefreshRef.current = true;
     
-    const triggerSmartRefreshCycle = async () => {
-      console.log(`🔄 [Dashboard Mount - STEP 2] Triggering smart refresh for fresh data...`);
+    const triggerPrioritySyncAndLoadUI = async () => {
+      console.log(`🔄 [Dashboard Mount - STEP 2] Running priority offline DB sync...`);
       
       try {
-        // Force refresh from API for complete, up-to-date data
-        let freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        // Run priority sync to update offline DB (AppUsers, Deliveries, Patients)
+        const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync');
+        const cityId = globalFilters.getSelectedCityId();
         
-        // Refresh driver locations
-        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
-        const latestAppUsers = locationUpdates?.appUsers || appUsers;
+        await performPrioritySyncBeforeRefresh(selectedDateStr, cityId, smartRefreshManager);
+        console.log(`✅ [Dashboard Mount - STEP 2] Priority sync complete - offline DB updated`);
         
-        if (latestAppUsers && latestAppUsers.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, latestAppUsers);
-        }
+        // Wait for DB writes to complete
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // STEP 3: Load fresh data from offline DB and update UI
+        console.log(`📦 [Dashboard Mount - STEP 3] Loading fresh data from offline DB after sync...`);
+        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        
+        console.log(`✅ [Dashboard Mount - STEP 3] Loaded ${freshDeliveries?.length || 0} deliveries, ${freshAppUsers?.length || 0} users from offline DB`);
         
         // Update context with fresh data
-        if (updateDeliveriesLocally) {
+        if (updateDeliveriesLocally && freshDeliveries) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
         }
         
         // Process location data through poller
-        driverLocationPoller.processLocationData(
-          currentUser, 
-          freshDeliveries, 
-          drivers, 
-          stores, 
-          latestAppUsers, 
-          selectedDate, 
-          true,
-          'Dashboard',
-          showAllDriverMarkers
-        );
+        if (freshAppUsers && freshAppUsers.length > 0) {
+          driverLocationPoller.processLocationData(
+            currentUser, 
+            freshDeliveries || [], 
+            drivers, 
+            stores, 
+            freshAppUsers, 
+            selectedDate, 
+            true,
+            'Dashboard',
+            showAllDriverMarkers
+          );
+        }
         
-        // Dispatch events
+        // Dispatch events for UI updates
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: latestAppUsers, forceAll: true }
+          detail: { appUsers: freshAppUsers, forceAll: true }
         }));
         
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { deliveryDate: selectedDateStr, triggeredBy: 'dashboardSmartRefresh', allDrivers: true }
+          detail: { deliveryDate: selectedDateStr, triggeredBy: 'prioritySyncComplete', allDrivers: true }
         }));
         
-        console.log(`✅ [Dashboard Mount - STEP 2] Smart refresh complete - ${freshDeliveries.length} fresh deliveries loaded`);
         setForceRender((prev) => prev + 1);
+        console.log(`✅ [Dashboard Mount - STEP 3] UI updated with fresh offline data`);
+        
+        // STEP 4: Background sync for historical data
+        console.log(`🔄 [Dashboard Mount - STEP 4] Triggering background sync...`);
+        const { performBackgroundSync } = await import('@/components/utils/offlineSync');
+        setTimeout(() => {
+          performBackgroundSync(selectedDateStr, null).catch(error => {
+            console.warn('⚠️ Background sync failed:', error.message);
+          });
+        }, 2000);
         
       } catch (error) {
-        // CRITICAL: Silently fail on rate limits - periodic refresh will handle it
-        if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
-          console.log('⏰ [Dashboard Mount - STEP 2] Rate limited - skipping smart refresh (offline data already shown)');
+        if (error.response?.status === 429 || error.message?.includes('429')) {
+          console.log('⏰ [Dashboard Mount - STEP 2] Rate limited - using existing offline data');
           return;
         }
-        console.warn('⚠️ [Dashboard Mount - STEP 2] Smart refresh failed:', error.message);
+        console.warn('⚠️ [Dashboard Mount - STEP 2] Priority sync failed:', error.message);
       }
     };
     
-    // Delay smart refresh to allow UI to fully render first
-    setTimeout(triggerSmartRefreshCycle, 500);
-  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, dataSource, showAllDriverMarkers, selectedDriverId, hasLoadedOfflineDataRef.current]);
+    // Delay to allow UI to fully render first
+    setTimeout(triggerPrioritySyncAndLoadUI, 500);
+  }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, hasPreRenderSyncRef.current, hasLoadedOfflineDataRef.current]);
 
   useEffect(() => {
     if (!isDataLoaded || !deliveries) return;
