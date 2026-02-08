@@ -45,9 +45,10 @@ export const AppDataProvider = ({ children, value }) => {
           delivery_date: deliveryDate
         });
         
-        // Save to offline DB for next time
+        // CRITICAL: Always save to offline DB immediately after API fetch
         if (freshDeliveriesForDriver && freshDeliveriesForDriver.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveriesForDriver);
+          console.log(`💾 [Force Refresh] Saved ${freshDeliveriesForDriver.length} deliveries to offline DB`);
         }
       }
       

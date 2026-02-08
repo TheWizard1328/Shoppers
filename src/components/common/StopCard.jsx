@@ -211,6 +211,12 @@ export default function StopCard({
         console.log('📥 [ensureDriverOnline] Offline DB empty - fetching from API');
         const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
         appUser = appUsers?.[0];
+        
+        // CRITICAL: Always save to offline DB immediately after API fetch
+        if (appUsers && appUsers.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+          console.log(`💾 [ensureDriverOnline] Saved ${appUsers.length} app users to offline DB`);
+        }
       }
       
       if (appUser && appUser.driver_status !== 'on_duty') {
