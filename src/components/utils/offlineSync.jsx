@@ -196,13 +196,19 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     if (smartRefreshMgr) {
       await smartRefreshMgr.waitForRateLimit();
     }
-    
+
     // STEP 1: Fetch and sync ENTIRE AppUser entity (all drivers)
+    console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching AppUsers...');
     const allAppUsers = await AppUser.list();
+    console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers:`, allAppUsers?.map(u => ({ id: u.id, user_name: u.user_name })));
+
     if (allAppUsers && allAppUsers.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+      const saveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+      console.log(`✅ [PrioritySyncBeforeRefresh] Saved AppUsers to offline DB:`, saveResult);
       await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
+    } else {
+      console.warn('⚠️ [PrioritySyncBeforeRefresh] No AppUsers returned from API');
     }
     
     await new Promise(r => setTimeout(r, 500));
@@ -1089,8 +1095,15 @@ export const restartDeliveryPatientSync = async () => {
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 90 });
+    console.log('👤 [ForceSyncAll] Fetching AppUsers...');
     const appUsers = await AppUser.list();
-    await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+    console.log(`👤 [ForceSyncAll] Fetched ${appUsers?.length || 0} AppUsers, saving to offline DB...`);
+    const appUserSaveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+    console.log(`✅ [ForceSyncAll] AppUsers save result:`, appUserSaveResult);
+
+    // Verify the save
+    const verifyAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+    console.log(`✅ [ForceSyncAll] Verified offline DB now has ${verifyAppUsers?.length || 0} AppUsers`);
     
     // Update sync status for all entities
     const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
