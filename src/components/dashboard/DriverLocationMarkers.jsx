@@ -430,6 +430,22 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                     </a>
                   </p>
                 )}
+                <p className="text-xs mt-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.dispatchEvent(new CustomEvent('openMessaging', {
+                        detail: {
+                          otherUserId: user.user_id || user.id,
+                          otherUserName: displayName
+                        }
+                      }));
+                    }}
+                    className="text-blue-600 hover:text-blue-700 underline font-medium cursor-pointer"
+                  >
+                    💬 Message
+                  </button>
+                </p>
                 <p className="text-xs text-slate-600 mt-1">
                   Updated: {getLocationAge(user.location_updated_at)}
                 </p>
