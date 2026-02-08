@@ -91,8 +91,7 @@ class DriverLocationPoller {
     // Update internal current user reference
     this.currentUser = currentUser;
 
-    // CRITICAL: When forceNotify=true (SmartRefresh with fresh data), use provided appUsers directly
-    // Skipping offline DB prevents race conditions where fresh data hasn't been fully committed yet
+    // CRITICAL: Merge offline and online data, deduplicating by user ID and prioritizing most recent location
     let usersData = appUsers;
     if (!forceNotify) {
       try {
@@ -100,7 +99,43 @@ class DriverLocationPoller {
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
 
         if (offlineAppUsers && offlineAppUsers.length > 0) {
-          usersData = offlineAppUsers;
+          // Merge both sources, deduplicating by user ID
+          const userMap = new Map();
+          
+          // First, add offline users to map
+          offlineAppUsers.forEach(user => {
+            if (user && (user.id || user.user_id)) {
+              const userId = user.id || user.user_id;
+              userMap.set(userId, user);
+            }
+          });
+          
+          // Then, add/override with online users (prioritizing newer data)
+          appUsers.forEach(user => {
+            if (user && (user.id || user.user_id)) {
+              const userId = user.id || user.user_id;
+              const existingUser = userMap.get(userId);
+              
+              // If no existing user OR online data has newer location timestamp
+              if (!existingUser) {
+                userMap.set(userId, user);
+              } else if (user.location_updated_at && existingUser.location_updated_at) {
+                const onlineTimestamp = new Date(user.location_updated_at).getTime();
+                const offlineTimestamp = new Date(existingUser.location_updated_at).getTime();
+                
+                // Use online data if it's newer
+                if (onlineTimestamp > offlineTimestamp) {
+                  userMap.set(userId, user);
+                }
+              } else if (user.location_updated_at && !existingUser.location_updated_at) {
+                // Online has timestamp, offline doesn't - use online
+                userMap.set(userId, user);
+              }
+            }
+          });
+          
+          usersData = Array.from(userMap.values());
+          console.log(`📍 [DriverLocationPoller] Merged offline+online data: ${usersData.length} unique users`);
         }
       } catch (offlineError) {
         console.warn('⚠️ [DriverLocationPoller] Failed to load from offline DB, using props:', offlineError.message);
@@ -110,9 +145,6 @@ class DriverLocationPoller {
     }
 
     // Process location data silently
-
-    // Determine if current device is mobile
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     const currentUserId = this.currentUser?.id;
     const currentUserUserId = this.currentUser?.user_id;
