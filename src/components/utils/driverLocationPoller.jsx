@@ -106,26 +106,38 @@ class DriverLocationPoller {
     // Update internal current user reference
     this.currentUser = currentUser;
 
-    // CRITICAL: When forceNotify=true, always pull fresh data from API FIRST
+    // CRITICAL: ALWAYS pull fresh data from API and ignore stale offline/prop data
     let usersData = appUsers;
-    if (forceNotify) {
-      console.log('📍 [DriverLocationPoller] forceNotify=true - pulling fresh data from API');
-      try {
-        const { base44 } = await import('@/api/base44Client');
-        const freshAppUsers = await base44.entities.AppUser.list();
-        console.log(`📡 [DriverLocationPoller] Pulled ${freshAppUsers.length} fresh AppUsers from API`);
-        
-        // Save to offline DB immediately
-        const { offlineDB } = await import('./offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-        console.log(`💾 [DriverLocationPoller] Synced fresh data to offline DB`);
-        
-        usersData = freshAppUsers;
-      } catch (apiError) {
-        console.warn('⚠️ [DriverLocationPoller] Failed to pull fresh data from API:', apiError.message);
-        // Fall back to provided appUsers
+    
+    console.log('📍 [DriverLocationPoller] Fetching LATEST data from API (forceNotify:', forceNotify, ')');
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      const freshAppUsers = await base44.entities.AppUser.list();
+      console.log(`📡 [DriverLocationPoller] Pulled ${freshAppUsers.length} fresh AppUsers from API`);
+      
+      // Save to offline DB immediately, replacing all old data
+      const { offlineDB } = await import('./offlineDatabase');
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+      console.log(`💾 [DriverLocationPoller] Replaced offline DB with fresh data`);
+      
+      usersData = freshAppUsers;
+      
+      // Log first few for debugging
+      if (freshAppUsers.length > 0) {
+        console.log(`📊 [Poller] Fresh API data sample:`, freshAppUsers.slice(0, 2).map(u => ({
+          user_name: u.user_name,
+          location_updated_at: u.location_updated_at,
+          id: u.id
+        })));
       }
-    } else if (!forceNotify) {
+    } catch (apiError) {
+      console.warn('⚠️ [DriverLocationPoller] Failed to pull fresh data from API:', apiError.message);
+      // Fall back to provided appUsers only on error
+    }
+    
+    // Remove the old offline DB loading logic entirely
+    /* REMOVED: This was causing stale data to be used
+    if (!forceNotify) {
       try {
         const { offlineDB } = await import('./offlineDatabase');
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
@@ -166,13 +178,7 @@ class DriverLocationPoller {
             }
           });
           
-          usersData = Array.from(userMap.values());
-          console.log(`📍 [DriverLocationPoller] Merged offline+online data: ${usersData.length} unique users`);
-          }
-          } catch (offlineError) {
-          console.warn('⚠️ [DriverLocationPoller] Failed to load from offline DB, using props:', offlineError.message);
-          }
-          }
+          */
 
     // Process location data silently
 
