@@ -20,8 +20,20 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   useEffect(() => {
     if (!isVisible) return;
-    // Load initial stats
-    getSyncStats().then(setStats);
+    // Load initial stats - wait for full load
+    getSyncStats().then(stats => {
+      setStats(stats);
+      // Check if all entities have meaningful data
+      const hasAllData = stats && 
+        stats.patients?.count > 0 &&
+        stats.deliveries?.count > 0 &&
+        stats.appUsers?.count > 0 &&
+        stats.cities?.count > 0;
+      
+      if (hasAllData) {
+        setIsFullyLoaded(true);
+      }
+    });
 
     // Subscribe to sync updates (manual sync)
     const unsubscribe = subscribeSyncStatus((status) => {
