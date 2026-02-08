@@ -24,9 +24,9 @@ class LocationTracker {
     this.currentUser = null;
     this.appUserId = null;
     this.driverStatus = 'off_duty';
-    this.updateInterval = 15000; // 15 seconds heartbeat
+    this.updateInterval = 15000; // 15 seconds heartbeat - ALWAYS updates timestamp even if stationary
     this.coordinateUpdateInterval = 15000; // 15 seconds max without coordinate update
-    this.minDistanceChange = 100; // 100 meters (can be overridden by settings)
+    this.minDistanceChange = 50; // 50 meters - reduced threshold so stationary drivers still update
     this.failedUpdateCount = 0;
     this.maxFailedUpdates = 3;
     this.backoffTime = 0;
