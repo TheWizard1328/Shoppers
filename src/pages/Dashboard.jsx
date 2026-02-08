@@ -1872,6 +1872,103 @@ function Dashboard() {
               return; // Skip proximity snap logic below
             }
 
+            // PHASE 3 LOCKED: Continuous re-centering (every location update)
+            // Show all active drivers + incomplete stops for selected driver
+            if (mapViewPhaseRef.current === 3 && isMapViewLockedRef.current) {
+              const allCoordinatesPhase3 = [];
+              const todayStrPhase3 = format(new Date(), 'yyyy-MM-dd');
+              const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
+              const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
+              
+              if (isViewingTodayPhase3) {
+                // Include current driver's blue dot (only if not off_duty)
+                const currentDriverStatus = appUsers?.find(au => au?.user_id === currentUser?.id)?.driver_status;
+                if (newLocation.latitude && newLocation.longitude && currentDriverStatus !== 'off_duty') {
+                  allCoordinatesPhase3.push([newLocation.latitude, newLocation.longitude]);
+                }
+                
+                // Include all shared driver location markers (EXCLUDE off-duty drivers)
+                const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
+                const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
+                
+                const uniqueLocations = new Map();
+                allLocationSources.forEach(loc => {
+                  if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
+                    const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
+                    if (driver?.driver_status === 'off_duty') return;
+                    uniqueLocations.set(loc.driver_id, loc);
+                  }
+                });
+                
+                Array.from(uniqueLocations.values()).forEach((location) => {
+                  if (isMobile && location.driver_id === currentUser?.id) return;
+                  allCoordinatesPhase3.push([location.latitude, location.longitude]);
+                });
+              }
+              
+              // Include incomplete stops for active/selected driver
+              const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+              const incompleteStopsActiveDriver = deliveriesWithStopOrder.filter((d) => {
+                if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
+                if (finishedStatusesPhase3.includes(d.status)) return false;
+                const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
+                if (d.driver_id !== targetDriverId) return false;
+                if (isDispatcher && !isAdmin && currentUser?.store_ids) {
+                  const dispatcherStoreIds = new Set(currentUser.store_ids);
+                  if (!dispatcherStoreIds.has(d.store_id)) return false;
+                }
+                return true;
+              });
+              
+              incompleteStopsActiveDriver.forEach((delivery) => {
+                if (delivery.patient_id) {
+                  const patient = patients.find((p) => p?.id === delivery.patient_id);
+                  if (patient?.latitude && patient?.longitude) {
+                    allCoordinatesPhase3.push([patient.latitude, patient.longitude]);
+                  }
+                } else if (delivery.store_id) {
+                  const store = stores.find((s) => s?.id === delivery.store_id);
+                  if (store?.latitude && store?.longitude) {
+                    allCoordinatesPhase3.push([store.latitude, store.longitude]);
+                  }
+                }
+              });
+              
+              if (allCoordinatesPhase3.length > 0) {
+                const padding = getMapPadding();
+                let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+                allCoordinatesPhase3.forEach(([lat, lon]) => {
+                  minLat = Math.min(minLat, lat);
+                  maxLat = Math.max(maxLat, lat);
+                  minLon = Math.min(minLon, lon);
+                  maxLon = Math.max(maxLon, lon);
+                });
+                
+                const latSpan = maxLat - minLat;
+                const lonSpan = maxLon - minLon;
+                const maxSpan = Math.max(latSpan, lonSpan);
+                const spanKm = maxSpan * 111.0;
+                const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
+                const screenAdjustment = isMobile ? 0.8 : 0;
+                const phase3MaxZoom = Math.max(12.0, Math.min(17, Math.round((baseZoom + screenAdjustment) * 10) / 10));
+                
+                window._lastProgrammaticMapMove = Date.now();
+                
+                setShouldFitBounds({
+                  bounds: allCoordinatesPhase3,
+                  options: {
+                    ...padding,
+                    maxZoom: phase3MaxZoom,
+                    animate: true,
+                    duration: 0.5
+                  }
+                });
+                setMapCenter(null);
+                setMapZoom(null);
+                return; // Skip proximity snap logic below
+              }
+            }
+
             // PROXIMITY SNAP: Only when FAB is unlocked (gray) and user has been idle
             // Check if 5 minutes have passed since last user interaction (map/card)
             const timeSinceUserInteraction = now - lastUserInteractionRef.current;
