@@ -1663,6 +1663,7 @@ export default function DeliveryMap({
     return markers;
   // CRITICAL: Include polylineRenderKey to force refresh when locations update
   }, [
+    selectedDate, // CRITICAL: Must recalculate when date changes to filter past dates
     isViewingCurrentDate,
     currentUser?.id,
     isMobile,
