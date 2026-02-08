@@ -217,7 +217,7 @@ class DriverLocationPoller {
         return false; // Skip stale locations entirely
       }
       
-      console.log(`✅ [Poller] Including user ${user.id || user.user_name} - fresh location (${ageMinutes} min old): ${user.location_updated_at}`);
+      console.log(`✅ [Poller] Including user ${user.user_name} - fresh location (${ageMinutes} min old): ${user.location_updated_at}`);
       return true;
     });
     
@@ -250,7 +250,7 @@ class DriverLocationPoller {
       // CRITICAL: Check self BEFORE coordinates to enable debugging
       if (isSelf) {
         console.log(`🔍 [Poller] SELF MARKER CHECK:`, {
-          userId: user.id || user.user_name,
+          userId: user.user_name,
           hasCoordinates: !!(user.current_latitude && user.current_longitude),
           current_latitude: user.current_latitude,
           current_longitude: user.current_longitude,
@@ -304,7 +304,7 @@ class DriverLocationPoller {
         // - Bypasses location_tracking_enabled toggle
         // - Bypasses active deliveries check
         console.log(`✅ [Poller] Including SELF marker - bypasses all checks`, {
-          userId: user.id,
+          userId: user.user_name,
           driver_status: user.driver_status,
           location_tracking_enabled: user.location_tracking_enabled
         });
