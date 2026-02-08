@@ -77,15 +77,6 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocatio
 };
 
 const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [], selectedDate = null }) => {
-  console.log('🚀 [DriverLocationMarkers] COMPONENT RENDERING', {
-    usersCount: users?.length || 0,
-    users: users?.map(u => ({
-      name: u?.user_name,
-      status: u?.driver_status,
-      timestamp: u?.location_updated_at
-    }))
-  });
-  
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const markersRef = useRef({});
@@ -109,17 +100,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const handleLocationUpdates = (event) => {
       const { appUsers: updatedAppUsers, singleUpdate, forceAll } = event.detail || {};
 
-      console.log(`📍 [DriverLocationMarkers] driverLocationsUpdated event:`, { 
-        appUsersCount: updatedAppUsers?.length || 0,
-        hasSingleUpdate: !!singleUpdate,
-        forceAll
-      });
-
       // CRITICAL: Don't show markers for past dates - check immediately
       if (selectedDate) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         if (selectedDate < todayStr) {
-          console.log(`⏭️ [DriverLocationMarkers] Ignoring event for past date: ${selectedDate}`);
           return;
         }
       }
@@ -130,7 +114,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const userId = id || user_id;
 
         if (userId && current_latitude && current_longitude) {
-          console.log(`📍 [DriverLocationMarkers] Updating single driver: ${userId}`);
           setVisibleDrivers(prev => {
             const exists = prev.find(d => d && d.id === userId);
             if (exists) {
@@ -140,10 +123,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                 current_longitude,
                 location_updated_at: location_updated_at || new Date().toISOString()
               } : d);
-              console.log(`📍 [DriverLocationMarkers] Updated single driver in visibleDrivers`);
               return updated;
             }
-            console.log(`⚠️ [DriverLocationMarkers] Driver ${userId} not in visibleDrivers, skipping`);
             return prev;
           });
         }
@@ -152,7 +133,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
       // CRITICAL: Handle bulk appUsers update with FRESH DATA from event
       if (updatedAppUsers && updatedAppUsers.length > 0) {
-        console.log(`📍 [DriverLocationMarkers] Bulk update: processing ${updatedAppUsers.length} drivers with FRESH data`);
 
         const validDrivers = updatedAppUsers.filter(user => {
           if (!user) return false;
@@ -175,8 +155,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           return true;
         });
 
-        console.log(`📍 [DriverLocationMarkers] Setting ${validDrivers.length} drivers - timestamps:`, 
-          validDrivers.map(u => `${u.user_name}: ${u.location_updated_at}`));
         setVisibleDrivers(validDrivers);
       }
     };
@@ -190,31 +168,11 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     // which already handles all permission checks, status checks, and dispatcher logic
     // We just need to do basic validation and track changes for re-rendering
     
-    console.log('📍 [DriverLocationMarkers] Effect triggered', {
-      isMobile,
-      usersCount: users?.length || 0,
-      currentUserId: currentUser?.id,
-      selectedDate,
-      users: users?.map(u => ({
-        id: u?.id,
-        name: u?.user_name || u?.full_name,
-        lat: u?.current_latitude,
-        lng: u?.current_longitude,
-        _isSelf: u?._isSelf,
-        tracking: u?.location_tracking_enabled,
-        status: u?.driver_status
-      }))
-    });
-    
     const validDrivers = (users || []).filter(user => {
       if (!user) return false;
 
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) {
-        console.log('🚫 [DriverLocationMarkers] Missing coordinates', { 
-          id: user.id, 
-          name: user.user_name 
-        });
         return false;
       }
 
@@ -229,12 +187,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
       // CRITICAL: ALWAYS show self marker on ALL devices regardless of date or status
       if (isSelf) {
-        console.log('✅ [DriverLocationMarkers] Including SELF marker - bypasses all checks', {
-          userId,
-          userName: user.user_name || user.full_name,
-          selectedDate,
-          isPrimaryDevice
-        });
         return true;
       }
 
@@ -254,24 +206,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return false;
       }
       
-      if (isSelf && !isPrimaryDevice) {
-        console.log('✅ [DriverLocationMarkers] Showing self shared marker - non-primary device', {
-          userId,
-          userName: user.user_name || user.full_name,
-          isPrimaryDevice
-        });
-      }
-      
-      console.log('✅ [DriverLocationMarkers] Including driver', {
-        id: user.id,
-        name: user.user_name || user.full_name,
-        isSelf,
-        isMobile
-      });
       return true;
     });
-    
-    console.log(`📍 [DriverLocationMarkers] Processing ${validDrivers.length} drivers from poller (from ${users?.length || 0} total)`);
     
     // CRITICAL: Check if the set of visible driver IDs has actually changed
     // This prevents flickering caused by array reference changes during smart refresh
@@ -296,7 +232,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     
     // Only update state if there's an actual meaningful change
     if (idsChanged || locationsChanged) {
-      console.log(`📍 [DriverLocationMarkers] Updating visible drivers: ${validDrivers.map(d => d.user_name).join(', ')}`);
       setVisibleDrivers(validDrivers);
       prevVisibleIdsRef.current = newVisibleIds;
     }
@@ -317,7 +252,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       const currentUserId = currentUser?.id;
       
       if (userId === currentUserId) {
-        console.log(`🎨 [DriverLocationMarkers] Self status changed to ${newStatus} - updating marker color`);
         setVisibleDrivers(prev => prev.map(driver => 
           (driver.id === userId || driver.user_id === userId) 
             ? { 
@@ -353,16 +287,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const handleLocationUpdate = (event) => {
       const { userId, latitude, longitude, timestamp } = event.detail || {};
       
-      console.log('📍 [DriverLocationMarkers] Received location update:', { userId, latitude, longitude, timestamp });
-      
       if (!userId || !latitude || !longitude) {
-        console.warn('⚠️ [DriverLocationMarkers] Invalid location update data');
         return;
       }
       
       const user = users?.find(u => u && u.id === userId);
       if (!user) {
-        console.warn('⚠️ [DriverLocationMarkers] User not found in users list:', userId);
         return;
       }
       
@@ -370,13 +300,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       const isAdmin = currentUser && userHasRole(currentUser, 'admin');
       const currentUserCityId = currentUser?.city_id;
       const canView = isAdmin || (currentUserCityId && user.city_id === currentUserCityId);
-      
-      console.log('🔐 [DriverLocationMarkers] Permission check:', { 
-        isAdmin, 
-        canView, 
-        location_tracking_enabled: user.location_tracking_enabled,
-        status: user.status 
-      });
       
       // CRITICAL: Check if this is the current user on a non-primary device
       const isCurrentUserMarker = userId === currentUser?.id || userId === currentUser?.user_id;
@@ -398,7 +321,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                                !isViewingPastDate;
       
       if (shouldShowMarker) {
-        console.log('✅ [DriverLocationMarkers] Adding/updating visible driver:', user.user_name || user.full_name);
         setVisibleDrivers(prev => {
           const exists = prev.find(d => d && d.id === userId);
           if (exists) {
@@ -417,8 +339,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
             }];
           }
         });
-      } else {
-        console.log('❌ [DriverLocationMarkers] Not showing driver - permissions/status check failed');
       }
     };
 
@@ -435,24 +355,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     }
   };
 
-  console.log('═══════════════════════════════════════════════════');
-  console.log('🗺️ [DriverLocationMarkers RENDER START]');
-  console.log('   visibleDriversCount:', visibleDrivers?.length || 0);
-  console.log('   visibleDrivers data:', visibleDrivers?.map(u => ({
-    name: u.user_name || u.full_name,
-    status: u.driver_status,
-    timestamp: u.location_updated_at,
-    lat: u.current_latitude,
-    lng: u.current_longitude
-  })));
-  console.log('═══════════════════════════════════════════════════');
-
   if (!visibleDrivers || visibleDrivers.length === 0) {
-    console.log('❌ [DriverLocationMarkers] No visible drivers - returning null');
     return null;
   }
-
-  console.log(`✅ [DriverLocationMarkers] Rendering ${visibleDrivers.length} markers...`);
 
   return (
     <>
