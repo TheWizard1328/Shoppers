@@ -448,7 +448,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   }
 
   // Floating mode for map (desktop)
-  const shouldRenderStats = isFullyLoaded && stats;
+  // CRITICAL: Always render stats if we have the object
+  const shouldRenderStats = stats;
   
   return (
     <div className="fixed top-2 left-1 z-[100000]">
