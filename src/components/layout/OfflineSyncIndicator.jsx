@@ -485,7 +485,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
             style={{ borderColor: 'var(--border-slate-200)' }}>
 
               <div className="p-3 space-y-3">
-                {stats &&
+                {shouldRenderStats &&
               <>
                     <div className="text-xs space-y-2">
                       {/* Patients */}
