@@ -54,6 +54,17 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
         getSyncStats().then(newStats => {
           setStats(newStats);
           setRuntimeStats({}); // Clear runtime stats when sync completes
+          
+          // Check if all entities now have data
+          const hasAllData = newStats && 
+            newStats.patients?.count > 0 &&
+            newStats.deliveries?.count > 0 &&
+            newStats.appUsers?.count > 0 &&
+            newStats.cities?.count > 0;
+          
+          if (hasAllData) {
+            setIsFullyLoaded(true);
+          }
         });
       }
       
