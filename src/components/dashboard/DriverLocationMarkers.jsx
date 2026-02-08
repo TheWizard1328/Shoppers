@@ -115,6 +115,15 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         forceAll
       });
 
+      // CRITICAL: Don't show markers for past dates - check immediately
+      if (selectedDate) {
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        if (selectedDate < todayStr) {
+          console.log(`⏭️ [DriverLocationMarkers] Ignoring event for past date: ${selectedDate}`);
+          return;
+        }
+      }
+
       // Handle single driver update
       if (singleUpdate) {
         const { current_latitude, current_longitude, location_updated_at, user_id, id } = singleUpdate;
@@ -169,7 +178,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
     window.addEventListener('driverLocationsUpdated', handleLocationUpdates);
     return () => window.removeEventListener('driverLocationsUpdated', handleLocationUpdates);
-  }, [currentUser, isPrimaryDevice]);
+  }, [currentUser, isPrimaryDevice, selectedDate]);
 
   useEffect(() => {
     // CRITICAL: The `users` prop comes pre-filtered from driverLocationPoller
