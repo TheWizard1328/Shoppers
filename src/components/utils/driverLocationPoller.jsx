@@ -134,51 +134,6 @@ class DriverLocationPoller {
       console.warn('⚠️ [DriverLocationPoller] Failed to pull fresh data from API:', apiError.message);
       // Fall back to provided appUsers only on error
     }
-    
-    // Remove the old offline DB loading logic entirely
-    /* REMOVED: This was causing stale data to be used
-    if (!forceNotify) {
-      try {
-        const { offlineDB } = await import('./offlineDatabase');
-        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-
-        if (offlineAppUsers && offlineAppUsers.length > 0) {
-          // Merge both sources, deduplicating by user ID
-          const userMap = new Map();
-          
-          // First, add offline users to map
-          offlineAppUsers.forEach(user => {
-            if (user && (user.id || user.user_name)) {
-              const userId = user.id || user.user_name;
-              userMap.set(userId, user);
-            }
-          });
-          
-          // Then, add/override with online users (prioritizing newer data)
-          appUsers.forEach(user => {
-            if (user && (user.id || user.user_name)) {
-              const userId = user.id || user.user_name;
-              const existingUser = userMap.get(userId);
-              
-              // If no existing user OR online data has newer location timestamp
-              if (!existingUser) {
-                userMap.set(userId, user);
-              } else if (user.location_updated_at && existingUser.location_updated_at) {
-                const onlineTimestamp = new Date(user.location_updated_at).getTime();
-                const offlineTimestamp = new Date(existingUser.location_updated_at).getTime();
-                
-                // Use online data if it's newer
-                if (onlineTimestamp > offlineTimestamp) {
-                  userMap.set(userId, user);
-                }
-              } else if (user.location_updated_at && !existingUser.location_updated_at) {
-                // Online has timestamp, offline doesn't - use online
-                userMap.set(userId, user);
-              }
-            }
-          });
-          
-          */
 
     // Process location data silently
 
