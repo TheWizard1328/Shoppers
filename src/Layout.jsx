@@ -1028,8 +1028,27 @@ export default function Layout({ children, currentPageName }) {
           if (storeData?.length) await offlineDB.bulkSave(offlineDB.STORES.STORES, storeData);
           
           console.log(`✅ [Layout Init] Offline DB primed in ${Date.now() - primeStartTime}ms`);
+          
+          // CRITICAL: Check if offline DB is still empty or has insufficient data
+          // If so, trigger a manual sync to populate it
+          const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+          const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+          
+          const isOfflineDBEmpty = 
+            (!offlineDeliveries || offlineDeliveries.length === 0) ||
+            (!offlinePatients || offlinePatients.length === 0) ||
+            (!offlineAppUsers || offlineAppUsers.length === 0);
+          
+          if (isOfflineDBEmpty) {
+            console.log('⚠️ [Layout Init] Offline DB is empty or insufficient - triggering manual sync');
+            // Dispatch event to trigger the OfflineSyncIndicator's manual sync
+            window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
+          }
         } catch (error) {
           console.warn('⚠️ [Layout Init] Offline DB prime failed (non-critical):', error.message);
+          // Trigger sync anyway if priming failed
+          window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
         }
 
         // CRITICAL: Mark offline DB load as complete to allow smart refresh to start
