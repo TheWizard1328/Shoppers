@@ -1005,6 +1005,31 @@ export default function Layout({ children, currentPageName }) {
 
         setInitialGlobalFiltersSet(true);
 
+        // CRITICAL: Prime offline DB with essential data before marking load complete
+        // This ensures first load/refresh doesn't hit API rate limits
+        const primeStartTime = Date.now();
+        try {
+          console.log('🔄 [Layout Init] Priming offline DB with essential data...');
+          
+          // Fetch and save essential entities to offline DB in parallel
+          const [deliveryData, patientData, appUserData, storeData] = await Promise.all([
+            base44.entities.Delivery.filter({ delivery_date: selectedDateStr }).catch(() => []),
+            base44.entities.Patient.list().catch(() => []),
+            base44.entities.AppUser.list().catch(() => []),
+            base44.entities.Store.list().catch(() => [])
+          ]);
+
+          // Save to offline DB immediately
+          if (deliveryData?.length) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryData);
+          if (patientData?.length) await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientData);
+          if (appUserData?.length) await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserData);
+          if (storeData?.length) await offlineDB.bulkSave(offlineDB.STORES.STORES, storeData);
+          
+          console.log(`✅ [Layout Init] Offline DB primed in ${Date.now() - primeStartTime}ms`);
+        } catch (error) {
+          console.warn('⚠️ [Layout Init] Offline DB prime failed (non-critical):', error.message);
+        }
+
         // CRITICAL: Mark offline DB load as complete to allow smart refresh to start
         const { markOfflineDBLoadComplete } = await import('./components/utils/dataManager');
         markOfflineDBLoadComplete();
