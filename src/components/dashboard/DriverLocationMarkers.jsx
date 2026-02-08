@@ -209,7 +209,35 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const validDrivers = (users || []).filter(user => {
       if (!user) return false;
 
-      // CRITICAL: Don't show ANY markers for past dates - enforce immediately
+      // Skip if no valid coordinates
+      if (!user.current_latitude || !user.current_longitude) {
+        console.log('🚫 [DriverLocationMarkers] Missing coordinates', { 
+          id: user.id, 
+          name: user.user_name 
+        });
+        return false;
+      }
+
+      // CRITICAL: Check if this is the current user viewing the map
+      const currentUserId = currentUser?.id;
+      const currentUserUserId = currentUser?.user_id;
+      const userId = user.id || user.user_id;
+      const isSelf = user._isSelf === true || 
+                     userId === currentUserId || 
+                     userId === currentUserUserId ||
+                     user.user_id === currentUserId;
+
+      // CRITICAL: ALWAYS show self marker on primary device regardless of date or status
+      if (isSelf && isPrimaryDevice) {
+        console.log('✅ [DriverLocationMarkers] Including SELF marker on primary device - bypasses all checks', {
+          userId,
+          userName: user.user_name || user.full_name,
+          selectedDate
+        });
+        return true;
+      }
+
+      // CRITICAL: Don't show OTHER markers for past dates
       if (selectedDate) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const selectedDateStr = selectedDate instanceof Date 
@@ -220,37 +248,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         }
       }
 
-      // Skip if no valid coordinates
-      if (!user.current_latitude || !user.current_longitude) {
-        console.log('🚫 [DriverLocationMarkers] Missing coordinates', { 
-          id: user.id, 
-          name: user.user_name 
-        });
-        return false;
-      }
-      
-      // CRITICAL: Only show on_duty or on_break drivers
+      // CRITICAL: Only show on_duty or on_break drivers (except self on primary)
       if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
-        return false;
-      }
-      
-      // CRITICAL: Check if this is the current user viewing the map
-      const currentUserId = currentUser?.id;
-      const currentUserUserId = currentUser?.user_id;
-      const userId = user.id || user.user_id;
-      const isSelf = user._isSelf === true || 
-                     userId === currentUserId || 
-                     userId === currentUserUserId ||
-                     user.user_id === currentUserId;
-      
-      // CRITICAL: Only block self marker if this device is the PRIMARY tracker
-      // All non-primary devices should ALWAYS show the shared location marker
-      if (isSelf && isPrimaryDevice) {
-        console.log('🚫 [DriverLocationMarkers] Blocking self marker - this is the primary tracking device', {
-          userId,
-          userName: user.user_name || user.full_name,
-          isPrimaryDevice
-        });
         return false;
       }
       
