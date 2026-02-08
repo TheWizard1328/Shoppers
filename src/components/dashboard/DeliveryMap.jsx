@@ -1030,8 +1030,12 @@ export default function DeliveryMap({
 
   // Get coordinates for deliveries and pickups - Use backend isNextDelivery flag
   const { deliveryMarkers, groupedDeliveryMarkers, pickupMarkers, groupedPickupMarkers, hasIncompleteStops } = useMemo(() => {
-    // Check if route has any incomplete stops
-    const hasIncompleteStops = safeDeliveries.some(d => d && !FINISHED_STATUSES.includes(d.status));
+    // CRITICAL: Check if route has any incomplete stops - include other drivers' deliveries in Show All mode
+    let allDeliveriesForIncompleteCheck = safeDeliveries;
+    if (showOtherDriverDeliveries && otherDriverDeliveries.length > 0) {
+      allDeliveriesForIncompleteCheck = [...safeDeliveries, ...otherDriverDeliveries];
+    }
+    const hasIncompleteStops = allDeliveriesForIncompleteCheck.some(d => d && !FINISHED_STATUSES.includes(d.status));
 
     // Process delivery markers
     const deliveryMarkersRaw = patientDeliveries.map((delivery) => {
