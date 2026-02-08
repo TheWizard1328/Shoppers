@@ -3802,9 +3802,13 @@ export default function DeliveryMap({
           ];
         })}
 
-        {/* Driver Location Markers - Removed - now handled by DriverLocationMarkers component */}
-
-
+        {/* Driver Location Markers - handled by DriverLocationMarkers component */}
+        <DriverLocationMarkers 
+          users={driverLocationMarkers}
+          currentUser={currentUser}
+          activeDriver={null}
+          deliveries={deliveriesForLocationFilter}
+        />
 
         {/* Breadcrumb Trails - Historical and Current */}
         {showBreadcrumbs && (() => {
