@@ -106,8 +106,8 @@ class DriverLocationPoller {
     // Update internal current user reference
     this.currentUser = currentUser;
 
-    // CRITICAL: ALWAYS pull fresh data from API and ignore stale offline/prop data
-    let usersData = appUsers;
+    // CRITICAL: ALWAYS pull fresh data from API - don't use stale prop data at all
+    let usersData = null;
     
     console.log('📍 [DriverLocationPoller] Fetching LATEST data from API (forceNotify:', forceNotify, ')');
     try {
@@ -133,6 +133,13 @@ class DriverLocationPoller {
     } catch (apiError) {
       console.warn('⚠️ [DriverLocationPoller] Failed to pull fresh data from API:', apiError.message);
       // Fall back to provided appUsers only on error
+      usersData = appUsers;
+    }
+    
+    // If we still don't have data, skip processing
+    if (!usersData || usersData.length === 0) {
+      console.warn('⚠️ [DriverLocationPoller] No data available to process');
+      return;
     }
 
     // Process location data silently
@@ -361,12 +368,15 @@ class DriverLocationPoller {
       .sort()
       .join('|');
     
-    // Skip notification if data hasn't changed (prevents stale marker flashing)
+    // Skip notification if data hasn't changed (prevents duplicate notifications)
+    // BUT always notify on forceNotify to ensure fresh data propagates
     if (currentKey === this._lastNotifiedKey && !forceNotify) {
+      console.log('⏭️ [Poller] Skipping duplicate notification - data unchanged');
       return;
     }
     
     this._lastNotifiedKey = currentKey;
+    console.log(`📡 [Poller] Notifying subscribers with NEW data (${activeDriversWithLocation.length} drivers)`);
     
     // Convert array of users to array of location objects
     const currentUserId = this.currentUser?.id;
