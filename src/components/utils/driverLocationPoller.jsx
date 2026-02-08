@@ -298,11 +298,6 @@ class DriverLocationPoller {
       // RULE 2: Admins (AppOwners) - can see all drivers in city if On Duty OR On Break
       // ========================================
       if (isAdmin) {
-        // Must be in "show all" or "all drivers" mode
-        if (!showAllDrivers) {
-          return false;
-        }
-
         // Admin sees drivers if they are On Duty OR On Break (regardless of location_tracking_enabled)
         if (user.driver_status === 'on_duty' || user.driver_status === 'on_break') {
           console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - status: ${user.driver_status}`);
@@ -399,7 +394,6 @@ class DriverLocationPoller {
     // Convert array of users to array of location objects
     const currentUserId = this.currentUser?.id;
     const currentUserUserId = this.currentUser?.user_id;
-    const now = Date.now();
 
     const locationObjects = activeDriversWithLocation.map(user => {
       const isSelf = user.user_name === currentUserId || 
@@ -407,20 +401,6 @@ class DriverLocationPoller {
                      user.user_name === currentUserUserId ||
                      user.id === currentUserUserId;
       const isOnBreak = user.driver_status === 'on_break';
-
-      // Calculate status-based color for marker fill
-      const locationAge = user.location_updated_at ? 
-        now - new Date(user.location_updated_at).getTime() : Infinity;
-      const isStale = locationAge > 5 * 60 * 1000;
-
-      let markerColor;
-      if (isStale) {
-        markerColor = '#ef4444'; // Red for stale
-      } else if (user.driver_status === 'on_break') {
-        markerColor = '#3b82f6'; // Blue for on break
-      } else {
-        markerColor = '#10b981'; // Green for on duty
-      }
 
       return {
         id: user.id,
@@ -435,8 +415,7 @@ class DriverLocationPoller {
         driver_status: user.driver_status,
         location_tracking_enabled: user.location_tracking_enabled,
         _isSelf: isSelf,
-        _isOnBreak: isOnBreak && isSelf,
-        _markerColor: markerColor
+        _isOnBreak: isOnBreak && isSelf
       };
     });
 
