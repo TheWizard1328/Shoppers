@@ -35,7 +35,12 @@ export async function getCurrentDevice(userId) {
  */
 export async function isCurrentDevicePrimary(userId) {
   const device = await getCurrentDevice(userId);
-  return device?.is_primary_tracker || false;
+  const isPrimary = device?.is_primary_tracker || false;
+  
+  const deviceName = device?.device_name || 'Unknown Device';
+  console.log(`📱 [DeviceManager] Primary check for ${deviceName}: ${isPrimary ? 'YES ✅' : 'NO ❌'}`);
+  
+  return isPrimary;
 }
 
 /**
