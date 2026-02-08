@@ -241,7 +241,12 @@ class LocationTracker {
 
         // Step 1: Upload this driver's location to API
         updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
-        console.log(`✅ [LocationTracker] Uploaded location to API`);
+        console.log(`✅ [LocationTracker] Uploaded to API - AppUser ${this.appUserId} updated with:`, {
+          lat: latitude.toFixed(6),
+          lon: longitude.toFixed(6),
+          timestamp: nowISO,
+          isPrimaryDevice: true
+        });
 
         // Step 2: Immediately pull down ALL AppUsers from API (fresh data for everyone)
         const allAppUsers = await base44.entities.AppUser.list();
