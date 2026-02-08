@@ -383,6 +383,7 @@ class DriverLocationPoller {
       };
     });
 
+    // Notify callback subscribers
     this.subscribers.forEach(callback => {
       try {
         callback(locationObjects);
@@ -390,6 +391,17 @@ class DriverLocationPoller {
         console.error('Error notifying driver location subscriber:', error);
       }
     });
+
+    // CRITICAL: Also dispatch window event for markers component
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+        detail: { 
+          appUsers: activeDriversWithLocation,
+          forceAll: forceNotify
+        }
+      }));
+      console.log(`📡 [Poller] Dispatched driverLocationsUpdated event with ${activeDriversWithLocation.length} drivers`);
+    }
   }
 
   subscribe(callback) {
