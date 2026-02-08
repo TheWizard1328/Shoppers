@@ -14,7 +14,10 @@ export function getDeviceIdentifier() {
  */
 export async function getCurrentDevice(userId) {
   const deviceId = getDeviceIdentifier();
-  if (!deviceId || !userId) return null;
+  if (!deviceId || !userId) {
+    console.log(`⚠️ [DeviceManager] Missing deviceId (${!!deviceId}) or userId (${!!userId})`);
+    return null;
+  }
 
   try {
     const devices = await base44.entities.UserDevice.filter({
@@ -23,9 +26,16 @@ export async function getCurrentDevice(userId) {
       status: 'active'
     });
 
-    return devices && devices.length > 0 ? devices[0] : null;
+    if (devices && devices.length > 0) {
+      const device = devices[0];
+      console.log(`📱 [DeviceManager] Found device: ${device.device_name} (Primary: ${device.is_primary_tracker ? 'YES' : 'NO'})`);
+      return device;
+    } else {
+      console.log(`⚠️ [DeviceManager] No UserDevice record found for this device - assuming PRIMARY by default`);
+      return null;
+    }
   } catch (error) {
-    console.error('Failed to get current device:', error);
+    console.error('❌ [DeviceManager] Failed to get current device:', error);
     return null;
   }
 }
