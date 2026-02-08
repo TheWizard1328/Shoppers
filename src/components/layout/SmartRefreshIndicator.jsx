@@ -207,35 +207,60 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     }
   };
 
-  // Handle manual refresh click - Trigger offline DB sync then refresh page
+  // Handle manual refresh click - Smart page-specific sync
   const handleManualRefresh = async () => {
     if (isManualRefreshing || isPaused) return;
 
-    console.log('🔄 [SmartRefreshIndicator] Manual refresh triggered - triggering offline sync');
+    const currentPath = window.location.pathname;
+    console.log(`🔄 [SmartRefreshIndicator] Manual refresh triggered on ${currentPath}`);
     setIsManualRefreshing(true);
 
     try {
-      // Step 1: Trigger offline database sync (same as clicking the Offline Sync button)
       const { offlineDB } = await import('../utils/offlineDatabase');
-      const { restartDeliveryPatientSync } = await import('../utils/offlineSync');
+      const { base44 } = await import('@/api/base44Client');
       
-      console.log('   🗑️ Clearing offline database...');
-      await offlineDB.clearAllData();
+      // Determine which entities to sync based on current page
+      const entitiesToSync = [];
       
-      console.log('   🔄 Restarting full offline sync...');
-      await restartDeliveryPatientSync();
+      if (currentPath.includes('/dashboard') || currentPath === '/') {
+        entitiesToSync.push('Delivery', 'AppUser', 'Patient', 'Store');
+      } else if (currentPath.includes('/deliveries')) {
+        entitiesToSync.push('Delivery', 'Patient', 'Store', 'AppUser');
+      } else if (currentPath.includes('/patients')) {
+        entitiesToSync.push('Patient', 'Store');
+      } else if (currentPath.includes('/stores')) {
+        entitiesToSync.push('Store');
+      } else if (currentPath.includes('/users') || currentPath.includes('/app-users')) {
+        entitiesToSync.push('AppUser');
+      } else if (currentPath.includes('/payroll')) {
+        entitiesToSync.push('Delivery', 'AppUser', 'Payroll');
+      } else {
+        // Default: sync common entities
+        entitiesToSync.push('Delivery', 'Patient', 'AppUser', 'Store');
+      }
       
-      // Dispatch event to notify offline sync indicator
-      window.dispatchEvent(new CustomEvent('offlineSyncStarted'));
-
-      // Step 2: Refresh current page UI
+      console.log(`   📊 Syncing entities for current page: ${entitiesToSync.join(', ')}`);
+      
+      // Sync each entity from API to offline DB
+      for (const entityName of entitiesToSync) {
+        try {
+          console.log(`   🔄 Syncing ${entityName}...`);
+          const data = await base44.entities[entityName].list();
+          await offlineDB.bulkSave(offlineDB.STORES[entityName.toUpperCase() + 'S'] || entityName.toLowerCase() + 's', data);
+          console.log(`   ✅ Synced ${data.length} ${entityName} records to offline DB`);
+        } catch (error) {
+          console.warn(`   ⚠️ Failed to sync ${entityName}:`, error.message);
+        }
+      }
+      
+      // Refresh current page UI
       if (onManualRefresh) {
         await onManualRefresh();
       } else if (refreshData) {
         await refreshData(true);
       }
       
-      console.log('✅ [SmartRefreshIndicator] Manual refresh complete');
+      console.log('✅ [SmartRefreshIndicator] Page-specific refresh complete');
     } catch (error) {
       console.error('❌ [SmartRefreshIndicator] Manual refresh failed:', error);
       setHasError(true);
