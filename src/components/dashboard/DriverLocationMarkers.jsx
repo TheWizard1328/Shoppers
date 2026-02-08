@@ -226,8 +226,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return false;
       }
       
-      // CRITICAL: Only show on_duty drivers (not on_break or off_duty)
-      if (user.driver_status !== 'on_duty') {
+      // CRITICAL: Only show on_duty or on_break drivers
+      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
         return false;
       }
       
