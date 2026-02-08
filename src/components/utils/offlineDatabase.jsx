@@ -619,7 +619,14 @@ const getSyncMetadata = async (entityName) => {
 
     return new Promise((resolve, reject) => {
       const request = store.get(entityName);
-      request.onsuccess = () => resolve(request.result || null);
+      request.onsuccess = () => {
+        const result = request.result || null;
+        // Map old field names to new ones for compatibility
+        if (result && result.last_sync_date && !result.last_sync_time) {
+          result.last_sync_time = result.last_sync_date;
+        }
+        resolve(result);
+      };
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
@@ -631,7 +638,7 @@ const getSyncMetadata = async (entityName) => {
  * Update sync metadata for an entity
  * Stores the last synced timestamp (updated_date from server's newest record)
  */
-const updateSyncMetadata = async (entityName, latestServerTimestamp) => {
+const updateSyncMetadata = async (entityName, latestServerTimestamp, lastSyncTime = null, additionalMetadata = {}) => {
   try {
     const db = await openDatabase();
     const transaction = db.transaction([STORES.SYNC_METADATA], 'readwrite');
@@ -640,7 +647,9 @@ const updateSyncMetadata = async (entityName, latestServerTimestamp) => {
     const metadata = {
       entity_name: entityName,
       last_synced_timestamp: latestServerTimestamp,
-      last_sync_date: new Date().toISOString()
+      last_sync_time: lastSyncTime || new Date().toISOString(),
+      last_sync_date: new Date().toISOString(),
+      ...additionalMetadata
     };
 
     return new Promise((resolve, reject) => {
