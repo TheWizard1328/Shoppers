@@ -5,6 +5,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { userHasRole } from '../utils/userRoles';
 import { isMobileDevice } from '../utils/deviceUtils';
 import { getCurrentDevice } from '../utils/deviceManager';
+import { formatPhoneNumber } from '../utils/phoneFormatter';
 
 // Create driver icon with thin white border ring
 const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocation = false) => {
@@ -425,7 +426,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                 {user.phone && (
                   <p className="text-xs mt-2">
                     <a href={`tel:${user.phone}`} className="text-blue-600 hover:text-blue-700 underline font-medium">
-                      📞 {user.phone}
+                      📞 {formatPhoneNumber(user.phone)}
                     </a>
                   </p>
                 )}
