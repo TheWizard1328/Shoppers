@@ -291,12 +291,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     return () => window.removeEventListener('driverLocationUpdated', handleLocationUpdate);
   }, [users, currentUser, isMobile]);
 
-  const createDriverIcon = (user, isActive, isSharedLocation = false) => {
+  const createDriverIcon = (user, isActive) => {
     const displayName = user.user_name || user.full_name || 'U';
     const firstInitial = displayName.charAt(0).toUpperCase();
     const size = isActive ? 18 : 14;
 
-    // Calculate status-based color for marker fill
+    // CRITICAL: Uniform status color logic for ALL markers (including self shared location)
     const locationAge = user.location_updated_at ? 
       Date.now() - new Date(user.location_updated_at).getTime() : Infinity;
     const isStale = locationAge > 5 * 60 * 1000;
@@ -399,7 +399,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           <Marker
             key={stableKey}
             position={position}
-            icon={createDriverIcon(user, isActive, isSharedLocation)}
+            icon={createDriverIcon(user, isActive)}
             zIndexOffset={isActive ? 2000 : 1000}
           >
             <Popup>
