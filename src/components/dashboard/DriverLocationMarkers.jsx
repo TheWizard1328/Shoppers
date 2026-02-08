@@ -468,11 +468,16 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
         markersRef.current[user.id] = true;
         
+        // Calculate staleness for icon
+        const locationAge = user.location_updated_at ? 
+          Date.now() - new Date(user.location_updated_at).getTime() : Infinity;
+        const isStaleLocation = locationAge > 5 * 60 * 1000;
+
         return (
           <Marker
             key={stableKey}
             position={position}
-            icon={createDriverIcon(user, isActive)}
+            icon={createDriverIcon(user.driver_status, displayName.charAt(0).toUpperCase(), isStaleLocation)}
             zIndexOffset={isActive ? 2000 : 1000}
           >
             <Popup>
