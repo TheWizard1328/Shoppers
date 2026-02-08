@@ -227,12 +227,13 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                      userId === currentUserUserId ||
                      user.user_id === currentUserId;
 
-      // CRITICAL: ALWAYS show self marker on primary device regardless of date or status
-      if (isSelf && isPrimaryDevice) {
-        console.log('✅ [DriverLocationMarkers] Including SELF marker on primary device - bypasses all checks', {
+      // CRITICAL: ALWAYS show self marker on ALL devices regardless of date or status
+      if (isSelf) {
+        console.log('✅ [DriverLocationMarkers] Including SELF marker - bypasses all checks', {
           userId,
           userName: user.user_name || user.full_name,
-          selectedDate
+          selectedDate,
+          isPrimaryDevice
         });
         return true;
       }
