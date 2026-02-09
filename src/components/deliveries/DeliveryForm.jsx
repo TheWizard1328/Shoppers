@@ -107,32 +107,6 @@ export default function DeliveryForm({
   // CRITICAL: Load fresh stores from offline DB on mount to prevent "Store information missing" error
   const [freshStores, setFreshStores] = useState(stores);
   
-  // Initialize formData FIRST (before useMemo that depends on it)
-  const [formData, setFormData] = useState(() => {
-    const initialState = {
-      patient_id: "",
-      delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
-      delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
-      time_window_start: "", time_window_end: "", status: "Staged",
-      driver_name: "", driver_id: "", prescription_number: "",
-      delivery_instructions: "", delivery_notes: "",
-      cod_total_amount_required: 0, cod_payments: [],
-      cod_payment_type: "No Payment", cod_amount: "",
-      tracking_number: "", delivery_stop_id: "", stop_id: "", puid: "",
-      paid_km_override: null,
-      patient_name: "", patient_phone: "", unit_number: "", store_phone: "", store_id: "",
-      mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
-      dont_ring_bell: false, back_door: false, signature_needed: false,
-      fridge_item: false, oversized: false, after_hours_pickup: false, no_charge: false, extra_time: 0,
-      recurring: false, recurring_daily: false,
-      recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
-      recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
-      recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
-      recurring_monthly: false, recurring_bimonthly: false
-    };
-    return initialState;
-  });
-  
   useEffect(() => {
     const loadFreshStores = async () => {
       try {
@@ -156,214 +130,19 @@ export default function DeliveryForm({
   }, []);
 
   const allDrivers = useMemo(() => {
-    // CRITICAL: For dispatchers, filter drivers based on special rules
-    if (currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
-      const dispatcherStoreIds = currentUser.store_ids || [];
-      
-      if (dispatcherStoreIds.length === 0) {
-        return sortUsers(drivers || []).filter((driver) => driver && driver.user_name);
-      }
-      
-      const allowedDriverIds = new Set();
-      
-      // Get day of week for selected date
-      const selectedDate = formData.delivery_date ? new Date(formData.delivery_date + 'T00:00:00') : new Date();
-      const dayOfWeek = selectedDate.getDay();
-      
-      // Rule 1: Default drivers for dispatcher's stores for the day of week
-      dispatcherStoreIds.forEach(storeId => {
-        const store = stores?.find(s => s && s.id === storeId);
-        if (!store) return;
-        
-        let amDriverId, pmDriverId;
-        if (dayOfWeek === 6) { // Saturday
-          amDriverId = store.saturday_am_driver_id;
-          pmDriverId = store.saturday_pm_driver_id;
-        } else if (dayOfWeek === 0) { // Sunday
-          amDriverId = store.sunday_am_driver_id;
-          pmDriverId = store.sunday_pm_driver_id;
-        } else { // Weekday
-          amDriverId = store.weekday_am_driver_id;
-          pmDriverId = store.weekday_pm_driver_id;
-        }
-        
-        if (amDriverId) allowedDriverIds.add(amDriverId);
-        if (pmDriverId) allowedDriverIds.add(pmDriverId);
-      });
-      
-      // Rule 2: Any driver with 1+ pickups or deliveries from dispatcher's stores (any status)
-      const dispatcherStoreDeliveries = allDeliveries?.filter(d => 
-        d && dispatcherStoreIds.includes(d.store_id) && d.delivery_date === formData.delivery_date
-      ) || [];
-      
-      dispatcherStoreDeliveries.forEach(d => {
-        if (d.driver_id) allowedDriverIds.add(d.driver_id);
-      });
-      
-      // Filter drivers to only allowed IDs
-      const sorted = sortUsers(drivers || []);
-      return sorted.filter((driver) => driver && driver.user_name && allowedDriverIds.has(driver.id));
-    }
-    
-    // For non-dispatchers: show all drivers
+    // Layout already filters drivers correctly via getActiveDriversForCity
+    // Just ensure they have user_name - no additional role filtering needed
     const sorted = sortUsers(drivers || []);
     return sorted.filter((driver) => driver && driver.user_name);
-  }, [drivers, currentUser, stores, formData.delivery_date, allDeliveries]);
+  }, [drivers]);
 
-  // Other state declarations
-  const [patientSearch, setPatientSearch] = useState("");
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
-  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
-  const [selectedPickupOption, setSelectedPickupOption] = useState('');
-  const [isPickupMode, setIsPickupMode] = useState(defaultToPickupMode);
-  const [selectedStoreForPickup, setSelectedStoreForPickup] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [highlightedPatientIndex, setHighlightedPatientIndex] = useState(-1);
-  const patientSearchInputRef = useRef(null);
-  const codAmountInputRef = useRef(null);
-  const addPatientButtonRef = useRef(null);
-  const patientNameInputRef = useRef(null);
-  const patientAddressInputRef = useRef(null);
-  
-  // State for creating new patient from existing patient data
-  const [newPatientMode, setNewPatientMode] = useState(null); // 'duplicate' | 'new_address' | null
-  const [stagedDeliveries, setStagedDeliveries] = useState([]);
-  const [projectedDeliveries, setProjectedDeliveries] = useState([]);
-  const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
-  const [predictionTrigger, setPredictionTrigger] = useState(0);
-  const [showDayPopup, setShowDayPopup] = useState(false);
-  const [activeRecurringType, setActiveRecurringType] = useState(null);
-  const [editingStagedId, setEditingStagedId] = useState(null);
-  const [completionTime, setCompletionTime] = useState(() => {
-    if (delivery?.actual_delivery_time) {
-      return format(new Date(delivery.actual_delivery_time), 'HH:mm');
-    }
-    return format(new Date(), 'HH:mm');
-  });
-  const [showStagedPanel, setShowStagedPanel] = useState(false);
-  const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, staged: null });
-  const [isDeletingPending, setIsDeletingPending] = useState(false);
-  const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
-  const { deviceType } = getUserAgentInfo();
-  const isMobileDevice = deviceType === 'Mobile';
-  const hasLoadedPending = useRef(false);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanMatches, setScanMatches] = useState([]);
-  const [showMatchPopup, setShowMatchPopup] = useState(false);
-  const [extractedData, setExtractedData] = useState(null);
-  const [hasPendingDeletes, setHasPendingDeletes] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [isPayrollLocked, setIsPayrollLocked] = useState(false);
-  const [payrollLockMessage, setPayrollLockMessage] = useState(null);
-
-  // Camera state
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [showCameraOverlay, setShowCameraOverlay] = useState(false);
-
-  // Responsive layout state
-  const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
-  const [screenHeight, setScreenHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 768);
-  const formRef = useRef(null);
-
-  // Desktop form width threshold (max-w-4xl = 896px + padding)
-  const DESKTOP_FORM_WIDTH = 825;
-
-  // Rule 1: Use mobile layout (hidden staged panel) only if screen width < desktop form width
-  // This is PURELY screen-width based - wide mobile screens should show the staged panel
-  const useMobileLayout = screenWidth < DESKTOP_FORM_WIDTH;
-
-  // Rule 2: Use fullscreen layout ONLY if screen is too narrow AND on a mobile device
-  // Wide mobile screens should get desktop-style layout with visible staged panel
-  const useFullscreen = useMobileLayout && isMobileDevice;
-
-  // Track screen dimensions
-  useEffect(() => {
-    const handleResize = () => {
-      setScreenWidth(window.innerWidth);
-      setScreenHeight(window.innerHeight);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Update all staged deliveries when date or driver changes
-  useEffect(() => {
-    if (delivery || stagedDeliveries.length === 0) return;
-
-    setStagedDeliveries((prev) => prev.map((staged) => ({
-      ...staged,
-      delivery_date: formData.delivery_date,
-      driver_id: formData.driver_id,
-      driver_name: formData.driver_name
-    })));
-  }, [formData.delivery_date, formData.driver_id, formData.driver_name]);
-
-  // Set default driver when form loads for new deliveries
-  useEffect(() => {
-    if (delivery || formData.driver_id) return; // Skip if editing or driver already set
-
-    if (!currentUser || !stores || !drivers || allDrivers.length === 0) return;
-
-    const isDriver = userHasRole(currentUser, 'driver');
-    const isDispatcher = userHasRole(currentUser, 'dispatcher');
-    const isAdmin = userHasRole(currentUser, 'admin');
-
-    let driverIdToSet = '';
-    let driverNameToSet = '';
-
-    if (isDriver && !isAdmin && !isDispatcher) {
-      const currentUserDriver = allDrivers.find((d) => d.id === currentUser.id);
-      if (currentUserDriver) {
-        driverIdToSet = currentUser.id;
-        driverNameToSet = getDriverNameForStorage(currentUserDriver);
-        console.log('🚗 [DeliveryForm] Setting driver (pure driver):', driverNameToSet);
-      }
-    } else if (isDispatcher && !isDriver && !isAdmin) {
-      const dispatcherStoreIds = currentUser.store_ids || [];
-      if (dispatcherStoreIds.length === 1) {
-        const dispatcherStore = stores.find((s) => s && s.id === dispatcherStoreIds[0]);
-        if (dispatcherStore) {
-          const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
-          const dayOfWeek = selectedDate.getDay();
-          let driverIdField = '';
-          if (dayOfWeek === 6) {
-            driverIdField = 'saturday_am_driver_id';
-            } else if (dayOfWeek === 0) {
-            driverIdField = 'sunday_am_driver_id';
-            } else {
-            driverIdField = 'weekday_am_driver_id';
-            }
-          const driverId = dispatcherStore[driverIdField];
-          if (driverId) {
-            const driver = drivers.find((d) => d && d.id === driverId);
-            if (driver) {
-              driverIdToSet = driverId;
-              driverNameToSet = getDriverNameForStorage(driver);
-            }
-          }
-        }
-      }
-    }
-
-    if (driverIdToSet && driverNameToSet) {
-      setFormData((prev) => ({
-        ...prev,
-        driver_id: driverIdToSet,
-        driver_name: driverNameToSet
-      }));
-    }
-  }, [delivery, currentUser, stores, drivers, allDrivers, formData.delivery_date, formData.driver_id]);
-
-  // Ref to track if we're loading an existing delivery (prevent patient auto-load from clearing PUID)
-  const isLoadingExistingDelivery = useRef(false);
-
-  // Check payroll lock status when editing a delivery
-  useEffect(() => {
+  const [formData, setFormData] = useState(() => {
+    const initialState = {
+      patient_id: "",
+      delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
+      delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
+      time_window_start: "", time_window_end: "", status: "Staged",
+      driver_name: "", driver_id: "", prescription_number: "",
       delivery_instructions: "", delivery_notes: "",
       cod_total_amount_required: 0, cod_payments: [],
       cod_payment_type: "No Payment", cod_amount: "",
@@ -422,7 +201,6 @@ export default function DeliveryForm({
     return initialState;
   });
 
-  // Other state declarations
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
@@ -475,6 +253,7 @@ export default function DeliveryForm({
   const canvasRef = useRef(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [showCameraOverlay, setShowCameraOverlay] = useState(false);
+
 
   // Responsive layout state
   const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
