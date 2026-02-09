@@ -2732,6 +2732,13 @@ function Dashboard() {
               return;
             }
 
+            // CRITICAL: Skip current user's shared marker if live location is available (prioritize GPS)
+            const hasLiveLocation = driverLocation?.latitude && driverLocation?.longitude && location.driver_id === currentUser?.id;
+            if (hasLiveLocation) {
+              console.log('🎯 [Phase 1] Using live GPS location instead of shared marker for current user');
+              return;
+            }
+
             // CRITICAL: Skip current user on mobile (blue dot shows instead) - but NOT for dispatchers
             const isCurrentUserLocation = isMobile && !isDispatcher && location.driver_id === currentUser?.id;
             if (isCurrentUserLocation) {
@@ -3066,6 +3073,13 @@ function Dashboard() {
                 const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
                 if (driver?.driver_status === 'off_duty') return;
                 
+                // CRITICAL: Skip current user's shared marker if live location is available (prioritize GPS)
+                const hasLiveLocation = driverLocation?.latitude && driverLocation?.longitude && loc.driver_id === currentUser?.id;
+                if (hasLiveLocation) {
+                  console.log('🎯 [Phase 3 - Show All] Using live GPS location instead of shared marker for current user');
+                  return;
+                }
+                
                 // CRITICAL: For dispatchers, only include drivers with active stops in their stores
                 if (isDispatcher && !isAdmin && currentUser?.store_ids) {
                   const dispatcherStoreIds = new Set(currentUser.store_ids);
@@ -3158,6 +3172,13 @@ function Dashboard() {
               if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
                 const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
                 if (driver?.driver_status === 'off_duty') return;
+                
+                // CRITICAL: Skip current user's shared marker if live location is available (prioritize GPS)
+                const hasLiveLocation = driverLocation?.latitude && driverLocation?.longitude && loc.driver_id === currentUser?.id;
+                if (hasLiveLocation) {
+                  console.log('🎯 [Phase 3 - Non-Show-All] Using live GPS location instead of shared marker for current user');
+                  return;
+                }
                 
                 // Only include if driver has active deliveries in dispatcher's stores
                 const hasActiveDeliveryInStore = deliveries.some(d => 
