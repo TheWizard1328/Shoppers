@@ -2570,13 +2570,16 @@ function Dashboard() {
       // CLICKING LOCKED FAB (blue) → Advance to next phase
       const nextPhase = mapViewPhase % 3 + 1;
 
-      // Non-drivers always stay on Phase 1
-      if (!isDriver) {
-        newMapViewPhase = 1;
-      } else {
-        newMapViewPhase = nextPhase;
+      newMapViewPhase = nextPhase;
 
-        // CRITICAL: Check if there are incomplete deliveries for current driver
+      // CRITICAL: For non-drivers (dispatchers), skip Phase 2 (driver-centric) and go straight to Phase 3
+      if (!isDriver && newMapViewPhase === 2) {
+        newMapViewPhase = 3;
+        console.log('⏭️ [FAB] Skipping Phase 2 for dispatcher - advancing to Phase 3');
+      }
+      
+      // CRITICAL: For drivers, check phase validity
+      if (isDriver) {
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
         const hasIncompleteDeliveries = deliveriesWithStopOrder.some((d) => 
           d && d.driver_id === currentUser?.id && !finishedStatuses.includes(d.status)
@@ -2597,6 +2600,7 @@ function Dashboard() {
           newMapViewPhase = 1;
         }
       }
+      
       console.log(`➡️ [FAB] Advancing to Phase ${newMapViewPhase}`);
     }
 
