@@ -3109,19 +3109,12 @@ export default function RouteImport({
                           }}>
                             <td className="p-1 w-30 text-center">
                              <div className="flex flex-col gap-1 items-center">
-                               {delivery.action === 'update' && delivery._changes && delivery._changes.some(c => c === 'No changes - re-importing') ? (
-                                 <Badge className="w-full justify-center border-0 font-semibold text-xs py-1 bg-green-100 text-green-700 flex items-center gap-1">
-                                   <CheckCircle2 className="w-3 h-3" />
-                                   No Change
-                                 </Badge>
-                               ) : (
-                                 <Badge className="w-full justify-center border-0 font-semibold text-xs py-1" style={{ 
-                                   background: delivery.action === 'create' ? '#10b981' : '#3b82f6',
-                                   color: 'white'
-                                 }}>
-                                   {delivery.action === 'create' ? '✓ NEW' : '◇ UPDATE'}
-                                 </Badge>
-                               )}
+                               <Badge className="w-full justify-center border-0 font-semibold text-xs py-1" style={{ 
+                                 background: delivery.action === 'create' ? '#10b981' : '#3b82f6',
+                                 color: 'white'
+                               }}>
+                                 {delivery.action === 'create' ? '✓ NEW' : '◇ UPDATE'}
+                               </Badge>
                                <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>
                                  {delivery.driver_name}
                                </span>
@@ -3189,18 +3182,11 @@ export default function RouteImport({
                               }
                                 {delivery.action === 'update' && delivery._changes && delivery._changes.length > 0 &&
                               <>
-                                    {delivery._changes.some(c => c === 'No changes - re-importing') ? (
-                                      <Badge className="border-0 font-semibold text-xs py-1 bg-green-100 text-green-700 flex items-center gap-1 w-fit">
-                                        <CheckCircle2 className="w-3 h-3" />
-                                        No Change
-                                      </Badge>
-                                    ) : (
-                                      delivery._changes.map((change, changeIdx) =>
-                                        <div key={changeIdx} className="text-orange-700 font-medium">
-                                          {change}
-                                        </div>
-                                      )
-                                    )}
+                                    {delivery._changes.map((change, changeIdx) =>
+                                <div key={changeIdx} className="text-orange-700 font-medium">
+                                        {change}
+                                      </div>
+                                )}
                                   </>
                               }
                                 {!delivery._matchReason && (!delivery._changes || delivery._changes.length === 0) &&
