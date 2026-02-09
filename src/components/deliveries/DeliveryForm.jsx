@@ -251,7 +251,6 @@ export default function DeliveryForm({
   }, [drivers, currentUser, stores, formData.delivery_date, allDeliveries]);
 
   const [patientSearch, setPatientSearch] = useState("");
-      delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
       delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
       time_window_start: "", time_window_end: "", status: "Staged",
       driver_name: "", driver_id: "", prescription_number: "",
