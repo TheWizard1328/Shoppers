@@ -21,12 +21,11 @@ const DriverLocationBadge = ({ users = [] }) => {
         const userId = user.id;
         const prevState = prevStateRef.current[userId];
         
-        const coordsChanged = !prevState ||
-          prevState.lat !== user.current_latitude ||
-          prevState.lng !== user.current_longitude;
+        const latChanged = !prevState || prevState.lat !== user.current_latitude;
+        const lngChanged = !prevState || prevState.lng !== user.current_longitude;
+        const timestampChanged = !prevState || prevState.timestamp !== user.location_updated_at;
         
-        const timestampChanged = !prevState ||
-          prevState.timestamp !== user.location_updated_at;
+        const coordsChanged = latChanged || lngChanged;
         
         let bulletColor = 'red'; // Both unchanged
         if (coordsChanged && timestampChanged) {
@@ -41,7 +40,10 @@ const DriverLocationBadge = ({ users = [] }) => {
           lng: user.current_longitude,
           timestamp: user.location_updated_at,
           bulletColor,
-          status: user.driver_status
+          status: user.driver_status,
+          latChanged,
+          lngChanged,
+          timestampChanged
         };
 
         // Update previous state tracking
@@ -82,10 +84,16 @@ const DriverLocationBadge = ({ users = [] }) => {
           <span style={{ color: 'var(--text-slate-700)', minWidth: '80px' }} className="font-medium">
             {driver.name}
           </span>
-          <span style={{ color: 'var(--text-slate-600)' }}>
-            {driver.lat?.toFixed(6) || '?'}, {driver.lng?.toFixed(6) || '?'}
+          <span>
+            <span style={{ color: driver.latChanged ? '#10B981' : 'var(--text-slate-600)' }}>
+              {driver.lat?.toFixed(6) || '?'}
+            </span>
+            {', '}
+            <span style={{ color: driver.lngChanged ? '#10B981' : 'var(--text-slate-600)' }}>
+              {driver.lng?.toFixed(6) || '?'}
+            </span>
           </span>
-          <span style={{ color: 'var(--text-slate-500)', marginLeft: 'auto' }}>
+          <span style={{ color: driver.timestampChanged ? '#10B981' : 'var(--text-slate-500)', marginLeft: 'auto' }}>
             {driver.timestamp ? format(new Date(driver.timestamp), 'HH:mm:ss') : '?'}
           </span>
         </div>
