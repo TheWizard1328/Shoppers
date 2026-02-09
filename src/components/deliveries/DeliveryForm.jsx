@@ -331,6 +331,61 @@ export default function DeliveryForm({
   const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [screenHeight, setScreenHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 768);
   const formRef = useRef(null);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedPickupOption, setSelectedPickupOption] = useState('');
+  const [isPickupMode, setIsPickupMode] = useState(defaultToPickupMode);
+  const [selectedStoreForPickup, setSelectedStoreForPickup] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [highlightedPatientIndex, setHighlightedPatientIndex] = useState(-1);
+  const patientSearchInputRef = useRef(null);
+  const codAmountInputRef = useRef(null);
+  const addPatientButtonRef = useRef(null);
+  const patientNameInputRef = useRef(null);
+  const patientAddressInputRef = useRef(null);
+  
+  // State for creating new patient from existing patient data
+  const [newPatientMode, setNewPatientMode] = useState(null); // 'duplicate' | 'new_address' | null
+  const [stagedDeliveries, setStagedDeliveries] = useState([]);
+  const [projectedDeliveries, setProjectedDeliveries] = useState([]);
+  const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
+  const [predictionTrigger, setPredictionTrigger] = useState(0);
+  const [showDayPopup, setShowDayPopup] = useState(false);
+  const [activeRecurringType, setActiveRecurringType] = useState(null);
+  const [editingStagedId, setEditingStagedId] = useState(null);
+  const [completionTime, setCompletionTime] = useState(() => {
+    if (delivery?.actual_delivery_time) {
+      return format(new Date(delivery.actual_delivery_time), 'HH:mm');
+    }
+    return format(new Date(), 'HH:mm');
+  });
+  const [showStagedPanel, setShowStagedPanel] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, staged: null });
+  const [isDeletingPending, setIsDeletingPending] = useState(false);
+  const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
+  const { deviceType } = getUserAgentInfo();
+  const isMobileDevice = deviceType === 'Mobile';
+  const hasLoadedPending = useRef(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanMatches, setScanMatches] = useState([]);
+  const [showMatchPopup, setShowMatchPopup] = useState(false);
+  const [extractedData, setExtractedData] = useState(null);
+  const [hasPendingDeletes, setHasPendingDeletes] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [isPayrollLocked, setIsPayrollLocked] = useState(false);
+  const [payrollLockMessage, setPayrollLockMessage] = useState(null);
+
+  // Camera state
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [showCameraOverlay, setShowCameraOverlay] = useState(false);
+
+
+  // Responsive layout state
+  const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [screenHeight, setScreenHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 768);
+  const formRef = useRef(null);
 
   // Desktop form width threshold (max-w-4xl = 896px + padding)
   const DESKTOP_FORM_WIDTH = 825;
