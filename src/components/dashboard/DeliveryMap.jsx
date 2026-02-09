@@ -1986,13 +1986,8 @@ export default function DeliveryMap({
         stableSortIndex = Infinity;
       }
 
-      // CRITICAL: Determine route color based on mode - calculated ONCE before rendering
-      const routeColor = isAllDriversMode ?
-        // All drivers mode - use driver colors
-        (driverForRoute && typeof driverForRoute === 'object' ? getDriverColor(driverForRoute) : '#607D8B')
-        :
-        // Single driver mode - use first delivery's store color
-        delivery.pinColor;
+      // CRITICAL: Route color ALWAYS uses driver color (for both Type 2 and Type 3 polylines)
+      const routeColor = driverForRoute && typeof driverForRoute === 'object' ? getDriverColor(driverForRoute) : '#607D8B';
 
       const driverDisplayName = driverForRoute ? (driverForRoute.user_name || driverForRoute.full_name || 'Unknown') : 'Unassigned';
 
