@@ -8494,7 +8494,8 @@ function Dashboard() {
       </Dialog>
 
       {/* CRITICAL: Render FABs with high z-index to ensure proper layering above cards */}
-      {(isDriver || isDispatcher) &&
+      {/* CRITICAL: Only render after cards are measured OR after 500ms timeout */}
+      {(isDriver || isDispatcher) && (stopCardsBaseHeight > 0 || deliveriesWithStopOrder.length === 0 || renderSequence.statsAndCards) &&
       <>
         <MapViewCycleFAB
           onClick={handleMapViewCycle}
