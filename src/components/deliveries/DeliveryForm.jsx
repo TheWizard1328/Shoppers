@@ -352,6 +352,9 @@ export default function DeliveryForm({
 
   // Ref to track if we're loading an existing delivery (prevent patient auto-load from clearing PUID)
   const isLoadingExistingDelivery = useRef(false);
+  
+  // CRITICAL: Track which delivery we've loaded to prevent re-loading on prop updates
+  const loadedDeliveryIdRef = useRef(null);
 
   // Check payroll lock status when editing a delivery
   useEffect(() => {
@@ -373,7 +376,17 @@ export default function DeliveryForm({
   }, [delivery?.id, delivery?.delivery_date, delivery?.driver_id]);
 
   useEffect(() => {
+    // CRITICAL: Only load delivery data once when delivery.id changes
+    // Prevent re-loading on prop updates (patients, allDeliveries) which would reset user changes
     if (delivery) {
+      // Skip if we've already loaded this delivery
+      if (loadedDeliveryIdRef.current === delivery.id) {
+        return;
+      }
+      
+      console.log('📝 [DeliveryForm] Loading delivery for edit (ONCE):', delivery.id);
+      loadedDeliveryIdRef.current = delivery.id;
+      
       isLoadingExistingDelivery.current = true;
       const patient = delivery.patient_id ? patients?.find((p) => p && p.id === delivery.patient_id) : null;
       
@@ -466,7 +479,7 @@ export default function DeliveryForm({
         isLoadingExistingDelivery.current = false;
       }, 500);
     }
-  }, [delivery, patients, allDeliveries]);
+  }, [delivery?.id]);
 
   const hasFormData = useMemo(() => !!(
   formData.patient_id || formData.patient_name || formData.patient_phone ||
