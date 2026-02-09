@@ -107,6 +107,32 @@ export default function DeliveryForm({
   // CRITICAL: Load fresh stores from offline DB on mount to prevent "Store information missing" error
   const [freshStores, setFreshStores] = useState(stores);
   
+  // Initialize formData FIRST (before useMemo that depends on it)
+  const [formData, setFormData] = useState(() => {
+    const initialState = {
+      patient_id: "",
+      delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
+      delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
+      time_window_start: "", time_window_end: "", status: "Staged",
+      driver_name: "", driver_id: "", prescription_number: "",
+      delivery_instructions: "", delivery_notes: "",
+      cod_total_amount_required: 0, cod_payments: [],
+      cod_payment_type: "No Payment", cod_amount: "",
+      tracking_number: "", delivery_stop_id: "", stop_id: "", puid: "",
+      paid_km_override: null,
+      patient_name: "", patient_phone: "", unit_number: "", store_phone: "", store_id: "",
+      mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
+      dont_ring_bell: false, back_door: false, signature_needed: false,
+      fridge_item: false, oversized: false, after_hours_pickup: false, no_charge: false, extra_time: 0,
+      recurring: false, recurring_daily: false,
+      recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
+      recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
+      recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
+      recurring_monthly: false, recurring_bimonthly: false
+    };
+    return initialState;
+  });
+  
   useEffect(() => {
     const loadFreshStores = async () => {
       try {
@@ -249,6 +275,7 @@ export default function DeliveryForm({
     return initialState;
   });
 
+  // Other state declarations
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
@@ -301,7 +328,6 @@ export default function DeliveryForm({
   const canvasRef = useRef(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [showCameraOverlay, setShowCameraOverlay] = useState(false);
-
 
   // Responsive layout state
   const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
