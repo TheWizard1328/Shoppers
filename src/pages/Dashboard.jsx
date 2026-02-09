@@ -3038,6 +3038,7 @@ function Dashboard() {
           }
           
           // 1b. Include all shared driver location markers (EXCLUDE off-duty drivers)
+          // CRITICAL: For dispatchers, only include drivers with active deliveries in their stores
           if (isViewingTodayPhase3) {
             const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
             const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
@@ -3047,6 +3048,20 @@ function Dashboard() {
               if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
                 const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
                 if (driver?.driver_status === 'off_duty') return;
+                
+                // CRITICAL: For dispatchers, only include drivers with active stops in their stores
+                if (isDispatcher && !isAdmin && currentUser?.store_ids) {
+                  const dispatcherStoreIds = new Set(currentUser.store_ids);
+                  const hasActiveDeliveryInStore = deliveries.some(d => 
+                    d && 
+                    d.driver_id === loc.driver_id && 
+                    d.delivery_date === selectedDateStrPhase3 &&
+                    dispatcherStoreIds.has(d.store_id) &&
+                    !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+                  );
+                  if (!hasActiveDeliveryInStore) return;
+                }
+                
                 uniqueLocations.set(loc.driver_id, loc);
               }
             });
