@@ -420,6 +420,16 @@ class LocationTracker {
     
     const userName = user.user_name || user.full_name || 'Unknown';
     const userIdLast4 = user.id ? user.id.slice(-4) : '????';
+
+    // CRITICAL: Only primary devices should track and send locations
+    const currentDevice = await getCurrentDevice(user.id);
+    const isPrimaryTracker = currentDevice?.is_primary_tracker !== false;
+    
+    if (!isPrimaryTracker) {
+      console.log(`⚠️ [LocationTracker] Non-primary device - location tracking disabled. Only primary device sends locations.`);
+      throw new Error('Location tracking is only enabled on your primary device. Please use your primary device for location sharing.');
+    }
+
     console.log(`🚀 [LocationTracker] Starting location tracking for ${userName} (...${userIdLast4})`);
 
     if (!navigator.geolocation) {
