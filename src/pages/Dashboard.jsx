@@ -1890,12 +1890,15 @@ function Dashboard() {
             }
 
             // PHASE 3 LOCKED: Continuous re-centering (every location update)
-            // Show all active drivers + incomplete stops for selected driver
+            // Show all active drivers + incomplete stops (Show All mode = all drivers, Single Driver mode = selected driver only)
             if (mapViewPhaseRef.current === 3 && isMapViewLockedRef.current) {
               const allCoordinatesPhase3 = [];
               const todayStrPhase3 = format(new Date(), 'yyyy-MM-dd');
               const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
               const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
+              
+              // CRITICAL: Determine if "Show All" mode is active
+              const isShowAllOrAllDriversMode = showAllDriverMarkers || selectedDriverId === 'all';
               
               if (isViewingTodayPhase3) {
                 // Include current driver's blue dot (only if not off_duty)
@@ -1904,7 +1907,7 @@ function Dashboard() {
                   allCoordinatesPhase3.push([newLocation.latitude, newLocation.longitude]);
                 }
                 
-                // Include all shared driver location markers (EXCLUDE off-duty drivers)
+                // Include all shared driver location markers (EXCLUDE off-duty drivers ONLY)
                 const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
                 const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
                 
@@ -1913,6 +1916,33 @@ function Dashboard() {
                   if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
                     const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
                     if (driver?.driver_status === 'off_duty') return;
+                    
+                    const hasLiveLocation = driverLocation?.latitude && driverLocation?.longitude && loc.driver_id === currentUser?.id;
+                    if (hasLiveLocation) return;
+                    
+                    // CRITICAL: For Show All mode, include ALL active drivers (placeholder or not)
+                    // For Single Driver mode, only include if they have incomplete deliveries
+                    if (!isShowAllOrAllDriversMode) {
+                      const hasIncompleteDelivery = deliveries.some(d => 
+                        d && 
+                        d.driver_id === loc.driver_id && 
+                        d.delivery_date === selectedDateStrPhase3 &&
+                        !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)
+                      );
+                      if (!hasIncompleteDelivery) return;
+                    }
+                    
+                    if (isDispatcher && !isAdmin && currentUser?.store_ids) {
+                      const dispatcherStoreIds = new Set(currentUser.store_ids);
+                      const hasAnyDeliveryInStore = deliveries.some(d => 
+                        d && 
+                        d.driver_id === loc.driver_id && 
+                        d.delivery_date === selectedDateStrPhase3 &&
+                        dispatcherStoreIds.has(d.store_id)
+                      );
+                      if (!hasAnyDeliveryInStore && !loc.isPlaceholder) return;
+                    }
+                    
                     uniqueLocations.set(loc.driver_id, loc);
                   }
                 });
@@ -1923,22 +1953,39 @@ function Dashboard() {
                 });
               }
               
-              // Include INCOMPLETE stops ONLY for active/selected driver (NO pending)
+              // CRITICAL: Include incomplete stops based on mode
               const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned'];
-              const incompleteStopsActiveDriver = deliveriesWithStopOrder.filter((d) => {
-                if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
-                if (finishedStatusesPhase3.includes(d.status)) return false;
-                if (d.status === 'pending') return false; // EXCLUDE pending
-                const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
-                if (d.driver_id !== targetDriverId) return false;
-                if (isDispatcher && !isAdmin && currentUser?.store_ids) {
-                  const dispatcherStoreIds = new Set(currentUser.store_ids);
-                  if (!dispatcherStoreIds.has(d.store_id)) return false;
-                }
-                return true;
-              });
               
-              incompleteStopsActiveDriver.forEach((delivery) => {
+              let incompleteStops = [];
+              if (isShowAllOrAllDriversMode) {
+                // MODE 1: Show All - include ALL drivers' incomplete stops
+                incompleteStops = deliveriesWithStopOrder.filter((d) => {
+                  if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
+                  if (finishedStatusesPhase3.includes(d.status)) return false;
+                  if (d.status === 'pending') return false;
+                  if (isDispatcher && !isAdmin && currentUser?.store_ids) {
+                    const dispatcherStoreIds = new Set(currentUser.store_ids);
+                    if (!dispatcherStoreIds.has(d.store_id)) return false;
+                  }
+                  return true;
+                });
+              } else {
+                // MODE 2: Single Driver - include only selected driver's incomplete stops
+                const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
+                incompleteStops = deliveriesWithStopOrder.filter((d) => {
+                  if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
+                  if (finishedStatusesPhase3.includes(d.status)) return false;
+                  if (d.status === 'pending') return false;
+                  if (d.driver_id !== targetDriverId) return false;
+                  if (isDispatcher && !isAdmin && currentUser?.store_ids) {
+                    const dispatcherStoreIds = new Set(currentUser.store_ids);
+                    if (!dispatcherStoreIds.has(d.store_id)) return false;
+                  }
+                  return true;
+                });
+              }
+              
+              incompleteStops.forEach((delivery) => {
                 if (delivery.patient_id) {
                   const patient = patients.find((p) => p?.id === delivery.patient_id);
                   if (patient?.latitude && patient?.longitude) {
@@ -2160,6 +2207,9 @@ function Dashboard() {
       const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
       const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
       
+      // CRITICAL: Determine if "Show All" mode is active
+      const isShowAllOrAllDriversMode = showAllDriverMarkers || selectedDriverId === 'all';
+      
       if (isViewingTodayPhase3) {
         // Include current driver's blue dot (only if not off_duty)
         const currentDriverStatus = appUsers?.find(au => au?.user_id === currentUser?.id)?.driver_status;
@@ -2167,7 +2217,7 @@ function Dashboard() {
           allCoordinatesPhase3.push([driverLocation.latitude, driverLocation.longitude]);
         }
         
-        // Include all shared driver location markers (EXCLUDE off-duty drivers)
+        // Include all shared driver location markers (EXCLUDE off-duty drivers ONLY)
         const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
         const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
         
@@ -2176,6 +2226,33 @@ function Dashboard() {
           if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
             const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
             if (driver?.driver_status === 'off_duty') return;
+            
+            const hasLiveLocation = driverLocation?.latitude && driverLocation?.longitude && loc.driver_id === currentUser?.id;
+            if (hasLiveLocation) return;
+            
+            // For Show All mode, include ALL active drivers (placeholder or not)
+            // For Single Driver mode, only include if they have incomplete deliveries
+            if (!isShowAllOrAllDriversMode) {
+              const hasIncompleteDelivery = deliveries.some(d => 
+                d && 
+                d.driver_id === loc.driver_id && 
+                d.delivery_date === selectedDateStrPhase3 &&
+                !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)
+              );
+              if (!hasIncompleteDelivery) return;
+            }
+            
+            if (isDispatcher && !isAdmin && currentUser?.store_ids) {
+              const dispatcherStoreIds = new Set(currentUser.store_ids);
+              const hasAnyDeliveryInStore = deliveries.some(d => 
+                d && 
+                d.driver_id === loc.driver_id && 
+                d.delivery_date === selectedDateStrPhase3 &&
+                dispatcherStoreIds.has(d.store_id)
+              );
+              if (!hasAnyDeliveryInStore && !loc.isPlaceholder) return;
+            }
+            
             uniqueLocations.set(loc.driver_id, loc);
           }
         });
@@ -2186,22 +2263,41 @@ function Dashboard() {
         });
       }
       
-      // Include INCOMPLETE stops ONLY for active/selected driver (NO pending)
+      // CRITICAL: Include incomplete stops based on mode
       const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned'];
-      const incompleteStopsActiveDriver = deliveriesWithStopOrder.filter((d) => {
-        if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
-        if (finishedStatusesPhase3.includes(d.status)) return false;
-        if (d.status === 'pending') return false; // EXCLUDE pending
-        const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
-        if (d.driver_id !== targetDriverId) return false;
-        if (isDispatcher && !isAdmin && currentUser?.store_ids) {
-          const dispatcherStoreIds = new Set(currentUser.store_ids);
-          if (!dispatcherStoreIds.has(d.store_id)) return false;
-        }
-        return true;
-      });
       
-      incompleteStopsActiveDriver.forEach((delivery) => {
+      let incompleteStops = [];
+      if (isShowAllOrAllDriversMode) {
+        // MODE 1: Show All - include ALL drivers' incomplete stops
+        incompleteStops = deliveriesWithStopOrder.filter((d) => {
+          if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
+          if (finishedStatusesPhase3.includes(d.status)) return false;
+          if (d.status === 'pending') return false;
+          if (isDispatcher && !isAdmin && currentUser?.store_ids) {
+            const dispatcherStoreIds = new Set(currentUser.store_ids);
+            if (!dispatcherStoreIds.has(d.store_id)) return false;
+          }
+          return true;
+        });
+        console.log(`📍 [Phase 3 Update - Show All] Including ${incompleteStops.length} incomplete stops from ALL drivers`);
+      } else {
+        // MODE 2: Single Driver - include only selected driver's incomplete stops
+        const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
+        incompleteStops = deliveriesWithStopOrder.filter((d) => {
+          if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
+          if (finishedStatusesPhase3.includes(d.status)) return false;
+          if (d.status === 'pending') return false;
+          if (d.driver_id !== targetDriverId) return false;
+          if (isDispatcher && !isAdmin && currentUser?.store_ids) {
+            const dispatcherStoreIds = new Set(currentUser.store_ids);
+            if (!dispatcherStoreIds.has(d.store_id)) return false;
+          }
+          return true;
+        });
+        console.log(`📍 [Phase 3 Update - Single Driver] Including ${incompleteStops.length} incomplete stops for driver ${targetDriverId}`);
+      }
+      
+      incompleteStops.forEach((delivery) => {
         if (delivery.patient_id) {
           const patient = patients.find((p) => p?.id === delivery.patient_id);
           if (patient?.latitude && patient?.longitude) {
