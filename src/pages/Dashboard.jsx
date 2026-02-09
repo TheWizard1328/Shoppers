@@ -587,52 +587,19 @@ function Dashboard() {
   // CRITICAL: Unified FAB reactivation logic for all update events
   const reactivateFAB = useCallback((source = 'unknown') => {
     const currentPhase = mapViewPhaseRef.current;
-    console.log(`🔄 [FAB Reactivate - ${source}] Current phase: ${currentPhase}`);
     
-    // CRITICAL: Skip Phase 1 reactivation on refresh cycles
-    const isRefreshCycle = source === 'Smart Refresh Complete' || source === 'Smart Refresh Restarted';
-    if (currentPhase === 1 && isRefreshCycle) {
-      console.log(`⏭️ [FAB Reactivate - ${source}] Phase 1 - skipping reactivation on refresh cycle`);
+    // CRITICAL: Phase 1 NEVER reactivates - it's a one-time view that unlocks and stays unlocked
+    if (currentPhase === 1) {
+      console.log(`⏭️ [FAB Reactivate - ${source}] Phase 1 - skipping (Phase 1 never reactivates)`);
       return;
     }
     
-    // Clear any existing timers
-    if (mapLockTimeoutRef.current) {
-      clearTimeout(mapLockTimeoutRef.current);
-      mapLockTimeoutRef.current = null;
-    }
-    mapLockExpiresAtRef.current = null;
+    console.log(`🔄 [FAB Reactivate - ${source}] Phase ${currentPhase} - triggering map update`);
     
-    if (currentPhase === 1) {
-      // Phase 1: Reactivate for 100ms (only for GPS/location updates)
-      console.log(`🔵 [FAB Reactivate - ${source}] Phase 1 - reactivating for 100ms`);
-      setIsMapViewLocked(true);
-      lastProgrammaticMapMoveRef.current = Date.now();
-      window._lastProgrammaticMapMove = Date.now();
-      setMapViewTrigger((prev) => prev + 1);
-      
-      // Auto-unlock after 100ms
-      const lockDuration = 100;
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
-      
-      mapLockTimeoutRef.current = setTimeout(() => {
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-          console.log(`⏰ [FAB Reactivate - ${source}] Phase 1 auto-unlocked after 100ms`);
-        }
-      }, lockDuration);
-      
-    } else if (currentPhase === 2 || currentPhase === 3) {
-      // Phase 2 & 3: Stay locked (no visual change), just trigger map update
-      console.log(`🔵 [FAB Reactivate - ${source}] Phase ${currentPhase} - triggering map update (staying locked)`);
-      
-      lastProgrammaticMapMoveRef.current = Date.now();
-      window._lastProgrammaticMapMove = Date.now();
-      setMapViewTrigger((prev) => prev + 1);
-    }
+    // Phase 2 & 3: Stay locked (no visual change), just trigger map update
+    lastProgrammaticMapMoveRef.current = Date.now();
+    window._lastProgrammaticMapMove = Date.now();
+    setMapViewTrigger((prev) => prev + 1);
   }, []);
 
   // CRITICAL: Calculate isDriver early (before useEffect that needs it)
@@ -8521,7 +8488,8 @@ function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {(isDriver || isDispatcher) &&
+      {/* CRITICAL: Render FABs AFTER stop cards to ensure proper z-index layering */}
+      {stopCardsBaseHeight > 0 && (isDriver || isDispatcher) &&
       <>
         <MapViewCycleFAB
           onClick={handleMapViewCycle}
