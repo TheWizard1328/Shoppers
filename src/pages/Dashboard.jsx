@@ -3764,8 +3764,7 @@ function Dashboard() {
         }
       }, 300);
 
-      // CRITICAL: ONLY reactivate FAB for Phase 1 (NOT Phase 2 or 3)
-      // Phase 2 & 3 stay permanently locked and don't auto-recenter on smart refresh
+      // CRITICAL: Handle Phase 1, 2, and 3 differently after smart refresh
       if (mapViewPhase === 1) {
         console.log(`🔵 [Smart Refresh Complete] Reactivating FAB Phase 1 for 500ms`);
 
@@ -3795,6 +3794,27 @@ function Dashboard() {
             console.log(`⏰ [Smart Refresh Complete] FAB auto-unlocked after 500ms`);
           }
         }, lockDuration);
+      } else if (mapViewPhase === 3) {
+        console.log(`🔄 [Smart Refresh Complete] Phase 3 - deactivating for 100ms then reactivating`);
+        
+        // Clear any existing timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+        
+        // Temporarily unlock to allow Phase 3 to recalculate with new data
+        setIsMapViewLocked(false);
+        
+        // Reactivate Phase 3 after 100ms
+        setTimeout(() => {
+          console.log(`🔄 [Smart Refresh Complete] Phase 3 - reactivating now`);
+          setIsMapViewLocked(true);
+          lastProgrammaticMapMoveRef.current = Date.now();
+          window._lastProgrammaticMapMove = Date.now();
+          setMapViewTrigger((prev) => prev + 1);
+        }, 100);
       } else {
         console.log(`⏭️ [Smart Refresh Complete] Phase ${mapViewPhase} - no auto-recenter (stays locked)`);
       }
@@ -3815,7 +3835,7 @@ function Dashboard() {
         }
       }, 300);
 
-      // CRITICAL: ONLY reactivate FAB for Phase 1 (NOT Phase 2 or 3)
+      // CRITICAL: Handle Phase 1, 2, and 3 differently after smart refresh restart
       if (mapViewPhase === 1) {
         console.log(`🔵 [Smart Refresh Restarted] Reactivating FAB Phase 1 for 500ms`);
 
@@ -3845,6 +3865,27 @@ function Dashboard() {
             console.log(`⏰ [Smart Refresh Restarted] FAB auto-unlocked after 500ms`);
           }
         }, lockDuration);
+      } else if (mapViewPhase === 3) {
+        console.log(`🔄 [Smart Refresh Restarted] Phase 3 - deactivating for 100ms then reactivating`);
+        
+        // Clear any existing timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+        
+        // Temporarily unlock to allow Phase 3 to recalculate with new data
+        setIsMapViewLocked(false);
+        
+        // Reactivate Phase 3 after 100ms
+        setTimeout(() => {
+          console.log(`🔄 [Smart Refresh Restarted] Phase 3 - reactivating now`);
+          setIsMapViewLocked(true);
+          lastProgrammaticMapMoveRef.current = Date.now();
+          window._lastProgrammaticMapMove = Date.now();
+          setMapViewTrigger((prev) => prev + 1);
+        }, 100);
       } else {
         console.log(`⏭️ [Smart Refresh Restarted] Phase ${mapViewPhase} - no auto-recenter (stays locked)`);
       }
