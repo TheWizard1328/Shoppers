@@ -1923,11 +1923,12 @@ function Dashboard() {
                 });
               }
               
-              // Include incomplete AND pending stops for active/selected driver
+              // Include INCOMPLETE stops ONLY for active/selected driver (NO pending)
               const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned'];
               const incompleteStopsActiveDriver = deliveriesWithStopOrder.filter((d) => {
                 if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
                 if (finishedStatusesPhase3.includes(d.status)) return false;
+                if (d.status === 'pending') return false; // EXCLUDE pending
                 const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
                 if (d.driver_id !== targetDriverId) return false;
                 if (isDispatcher && !isAdmin && currentUser?.store_ids) {
