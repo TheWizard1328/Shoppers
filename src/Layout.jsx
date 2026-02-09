@@ -1444,12 +1444,6 @@ export default function Layout({ children, currentPageName }) {
 
     // CRITICAL: Listen for driver location updates and refresh ALL UI data from offline DB
     const handleDriverLocationUpdated = async (event) => {
-      // CRITICAL: Skip ALL updates if a form is open to prevent form reset
-      if (isFormOverlayOpen) {
-        console.log(`⏭️ [Layout] Skipping driver location update - form is open`);
-        return;
-      }
-      
       // CRITICAL: Skip location processing if not on Dashboard or viewing past date
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const selectedDateStr = globalFilters.getSelectedDate() || todayStr;
@@ -1459,12 +1453,15 @@ export default function Layout({ children, currentPageName }) {
         return;
       }
 
-      console.log('📍 [Layout] Driver location updated - refreshing ALL UI data from offline DB');
+      console.log('📍 [Layout] Driver location updated - refreshing data from offline DB');
       
       // Load fresh data from offline DB (instant, no API calls)
       try {
         const { offlineDB } = await import('./components/utils/offlineDatabase');
         const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+        
+        // CRITICAL: Always update state with latest data, even if form is open
+        // This ensures location tracking continues and data stays fresh
         
         // Load deliveries for selected date from offline DB
         const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
@@ -1500,7 +1497,14 @@ export default function Layout({ children, currentPageName }) {
           });
         }
         
-        // Refresh stats
+        // CRITICAL: Skip Dashboard UI refresh events if form is open
+        // UI will refresh when form closes
+        if (isFormOverlayOpen) {
+          console.log('⏸️ [Layout] Form open - data updated but skipping Dashboard UI events');
+          return;
+        }
+        
+        // Refresh Dashboard UI with stats update
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         
         console.log('✅ [Layout] UI data refreshed from offline DB');

@@ -3510,7 +3510,8 @@ export default function DeliveryForm({
     console.log('📝 [DeliveryForm] Setting isFormOverlayOpen = true');
     setIsFormOverlayOpen(true);
     
-    // CRITICAL: Pause background operations when form opens (except smart refresh for data freshness)
+    // CRITICAL: Keep location tracking active but pause UI updates
+    // Location updates will continue, but Dashboard won't refresh until form closes
     (async () => {
       try {
         // Keep smart refresh active - form data needs to stay fresh while editing
@@ -3518,9 +3519,9 @@ export default function DeliveryForm({
         const { smartRefreshManager } = await import('../utils/smartRefreshManager');
         // Don't pause smart refresh - let it continue updating form data
         
-        // Pause driver location poller
-        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-        driverLocationPoller.pause();
+        // Keep driver location poller ACTIVE - location tracking continues
+        // const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+        // driverLocationPoller.pause(); // REMOVED - location tracking continues
         
         // Pause polyline manager
         const { routePolylineManager } = await import('../utils/routePolylineManager');
@@ -3530,7 +3531,7 @@ export default function DeliveryForm({
         const { fabControlEvents } = await import('../utils/fabControlEvents');
         fabControlEvents.pauseFAB();
         
-        console.log('⏸️ [DeliveryForm] Paused: DriverLocationPoller, Polylines, FAB (SmartRefresh continues for data freshness)');
+        console.log('⏸️ [DeliveryForm] Paused: Polylines, FAB (Location tracking + SmartRefresh continue)');
       } catch (error) {
         console.warn('⚠️ [DeliveryForm] Failed to pause some managers:', error);
       }
@@ -3540,16 +3541,14 @@ export default function DeliveryForm({
       console.log('📝 [DeliveryForm] Cleanup - setting isFormOverlayOpen = false');
       setIsFormOverlayOpen(false);
       
-      // CRITICAL: Resume all background operations when form closes
+      // CRITICAL: Resume all background operations and trigger Dashboard UI refresh
       (async () => {
         try {
           // Resume smart refresh
           const { smartRefreshManager } = await import('../utils/smartRefreshManager');
           smartRefreshManager.resume();
           
-          // Resume driver location poller
-          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-          driverLocationPoller.resume();
+          // Location poller is already running, no need to resume
           
           // Resume polyline manager
           const { routePolylineManager } = await import('../utils/routePolylineManager');
@@ -3559,7 +3558,13 @@ export default function DeliveryForm({
           const { fabControlEvents } = await import('../utils/fabControlEvents');
           fabControlEvents.resumeFAB();
           
-          console.log('▶️ [DeliveryForm] Resumed: SmartRefresh, DriverLocationPoller, Polylines, FAB');
+          // CRITICAL: Trigger immediate Dashboard UI refresh with current data
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: null }
+          }));
+          
+          console.log('▶️ [DeliveryForm] Resumed: SmartRefresh, Polylines, FAB + Dashboard UI refreshed');
         } catch (error) {
           console.warn('⚠️ [DeliveryForm] Failed to resume some managers:', error);
         }
