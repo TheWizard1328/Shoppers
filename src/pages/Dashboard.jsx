@@ -7438,7 +7438,7 @@ function Dashboard() {
       
       try {
         const { initializeOfflineDBBeforeRender } = await import('@/components/utils/offlineSync');
-        const result = await initializeOfflineDBBeforeRender(smartRefreshManager);
+        const result = await initializeOfflineDBBeforeRender(smartRefreshManager, currentUser);
         
         if (result.success) {
           console.log(`✅ [Dashboard Mount - STEP 0] Pre-render sync complete: ${result.appUsers?.length || 0} users, ${result.cities?.length || 0} cities`);

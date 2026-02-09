@@ -319,20 +319,58 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
  * CRITICAL: Pre-render sync - force fresh AppUsers and Cities BEFORE map renders
  * Always fetches from API (ignores offline DB age) to ensure correct driver locations
  * @param {object} smartRefreshMgr - SmartRefreshManager instance for rate limiting
+ * @param {object} currentUser - Current authenticated user (for location upload)
  */
-export const preRenderFreshSync = async (smartRefreshMgr = null) => {
+export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = null) => {
   try {
     console.log('🔄 [PreRenderSync] FORCING fresh AppUsers and Cities from API before map render...');
+    
+    // CRITICAL STEP 0: Upload current driver location FIRST (if driver and has location)
+    if (currentUser) {
+      const { base44 } = await import('@/api/base44Client');
+      const { locationTracker } = await import('./locationTracker');
+      
+      // Check if this is a driver with active location tracking
+      const isTrackingLocation = locationTracker.isTracking && locationTracker.lastPosition;
+      
+      if (isTrackingLocation) {
+        try {
+          console.log('📤 [PreRenderSync] STEP 0: Uploading current driver location to API...');
+          const lastPos = locationTracker.lastPosition;
+          const nowISO = new Date().toISOString();
+          
+          // Get AppUser ID
+          const appUsersList = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+          const appUserId = appUsersList?.[0]?.id;
+          
+          if (appUserId) {
+            await base44.entities.AppUser.update(appUserId, {
+              current_latitude: lastPos.latitude,
+              current_longitude: lastPos.longitude,
+              location_updated_at: nowISO
+            });
+            console.log(`✅ [PreRenderSync] Uploaded driver location: ${lastPos.latitude.toFixed(6)}, ${lastPos.longitude.toFixed(6)}`);
+          }
+        } catch (uploadError) {
+          console.warn('⚠️ [PreRenderSync] Failed to upload driver location:', uploadError.message);
+        }
+      }
+    }
     
     // Wait for rate limit
     if (smartRefreshMgr) {
       await smartRefreshMgr.waitForRateLimit();
     }
     
-    // CRITICAL: FORCE fresh fetch of AppUsers (ignore offline DB age)
-    console.log('📍 [PreRenderSync] Fetching fresh AppUsers...');
+    // CRITICAL STEP 1: DELETE all offline AppUsers to ensure fresh data
+    console.log('🗑️ [PreRenderSync] STEP 1: Deleting all offline AppUsers...');
+    await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+    console.log('✅ [PreRenderSync] Offline AppUsers cleared');
+    
+    // CRITICAL STEP 2: Fetch fresh AppUsers from API
+    console.log('📍 [PreRenderSync] STEP 2: Fetching fresh AppUsers from API...');
     const appUsers = await AppUser.list();
-    console.log(`📍 [PreRenderSync] Fetched ${appUsers?.length || 0} AppUsers:`, appUsers?.map(u => ({ id: u.id, user_id: u.user_id, user_name: u.user_name })));
+    console.log(`📍 [PreRenderSync] Fetched ${appUsers?.length || 0} AppUsers from API`);
 
     if (appUsers && appUsers.length > 0) {
       // CRITICAL: Deduplicate by user_id (keep most recent by sort_order)
@@ -350,10 +388,11 @@ export const preRenderFreshSync = async (smartRefreshMgr = null) => {
         console.warn(`⚠️ [PreRenderSync] Removed ${duplicatesRemoved} duplicate AppUsers`);
       }
 
+      // CRITICAL STEP 3: Save fresh AppUsers to offline DB in ONE bulk operation
+      console.log('💾 [PreRenderSync] STEP 3: Saving fresh AppUsers to offline DB...');
       const appUserSaveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
-      console.log(`✅ [PreRenderSync] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, appUserSaveResult);
+      console.log(`✅ [PreRenderSync] Saved ${deduplicatedAppUsers.length} fresh AppUsers to offline DB`);
       await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
-      console.log(`✅ [PreRenderSync] Synced ${deduplicatedAppUsers.length} fresh AppUsers to offline DB`);
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
     } else {
       console.warn('⚠️ [PreRenderSync] No AppUsers returned from API');
@@ -1189,11 +1228,13 @@ export const restartDeliveryPatientSync = async () => {
 /**
  * Initialize offline DB with fresh data before Dashboard renders
  * Call this in Dashboard useEffect BEFORE any render of map/markers
+ * @param {object} smartRefreshMgr - SmartRefreshManager instance for rate limiting
+ * @param {object} currentUser - Current authenticated user (for location upload)
  */
-export const initializeOfflineDBBeforeRender = async (smartRefreshMgr = null) => {
+export const initializeOfflineDBBeforeRender = async (smartRefreshMgr = null, currentUser = null) => {
   try {
     // Pre-render sync: force fresh AppUsers and Cities
-    const preRenderResult = await preRenderFreshSync(smartRefreshMgr);
+    const preRenderResult = await preRenderFreshSync(smartRefreshMgr, currentUser);
     
     if (!preRenderResult.success) {
       console.warn('⚠️ [InitOfflineDB] Pre-render sync had issues, continuing...');
