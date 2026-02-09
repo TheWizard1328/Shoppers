@@ -1187,6 +1187,7 @@ export default function RouteImport({
           // CRITICAL: If no Col 7 time, use patient's delivery end time window
           newDeliveryData.delivery_time_end = patient.time_window_end;
         }
+      }
 
       if (patientId) {
         newDeliveryData.patient_id = patientId;
