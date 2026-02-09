@@ -589,6 +589,13 @@ function Dashboard() {
     const currentPhase = mapViewPhaseRef.current;
     console.log(`🔄 [FAB Reactivate - ${source}] Current phase: ${currentPhase}`);
     
+    // CRITICAL: Skip Phase 1 reactivation on refresh cycles
+    const isRefreshCycle = source === 'Smart Refresh Complete' || source === 'Smart Refresh Restarted';
+    if (currentPhase === 1 && isRefreshCycle) {
+      console.log(`⏭️ [FAB Reactivate - ${source}] Phase 1 - skipping reactivation on refresh cycle`);
+      return;
+    }
+    
     // Clear any existing timers
     if (mapLockTimeoutRef.current) {
       clearTimeout(mapLockTimeoutRef.current);
@@ -597,7 +604,7 @@ function Dashboard() {
     mapLockExpiresAtRef.current = null;
     
     if (currentPhase === 1) {
-      // Phase 1: Reactivate for 100ms
+      // Phase 1: Reactivate for 100ms (only for GPS/location updates)
       console.log(`🔵 [FAB Reactivate - ${source}] Phase 1 - reactivating for 100ms`);
       setIsMapViewLocked(true);
       lastProgrammaticMapMoveRef.current = Date.now();
@@ -8531,7 +8538,7 @@ function Dashboard() {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0, opacity: 0 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          className="fixed z-[140]"
+          className="fixed z-[250]"
           style={{
             bottom: `${(deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight : 0) + 15}px`,
             right: '64px'
