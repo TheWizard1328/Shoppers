@@ -584,6 +584,58 @@ function Dashboard() {
     mapViewPhaseRef.current = mapViewPhase;
   }, [mapViewPhase]);
 
+  // CRITICAL: Unified FAB reactivation logic for all update events
+  const reactivateFAB = useCallback((source = 'unknown') => {
+    const currentPhase = mapViewPhaseRef.current;
+    console.log(`🔄 [FAB Reactivate - ${source}] Current phase: ${currentPhase}`);
+    
+    // Clear any existing timers
+    if (mapLockTimeoutRef.current) {
+      clearTimeout(mapLockTimeoutRef.current);
+      mapLockTimeoutRef.current = null;
+    }
+    mapLockExpiresAtRef.current = null;
+    
+    if (currentPhase === 1) {
+      // Phase 1: Reactivate for 100ms
+      console.log(`🔵 [FAB Reactivate - ${source}] Phase 1 - reactivating for 100ms`);
+      setIsMapViewLocked(true);
+      lastProgrammaticMapMoveRef.current = Date.now();
+      window._lastProgrammaticMapMove = Date.now();
+      setMapViewTrigger((prev) => prev + 1);
+      
+      // Auto-unlock after 100ms
+      const lockDuration = 100;
+      const expiresAt = Date.now() + lockDuration;
+      mapLockExpiresAtRef.current = expiresAt;
+      
+      mapLockTimeoutRef.current = setTimeout(() => {
+        if (mapLockExpiresAtRef.current === expiresAt) {
+          setIsMapViewLocked(false);
+          mapLockExpiresAtRef.current = null;
+          mapLockTimeoutRef.current = null;
+          console.log(`⏰ [FAB Reactivate - ${source}] Phase 1 auto-unlocked after 100ms`);
+        }
+      }, lockDuration);
+      
+    } else if (currentPhase === 2 || currentPhase === 3) {
+      // Phase 2 & 3: Deactivate for 100ms, then reactivate
+      console.log(`🔄 [FAB Reactivate - ${source}] Phase ${currentPhase} - deactivating for 100ms then reactivating`);
+      
+      // Temporarily unlock
+      setIsMapViewLocked(false);
+      
+      // Reactivate after 100ms
+      setTimeout(() => {
+        console.log(`🔄 [FAB Reactivate - ${source}] Phase ${currentPhase} - reactivating now`);
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+      }, 100);
+    }
+  }, []);
+
   // CRITICAL: Calculate isDriver early (before useEffect that needs it)
   const isMobile = useMemo(() => isMobileDevice(), []);
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
@@ -2184,25 +2236,19 @@ function Dashboard() {
     };
   }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding, appUsers]);
 
-  // CRITICAL: Listen for driver location updates to trigger Phase 3 re-centering
+  // CRITICAL: Listen for driver location updates to trigger FAB reactivation
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
-      // CRITICAL: Only update if Phase 3 is locked
-      if (mapViewPhaseRef.current !== 3 || !isMapViewLockedRef.current) {
-        return;
-      }
-      
       // CRITICAL: Debounce rapid location updates to prevent double-zoom
       const now = Date.now();
       const timeSinceLastProgrammaticMove = now - (window._lastProgrammaticMapMove || 0);
       if (timeSinceLastProgrammaticMove < 2000) {
-        console.log('⏭️ [Phase 3 Update] Skipping - recent programmatic move');
+        console.log('⏭️ [Driver Location Update] Skipping - recent programmatic move');
         return;
       }
       
-      console.log('📍 [Phase 3 Update] Driver locations changed - re-centering map');
-      
-      const allCoordinatesPhase3 = [];
+      // CRITICAL: Use unified FAB reactivation for all phases
+      reactivateFAB('Driver Location Update');
       const todayStrPhase3 = format(new Date(), 'yyyy-MM-dd');
       const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
       const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
@@ -2262,129 +2308,11 @@ function Dashboard() {
           allCoordinatesPhase3.push([location.latitude, location.longitude]);
         });
       }
-      
-      // CRITICAL: Include incomplete stops based on mode
-      const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned'];
-      
-      let incompleteStops = [];
-      if (isShowAllOrAllDriversMode) {
-        // MODE 1: Show All - include ALL drivers' incomplete stops
-        incompleteStops = deliveriesWithStopOrder.filter((d) => {
-          if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
-          if (finishedStatusesPhase3.includes(d.status)) return false;
-          if (d.status === 'pending') return false;
-          if (isDispatcher && !isAdmin && currentUser?.store_ids) {
-            const dispatcherStoreIds = new Set(currentUser.store_ids);
-            if (!dispatcherStoreIds.has(d.store_id)) return false;
-          }
-          return true;
-        });
-        console.log(`📍 [Phase 3 Update - Show All] Including ${incompleteStops.length} incomplete stops from ALL drivers`);
-      } else {
-        // MODE 2: Single Driver - include only selected driver's incomplete stops
-        const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
-        incompleteStops = deliveriesWithStopOrder.filter((d) => {
-          if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
-          if (finishedStatusesPhase3.includes(d.status)) return false;
-          if (d.status === 'pending') return false;
-          if (d.driver_id !== targetDriverId) return false;
-          if (isDispatcher && !isAdmin && currentUser?.store_ids) {
-            const dispatcherStoreIds = new Set(currentUser.store_ids);
-            if (!dispatcherStoreIds.has(d.store_id)) return false;
-          }
-          return true;
-        });
-        console.log(`📍 [Phase 3 Update - Single Driver] Including ${incompleteStops.length} incomplete stops for driver ${targetDriverId}`);
-      }
-      
-      incompleteStops.forEach((delivery) => {
-        if (delivery.patient_id) {
-          const patient = patients.find((p) => p?.id === delivery.patient_id);
-          if (patient?.latitude && patient?.longitude) {
-            allCoordinatesPhase3.push([patient.latitude, patient.longitude]);
-          }
-        } else if (delivery.store_id) {
-          const store = stores.find((s) => s?.id === delivery.store_id);
-          if (store?.latitude && store?.longitude) {
-            allCoordinatesPhase3.push([store.latitude, store.longitude]);
-          }
-        }
-      });
-      
-      // CRITICAL: Include home location markers (from map) to match main Phase 3 logic
-      const mapHomeMarkers = window.__mapHomeMarkers || [];
-      mapHomeMarkers.forEach((home) => {
-        if (home.excludeFromBounds) return;
-        if (home.latitude && home.longitude) {
-          allCoordinatesPhase3.push([home.latitude, home.longitude]);
-        }
-      });
-      
-      if (allCoordinatesPhase3.length > 0) {
-        // CRITICAL: Check if there are actually visible cards before using measured height
-        const hasVisibleCards = deliveriesWithStopOrder.some(d => d && d.status !== 'pending');
-        
-        const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
-        const topPadding = isMobile ? statsCardCurrHeight + 25 : 25;
-        
-        // CRITICAL: Only measure stop cards height if cards are actually visible
-        let bottomPadding = 25; // Default when no cards
-        if (hasVisibleCards) {
-          const stopCardsContainer = stopCardsContainerRef.current;
-          if (stopCardsContainer) {
-            const measuredHeight = stopCardsContainer.offsetHeight;
-            if (measuredHeight > 0) {
-              bottomPadding = measuredHeight + 10;
-              console.log(`📏 [Phase 3 Driver Update] Cards visible - using measured height: ${measuredHeight}px`);
-            }
-          } else if (stopCardsBaseHeight > 0) {
-            bottomPadding = stopCardsBaseHeight + 10;
-          }
-        } else {
-          console.log(`📏 [Phase 3 Driver Update] No cards visible - using default padding: 25px`);
-        }
-        
-        const padding = {
-          paddingTopLeft: [25, topPadding],
-          paddingBottomRight: [25, bottomPadding]
-        };
-        
-        let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
-        allCoordinatesPhase3.forEach(([lat, lon]) => {
-          minLat = Math.min(minLat, lat);
-          maxLat = Math.max(maxLat, lat);
-          minLon = Math.min(minLon, lon);
-          maxLon = Math.max(maxLon, lon);
-        });
-        
-        const latSpan = maxLat - minLat;
-        const lonSpan = maxLon - minLon;
-        const maxSpan = Math.max(latSpan, lonSpan);
-        const spanKm = maxSpan * 111.0;
-        const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
-        const phase3MaxZoom = Math.max(12.0, Math.min(17, Math.round(baseZoom * 10) / 10));
-        
-        console.log(`🗺️ [Phase 3 Driver Update] Zoom: ${phase3MaxZoom}, Padding: top=${topPadding}px, bottom=${bottomPadding}px`);
-        
-        window._lastProgrammaticMapMove = Date.now();
-        
-        setShouldFitBounds({
-          bounds: allCoordinatesPhase3,
-          options: {
-            ...padding,
-            maxZoom: phase3MaxZoom,
-            animate: true,
-            duration: 0.5
-          }
-        });
-        setMapCenter(null);
-        setMapZoom(null);
-      }
     };
     
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
-  }, [mapViewPhase, isMapViewLocked, selectedDate, driverLocation, allDriverLocations, appUsers, deliveriesWithStopOrder, currentUser, selectedDriverId, isDispatcher, isAdmin, patients, stores, isMobile, getMapPadding]);
+  }, [reactivateFAB]);
 
   // CRITICAL: Periodic smart refresh - ACTUALLY calls smartRefreshManager.performSmartRefresh()
   useEffect(() => {
@@ -3896,60 +3824,8 @@ function Dashboard() {
         }
       }, 300);
 
-      // CRITICAL: Handle Phase 1, 2, and 3 differently after smart refresh
-      if (mapViewPhase === 1) {
-        console.log(`🔵 [Smart Refresh Complete] Reactivating FAB Phase 1 for 500ms`);
-
-        // Clear any existing timers
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
-        mapLockExpiresAtRef.current = null;
-
-        // Lock and trigger map view
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-
-        // Auto-unlock after 500ms
-        const lockDuration = 500;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-
-        mapLockTimeoutRef.current = setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-            console.log(`⏰ [Smart Refresh Complete] FAB auto-unlocked after 500ms`);
-          }
-        }, lockDuration);
-      } else if (mapViewPhase === 3) {
-        console.log(`🔄 [Smart Refresh Complete] Phase 3 - deactivating for 100ms then reactivating`);
-        
-        // Clear any existing timers
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
-        mapLockExpiresAtRef.current = null;
-        
-        // Temporarily unlock to allow Phase 3 to recalculate with new data
-        setIsMapViewLocked(false);
-        
-        // Reactivate Phase 3 after 100ms
-        setTimeout(() => {
-          console.log(`🔄 [Smart Refresh Complete] Phase 3 - reactivating now`);
-          setIsMapViewLocked(true);
-          lastProgrammaticMapMoveRef.current = Date.now();
-          window._lastProgrammaticMapMove = Date.now();
-          setMapViewTrigger((prev) => prev + 1);
-        }, 100);
-      } else {
-        console.log(`⏭️ [Smart Refresh Complete] Phase ${mapViewPhase} - no auto-recenter (stays locked)`);
-      }
+      // CRITICAL: Use unified FAB reactivation logic
+      reactivateFAB('Smart Refresh Complete');
     };
     
     const handleSmartRefreshRestartedEvent = () => {
@@ -3967,60 +3843,8 @@ function Dashboard() {
         }
       }, 300);
 
-      // CRITICAL: Handle Phase 1, 2, and 3 differently after smart refresh restart
-      if (mapViewPhase === 1) {
-        console.log(`🔵 [Smart Refresh Restarted] Reactivating FAB Phase 1 for 500ms`);
-
-        // Clear any existing timers
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
-        mapLockExpiresAtRef.current = null;
-
-        // Lock and trigger map view
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-
-        // Auto-unlock after 500ms
-        const lockDuration = 500;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-
-        mapLockTimeoutRef.current = setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-            console.log(`⏰ [Smart Refresh Restarted] FAB auto-unlocked after 500ms`);
-          }
-        }, lockDuration);
-      } else if (mapViewPhase === 3) {
-        console.log(`🔄 [Smart Refresh Restarted] Phase 3 - deactivating for 100ms then reactivating`);
-        
-        // Clear any existing timers
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
-        mapLockExpiresAtRef.current = null;
-        
-        // Temporarily unlock to allow Phase 3 to recalculate with new data
-        setIsMapViewLocked(false);
-        
-        // Reactivate Phase 3 after 100ms
-        setTimeout(() => {
-          console.log(`🔄 [Smart Refresh Restarted] Phase 3 - reactivating now`);
-          setIsMapViewLocked(true);
-          lastProgrammaticMapMoveRef.current = Date.now();
-          window._lastProgrammaticMapMove = Date.now();
-          setMapViewTrigger((prev) => prev + 1);
-        }, 100);
-      } else {
-        console.log(`⏭️ [Smart Refresh Restarted] Phase ${mapViewPhase} - no auto-recenter (stays locked)`);
-      }
+      // CRITICAL: Use unified FAB reactivation logic
+      reactivateFAB('Smart Refresh Restarted');
     };
 
     window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
