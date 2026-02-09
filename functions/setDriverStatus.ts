@@ -38,6 +38,13 @@ Deno.serve(async (req) => {
     if (newStatus === 'on_duty' || newStatus === 'off_duty' || newStatus === 'on_break') {
       updateData.location_tracking_enabled = true;
     }
+    
+    // CRITICAL: Update timestamp when status changes so marker updates immediately
+    // This ensures timestamp is fresh even if driver is stationary
+    if (newStatus !== 'off_duty') {
+      updateData.location_updated_at = new Date().toISOString();
+      console.log(`📍 [setDriverStatus] Updating location timestamp for status change to: ${newStatus}`);
+    }
     // Location data is NEVER cleared - drivers can always see their own position
 
     // CRITICAL: Update with broadcast to ensure all clients receive the change immediately

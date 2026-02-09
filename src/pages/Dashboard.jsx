@@ -2990,15 +2990,20 @@ function Dashboard() {
           }
           // Priority 2: Use shared location marker (green marker from AppUser)
           else {
-            const sharedDriverLocation = allDriverLocations.find(loc => loc.driver_id === currentUser?.id);
-            if (sharedDriverLocation?.latitude && sharedDriverLocation?.longitude) {
-              driverLat = sharedDriverLocation.latitude;
-              driverLon = sharedDriverLocation.longitude;
+            // CRITICAL: Find the AppUser record directly to get fresh location
+            const currentAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
+            if (currentAppUser?.current_latitude && currentAppUser?.current_longitude) {
+              driverLat = currentAppUser.current_latitude;
+              driverLon = currentAppUser.current_longitude;
+              console.log(`📍 [Phase 2 - FAB] Using AppUser location: ${driverLat.toFixed(6)}, ${driverLon.toFixed(6)} (updated: ${currentAppUser.location_updated_at})`);
             }
-            // Priority 3: Fall back to current user's location from appUsers
-            else if (currentUser?.current_latitude && currentUser?.current_longitude) {
-              driverLat = currentUser.current_latitude;
-              driverLon = currentUser.current_longitude;
+            // Fallback: Use shared marker location
+            else {
+              const sharedDriverLocation = allDriverLocations.find(loc => loc.driver_id === currentUser?.id);
+              if (sharedDriverLocation?.latitude && sharedDriverLocation?.longitude) {
+                driverLat = sharedDriverLocation.latitude;
+                driverLon = sharedDriverLocation.longitude;
+              }
             }
           }
           
