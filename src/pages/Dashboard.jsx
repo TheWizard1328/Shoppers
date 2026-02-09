@@ -3022,78 +3022,140 @@ function Dashboard() {
         const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
         const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
         
-        // 1. Include driver locations (shared markers + blue dot) - EXCLUDE off-duty drivers
-        if (isViewingTodayPhase3) {
-          // Include current driver's blue dot (only if on_duty or on_break)
-          const currentDriverStatus = appUsers?.find(au => au?.user_id === currentUser?.id)?.driver_status;
-          const shouldIncludeBlueDot = isMobile && isDriver && driverLocation?.latitude && driverLocation?.longitude &&
-            currentDriverStatus !== 'off_duty';
-          if (shouldIncludeBlueDot) {
-            allCoordinatesPhase3.push([driverLocation.latitude, driverLocation.longitude]);
+        // CRITICAL: Determine if "Show All" mode is active
+        const isShowAllMode = showAllDriverMarkers;
+        
+        if (isShowAllMode) {
+          // MODE 1: Show All = TRUE
+          // Include: all active user markers (pending), other drivers' markers (pending), shared locations, live location, home locations
+          
+          // 1a. Include current driver's blue dot (if available and not off_duty)
+          if (isViewingTodayPhase3 && isMobile && isDriver && driverLocation?.latitude && driverLocation?.longitude) {
+            const currentDriverStatus = appUsers?.find(au => au?.user_id === currentUser?.id)?.driver_status;
+            if (currentDriverStatus !== 'off_duty') {
+              allCoordinatesPhase3.push([driverLocation.latitude, driverLocation.longitude]);
+            }
           }
           
-          // Include shared driver location markers (EXCLUDE off-duty drivers)
-          const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
-          const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
-          
-          // Deduplicate by driver_id and filter out off-duty drivers
-          const uniqueLocations = new Map();
-          allLocationSources.forEach(loc => {
-            if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
-              // CRITICAL: Find driver's status from appUsers
-              const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
-              const driverStatus = driver?.driver_status;
-              
-              // CRITICAL: Exclude off-duty drivers
-              if (driverStatus === 'off_duty') {
-                return;
+          // 1b. Include all shared driver location markers (EXCLUDE off-duty drivers)
+          if (isViewingTodayPhase3) {
+            const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
+            const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
+            
+            const uniqueLocations = new Map();
+            allLocationSources.forEach(loc => {
+              if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
+                const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
+                if (driver?.driver_status === 'off_duty') return;
+                uniqueLocations.set(loc.driver_id, loc);
               }
-              
-              uniqueLocations.set(loc.driver_id, loc);
-            }
-          });
+            });
+            
+            Array.from(uniqueLocations.values()).forEach((location) => {
+              if (isMobile && location.driver_id === currentUser?.id) return;
+              allCoordinatesPhase3.push([location.latitude, location.longitude]);
+            });
+          }
           
-          Array.from(uniqueLocations.values()).forEach((location) => {
-            // Skip current user on mobile (blue dot already added above)
-            if (isMobile && location.driver_id === currentUser?.id) {
-              return;
-            }
-            allCoordinatesPhase3.push([location.latitude, location.longitude]);
-          });
-        }
-        
-        // 2. Include incomplete AND pending stops for active/selected driver only (if any)
-        const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned'];
-        const incompleteStopsActiveDriver = deliveries.filter((d) => {
-          if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
-          if (finishedStatusesPhase3.includes(d.status)) return false;
-          
-          // CRITICAL: Filter by selected driver (or current user if viewing own route)
-          const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
-          if (d.driver_id !== targetDriverId) return false;
+          // 1c. Include ALL deliveries (incomplete + pending) for ALL drivers
+          const finishedStatusesShowAll = ['completed', 'failed', 'cancelled', 'returned'];
+          let allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStrPhase3);
           
           // Filter by dispatcher stores if applicable
           if (isDispatcher && !isAdmin && currentUser?.store_ids) {
             const dispatcherStoreIds = new Set(currentUser.store_ids);
-            if (!dispatcherStoreIds.has(d.store_id)) return false;
+            const driversWithStoreDeliveries = new Set(
+              allDateDeliveries
+                .filter((d) => d && dispatcherStoreIds.has(d.store_id))
+                .map((d) => d.driver_id)
+                .filter(Boolean)
+            );
+            allDateDeliveries = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
           }
           
-          return true;
-        });
-        
-        incompleteStopsActiveDriver.forEach((delivery) => {
-          if (delivery.patient_id) {
-            const patient = patients.find((p) => p?.id === delivery.patient_id);
-            if (patient?.latitude && patient?.longitude) {
-              allCoordinatesPhase3.push([patient.latitude, patient.longitude]);
+          const incompleteAndPendingAllDrivers = allDateDeliveries.filter((d) => {
+            if (!d) return false;
+            if (finishedStatusesShowAll.includes(d.status)) return false;
+            return true;
+          });
+          
+          incompleteAndPendingAllDrivers.forEach((delivery) => {
+            if (delivery.patient_id) {
+              const patient = patients.find((p) => p?.id === delivery.patient_id);
+              if (patient?.latitude && patient?.longitude) {
+                allCoordinatesPhase3.push([patient.latitude, patient.longitude]);
+              }
+            } else if (delivery.store_id) {
+              const store = stores.find((s) => s?.id === delivery.store_id);
+              if (store?.latitude && store?.longitude) {
+                allCoordinatesPhase3.push([store.latitude, store.longitude]);
+              }
             }
-          } else if (delivery.store_id) {
-            const store = stores.find((s) => s?.id === delivery.store_id);
-            if (store?.latitude && store?.longitude) {
-              allCoordinatesPhase3.push([store.latitude, store.longitude]);
+          });
+          
+          // 1d. Include home location markers (from map)
+          const mapHomeMarkers = window.__mapHomeMarkers || [];
+          mapHomeMarkers.forEach((home) => {
+            if (home.excludeFromBounds) return;
+            if (home.latitude && home.longitude) {
+              allCoordinatesPhase3.push([home.latitude, home.longitude]);
+            }
+          });
+          
+        } else {
+          // MODE 2: Show All = FALSE
+          // Include: active user's incomplete markers (pending), live location, home locations
+          
+          // 2a. Include current driver's blue dot (if available and not off_duty)
+          if (isViewingTodayPhase3 && isMobile && isDriver && driverLocation?.latitude && driverLocation?.longitude) {
+            const currentDriverStatus = appUsers?.find(au => au?.user_id === currentUser?.id)?.driver_status;
+            if (currentDriverStatus !== 'off_duty') {
+              allCoordinatesPhase3.push([driverLocation.latitude, driverLocation.longitude]);
             }
           }
-        });
+          
+          // 2b. Include incomplete AND pending stops for active/selected driver only
+          const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned'];
+          const incompleteStopsActiveDriver = deliveries.filter((d) => {
+            if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
+            if (finishedStatusesPhase3.includes(d.status)) return false;
+            
+            const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
+            if (d.driver_id !== targetDriverId) return false;
+            
+            if (isDispatcher && !isAdmin && currentUser?.store_ids) {
+              const dispatcherStoreIds = new Set(currentUser.store_ids);
+              if (!dispatcherStoreIds.has(d.store_id)) return false;
+            }
+            
+            return true;
+          });
+          
+          incompleteStopsActiveDriver.forEach((delivery) => {
+            if (delivery.patient_id) {
+              const patient = patients.find((p) => p?.id === delivery.patient_id);
+              if (patient?.latitude && patient?.longitude) {
+                allCoordinatesPhase3.push([patient.latitude, patient.longitude]);
+              }
+            } else if (delivery.store_id) {
+              const store = stores.find((s) => s?.id === delivery.store_id);
+              if (store?.latitude && store?.longitude) {
+                allCoordinatesPhase3.push([store.latitude, store.longitude]);
+              }
+            }
+          });
+          
+          // 2c. Include home location markers for active driver (from map)
+          const mapHomeMarkers = window.__mapHomeMarkers || [];
+          const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
+          mapHomeMarkers.forEach((home) => {
+            if (home.excludeFromBounds) return;
+            if (home.driverId !== targetDriverId) return;
+            if (home.latitude && home.longitude) {
+              allCoordinatesPhase3.push([home.latitude, home.longitude]);
+            }
+          });
+        }
         
         // 3. Only fit bounds if we have actual markers to show (NO city center fallback)
         if (allCoordinatesPhase3.length > 0) {
