@@ -3937,6 +3937,25 @@ function Dashboard() {
     }
   }, [isDispatcher, currentUser?.id, selectedDate, deliveries, userSettingsLoaded, isDataLoaded]);
 
+  // CRITICAL: Delay FAB rendering until after cards are fully rendered and measured
+  useEffect(() => {
+    if (!isDataLoaded || !userSettingsLoaded) {
+      setShowFABs(false);
+      return;
+    }
+    
+    // Use requestAnimationFrame twice to ensure all DOM updates are complete
+    const frame1 = requestAnimationFrame(() => {
+      const frame2 = requestAnimationFrame(() => {
+        setShowFABs(true);
+        console.log('✅ [Dashboard] FABs enabled after cards rendered');
+      });
+      return frame2;
+    });
+    
+    return () => cancelAnimationFrame(frame1);
+  }, [isDataLoaded, userSettingsLoaded]);
+
   const handleDateChange = async (date) => {
     // CRITICAL: Pause smart refresh immediately
     setIsEntityUpdating(true);
