@@ -433,7 +433,7 @@ export default function PatientForm({
     try {
       // STEP 1: Save to offline database (creates mutation)
       let savedPatientId;
-      if (patient) {
+      if (patient && patient.id) {
         await updatePatientLocal(patient.id, dataToSave);
         savedPatientId = patient.id;
         console.log('  ✅ Updated patient in offline DB');
@@ -458,6 +458,11 @@ export default function PatientForm({
           onSave(completePatient, true);
           return;
         }
+      }
+
+      // CRITICAL: Validate savedPatientId before proceeding
+      if (!savedPatientId) {
+        throw new Error('Unable to determine patient ID - save failed');
       }
 
       // STEP 2: Trigger immediate sync to backend
