@@ -269,7 +269,8 @@ class LocationTracker {
         }));
       }
 
-      // CRITICAL: Always update UserDevice last_active_at regardless of primary status
+      // CRITICAL: Always update UserDevice last_active_at for primary tracker
+      const currentDevice = await getCurrentDevice(this.currentUser.id);
       if (currentDevice) {
         await updateDeviceLastActive(this.currentUser.id);
         console.log(`✅ [LocationTracker] Updated device last_active_at`);
