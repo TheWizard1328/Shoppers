@@ -7868,6 +7868,8 @@ function Dashboard() {
             </div>
 
 
+            <DriverLocationBadge users={appUsers} />
+
             <AnimatePresence>
               {isExpanded &&
               <motion.div
