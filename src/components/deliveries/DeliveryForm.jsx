@@ -3541,6 +3541,9 @@ export default function DeliveryForm({
       console.log('📝 [DeliveryForm] Cleanup - setting isFormOverlayOpen = false');
       setIsFormOverlayOpen(false);
       
+      // CRITICAL: Reset delivery ID ref to allow fresh load next time
+      loadedDeliveryIdRef.current = null;
+      
       // CRITICAL: Resume all background operations and trigger Dashboard UI refresh
       (async () => {
         try {
