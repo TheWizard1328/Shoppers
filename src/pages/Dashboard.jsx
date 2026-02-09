@@ -3244,7 +3244,26 @@ function Dashboard() {
         
         // 3. Only fit bounds if we have actual markers to show (NO city center fallback)
         if (allCoordinatesPhase3.length > 0) {
-          const padding = getMapPadding();
+          // CRITICAL: Measure actual stop cards height at this moment, don't rely on state
+          const stopCardsContainer = stopCardsContainerRef.current;
+          let actualStopCardsHeight = stopCardsBaseHeight || 0;
+          
+          if (stopCardsContainer) {
+            const measuredHeight = stopCardsContainer.offsetHeight;
+            if (measuredHeight > 0) {
+              actualStopCardsHeight = measuredHeight;
+              console.log(`📏 [Phase 3] Using measured stop cards height: ${measuredHeight}px (state was: ${stopCardsBaseHeight}px)`);
+            }
+          }
+          
+          const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
+          const topPadding = isMobile ? statsCardCurrHeight + 25 : 25;
+          const bottomPadding = actualStopCardsHeight > 0 ? actualStopCardsHeight + 10 : 25;
+          
+          const padding = {
+            paddingTopLeft: [25, topPadding],
+            paddingBottomRight: [25, bottomPadding]
+          };
           
           // Calculate appropriate zoom based on span
           let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
