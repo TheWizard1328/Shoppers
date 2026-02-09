@@ -17,6 +17,7 @@ const broadcastMutation = async (entity, action, id, data) => {
 class LocationTracker {
   constructor() {
     this.watchId = null;
+    this.heartbeatInterval = null; // CRITICAL: Force timestamp updates every 15s even when stationary
     this.isTracking = false;
     this.lastPosition = null;
     this.lastUpdate = 0;
@@ -483,6 +484,20 @@ class LocationTracker {
           maximumAge: 0
         }
       );
+
+      // CRITICAL: Start heartbeat interval to force updates every 15s even when stationary
+      // watchPosition doesn't fire callbacks when stationary, so we need to force it
+      this.heartbeatInterval = setInterval(() => {
+        if (this.lastPosition && this.isTracking) {
+          console.log('💓 [LocationTracker] Heartbeat tick - forcing timestamp update with last known position');
+          this.updateLocationInDatabase(
+            this.lastPosition.latitude,
+            this.lastPosition.longitude,
+            this.lastPosition.accuracy
+          );
+        }
+      }, this.updateInterval);
+      console.log('💓 [LocationTracker] Started 15s heartbeat interval for stationary updates');
     });
   }
 
@@ -490,6 +505,11 @@ class LocationTracker {
     if (this.watchId !== null) {
       navigator.geolocation.clearWatch(this.watchId);
       this.watchId = null;
+    }
+    if (this.heartbeatInterval !== null) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+      console.log('💓 [LocationTracker] Stopped heartbeat interval');
     }
     this.isTracking = false;
     this.lastPosition = null;
