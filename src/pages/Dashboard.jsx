@@ -1150,24 +1150,41 @@ function Dashboard() {
       return driversSource;
     }
 
-    // DISPATCHER: Show drivers assigned to dispatcher's stores OR who have deliveries for dispatcher's stores on selected date
+    // DISPATCHER: Show drivers assigned to dispatcher's stores for selected day OR who have deliveries for dispatcher's stores on selected date
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
       const dispatcherStores = stores?.filter(s => s && dispatcherStoreIds.includes(s.id)) || [];
       
       const assignedDriverIds = new Set();
       
-      // Add drivers assigned to store slots
+      // CRITICAL: Only add drivers assigned to slots for the selected day of the week
+      const selectedDateObj = new Date(selectedDate);
+      const dayOfWeek = selectedDateObj.getDay(); // 0=Sunday, 6=Saturday
+      
+      const isSaturday = dayOfWeek === 6;
+      const isSunday = dayOfWeek === 0;
+      const isWeekday = !isSaturday && !isSunday;
+      
+      console.log(`   - Selected day: ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]}`);
+      
+      // Add drivers assigned to store slots for THIS DAY ONLY
       dispatcherStores.forEach(store => {
-        ['weekday_am_driver_id', 'weekday_pm_driver_id',
-         'saturday_am_driver_id', 'saturday_pm_driver_id',
-         'sunday_am_driver_id', 'sunday_pm_driver_id']
-          .forEach(field => {
-            if (store[field]) assignedDriverIds.add(store[field]);
-          });
+        if (isSaturday) {
+          if (store.saturday_am_driver_id) assignedDriverIds.add(store.saturday_am_driver_id);
+          if (store.saturday_pm_driver_id) assignedDriverIds.add(store.saturday_pm_driver_id);
+        } else if (isSunday) {
+          if (store.sunday_am_driver_id) assignedDriverIds.add(store.sunday_am_driver_id);
+          if (store.sunday_pm_driver_id) assignedDriverIds.add(store.sunday_pm_driver_id);
+        } else {
+          // Weekday
+          if (store.weekday_am_driver_id) assignedDriverIds.add(store.weekday_am_driver_id);
+          if (store.weekday_pm_driver_id) assignedDriverIds.add(store.weekday_pm_driver_id);
+        }
       });
       
-      // CRITICAL: Also add drivers who have ANY deliveries for dispatcher's stores on selected date
+      console.log(`   - Found ${assignedDriverIds.size} drivers assigned to slots for this day`);
+      
+      // CRITICAL: Also add drivers who have ANY deliveries/pickups for dispatcher's stores on selected date
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       const driversWithDeliveries = deliveries
         ?.filter(d => d && d.delivery_date === selectedDateStr && dispatcherStoreIds.includes(d.store_id))
@@ -1177,7 +1194,7 @@ function Dashboard() {
       driversWithDeliveries?.forEach(driverId => assignedDriverIds.add(driverId));
       
       const filteredDrivers = driversSource.filter(d => assignedDriverIds.has(d.id));
-      console.log(`   - Role: dispatcher, showing ${filteredDrivers.length}/${driversSource.length} drivers (assigned + active)`);
+      console.log(`   - Role: dispatcher, showing ${filteredDrivers.length}/${driversSource.length} drivers (${assignedDriverIds.size - driversWithDeliveries?.length || 0} scheduled + ${driversWithDeliveries?.length || 0} with deliveries)`);
       return filteredDrivers;
     }
 
