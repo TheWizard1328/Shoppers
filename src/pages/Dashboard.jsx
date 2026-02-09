@@ -2239,75 +2239,8 @@ function Dashboard() {
   // CRITICAL: Listen for driver location updates to trigger FAB reactivation
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
-      // CRITICAL: Debounce rapid location updates to prevent double-zoom
-      const now = Date.now();
-      const timeSinceLastProgrammaticMove = now - (window._lastProgrammaticMapMove || 0);
-      if (timeSinceLastProgrammaticMove < 2000) {
-        console.log('⏭️ [Driver Location Update] Skipping - recent programmatic move');
-        return;
-      }
-      
       // CRITICAL: Use unified FAB reactivation for all phases
       reactivateFAB('Driver Location Update');
-      const todayStrPhase3 = format(new Date(), 'yyyy-MM-dd');
-      const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
-      const isViewingTodayPhase3 = todayStrPhase3 === selectedDateStrPhase3;
-      
-      // CRITICAL: Determine if "Show All" mode is active
-      const isShowAllOrAllDriversMode = showAllDriverMarkers || selectedDriverId === 'all';
-      
-      if (isViewingTodayPhase3) {
-        // Include current driver's blue dot (only if not off_duty)
-        const currentDriverStatus = appUsers?.find(au => au?.user_id === currentUser?.id)?.driver_status;
-        if (driverLocation?.latitude && driverLocation?.longitude && currentDriverStatus !== 'off_duty') {
-          allCoordinatesPhase3.push([driverLocation.latitude, driverLocation.longitude]);
-        }
-        
-        // Include all shared driver location markers (EXCLUDE off-duty drivers ONLY)
-        const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
-        const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
-        
-        const uniqueLocations = new Map();
-        allLocationSources.forEach(loc => {
-          if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
-            const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
-            if (driver?.driver_status === 'off_duty') return;
-            
-            const hasLiveLocation = driverLocation?.latitude && driverLocation?.longitude && loc.driver_id === currentUser?.id;
-            if (hasLiveLocation) return;
-            
-            // For Show All mode, include ALL active drivers (placeholder or not)
-            // For Single Driver mode, only include if they have incomplete deliveries
-            if (!isShowAllOrAllDriversMode) {
-              const hasIncompleteDelivery = deliveries.some(d => 
-                d && 
-                d.driver_id === loc.driver_id && 
-                d.delivery_date === selectedDateStrPhase3 &&
-                !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)
-              );
-              if (!hasIncompleteDelivery) return;
-            }
-            
-            if (isDispatcher && !isAdmin && currentUser?.store_ids) {
-              const dispatcherStoreIds = new Set(currentUser.store_ids);
-              const hasAnyDeliveryInStore = deliveries.some(d => 
-                d && 
-                d.driver_id === loc.driver_id && 
-                d.delivery_date === selectedDateStrPhase3 &&
-                dispatcherStoreIds.has(d.store_id)
-              );
-              if (!hasAnyDeliveryInStore && !loc.isPlaceholder) return;
-            }
-            
-            uniqueLocations.set(loc.driver_id, loc);
-          }
-        });
-        
-        Array.from(uniqueLocations.values()).forEach((location) => {
-          if (isMobile && location.driver_id === currentUser?.id) return;
-          allCoordinatesPhase3.push([location.latitude, location.longitude]);
-        });
-      }
     };
     
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
