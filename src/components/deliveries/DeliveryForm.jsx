@@ -129,6 +129,72 @@ export default function DeliveryForm({
     loadFreshStores();
   }, []);
 
+  // CRITICAL: Define formData state BEFORE useMemo that references it
+  const [formData, setFormData] = useState(() => {
+    const initialState = {
+      patient_id: "",
+      delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
+      delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
+      time_window_start: "", time_window_end: "", status: "Staged",
+      driver_name: "", driver_id: "", prescription_number: "",
+      delivery_instructions: "", delivery_notes: "",
+      cod_total_amount_required: 0, cod_payments: [],
+      cod_payment_type: "No Payment", cod_amount: "",
+      tracking_number: "", delivery_stop_id: "", stop_id: "", puid: "",
+      paid_km_override: null,
+      patient_name: "", patient_phone: "", unit_number: "", store_phone: "", store_id: "",
+      mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
+      dont_ring_bell: false, back_door: false, signature_needed: false,
+      fridge_item: false, oversized: false, after_hours_pickup: false, no_charge: false, extra_time: 0,
+      recurring: false, recurring_daily: false,
+      recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
+      recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
+      recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
+      recurring_monthly: false, recurring_bimonthly: false
+    };
+
+    if (!delivery && currentUser && stores && drivers) {
+      const isDriver = userHasRole(currentUser, 'driver');
+      const isDispatcher = userHasRole(currentUser, 'dispatcher');
+      const isAdmin = userHasRole(currentUser, 'admin');
+
+      if (isDriver && !isAdmin && !isDispatcher) {
+        const currentUserDriver = allDrivers.find((d) => d.id === currentUser.id);
+        if (currentUserDriver) {
+          initialState.driver_id = currentUser.id;
+          initialState.driver_name = getDriverNameForStorage(currentUserDriver);
+        }
+      } else if (isDispatcher && !isDriver && !isAdmin) {
+        const dispatcherStoreIds = currentUser.store_ids || [];
+        if (dispatcherStoreIds.length === 1) {
+          const dispatcherStore = stores.find((s) => s && s.id === dispatcherStoreIds[0]);
+          if (dispatcherStore) {
+            const selectedDate = new Date(initialState.delivery_date + 'T00:00:00');
+            const dayOfWeek = selectedDate.getDay();
+            let driverIdField = '';
+            if (dayOfWeek === 6) {
+              driverIdField = 'saturday_am_driver_id';
+            } else if (dayOfWeek === 0) {
+              driverIdField = 'sunday_am_driver_id';
+            } else {
+              driverIdField = 'weekday_am_driver_id';
+            }
+            const driverId = dispatcherStore[driverIdField];
+            if (driverId) {
+              const driver = drivers.find((d) => d && d.id === driverId);
+              if (driver) {
+                initialState.driver_id = driverId;
+                initialState.driver_name = getDriverNameForStorage(driver);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return initialState;
+  });
+
   const allDrivers = useMemo(() => {
     // CRITICAL: For dispatchers, filter drivers based on special rules
     if (currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
