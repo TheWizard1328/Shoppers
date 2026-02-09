@@ -167,25 +167,29 @@ class LocationTracker {
     return R * c;
   }
 
-  async updateLocationInDatabase(latitude, longitude, accuracy) {
+  async updateLocationInDatabase(latitude, longitude, accuracy, forceUpdate = false) {
     const now = Date.now();
 
-    // Check if we're in backoff period
-    if (this.backoffTime > 0 && (now - this.lastUpdate) < this.backoffTime) {
+    // Check if we're in backoff period (unless forced)
+    if (!forceUpdate && this.backoffTime > 0 && (now - this.lastUpdate) < this.backoffTime) {
       console.log('⏸️ [LocationTracker] Skipping update - in backoff period');
       return;
     }
 
     const timeForHeartbeat = (now - this.lastUpdate) >= this.updateInterval;
 
-    // CRITICAL: ALWAYS update every 15 seconds (heartbeat) - updates timestamp even when stationary
-    if (!timeForHeartbeat) {
+    // CRITICAL: Skip timing check if forceUpdate=true (called from heartbeat interval)
+    if (!forceUpdate && !timeForHeartbeat) {
       const secondsRemaining = Math.ceil((this.updateInterval - (now - this.lastUpdate)) / 1000);
       console.log(`⏳ [LocationTracker] Waiting ${secondsRemaining}s until next heartbeat`);
       return; // Silently skip if heartbeat not due
     }
 
-    console.log(`⏰ [LocationTracker] 15s heartbeat triggered - uploading timestamp (stationary or moving)`);
+    if (forceUpdate) {
+      console.log(`💓 [LocationTracker] Forced heartbeat update - uploading timestamp (stationary)`);
+    } else {
+      console.log(`⏰ [LocationTracker] GPS-triggered update - uploading timestamp (moving)`);
+    }
 
     // CRITICAL: Set lastUpdate IMMEDIATELY to prevent double-uploads
     this.lastUpdate = now;
@@ -493,7 +497,8 @@ class LocationTracker {
           this.updateLocationInDatabase(
             this.lastPosition.latitude,
             this.lastPosition.longitude,
-            this.lastPosition.accuracy
+            this.lastPosition.accuracy,
+            true // forceUpdate = true to bypass timing checks
           );
         }
       }, this.updateInterval);
