@@ -3231,7 +3231,7 @@ function Dashboard() {
           
           // 2b. Include INCOMPLETE stops ONLY for active/selected driver (NO pending, NO completed)
           const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned'];
-          const incompleteStopsActiveDriver = deliveries.filter((d) => {
+          const incompleteStopsActiveDriver = deliveriesWithStopOrder.filter((d) => {
             if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
             if (finishedStatusesPhase3.includes(d.status)) return false;
             if (d.status === 'pending') return false; // EXCLUDE pending
