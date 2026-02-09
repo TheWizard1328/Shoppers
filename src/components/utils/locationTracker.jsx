@@ -177,14 +177,14 @@ class LocationTracker {
 
     const timeForHeartbeat = (now - this.lastUpdate) >= this.updateInterval;
 
-    // CRITICAL: ALWAYS update every 15 seconds (heartbeat) - no movement check
+    // CRITICAL: ALWAYS update every 15 seconds (heartbeat) - updates timestamp even when stationary
     if (!timeForHeartbeat) {
       const secondsRemaining = Math.ceil((this.updateInterval - (now - this.lastUpdate)) / 1000);
       console.log(`⏳ [LocationTracker] Waiting ${secondsRemaining}s until next heartbeat`);
       return; // Silently skip if heartbeat not due
     }
 
-    console.log(`⏰ [LocationTracker] 15s heartbeat triggered - uploading location`);
+    console.log(`⏰ [LocationTracker] 15s heartbeat triggered - uploading timestamp (stationary or moving)`);
 
     // CRITICAL: Set lastUpdate IMMEDIATELY to prevent double-uploads
     this.lastUpdate = now;
