@@ -361,7 +361,6 @@ export default function DeliveryForm({
 
   // Ref to track if we're loading an existing delivery (prevent patient auto-load from clearing PUID)
   const isLoadingExistingDelivery = useRef(false);
-      time_window_start: "", time_window_end: "", status: "Staged",
       driver_name: "", driver_id: "", prescription_number: "",
       delivery_instructions: "", delivery_notes: "",
       cod_total_amount_required: 0, cod_payments: [],
