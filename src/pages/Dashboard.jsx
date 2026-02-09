@@ -3129,6 +3129,38 @@ function Dashboard() {
             }
           }
           
+          // CRITICAL: For dispatchers, check if we're in "All Drivers" mode
+          // If so, include shared locations for drivers with active deliveries
+          if (isDispatcher && !isAdmin && selectedDriverId === 'all' && isViewingTodayPhase3) {
+            const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
+            const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
+            const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
+            
+            const uniqueLocations = new Map();
+            allLocationSources.forEach(loc => {
+              if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
+                const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
+                if (driver?.driver_status === 'off_duty') return;
+                
+                // Only include if driver has active deliveries in dispatcher's stores
+                const hasActiveDeliveryInStore = deliveries.some(d => 
+                  d && 
+                  d.driver_id === loc.driver_id && 
+                  d.delivery_date === selectedDateStrPhase3 &&
+                  dispatcherStoreIds.has(d.store_id) &&
+                  !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+                );
+                if (!hasActiveDeliveryInStore) return;
+                
+                uniqueLocations.set(loc.driver_id, loc);
+              }
+            });
+            
+            Array.from(uniqueLocations.values()).forEach((location) => {
+              allCoordinatesPhase3.push([location.latitude, location.longitude]);
+            });
+          }
+          
           // 2b. Include incomplete AND pending stops for active/selected driver only
           const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned'];
           const incompleteStopsActiveDriver = deliveries.filter((d) => {
