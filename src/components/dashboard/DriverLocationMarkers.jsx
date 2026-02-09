@@ -350,7 +350,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const getLocationAge = (locationUpdatedAt) => {
     if (!locationUpdatedAt) return 'Unknown';
     try {
-      return formatDistanceToNow(new Date(locationUpdatedAt), { addSuffix: true });
+      return format(new Date(locationUpdatedAt), 'h:mm a');
     } catch (error) {
       return 'Invalid date';
     }
