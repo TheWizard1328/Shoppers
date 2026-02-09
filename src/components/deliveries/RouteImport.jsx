@@ -3026,16 +3026,20 @@ export default function RouteImport({
 
                         return (
                           <div key={`${delivery.action}-${idx}`} className="p-3 rounded border text-xs" style={{ 
-                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.12)' : 'rgba(59, 130, 246, 0.12)',
-                            borderColor: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(59, 130, 246, 0.4)',
+                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.12)' : 
+                                       delivery.action === 'update' && delivery._changes?.[0] === 'No changes - re-importing' ? 'rgba(34, 197, 94, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                            borderColor: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.4)' : 
+                                        delivery.action === 'update' && delivery._changes?.[0] === 'No changes - re-importing' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(59, 130, 246, 0.4)',
                             borderWidth: '2px'
                           }}>
                             <div className="flex justify-between items-start mb-2 gap-2">
                               <Badge className="border-0 font-semibold text-xs px-2 py-1 flex-shrink-0" style={{ 
-                                background: delivery.action === 'create' ? '#10b981' : '#3b82f6', 
+                                background: delivery.action === 'create' ? '#10b981' : 
+                                           delivery.action === 'update' && delivery._changes?.[0] === 'No changes - re-importing' ? '#10b981' : '#3b82f6', 
                                 color: 'white'
                               }}>
-                                {delivery.action === 'create' ? '✓ NEW' : '◇ UPDATE'}
+                                {delivery.action === 'create' ? '✓ NEW' : 
+                                 delivery.action === 'update' && delivery._changes?.[0] === 'No changes - re-importing' ? '✓ No Change' : '◇ UPDATE'}
                               </Badge>
                               <span className="font-semibold text-right" style={{ color: 'var(--text-slate-900)' }}>{delivery.delivery_date} {newTimeFormatted !== 'none' && newTimeFormatted}</span>
                             </div>
@@ -3104,16 +3108,20 @@ export default function RouteImport({
                         return (
                           <tr key={`${delivery.action}-${idx}`} className="border-b" style={{ 
                             borderColor: 'var(--border-slate-200)', 
-                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.06)' : 'rgba(59, 130, 246, 0.06)',
-                            borderLeft: delivery.action === 'create' ? '4px solid #10b981' : '4px solid #3b82f6'
+                            background: delivery.action === 'create' ? 'rgba(34, 197, 94, 0.06)' : 
+                                       delivery.action === 'update' && delivery._changes?.[0] === 'No changes - re-importing' ? 'rgba(34, 197, 94, 0.06)' : 'rgba(59, 130, 246, 0.06)',
+                            borderLeft: delivery.action === 'create' ? '4px solid #10b981' : 
+                                       delivery.action === 'update' && delivery._changes?.[0] === 'No changes - re-importing' ? '4px solid #10b981' : '4px solid #3b82f6'
                           }}>
                             <td className="p-1 w-30 text-center">
                              <div className="flex flex-col gap-1 items-center">
                                <Badge className="w-full justify-center border-0 font-semibold text-xs py-1" style={{ 
-                                 background: delivery.action === 'create' ? '#10b981' : '#3b82f6',
+                                 background: delivery.action === 'create' ? '#10b981' : 
+                                           delivery.action === 'update' && delivery._changes?.[0] === 'No changes - re-importing' ? '#10b981' : '#3b82f6',
                                  color: 'white'
                                }}>
-                                 {delivery.action === 'create' ? '✓ NEW' : '◇ UPDATE'}
+                                 {delivery.action === 'create' ? '✓ NEW' : 
+                                  delivery.action === 'update' && delivery._changes?.[0] === 'No changes - re-importing' ? '✓ No Change' : '◇ UPDATE'}
                                </Badge>
                                <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>
                                  {delivery.driver_name}
