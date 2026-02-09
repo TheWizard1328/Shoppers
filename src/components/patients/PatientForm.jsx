@@ -169,8 +169,7 @@ export default function PatientForm({
   }, [currentUser, cities, stores, formData.store_id]);
 
   useEffect(() => {
-    // CRITICAL: Always generate fresh PID when opening new patient form
-    if (!patient) {
+    if (!patient && !formData.patient_id) {
       const newPID = generatePatientId(allPatients.map((p) => p.patient_id));
       setFormData((prev) => ({ ...prev, patient_id: newPID }));
     }
@@ -434,7 +433,7 @@ export default function PatientForm({
     try {
       // STEP 1: Save to offline database (creates mutation)
       let savedPatientId;
-      if (patient && patient.id) {
+      if (patient) {
         await updatePatientLocal(patient.id, dataToSave);
         savedPatientId = patient.id;
         console.log('  ✅ Updated patient in offline DB');
@@ -459,11 +458,6 @@ export default function PatientForm({
           onSave(completePatient, true);
           return;
         }
-      }
-
-      // CRITICAL: Validate savedPatientId before proceeding
-      if (!savedPatientId) {
-        throw new Error('Unable to determine patient ID - save failed');
       }
 
       // STEP 2: Trigger immediate sync to backend

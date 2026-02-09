@@ -81,7 +81,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const markersRef = useRef({});
-  const markerObjectsRef = useRef({});
   const prevVisibleIdsRef = useRef(new Set());
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
 
@@ -410,18 +409,11 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const isStaleLocation = locationAge > 5 * 60 * 1000;
 
         return (
-           <Marker
+          <Marker
             key={stableKey}
             position={position}
             icon={createDriverIcon(user.driver_status, displayName.charAt(0).toUpperCase(), isStaleLocation)}
             zIndexOffset={isActive ? 2000 : 1000}
-            ref={(markerRef) => {
-              if (markerRef && markerRef.leafletElement) {
-                markerObjectsRef.current[user.id] = markerRef.leafletElement;
-                // CRITICAL: Force marker position update via Leaflet API
-                markerRef.leafletElement.setLatLng([user.current_latitude, user.current_longitude]);
-              }
-            }}
           >
             <Popup>
               <div className="text-sm">
