@@ -251,7 +251,6 @@ export default function DeliveryForm({
   }, [drivers, currentUser, stores, formData.delivery_date, allDeliveries]);
 
   const [patientSearch, setPatientSearch] = useState("");
-      driver_name: "", driver_id: "", prescription_number: "",
       delivery_instructions: "", delivery_notes: "",
       cod_total_amount_required: 0, cod_payments: [],
       cod_payment_type: "No Payment", cod_amount: "",
