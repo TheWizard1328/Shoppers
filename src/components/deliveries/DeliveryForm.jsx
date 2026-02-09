@@ -251,7 +251,6 @@ export default function DeliveryForm({
   }, [drivers, currentUser, stores, formData.delivery_date, allDeliveries]);
 
   const [patientSearch, setPatientSearch] = useState("");
-      tracking_number: "", delivery_stop_id: "", stop_id: "", puid: "",
       paid_km_override: null,
       patient_name: "", patient_phone: "", unit_number: "", store_phone: "", store_id: "",
       mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
