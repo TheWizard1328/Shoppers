@@ -8488,8 +8488,8 @@ function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* CRITICAL: Render FABs AFTER stop cards to ensure proper z-index layering */}
-      {stopCardsBaseHeight > 0 && (isDriver || isDispatcher) &&
+      {/* CRITICAL: Render FABs with high z-index to ensure proper layering above cards */}
+      {(isDriver || isDispatcher) &&
       <>
         <MapViewCycleFAB
           onClick={handleMapViewCycle}
