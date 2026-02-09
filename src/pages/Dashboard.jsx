@@ -8494,8 +8494,7 @@ function Dashboard() {
       </Dialog>
 
       {/* CRITICAL: Render FABs with high z-index to ensure proper layering above cards */}
-      {/* CRITICAL: Only render after cards are measured OR after 500ms timeout */}
-      {(isDriver || isDispatcher) && (stopCardsBaseHeight > 0 || deliveriesWithStopOrder.length === 0 || renderSequence.statsAndCards) &&
+      {(isDriver || isDispatcher) &&
       <>
         <MapViewCycleFAB
           onClick={handleMapViewCycle}
@@ -8503,7 +8502,7 @@ function Dashboard() {
           hasVisibleCards={deliveriesWithStopOrder.length > 0}
           isAIVisible={showAIAssistant && isAIEnabled}
           isLocked={isMapViewLocked}
-          stopCardsHeight={stopCardsBaseHeight} />
+          stopCardsHeight={stopCardsBaseHeight || 75} />
 
         {/* Re-optimize Route FAB - Only for app owner (testing phase) */}
         {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
