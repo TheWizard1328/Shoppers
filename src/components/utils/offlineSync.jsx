@@ -329,10 +329,15 @@ export const preRenderFreshSync = async (smartRefreshMgr = null) => {
       await smartRefreshMgr.waitForRateLimit();
     }
     
+    // CRITICAL: DELETE all offline AppUser data FIRST to ensure no stale data
+    console.log('🗑️ [PreRenderSync] Clearing ALL offline AppUser data...');
+    await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+    console.log('✅ [PreRenderSync] Offline AppUser data cleared');
+    
     // CRITICAL: FORCE fresh fetch of AppUsers (ignore offline DB age)
-    console.log('📍 [PreRenderSync] Fetching fresh AppUsers...');
+    console.log('📍 [PreRenderSync] Fetching fresh AppUsers from API...');
     const appUsers = await AppUser.list();
-    console.log(`📍 [PreRenderSync] Fetched ${appUsers?.length || 0} AppUsers:`, appUsers?.map(u => ({ id: u.id, user_id: u.user_id, user_name: u.user_name })));
+    console.log(`📍 [PreRenderSync] Fetched ${appUsers?.length || 0} AppUsers from API:`, appUsers?.map(u => ({ id: u.id, user_id: u.user_id, user_name: u.user_name, location_updated_at: u.location_updated_at })));
 
     if (appUsers && appUsers.length > 0) {
       // CRITICAL: Deduplicate by user_id (keep most recent by sort_order)
@@ -350,8 +355,15 @@ export const preRenderFreshSync = async (smartRefreshMgr = null) => {
         console.warn(`⚠️ [PreRenderSync] Removed ${duplicatesRemoved} duplicate AppUsers`);
       }
 
+      // CRITICAL: Save ENTIRE fresh AppUser entity to offline DB in one operation
+      console.log(`💾 [PreRenderSync] Saving ${deduplicatedAppUsers.length} fresh AppUsers to offline DB...`);
       const appUserSaveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
-      console.log(`✅ [PreRenderSync] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, appUserSaveResult);
+      console.log(`✅ [PreRenderSync] Saved result:`, appUserSaveResult);
+      
+      // Verify save
+      const verifyAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+      console.log(`✅ [PreRenderSync] Verified: offline DB now has ${verifyAppUsers?.length || 0} AppUsers`);
+      
       await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
       console.log(`✅ [PreRenderSync] Synced ${deduplicatedAppUsers.length} fresh AppUsers to offline DB`);
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
