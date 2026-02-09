@@ -2116,6 +2116,14 @@ function Dashboard() {
         return;
       }
       
+      // CRITICAL: Debounce rapid location updates to prevent double-zoom
+      const now = Date.now();
+      const timeSinceLastProgrammaticMove = now - (window._lastProgrammaticMapMove || 0);
+      if (timeSinceLastProgrammaticMove < 2000) {
+        console.log('⏭️ [Phase 3 Update] Skipping - recent programmatic move');
+        return;
+      }
+      
       console.log('📍 [Phase 3 Update] Driver locations changed - re-centering map');
       
       const allCoordinatesPhase3 = [];
