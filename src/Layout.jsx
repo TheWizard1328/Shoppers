@@ -1444,6 +1444,12 @@ export default function Layout({ children, currentPageName }) {
 
     // CRITICAL: Listen for driver location updates and refresh ALL UI data from offline DB
     const handleDriverLocationUpdated = async (event) => {
+      // CRITICAL: Skip ALL updates if a form is open to prevent form reset
+      if (isFormOverlayOpen) {
+        console.log(`⏭️ [Layout] Skipping driver location update - form is open`);
+        return;
+      }
+      
       // CRITICAL: Skip location processing if not on Dashboard or viewing past date
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const selectedDateStr = globalFilters.getSelectedDate() || todayStr;
