@@ -1953,7 +1953,34 @@ function Dashboard() {
               });
               
               if (allCoordinatesPhase3.length > 0) {
-                const padding = getMapPadding();
+                // CRITICAL: Check if there are actually visible cards before using measured height
+                const hasVisibleCards = deliveriesWithStopOrder.some(d => d && d.status !== 'pending');
+                
+                const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
+                const topPadding = isMobile ? statsCardCurrHeight + 25 : 25;
+                
+                // CRITICAL: Only measure stop cards height if cards are actually visible
+                let bottomPadding = 25; // Default when no cards
+                if (hasVisibleCards) {
+                  const stopCardsContainer = stopCardsContainerRef.current;
+                  if (stopCardsContainer) {
+                    const measuredHeight = stopCardsContainer.offsetHeight;
+                    if (measuredHeight > 0) {
+                      bottomPadding = measuredHeight + 10;
+                      console.log(`📏 [Phase 3 GPS] Cards visible - using measured height: ${measuredHeight}px`);
+                    }
+                  } else if (stopCardsBaseHeight > 0) {
+                    bottomPadding = stopCardsBaseHeight + 10;
+                  }
+                } else {
+                  console.log(`📏 [Phase 3 GPS] No cards visible - using default padding: 25px`);
+                }
+                
+                const padding = {
+                  paddingTopLeft: [25, topPadding],
+                  paddingBottomRight: [25, bottomPadding]
+                };
+                
                 let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
                 allCoordinatesPhase3.forEach(([lat, lon]) => {
                   minLat = Math.min(minLat, lat);
@@ -1967,8 +1994,9 @@ function Dashboard() {
                 const maxSpan = Math.max(latSpan, lonSpan);
                 const spanKm = maxSpan * 111.0;
                 const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
-                const screenAdjustment = isMobile ? 0.8 : 0;
-                const phase3MaxZoom = Math.max(12.0, Math.min(17, Math.round((baseZoom + screenAdjustment) * 10) / 10));
+                const phase3MaxZoom = Math.max(12.0, Math.min(17, Math.round(baseZoom * 10) / 10));
+                
+                console.log(`🗺️ [Phase 3 GPS] Zoom: ${phase3MaxZoom}, Padding: top=${topPadding}px, bottom=${bottomPadding}px`);
                 
                 window._lastProgrammaticMapMove = Date.now();
                 
@@ -2197,25 +2225,34 @@ function Dashboard() {
       });
       
       if (allCoordinatesPhase3.length > 0) {
-        // CRITICAL: Measure actual stop cards height at this moment
-        const stopCardsContainer = stopCardsContainerRef.current;
-        let actualStopCardsHeight = stopCardsBaseHeight || 0;
-        
-        if (stopCardsContainer) {
-          const measuredHeight = stopCardsContainer.offsetHeight;
-          if (measuredHeight > 0) {
-            actualStopCardsHeight = measuredHeight;
-          }
-        }
+        // CRITICAL: Check if there are actually visible cards before using measured height
+        const hasVisibleCards = deliveriesWithStopOrder.some(d => d && d.status !== 'pending');
         
         const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
         const topPadding = isMobile ? statsCardCurrHeight + 25 : 25;
-        const bottomPadding = actualStopCardsHeight > 0 ? actualStopCardsHeight + 10 : 25;
+        
+        // CRITICAL: Only measure stop cards height if cards are actually visible
+        let bottomPadding = 25; // Default when no cards
+        if (hasVisibleCards) {
+          const stopCardsContainer = stopCardsContainerRef.current;
+          if (stopCardsContainer) {
+            const measuredHeight = stopCardsContainer.offsetHeight;
+            if (measuredHeight > 0) {
+              bottomPadding = measuredHeight + 10;
+              console.log(`📏 [Phase 3 Driver Update] Cards visible - using measured height: ${measuredHeight}px`);
+            }
+          } else if (stopCardsBaseHeight > 0) {
+            bottomPadding = stopCardsBaseHeight + 10;
+          }
+        } else {
+          console.log(`📏 [Phase 3 Driver Update] No cards visible - using default padding: 25px`);
+        }
         
         const padding = {
           paddingTopLeft: [25, topPadding],
           paddingBottomRight: [25, bottomPadding]
         };
+        
         let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
         allCoordinatesPhase3.forEach(([lat, lon]) => {
           minLat = Math.min(minLat, lat);
@@ -2229,8 +2266,9 @@ function Dashboard() {
         const maxSpan = Math.max(latSpan, lonSpan);
         const spanKm = maxSpan * 111.0;
         const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
-        const screenAdjustment = isMobile ? 0.8 : 0;
-        const phase3MaxZoom = Math.max(12.0, Math.min(17, Math.round((baseZoom + screenAdjustment) * 10) / 10));
+        const phase3MaxZoom = Math.max(12.0, Math.min(17, Math.round(baseZoom * 10) / 10));
+        
+        console.log(`🗺️ [Phase 3 Driver Update] Zoom: ${phase3MaxZoom}, Padding: top=${topPadding}px, bottom=${bottomPadding}px`);
         
         window._lastProgrammaticMapMove = Date.now();
         
@@ -3265,21 +3303,28 @@ function Dashboard() {
         
         // 3. Only fit bounds if we have actual markers to show (NO city center fallback)
         if (allCoordinatesPhase3.length > 0) {
-          // CRITICAL: Measure actual stop cards height at this moment, don't rely on state
-          const stopCardsContainer = stopCardsContainerRef.current;
-          let actualStopCardsHeight = stopCardsBaseHeight || 0;
-          
-          if (stopCardsContainer) {
-            const measuredHeight = stopCardsContainer.offsetHeight;
-            if (measuredHeight > 0) {
-              actualStopCardsHeight = measuredHeight;
-              console.log(`📏 [Phase 3] Using measured stop cards height: ${measuredHeight}px (state was: ${stopCardsBaseHeight}px)`);
-            }
-          }
+          // CRITICAL: Check if there are actually visible cards before using measured height
+          const hasVisibleCards = deliveriesWithStopOrder.some(d => d && d.status !== 'pending');
           
           const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
           const topPadding = isMobile ? statsCardCurrHeight + 25 : 25;
-          const bottomPadding = actualStopCardsHeight > 0 ? actualStopCardsHeight + 10 : 25;
+          
+          // CRITICAL: Only measure stop cards height if cards are actually visible
+          let bottomPadding = 25; // Default when no cards
+          if (hasVisibleCards) {
+            const stopCardsContainer = stopCardsContainerRef.current;
+            if (stopCardsContainer) {
+              const measuredHeight = stopCardsContainer.offsetHeight;
+              if (measuredHeight > 0) {
+                bottomPadding = measuredHeight + 10;
+                console.log(`📏 [Phase 3 FAB Click] Cards visible - using measured height: ${measuredHeight}px`);
+              }
+            } else if (stopCardsBaseHeight > 0) {
+              bottomPadding = stopCardsBaseHeight + 10;
+            }
+          } else {
+            console.log(`📏 [Phase 3 FAB Click] No cards visible - using default padding: 25px`);
+          }
           
           const padding = {
             paddingTopLeft: [25, topPadding],
@@ -3300,10 +3345,11 @@ function Dashboard() {
           const maxSpan = Math.max(latSpan, lonSpan);
           const spanKm = maxSpan * 111.0;
           
-          // CRITICAL: Better zoom calculation - tighter bounds for Phase 3
+          // CRITICAL: Consistent zoom calculation across all devices
           const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
-          const screenAdjustment = isMobile ? 0.8 : 0;
-          const phase3MaxZoom = Math.max(12.0, Math.min(17, Math.round((baseZoom + screenAdjustment) * 10) / 10));
+          const phase3MaxZoom = Math.max(12.0, Math.min(17, Math.round(baseZoom * 10) / 10));
+          
+          console.log(`🗺️ [Phase 3 FAB Click] Zoom: ${phase3MaxZoom}, Padding: top=${topPadding}px, bottom=${bottomPadding}px`);
           
           setShouldFitBounds({
             bounds: allCoordinatesPhase3,
@@ -8385,7 +8431,7 @@ function Dashboard() {
 
         <div
           ref={stopCardsContainerRef}
-          className="horizontal-cards-container absolute bottom-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end min-h-[145px] max-h-[80vh]"
+          className="horizontal-cards-container absolute bottom-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end max-h-[80vh]"
           style={{ left: isSnapshotModeActive ? '5rem' : '0' }}
           onClick={() => {
             if (retractClustersRef.current) {
