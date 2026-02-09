@@ -3264,9 +3264,13 @@ function Dashboard() {
     if (!renderSequence.statsAndCards) return;
     if (renderSequence.fabs) return;
 
-    // FABs render immediately after stats/cards - just mark as ready
-    console.log('✅ [Render Sequence 2] FABs ready');
-    setRenderSequence((prev) => ({ ...prev, fabs: true }));
+    // CRITICAL: Wait for FABs to actually render before marking as ready
+    const timer = setTimeout(() => {
+      console.log('✅ [Render Sequence 2] FABs ready');
+      setRenderSequence((prev) => ({ ...prev, fabs: true }));
+    }, 300); // Wait 300ms for FABs to mount and render
+    
+    return () => clearTimeout(timer);
   }, [renderSequence.statsAndCards, renderSequence.fabs]);
 
   // RENDER SEQUENCE EFFECT 3: Track Map Markers ready (including ALL delivery/patient markers)
