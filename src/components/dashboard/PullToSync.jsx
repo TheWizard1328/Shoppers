@@ -122,9 +122,10 @@ export default function PullToSync({
           .map(d => d.patient_id)
       )];
       
+      let freshPatients = [];
       if (uniquePatientIds.length > 0) {
         console.log(`📥 [Pull to Sync] Fetching ${uniquePatientIds.length} patients...`);
-        const freshPatients = await base44.entities.Patient.filter({ 
+        freshPatients = await base44.entities.Patient.filter({ 
           id: { $in: uniquePatientIds } 
         });
         
