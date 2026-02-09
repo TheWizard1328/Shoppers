@@ -129,33 +129,6 @@ export default function DeliveryForm({
     loadFreshStores();
   }, []);
 
-  // CRITICAL: Declare formData BEFORE allDrivers to prevent circular dependency
-  const [formData, setFormData] = useState(() => {
-    const initialState = {
-      patient_id: "",
-      delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
-      delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
-      time_window_start: "", time_window_end: "", status: "Staged",
-      driver_name: "", driver_id: "", prescription_number: "",
-      delivery_instructions: "", delivery_notes: "",
-      cod_total_amount_required: 0, cod_payments: [],
-      cod_payment_type: "No Payment", cod_amount: "",
-      tracking_number: "", delivery_stop_id: "", stop_id: "", puid: "",
-      paid_km_override: null,
-      patient_name: "", patient_phone: "", unit_number: "", store_phone: "", store_id: "",
-      mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
-      dont_ring_bell: false, back_door: false, signature_needed: false,
-      fridge_item: false, oversized: false, after_hours_pickup: false, no_charge: false, extra_time: 0,
-      recurring: false, recurring_daily: false,
-      recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
-      recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
-      recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
-      recurring_monthly: false, recurring_bimonthly: false
-    };
-
-    return initialState;
-  });
-
   const allDrivers = useMemo(() => {
     // CRITICAL: For dispatchers, filter drivers based on special rules
     if (currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
@@ -211,8 +184,11 @@ export default function DeliveryForm({
     return sorted.filter((driver) => driver && driver.user_name);
   }, [drivers, currentUser, stores, formData.delivery_date, allDeliveries]);
 
-  const [patientSearch, setPatientSearch] = useState("");
-  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [formData, setFormData] = useState(() => {
+    const initialState = {
+      patient_id: "",
+      delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
+      delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
       time_window_start: "", time_window_end: "", status: "Staged",
       driver_name: "", driver_id: "", prescription_number: "",
       delivery_instructions: "", delivery_notes: "",
@@ -276,61 +252,6 @@ export default function DeliveryForm({
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
-  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
-  const [selectedPickupOption, setSelectedPickupOption] = useState('');
-  const [isPickupMode, setIsPickupMode] = useState(defaultToPickupMode);
-  const [selectedStoreForPickup, setSelectedStoreForPickup] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [highlightedPatientIndex, setHighlightedPatientIndex] = useState(-1);
-  const patientSearchInputRef = useRef(null);
-  const codAmountInputRef = useRef(null);
-  const addPatientButtonRef = useRef(null);
-  const patientNameInputRef = useRef(null);
-  const patientAddressInputRef = useRef(null);
-  
-  // State for creating new patient from existing patient data
-  const [newPatientMode, setNewPatientMode] = useState(null); // 'duplicate' | 'new_address' | null
-  const [stagedDeliveries, setStagedDeliveries] = useState([]);
-  const [projectedDeliveries, setProjectedDeliveries] = useState([]);
-  const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
-  const [predictionTrigger, setPredictionTrigger] = useState(0);
-  const [showDayPopup, setShowDayPopup] = useState(false);
-  const [activeRecurringType, setActiveRecurringType] = useState(null);
-  const [editingStagedId, setEditingStagedId] = useState(null);
-  const [completionTime, setCompletionTime] = useState(() => {
-    if (delivery?.actual_delivery_time) {
-      return format(new Date(delivery.actual_delivery_time), 'HH:mm');
-    }
-    return format(new Date(), 'HH:mm');
-  });
-  const [showStagedPanel, setShowStagedPanel] = useState(false);
-  const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, staged: null });
-  const [isDeletingPending, setIsDeletingPending] = useState(false);
-  const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
-  const { deviceType } = getUserAgentInfo();
-  const isMobileDevice = deviceType === 'Mobile';
-  const hasLoadedPending = useRef(false);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanMatches, setScanMatches] = useState([]);
-  const [showMatchPopup, setShowMatchPopup] = useState(false);
-  const [extractedData, setExtractedData] = useState(null);
-  const [hasPendingDeletes, setHasPendingDeletes] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [isPayrollLocked, setIsPayrollLocked] = useState(false);
-  const [payrollLockMessage, setPayrollLockMessage] = useState(null);
-
-  // Camera state
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [showCameraOverlay, setShowCameraOverlay] = useState(false);
-
-
-  // Responsive layout state
-  const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
-  const [screenHeight, setScreenHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 768);
-  const formRef = useRef(null);
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedPickupOption, setSelectedPickupOption] = useState('');
   const [isPickupMode, setIsPickupMode] = useState(defaultToPickupMode);
