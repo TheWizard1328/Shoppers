@@ -251,7 +251,6 @@ export default function DeliveryForm({
   }, [drivers, currentUser, stores, formData.delivery_date, allDeliveries]);
 
   const [patientSearch, setPatientSearch] = useState("");
-      paid_km_override: null,
       patient_name: "", patient_phone: "", unit_number: "", store_phone: "", store_id: "",
       mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
       dont_ring_bell: false, back_door: false, signature_needed: false,
