@@ -186,9 +186,9 @@ class LocationTracker {
     }
 
     if (forceUpdate) {
-      console.log(`💓 [LocationTracker] Forced heartbeat update - uploading timestamp (stationary)`);
+      console.log(`💓 [LocationTracker] Forced heartbeat update - uploading coordinates + timestamp (stationary)`);
     } else {
-      console.log(`⏰ [LocationTracker] GPS-triggered update - uploading timestamp (moving)`);
+      console.log(`⏰ [LocationTracker] GPS-triggered update - uploading coordinates + timestamp (moving)`);
     }
 
     // CRITICAL: Set lastUpdate IMMEDIATELY to prevent double-uploads
