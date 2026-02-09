@@ -3764,7 +3764,8 @@ function Dashboard() {
         }
       }, 300);
 
-      // CRITICAL: Reactivate FAB if on Phase 1 for 500ms (for all users, not just dispatchers)
+      // CRITICAL: ONLY reactivate FAB for Phase 1 (NOT Phase 2 or 3)
+      // Phase 2 & 3 stay permanently locked and don't auto-recenter on smart refresh
       if (mapViewPhase === 1) {
         console.log(`🔵 [Smart Refresh Complete] Reactivating FAB Phase 1 for 500ms`);
 
@@ -3794,6 +3795,8 @@ function Dashboard() {
             console.log(`⏰ [Smart Refresh Complete] FAB auto-unlocked after 500ms`);
           }
         }, lockDuration);
+      } else {
+        console.log(`⏭️ [Smart Refresh Complete] Phase ${mapViewPhase} - no auto-recenter (stays locked)`);
       }
     };
     
@@ -3812,7 +3815,7 @@ function Dashboard() {
         }
       }, 300);
 
-      // CRITICAL: Reactivate FAB if on Phase 1 for 500ms
+      // CRITICAL: ONLY reactivate FAB for Phase 1 (NOT Phase 2 or 3)
       if (mapViewPhase === 1) {
         console.log(`🔵 [Smart Refresh Restarted] Reactivating FAB Phase 1 for 500ms`);
 
@@ -3842,6 +3845,8 @@ function Dashboard() {
             console.log(`⏰ [Smart Refresh Restarted] FAB auto-unlocked after 500ms`);
           }
         }, lockDuration);
+      } else {
+        console.log(`⏭️ [Smart Refresh Restarted] Phase ${mapViewPhase} - no auto-recenter (stays locked)`);
       }
     };
 
