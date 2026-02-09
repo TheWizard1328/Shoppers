@@ -619,20 +619,12 @@ function Dashboard() {
       }, lockDuration);
       
     } else if (currentPhase === 2 || currentPhase === 3) {
-      // Phase 2 & 3: Deactivate for 100ms, then reactivate
-      console.log(`🔄 [FAB Reactivate - ${source}] Phase ${currentPhase} - deactivating for 100ms then reactivating`);
+      // Phase 2 & 3: Stay locked (no visual change), just trigger map update
+      console.log(`🔵 [FAB Reactivate - ${source}] Phase ${currentPhase} - triggering map update (staying locked)`);
       
-      // Temporarily unlock
-      setIsMapViewLocked(false);
-      
-      // Reactivate after 100ms
-      setTimeout(() => {
-        console.log(`🔄 [FAB Reactivate - ${source}] Phase ${currentPhase} - reactivating now`);
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-      }, 100);
+      lastProgrammaticMapMoveRef.current = Date.now();
+      window._lastProgrammaticMapMove = Date.now();
+      setMapViewTrigger((prev) => prev + 1);
     }
   }, []);
 
