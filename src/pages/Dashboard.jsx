@@ -2185,8 +2185,35 @@ function Dashboard() {
         }
       });
       
+      // CRITICAL: Include home location markers (from map) to match main Phase 3 logic
+      const mapHomeMarkers = window.__mapHomeMarkers || [];
+      mapHomeMarkers.forEach((home) => {
+        if (home.excludeFromBounds) return;
+        if (home.latitude && home.longitude) {
+          allCoordinatesPhase3.push([home.latitude, home.longitude]);
+        }
+      });
+      
       if (allCoordinatesPhase3.length > 0) {
-        const padding = getMapPadding();
+        // CRITICAL: Measure actual stop cards height at this moment
+        const stopCardsContainer = stopCardsContainerRef.current;
+        let actualStopCardsHeight = stopCardsBaseHeight || 0;
+        
+        if (stopCardsContainer) {
+          const measuredHeight = stopCardsContainer.offsetHeight;
+          if (measuredHeight > 0) {
+            actualStopCardsHeight = measuredHeight;
+          }
+        }
+        
+        const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
+        const topPadding = isMobile ? statsCardCurrHeight + 25 : 25;
+        const bottomPadding = actualStopCardsHeight > 0 ? actualStopCardsHeight + 10 : 25;
+        
+        const padding = {
+          paddingTopLeft: [25, topPadding],
+          paddingBottomRight: [25, bottomPadding]
+        };
         let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
         allCoordinatesPhase3.forEach(([lat, lon]) => {
           minLat = Math.min(minLat, lat);
