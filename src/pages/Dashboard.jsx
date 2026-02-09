@@ -3954,8 +3954,12 @@ function Dashboard() {
       // No cards to render - enable immediately
       console.log('📏 [FAB Position] No cards to render - FABs stay at bottom');
       setCardsReadyForFAB(true);
+    } else if (isAllDriversMode && !cardsReadyForFAB) {
+      // All Drivers mode - cards are hidden, FABs stay at bottom
+      console.log('📏 [FAB Position] All Drivers mode - no cards rendered, FABs stay at bottom');
+      setCardsReadyForFAB(true);
     }
-  }, [stopCardsBaseHeight, deliveriesWithStopOrder.length, cardsReadyForFAB]);
+  }, [stopCardsBaseHeight, deliveriesWithStopOrder.length, cardsReadyForFAB, isAllDriversMode]);
 
   const handleDateChange = async (date) => {
     // CRITICAL: Pause smart refresh immediately
