@@ -193,6 +193,19 @@ export default function PullToSync({
         console.warn('⚠️ [Pull to Sync] Failed to process through poller:', pollerError.message);
       }
 
+      // CRITICAL: Refresh polylines for all drivers on the selected date
+      try {
+        const { routePolylineManager } = await import('@/components/utils/routePolylineManager');
+        const uniqueDriverIds = [...new Set(freshDeliveries.map(d => d.driver_id).filter(Boolean))];
+        
+        for (const driverId of uniqueDriverIds) {
+          await routePolylineManager.resetAndRefresh(driverId, selectedDateStr);
+        }
+        console.log(`✅ [Pull to Sync] Refreshed polylines for ${uniqueDriverIds.length} drivers`);
+      } catch (polylineError) {
+        console.warn('⚠️ [Pull to Sync] Failed to refresh polylines:', polylineError.message);
+      }
+
       // Callback to parent component for additional refresh logic
       if (onSyncComplete) {
         await onSyncComplete(freshDeliveries, freshPatients, freshAppUsers);
