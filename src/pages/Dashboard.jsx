@@ -3937,6 +3937,16 @@ function Dashboard() {
     }
   }, [isDispatcher, currentUser?.id, selectedDate, deliveries, userSettingsLoaded, isDataLoaded]);
 
+  // CRITICAL: Mark cards as ready once all dashboard content is rendered and measured
+  useEffect(() => {
+    // Set a small delay to ensure HorizontalStopCards and all cards have rendered and been measured
+    const timer = setTimeout(() => {
+      setCardsReadyForFAB(true);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [selectedDriverId, selectedDate]); // Reset when date/driver changes
+
   const handleDateChange = async (date) => {
     // CRITICAL: Pause smart refresh immediately
     setIsEntityUpdating(true);
@@ -8543,7 +8553,7 @@ function Dashboard() {
           hasVisibleCards={deliveriesWithStopOrder.length > 0}
           isAIVisible={showAIAssistant && isAIEnabled}
           isLocked={isMapViewLocked}
-          stopCardsHeight={stopCardsBaseHeight} />
+          stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} />
 
         {/* Re-optimize Route FAB - Only for app owner (testing phase) */}
         {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
@@ -8554,7 +8564,7 @@ function Dashboard() {
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
           className="fixed z-[250]"
           style={{
-            bottom: `${(deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight : 0) + 15}px`,
+            bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15}px`,
             right: '64px'
           }}>
             <Button
