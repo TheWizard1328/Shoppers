@@ -375,6 +375,49 @@ export default function DeliveryForm({
     checkLock();
   }, [delivery?.id, delivery?.delivery_date, delivery?.driver_id]);
 
+  // CRITICAL: Listen for patient updates and refresh form if editing that patient
+  useEffect(() => {
+    if (!delivery?.patient_id) return;
+
+    const handlePatientUpdated = async (event) => {
+      const { patientId, updates } = event.detail;
+      if (patientId !== delivery.patient_id) return;
+
+      console.log('🔄 [DeliveryForm] Patient updated externally, refreshing form data:', patientId);
+      
+      // Only update form fields that correspond to patient data
+      setFormData(prev => ({
+        ...prev,
+        patient_name: updates.full_name || prev.patient_name,
+        patient_phone: updates.phone || prev.patient_phone,
+        unit_number: updates.unit_number || prev.unit_number,
+        delivery_instructions: updates.notes || prev.delivery_instructions,
+        mailbox_ok: updates.mailbox_ok !== undefined ? updates.mailbox_ok : prev.mailbox_ok,
+        call_upon_arrival: updates.call_upon_arrival !== undefined ? updates.call_upon_arrival : prev.call_upon_arrival,
+        ring_bell: updates.ring_bell !== undefined ? updates.ring_bell : prev.ring_bell,
+        dont_ring_bell: updates.dont_ring_bell !== undefined ? updates.dont_ring_bell : prev.dont_ring_bell,
+        back_door: updates.back_door !== undefined ? updates.back_door : prev.back_door,
+        signature_needed: updates.signature_needed !== undefined ? updates.signature_needed : prev.signature_needed,
+        recurring: updates.recurring !== undefined ? updates.recurring : prev.recurring,
+        recurring_daily: updates.recurring_daily !== undefined ? updates.recurring_daily : prev.recurring_daily,
+        recurring_weekly_mon: updates.recurring_weekly_mon !== undefined ? updates.recurring_weekly_mon : prev.recurring_weekly_mon,
+        recurring_weekly_tue: updates.recurring_weekly_tue !== undefined ? updates.recurring_weekly_tue : prev.recurring_weekly_tue,
+        recurring_weekly_wed: updates.recurring_weekly_wed !== undefined ? updates.recurring_weekly_wed : prev.recurring_weekly_wed,
+        recurring_weekly_thu: updates.recurring_weekly_thu !== undefined ? updates.recurring_weekly_thu : prev.recurring_weekly_thu,
+        recurring_weekly_fri: updates.recurring_weekly_fri !== undefined ? updates.recurring_weekly_fri : prev.recurring_weekly_fri,
+        recurring_weekly_sat: updates.recurring_weekly_sat !== undefined ? updates.recurring_weekly_sat : prev.recurring_weekly_sat,
+        recurring_weekly_sun: updates.recurring_weekly_sun !== undefined ? updates.recurring_weekly_sun : prev.recurring_weekly_sun,
+        recurring_biweekly: updates.recurring_biweekly !== undefined ? updates.recurring_biweekly : prev.recurring_biweekly,
+        recurring_weekly_x4: updates.recurring_weekly_x4 !== undefined ? updates.recurring_weekly_x4 : prev.recurring_weekly_x4,
+        recurring_monthly: updates.recurring_monthly !== undefined ? updates.recurring_monthly : prev.recurring_monthly,
+        recurring_bimonthly: updates.recurring_bimonthly !== undefined ? updates.recurring_bimonthly : prev.recurring_bimonthly
+      }));
+    };
+
+    window.addEventListener('patientUpdated', handlePatientUpdated);
+    return () => window.removeEventListener('patientUpdated', handlePatientUpdated);
+  }, [delivery?.patient_id]);
+
   useEffect(() => {
     // CRITICAL: Only load delivery data once when delivery.id changes
     // Prevent re-loading on prop updates (patients, allDeliveries) which would reset user changes
@@ -3028,6 +3071,68 @@ export default function DeliveryForm({
 
       if (dataToSave.cod_total_amount_required > 0) {
         dataToSave.cod_total_amount_required = dataToSave.cod_total_amount_required / 100;
+      }
+
+      // CRITICAL: Sync patient-specific changes to Patient entity
+      if (delivery?.id && delivery?.patient_id && formData.patient_id) {
+        const patientChanged = 
+          delivery.patient_name !== formData.patient_name ||
+          delivery.patient_phone !== formData.patient_phone ||
+          delivery.unit_number !== formData.unit_number ||
+          delivery.delivery_instructions !== formData.delivery_instructions ||
+          delivery.mailbox_ok !== formData.mailbox_ok ||
+          delivery.call_upon_arrival !== formData.call_upon_arrival ||
+          delivery.ring_bell !== formData.ring_bell ||
+          delivery.dont_ring_bell !== formData.dont_ring_bell ||
+          delivery.back_door !== formData.back_door ||
+          delivery.signature_needed !== formData.signature_needed ||
+          delivery.recurring !== formData.recurring ||
+          delivery.recurring_daily !== formData.recurring_daily ||
+          delivery.recurring_weekly_mon !== formData.recurring_weekly_mon ||
+          delivery.recurring_weekly_tue !== formData.recurring_weekly_tue ||
+          delivery.recurring_weekly_wed !== formData.recurring_weekly_wed ||
+          delivery.recurring_weekly_thu !== formData.recurring_weekly_thu ||
+          delivery.recurring_weekly_fri !== formData.recurring_weekly_fri ||
+          delivery.recurring_weekly_sat !== formData.recurring_weekly_sat ||
+          delivery.recurring_weekly_sun !== formData.recurring_weekly_sun ||
+          delivery.recurring_biweekly !== formData.recurring_biweekly ||
+          delivery.recurring_weekly_x4 !== formData.recurring_weekly_x4 ||
+          delivery.recurring_monthly !== formData.recurring_monthly ||
+          delivery.recurring_bimonthly !== formData.recurring_bimonthly;
+
+        if (patientChanged) {
+          try {
+            console.log('🔄 [DeliveryForm] Syncing patient-specific changes to Patient entity:', formData.patient_id);
+            await updatePatientLocal(formData.patient_id, {
+              full_name: formData.patient_name,
+              phone: formData.patient_phone,
+              unit_number: formData.unit_number,
+              notes: formData.delivery_instructions,
+              mailbox_ok: formData.mailbox_ok,
+              call_upon_arrival: formData.call_upon_arrival,
+              ring_bell: formData.ring_bell,
+              dont_ring_bell: formData.dont_ring_bell,
+              back_door: formData.back_door,
+              signature_needed: formData.signature_needed,
+              recurring: formData.recurring,
+              recurring_daily: formData.recurring_daily,
+              recurring_weekly_mon: formData.recurring_weekly_mon,
+              recurring_weekly_tue: formData.recurring_weekly_tue,
+              recurring_weekly_wed: formData.recurring_weekly_wed,
+              recurring_weekly_thu: formData.recurring_weekly_thu,
+              recurring_weekly_fri: formData.recurring_weekly_fri,
+              recurring_weekly_sat: formData.recurring_weekly_sat,
+              recurring_weekly_sun: formData.recurring_weekly_sun,
+              recurring_biweekly: formData.recurring_biweekly,
+              recurring_weekly_x4: formData.recurring_weekly_x4,
+              recurring_monthly: formData.recurring_monthly,
+              recurring_bimonthly: formData.recurring_bimonthly
+            });
+            console.log('✅ [DeliveryForm] Patient entity updated');
+          } catch (error) {
+            console.error('❌ [DeliveryForm] Failed to sync patient changes:', error);
+          }
+        }
       }
 
       if (delivery && isCompletionStatus && completionTime) {
