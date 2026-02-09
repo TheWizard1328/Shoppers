@@ -58,7 +58,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0, opacity: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 20 }}
-      className="fixed right-4 z-[200]"
+      className="fixed right-4 z-[300]"
       style={{ bottom: `${bottomPixels}px` }}>
       
       <motion.div
