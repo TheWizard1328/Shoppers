@@ -169,7 +169,8 @@ export default function PatientForm({
   }, [currentUser, cities, stores, formData.store_id]);
 
   useEffect(() => {
-    if (!patient && !formData.patient_id) {
+    // CRITICAL: Always generate fresh PID when opening new patient form
+    if (!patient) {
       const newPID = generatePatientId(allPatients.map((p) => p.patient_id));
       setFormData((prev) => ({ ...prev, patient_id: newPID }));
     }
