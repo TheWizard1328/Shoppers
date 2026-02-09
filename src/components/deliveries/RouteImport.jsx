@@ -2301,6 +2301,56 @@ export default function RouteImport({
       
 
 
+      // STEP 4: Reset isNextDelivery flags and set first incomplete stop for each driver
+      setProgressMessage('Updating next delivery markers...');
+      setProgressPercent(98);
+      
+      try {
+        // Get unique drivers and dates from imported data
+        const importedDriversSet = new Set(driverDatePairs.map(p => p.driverId));
+        const importedDatesSet = new Set(driverDatePairs.map(p => p.date));
+        
+        // Find the most recent date
+        const sortedDates = Array.from(importedDatesSet).sort().reverse();
+        const mostRecentDate = sortedDates[0];
+        
+        if (mostRecentDate) {
+          console.log(`🔄 [RouteImport] Processing next delivery markers for date: ${mostRecentDate}`);
+          
+          for (const driverId of importedDriversSet) {
+            try {
+              // STEP 1: Reset all isNextDelivery flags for this driver on this date
+              const allDeliveriesForDriver = await base44.entities.Delivery.filter({
+                driver_id: driverId,
+                delivery_date: mostRecentDate
+              });
+              
+              for (const delivery of allDeliveriesForDriver) {
+                if (delivery.isNextDelivery) {
+                  await base44.entities.Delivery.update(delivery.id, { isNextDelivery: false });
+                }
+              }
+              
+              // STEP 2: Find first incomplete stop (pending, in_transit, en_route)
+              const incompleteStatuses = ['pending', 'in_transit', 'en_route'];
+              const sortedByOrder = allDeliveriesForDriver
+                .filter(d => incompleteStatuses.includes(d.status))
+                .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+              
+              if (sortedByOrder.length > 0) {
+                const firstIncomplete = sortedByOrder[0];
+                await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
+                console.log(`✅ [RouteImport] Set isNextDelivery=true for stop ${firstIncomplete.stop_order || 'N/A'} (${firstIncomplete.patient_name})`);
+              }
+            } catch (driverError) {
+              console.warn(`⚠️ [RouteImport] Failed to update next delivery for driver ${driverId}:`, driverError.message);
+            }
+          }
+        }
+      } catch (nextDeliveryError) {
+        console.warn('⚠️ [RouteImport] Failed to update next delivery markers:', nextDeliveryError.message);
+      }
+
       setImportProgress((prev) => ({
         ...prev,
         phase: 'complete',
