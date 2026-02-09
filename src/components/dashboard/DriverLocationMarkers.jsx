@@ -423,43 +423,34 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                     📍 Shared location from primary device
                   </p>
                 )}
-                {user.phone && (
-                  <p className="text-xs mt-2">
-                    <a href={`tel:${user.phone}`} className="text-blue-600 hover:text-blue-700 underline font-medium">
-                      📞 {formatPhoneNumber(user.phone)}
-                    </a>
-                  </p>
+                {!isActive && !isSharedLocation && (
+                  <>
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => {
+                          const url = `https://www.google.com/maps/dir/?api=1&destination=${user.current_latitude},${user.current_longitude}`;
+                          window.open(url, '_blank');
+                        }}
+                        className="flex-1 px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded transition-colors font-medium"
+                        title={`Navigate to ${firstName}'s location`}
+                      >
+                        📍 Goto
+                      </button>
+                      <button
+                        onClick={() => {
+                          window.location.href = `tel:${user.phone}`;
+                        }}
+                        className="flex-1 px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors font-medium"
+                        title={`Call ${firstName}`}
+                      >
+                        📞 Call
+                      </button>
+                    </div>
+                  </>
                 )}
-                <p className="text-xs mt-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.dispatchEvent(new CustomEvent('openMessaging', {
-                        detail: {
-                          otherUserId: user.user_id || user.id,
-                          otherUserName: displayName
-                        }
-                      }));
-                    }}
-                    className="text-blue-600 hover:text-blue-700 underline font-medium cursor-pointer"
-                  >
-                    💬 Message
-                  </button>
-                </p>
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-xs text-slate-600 mt-2">
                   Updated: {getLocationAge(user.location_updated_at)}
                 </p>
-                <button
-                  onClick={() => {
-                    // Open native navigation app
-                    const url = `https://www.google.com/maps/dir/?api=1&destination=${user.current_latitude},${user.current_longitude}`;
-                    window.open(url, '_blank');
-                  }}
-                  className="w-full mt-3 px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded flex items-center justify-center gap-2 transition-colors"
-                  title={`Navigate to ${firstName}'s location`}
-                >
-                  📍 Go to {firstName}
-                </button>
               </div>
             </Popup>
           </Marker>
