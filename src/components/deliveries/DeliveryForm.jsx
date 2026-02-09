@@ -213,7 +213,154 @@ export default function DeliveryForm({
   // Other state declarations
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
-      delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
+  const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedPickupOption, setSelectedPickupOption] = useState('');
+  const [isPickupMode, setIsPickupMode] = useState(defaultToPickupMode);
+  const [selectedStoreForPickup, setSelectedStoreForPickup] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [highlightedPatientIndex, setHighlightedPatientIndex] = useState(-1);
+  const patientSearchInputRef = useRef(null);
+  const codAmountInputRef = useRef(null);
+  const addPatientButtonRef = useRef(null);
+  const patientNameInputRef = useRef(null);
+  const patientAddressInputRef = useRef(null);
+  
+  // State for creating new patient from existing patient data
+  const [newPatientMode, setNewPatientMode] = useState(null); // 'duplicate' | 'new_address' | null
+  const [stagedDeliveries, setStagedDeliveries] = useState([]);
+  const [projectedDeliveries, setProjectedDeliveries] = useState([]);
+  const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
+  const [predictionTrigger, setPredictionTrigger] = useState(0);
+  const [showDayPopup, setShowDayPopup] = useState(false);
+  const [activeRecurringType, setActiveRecurringType] = useState(null);
+  const [editingStagedId, setEditingStagedId] = useState(null);
+  const [completionTime, setCompletionTime] = useState(() => {
+    if (delivery?.actual_delivery_time) {
+      return format(new Date(delivery.actual_delivery_time), 'HH:mm');
+    }
+    return format(new Date(), 'HH:mm');
+  });
+  const [showStagedPanel, setShowStagedPanel] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, staged: null });
+  const [isDeletingPending, setIsDeletingPending] = useState(false);
+  const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
+  const { deviceType } = getUserAgentInfo();
+  const isMobileDevice = deviceType === 'Mobile';
+  const hasLoadedPending = useRef(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanMatches, setScanMatches] = useState([]);
+  const [showMatchPopup, setShowMatchPopup] = useState(false);
+  const [extractedData, setExtractedData] = useState(null);
+  const [hasPendingDeletes, setHasPendingDeletes] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [isPayrollLocked, setIsPayrollLocked] = useState(false);
+  const [payrollLockMessage, setPayrollLockMessage] = useState(null);
+
+  // Camera state
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [showCameraOverlay, setShowCameraOverlay] = useState(false);
+
+  // Responsive layout state
+  const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [screenHeight, setScreenHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 768);
+  const formRef = useRef(null);
+
+  // Desktop form width threshold (max-w-4xl = 896px + padding)
+  const DESKTOP_FORM_WIDTH = 825;
+
+  // Rule 1: Use mobile layout (hidden staged panel) only if screen width < desktop form width
+  // This is PURELY screen-width based - wide mobile screens should show the staged panel
+  const useMobileLayout = screenWidth < DESKTOP_FORM_WIDTH;
+
+  // Rule 2: Use fullscreen layout ONLY if screen is too narrow AND on a mobile device
+  // Wide mobile screens should get desktop-style layout with visible staged panel
+  const useFullscreen = useMobileLayout && isMobileDevice;
+
+  // Track screen dimensions
+  useEffect(() => {
+    const handleResize = () => {
+      setScreenWidth(window.innerWidth);
+      setScreenHeight(window.innerHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Update all staged deliveries when date or driver changes
+  useEffect(() => {
+    if (delivery || stagedDeliveries.length === 0) return;
+
+    setStagedDeliveries((prev) => prev.map((staged) => ({
+      ...staged,
+      delivery_date: formData.delivery_date,
+      driver_id: formData.driver_id,
+      driver_name: formData.driver_name
+    })));
+  }, [formData.delivery_date, formData.driver_id, formData.driver_name]);
+
+  // Set default driver when form loads for new deliveries
+  useEffect(() => {
+    if (delivery || formData.driver_id) return; // Skip if editing or driver already set
+
+    if (!currentUser || !stores || !drivers || allDrivers.length === 0) return;
+
+    const isDriver = userHasRole(currentUser, 'driver');
+    const isDispatcher = userHasRole(currentUser, 'dispatcher');
+    const isAdmin = userHasRole(currentUser, 'admin');
+
+    let driverIdToSet = '';
+    let driverNameToSet = '';
+
+    if (isDriver && !isAdmin && !isDispatcher) {
+      const currentUserDriver = allDrivers.find((d) => d.id === currentUser.id);
+      if (currentUserDriver) {
+        driverIdToSet = currentUser.id;
+        driverNameToSet = getDriverNameForStorage(currentUserDriver);
+        console.log('🚗 [DeliveryForm] Setting driver (pure driver):', driverNameToSet);
+      }
+    } else if (isDispatcher && !isDriver && !isAdmin) {
+      const dispatcherStoreIds = currentUser.store_ids || [];
+      if (dispatcherStoreIds.length === 1) {
+        const dispatcherStore = stores.find((s) => s && s.id === dispatcherStoreIds[0]);
+        if (dispatcherStore) {
+          const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
+          const dayOfWeek = selectedDate.getDay();
+          let driverIdField = '';
+          if (dayOfWeek === 6) {
+            driverIdField = 'saturday_am_driver_id';
+            } else if (dayOfWeek === 0) {
+            driverIdField = 'sunday_am_driver_id';
+            } else {
+            driverIdField = 'weekday_am_driver_id';
+            }
+          const driverId = dispatcherStore[driverIdField];
+          if (driverId) {
+            const driver = drivers.find((d) => d && d.id === driverId);
+            if (driver) {
+              driverIdToSet = driverId;
+              driverNameToSet = getDriverNameForStorage(driver);
+            }
+          }
+        }
+      }
+    }
+
+    if (driverIdToSet && driverNameToSet) {
+      setFormData((prev) => ({
+        ...prev,
+        driver_id: driverIdToSet,
+        driver_name: driverNameToSet
+      }));
+    }
+  }, [delivery, currentUser, stores, drivers, allDrivers, formData.delivery_date, formData.driver_id]);
+
+  // Ref to track if we're loading an existing delivery (prevent patient auto-load from clearing PUID)
+  const isLoadingExistingDelivery = useRef(false);
       delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
       time_window_start: "", time_window_end: "", status: "Staged",
       driver_name: "", driver_id: "", prescription_number: "",
