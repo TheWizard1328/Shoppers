@@ -8239,12 +8239,20 @@ function Dashboard() {
                 // For pickups with status 'en_route', attach pending deliveries
                 if (!delivery.patient_id && delivery.status === 'en_route' && delivery.stop_id) {
                   // CRITICAL: Match by stop_id (not puid) - pending deliveries have puid that matches pickup's stop_id
-                  const pendingDeliveriesForPickup = deliveriesWithStopOrder.filter((d) =>
+                  let pendingDeliveriesForPickup = deliveriesWithStopOrder.filter((d) =>
                   d &&
                   d.puid === delivery.stop_id &&
                   d.status === 'pending' &&
                   d.patient_id // Only patient deliveries, not other pickups
                   );
+
+                  // CRITICAL: For dispatchers, only show projected deliveries from their assigned stores
+                  if (isDispatcher && currentUser?.store_ids && currentUser.store_ids.length > 0) {
+                    const dispatcherStoreIds = new Set(currentUser.store_ids);
+                    pendingDeliveriesForPickup = pendingDeliveriesForPickup.filter((d) =>
+                      d && dispatcherStoreIds.has(d.store_id)
+                    );
+                  }
 
                   if (pendingDeliveriesForPickup.length > 0) {
                     return {
