@@ -2745,9 +2745,30 @@ export default function DeliveryMap({
              // CRITICAL: Use route.color for this driver's unique color
              const driverPolylineColor = route.color;
 
-             // CRITICAL: Include ALL drivers' markers - deliveryMarkers already includes other drivers when showOtherDriverDeliveries is true
-             const sourceDeliveries = deliveryMarkers.filter(d => d && d.driver_id === route.driverId);
-             const sourcePickups = pickupMarkers.filter(p => p && p.driver_id === route.driverId);
+             // CRITICAL: When "Show All" is active, use ALL deliveries and pickups for this driver (not just filtered)
+             // This ensures phase 3 shows complete route including pending deliveries
+             const sourceDeliveries = showOtherDriverDeliveries 
+               ? [...deliveryMarkers, ...otherDriverDeliveries.map((d) => {
+                   const patient = safePatients.find((p) => p && p.id === d.patient_id);
+                   if (!patient?.latitude || !patient?.longitude) return null;
+                   const driver = safeUsers.find((u) => u && u.id === d.driver_id);
+                   const store = safeStores.find((s) => s && s.id === d.store_id);
+                   return {
+                     ...d,
+                     latitude: patient.latitude,
+                     longitude: patient.longitude,
+                     patient,
+                     driver,
+                     store,
+                     pinColor: store ? getStoreColor(store) : '#6B7280',
+                     markerType: 'delivery'
+                   };
+                 }).filter(Boolean)].filter(d => d && d.driver_id === route.driverId)
+               : deliveryMarkers.filter(d => d && d.driver_id === route.driverId);
+
+             const sourcePickups = showOtherDriverDeliveries
+               ? pickupMarkers.filter(p => p && p.driver_id === route.driverId)
+               : pickupMarkers.filter(p => p && p.driver_id === route.driverId);
             
             const allDriverStops = [...sourcePickups, ...sourceDeliveries]
               .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
