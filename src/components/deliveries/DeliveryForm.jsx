@@ -249,8 +249,6 @@ export default function DeliveryForm({
     const sorted = sortUsers(drivers || []);
     return sorted.filter((driver) => driver && driver.user_name);
   }, [drivers, currentUser, stores, formData.delivery_date, allDeliveries]);
-
-  const [formData, setFormData] = useState(() => {
     const initialState = {
       patient_id: "",
       delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
