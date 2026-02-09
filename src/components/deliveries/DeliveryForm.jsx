@@ -249,7 +249,8 @@ export default function DeliveryForm({
     const sorted = sortUsers(drivers || []);
     return sorted.filter((driver) => driver && driver.user_name);
   }, [drivers, currentUser, stores, formData.delivery_date, allDeliveries]);
-    const initialState = {
+
+  const [patientSearch, setPatientSearch] = useState("");
       patient_id: "",
       delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
       delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
