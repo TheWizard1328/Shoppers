@@ -1906,8 +1906,8 @@ function Dashboard() {
                 });
               }
               
-              // Include incomplete stops for active/selected driver
-              const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+              // Include incomplete AND pending stops for active/selected driver
+              const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned'];
               const incompleteStopsActiveDriver = deliveriesWithStopOrder.filter((d) => {
                 if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
                 if (finishedStatusesPhase3.includes(d.status)) return false;
@@ -2132,8 +2132,8 @@ function Dashboard() {
         });
       }
       
-      // Include incomplete stops for active/selected driver
-      const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+      // Include incomplete AND pending stops for active/selected driver
+      const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned'];
       const incompleteStopsActiveDriver = deliveriesWithStopOrder.filter((d) => {
         if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
         if (finishedStatusesPhase3.includes(d.status)) return false;
@@ -3062,8 +3062,8 @@ function Dashboard() {
           });
         }
         
-        // 2. Include incomplete stops for active/selected driver only (if any)
-        const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+        // 2. Include incomplete AND pending stops for active/selected driver only (if any)
+        const finishedStatusesPhase3 = ['completed', 'failed', 'cancelled', 'returned'];
         const incompleteStopsActiveDriver = deliveries.filter((d) => {
           if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
           if (finishedStatusesPhase3.includes(d.status)) return false;
