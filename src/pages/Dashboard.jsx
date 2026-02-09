@@ -5074,7 +5074,6 @@ function Dashboard() {
         invalidate('Delivery');
 
         // CRITICAL: Update context from offline database (avoid API call)
-        const stagedDeliveries = deliveryData._stagedDeliveries || [];
         const batchDeliveryDate = stagedDeliveries[0]?.delivery_date || format(selectedDate, 'yyyy-MM-dd');
 
         // Wait for offline mutations to complete (they run asynchronously)
