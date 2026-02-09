@@ -235,6 +235,11 @@ export const updatePatient = async (patientId, updates, options = {}) => {
       // STEP 5: Notify UI with backend version
       notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
       
+      // CRITICAL: Broadcast patient update event to delivery forms
+      window.dispatchEvent(new CustomEvent('patientUpdated', {
+        detail: { patientId, updates: backendPatient }
+      }));
+      
       // Broadcast to other devices
       broadcastMutation('Patient', 'update', patientId, backendPatient);
       
