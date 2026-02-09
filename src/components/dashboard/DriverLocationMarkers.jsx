@@ -223,12 +223,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const locationsChanged = validDrivers.some(driver => {
       const existing = visibleDrivers.find(d => d.id === driver.id);
       if (!existing) return true;
-      // Check if coordinates differ by more than a tiny amount
+      // Check if coordinates changed at all
       const latDiff = Math.abs((driver.current_latitude || 0) - (existing.current_latitude || 0));
       const lngDiff = Math.abs((driver.current_longitude || 0) - (existing.current_longitude || 0));
       // CRITICAL: Also check if timestamp changed - forces marker popup update
       const timestampChanged = driver.location_updated_at !== existing.location_updated_at;
-      return latDiff > 0.00001 || lngDiff > 0.00001 || timestampChanged;
+      return latDiff > 0 || lngDiff > 0 || timestampChanged;
     });
     
     // Only update state if there's an actual meaningful change
