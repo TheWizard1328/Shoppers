@@ -3896,6 +3896,47 @@ function Dashboard() {
     }
   }, [selectedDriverId]); // Add selectedDriverId as dependency
 
+  // CRITICAL: Auto-update driver selection for dispatchers when date/deliveries change
+  useEffect(() => {
+    if (!currentUser || !isDispatcher || !userSettingsLoaded || !isDataLoaded) return;
+    
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    const dispatcherStoreIds = currentUser.store_ids || [];
+    
+    // Get drivers with at least 1 pickup or delivery for dispatcher's stores on selected date
+    const driversWithDeliveries = new Set(
+      deliveries?.
+      filter((d) => {
+        if (!d || d.delivery_date !== selectedDateStr) return false;
+        if (!dispatcherStoreIds.includes(d.store_id)) return false;
+        return true; // Include ALL deliveries/pickups
+      }).
+      map((d) => d.driver_id).
+      filter(Boolean)
+    );
+
+    let newDriverSelection = null;
+    
+    if (driversWithDeliveries.size === 1) {
+      // Only 1 driver with stops - select that driver
+      newDriverSelection = Array.from(driversWithDeliveries)[0];
+      console.log(`📊 [Dispatcher Auto-Select] 1 driver with stops - selecting ${newDriverSelection}`);
+    } else {
+      // 0 or multiple drivers - select "All Drivers"
+      newDriverSelection = 'all';
+      console.log(`📊 [Dispatcher Auto-Select] ${driversWithDeliveries.size} drivers with stops - selecting All Drivers`);
+    }
+    
+    // Only update if selection should change
+    if (newDriverSelection !== selectedDriverId) {
+      setSelectedDriverId(newDriverSelection);
+      globalFilters.setSelectedDriverId(newDriverSelection);
+      if (currentUser?.id) {
+        saveSetting(currentUser.id, 'selected_driver_id', newDriverSelection);
+      }
+    }
+  }, [isDispatcher, currentUser?.id, selectedDate, deliveries, userSettingsLoaded, isDataLoaded]);
+
   const handleDateChange = async (date) => {
     // CRITICAL: Pause smart refresh immediately
     setIsEntityUpdating(true);
