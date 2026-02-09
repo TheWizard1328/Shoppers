@@ -8497,6 +8497,7 @@ function Dashboard() {
       {(isDriver || isDispatcher) &&
       <>
         <MapViewCycleFAB
+          key={`fab-${stopCardsBaseHeight}`}
           onClick={handleMapViewCycle}
           currentPhase={mapViewPhase}
           hasVisibleCards={deliveriesWithStopOrder.length > 0}
@@ -8507,6 +8508,7 @@ function Dashboard() {
         {/* Re-optimize Route FAB - Only for app owner (testing phase) */}
         {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
         <motion.div
+          key={`reopt-fab-${stopCardsBaseHeight}`}
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0, opacity: 0 }}
