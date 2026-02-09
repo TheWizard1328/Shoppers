@@ -129,6 +129,7 @@ export default function DeliveryForm({
     loadFreshStores();
   }, []);
 
+  // CRITICAL: Declare formData BEFORE allDrivers to prevent circular dependency
   const [formData, setFormData] = useState(() => {
     const initialState = {
       patient_id: "",
