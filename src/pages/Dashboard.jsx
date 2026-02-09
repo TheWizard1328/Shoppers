@@ -3141,7 +3141,7 @@ function Dashboard() {
             }
           }
           
-          // 1b. Include ALL shared driver location markers (EXCLUDE off-duty drivers and placeholders)
+          // 1b. Include ALL shared driver location markers (EXCLUDE off-duty drivers ONLY, INCLUDE placeholders)
           if (isViewingTodayPhase3) {
             const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
             const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
@@ -3151,7 +3151,7 @@ function Dashboard() {
               if (loc?.driver_id && loc?.latitude && loc?.longitude && !uniqueLocations.has(loc.driver_id)) {
                 const driver = appUsers?.find(au => au?.user_id === loc.driver_id);
                 
-                // CRITICAL: Skip off-duty drivers
+                // CRITICAL: Skip off-duty drivers ONLY
                 if (driver?.driver_status === 'off_duty') return;
                 
                 // CRITICAL: Skip current user's shared marker if live location is available (prioritize GPS)
@@ -3161,30 +3161,20 @@ function Dashboard() {
                   return;
                 }
                 
-                // CRITICAL: Only include drivers with INCOMPLETE deliveries (not just any deliveries)
-                const hasIncompleteDelivery = deliveries.some(d => 
-                  d && 
-                  d.driver_id === loc.driver_id && 
-                  d.delivery_date === selectedDateStrPhase3 &&
-                  !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)
-                );
-                
-                if (!hasIncompleteDelivery) {
-                  console.log(`⏭️ [Phase 3 - Show All] Skipping driver ${driver?.user_name} - no incomplete stops`);
-                  return;
-                }
+                // CRITICAL: REMOVED incomplete delivery check - include ALL active drivers (placeholder or not)
+                // Phase 3 should show all active drivers' locations regardless of whether they have stops
                 
                 // CRITICAL: For dispatchers, also check store assignment
                 if (isDispatcher && !isAdmin && currentUser?.store_ids) {
                   const dispatcherStoreIds = new Set(currentUser.store_ids);
-                  const hasIncompleteInStore = deliveries.some(d => 
+                  const hasAnyDeliveryInStore = deliveries.some(d => 
                     d && 
                     d.driver_id === loc.driver_id && 
                     d.delivery_date === selectedDateStrPhase3 &&
-                    dispatcherStoreIds.has(d.store_id) &&
-                    !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)
+                    dispatcherStoreIds.has(d.store_id)
                   );
-                  if (!hasIncompleteInStore) return;
+                  // For dispatchers: only show drivers who have ANY delivery in their stores (or placeholder)
+                  if (!hasAnyDeliveryInStore && !loc.isPlaceholder) return;
                 }
                 
                 uniqueLocations.set(loc.driver_id, loc);
@@ -3195,7 +3185,7 @@ function Dashboard() {
               // Skip current user on mobile (blue dot already added above)
               if (isMobile && location.driver_id === currentUser?.id) return;
               allCoordinatesPhase3.push([location.latitude, location.longitude]);
-              console.log(`✅ [Phase 3 - Show All] Added shared location for driver ${location.driver_id}`);
+              console.log(`✅ [Phase 3 - Show All] Added shared location for driver ${location.driver_id}${location.isPlaceholder ? ' (placeholder)' : ''}`);
             });
           }
           
