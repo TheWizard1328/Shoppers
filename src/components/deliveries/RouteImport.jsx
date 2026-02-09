@@ -3256,35 +3256,38 @@ export default function RouteImport({
                      Start New Import
                    </Button>
                    <Button
-                   onClick={async () => {
+                    onClick={async () => {
 
-                      // Data is already on backend from handleConfirmImport
-                      // Dispatch immediate UI refresh events
-                      window.dispatchEvent(new CustomEvent('deliveriesImported', {
-                        detail: { 
-                          source: 'route_import',
-                          created: importResult.created,
-                          updated: importResult.updated
-                        }
-                      }));
+                       // Data is already on backend from handleConfirmImport
+                       // Dispatch immediate UI refresh events
+                       window.dispatchEvent(new CustomEvent('deliveriesImported', {
+                         detail: { 
+                           source: 'route_import',
+                           created: importResult.created,
+                           updated: importResult.updated
+                         }
+                       }));
 
-                      // Trigger dashboard refresh
-                      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                       // Trigger dashboard refresh
+                       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-                      // Trigger driver location update for map
-                      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                        detail: { appUsers: null }
-                      }));
+                       // Trigger driver location update for map
+                       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                         detail: { appUsers: null }
+                       }));
 
-                      // Just trigger parent refresh callback
-                      if (onImportComplete) {
-                        await onImportComplete();
-                      }
-                    }}
-                   className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                   disabled={isProcessing}>
-                     Done - Close Import
-                   </Button>
+                       // Trigger pull-to-sync to refresh all data
+                       window.dispatchEvent(new CustomEvent('triggerPullToSync'));
+
+                       // Just trigger parent refresh callback
+                       if (onImportComplete) {
+                         await onImportComplete();
+                       }
+                     }}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                    disabled={isProcessing}>
+                      Done - Close Import
+                    </Button>
                 </> :
               <>
                   <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing || showProgress} className="flex-1" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
