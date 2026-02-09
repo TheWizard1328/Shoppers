@@ -62,6 +62,17 @@ export default function PullToSync({
     };
   }, [isPulling, pullDistance, isSyncing, statsCardRef]);
 
+  // Listen for programmatic trigger events (e.g., from route import completion)
+  useEffect(() => {
+    const handleTriggerSync = async () => {
+      console.log('🔄 [PullToSync] Sync triggered programmatically from import');
+      await performSync();
+    };
+
+    window.addEventListener('triggerPullToSync', handleTriggerSync);
+    return () => window.removeEventListener('triggerPullToSync', handleTriggerSync);
+  }, []);
+
   const performSync = async () => {
     setIsSyncing(true);
     console.log('🔄 [Pull to Sync] Starting full offline database sync...');
