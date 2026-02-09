@@ -251,7 +251,6 @@ export default function DeliveryForm({
   }, [drivers, currentUser, stores, formData.delivery_date, allDeliveries]);
 
   const [patientSearch, setPatientSearch] = useState("");
-      mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
       dont_ring_bell: false, back_door: false, signature_needed: false,
       fridge_item: false, oversized: false, after_hours_pickup: false, no_charge: false, extra_time: 0,
       recurring: false, recurring_daily: false,
