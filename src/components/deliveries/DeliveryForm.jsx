@@ -3230,6 +3230,35 @@ export default function DeliveryForm({
         }
       }
       
+      // CRITICAL: Update ETAs for all incomplete stops if time windows changed
+      const timeWindowChanged = delivery && (
+        delivery.time_window_start !== formData.time_window_start ||
+        delivery.time_window_end !== formData.time_window_end
+      );
+      
+      if (timeWindowChanged && formData.driver_id && formData.delivery_date) {
+        console.log('⏱️ [DeliveryForm] Time windows changed - updating ETAs for all incomplete stops...');
+        try {
+          const incompleteStatuses = ['pending', 'in_transit', 'en_route'];
+          const incompleteDeliveries = allDeliveries.filter(d =>
+            d && 
+            d.driver_id === formData.driver_id &&
+            d.delivery_date === formData.delivery_date &&
+            incompleteStatuses.includes(d.status)
+          );
+          
+          if (incompleteDeliveries.length > 0) {
+            const response = await base44.functions.invoke('calculateRealTimeETA', {
+              driverId: formData.driver_id,
+              deliveryDate: formData.delivery_date
+            });
+            console.log(`✅ [DeliveryForm] ETAs updated for ${incompleteDeliveries.length} incomplete stops`);
+          }
+        } catch (error) {
+          console.error('❌ [DeliveryForm] ETA update failed:', error);
+        }
+      }
+
       // CRITICAL: Always reorder stops after any delivery update or status change
       if (delivery && formData.driver_id && formData.delivery_date) {
         console.log('🔄 [DeliveryForm] Reordering stops after delivery update...');
