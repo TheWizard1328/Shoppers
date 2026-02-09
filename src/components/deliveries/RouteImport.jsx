@@ -1512,9 +1512,18 @@ export default function RouteImport({
   }, [allPreviewDeliveries]);
 
   const filteredPreviewDeliveries = useMemo(() => {
-    return allPreviewDeliveries.filter((delivery) => {
+    const filtered = allPreviewDeliveries.filter((delivery) => {
       const dateMatch = previewFilterDate === 'all' || delivery.delivery_date === previewFilterDate;
       return dateMatch;
+    });
+    
+    // Sort: no changes to bottom
+    return filtered.sort((a, b) => {
+      const aNoChange = a._changes?.[0] === 'No changes - re-importing';
+      const bNoChange = b._changes?.[0] === 'No changes - re-importing';
+      if (aNoChange && !bNoChange) return 1;
+      if (!aNoChange && bNoChange) return -1;
+      return 0;
     });
   }, [allPreviewDeliveries, previewFilterDate]);
 
