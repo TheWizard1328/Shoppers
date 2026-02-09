@@ -8553,8 +8553,8 @@ function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* CRITICAL: Render FABs with high z-index to ensure proper layering above cards */}
-      {(isDriver || isDispatcher) &&
+      {/* CRITICAL: FABs render LAST after all cards are measured */}
+      {showFABs && (isDriver || isDispatcher) &&
       <>
         <MapViewCycleFAB
           onClick={handleMapViewCycle}
