@@ -130,11 +130,59 @@ export default function DeliveryForm({
   }, []);
 
   const allDrivers = useMemo(() => {
-    // Layout already filters drivers correctly via getActiveDriversForCity
-    // Just ensure they have user_name - no additional role filtering needed
+    // CRITICAL: For dispatchers, filter drivers based on special rules
+    if (currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+      const dispatcherStoreIds = currentUser.store_ids || [];
+      
+      if (dispatcherStoreIds.length === 0) {
+        return sortUsers(drivers || []).filter((driver) => driver && driver.user_name);
+      }
+      
+      const allowedDriverIds = new Set();
+      
+      // Get day of week for selected date
+      const selectedDate = formData.delivery_date ? new Date(formData.delivery_date + 'T00:00:00') : new Date();
+      const dayOfWeek = selectedDate.getDay();
+      
+      // Rule 1: Default drivers for dispatcher's stores for the day of week
+      dispatcherStoreIds.forEach(storeId => {
+        const store = stores?.find(s => s && s.id === storeId);
+        if (!store) return;
+        
+        let amDriverId, pmDriverId;
+        if (dayOfWeek === 6) { // Saturday
+          amDriverId = store.saturday_am_driver_id;
+          pmDriverId = store.saturday_pm_driver_id;
+        } else if (dayOfWeek === 0) { // Sunday
+          amDriverId = store.sunday_am_driver_id;
+          pmDriverId = store.sunday_pm_driver_id;
+        } else { // Weekday
+          amDriverId = store.weekday_am_driver_id;
+          pmDriverId = store.weekday_pm_driver_id;
+        }
+        
+        if (amDriverId) allowedDriverIds.add(amDriverId);
+        if (pmDriverId) allowedDriverIds.add(pmDriverId);
+      });
+      
+      // Rule 2: Any driver with 1+ pickups or deliveries from dispatcher's stores (any status)
+      const dispatcherStoreDeliveries = allDeliveries?.filter(d => 
+        d && dispatcherStoreIds.includes(d.store_id) && d.delivery_date === formData.delivery_date
+      ) || [];
+      
+      dispatcherStoreDeliveries.forEach(d => {
+        if (d.driver_id) allowedDriverIds.add(d.driver_id);
+      });
+      
+      // Filter drivers to only allowed IDs
+      const sorted = sortUsers(drivers || []);
+      return sorted.filter((driver) => driver && driver.user_name && allowedDriverIds.has(driver.id));
+    }
+    
+    // For non-dispatchers: show all drivers
     const sorted = sortUsers(drivers || []);
     return sorted.filter((driver) => driver && driver.user_name);
-  }, [drivers]);
+  }, [drivers, currentUser, stores, formData.delivery_date, allDeliveries]);
 
   const [formData, setFormData] = useState(() => {
     const initialState = {
