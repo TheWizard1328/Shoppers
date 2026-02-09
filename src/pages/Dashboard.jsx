@@ -8579,7 +8579,7 @@ function Dashboard() {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0, opacity: 0 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          className="fixed z-[250]"
+          className="fixed z-10"
           style={{
             bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15}px`,
             right: '64px'
