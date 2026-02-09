@@ -1156,11 +1156,37 @@ export default function RouteImport({
         if (col6Value && timeRegex.test(col6Value)) {
           newDeliveryData.delivery_time_start = col6Value;
           newDeliveryData.delivery_time_eta = col6Value;
+        } else if (!col6Value && patient && patient.time_window_start) {
+          // CRITICAL: If no Col 6 time AND patient has no time window, use store start time + 5 min
+          newDeliveryData.delivery_time_start = patient.time_window_start;
+          newDeliveryData.delivery_time_eta = patient.time_window_start;
+        } else if (!col6Value) {
+          // No CSV time and no patient window - try store time slot
+          const timeSlotPrefix = isSaturday 
+            ? (assignedAMPM === 'AM' ? 'saturday_am' : 'saturday_pm')
+            : isSunday 
+            ? (assignedAMPM === 'AM' ? 'sunday_am' : 'sunday_pm')
+            : (assignedAMPM === 'AM' ? 'weekday_am' : 'weekday_pm');
+          
+          const storeStartTimeKey = `${timeSlotPrefix}_start`;
+          const storeStartTime = store[storeStartTimeKey];
+          if (storeStartTime && timeRegex.test(storeStartTime)) {
+            // Add 5 minutes to store start time
+            const [hours, mins] = storeStartTime.split(':').map(Number);
+            const newMins = (mins + 5) % 60;
+            const newHours = hours + (mins + 5 >= 60 ? 1 : 0);
+            const startTimeWith5Min = `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
+            newDeliveryData.delivery_time_start = startTimeWith5Min;
+            newDeliveryData.delivery_time_eta = startTimeWith5Min;
+          }
         }
+        
         if (col7Value && timeRegex.test(col7Value)) {
           newDeliveryData.delivery_time_end = col7Value;
+        } else if (!col7Value && patient && patient.time_window_end) {
+          // CRITICAL: If no Col 7 time, use patient's delivery end time window
+          newDeliveryData.delivery_time_end = patient.time_window_end;
         }
-      }
 
       if (patientId) {
         newDeliveryData.patient_id = patientId;
