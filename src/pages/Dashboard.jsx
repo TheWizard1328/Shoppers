@@ -3954,12 +3954,12 @@ function Dashboard() {
       // No cards to render - enable immediately
       console.log('📏 [FAB Position] No cards to render - FABs stay at bottom');
       setCardsReadyForFAB(true);
-    } else if (isAllDriversMode && !cardsReadyForFAB) {
-      // All Drivers mode - cards are hidden, FABs stay at bottom
-      console.log('📏 [FAB Position] All Drivers mode - no cards rendered, FABs stay at bottom');
+    } else if (isAllDriversMode && !isDispatcher && !cardsReadyForFAB) {
+      // All Drivers mode (non-dispatcher) - cards are hidden, FABs stay at bottom
+      console.log('📏 [FAB Position] All Drivers mode (non-dispatcher) - no cards rendered, FABs stay at bottom');
       setCardsReadyForFAB(true);
     }
-  }, [stopCardsBaseHeight, deliveriesWithStopOrder.length, cardsReadyForFAB, isAllDriversMode]);
+  }, [stopCardsBaseHeight, deliveriesWithStopOrder.length, cardsReadyForFAB, isAllDriversMode, isDispatcher]);
 
   const handleDateChange = async (date) => {
     // CRITICAL: Pause smart refresh immediately
@@ -8389,8 +8389,8 @@ function Dashboard() {
               }, 150);
             }}>
 
-              {/* CRITICAL: Hide stop cards when in "All Drivers" mode */}
-              {!isAllDriversMode && (
+              {/* CRITICAL: Hide stop cards when in "All Drivers" mode (except for dispatchers) */}
+              {(!isAllDriversMode || isDispatcher) && (
               <HorizontalStopCards
               ref={horizontalStopCardsRef}
               pickupCards={deliveriesWithStopOrder.
