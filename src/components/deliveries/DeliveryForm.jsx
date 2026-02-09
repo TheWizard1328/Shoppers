@@ -213,7 +213,6 @@ export default function DeliveryForm({
   // Other state declarations
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
-      patient_id: "",
       delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
       delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
       time_window_start: "", time_window_end: "", status: "Staged",
