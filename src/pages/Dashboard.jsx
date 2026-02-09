@@ -1219,7 +1219,7 @@ function Dashboard() {
 
     console.log(`   - Default: showing all ${driversSource.length} drivers`);
     return driversSource;
-  }, [appUsers, currentUser, stores]);
+  }, [appUsers, currentUser, stores, selectedDate, deliveries]);
 
   // CRITICAL: Show location toggle on mobile devices regardless of layout mode
   const shouldShowLocationToggle = useMemo(() => {
