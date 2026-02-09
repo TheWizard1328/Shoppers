@@ -85,6 +85,7 @@ import DualStatsMarquee from '../components/dashboard/DualStatsMarquee';
 import EndOfDayStatsDialog from '../components/dashboard/EndOfDayStatsDialog';
 import { toast } from 'sonner';
 import PullToSync from '../components/dashboard/PullToSync';
+import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
 
 // FIXED: StatBadge - simple component without hooks to avoid violations
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
