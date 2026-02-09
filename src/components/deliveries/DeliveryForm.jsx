@@ -624,30 +624,14 @@ export default function DeliveryForm({
         processedStores.push({
           ...store,
           id: `${store.id}_AM`,
-          name: `${store.name} - AM`,
+          name: `${store.name} [AM]`,
           _originalStoreId: store.id,
           _timeSlot: 'AM'
         });
         processedStores.push({
           ...store,
           id: `${store.id}_PM`,
-          name: `${store.name} - PM`,
-          _originalStoreId: store.id,
-          _timeSlot: 'PM'
-        });
-      } else if (amDriverId && !pmDriverId) {
-        processedStores.push({
-          ...store,
-          id: store.id,
-          name: `${store.name} - AM`,
-          _originalStoreId: store.id,
-          _timeSlot: 'AM'
-        });
-      } else if (!amDriverId && pmDriverId) {
-        processedStores.push({
-          ...store,
-          id: store.id,
-          name: `${store.name} - PM`,
+          name: `${store.name} [PM]`,
           _originalStoreId: store.id,
           _timeSlot: 'PM'
         });
