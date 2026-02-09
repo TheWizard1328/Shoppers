@@ -237,47 +237,44 @@ class LocationTracker {
         timestamp: nowISO
       });
 
-      // CRITICAL: Always upload if primary device (or no device record)
-      if (!isPrimaryTracker) {
-        console.log('⚠️ [LocationTracker] Non-primary device - skipping AppUser location update');
-      } else {
-        const updateData = {
-          current_latitude: latitude,
-          current_longitude: longitude,
-          location_updated_at: nowISO
-        };
+      // CRITICAL: ALWAYS save coordinates and timestamp to AppUser entity regardless of device type
+      const updateData = {
+        current_latitude: latitude,
+        current_longitude: longitude,
+        location_updated_at: nowISO
+      };
 
-        // Step 1: Upload this driver's location to API
-        const updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
-        console.log(`✅ [LocationTracker] UPLOADED TO API - ${userName} (...${userIdLast4}):`, {
-          lat: latitude.toFixed(6),
-          lon: longitude.toFixed(6),
-          timestamp: nowISO,
-          response: updatedAppUser ? 'SUCCESS' : 'FAILED'
-        });
+      // Step 1: Upload this driver's location to API
+      const updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
+      console.log(`✅ [LocationTracker] UPLOADED TO API - ${userName} (...${userIdLast4}):`, {
+        lat: latitude.toFixed(6),
+        lon: longitude.toFixed(6),
+        timestamp: nowISO,
+        isPrimary: isPrimaryTracker,
+        response: updatedAppUser ? 'SUCCESS' : 'FAILED'
+      });
 
-        // Step 2: Immediately pull down ALL AppUsers from API (fresh data for everyone)
-        const allAppUsers = await base44.entities.AppUser.list();
-        console.log(`📥 [LocationTracker] Pulled down ${allAppUsers.length} AppUsers from API`);
+      // Step 2: Immediately pull down ALL AppUsers from API (fresh data for everyone)
+      const allAppUsers = await base44.entities.AppUser.list();
+      console.log(`📥 [LocationTracker] Pulled down ${allAppUsers.length} AppUsers from API`);
 
-        // Step 3: Overwrite offline DB with fresh API data
-        try {
-          const { offlineDB } = await import('./offlineDatabase');
-          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
-          console.log(`💾 [LocationTracker] Synced to offline DB`);
-        } catch (offlineError) {
-          console.warn('⚠️ [LocationTracker] Failed to sync to offline DB:', offlineError.message);
-        }
+      // Step 3: Overwrite offline DB with fresh API data
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+        console.log(`💾 [LocationTracker] Synced to offline DB`);
+      } catch (offlineError) {
+        console.warn('⚠️ [LocationTracker] Failed to sync to offline DB:', offlineError.message);
+      }
 
-        // Step 4: Broadcast update and trigger UI refresh
-        broadcastMutation('AppUser', 'update', this.appUserId, updatedAppUser);
+      // Step 4: Broadcast update and trigger UI refresh
+      broadcastMutation('AppUser', 'update', this.appUserId, updatedAppUser);
 
-        // Dispatch event with ALL fresh driver locations
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: allAppUsers }
-          }));
-        }
+      // Dispatch event with ALL fresh driver locations
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: allAppUsers }
+        }));
       }
 
       // CRITICAL: Always update UserDevice last_active_at regardless of primary status
