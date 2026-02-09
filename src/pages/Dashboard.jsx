@@ -7868,7 +7868,7 @@ function Dashboard() {
             </div>
 
 
-            <DriverLocationBadge users={appUsers} />
+            {isAppOwner(currentUser) && <DriverLocationBadge users={appUsers} />}
 
             <AnimatePresence>
               {isExpanded &&
