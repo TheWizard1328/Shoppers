@@ -3182,11 +3182,18 @@ export default function RouteImport({
                               }
                                 {delivery.action === 'update' && delivery._changes && delivery._changes.length > 0 &&
                               <>
-                                    {delivery._changes.map((change, changeIdx) =>
-                                <div key={changeIdx} className="text-orange-700 font-medium">
-                                        {change}
-                                      </div>
-                                )}
+                                    {delivery._changes.some(c => c === 'No changes - re-importing') ? (
+                                      <Badge className="border-0 font-semibold text-xs py-1 bg-green-100 text-green-700 flex items-center gap-1 w-fit">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        No Change
+                                      </Badge>
+                                    ) : (
+                                      delivery._changes.map((change, changeIdx) =>
+                                        <div key={changeIdx} className="text-orange-700 font-medium">
+                                          {change}
+                                        </div>
+                                      )
+                                    )}
                                   </>
                               }
                                 {!delivery._matchReason && (!delivery._changes || delivery._changes.length === 0) &&
