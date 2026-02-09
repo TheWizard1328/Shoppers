@@ -81,6 +81,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const markersRef = useRef({});
+  const markerObjectsRef = useRef({});
   const prevVisibleIdsRef = useRef(new Set());
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
 
