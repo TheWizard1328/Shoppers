@@ -3937,15 +3937,24 @@ function Dashboard() {
     }
   }, [isDispatcher, currentUser?.id, selectedDate, deliveries, userSettingsLoaded, isDataLoaded]);
 
-  // CRITICAL: Mark cards as ready once all dashboard content is rendered and measured
+  // CRITICAL: Reset cardsReadyForFAB when driver/date changes, then enable once cards are measured
   useEffect(() => {
-    // Set a small delay to ensure HorizontalStopCards and all cards have rendered and been measured
-    const timer = setTimeout(() => {
-      setCardsReadyForFAB(true);
-    }, 100);
+    // Reset flag when driver/date changes
+    setCardsReadyForFAB(false);
+    console.log('🔄 [FAB Position] Reset - waiting for cards to be measured...');
+  }, [selectedDriverId, selectedDate]);
 
-    return () => clearTimeout(timer);
-  }, [selectedDriverId, selectedDate]); // Reset when date/driver changes
+  // CRITICAL: Enable FAB repositioning once stop cards are measured
+  useEffect(() => {
+    if (stopCardsBaseHeight > 0 && !cardsReadyForFAB) {
+      console.log(`📏 [FAB Position] Cards measured (${stopCardsBaseHeight}px) - moving FABs`);
+      setCardsReadyForFAB(true);
+    } else if (deliveriesWithStopOrder.length === 0 && !cardsReadyForFAB) {
+      // No cards to render - enable immediately
+      console.log('📏 [FAB Position] No cards to render - FABs stay at bottom');
+      setCardsReadyForFAB(true);
+    }
+  }, [stopCardsBaseHeight, deliveriesWithStopOrder.length, cardsReadyForFAB]);
 
   const handleDateChange = async (date) => {
     // CRITICAL: Pause smart refresh immediately
