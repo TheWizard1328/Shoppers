@@ -3560,7 +3560,7 @@ function Dashboard() {
           }
         }
       }, 500);
-    }, 1500); // Delay FAB activation to ensure all markers are rendered and prevent premature triggering
+    }, 2000); // Increased delay to 2000ms to ensure stop cards are fully rendered before FAB activation
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
