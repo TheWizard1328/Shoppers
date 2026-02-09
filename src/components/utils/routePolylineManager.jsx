@@ -269,6 +269,7 @@ const savePolyline = async ({
 
 /**
  * Get or generate the active route polyline from current position to next stop
+ * CRITICAL: Only fetches polyline AFTER delivery completion (onlyAfterDeliveryComplete flag)
  * Only updates the entity if the current user is the driver
  * Smart refresh based on distance, time, and coordinate changes
  */
@@ -279,7 +280,8 @@ export const getCurrentToNextStopPolyline = async ({
   lastCompletedStopLocation, // { lat, lon } - last completed stop
   nextStopLocation, // { lat, lon } - next stop
   googleApiKey,
-  isCurrentUserTheDriver = false // Only true if current user IS this driver
+  isCurrentUserTheDriver = false, // Only true if current user IS this driver
+  onlyAfterDeliveryComplete = true // CRITICAL: Only fetch polyline after delivery is marked complete
 }) => {
   try {
     console.log('🗺️ [getCurrentToNextStopPolyline] Starting...', {
@@ -288,8 +290,15 @@ export const getCurrentToNextStopPolyline = async ({
       hasCurrentLocation: !!currentDriverLocation,
       hasLastCompleted: !!lastCompletedStopLocation,
       hasNextStop: !!nextStopLocation,
-      isCurrentUserTheDriver
+      isCurrentUserTheDriver,
+      onlyAfterDeliveryComplete
     });
+
+    // CRITICAL: Skip polyline generation if not after delivery completion
+    if (onlyAfterDeliveryComplete) {
+      console.log('⏭️ [getCurrentToNextStopPolyline] Skipping - not yet after delivery completion');
+      return null;
+    }
 
     if (!nextStopLocation?.lat || !nextStopLocation?.lon) {
       console.log('⚠️ No next stop location provided');
