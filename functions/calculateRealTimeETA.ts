@@ -320,7 +320,7 @@ Deno.serve(async (req) => {
       deliveryDate,
       driverLocation,
       durationUpdates: etaUpdates,
-      totalDeliveries: deliveries.length,
+      totalDeliveries: deliveriesToProcess.length,
       apiCallsMade: 1
     });
 
