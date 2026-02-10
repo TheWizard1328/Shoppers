@@ -1162,12 +1162,24 @@ class SmartRefreshManager {
       // This avoids duplicate API calls and uses the data that was just synced
       const { offlineDB } = await import('./offlineDatabase');
       const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-      
+
+      console.log(`📍 [SmartRefresh] Loaded ${offlineAppUsers?.length || 0} AppUsers from offline DB`);
+
       if (!offlineAppUsers || offlineAppUsers.length === 0) {
-        console.log(`⚠️ [SmartRefresh] No AppUsers in offline DB - waiting for priority sync`);
+        console.warn(`⚠️ [SmartRefresh] No AppUsers in offline DB - waiting for priority sync`);
         return null;
       }
-      
+
+      // Log sample of offline data to verify coordinates exist
+      console.log(`📊 [SmartRefresh] Sample offline AppUsers:`, offlineAppUsers.slice(0, 2).map(au => ({
+        id: au.id,
+        user_name: au.user_name,
+        current_latitude: au.current_latitude,
+        current_longitude: au.current_longitude,
+        location_updated_at: au.location_updated_at,
+        driver_status: au.driver_status
+      })));
+
       // Merge offline data with current state (always prefer offline since it's authoritative)
       const updatedAppUsers = currentAppUsers.map(au => {
         const offlineVersion = offlineAppUsers.find(ad => ad.user_id === au.user_id);
@@ -1185,6 +1197,8 @@ class SmartRefreshManager {
           updatedAppUsers.push(offlineAu);
         }
       });
+
+      console.log(`✅ [SmartRefresh] Merged driver locations - returning ${updatedAppUsers.length} AppUsers with coordinates`);
       
       // Dispatch location update event
       if (typeof window !== 'undefined') {
