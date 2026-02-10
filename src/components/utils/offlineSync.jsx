@@ -16,6 +16,13 @@ import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
 import { SquareTransaction } from '@/entities/SquareTransaction';
 import { format, subDays } from 'date-fns';
+import { 
+  fetchAppUsersDedup, 
+  fetchDeliveriesDedup, 
+  fetchPatientsDedup, 
+  fetchCitiesDedup, 
+  fetchStoresDedup 
+} from './dataSyncCoordinator';
 
 // Configuration
 const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
@@ -219,8 +226,8 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     if (shouldSkipAppUserSync) {
       console.log('⏭️ [PrioritySyncBeforeRefresh] STEP 1: Skipping AppUser sync (synced recently)');
     } else {
-      console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching ALL AppUsers...');
-      const allAppUsers = await AppUser.list();
+      console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching ALL AppUsers (deduplicated)...');
+      const allAppUsers = await fetchAppUsersDedup();
       console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers (Mode: ${fetchAllDriversDeliveries ? 'ALL DRIVERS' : 'Individual'})`);
 
       if (allAppUsers && allAppUsers.length > 0) {
@@ -271,10 +278,9 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
       await smartRefreshMgr.waitForRateLimit();
     }
     
-    // STEP 2: Fetch and sync Deliveries for active date
+    // STEP 2: Fetch and sync Deliveries for active date with deduplication
     // CRITICAL: If in Show All or All Drivers mode, fetch ALL drivers' deliveries for the date
-    // If in Individual Driver mode, only fetch for the selected driver
-    const deliveryFilter = { delivery_date: selectedDateStr };
+    let deliveryFilter = {};
     
     if (!fetchAllDriversDeliveries) {
       // Individual driver mode - filter by driver if provided
@@ -282,15 +288,15 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
       const selectedDriverId = globalFilters?.getSelectedDriverId?.();
       if (selectedDriverId && selectedDriverId !== 'all') {
         deliveryFilter.driver_id = selectedDriverId;
-        console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching deliveries for driver ${selectedDriverId} only`);
+        console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching deliveries for driver ${selectedDriverId} only (deduplicated)`);
       } else {
-        console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching ALL drivers' deliveries (All Drivers mode)`);
+        console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching ALL drivers' deliveries (deduplicated, All Drivers mode)`);
       }
     } else {
-      console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching ALL drivers' deliveries (Show All mode)`);
+      console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching ALL drivers' deliveries (deduplicated, Show All mode)`);
     }
     
-    const deliveries = await Delivery.filter(deliveryFilter);
+    const deliveries = await fetchDeliveriesDedup(selectedDateStr, deliveryFilter);
     if (deliveries && deliveries.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
       await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString(), new Date().toISOString());
@@ -319,7 +325,7 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
         }
         
         const batchIds = patientIdList.slice(i, i + PATIENT_BATCH_SIZE);
-        const batchPatients = await Patient.filter({ id: { $in: batchIds } });
+        const batchPatients = await fetchPatientsDedup({ id: { $in: batchIds } });
         
         if (batchPatients && batchPatients.length > 0) {
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
@@ -398,14 +404,15 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
       await smartRefreshMgr.waitForRateLimit();
     }
     
-    // CRITICAL STEP 1: DELETE all offline AppUsers to ensure fresh data
-    console.log('🗑️ [PreRenderSync] STEP 1: Deleting all offline AppUsers...');
+    // STEP 1: Clear AppUser cache to force fresh fetch
+    console.log('🗑️ [PreRenderSync] STEP 1: Clearing AppUser cache...');
+    invalidateEntityCache('AppUser');
     await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
-    console.log('✅ [PreRenderSync] Offline AppUsers cleared');
+    console.log('✅ [PreRenderSync] AppUser cache and offline DB cleared');
     
-    // CRITICAL STEP 2: Fetch fresh AppUsers from API
-    console.log('📍 [PreRenderSync] STEP 2: Fetching fresh AppUsers from API...');
-    const appUsers = await AppUser.list();
+    // CRITICAL STEP 2: Fetch fresh AppUsers from API with deduplication
+    console.log('📍 [PreRenderSync] STEP 2: Fetching fresh AppUsers from API (deduplicated)...');
+    const appUsers = await fetchAppUsersDedup();
     console.log(`📍 [PreRenderSync] Fetched ${appUsers?.length || 0} AppUsers from API`);
 
     if (appUsers && appUsers.length > 0) {
@@ -451,9 +458,9 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
       await smartRefreshMgr.waitForRateLimit();
     }
     
-    // CRITICAL: FORCE fresh fetch of Cities (ignore offline DB age)
-    console.log('🏙️ [PreRenderSync] Fetching fresh Cities...');
-    const cities = await City.list();
+    // CRITICAL: FORCE fresh fetch of Cities (ignore offline DB age) with deduplication
+    console.log('🏙️ [PreRenderSync] Fetching fresh Cities (deduplicated)...');
+    const cities = await fetchCitiesDedup();
     if (cities && cities.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
       await offlineDB.updateSyncMetadata('City', new Date().toISOString(), new Date().toISOString());
