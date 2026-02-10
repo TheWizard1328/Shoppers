@@ -1838,13 +1838,12 @@ export default function DeliveryMap({
 
       // CRITICAL: Find driver in safeUsers (contains merged AppUser data with home coords)
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
-      const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
 
       // CRITICAL: Validate home coordinates exist and are valid numbers
       if (!driver?.home_latitude || !driver?.home_longitude ||
           typeof driver.home_latitude !== 'number' || typeof driver.home_longitude !== 'number' ||
           isNaN(driver.home_latitude) || isNaN(driver.home_longitude)) {
-        console.warn(`[DeliveryMap] Driver ${driverName} has invalid home coordinates:`, { 
+        console.warn(`[DeliveryMap] Driver ${driver} has invalid home coordinates:`, { 
           latitude: driver?.home_latitude, 
           longitude: driver?.home_longitude 
         });
@@ -1858,6 +1857,8 @@ export default function DeliveryMap({
         isCurrentUserAdmin || // Admins see all home markers
         (isCurrentUserDriver && driver.id === currentUser.id); // Driver ALWAYS sees their own home
       
+      const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
+
       if (shouldRenderHome) {
         const driverColor = getDriverColor(driver);
 
