@@ -2080,6 +2080,7 @@ class SmartRefreshManager {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const activeDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : todayStr;
     const activeDriverId = filters?.deliveryFilter?.driver_id;
+    const isViewingTodayDate = activeDateStr === todayStr;
 
     // Capture state BEFORE refresh
     const stateBeforeRefresh = {
@@ -2174,17 +2175,6 @@ class SmartRefreshManager {
         }
       } else {
         console.log(`⏭️ [SmartRefresh] Skipping driver location sync - viewing past date (${activeDateStr}), not today (${todayStr})`);
-      }
-
-      try {
-        if (false) {
-          // DISABLED - this was the old logic that fetched AppUsers every 15 seconds
-          const appUserResult = await this.refreshAllAppUsersFullSync(currentData.appUsers, currentPage, selectedDate, showAllDrivers);
-          if (appUserResult?.hasChanges) {
-            updates.appUsers = appUserResult.appUsers;
-          }
-          // OLD CODE - disabled
-        }
       }
 
       // PRIORITY 1: Active route data (15-second cycle)
