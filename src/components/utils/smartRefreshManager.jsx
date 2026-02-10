@@ -2111,6 +2111,9 @@ class SmartRefreshManager {
 
     // Capture state BEFORE refresh
     const stateBeforeRefresh = {
+      incompleteCount: 0,
+      nextDeliveryStopId: null
+    };
 
     if (activeDriverId && currentData.deliveries) {
       const activeDriverDeliveries = currentData.deliveries.filter(d => 
