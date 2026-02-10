@@ -99,6 +99,7 @@ import DeviceSelectionModal from './components/devices/DeviceSelectionModal';
 import { initializeDailyCleanup } from './components/utils/messageCleaner';
 import { toast } from 'sonner';
 import { performInitialSync, processPendingMutations, performBackgroundSync } from './components/utils/offlineSync';
+import { requestThrottler } from './components/utils/requestThrottler';
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 import ConnectionRecoveryBanner from './components/layout/ConnectionRecoveryBanner';
 import { subscribeMutations } from './components/utils/entityMutations';
@@ -837,7 +838,11 @@ export default function Layout({ children, currentPageName }) {
         const detectedDeviceType = getDeviceType();
         setDeviceTypeDetected(detectedDeviceType);
 
-        const fetchedUser = await getEffectiveUser();
+        const fetchedUser = await requestThrottler.queue(
+          () => getEffectiveUser(),
+          'critical',
+          'getEffectiveUser'
+        );
 
         if (!fetchedUser) {
           setHasAccess(false);
@@ -877,7 +882,11 @@ export default function Layout({ children, currentPageName }) {
         // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
         // Step 3 - Load user settings from local cache (no API call)
         try {
-          const settings = await loadUserSettings(fetchedUser.id);
+          const settings = await requestThrottler.queue(
+            () => loadUserSettings(fetchedUser.id),
+            'critical',
+            'loadUserSettings'
+          );
 
           // Apply sidebar width (device-specific, safe to use from settings)
           if (settings.sidebar_width) {
@@ -910,7 +919,11 @@ export default function Layout({ children, currentPageName }) {
         // Load app-wide settings in background (non-blocking)
         setTimeout(async () => {
           try {
-            const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+            const settings = await requestThrottler.queue(
+              () => base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
+              'standard',
+              'loadAppSettings'
+            );
             if (settings && settings.length > 0 && settings[0].setting_value) {
               smartRefreshManager._enabled = settings[0].setting_value.smartRefreshEnabled !== false;
               if (settings[0].setting_value.appVersion) {
@@ -968,7 +981,11 @@ export default function Layout({ children, currentPageName }) {
 
           if (!citiesData || citiesData.length === 0) {
             console.log('📥 [Layout] Cities not in offline DB - fetching from API');
-            citiesData = await City.list();
+            citiesData = await requestThrottler.queue(
+              () => City.list(),
+              'priority',
+              'loadCities'
+            );
             // Save to offline DB for future use
             await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesData);
           } else {
@@ -976,7 +993,11 @@ export default function Layout({ children, currentPageName }) {
           }
         } catch (offlineError) {
           console.warn('⚠️ [Layout] Offline DB failed, fetching from API');
-          citiesData = await City.list();
+          citiesData = await requestThrottler.queue(
+            () => City.list(),
+            'priority',
+            'loadCitiesFallback'
+          );
         }
 
         citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
@@ -984,7 +1005,11 @@ export default function Layout({ children, currentPageName }) {
 
         // Longer delay before stores to prevent rate limits
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        const storesData = await getData('Store');
+        const storesData = await requestThrottler.queue(
+          () => getData('Store'),
+          'priority',
+          'loadStores'
+        );
         let initialCityId = null;
 
         if (fetchedUser.city_id) {
@@ -1054,10 +1079,26 @@ export default function Layout({ children, currentPageName }) {
           
           // Fetch and save essential entities to offline DB in parallel
           const [deliveryData, patientData, appUserData, storeData] = await Promise.all([
-            base44.entities.Delivery.filter({ delivery_date: todayStr }).catch(() => []),
-            base44.entities.Patient.list().catch(() => []),
-            base44.entities.AppUser.list().catch(() => []),
-            base44.entities.Store.list().catch(() => [])
+            requestThrottler.queue(
+              () => base44.entities.Delivery.filter({ delivery_date: todayStr }).catch(() => []),
+              'priority',
+              'primeDeliveries'
+            ),
+            requestThrottler.queue(
+              () => base44.entities.Patient.list().catch(() => []),
+              'standard',
+              'primePatients'
+            ),
+            requestThrottler.queue(
+              () => base44.entities.AppUser.list().catch(() => []),
+              'priority',
+              'primeAppUsers'
+            ),
+            requestThrottler.queue(
+              () => base44.entities.Store.list().catch(() => []),
+              'priority',
+              'primeStores'
+            )
           ]);
 
           // Save to offline DB immediately
