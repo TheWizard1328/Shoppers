@@ -1142,17 +1142,21 @@ class SmartRefreshManager {
            return null;
          }
        }
-      
-      // CRITICAL: Use adaptive interval based on user activity
-      const adaptiveInterval = this.getAdaptiveDriverLocationInterval();
-      const now = Date.now();
-      const timeSinceLastRefresh = now - (this.lastRefreshTimes.driverLocation || 0);
-      
-      if (!forceRefresh && timeSinceLastRefresh < adaptiveInterval) {
+
+       // CRITICAL: Use adaptive interval based on user activity
+       const adaptiveInterval = this.getAdaptiveDriverLocationInterval();
+       const now = Date.now();
+       const timeSinceLastRefresh = now - (this.lastRefreshTimes.driverLocation || 0);
+
+       console.log(`🔄 [SmartRefresh] Checking driver location refresh - timeSinceLastRefresh: ${timeSinceLastRefresh}ms, adaptiveInterval: ${adaptiveInterval}ms, forceRefresh: ${forceRefresh}`);
+
+       if (!forceRefresh && timeSinceLastRefresh < adaptiveInterval) {
+        console.log(`⏭️ [SmartRefresh] Skipping driver location refresh - within interval`);
         return null;
-      }
-      
-      this.lastRefreshTimes.driverLocation = now;
+       }
+
+       console.log(`✅ [SmartRefresh] Driver location refresh DUE - marking refreshed and loading from offline DB`);
+       this.lastRefreshTimes.driverLocation = now;
       
       // CRITICAL: Load from offline DB (kept fresh by performPrioritySyncBeforeRefresh every 15s)
       // This avoids duplicate API calls and uses the data that was just synced
