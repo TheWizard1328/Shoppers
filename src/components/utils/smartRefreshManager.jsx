@@ -2048,64 +2048,6 @@ class SmartRefreshManager {
     * @param {Date} selectedDate - Selected date (to check if today)
     */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false, showAllDrivers = false, currentPage = null, selectedDate = null) {
-   // TEMPORARY: Smart refresh now just triggers pull to sync
-
-   // CRITICAL: When disabled, skip background polling
-   if (!this._enabled) {
-     this.isRefreshing = false;
-     return null;
-   }
-
-   // CRITICAL: Skip if paused during mutations
-   if (this._paused) {
-     this.isRefreshing = false;
-     return null;
-   }
-
-   if (isEntityUpdating) {
-     this.isRefreshing = false;
-     return null;
-   }
-
-   // CRITICAL: Auto-unlock if stuck for more than 30 seconds
-   if (this.isRefreshing && this._refreshStartTime && (Date.now() - this._refreshStartTime > 30000)) {
-     console.warn('🔓 [SmartRefresh] Auto-unlocking stuck refresh state (>30s)');
-     this.isRefreshing = false;
-   }
-
-   if (this.isRefreshing) {
-     return null;
-   }
-
-   // CRITICAL: Touch user cache on every refresh cycle to prevent session timeout
-   try {
-     touchUserCache();
-   } catch (e) {
-     // Ignore errors from touchUserCache
-   }
-
-   this.isRefreshing = true;
-
-   // TEMPORARY: Just trigger pull to sync instead of smart refresh logic
-   try {
-     console.log('🔄 [SmartRefresh] TEMP: Triggering silent pull to sync...');
-     if (typeof window !== 'undefined') {
-       window.dispatchEvent(new CustomEvent('triggerPullToSync', {
-         detail: { source: 'smartRefresh', silent: true }
-       }));
-     }
-     return null;
-   } catch (error) {
-     console.warn('⚠️ [SmartRefresh] Error triggering pull to sync:', error.message);
-     return null;
-   } finally {
-     this.isRefreshing = false;
-   }
-  }
-
-  // KEEP OLD LOGIC BELOW FOR REFERENCE (temporarily unused)
-  async performSmartRefreshOLD(currentData, filters, isEntityUpdating = false, showAllDrivers = false, currentPage = null, selectedDate = null) {
-   // OLD IMPLEMENTATION - temporarily disabled
    if (!this._enabled) {
      this.isRefreshing = false;
      return null;
