@@ -1,10 +1,65 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 import { smartRefreshManager } from './smartRefreshManager';
 import { base44 } from '@/api/base44Client';
+import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
 
 const AppDataContext = createContext(null);
 
 export const AppDataProvider = ({ children, value }) => {
+  // CRITICAL: Set up city-filtered real-time subscriptions
+  useEffect(() => {
+    if (!value.currentUser || !value.selectedCityId || !value.selectedDate) {
+      return;
+    }
+
+    // Get user's city IDs for filtering AppUser updates
+    const userCityIds = value.currentUser.city_ids || (value.currentUser.city_id ? [value.currentUser.city_id] : []);
+    
+    // Start real-time subscriptions
+    cityFilteredRealtimeSync.start(value.selectedCityId, value.selectedDate, userCityIds);
+
+    // Subscribe to real-time updates
+    const unsubscribe = cityFilteredRealtimeSync.subscribe(({ entityType, eventType, data }) => {
+      if (entityType === 'Delivery') {
+        if (eventType === 'create' || eventType === 'update') {
+          // Update UI with the new/updated delivery
+          if (value.updateDeliveriesLocally) {
+            value.updateDeliveriesLocally([data], false);
+          }
+          
+          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
+          smartRefreshManager.notifyRealtimeUpdate('Delivery');
+        } else if (eventType === 'delete') {
+          // Remove from UI
+          if (value.updateDeliveriesLocally && value.deliveries) {
+            const filtered = value.deliveries.filter(d => d?.id !== data.id);
+            value.updateDeliveriesLocally(filtered, true);
+          }
+          
+          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
+          smartRefreshManager.notifyRealtimeUpdate('Delivery');
+        }
+      } else if (entityType === 'AppUser') {
+        if (eventType === 'create' || eventType === 'update') {
+          // Notify driver location update
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: [data], singleUpdate: true, fromRealtime: true }
+            }));
+          }
+          
+          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
+          smartRefreshManager.notifyRealtimeUpdate('AppUser');
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      cityFilteredRealtimeSync.stop();
+    };
+  }, [value.currentUser?.id, value.selectedCityId, value.selectedDate]);
+  
   // Wrap updateDeliveriesLocally to register pending updates with driver/date context
   const wrappedUpdateDeliveriesLocally = (updates, isFullReplacement = false) => {
     if (value.updateDeliveriesLocally) {

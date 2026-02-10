@@ -41,10 +41,10 @@ class SmartRefreshManager {
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
     // Real-time refresh intervals (milliseconds)
-    // OPTIMIZED: Batch entire entity syncs to reduce API calls
+    // OPTIMIZED: Extended intervals - real-time subscriptions are primary update source
     this.intervals = {
-      activeRoute: 15000,            // 15s - TODAY's deliveries + driver locations (priority)
-      appUsers: 120000,              // 2min - ENTIRE AppUser dataset (reduced from 15s to prevent rate limits)
+      activeRoute: 300000,           // 5min - Fallback reconciliation for deliveries (real-time is primary)
+      appUsers: 600000,              // 10min - Fallback for AppUser data (real-time is primary)
       cities: 300000,                // 5min - ENTIRE Cities dataset in one hit
       stores: 300000,                // 5min - ENTIRE Stores dataset in one hit
       patients: 86400000,            // Once a day - ENTIRE Patient dataset + last 90 days deliveries
@@ -2406,6 +2406,21 @@ class SmartRefreshManager {
     }
   }
   
+  /**
+   * Signal that real-time update was received - skip next scheduled refresh
+   * This prevents redundant API calls when real-time subscriptions already updated the data
+   */
+  notifyRealtimeUpdate(entityType) {
+    if (entityType === 'Delivery') {
+      this.lastRefreshTimes.activeRoute = Date.now();
+      console.log('⚡ [SmartRefresh] Real-time Delivery update - skipping next scheduled refresh');
+    } else if (entityType === 'AppUser') {
+      this.lastRefreshTimes.appUsers = Date.now();
+      this.lastRefreshTimes.activeRoute = Date.now();
+      console.log('⚡ [SmartRefresh] Real-time AppUser update - skipping next scheduled refresh');
+    }
+  }
+
   /**
    * Handle broadcast from another device - refresh ONLY the specific entity that changed
    * This is the smart approach: instead of polling everything, we listen for targeted updates
