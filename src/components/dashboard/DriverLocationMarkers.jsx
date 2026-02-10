@@ -186,9 +186,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                      userId === currentUserUserId ||
                      user.user_id === currentUserId;
 
-      // CRITICAL: ALWAYS show self marker on ALL devices regardless of date or status
+      // CRITICAL: NEVER show self marker on primary device (live location is separate)
+      // Only show self marker on non-primary devices (shared location from primary)
       if (isSelf) {
-        return true;
+        return !isPrimaryDevice; // Only show self marker if NOT on primary device
       }
 
       // CRITICAL: Don't show OTHER markers for past dates
