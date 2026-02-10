@@ -938,6 +938,34 @@ export default function DeliveryForm({
       }
     }
 
+    // CRITICAL: Calculate AM/PM and set store variant in formData
+    const deliveryAMPM = determineDeliveryAMPM(patient);
+    let storeVariantId = patient.store_id || '';
+    
+    // If store has both AM & PM drivers, append variant suffix to show correct selection
+    if (patientStore) {
+      const dateObj = formData.delivery_date ? new Date(formData.delivery_date + 'T00:00:00') : new Date();
+      const dayOfWeek = dateObj.getDay();
+      
+      let amDriverId, pmDriverId;
+      if (dayOfWeek === 6) {
+        amDriverId = patientStore.saturday_am_driver_id;
+        pmDriverId = patientStore.saturday_pm_driver_id;
+      } else if (dayOfWeek === 0) {
+        amDriverId = patientStore.sunday_am_driver_id;
+        pmDriverId = patientStore.sunday_pm_driver_id;
+      } else {
+        amDriverId = patientStore.weekday_am_driver_id;
+        pmDriverId = patientStore.weekday_pm_driver_id;
+      }
+      
+      // If both AM & PM slots exist, set variant ID for UI display
+      if (amDriverId && pmDriverId && deliveryAMPM) {
+        storeVariantId = `${patient.store_id}_${deliveryAMPM}`;
+        console.log(`📦 [handlePatientSelect] Store has AM+PM drivers, setting variant: ${storeVariantId}`);
+      }
+    }
+
     const updatedFormData = {
       ...formData,
       patient_id: patient.id,
@@ -954,6 +982,7 @@ export default function DeliveryForm({
       signature_needed: patient.signature_needed || false,
       delivery_instructions: patient.notes || '',
       store_id: patient.store_id || '',
+      ampm_deliveries: deliveryAMPM, // CRITICAL: Set calculated AM/PM
       driver_id: autoSelectedDriverId,
       driver_name: autoSelectedDriverName,
       recurring: patient.recurring || false,
@@ -972,6 +1001,12 @@ export default function DeliveryForm({
     };
 
     setFormData(updatedFormData);
+    
+    // CRITICAL: If store has AM+PM options, set the variant in selectedPickupOption for UI display
+    if (storeVariantId.includes('_')) {
+      setSelectedPickupOption(storeVariantId);
+      console.log(`✅ [handlePatientSelect] Set selectedPickupOption to ${storeVariantId}`);
+    }
 
     // CRITICAL: If NOT auto-adding to staged (single patient selection), just populate form and return
     if (!autoAddToStaged) {
