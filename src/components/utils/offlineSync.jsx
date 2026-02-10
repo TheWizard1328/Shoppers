@@ -217,13 +217,25 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers:`, allAppUsers?.map(u => ({ id: u.id, user_id: u.user_id, user_name: u.user_name })));
 
     if (allAppUsers && allAppUsers.length > 0) {
-      // CRITICAL: Deduplicate by user_id (keep most recent by sort_order)
+      // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
       const appUsersByUserId = new Map();
       allAppUsers.forEach(au => {
         if (!au || !au.user_id) return;
         const existing = appUsersByUserId.get(au.user_id);
-        if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+        
+        if (!existing) {
           appUsersByUserId.set(au.user_id, au);
+        } else {
+          const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+          const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+          const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+          const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+
+          if (newLocationTime > existingLocationTime) {
+            appUsersByUserId.set(au.user_id, au);
+          } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
+            appUsersByUserId.set(au.user_id, au);
+          }
         }
       });
       const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
@@ -373,13 +385,25 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
     console.log(`📍 [PreRenderSync] Fetched ${appUsers?.length || 0} AppUsers from API`);
 
     if (appUsers && appUsers.length > 0) {
-      // CRITICAL: Deduplicate by user_id (keep most recent by sort_order)
+      // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
       const appUsersByUserId = new Map();
       appUsers.forEach(au => {
         if (!au || !au.user_id) return;
         const existing = appUsersByUserId.get(au.user_id);
-        if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+
+        if (!existing) {
           appUsersByUserId.set(au.user_id, au);
+        } else {
+          const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+          const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+          const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+          const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+
+          if (newLocationTime > existingLocationTime) {
+            appUsersByUserId.set(au.user_id, au);
+          } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
+            appUsersByUserId.set(au.user_id, au);
+          }
         }
       });
       const deduplicatedAppUsers = Array.from(appUsersByUserId.values());

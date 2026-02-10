@@ -1357,6 +1357,12 @@ function Dashboard() {
     return ratio < 2;
   }, [screenWidth, cardWidth]);
 
+  // Determine if stats card is centered or in upper left corner
+  const isStatsCardCentered = useMemo(() => {
+    const ratio = screenWidth / cardWidth;
+    return ratio < 2;
+  }, [screenWidth, cardWidth]);
+
   const optimizationMessagePositioning = useMemo(() => {
     // Always center below stats card
     return 'absolute left-1/2 -translate-x-1/2 z-[9998] max-w-[90vw]';

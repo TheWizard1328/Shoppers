@@ -2640,7 +2640,7 @@ class SmartRefreshManager {
          }
        }
 
-       // Deduplicate by user_id (keep most recent by location_updated_at)
+       // Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
        const appUsersByUserId = new Map();
        allAppUsers.forEach(au => {
          if (!au || !au.user_id) return;
@@ -2649,17 +2649,17 @@ class SmartRefreshManager {
          if (!existing) {
            appUsersByUserId.set(au.user_id, au);
          } else {
-           const newTimestamp = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
-           const existingTimestamp = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+           const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+           const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+           const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+           const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
 
-           // Prefer the one with the more recent location_updated_at
-           if (newTimestamp > existingTimestamp) {
+           // Prioritize by location_updated_at first
+           if (newLocationTime > existingLocationTime) {
              appUsersByUserId.set(au.user_id, au);
-           } else if (newTimestamp === existingTimestamp) {
-             // If timestamps are equal, use sort_order as a tie-breaker (keeping the lower sort_order)
-             if ((au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
-               appUsersByUserId.set(au.user_id, au);
-             }
+           } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
+             // If location times equal, use updated_date
+             appUsersByUserId.set(au.user_id, au);
            }
          }
        });
