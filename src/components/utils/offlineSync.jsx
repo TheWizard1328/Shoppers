@@ -478,6 +478,9 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
     }
     
+    // CRITICAL: Invalidate AppUser cache BEFORE loading from offline DB to ensure fresh load
+    invalidateEntityCache('AppUser');
+
     // Load fresh data from offline DB for initial render
     const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     const freshCities = await offlineDB.getAll(offlineDB.STORES.CITIES);
