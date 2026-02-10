@@ -160,27 +160,15 @@ class DriverLocationPoller {
     users = Array.from(userMap.values());
     console.log(`✅ [Poller] After deduplication: ${users.length} unique users`);
     
-    // CRITICAL: Now filter out stale locations (older than 5 minutes)
+    // Filter to only users with valid coordinates
     users = users.filter(user => {
-      // Skip users without location timestamps or coordinates
-      if (!user.location_updated_at || !user.current_latitude || !user.current_longitude) {
+      if (!user.current_latitude || !user.current_longitude) {
         return false;
       }
-      
-      // Check if location is too old (more than 5 minutes)
-      const locationAge = now - new Date(user.location_updated_at).getTime();
-      const ageMinutes = Math.floor(locationAge / 60000);
-      
-      if (locationAge > maxStaleTime) {
-        console.log(`⏭️ [Poller] Skipping user ${user.user_name} - location too old (${ageMinutes} min): ${user.location_updated_at}`);
-        return false; // Skip stale locations entirely
-      }
-      
-      console.log(`✅ [Poller] Including user ${user.user_name} - fresh location (${ageMinutes} min old): ${user.location_updated_at}`);
       return true;
     });
     
-    console.log(`✅ [Poller] After staleness filter: ${users.length} users with fresh locations`);
+    console.log(`✅ [Poller] After coordinate filter: ${users.length} users with valid coordinates`);
     
     if (users.length === 0) {
       // CRITICAL: Still notify subscribers with empty array to clear markers
@@ -227,30 +215,7 @@ class DriverLocationPoller {
         return false;
       }
 
-      // CRITICAL: 5-minute inactivity rule - applies to ALL markers (including own)
-      if (user.location_updated_at) {
-        const locationAge = now - new Date(user.location_updated_at).getTime();
-        if (locationAge > maxStaleTime) {
-          if (isSelf) {
-            const ageMinutes = Math.floor(locationAge / 60000);
-            const ageHours = Math.floor(ageMinutes / 60);
-            const ageDays = Math.floor(ageHours / 24);
-            console.log(`❌ [Poller] SELF marker BLOCKED - location too old:`, {
-              location_updated_at: user.location_updated_at,
-              ageMinutes,
-              ageHours,
-              ageDays,
-              maxStaleMinutes: maxStaleTime / 60000
-            });
-          }
-          return false;
-        }
-      } else {
-        if (isSelf) {
-          console.log(`❌ [Poller] SELF marker BLOCKED - no location_updated_at timestamp`);
-        }
-        return false;
-      }
+      // Already filtered by coordinates above, no additional timestamp checks needed
 
       // ========================================
       // RULE 1: Own location marker - ALWAYS visible regardless of any status/toggle
