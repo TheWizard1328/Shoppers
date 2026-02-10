@@ -2121,9 +2121,7 @@ class SmartRefreshManager {
       // PRIORITY 0 (CRITICAL): FULL AppUser dataset sync FIRST (before activeRoute)
       // This ensures all driver locations are fresh in offline DB before map markers refresh
       // CRITICAL: Only fetch when on Dashboard + today's date, OR when showAllDrivers is true
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : todayStr;
-      const shouldFetchAppUsers = showAllDrivers || (currentPage === 'Dashboard' && selectedDateStr === todayStr);
+      const shouldFetchAppUsers = showAllDrivers || (currentPage === 'Dashboard' && activeDateStr === todayStr);
 
       if (this.shouldRefresh('appUsers') && currentData.appUsers && shouldFetchAppUsers) {
         try {
