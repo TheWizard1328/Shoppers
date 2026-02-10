@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -1874,6 +1875,15 @@ export default function RouteImport({
   };
 
   const handleConfirmImport = async () => {
+    // CRITICAL: Pause smart refresh and driver location polling during import
+    try {
+      smartRefreshManager.pause();
+      driverLocationPoller.pause();
+      console.log('⏸️ [RouteImport] Paused smart refresh and location polling');
+    } catch (e) {
+      console.warn('⚠️ [RouteImport] Failed to pause refresh managers:', e.message);
+    }
+
     setIsProcessing(true);
     setImportResult(null);
     setShowProgress(true);
@@ -1905,13 +1915,6 @@ export default function RouteImport({
     const failedUpdates = [];
 
     try {
-      // CRITICAL: Pause ALL sync processes before import
-
-      smartRefreshManager.pause();
-      driverLocationPoller.pause();
-      
-
-      
       const { offlineDB } = await import('../utils/offlineDatabase');
 
       // STEP 1: Load AppUser data (offline first)
@@ -2415,9 +2418,7 @@ export default function RouteImport({
       }, 1000); // Brief delay for UI stability
     } catch (error) {
 
-      
-      // Sync managers auto-resumed by executeDataOperation
-      
+      // CRITICAL: Resume sync processes after import completes
       overallResults.errors.push(`Overall import process failed: ${error.message}`);
       setImportResult(overallResults);
       setImportProgress((prev) => ({
@@ -2438,18 +2439,18 @@ export default function RouteImport({
         phase: 'import'
       });
     } finally {
-      setIsProcessing(false);
-      setTimeout(() => setShowProgress(false), 1000);
-      
-      // Resume sync processes
+       setIsProcessing(false);
+       setTimeout(() => setShowProgress(false), 1000);
 
-      try {
-        smartRefreshManager.resume();
-        driverLocationPoller.resume();
-      } catch (e) {
-
-      }
-    }
+       // CRITICAL: Resume sync processes after import completes
+       try {
+         smartRefreshManager.resume();
+         driverLocationPoller.resume();
+         console.log('▶️ [RouteImport] Resumed smart refresh and location polling after import');
+       } catch (e) {
+         console.warn('⚠️ [RouteImport] Failed to resume managers:', e.message);
+       }
+     }
   };
 
   const getStatusBadge = (status) => {
