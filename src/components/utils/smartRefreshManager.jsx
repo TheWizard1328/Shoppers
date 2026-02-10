@@ -2118,66 +2118,72 @@ class SmartRefreshManager {
     }
     
     try {
-      // PRIORITY 0 (CRITICAL): FULL AppUser dataset sync FIRST (before activeRoute)
-      // This ensures all driver locations are fresh in offline DB before map markers refresh
-      // CRITICAL: Only fetch when on Dashboard + today's date, OR when showAllDrivers is true
-      const shouldFetchAppUsers = showAllDrivers || (currentPage === 'Dashboard' && activeDateStr === todayStr);
+      // CRITICAL: ONLY sync AppUsers and display driver locations when viewing TODAY's date
+      // When viewing past dates, DO NOT pull driver locations
+      if (isViewingTodayDate) {
+        // PRIORITY 0 (CRITICAL): Load AppUsers from offline DB (kept fresh by priority sync every 15s)
+        // Only fetch from API every 2 minutes if offline DB is stale
+        const shouldFetchAppUsers = showAllDrivers || (currentPage === 'Dashboard');
 
-      if (this.shouldRefresh('appUsers') && currentData.appUsers && shouldFetchAppUsers) {
-        try {
-          console.log('📡 [SmartRefresh] PRIORITY 0: Syncing FULL AppUser dataset (every 15s) - FRESH LOCATIONS FIRST');
-          const appUserResult = await this.refreshAllAppUsersFullSync(currentData.appUsers, currentPage, selectedDate, showAllDrivers);
-          if (appUserResult?.hasChanges) {
-            updates.appUsers = appUserResult.appUsers;
-          }
-          this.markRefreshed('appUsers');
-          
-          // CRITICAL: After syncing to offline DB, ALWAYS load from offline DB and process through poller
-          // This ensures driver locations update on every cycle regardless of diffs
+          if (this.shouldRefresh('appUsers') && currentData.appUsers && shouldFetchAppUsers) {
           try {
+            console.log('📡 [SmartRefresh] PRIORITY 0: Loading driver locations from offline DB (synced every 15s)');
             const { offlineDB } = await import('./offlineDatabase');
-            const freshAppUsersFromOfflineDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+            const appUsersFromOfflineDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
 
-            if (freshAppUsersFromOfflineDB && freshAppUsersFromOfflineDB.length > 0) {
-              console.log(`📍 [SmartRefresh] Loading ${freshAppUsersFromOfflineDB.length} fresh driver locations from offline DB`);
+            if (appUsersFromOfflineDB && appUsersFromOfflineDB.length > 0) {
+              console.log(`📍 [SmartRefresh] Loaded ${appUsersFromOfflineDB.length} driver locations from offline DB`);
+              
+              // Update state with fresh locations from offline DB
+              if (!updates.appUsers || appUsersFromOfflineDB.length !== (updates.appUsers?.length || 0)) {
+                updates.appUsers = appUsersFromOfflineDB;
+              }
 
-              // CRITICAL: Process through driverLocationPoller to trigger marker updates
+              // Process through driverLocationPoller
               try {
                 const { driverLocationPoller } = await import('./driverLocationPoller');
-
-                // Get current user from global context
                 const currentUser = this._currentUser;
 
                 if (currentUser) {
-                  console.log(`📍 [SmartRefresh] Processing ${freshAppUsersFromOfflineDB.length} locations through poller`);
                   driverLocationPoller.processLocationData(
                     currentUser, 
-                    [], // deliveries not needed for location processing
-                    [], // drivers not needed
-                    [], // stores not needed
-                    freshAppUsersFromOfflineDB, 
-                    selectedDate || new Date(), // Use actual selected date from context
+                    currentData.deliveries,
+                    [],
+                    [],
+                    appUsersFromOfflineDB, 
+                    selectedDate || new Date(),
                     true, // forceNotify
-                    currentPage || 'Dashboard', // Use actual current page from context
-                    true // showAllDrivers - true to ensure all markers update
+                    currentPage || 'Dashboard',
+                    showAllDrivers
                   );
                 }
               } catch (pollerError) {
                 console.warn('⚠️ [SmartRefresh] Failed to process through poller:', pollerError.message);
               }
 
-              // Also dispatch event for components not using the poller
+              // Dispatch event
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                  detail: { appUsers: freshAppUsersFromOfflineDB }
+                  detail: { appUsers: appUsersFromOfflineDB }
                 }));
               }
             }
-          } catch (offlineReadError) {
-            console.warn('⚠️ [SmartRefresh] Failed to load fresh locations from offline DB:', offlineReadError.message);
+          } catch (offlineError) {
+            console.warn('⚠️ [SmartRefresh] Failed to load AppUsers from offline DB:', offlineError.message);
           }
-        } catch (e) {
-          console.error('❌ [SmartRefresh] Critical AppUser sync failed:', e.message);
+        }
+      } else {
+        console.log(`⏭️ [SmartRefresh] Skipping driver location sync - viewing past date (${activeDateStr}), not today (${todayStr})`);
+      }
+
+      try {
+        if (false) {
+          // DISABLED - this was the old logic that fetched AppUsers every 15 seconds
+          const appUserResult = await this.refreshAllAppUsersFullSync(currentData.appUsers, currentPage, selectedDate, showAllDrivers);
+          if (appUserResult?.hasChanges) {
+            updates.appUsers = appUserResult.appUsers;
+          }
+          // OLD CODE - disabled
         }
       }
 
