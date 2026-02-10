@@ -1833,8 +1833,8 @@ class SmartRefreshManager {
   /**
    * Refresh ACTIVE route data (today's deliveries + driver locations)
    * CRITICAL: 15-second cycle for real-time updates
-   * CRITICAL: PURGE-AND-RESYNC pattern - deletes offline DB, fetches fresh from API
-   * CRITICAL: When showAllDrivers is true, fetch ALL drivers and refresh their delivery data
+   * CRITICAL: NO purging - loads from offline DB which is kept fresh by broadcasts
+   * Syncs patient data for new/updated deliveries
    * @param {boolean} showAllDrivers - If true, refreshes ALL drivers' data regardless of selected driver
    * @param {string} currentPage - Current page name (to check if on Dashboard)
    * @param {Date} selectedDate - Selected date (to check if today)
@@ -1847,164 +1847,105 @@ class SmartRefreshManager {
   try {
     const { offlineDB } = await import('./offlineDatabase');
 
-    // STEP 1: DELETE offline AppUsers completely
-    console.log('🗑️ [ActiveRoute] STEP 1: Deleting ALL offline AppUsers...');
-    await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
-    console.log('✅ [ActiveRoute] Offline AppUsers cleared');
+    // STEP 1: Load AppUsers from offline DB (kept fresh by broadcasts + incremental sync)
+    console.log('📍 [ActiveRoute] STEP 1: Loading AppUsers from offline DB...');
+    const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
 
-    // STEP 2: FETCH fresh AppUsers from API
-    console.log('📡 [ActiveRoute] STEP 2: Fetching fresh AppUsers from API...');
-    await this.waitForRateLimit();
-    const freshAppUsers = await queueEntityRequest(
-      () => base44.entities.AppUser.list(),
-      'AppUser list [PURGE-RESYNC]'
-    );
+    if (offlineAppUsers && offlineAppUsers.length > 0) {
+      updates.appUsers = offlineAppUsers;
+      console.log(`✅ [ActiveRoute] Loaded ${offlineAppUsers.length} AppUsers from offline DB`);
 
-    if (!freshAppUsers || freshAppUsers.length === 0) {
-      console.warn('⚠️ [ActiveRoute] No AppUsers returned from API');
-      return null;
+      // Update UI with driver locations
+      try {
+        const { driverLocationPoller } = await import('./driverLocationPoller');
+        driverLocationPoller.processLocationData(
+          this._currentUser,
+          [],
+          [],
+          [],
+          offlineAppUsers,
+          selectedDate || new Date(),
+          true,
+          currentPage || 'Dashboard',
+          showAllDrivers
+        );
+      } catch (pollerError) {
+        console.warn('⚠️ [ActiveRoute] Failed to process locations:', pollerError.message);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: offlineAppUsers, forceAll: true, showAllDrivers }
+        }));
+      }
     }
 
-    // STEP 3: RESYNC AppUsers to offline DB
-    console.log(`💾 [ActiveRoute] STEP 3: Resyncing ${freshAppUsers.length} AppUsers to offline DB...`);
-    await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-    console.log('✅ [ActiveRoute] AppUsers resynced to offline DB');
-    updates.appUsers = freshAppUsers;
+    // STEP 2: Load deliveries from offline DB for active date
+    console.log(`📦 [ActiveRoute] STEP 2: Loading deliveries from offline DB for ${activeDateStr}...`);
+    const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, activeDateStr);
 
-    // STEP 4: FETCH and sync relevant patients for the selected date deliveries
-    console.log('📡 [ActiveRoute] STEP 4: Fetching deliveries to determine patient IDs...');
-    await this.waitForRateLimit();
-    const cityOnlyFilter = { delivery_date: activeDateStr };
+    if (offlineDeliveries && offlineDeliveries.length > 0) {
+      const otherDeliveries = currentData.deliveries.filter(d => d && d.delivery_date !== activeDateStr);
+      updates.deliveries = [...otherDeliveries, ...offlineDeliveries];
+      console.log(`✅ [ActiveRoute] Loaded ${offlineDeliveries.length} deliveries from offline DB`);
 
-    if (showAllDrivers) {
-      console.log(`📦 [ActiveRoute] Show All mode - fetching ALL drivers for ${activeDateStr}`);
-    } else if (filters.deliveryFilter?.driver_id) {
-      cityOnlyFilter.driver_id = filters.deliveryFilter.driver_id;
-    }
-
-    if (filters.deliveryFilter?.store_id) {
-      cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
-    }
-
-    const fetchedDeliveries = await queueEntityRequest(
-      () => base44.entities.Delivery.filter(cityOnlyFilter),
-      `Delivery filter [active, ${activeDateStr}]`
-    );
-
-    if (fetchedDeliveries && fetchedDeliveries.length > 0) {
-      // Extract patient IDs from fetched deliveries
-      const patientIds = [...new Set(fetchedDeliveries.map(d => d.patient_id).filter(Boolean))];
+      // STEP 3: Sync patient data for deliveries
+      const patientIds = [...new Set(offlineDeliveries.map(d => d.patient_id).filter(Boolean))];
 
       if (patientIds.length > 0) {
-        console.log(`👥 [ActiveRoute] Fetching ${patientIds.length} patients for deliveries...`);
-        await this.waitForRateLimit();
-        const patientsForActiveDate = await queueEntityRequest(
-          () => base44.entities.Patient.filter({ id: { $in: patientIds } }),
-          `Patient filter [active date patients]`
-        );
+        console.log(`👥 [ActiveRoute] STEP 3: Syncing ${patientIds.length} patient records for deliveries...`);
 
-        if (patientsForActiveDate && patientsForActiveDate.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsForActiveDate);
-          console.log(`✅ [ActiveRoute] Synced ${patientsForActiveDate.length} patients to offline DB`);
+        // Get patients from offline DB first
+        const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+        const offlinePatientIds = new Set(offlinePatients?.map(p => p?.id) || []);
+        const missingPatientIds = patientIds.filter(id => !offlinePatientIds.has(id));
 
-          // Update patients in state
-          const diff = diffEntityArrays(currentData.patients || [], patientsForActiveDate);
-          if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-            const merged = mergeEntityChanges(currentData.patients || [], diff);
-            updates.patients = merged;
+        if (missingPatientIds.length > 0) {
+          // Fetch missing patient data from API and merge into offline DB
+          console.log(`📥 [ActiveRoute] Fetching ${missingPatientIds.length} missing patients from API...`);
+          await this.waitForRateLimit();
+
+          const fetchedPatients = await queueEntityRequest(
+            () => base44.entities.Patient.filter({ id: { $in: missingPatientIds } }),
+            `Patient filter [missing for deliveries]`
+          );
+
+          if (fetchedPatients && fetchedPatients.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, fetchedPatients);
+            console.log(`✅ [ActiveRoute] Merged ${fetchedPatients.length} missing patients to offline DB`);
+
+            // Update state
+            const allPatients = [...(offlinePatients || []), ...fetchedPatients];
+            const diff = diffEntityArrays(currentData.patients || [], allPatients);
+            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+              const merged = mergeEntityChanges(currentData.patients || [], diff);
+              updates.patients = merged;
+            }
+          }
+        } else {
+          // All patients in offline DB, return them
+          if (offlinePatients && offlinePatients.length > 0) {
+            updates.patients = offlinePatients;
           }
         }
       }
-
-      // STEP 5: DELETE all offline deliveries for selected date
-      console.log(`🗑️ [ActiveRoute] STEP 5: Deleting offline deliveries for ${activeDateStr}...`);
-      await offlineDB.deleteDeliveriesByDate(activeDateStr);
-      console.log('✅ [ActiveRoute] Offline deliveries deleted');
-
-      // STEP 6: FETCH fresh deliveries already done above (fetchedDeliveries)
-      console.log(`📦 [ActiveRoute] STEP 6: Already fetched ${fetchedDeliveries.length} deliveries from API`);
-
-      // STEP 7: RESYNC deliveries to offline DB
-      console.log(`💾 [ActiveRoute] STEP 7: Resyncing ${fetchedDeliveries.length} deliveries to offline DB...`);
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
-      console.log('✅ [ActiveRoute] Deliveries resynced to offline DB');
-
-      // Update state with fresh API data (no merging - complete replacement)
-      const otherDeliveries = currentData.deliveries.filter(d => d && d.delivery_date !== activeDateStr);
-
-      // Preserve items with pending local updates
-      const protectedDeliveries = currentData.deliveries.filter(d => 
-        d && d.delivery_date === activeDateStr && this.hasPendingUpdate(d.id)
-      );
-
-      updates.deliveries = [...otherDeliveries, ...fetchedDeliveries, ...protectedDeliveries];
-      console.log(`✨ [ActiveRoute] Replaced with ${fetchedDeliveries.length} fresh deliveries (+${protectedDeliveries.length} protected)`);
-    } else {
-      // CRITICAL: Even if no deliveries fetched, force return offline DB data for UI update
-      console.log('📦 [ActiveRoute] No deliveries fetched, loading from offline DB for UI update...');
-      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, activeDateStr);
-      const otherDeliveries = currentData.deliveries.filter(d => d && d.delivery_date !== activeDateStr);
-      updates.deliveries = [...otherDeliveries, ...(offlineDeliveries || [])];
     }
 
-    // CRITICAL: Always return fresh patients from offline DB for UI update
-    const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-    if (offlinePatients && offlinePatients.length > 0) {
-      updates.patients = offlinePatients;
+    // STEP 4: Return all patients from offline DB for UI update
+    const finalPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    if (finalPatients && finalPatients.length > 0 && !updates.patients) {
+      updates.patients = finalPatients;
     }
 
     this.recordSuccess();
+    return Object.keys(updates).length > 0 ? updates : null;
 
-      // CRITICAL: STEP FINAL - Compare state AFTER all refreshes with state BEFORE refresh
-      // Only trigger centering if something actually changed
-      if (activeDriverId && updates.deliveries) {
-        const activeDriverDeliveriesAfter = updates.deliveries.filter(d => 
-          d && d.driver_id === activeDriverId && d.delivery_date === activeDateStr
-        );
-
-        // Count incomplete deliveries AFTER refresh
-        const incompleteCountAfter = activeDriverDeliveriesAfter.filter(d => 
-          !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
-        ).length;
-
-        // Find isNextDelivery stop AFTER refresh
-        const nextDeliveryStopAfter = activeDriverDeliveriesAfter.find(d => d.isNextDelivery === true);
-        const nextDeliveryStopIdAfter = nextDeliveryStopAfter?.id || null;
-
-        console.log(`📊 [SmartRefresh] STEP FINAL: Comparing state - before: incomplete=${stateBeforeRefresh.incompleteCount} nextStop=${stateBeforeRefresh.nextDeliveryStopId}, after: incomplete=${incompleteCountAfter} nextStop=${nextDeliveryStopIdAfter}`);
-
-        // Check if either incomplete count OR isNextDelivery stop ID changed
-        const incompleteCountChanged = stateBeforeRefresh.incompleteCount !== incompleteCountAfter;
-        const nextDeliveryStopChanged = stateBeforeRefresh.nextDeliveryStopId !== nextDeliveryStopIdAfter;
-
-        if (incompleteCountChanged || nextDeliveryStopChanged) {
-          console.log(`🎯 [SmartRefresh] State changed - triggering center: incomplete=${incompleteCountChanged} nextStop=${nextDeliveryStopChanged}`);
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('incompleteDeliveriesCountChanged'));
-          }
-        }
-
-        // Check for route completion (all deliveries done)
-        const hasNextDeliveryAfter = activeDriverDeliveriesAfter.some(d => d.isNextDelivery === true);
-        const routeCompleted = incompleteCountAfter === 0 && !hasNextDeliveryAfter && stateBeforeRefresh.incompleteCount > 0;
-
-        if (routeCompleted) {
-          console.log(`✅ [SmartRefresh] Driver ${activeDriverId} completed all stops - activating phase 1`);
-          if (typeof window !== 'undefined') {
-            const { fabControlEvents } = await import('./fabControlEvents');
-            fabControlEvents.notifyDoneButtonClicked();
-          }
-        }
-      }
-
-      return Object.keys(updates).length > 0 ? updates : null;
-      
-    } catch (error) {
-      this.recordError();
-      this.recordConnectionError(error);
-      console.warn(`⚠️ [ActiveRoute] Error (will retry): ${error.message}`);
-      return null;
-    }
+  } catch (error) {
+    this.recordError();
+    this.recordConnectionError(error);
+    console.warn(`⚠️ [ActiveRoute] Error (will retry): ${error.message}`);
+    return null;
+  }
   }
   
   /**
