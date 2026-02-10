@@ -113,6 +113,11 @@ const fetchGoogleDirections = async (startLat, startLon, endLat, endLon, googleA
  */
 const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = null, startLon = null, endLat = null, endLon = null) => {
    try {
+     // DISABLED: DriverRoutePolyline queries - prevents rate limit waste
+     console.log('⏭️ [RoutePolyline] Skipping getStoredPolyline - feature disabled');
+     return null;
+     
+     /* DISABLED CODE - restore when DriverRoutePolyline is populated
      const polylines = await queueEntityRequest(
        () => base44.entities.DriverRoutePolyline.filter({
          driver_id: driverId,
@@ -121,6 +126,7 @@ const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = n
        }),
        'DriverRoutePolyline filter [getStoredPolyline]'
      );
+     */"
 
     if (!polylines || polylines.length === 0) {
       return null;
@@ -200,7 +206,11 @@ const savePolyline = async ({
     // Check for existing polyline to update
     const existing = await getStoredPolyline(driverId, deliveryDate, routeType, startLat, startLon, endLat, endLon);
 
-    // Get any polyline for this driver to check daily count
+    // DISABLED: DriverRoutePolyline queries - prevents rate limit waste
+    console.log('⏭️ [RoutePolyline] Skipping daily count check - feature disabled');
+    const allPolylinesForDriver = [];
+    
+    /* DISABLED CODE - restore when DriverRoutePolyline is populated
     const allPolylinesForDriver = await queueEntityRequest(
       () => base44.entities.DriverRoutePolyline.filter({
         driver_id: driverId,
@@ -208,6 +218,7 @@ const savePolyline = async ({
       }),
       'DriverRoutePolyline filter'
     );
+    */"
     
     // Check if we need to reset the daily counter
     let dailyCount = 0;
@@ -504,6 +515,11 @@ const POLYLINE_CACHE_DURATION = 5000; // 5 seconds
  */
 export const getStoredRouteCoordinates = async (driverId, deliveryDate, routeType) => {
   try {
+    // DISABLED: DriverRoutePolyline queries - entity not currently in use, prevents rate limit waste
+    console.log('⏭️ [RoutePolyline] Skipping DriverRoutePolyline query - feature disabled');
+    return null;
+    
+    /* DISABLED CODE - restore when DriverRoutePolyline is populated
     const cacheKey = `${driverId}_${deliveryDate}_${routeType}`;
     const now = Date.now();
     
@@ -528,6 +544,7 @@ export const getStoredRouteCoordinates = async (driverId, deliveryDate, routeTyp
        }),
        `DriverRoutePolyline filter [${driverId}, ${deliveryDate}]`
      );
+    */"
 
     if (!polylines || polylines.length === 0) {
       console.log('📍 [RoutePolyline] No stored polyline found');
