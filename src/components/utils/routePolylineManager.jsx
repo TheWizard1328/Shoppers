@@ -132,36 +132,6 @@ const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = n
       return null;
     }
 
-    // If coordinates provided, find exact match
-    if (startLat !== null && startLon !== null && endLat !== null && endLon !== null) {
-      const roundedStartLat = roundCoordinate(startLat);
-      const roundedStartLon = roundCoordinate(startLon);
-      const roundedEndLat = roundCoordinate(endLat);
-      const roundedEndLon = roundCoordinate(endLon);
-
-      const matchingPolyline = polylines.find((p) => {
-        const pStartLat = roundCoordinate(p.segment_start_lat);
-        const pStartLon = roundCoordinate(p.segment_start_lon);
-        const pEndLat = roundCoordinate(p.segment_end_lat);
-        const pEndLon = roundCoordinate(p.segment_end_lon);
-
-        return (
-          pStartLat === roundedStartLat &&
-          pStartLon === roundedStartLon &&
-          pEndLat === roundedEndLat &&
-          pEndLon === roundedEndLon
-        );
-      });
-
-      return matchingPolyline || null;
-    }
-
-    // Otherwise return most recent
-    const sortedPolylines = polylines.sort((a, b) => 
-      new Date(b.generated_at) - new Date(a.generated_at)
-    );
-    
-    return sortedPolylines[0];
   } catch (error) {
     console.error('❌ [RoutePolyline] Error finding polyline:', error);
     return null;
@@ -222,56 +192,6 @@ const savePolyline = async ({
     
     // Check if we need to reset the daily counter
     let dailyCount = 0;
-    
-    // CRITICAL: Only increment counter if this is a COMPLETE polyline
-    if (isCompletePolyline) {
-      if (allPolylinesForDriver && allPolylinesForDriver.length > 0) {
-        const latestPolyline = allPolylinesForDriver.sort((a, b) => 
-          new Date(b.last_generated_at || b.created_date) - new Date(a.last_generated_at || a.created_date)
-        )[0];
-        
-        dailyCount = (latestPolyline.daily_generation_count || 0) + 1;
-        console.log(`🔄 [RoutePolyline] Incrementing daily count to ${dailyCount} (complete polyline)`);
-      } else {
-        // First polyline of the day
-        dailyCount = 1;
-        console.log('🔄 [RoutePolyline] First complete polyline, setting counter to 1');
-      }
-    } else {
-      // Incomplete polyline - keep existing count
-      if (existing) {
-        dailyCount = existing.daily_generation_count || 0;
-        console.log(`⏭️ [RoutePolyline] Incomplete polyline - keeping existing count: ${dailyCount}`);
-      } else {
-        dailyCount = 0;
-        console.log('⚠️ [RoutePolyline] Incomplete polyline - setting count to 0');
-      }
-    }
-
-    const polylineData = {
-      driver_id: driverId,
-      delivery_date: deliveryDate,
-      segment_origin_lat: startLat,
-      segment_origin_lon: startLon,
-      segment_dest_lat: endLat,
-      segment_dest_lon: endLon,
-      encoded_polyline: encodedPolyline,
-      route_type: routeType,
-      estimated_distance_km: estimatedDistanceKm,
-      estimated_duration_minutes: estimatedDurationSeconds ? Math.round(estimatedDurationSeconds / 60) : null,
-      last_generated_at: now.toISOString(),
-      daily_generation_count: dailyCount
-    };
-    
-    if (existing) {
-      console.log('🔄 [RoutePolyline] Updating existing polyline:', existing.id, '- Daily count:', dailyCount);
-      await base44.entities.DriverRoutePolyline.update(existing.id, polylineData);
-      console.log('✅ [RoutePolyline] Polyline updated successfully');
-    } else {
-      console.log('➕ [RoutePolyline] Creating new polyline - Daily count:', dailyCount);
-      await base44.entities.DriverRoutePolyline.create(polylineData);
-      console.log('✅ [RoutePolyline] Polyline created successfully');
-    }
   } catch (error) {
     console.error('❌ [RoutePolyline] Error saving polyline:', error);
     throw error;
