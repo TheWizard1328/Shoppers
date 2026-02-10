@@ -836,6 +836,7 @@ export default function StopCard({
 
       // ═══════════ PHASE 3: SILENT OPTIMIZATION ═══════════
       console.log('🔄 [Accept All] PHASE 3: Running silent route optimization...');
+      window.dispatchEvent(new CustomEvent('routeOptimizationStarted'));
       
       await base44.functions.invoke('optimizeRouteRealTime', {
         driverId: delivery.driver_id,
