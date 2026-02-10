@@ -191,10 +191,8 @@ class LocationTracker {
       console.log(`⏰ [LocationTracker] GPS-triggered update - uploading coordinates + timestamp (moving)`);
     }
 
-    // CRITICAL: Set lastUpdate IMMEDIATELY to prevent double-uploads
-    this.lastUpdate = now;
-
     let distance = 0;
+    const timeSinceLastUpdate = now - this.lastUpdate;
     if (this.lastPosition) {
       distance = this.calculateDistance(
         this.lastPosition.latitude,
@@ -202,10 +200,13 @@ class LocationTracker {
         latitude,
         longitude
       );
-      console.log(`📍 [LocationTracker] Heartbeat update - moved ${distance.toFixed(0)}m (${Math.floor((now - this.lastUpdate)/1000)}s since last)`);
+      console.log(`📍 [LocationTracker] Heartbeat update - moved ${distance.toFixed(0)}m (${Math.floor(timeSinceLastUpdate/1000)}s since last)`);
     } else {
       console.log('🚀 [LocationTracker] First location update');
     }
+
+    // CRITICAL: Set lastUpdate AFTER logging to show accurate time difference
+    this.lastUpdate = now;
 
     try {
       // Check if online before attempting update
