@@ -109,6 +109,7 @@ import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
 import BatteryIndicator from './components/layout/BatteryIndicator';
 import SettingsMenu from './components/layout/SettingsMenu';
 import { getCompanyBranding, applyBrandingStyles } from './components/utils/brandingManager';
+import OptimizationSpinner from './components/common/OptimizationSpinner';
 
 
 // App version will be loaded from AppSettings
@@ -4168,6 +4169,7 @@ export default function Layout({ children, currentPageName }) {
           </AppDataProvider>
         </UserProvider>
       }
+      <OptimizationSpinner />
     </ErrorBoundary>);
 
 }
