@@ -112,30 +112,9 @@ const fetchGoogleDirections = async (startLat, startLon, endLat, endLon, googleA
  * @returns {Promise<Object|null>} Existing polyline or null
  */
 const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = null, startLon = null, endLat = null, endLon = null) => {
-   try {
-     // DISABLED: DriverRoutePolyline queries - prevents rate limit waste
-     console.log('⏭️ [RoutePolyline] Skipping getStoredPolyline - feature disabled');
-     return null;
-     
-     /* DISABLED CODE - restore when DriverRoutePolyline is populated
-     const polylines = await queueEntityRequest(
-       () => base44.entities.DriverRoutePolyline.filter({
-         driver_id: driverId,
-         delivery_date: deliveryDate,
-         route_type: routeType
-       }),
-       'DriverRoutePolyline filter [getStoredPolyline]'
-     );
-     */"
-
-    if (!polylines || polylines.length === 0) {
-      return null;
-    }
-
-  } catch (error) {
-    console.error('❌ [RoutePolyline] Error finding polyline:', error);
-    return null;
-  }
+  // DISABLED: DriverRoutePolyline queries - prevents rate limit waste
+  console.log('⏭️ [RoutePolyline] Skipping getStoredPolyline - feature disabled');
+  return null;
 };
 
 /**
@@ -161,41 +140,9 @@ const savePolyline = async ({
   expiresAt.setDate(expiresAt.getDate() + 1);
   expiresAt.setHours(0, 0, 0, 0);
 
-  try {
-    // CRITICAL: Check if ALL required fields are populated for a complete polyline
-    const isCompletePolyline = !!(
-      encodedPolyline &&
-      startLat != null &&
-      startLon != null &&
-      endLat != null &&
-      endLon != null &&
-      estimatedDistanceKm != null &&
-      estimatedDurationSeconds != null
-    );
-
-    // Check for existing polyline to update
-    const existing = await getStoredPolyline(driverId, deliveryDate, routeType, startLat, startLon, endLat, endLon);
-
-    // DISABLED: DriverRoutePolyline queries - prevents rate limit waste
-    console.log('⏭️ [RoutePolyline] Skipping daily count check - feature disabled');
-    const allPolylinesForDriver = [];
-    
-    /* DISABLED CODE - restore when DriverRoutePolyline is populated
-    const allPolylinesForDriver = await queueEntityRequest(
-      () => base44.entities.DriverRoutePolyline.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }),
-      'DriverRoutePolyline filter'
-    );
-    */"
-    
-    // Check if we need to reset the daily counter
-    let dailyCount = 0;
-  } catch (error) {
-    console.error('❌ [RoutePolyline] Error saving polyline:', error);
-    throw error;
-  }
+  // DISABLED: DriverRoutePolyline save operations - prevents rate limit waste
+  console.log('⏭️ [RoutePolyline] Skipping polyline save - feature disabled');
+  return;
 };
 
 /**
@@ -434,90 +381,9 @@ const POLYLINE_CACHE_DURATION = 5000; // 5 seconds
  * @returns {Promise<Array<{lat: number, lng: number}>|null>} Decoded coordinates or null
  */
 export const getStoredRouteCoordinates = async (driverId, deliveryDate, routeType) => {
-  try {
-    // DISABLED: DriverRoutePolyline queries - entity not currently in use, prevents rate limit waste
-    console.log('⏭️ [RoutePolyline] Skipping DriverRoutePolyline query - feature disabled');
-    return null;
-    
-    /* DISABLED CODE - restore when DriverRoutePolyline is populated
-    const cacheKey = `${driverId}_${deliveryDate}_${routeType}`;
-    const now = Date.now();
-    
-    // Check cache first
-    const cached = polylineQueryCache.get(cacheKey);
-    if (cached && (now - cached.timestamp) < POLYLINE_CACHE_DURATION) {
-      return cached.data;
-    }
-
-    console.log('📍 [RoutePolyline] Fetching stored route coordinates:', {
-      driverId,
-      deliveryDate,
-      routeType
-    });
-
-    // CRITICAL FIX: Don't filter by route_type as backend optimizer doesn't set it
-     // Instead, filter by driver_id and delivery_date only
-     const polylines = await queueEntityRequest(
-       () => base44.entities.DriverRoutePolyline.filter({
-         driver_id: driverId,
-         delivery_date: deliveryDate
-       }),
-       `DriverRoutePolyline filter [${driverId}, ${deliveryDate}]`
-     );
-    */"
-
-    if (!polylines || polylines.length === 0) {
-      console.log('📍 [RoutePolyline] No stored polyline found');
-      return null;
-    }
-
-    // Get the most recently updated polyline (use updated_date since last_generated_at may not be set)
-    const sortedPolylines = polylines.sort((a, b) => {
-      const aDate = a.last_generated_at || a.updated_date || a.created_date;
-      const bDate = b.last_generated_at || b.updated_date || b.created_date;
-      return new Date(bDate) - new Date(aDate);
-    });
-    
-    const latestPolyline = sortedPolylines[0];
-
-    // Check if the polyline has encoded data
-    if (!latestPolyline.encoded_polyline) {
-      console.log('📍 [RoutePolyline] Polyline exists but has no encoded data');
-      return null;
-    }
-
-    console.log('✅ [RoutePolyline] Found polyline, decoding:', {
-      id: latestPolyline.id,
-      hasEncodedPolyline: !!latestPolyline.encoded_polyline,
-      lastGenerated: latestPolyline.last_generated_at,
-      originLat: latestPolyline.segment_origin_lat,
-      originLon: latestPolyline.segment_origin_lon,
-      destLat: latestPolyline.segment_dest_lat,
-      destLon: latestPolyline.segment_dest_lon
-    });
-
-    // Decode the polyline
-    const coordinates = decodePolyline(latestPolyline.encoded_polyline);
-
-    console.log('✅ [RoutePolyline] Decoded', coordinates.length, 'coordinate points');
-
-    // Cache the result
-    polylineQueryCache.set(cacheKey, {
-      timestamp: now,
-      data: coordinates
-    });
-
-    return coordinates;
-  } catch (error) {
-    // Handle rate limit errors gracefully
-    if (error.response?.status === 429 || error.message?.includes('429')) {
-      console.warn('⚠️ [RoutePolyline] Rate limit hit - using cached data');
-      const cached = polylineQueryCache.get(cacheKey);
-      return cached?.data || null;
-    }
-    console.error('❌ [RoutePolyline] Error getting stored route coordinates:', error);
-    return null;
-  }
+  // DISABLED: DriverRoutePolyline queries - entity not currently in use, prevents rate limit waste
+  console.log('⏭️ [RoutePolyline] Skipping DriverRoutePolyline query - feature disabled');
+  return null;
 };
 
 /**
