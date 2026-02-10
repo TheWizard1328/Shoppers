@@ -6524,6 +6524,65 @@ function Dashboard() {
         }).catch((error) => console.warn('⚠️ Patient last_delivery_date update failed:', error));
       }
 
+      // CRITICAL: Update driver's location when completing or failing a stop
+      if (['completed', 'failed'].includes(newStatus)) {
+        const updateDriverLocation = async () => {
+          try {
+            // Get stop coordinates
+            let stopLat, stopLon;
+            if (targetDelivery.patient_id) {
+              const patient = patients.find(p => p?.id === targetDelivery.patient_id);
+              stopLat = patient?.latitude;
+              stopLon = patient?.longitude;
+            } else if (targetDelivery.store_id) {
+              const store = stores.find(s => s?.id === targetDelivery.store_id);
+              stopLat = store?.latitude;
+              stopLon = store?.longitude;
+            }
+
+            if (!stopLat || !stopLon || !driverId) {
+              console.warn('⚠️ Missing coordinates or driver ID - skipping location update');
+              return;
+            }
+
+            // Find AppUser record
+            const appUsersList = await base44.entities.AppUser.filter({ user_id: driverId });
+            const appUser = appUsersList?.[0];
+
+            if (!appUser) {
+              console.warn('⚠️ AppUser not found - skipping location update');
+              return;
+            }
+
+            const nowISO = new Date().toISOString();
+            
+            // Update AppUser with stop coordinates
+            await base44.entities.AppUser.update(appUser.id, {
+              current_latitude: stopLat,
+              current_longitude: stopLon,
+              location_updated_at: nowISO
+            });
+
+            console.log(`✅ [Status Update] Updated driver location to stop coordinates: ${stopLat.toFixed(6)}, ${stopLon.toFixed(6)}`);
+
+            // Update offline DB
+            const updatedAppUser = await base44.entities.AppUser.filter({ id: appUser.id });
+            if (updatedAppUser && updatedAppUser.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [updatedAppUser[0]]);
+            }
+
+            // Broadcast update
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: [updatedAppUser[0]], singleUpdate: true }
+            }));
+          } catch (error) {
+            console.warn('⚠️ Driver location update failed:', error.message);
+          }
+        };
+
+        updateDriverLocation().catch(console.error);
+      }
+
       // STEP 5: Check route completion and show dialogs (non-blocking)
       const finishedStatuses = ['completed', 'failed', 'cancelled'];
       const isReturnByMarkers = (d) => {
