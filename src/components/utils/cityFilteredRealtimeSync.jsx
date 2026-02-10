@@ -159,14 +159,14 @@ class CityFilteredRealtimeSync {
   /**
    * Update city/date filters and restart subscriptions
    */
-  updateFilters(cityId, selectedDate, userCityIds = []) {
+  updateFilters(cityId, selectedDate) {
     if (this.currentCityId === cityId && this.currentDate === selectedDate) {
       return; // No change needed
     }
 
     console.log(`🔄 [RealtimeSync] Updating filters: city ${this.currentCityId} → ${cityId}, date ${this.currentDate} → ${selectedDate}`);
     this.stop();
-    this.start(cityId, selectedDate, userCityIds);
+    this.start(cityId, selectedDate);
   }
 
   /**
