@@ -68,6 +68,7 @@ class DriverLocationPoller {
   async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false, currentPageName = null, showAllDrivers = false) {
     // Skip processing if paused (e.g., during imports)
     if (this.isPaused) {
+      console.log(`⏸️ [DriverLocationPoller] Paused - skipping location processing`);
       return;
     }
 
@@ -85,7 +86,11 @@ class DriverLocationPoller {
       }
     }
     
-    console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} driver locations (forceNotify: ${forceNotify})`);
+    console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} driver locations (forceNotify: ${forceNotify}, currentPage: ${currentPageName})`);
+    
+    // Count drivers with coordinates
+    const driversWithCoords = appUsers.filter(u => u && u.current_latitude && u.current_longitude).length;
+    console.log(`📊 [DriverLocationPoller] Input: ${driversWithCoords}/${appUsers.length} drivers have coordinates`);
     
     // DEBUG: Log first few users to see what data we're getting
     if (appUsers.length > 0) {
