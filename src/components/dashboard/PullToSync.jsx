@@ -17,6 +17,7 @@ export default function PullToSync({
   const [isPulling, setIsPulling] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(false);
   const touchStartY = useRef(0);
   const syncThreshold = 80; // Pull threshold to trigger sync
 
@@ -76,6 +77,7 @@ export default function PullToSync({
 
   const performSync = async (silent = false) => {
     setIsSyncing(true);
+    setShowOverlay(!silent);
     console.log(`🔄 [Pull to Sync] Starting ${silent ? 'silent' : 'full'} offline database sync...`);
 
     try {
@@ -307,6 +309,7 @@ export default function PullToSync({
       // Small delay before removing loading indicator
       setTimeout(() => {
         setIsSyncing(false);
+        setShowOverlay(false);
         setPullDistance(0);
         setIsPulling(false);
       }, 500);
@@ -368,7 +371,7 @@ export default function PullToSync({
 
       {/* Full-screen loading overlay during sync */}
       <AnimatePresence>
-        {isSyncing && (
+        {showOverlay && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
