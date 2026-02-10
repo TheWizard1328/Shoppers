@@ -70,14 +70,16 @@ class ShowAllDataManager {
    * @returns {Promise<Array>} - Updated deliveries array
    */
   async ensureAllDriversDataLoaded(selectedDateStr, currentDeliveries, updateCallback) {
-    console.log('📥 [ShowAllDataManager] Loading all drivers\' deliveries...');
+     console.log('📥 [ShowAllDataManager] Loading all drivers\' deliveries...');
 
-    try {
-      // Try offline DB first
-      let allDateDeliveries = await offlineDB.getByDate(
-        offlineDB.STORES.DELIVERIES, 
-        selectedDateStr
-      );
+     try {
+       const { offlineDB } = await import('./offlineDatabase');
+
+       // Try offline DB first
+       let allDateDeliveries = await offlineDB.getByDate(
+         offlineDB.STORES.DELIVERIES, 
+         selectedDateStr
+       );
 
       // If offline DB is empty or incomplete, fetch from API
       if (!allDateDeliveries || allDateDeliveries.length === 0) {
