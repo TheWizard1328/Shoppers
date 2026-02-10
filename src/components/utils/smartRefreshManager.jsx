@@ -2619,18 +2619,41 @@ class SmartRefreshManager {
 
        console.log(`📥 [SmartRefresh] Fetched ${allAppUsers.length} AppUsers from API`);
 
-       // STEP 2: Update active users' GPS coordinates if on default tracking device
+       // STEP 2: Update PRIMARY device GPS to both online and offline databases
        const { isDriver } = await import('./userRoles');
        const { locationTracker } = await import('./locationTracker');
-       
-       if (this._currentUser && isDriver(this._currentUser) && locationTracker.isTracking && locationTracker.lastPosition) {
-         const currentAppUser = allAppUsers.find(au => au.user_id === this._currentUser.id);
-         if (currentAppUser) {
-           console.log('📍 [SmartRefresh] STEP 2: Updating current driver GPS coordinates...');
-           currentAppUser.current_latitude = locationTracker.lastPosition.latitude;
-           currentAppUser.current_longitude = locationTracker.lastPosition.longitude;
-           currentAppUser.location_updated_at = new Date().toISOString();
-           console.log(`✅ [SmartRefresh] Updated GPS: ${currentAppUser.current_latitude.toFixed(6)}, ${currentAppUser.current_longitude.toFixed(6)}`);
+       const { getCurrentDevice } = await import('./deviceManager');
+
+       if (this._currentUser && isDriver(this._currentUser) && locationTracker.lastPosition) {
+         // Check if this device is the primary tracker
+         const currentDevice = await getCurrentDevice(this._currentUser.id);
+         const isPrimaryTracker = currentDevice?.is_primary_tracker !== false;
+
+         if (isPrimaryTracker) {
+           const currentAppUser = allAppUsers.find(au => au.user_id === this._currentUser.id);
+           if (currentAppUser) {
+             console.log('📍 [SmartRefresh] STEP 2: Updating PRIMARY device GPS to online + offline...');
+
+             const nowISO = new Date().toISOString();
+             const updateData = {
+               current_latitude: locationTracker.lastPosition.latitude,
+               current_longitude: locationTracker.lastPosition.longitude,
+               location_updated_at: nowISO
+             };
+
+             try {
+               // Push to API first
+               await base44.entities.AppUser.update(currentAppUser.id, updateData);
+               console.log(`✅ [SmartRefresh] Pushed GPS to API: ${updateData.current_latitude.toFixed(6)}, ${updateData.current_longitude.toFixed(6)}`);
+
+               // Update in fetched dataset (will be saved to offline DB in STEP 4)
+               currentAppUser.current_latitude = updateData.current_latitude;
+               currentAppUser.current_longitude = updateData.current_longitude;
+               currentAppUser.location_updated_at = updateData.location_updated_at;
+             } catch (error) {
+               console.warn('⚠️ [SmartRefresh] Failed to push GPS to API:', error.message);
+             }
+           }
          }
        }
 
