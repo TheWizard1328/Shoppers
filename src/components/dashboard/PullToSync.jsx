@@ -75,9 +75,7 @@ export default function PullToSync({
   }, []);
 
   const performSync = async (silent = false) => {
-    if (!silent) {
-      setIsSyncing(true);
-    }
+    setIsSyncing(true);
     console.log(`🔄 [Pull to Sync] Starting ${silent ? 'silent' : 'full'} offline database sync...`);
 
     try {
@@ -307,13 +305,11 @@ export default function PullToSync({
       }
 
       // Small delay before removing loading indicator
-      if (!silent) {
-        setTimeout(() => {
-          setIsSyncing(false);
-          setPullDistance(0);
-          setIsPulling(false);
-        }, 500);
-      }
+      setTimeout(() => {
+        setIsSyncing(false);
+        setPullDistance(0);
+        setIsPulling(false);
+      }, 500);
     }
   };
 
