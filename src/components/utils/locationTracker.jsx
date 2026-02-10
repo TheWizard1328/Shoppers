@@ -411,7 +411,7 @@ class LocationTracker {
     const userName = user.user_name || user.full_name || 'Unknown';
     const userIdLast4 = user.id ? user.id.slice(-4) : '????';
 
-    console.log(`🚀 [LocationTracker] Starting location tracking for ${userName} (...${userIdLast4})`);
+    console.log(`🚀 [LocationTracker] Starting location tracking for ${userName} (...${userIdLast4}) - Active user always tracks regardless of status`);
 
     if (!navigator.geolocation) {
       throw new Error('Geolocation is not supported by this browser');
