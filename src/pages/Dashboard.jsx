@@ -3393,21 +3393,23 @@ function Dashboard() {
     if (!renderSequence.driverLiveLocation) return;
     if (renderSequence.sharedLocations) return;
 
-    // CRITICAL: Wait for allDriverLocations to populate OR timeout after 3 seconds
-    // This ensures FAB phase 1 sees other drivers' markers on initial load
-    const hasSharedLocations = allDriverLocations.length > 0;
+    // CRITICAL: Check TWO sources for driver locations:
+    // 1. allDriverLocations (from poller)
+    // 2. window.__mapDriverLocationMarkers (rendered on map by DriverLocationMarkers)
+    const mapDriverMarkers = window.__mapDriverLocationMarkers || [];
+    const hasSharedLocations = allDriverLocations.length > 0 || mapDriverMarkers.length > 0;
 
     if (hasSharedLocations) {
-      console.log(`✅ [Render Sequence 6] Shared Driver Locations ready (${allDriverLocations.length} locations)`);
+      console.log(`✅ [Render Sequence 6] Shared Driver Locations ready (${allDriverLocations.length} from poller + ${mapDriverMarkers.length} from map)`);
       setRenderSequence((prev) => ({ ...prev, sharedLocations: true }));
       return;
     }
 
-    // Wait longer for locations to load before timing out
+    // Reduce timeout to 500ms - markers should be available almost immediately
     const timer = setTimeout(() => {
       console.log('⏱️ [Render Sequence 6] Timeout - proceeding without shared locations');
       setRenderSequence((prev) => ({ ...prev, sharedLocations: true }));
-    }, 3000); // Increased to 3 seconds
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [renderSequence.driverLiveLocation, renderSequence.sharedLocations, allDriverLocations.length, isDataLoaded]);
