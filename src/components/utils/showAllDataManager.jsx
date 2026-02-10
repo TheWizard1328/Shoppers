@@ -89,7 +89,11 @@ class ShowAllDataManager {
         });
         
         // Save to offline DB for future use
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
+         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
+
+         // Invalidate cache after saving
+         const { invalidateEntityCache } = await import('./dataSyncCoordinator');
+         invalidateEntityCache('Delivery');
       } else {
         console.log(`📦 [ShowAllDataManager] Using ${allDateDeliveries.length} deliveries from offline DB`);
       }
