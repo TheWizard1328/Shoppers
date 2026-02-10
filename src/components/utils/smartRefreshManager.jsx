@@ -120,6 +120,10 @@ class SmartRefreshManager {
     // These should be removed from UI even if smart refresh brings them back from stale offline DB
     this.deletedDeliveryIds = new Set();
     this.deletedPatientIds = new Set();
+
+    // CRITICAL: Track broadcast updates to skip purge-resync for fresh data
+    // Map of entityType -> timestamp when broadcast was received
+    this.lastBroadcastUpdate = new Map();
     
     // Track last AppUser sync time to avoid duplicate syncs on initial load
     this._lastAppUserSyncTime = 0;
