@@ -2108,9 +2108,6 @@ class SmartRefreshManager {
     const shouldFetchAllDrivers = isShowAllMode || isAllDriversMode || showAllDrivers;
     
     console.log(`🔍 [SmartRefresh] View mode - Show All: ${isShowAllMode}, All Drivers: ${isAllDriversMode}, Individual: ${isIndividualDriverMode}, Driver: ${activeDriverId || 'ALL'}`);
-    
-    // CRITICAL: Update showAllDrivers flag based on actual mode
-    const shouldFetchAllDrivers = isShowAllMode || isAllDriversMode || showAllDrivers;
 
     // Capture state BEFORE refresh
     const stateBeforeRefresh = {
