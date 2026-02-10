@@ -376,9 +376,9 @@ function buildStopsWithDependencies(deliveries, patientMap, storeMap) {
       continue;
     }
 
-    // Parse time windows
-    const timeWindowStart = parseTimeToMinutes(delivery.delivery_time_start || delivery.time_window_start);
-    const timeWindowEnd = parseTimeToMinutes(delivery.delivery_time_end || delivery.time_window_end);
+    // CRITICAL: Use time_window_start if available, else delivery_time_start
+    const timeWindowStart = parseTimeToMinutes(delivery.time_window_start || delivery.delivery_time_start);
+    const timeWindowEnd = parseTimeToMinutes(delivery.time_window_end || delivery.delivery_time_end);
 
     stops.push({
       id: delivery.id,
@@ -392,7 +392,8 @@ function buildStopsWithDependencies(deliveries, patientMap, storeMap) {
       timeWindowEnd,
       serviceTime: delivery.extra_time || 5,
       isNextDelivery: delivery.isNextDelivery || false,
-      dependsOn: [] // Will be populated in second pass
+      dependsOn: [], // Will be populated in second pass
+      delivery: delivery // Store full delivery for accessing status later
     });
   }
 

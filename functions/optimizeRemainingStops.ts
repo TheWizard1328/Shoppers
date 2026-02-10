@@ -160,14 +160,16 @@ Deno.serve(async (req) => {
       };
     }).filter(s => s.lat && s.lng);
 
-    // STEP 1: CRITICAL - Sort by isNextDelivery FIRST, then by delivery_time_start
+    // STEP 1: CRITICAL - Sort by isNextDelivery FIRST, then by time_window_start (NOT delivery_time_start)
     stops.sort((a, b) => {
       // CRITICAL: isNextDelivery ALWAYS comes first (regardless of time)
       if (a.delivery.isNextDelivery && !b.delivery.isNextDelivery) return -1;
       if (!a.delivery.isNextDelivery && b.delivery.isNextDelivery) return 1;
       
-      // Then sort by time
-      if (a.timeMinutes !== b.timeMinutes) return a.timeMinutes - b.timeMinutes;
+      // Then sort by time_window_start (patient time window takes priority over delivery_time_start)
+      const timeA = parseTimeToMinutes(a.delivery.time_window_start) ?? a.timeMinutes;
+      const timeB = parseTimeToMinutes(b.delivery.time_window_start) ?? b.timeMinutes;
+      if (timeA !== timeB) return timeA - timeB;
       
       // Pickups before deliveries at same time
       if (a.isPickup && !b.isPickup) return -1;
@@ -359,13 +361,43 @@ Deno.serve(async (req) => {
     }
 
     // STEP 6: Update ETAs for current stage in database
-    for (const { deliveryId, eta } of currentStageETAs) {
-      await base44.asServiceRole.entities.Delivery.update(deliveryId, {
+    // CRITICAL: Also update delivery_time_start for pending stops
+    for (let i = 0; i < currentStageETAs.length; i++) {
+      const { deliveryId, eta } = currentStageETAs[i];
+      const stop = optimizedCurrentStage[i];
+      
+      const updateData = {
         delivery_time_eta: eta
-      });
+      };
+      
+      // Set delivery_time_start for pending stops
+      if (stop.delivery.status === 'pending') {
+        if (!stop.delivery.patient_id) {
+          // Pending pickup - use its existing start time or ETA
+          updateData.delivery_time_start = stop.delivery.delivery_time_start || eta;
+        } else if (stop.delivery.puid) {
+          // Pending delivery - find its pickup
+          const pickup = incompleteDeliveries.find(d => !d.patient_id && d.stop_id === stop.delivery.puid);
+          if (pickup) {
+            const pickupStart = pickup.delivery_time_start;
+            const pickupETA = currentStageETAs.find(e => e.deliveryId === pickup.id)?.eta || pickup.delivery_time_eta;
+            
+            // Use later of: pickup start time or ETA, then add 5 minutes
+            let baseMinutes = parseTimeToMinutes(pickupStart);
+            const etaMinutes = parseTimeToMinutes(pickupETA);
+            if (etaMinutes > baseMinutes) {
+              baseMinutes = etaMinutes;
+            }
+            updateData.delivery_time_start = formatMinutesToTime(baseMinutes + 5);
+          }
+        }
+      }
+      
+      await base44.asServiceRole.entities.Delivery.update(deliveryId, updateData);
     }
 
     // STEP 7: Calculate ETAs for remaining stages (without Google API)
+    // CRITICAL: Also set delivery_time_start for pending stops
     for (let stageIdx = 1; stageIdx < stages.length; stageIdx++) {
       const stageStops = stages[stageIdx];
       
@@ -382,9 +414,39 @@ Deno.serve(async (req) => {
 
         const eta = formatMinutesToTime(cumulativeTime);
         
-        await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, {
+        const updateData = {
           delivery_time_eta: eta
-        });
+        };
+        
+        // Set delivery_time_start for pending stops
+        if (stop.delivery.status === 'pending') {
+          if (!stop.delivery.patient_id) {
+            // Pending pickup - use its existing start time or ETA
+            updateData.delivery_time_start = stop.delivery.delivery_time_start || eta;
+          } else if (stop.delivery.puid) {
+            // Pending delivery - find its pickup in current or previous stages
+            let pickup = null;
+            for (let s = 0; s <= stageIdx; s++) {
+              pickup = stages[s].find(st => !st.delivery.patient_id && st.delivery.stop_id === stop.delivery.puid);
+              if (pickup) break;
+            }
+            
+            if (pickup) {
+              const pickupStart = pickup.delivery.delivery_time_start;
+              const pickupETA = pickup.delivery.delivery_time_eta;
+              
+              // Use later of: pickup start time or ETA, then add 5 minutes
+              let baseMinutes = parseTimeToMinutes(pickupStart);
+              const etaMinutes = parseTimeToMinutes(pickupETA);
+              if (etaMinutes > baseMinutes) {
+                baseMinutes = etaMinutes;
+              }
+              updateData.delivery_time_start = formatMinutesToTime(baseMinutes + 5);
+            }
+          }
+        }
+        
+        await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData);
 
         const serviceTime = stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
         cumulativeTime += serviceTime;
@@ -400,14 +462,15 @@ Deno.serve(async (req) => {
     const activeStops = updatedIncomplete.filter(d => !finishedStatuses.includes(d.status));
 
     // STEP 9: CRITICAL - Re-sort activeStops (same logic as STEP 1)
-    // isNextDelivery FIRST, then by time
+    // isNextDelivery FIRST, then by time_window_start
     activeStops.sort((a, b) => {
       // CRITICAL: isNextDelivery ALWAYS comes first
       if (a.isNextDelivery && !b.isNextDelivery) return -1;
       if (!a.isNextDelivery && b.isNextDelivery) return 1;
       
-      const timeA = parseTimeToMinutes(a.delivery_time_start);
-      const timeB = parseTimeToMinutes(b.delivery_time_start);
+      // Sort by time_window_start (patient time window) if available, else delivery_time_start
+      const timeA = parseTimeToMinutes(a.time_window_start) ?? parseTimeToMinutes(a.delivery_time_start);
+      const timeB = parseTimeToMinutes(b.time_window_start) ?? parseTimeToMinutes(b.delivery_time_start);
       if (timeA !== timeB) return timeA - timeB;
       
       // Pickups before deliveries at same time
@@ -421,14 +484,52 @@ Deno.serve(async (req) => {
     console.log(`\n🔢 [optimizeRemainingStops] Re-sorted ${activeStops.length} stops (isNextDelivery first, then by time)`);
 
     // STEP 10: Re-assign stop_order numbers to match the sorted order
+    // CRITICAL: Also set delivery_time_start for pending stops
     const startingOrder = completedDeliveries.length;
     for (let i = 0; i < activeStops.length; i++) {
+      const stop = activeStops[i];
       const newOrder = startingOrder + i + 1;
-      await base44.asServiceRole.entities.Delivery.update(activeStops[i].id, {
+      
+      const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder
-      });
-      console.log(`  🔢 [optimizeRemainingStops] Stop #${newOrder}: ${activeStops[i].patient_name || 'Pickup'}`);
+      };
+      
+      // CRITICAL: Set delivery_time_start for pending stops
+      if (stop.status === 'pending' && !stop.patient_id) {
+        // This is a pending pickup - use its existing delivery_time_start or ETA
+        const pickupStartTime = stop.delivery_time_start || stop.delivery_time_eta;
+        if (pickupStartTime) {
+          updateData.delivery_time_start = pickupStartTime;
+        }
+      } else if (stop.status === 'pending' && stop.patient_id && stop.puid) {
+        // This is a pending delivery - set start time to +5 min after pickup start time or ETA
+        const pickup = allDeliveries.find(d => !d.patient_id && d.stop_id === stop.puid);
+        if (pickup) {
+          const pickupStartTime = pickup.delivery_time_start;
+          const pickupETA = pickup.delivery_time_eta;
+          
+          // Use the later of: pickup start time or ETA
+          let baseTime = pickupStartTime;
+          if (pickupETA) {
+            const startMinutes = parseTimeToMinutes(pickupStartTime);
+            const etaMinutes = parseTimeToMinutes(pickupETA);
+            if (etaMinutes > startMinutes) {
+              baseTime = pickupETA;
+            }
+          }
+          
+          // Add 5 minutes
+          if (baseTime) {
+            const baseMinutes = parseTimeToMinutes(baseTime);
+            const newStartMinutes = baseMinutes + 5;
+            updateData.delivery_time_start = formatMinutesToTime(newStartMinutes);
+          }
+        }
+      }
+      
+      await base44.asServiceRole.entities.Delivery.update(stop.id, updateData);
+      console.log(`  🔢 [optimizeRemainingStops] Stop #${newOrder}: ${stop.patient_name || 'Pickup'}${updateData.delivery_time_start ? ` (start: ${updateData.delivery_time_start})` : ''}`);
     }
 
     // Update polyline record
