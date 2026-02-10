@@ -2428,17 +2428,22 @@ class SmartRefreshManager {
   /**
    * Handle broadcast from another device - refresh ONLY the specific entity that changed
    * This is the smart approach: instead of polling everything, we listen for targeted updates
-   * CRITICAL: For creates/updates, we need to fetch from API, not offline DB (which won't have the new data)
+   * CRITICAL: Skip purge-resync for this entity since broadcast just updated offline DB with fresh data
    */
   async handleBroadcastRefresh(entityName, operation, metadata = {}) {
     console.log(`📡 [SmartRefresh] Handling broadcast: ${entityName} ${operation}`, metadata);
-    
+
+    // CRITICAL: Track WHEN broadcast was received so we can skip purge-resync for 3 seconds
+    // This allows offline DB to stay fresh without being overwritten by API
+    this.lastBroadcastUpdate.set(entityName, Date.now());
+    console.log(`✅ [SmartRefresh] Broadcast received for ${entityName} - skipping purge-resync for 3 seconds`);
+
     // CRITICAL: Track deletions to prevent smart refresh from resurrecting deleted items
     if (operation === 'delete' && metadata?.id) {
       if (entityName === 'Delivery') {
         this.deletedDeliveryIds.add(metadata.id);
         console.log(`🗑️ [SmartRefresh] Marked delivery ${metadata.id} as deleted`);
-        
+
         // Also remove from offline DB immediately
         try {
           const { offlineDB } = await import('./offlineDatabase');
@@ -2451,7 +2456,7 @@ class SmartRefreshManager {
       } else if (entityName === 'Patient') {
         this.deletedPatientIds.add(metadata.id);
         console.log(`🗑️ [SmartRefresh] Marked patient ${metadata.id} as deleted`);
-        
+
         // Also remove from offline DB immediately
         try {
           const { offlineDB } = await import('./offlineDatabase');
@@ -2463,11 +2468,6 @@ class SmartRefreshManager {
         }
       }
     }
-    
-    // CRITICAL: Mark that we need to fetch from API (not offline DB) for this entity
-    // because the offline DB won't have the new/updated data yet
-    this._pendingApiFetch = this._pendingApiFetch || new Set();
-    this._pendingApiFetch.add(entityName);
     
     switch (entityName) {
       case 'Delivery':
