@@ -73,9 +73,11 @@ export default function PullToSync({
     return () => window.removeEventListener('triggerPullToSync', handleTriggerSync);
   }, []);
 
-  const performSync = async () => {
-    setIsSyncing(true);
-    console.log('🔄 [Pull to Sync] Starting full offline database sync...');
+  const performSync = async (silent = false) => {
+    if (!silent) {
+      setIsSyncing(true);
+    }
+    console.log(`🔄 [Pull to Sync] Starting ${silent ? 'silent' : 'full'} offline database sync...`);
 
     try {
       // CRITICAL: Pause all background managers to prevent data overwrites
@@ -214,7 +216,7 @@ export default function PullToSync({
         await onSyncComplete(freshDeliveries, freshPatients, freshAppUsers);
       }
 
-      console.log('✅ [Pull to Sync] Sync complete!');
+      console.log(`✅ [Pull to Sync] ${silent ? 'Silent sync' : 'Sync'} complete!`);
       
       // CRITICAL: Only reactivate FAB if NOT on phase 1
       if (currentFABPhase !== 1) {
@@ -225,9 +227,11 @@ export default function PullToSync({
         console.log('⏭️ [Pull to Sync] Skipping FAB reactivation - already on phase 1');
       }
       
-      toast.success('Data synced', {
-        description: `${freshDeliveries.length} deliveries, ${uniquePatientIds.length} patients, ${freshAppUsers.length} users`
-      });
+      if (!silent) {
+        toast.success('Data synced', {
+          description: `${freshDeliveries.length} deliveries, ${uniquePatientIds.length} patients, ${freshAppUsers.length} users`
+        });
+      }
 
       } catch (error) {
       // Resume managers even on error
@@ -259,13 +263,26 @@ export default function PullToSync({
       }
 
       // Small delay before removing loading indicator
-      setTimeout(() => {
-        setIsSyncing(false);
-        setPullDistance(0);
-        setIsPulling(false);
-      }, 500);
+      if (!silent) {
+        setTimeout(() => {
+          setIsSyncing(false);
+          setPullDistance(0);
+          setIsPulling(false);
+        }, 500);
+      }
     }
   };
+
+  // Listen for silent sync trigger (e.g., after AppUser updates)
+  useEffect(() => {
+    const handleSilentSync = async () => {
+      console.log('🔇 [PullToSync] Silent sync triggered after AppUser update');
+      await performSync(true);
+    };
+
+    window.addEventListener('triggerSilentSync', handleSilentSync);
+    return () => window.removeEventListener('triggerSilentSync', handleSilentSync);
+  }, []);
 
   const pullProgress = Math.min(pullDistance / syncThreshold, 1);
   const rotation = pullProgress * 360;
