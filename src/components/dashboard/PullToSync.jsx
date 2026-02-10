@@ -160,12 +160,54 @@ export default function PullToSync({
         console.log(`✅ [Pull to Sync] Saved ${freshAppUsers.length} AppUsers to offline DB`);
       }
 
-      // STEP 7: Trigger UI update with fresh data
-      console.log('🔄 [Pull to Sync] Triggering UI update...');
+      // STEP 6.5: Update current driver's location from primary tracking device
+      const { locationTracker } = await import('@/components/utils/locationTracker');
+      const { offlineDB: db } = await import('@/components/utils/offlineDatabase');
+      
+      if (locationTracker.isTracking && window.__currentUser) {
+        const currentAppUser = freshAppUsers.find(u => u.user_id === window.__currentUser.user_id);
+        
+        if (currentAppUser && locationTracker.lastKnownLocation) {
+          console.log('📍 [Pull to Sync] Updating current driver location from primary tracking device...');
+          
+          const locationUpdate = {
+            current_latitude: locationTracker.lastKnownLocation.latitude,
+            current_longitude: locationTracker.lastKnownLocation.longitude,
+            location_updated_at: new Date().toISOString()
+          };
+
+          // Update online database
+          try {
+            await base44.entities.AppUser.update(currentAppUser.id, locationUpdate);
+            console.log('✅ [Pull to Sync] Updated online AppUser with fresh location');
+          } catch (error) {
+            console.warn('⚠️ [Pull to Sync] Failed to update online AppUser:', error.message);
+          }
+
+          // Update offline database
+          const updatedAppUser = { ...currentAppUser, ...locationUpdate };
+          await db.save(db.STORES.APP_USERS, updatedAppUser);
+          
+          // Update in-memory array for subsequent processing
+          const userIndex = freshAppUsers.findIndex(u => u.id === currentAppUser.id);
+          if (userIndex !== -1) {
+            freshAppUsers[userIndex] = updatedAppUser;
+          }
+          
+          console.log('✅ [Pull to Sync] Updated offline AppUser with fresh location');
+        }
+      }
+
+      // STEP 7: Trigger UI update with fresh data from offline database
+      console.log('🔄 [Pull to Sync] Triggering UI update with fresh offline data...');
+      
+      // Load fresh AppUsers from offline DB (includes updated location)
+      const { offlineDB: db } = await import('@/components/utils/offlineDatabase');
+      const offlineAppUsers = await db.getAll(db.STORES.APP_USERS);
       
       // Dispatch events to update map markers and deliveries
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: { appUsers: freshAppUsers, forceAll: true }
+        detail: { appUsers: offlineAppUsers, forceAll: true }
       }));
       
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -176,26 +218,25 @@ export default function PullToSync({
         }
       }));
 
-      // CRITICAL: Process driver locations through poller to update ALL markers
+      // CRITICAL: Process driver locations through poller with fresh offline data
       try {
         const { driverLocationPoller } = await import('@/components/utils/driverLocationPoller');
-        const { useUser } = await import('@/components/utils/UserContext');
         
         driverLocationPoller.processLocationData(
           window.__currentUser, 
           freshDeliveries, 
           [], // drivers loaded from context
           [], // stores loaded from context
-          freshAppUsers, 
+          offlineAppUsers, // Use fresh offline data with updated location
           selectedDate, 
           true // forceNotify
         );
-        console.log('✅ [Pull to Sync] Processed driver locations through poller');
+        console.log('✅ [Pull to Sync] Processed driver locations through poller with offline data');
       } catch (pollerError) {
         console.warn('⚠️ [Pull to Sync] Failed to process through poller:', pollerError.message);
       }
 
-      // CRITICAL: Refresh polylines for all drivers on the selected date
+      // CRITICAL: Refresh polylines for all drivers with fresh offline data
       try {
         const { routePolylineManager } = await import('@/components/utils/routePolylineManager');
         const uniqueDriverIds = [...new Set(freshDeliveries.map(d => d.driver_id).filter(Boolean))];
@@ -211,9 +252,12 @@ export default function PullToSync({
       // CRITICAL: Check current FAB phase before reactivation
       const currentFABPhase = window.__currentFABPhase || 1;
       
-      // Callback to parent component for additional refresh logic
+      // Callback to parent component with fresh offline data
+      const { offlineDB: db } = await import('@/components/utils/offlineDatabase');
+      const finalAppUsers = await db.getAll(db.STORES.APP_USERS);
+      
       if (onSyncComplete) {
-        await onSyncComplete(freshDeliveries, freshPatients, freshAppUsers);
+        await onSyncComplete(freshDeliveries, freshPatients, finalAppUsers);
       }
 
       console.log(`✅ [Pull to Sync] ${silent ? 'Silent sync' : 'Sync'} complete!`);
