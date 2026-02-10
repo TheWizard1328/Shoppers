@@ -5,7 +5,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
-import { offlineDB } from './offlineDatabase.js';
+import { offlineDB } from './offlineDatabase';
 import { format } from 'date-fns';
 
 class ShowAllDataManager {
