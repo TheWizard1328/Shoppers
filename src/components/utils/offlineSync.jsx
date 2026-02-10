@@ -931,8 +931,20 @@ export const forceSyncAll = async () => {
     appUsersRaw.forEach(au => {
       if (!au || !au.user_id) return;
       const existing = appUsersByUserId.get(au.user_id);
-      if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+
+      if (!existing) {
         appUsersByUserId.set(au.user_id, au);
+      } else {
+        const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+        const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+        const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+        const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+
+        if (newLocationTime > existingLocationTime) {
+          appUsersByUserId.set(au.user_id, au);
+        } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
+          appUsersByUserId.set(au.user_id, au);
+        }
       }
     });
     const appUsers = Array.from(appUsersByUserId.values());
@@ -1215,7 +1227,28 @@ export const restartDeliveryPatientSync = async () => {
     
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 90 });
     console.log('👤 [ForceSyncAll] Fetching AppUsers...');
-    const appUsers = await AppUser.list();
+    const appUsersRaw2 = await AppUser.list();
+    const appUsersByUserId2 = new Map();
+    appUsersRaw2.forEach(au => {
+      if (!au || !au.user_id) return;
+      const existing = appUsersByUserId2.get(au.user_id);
+
+      if (!existing) {
+        appUsersByUserId2.set(au.user_id, au);
+      } else {
+        const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+        const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+        const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+        const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+
+        if (newLocationTime > existingLocationTime) {
+          appUsersByUserId2.set(au.user_id, au);
+        } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
+          appUsersByUserId2.set(au.user_id, au);
+        }
+      }
+    });
+    const appUsers = Array.from(appUsersByUserId2.values());
     console.log(`👤 [ForceSyncAll] Fetched ${appUsers?.length || 0} AppUsers, saving to offline DB...`);
     const appUserSaveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
     console.log(`✅ [ForceSyncAll] AppUsers save result:`, appUserSaveResult);
