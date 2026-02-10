@@ -110,6 +110,11 @@ export default function RealTimeRouteOptimizer({
     }
   };
 
+  // Track when optimization is in progress to prevent duplicate runs
+  const isOptimizingRef = useRef(false);
+  const lastOptimizationTimeRef = useRef(0);
+  const OPTIMIZATION_COOLDOWN = 10000; // 10 seconds
+
   useEffect(() => {
     // Listen for manual optimization triggers
     const handleTriggerOptimization = () => {
@@ -117,10 +122,60 @@ export default function RealTimeRouteOptimizer({
       optimizeRoute();
     };
 
+    // CRITICAL: Listen for deliveriesUpdated events and check if already optimized
+    const handleDeliveriesUpdated = (event) => {
+      const { alreadyOptimized, triggeredBy, driverId, deliveryDate } = event.detail || {};
+      
+      // Skip if data is already optimized (came from backend optimization)
+      if (alreadyOptimized) {
+        console.log(`⏭️ [RealTimeRouteOptimizer] Skipping - data already optimized by ${triggeredBy}`);
+        return;
+      }
+
+      // Skip if optimization is already in progress
+      if (isOptimizingRef.current) {
+        console.log('⏭️ [RealTimeRouteOptimizer] Skipping - optimization already in progress');
+        return;
+      }
+
+      // Skip if optimized recently (within cooldown period)
+      const timeSinceLastOptimization = Date.now() - lastOptimizationTimeRef.current;
+      if (timeSinceLastOptimization < OPTIMIZATION_COOLDOWN) {
+        const remainingSeconds = Math.ceil((OPTIMIZATION_COOLDOWN - timeSinceLastOptimization) / 1000);
+        console.log(`⏭️ [RealTimeRouteOptimizer] Skipping - cooldown (${remainingSeconds}s remaining)`);
+        return;
+      }
+
+      // Skip if not for current driver/date
+      if (driverId !== selectedDriverId || deliveryDate !== selectedDate) {
+        return;
+      }
+
+      console.log(`🔄 [RealTimeRouteOptimizer] Event-triggered optimization for ${triggeredBy}`);
+      isOptimizingRef.current = true;
+      lastOptimizationTimeRef.current = Date.now();
+      
+      optimizeRoute().finally(() => {
+        isOptimizingRef.current = false;
+      });
+    };
+
+    // Listen for route optimization completion to prevent duplicate runs
+    const handleOptimizationComplete = (event) => {
+      const { source } = event.detail || {};
+      console.log(`✅ [RealTimeRouteOptimizer] Optimization complete from ${source} - resetting state`);
+      isOptimizingRef.current = false;
+      lastOptimizationTimeRef.current = Date.now();
+    };
+
     window.addEventListener('triggerRouteOptimization', handleTriggerOptimization);
+    window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+    window.addEventListener('routeOptimizationComplete', handleOptimizationComplete);
 
     return () => {
       window.removeEventListener('triggerRouteOptimization', handleTriggerOptimization);
+      window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+      window.removeEventListener('routeOptimizationComplete', handleOptimizationComplete);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDriverId, selectedDate, currentUser, isActive, onRouteOptimized]);

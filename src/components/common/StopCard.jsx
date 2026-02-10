@@ -834,9 +834,11 @@ export default function StopCard({
       
       console.log('✅ [Accept All] PHASE 2 Complete - UI updated');
 
-      // ═══════════ PHASE 3: SILENT OPTIMIZATION ═══════════
-      console.log('🔄 [Accept All] PHASE 3: Running silent route optimization...');
-      window.dispatchEvent(new CustomEvent('routeOptimizationStarted'));
+      // ═══════════ PHASE 3: BACKEND OPTIMIZATION ═══════════
+      console.log('🔄 [Accept All] PHASE 3: Running backend route optimization...');
+      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', {
+        detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+      }));
       
       try {
         await base44.functions.invoke('optimizeRouteRealTime', {
@@ -845,20 +847,31 @@ export default function StopCard({
           currentLocalTime: currentLocalTime,
           generatePolyline: false
         });
-        console.log('✅ [Accept All] PHASE 3 Complete - Route optimized silently');
+        console.log('✅ [Accept All] Backend optimization complete');
       } finally {
-        window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
+        // CRITICAL: Mark that optimization is complete - prevents RealTimeRouteOptimizer from re-running
+        window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
+          detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+        }));
       }
 
       // ═══════════ PHASE 4: FINAL UI UPDATE ═══════════
-      console.log('🎯 [Accept All] PHASE 4: Final UI update with optimized route...');
+      console.log('🎯 [Accept All] PHASE 4: Final UI update with optimized route from backend...');
       
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
       
-      window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
+      // CRITICAL: Dispatch event with flag indicating data is already optimized
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { 
+          triggeredBy: 'acceptAllOptimized', 
+          driverId: delivery.driver_id, 
+          deliveryDate: delivery.delivery_date,
+          alreadyOptimized: true 
+        }
+      }));
       
-      console.log('✅ [Accept All] PHASE 4 Complete');
+      console.log('✅ [Accept All] All phases complete - data optimized by backend');
 
       // Send notifications
       const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
