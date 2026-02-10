@@ -2048,41 +2048,95 @@ class SmartRefreshManager {
     * @param {Date} selectedDate - Selected date (to check if today)
     */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false, showAllDrivers = false, currentPage = null, selectedDate = null) {
-    // CRITICAL: When disabled, skip background polling
-    if (!this._enabled) {
-      this.isRefreshing = false;
-      return null;
-    }
+   // TEMPORARY: Smart refresh now just triggers pull to sync
 
-    // CRITICAL: Skip if paused during mutations
-    if (this._paused) {
-      this.isRefreshing = false;
-      return null;
-    }
+   // CRITICAL: When disabled, skip background polling
+   if (!this._enabled) {
+     this.isRefreshing = false;
+     return null;
+   }
 
-    if (isEntityUpdating) {
-      this.isRefreshing = false;
-      return null;
-    }
+   // CRITICAL: Skip if paused during mutations
+   if (this._paused) {
+     this.isRefreshing = false;
+     return null;
+   }
 
-    // CRITICAL: Auto-unlock if stuck for more than 30 seconds
-    if (this.isRefreshing && this._refreshStartTime && (Date.now() - this._refreshStartTime > 30000)) {
-      console.warn('🔓 [SmartRefresh] Auto-unlocking stuck refresh state (>30s)');
-      this.isRefreshing = false;
-    }
+   if (isEntityUpdating) {
+     this.isRefreshing = false;
+     return null;
+   }
 
-    if (this.isRefreshing) {
-      return null;
-    }
+   // CRITICAL: Auto-unlock if stuck for more than 30 seconds
+   if (this.isRefreshing && this._refreshStartTime && (Date.now() - this._refreshStartTime > 30000)) {
+     console.warn('🔓 [SmartRefresh] Auto-unlocking stuck refresh state (>30s)');
+     this.isRefreshing = false;
+   }
 
-    // CRITICAL: Touch user cache on every refresh cycle to prevent session timeout
-    try {
-      touchUserCache();
-    } catch (e) {
-      // Ignore errors from touchUserCache
-    }
+   if (this.isRefreshing) {
+     return null;
+   }
 
-    this.isRefreshing = true;
+   // CRITICAL: Touch user cache on every refresh cycle to prevent session timeout
+   try {
+     touchUserCache();
+   } catch (e) {
+     // Ignore errors from touchUserCache
+   }
+
+   this.isRefreshing = true;
+
+   // TEMPORARY: Just trigger pull to sync instead of smart refresh logic
+   try {
+     console.log('🔄 [SmartRefresh] TEMP: Triggering pull to sync...');
+     if (typeof window !== 'undefined') {
+       window.dispatchEvent(new CustomEvent('triggerPullToSync', {
+         detail: { source: 'smartRefresh' }
+       }));
+     }
+     return null;
+   } catch (error) {
+     console.warn('⚠️ [SmartRefresh] Error triggering pull to sync:', error.message);
+     return null;
+   } finally {
+     this.isRefreshing = false;
+   }
+  }
+
+  // KEEP OLD LOGIC BELOW FOR REFERENCE (temporarily unused)
+  async performSmartRefreshOLD(currentData, filters, isEntityUpdating = false, showAllDrivers = false, currentPage = null, selectedDate = null) {
+   // OLD IMPLEMENTATION - temporarily disabled
+   if (!this._enabled) {
+     this.isRefreshing = false;
+     return null;
+   }
+
+   if (this._paused) {
+     this.isRefreshing = false;
+     return null;
+   }
+
+   if (isEntityUpdating) {
+     this.isRefreshing = false;
+     return null;
+   }
+
+   if (this.isRefreshing && this._refreshStartTime && (Date.now() - this._refreshStartTime > 30000)) {
+     console.warn('🔓 [SmartRefresh] Auto-unlocking stuck refresh state (>30s)');
+     this.isRefreshing = false;
+   }
+
+   if (this.isRefreshing) {
+     return null;
+   }
+
+   try {
+     touchUserCache();
+   } catch (e) {
+     // Ignore errors from touchUserCache
+   }
+
+   this.isRefreshing = true;
     this._refreshStartTime = Date.now();
     const updates = {};
 
@@ -2308,6 +2362,7 @@ class SmartRefreshManager {
        // DISABLED: Square Transactions now sync via real-time events only
        // They update when COD items are created/edited/deleted, not on every refresh cycle
 
+      // OLD LOGIC - rest of performSmartRefreshOLD
       const hasAnyUpdates = Object.keys(updates).length > 0;
       return hasAnyUpdates ? updates : null;
       
