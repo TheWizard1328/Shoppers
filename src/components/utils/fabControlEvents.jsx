@@ -103,5 +103,33 @@ export const fabControlEvents = {
         console.error('Error in FAB event listener:', error);
       }
     });
+  },
+
+  /**
+   * Pause FAB updates during form operations
+   */
+  pauseFAB: () => {
+    console.log('📢 [FAB Events] Broadcasting FAB pause');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'PAUSE_FAB' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
+  },
+
+  /**
+   * Resume FAB updates after form operations
+   */
+  resumeFAB: () => {
+    console.log('📢 [FAB Events] Broadcasting FAB resume');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'RESUME_FAB' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
   }
 };
