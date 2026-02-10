@@ -1907,6 +1907,18 @@ class SmartRefreshManager {
 
       updates.deliveries = [...otherDeliveries, ...fetchedDeliveries, ...protectedDeliveries];
       console.log(`✨ [ActiveRoute] Replaced with ${fetchedDeliveries.length} fresh deliveries (+${protectedDeliveries.length} protected)`);
+    } else {
+      // CRITICAL: Even if no deliveries fetched, force return offline DB data for UI update
+      console.log('📦 [ActiveRoute] No deliveries fetched, loading from offline DB for UI update...');
+      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, activeDateStr);
+      const otherDeliveries = currentData.deliveries.filter(d => d && d.delivery_date !== activeDateStr);
+      updates.deliveries = [...otherDeliveries, ...(offlineDeliveries || [])];
+    }
+
+    // CRITICAL: Always return fresh patients from offline DB for UI update
+    const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    if (offlinePatients && offlinePatients.length > 0) {
+      updates.patients = offlinePatients;
     }
 
     this.recordSuccess();
@@ -2297,9 +2309,51 @@ class SmartRefreshManager {
        // DISABLED: Square Transactions now sync via real-time events only
        // They update when COD items are created/edited/deleted, not on every refresh cycle
 
-      // OLD LOGIC - rest of performSmartRefreshOLD
-      const hasAnyUpdates = Object.keys(updates).length > 0;
-      return hasAnyUpdates ? updates : null;
+      // CRITICAL: ALWAYS return offline DB data even if no changes detected
+      // This ensures UI is always in sync with offline DB regardless of diff logic
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        
+        // Force return deliveries for active date from offline DB
+        if (!updates.deliveries && currentData.deliveries) {
+          const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, activeDateStr);
+          if (offlineDeliveries && offlineDeliveries.length > 0) {
+            const otherDeliveries = currentData.deliveries.filter(d => d && d.delivery_date !== activeDateStr);
+            updates.deliveries = [...otherDeliveries, ...offlineDeliveries];
+            console.log(`🔄 [SmartRefresh] Force returning ${offlineDeliveries.length} deliveries from offline DB for UI sync`);
+          }
+        }
+        
+        // Force return AppUsers from offline DB
+        if (!updates.appUsers && isViewingTodayDate) {
+          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+          if (offlineAppUsers && offlineAppUsers.length > 0) {
+            updates.appUsers = offlineAppUsers;
+            console.log(`🔄 [SmartRefresh] Force returning ${offlineAppUsers.length} AppUsers from offline DB for UI sync`);
+          }
+        }
+        
+        // Force return stores from offline DB
+        if (!updates.stores && currentData.stores) {
+          const offlineStores = await offlineDB.getAll(offlineDB.STORES.STORES);
+          if (offlineStores && offlineStores.length > 0) {
+            updates.stores = offlineStores;
+          }
+        }
+        
+        // Force return patients from offline DB
+        if (!updates.patients && currentData.patients) {
+          const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+          if (offlinePatients && offlinePatients.length > 0) {
+            updates.patients = offlinePatients;
+          }
+        }
+      } catch (forceError) {
+        console.warn('⚠️ [SmartRefresh] Failed to force offline data return:', forceError.message);
+      }
+      
+      // ALWAYS return updates object (even if empty, Dashboard will handle it)
+      return updates;
       
     } catch (error) {
       // CRITICAL: Catch ALL errors and gracefully continue
