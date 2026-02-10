@@ -1222,7 +1222,7 @@ function Dashboard() {
     return driversSource;
   }, [appUsers, currentUser, stores, selectedDate, deliveries]);
 
-  // CRITICAL: Show location toggle when mobile device OR primary tracker device
+  // CRITICAL: Show location toggle on primary tracker devices (all mobile controls)
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
   
   // Check if current device is primary tracker
@@ -1245,9 +1245,10 @@ function Dashboard() {
   }, [currentUser?.id]);
   
   const shouldShowLocationToggle = useMemo(() => {
-    // Show when: (mobile device OR primary tracker) AND is driver AND not dispatcher
-    return (isMobile || isPrimaryDevice) && isDriver && !userHasRole(currentUser, 'dispatcher');
-  }, [isMobile, isPrimaryDevice, isDriver, currentUser]);
+    // Show when: is primary tracker AND is driver AND not dispatcher
+    // Primary tracker = mobile device, so show all mobile controls regardless of screen size
+    return isPrimaryDevice && isDriver && !userHasRole(currentUser, 'dispatcher');
+  }, [isPrimaryDevice, isDriver, currentUser]);
 
   const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), []);
 
