@@ -34,9 +34,9 @@ class CityFilteredRealtimeSync {
 
   /**
    * Start real-time subscriptions for deliveries and AppUsers
-   * Filtered by city and date
+   * Filtered by city only (NOT by date to catch all delivery updates)
    */
-  start(cityId, selectedDate, userCityIds = []) {
+  start(cityId, selectedDate) {
     if (this.isActive) {
       console.log('⚠️ [RealtimeSync] Already active - stopping existing subscriptions first');
       this.stop();
@@ -46,19 +46,14 @@ class CityFilteredRealtimeSync {
     this.currentDate = selectedDate;
     this.isActive = true;
 
-    console.log(`🔌 [RealtimeSync] Starting subscriptions for city: ${cityId}, date: ${selectedDate}`);
+    console.log(`🔌 [RealtimeSync] Starting subscriptions for city: ${cityId}`);
 
-    // Subscribe to ALL Delivery changes (we'll filter client-side for city/date)
+    // Subscribe to ALL Delivery changes in the city (NO date filtering - let UI decide)
     this.deliveryUnsubscribe = base44.entities.Delivery.subscribe(async (event) => {
       console.log(`📡 [Realtime Delivery] ${event.type}:`, event.data?.patient_name || event.id);
 
-      // Filter by date
-      if (event.data?.delivery_date !== selectedDate && event.type !== 'delete') {
-        return; // Ignore events for other dates
-      }
-
-      // CRITICAL: For city filtering, check the store's city_id
-      // We need to look up the store to get its city_id
+      // CRITICAL: Only filter by city, NOT by date
+      // This ensures we catch ALL delivery updates in the city
       if (event.type !== 'delete' && event.data?.store_id) {
         try {
           // Try to find store in offline DB first
@@ -81,7 +76,7 @@ class CityFilteredRealtimeSync {
           await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]);
           console.log(`✅ [Realtime Delivery] Saved to offline DB: ${event.data.patient_name || event.data.id}`);
           
-          // Notify subscribers
+          // Notify subscribers (UI will filter by date/route)
           this.notifySubscribers('Delivery', event.type, event.data);
           this.lastDeliveryUpdate = Date.now();
         } else if (event.type === 'delete') {
@@ -98,17 +93,17 @@ class CityFilteredRealtimeSync {
       }
     });
 
-    // Subscribe to ALL AppUser changes (filtered by city on client)
+    // Subscribe to ALL AppUser changes (filter by city only)
     this.appUserUnsubscribe = base44.entities.AppUser.subscribe(async (event) => {
       console.log(`📡 [Realtime AppUser] ${event.type}:`, event.data?.user_name || event.id);
 
-      // Filter by user's cities
+      // Filter by the currently selected city (not user's cities)
       if (event.type !== 'delete' && event.data) {
         const appUserCityIds = event.data.city_ids || (event.data.city_id ? [event.data.city_id] : []);
-        const hasMatchingCity = appUserCityIds.some(id => userCityIds.includes(id));
+        const hasMatchingCity = appUserCityIds.includes(cityId);
         
         if (!hasMatchingCity) {
-          console.log(`⏭️ [Realtime AppUser] Skipping - different city (user cities: ${appUserCityIds.join(',')}, current user cities: ${userCityIds.join(',')})`);
+          console.log(`⏭️ [Realtime AppUser] Skipping - different city (user cities: ${appUserCityIds.join(',')}, current city: ${cityId})`);
           return;
         }
       }
