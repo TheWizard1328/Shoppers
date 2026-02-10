@@ -2120,10 +2120,15 @@ class SmartRefreshManager {
     try {
       // PRIORITY 0 (CRITICAL): FULL AppUser dataset sync FIRST (before activeRoute)
       // This ensures all driver locations are fresh in offline DB before map markers refresh
-      if (this.shouldRefresh('appUsers') && currentData.appUsers) {
+      // CRITICAL: Only fetch when on Dashboard + today's date, OR when showAllDrivers is true
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : todayStr;
+      const shouldFetchAppUsers = showAllDrivers || (currentPage === 'Dashboard' && selectedDateStr === todayStr);
+
+      if (this.shouldRefresh('appUsers') && currentData.appUsers && shouldFetchAppUsers) {
         try {
           console.log('📡 [SmartRefresh] PRIORITY 0: Syncing FULL AppUser dataset (every 15s) - FRESH LOCATIONS FIRST');
-          const appUserResult = await this.refreshAllAppUsersFullSync(currentData.appUsers, currentPage, selectedDate);
+          const appUserResult = await this.refreshAllAppUsersFullSync(currentData.appUsers, currentPage, selectedDate, showAllDrivers);
           if (appUserResult?.hasChanges) {
             updates.appUsers = appUserResult.appUsers;
           }
@@ -2599,8 +2604,9 @@ class SmartRefreshManager {
    /**
     * NEW: Full AppUser sync - every 15 seconds
     * NEW Workflow: 1) Read AppUsers from API 2) Update GPS if on default device 3) Update UI 4) Save to offline DB
+    * @param {boolean} showAllDrivers - If true, processes all drivers through poller
     */
-   async refreshAllAppUsersFullSync(currentAppUsers, currentPageName = null, selectedDate = null) {
+   async refreshAllAppUsersFullSync(currentAppUsers, currentPageName = null, selectedDate = null, showAllDrivers = false) {
      try {
        // STEP 1: Read entire AppUser database from API
        console.log('🔄 [SmartRefresh] STEP 1: Reading entire AppUser database from API...');
@@ -2694,6 +2700,7 @@ class SmartRefreshManager {
          const currentUser = this._currentUser;
 
          if (currentUser) {
+           console.log(`📍 [SmartRefresh] Processing ${deduplicatedAppUsers.length} AppUsers through poller (showAllDrivers: ${showAllDrivers})`);
            driverLocationPoller.processLocationData(
              currentUser, 
              [], 
@@ -2701,9 +2708,9 @@ class SmartRefreshManager {
              [], 
              deduplicatedAppUsers, 
              selectedDate || new Date(),
-             true,
+             true, // forceNotify
              currentPageName || 'Dashboard',
-             true
+             showAllDrivers // Pass through showAllDrivers flag
            );
          }
        } catch (pollerError) {
@@ -2712,7 +2719,11 @@ class SmartRefreshManager {
 
        if (typeof window !== 'undefined') {
          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-           detail: { appUsers: deduplicatedAppUsers, forceAll: true }
+           detail: { 
+             appUsers: deduplicatedAppUsers, 
+             forceAll: true,
+             showAllDrivers: showAllDrivers 
+           }
          }));
        }
 
