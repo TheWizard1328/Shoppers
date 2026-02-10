@@ -2698,13 +2698,27 @@ class SmartRefreshManager {
          }
        }
 
-       // Deduplicate by user_id (keep most recent by sort_order)
+       // Deduplicate by user_id (keep most recent by location_updated_at)
        const appUsersByUserId = new Map();
        allAppUsers.forEach(au => {
          if (!au || !au.user_id) return;
          const existing = appUsersByUserId.get(au.user_id);
-         if (!existing || (au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+
+         if (!existing) {
            appUsersByUserId.set(au.user_id, au);
+         } else {
+           const newTimestamp = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+           const existingTimestamp = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+
+           // Prefer the one with the more recent location_updated_at
+           if (newTimestamp > existingTimestamp) {
+             appUsersByUserId.set(au.user_id, au);
+           } else if (newTimestamp === existingTimestamp) {
+             // If timestamps are equal, use sort_order as a tie-breaker (keeping the lower sort_order)
+             if ((au.sort_order || Infinity) < (existing.sort_order || Infinity)) {
+               appUsersByUserId.set(au.user_id, au);
+             }
+           }
          }
        });
        const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
