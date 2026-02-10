@@ -576,16 +576,35 @@ export default function DeliveryForm({
 
     let relevantStores = storesToUse;
 
-    // Admins always see ALL stores
-    if (userHasRole(currentUser, 'admin')) {
-      relevantStores = stores;
-    } else if (isPickupMode) {
-      if (userHasRole(currentUser, 'dispatcher')) {
+    // CRITICAL: In patient delivery mode (non-pickup), filter to ONLY the selected patient's store
+    // This ensures the dropdown shows only "Bonnie Doon" for Bonnie Doon patients, etc.
+    if (!isPickupMode && !delivery) {
+      // Check selectedPatient first (when patient is selected but formData not updated yet)
+      // Then check formData.patient_id (after formData is updated)
+      const patientToCheck = selectedPatient || (formData.patient_id && patients ? patients.find((p) => p && p.id === formData.patient_id) : null);
+      
+      if (patientToCheck && patientToCheck.store_id) {
+        const patientStore = stores.find((s) => s && s.id === patientToCheck.store_id);
+        relevantStores = patientStore ? [patientStore] : stores;
+        console.log(`🏪 [AvailableStores] Patient delivery mode - filtering to patient's store only: ${patientStore?.name}`);
+      } else if (userHasRole(currentUser, 'dispatcher')) {
+        // If no patient selected yet, show dispatcher's stores
         const dispatcherStoreIds = currentUser.store_ids || [];
         relevantStores = stores.filter((s) => s && dispatcherStoreIds.includes(s.id));
       }
-    } else {
-      if (formData.patient_id && patients) {
+    } else if (isPickupMode) {
+      // Pickup mode - show all stores for admin, dispatcher's stores for dispatcher
+      if (userHasRole(currentUser, 'admin')) {
+        relevantStores = stores;
+      } else if (userHasRole(currentUser, 'dispatcher')) {
+        const dispatcherStoreIds = currentUser.store_ids || [];
+        relevantStores = stores.filter((s) => s && dispatcherStoreIds.includes(s.id));
+      }
+    } else if (delivery) {
+      // Editing existing delivery - admins see all, others see their stores
+      if (userHasRole(currentUser, 'admin')) {
+        relevantStores = stores;
+      } else if (formData.patient_id && patients) {
         const patient = patients.find((p) => p && p.id === formData.patient_id);
         if (patient && patient.store_id) {
           const patientStore = stores.find((s) => s && s.id === patient.store_id);
@@ -641,7 +660,7 @@ export default function DeliveryForm({
     });
 
     return sortStores(processedStores);
-  }, [freshStores, stores, isPickupMode, formData.patient_id, formData.delivery_date, patients, currentUser]);
+  }, [freshStores, stores, isPickupMode, formData.patient_id, formData.delivery_date, patients, currentUser, selectedPatient, delivery]);
 
   const filteredPatients = useMemo(() => {
     if (!patientSearch || !patients || formData.patient_id) return [];
@@ -1001,16 +1020,11 @@ export default function DeliveryForm({
     };
 
     setFormData(updatedFormData);
-    
-    // CRITICAL: If store has AM+PM options, set the variant in selectedPickupOption for UI display
-    if (storeVariantId.includes('_')) {
-      setSelectedPickupOption(storeVariantId);
-      console.log(`✅ [handlePatientSelect] Set selectedPickupOption to ${storeVariantId}`);
-    }
 
     // CRITICAL: If NOT auto-adding to staged (single patient selection), just populate form and return
     if (!autoAddToStaged) {
       console.log('📝 [handlePatientSelect] Single selection - populating form only, not auto-adding to staged');
+      console.log(`📦 [handlePatientSelect] Patient store: ${patient.store_id}, AM/PM: ${deliveryAMPM}, Variant: ${storeVariantId}`);
       setPatientSearch('');
       setHighlightedPatientIndex(-1);
       driverLocationPoller.resume();
