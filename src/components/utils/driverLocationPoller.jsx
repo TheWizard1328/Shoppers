@@ -316,6 +316,8 @@ class DriverLocationPoller {
       newLocations.set(user.id, locationKey);
     });
 
+    console.log(`✅ [DriverLocationPoller] Filtered to ${activeDriversWithLocation.length} drivers with valid rules`);
+    
     this.lastLocations = newLocations;
     this.notifySubscribers(activeDriversWithLocation, forceNotify);
     }
