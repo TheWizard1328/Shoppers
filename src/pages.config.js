@@ -51,6 +51,7 @@ import AdminMetrics from './pages/AdminMetrics';
 import AdminUtilities from './pages/AdminUtilities';
 import AppUsers from './pages/AppUsers';
 import Cities from './pages/Cities';
+import Dashboard from './pages/Dashboard';
 import Deliveries from './pages/Deliveries';
 import DeliveryMetrics from './pages/DeliveryMetrics';
 import DeviceSettings from './pages/DeviceSettings';
@@ -72,6 +73,7 @@ export const PAGES = {
     "AdminUtilities": AdminUtilities,
     "AppUsers": AppUsers,
     "Cities": Cities,
+    "Dashboard": Dashboard,
     "Deliveries": Deliveries,
     "DeliveryMetrics": DeliveryMetrics,
     "DeviceSettings": DeviceSettings,
@@ -88,7 +90,7 @@ export const PAGES = {
 }
 
 export const pagesConfig = {
-    mainPage: "AdminMetrics",
+    mainPage: "Dashboard",
     Pages: PAGES,
     Layout: __Layout,
 };

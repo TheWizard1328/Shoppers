@@ -7924,26 +7924,14 @@ function Dashboard() {
                       </SelectContent>
                     </Select>
 
-                    {/* Quick Route Adjustments - Accessible to all drivers */}
-                    {isDriver && selectedDriverId === currentUser?.id && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowQuickAdjustments(true)}
-                        className="h-8 gap-1.5 px-2 flex-shrink-0"
-                        title="Quick route adjustments"
-                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                        <span className="text-xs">Adjust</span>
-                      </Button>
-                    )}
-
-                    {/* Show All Checkbox - Only for drivers in single driver mode */}
+                    {/* Show All and Breadcrumbs Buttons - Only for drivers in single driver mode */}
                     {isDriver && !isAllDriversMode && (
                       <div className="flex items-center flex-shrink-0">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={async () => {
+                        <div className="flex flex-col items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={async () => {
                             const checked = !showAllDriverMarkers;
                         setShowAllDriverMarkers(checked);
                         if (currentUser?.id) {
@@ -8050,16 +8038,12 @@ function Dashboard() {
                           }}
                           className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
                           style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
-                          title="Show all driver markers"
                         >
-                          <Truck className="w-4 h-4" />
+                          <Binoculars className="w-4 h-4" />
                         </Button>
-                      </div>
-                    )}
+                        </div>
 
-                    {/* GPS Breadcrumbs - Only for drivers in single driver mode */}
-                    {isDriver && !isAllDriversMode && (
-                      <div className="flex items-center flex-shrink-0">
+                        <div className="flex flex-col items-center gap-1">
                         <Button
                           variant="outline"
                           size="icon"
@@ -8123,7 +8107,6 @@ function Dashboard() {
                           }}
                           className={`h-9 w-9 p-0 ${showBreadcrumbs ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
                           style={!showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
-                          title="Show GPS breadcrumbs trail"
                         >
                           {/* Custom GPS Dots Icon */}
                           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -8141,6 +8124,7 @@ function Dashboard() {
                             <path d="M 12 9 Q 10 11, 8 13" stroke="currentColor" strokeWidth="1" fill="none" />
                           </svg>
                         </Button>
+                        </div>
                       </div>
                     )}
 
@@ -8154,34 +8138,58 @@ function Dashboard() {
                       <Settings className="w-3.5 h-3.5" />
                     </Button>
 
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => {
+                      setShowRoutes(!showRoutes);
+                      setIsExpanded(false);
+                    }}
+                    className="gap-2 h-8 flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
+                      <Truck className="w-3.5 h-3.5" />
+                      {showRoutes ? 'Hide' : 'Show'}
+                    </Button>
                   </div>
 
-                  {shouldShowLocationToggle && (
-                    <>
+                  {shouldShowLocationToggle &&
+                <>
                       <div className="border-t border-slate-200 mt-2 pt-2"></div>
                       <div className="flex items-center gap-2">
                         <LocationTrackingToggle
-                          user={currentUser}
-                          onToggle={async () => {
-                            await refreshUser();
-                          }} />
+                      user={currentUser}
+                      onToggle={async () => {
+                        await refreshUser();
+                      }} />
                       
-                        {/* AI Smart Prioritization */}
-                        {isDriver && selectedDriverId === currentUser?.id && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowSmartPrioritization(true)}
-                            className="h-8 gap-1.5 px-2 flex-shrink-0"
-                            title="AI delivery prioritization"
-                            style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                            <Sparkles className="w-3 h-3" />
-                            <span className="text-xs">AI</span>
-                          </Button>
-                        )}
+                      {/* Quick Route Adjustments */}
+                      {isDriver && selectedDriverId === currentUser?.id &&
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowQuickAdjustments(true)}
+                      className="h-8 gap-1.5 px-2 flex-shrink-0"
+                      title="Quick route adjustments"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                          <span className="text-xs">Adjust</span>
+                        </Button>
+                    }
+                      
+                      {/* AI Smart Prioritization */}
+                      {isDriver && selectedDriverId === currentUser?.id &&
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSmartPrioritization(true)}
+                      className="h-8 gap-1.5 px-2 flex-shrink-0"
+                      title="AI delivery prioritization"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                          <Sparkles className="w-3 h-3" />
+                          <span className="text-xs">AI</span>
+                        </Button>
+                    }
                       </div>
                     </>
-                  )}
+                }
 
                   {/* Offline Sync Indicator - embedded when stats card is centered */}
                   {isStatsCardCentered &&
