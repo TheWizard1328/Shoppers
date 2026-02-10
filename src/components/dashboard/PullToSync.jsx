@@ -162,7 +162,6 @@ export default function PullToSync({
 
       // STEP 6.5: Update current driver's location from primary tracking device
       const { locationTracker } = await import('@/components/utils/locationTracker');
-      const { offlineDB: db } = await import('@/components/utils/offlineDatabase');
       
       if (locationTracker.isTracking && window.__currentUser) {
         const currentAppUser = freshAppUsers.find(u => u.user_id === window.__currentUser.user_id);
@@ -186,7 +185,7 @@ export default function PullToSync({
 
           // Update offline database
           const updatedAppUser = { ...currentAppUser, ...locationUpdate };
-          await db.save(db.STORES.APP_USERS, updatedAppUser);
+          await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
           
           // Update in-memory array for subsequent processing
           const userIndex = freshAppUsers.findIndex(u => u.id === currentAppUser.id);
@@ -202,8 +201,7 @@ export default function PullToSync({
       console.log('🔄 [Pull to Sync] Triggering UI update with fresh offline data...');
       
       // Load fresh AppUsers from offline DB (includes updated location)
-      const { offlineDB: db } = await import('@/components/utils/offlineDatabase');
-      const offlineAppUsers = await db.getAll(db.STORES.APP_USERS);
+      const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
       
       // Dispatch events to update map markers and deliveries
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
@@ -253,8 +251,7 @@ export default function PullToSync({
       const currentFABPhase = window.__currentFABPhase || 1;
       
       // Callback to parent component with fresh offline data
-      const { offlineDB: db } = await import('@/components/utils/offlineDatabase');
-      const finalAppUsers = await db.getAll(db.STORES.APP_USERS);
+      const finalAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
       
       if (onSyncComplete) {
         await onSyncComplete(freshDeliveries, freshPatients, finalAppUsers);
