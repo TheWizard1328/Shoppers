@@ -7940,11 +7940,10 @@ function Dashboard() {
                     {/* Show All Checkbox - Only for drivers in single driver mode */}
                     {isDriver && !isAllDriversMode && (
                       <div className="flex items-center flex-shrink-0">
-                        <div className="flex flex-col items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={async () => {
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={async () => {
                             const checked = !showAllDriverMarkers;
                         setShowAllDriverMarkers(checked);
                         if (currentUser?.id) {
