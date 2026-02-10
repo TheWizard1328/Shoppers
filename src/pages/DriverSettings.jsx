@@ -43,22 +43,26 @@ export default function DriverSettings() {
     return [...cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
   }, [cities]);
 
-  // Fetch fresh AppUser data on mount using offline-first data manager with rate limiting
+  // Fetch fresh AppUser data on mount and when navigating to this page
   useEffect(() => {
     const fetchFreshAppUsers = async () => {
       try {
-        const freshData = await getData('AppUser', '-updated_date', null, false);
+        console.log('🔄 [DriverSettings] Refreshing AppUser data...');
+        const freshData = await getData('AppUser', '-updated_date', null, true); // Force refresh
         setFreshAppUsers(freshData || []);
+        console.log(`✅ [DriverSettings] Loaded ${freshData?.length || 0} AppUsers`);
       } catch (error) {
         console.warn('Failed to fetch fresh AppUser data:', error);
       }
     };
 
+    // Fetch immediately on mount
     fetchFreshAppUsers();
+    
     // Only refresh on manual action or long intervals to avoid rate limits
     const interval = setInterval(fetchFreshAppUsers, 60000); // Refresh every 60 seconds max
     return () => clearInterval(interval);
-  }, []);
+  }, []); // Run once on mount
 
   // Merge fresh AppUser data with context appUsers
   const mergedAppUsers = useMemo(() => {
