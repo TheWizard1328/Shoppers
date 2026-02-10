@@ -620,7 +620,7 @@ function Dashboard() {
   //       paddingBottomRight = [horizontal, vertical from bottom]
 
   const getMapPadding = useCallback(() => {
-    const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
+    const statsCardCurrHeight = statsCardRef.current?.offsetHeight || statsCardBaseHeight || 75;
     const baseHeight = stopCardsBaseHeight || 0;
 
     const topPadding = isMobile ?
@@ -633,7 +633,7 @@ function Dashboard() {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
     };
-  }, [isMobile, stopCardsBaseHeight]);
+  }, [isMobile, stopCardsBaseHeight, statsCardBaseHeight]);
 
   // Start driver activity monitor for pure drivers
   useEffect(() => {
