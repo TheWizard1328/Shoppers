@@ -760,68 +760,50 @@ export default function StopCard({
   const handleAcceptAllStops = async () => {
     setIsAcceptingAll(true);
     try {
-      console.log('🟢 [Accept All] Step 1: Pausing location poller...');
+      console.log('🟢 [Accept All] PHASE 1: Pausing and transitioning all pending stops...');
       const { driverLocationPoller } = await import('../utils/driverLocationPoller');
       driverLocationPoller.pause();
+      smartRefreshManager.pause();
+      setIsEntityUpdating(true);
 
-    console.log('🟢 [Accept All] Step 2: Running smart refresh...');
-
-    // Step 2: Run smart refresh
-    smartRefreshManager.lastRefreshTimes = {
-      driverLocation: 0,
-      activeDeliveries: 0,
-      todayDeliveries: 0,
-      appUsers: 0,
-      patients: 0,
-      stores: 0
-    };
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
-    // Step 3: Pause smart refresh
-    console.log('🟢 [Assign All] Step 3: Pausing smart refresh...');
-    setIsEntityUpdating(true);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    try {
-      // Step 3: Change all pending stops to in_transit
-      console.log('🟢 [Assign All] Step 3: Changing pending stops to in_transit...');
       const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
       console.log(`  Found ${allPendingDeliveries.length} pending deliveries`);
 
-      // Get pickup's stop_order
-      const pickupStopOrder = delivery.stop_order || 0;
-      console.log(`  Pickup stop order: ${pickupStopOrder}`);
-
-      // CRITICAL: Set delivery_time_start to current time + 5 minutes for all pending deliveries
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const startMinutes = currentMinutes + 5;
       const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-      // OPTIMIZED: Batch all status updates in parallel
-      const statusUpdatePromises = allPendingDeliveries.map(pendingDelivery =>
+      // Batch all status updates + TR# assignments
+      const pickupTR = parseInt(delivery.tracking_number, 10);
+      const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
+      const sortedPending = [...allPendingDeliveries].sort((a, b) =>
+        (a.patient_name || '').localeCompare(b.patient_name || '')
+      );
+
+      const statusUpdatePromises = sortedPending.map((pendingDelivery, i) =>
         updateDeliveryLocal(pendingDelivery.id, {
           status: 'in_transit',
-          delivery_time_start: deliveryTimeStart
+          delivery_time_start: deliveryTimeStart,
+          tracking_number: String(baseTR + i + 1)
         }, { skipSmartRefresh: true })
       );
 
       await Promise.all(statusUpdatePromises);
-      console.log(`✅ Updated ${allPendingDeliveries.length} deliveries to in_transit`);
+      console.log(`✅ Updated ${allPendingDeliveries.length} deliveries to in_transit with TR#s`);
 
-      // OPTIMIZED: Batch all Square COD item creation in parallel
+      // Batch Square COD item creation
       const codPromises = allPendingDeliveries
         .filter(pd => pd.cod_total_amount_required > 0 && pd.patient_id)
         .map(async (pendingDelivery) => {
           try {
             const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
-            const codAmountDollars = pendingDelivery.cod_total_amount_required;
             await base44.functions.invoke('squareCreateCodItem', {
               deliveryId: pendingDelivery.id,
               patientName: pendingDelivery.patient_name,
               storeAbbreviation: storeForCod?.abbreviation || '',
-              codAmount: codAmountDollars,
+              codAmount: pendingDelivery.cod_total_amount_required,
               deliveryDate: pendingDelivery.delivery_date,
               storeId: pendingDelivery.store_id
             });
@@ -835,136 +817,73 @@ export default function StopCard({
         console.log(`✅ Created ${codPromises.length} Square COD items`);
       }
 
-      // CRITICAL: Dispatch event to trigger ETA updates for pending->in_transit transitions
-      window.dispatchEvent(new CustomEvent('pendingToInTransit', {
-        detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-      }));
+      console.log('✅ [Accept All] PHASE 1 Complete - All transitions done');
 
-      // CRITICAL: Dispatch deliveriesUpdated event IMMEDIATELY after status changes
-      // This ensures map route lines update before waiting for optimization
+      // ═══════════ PHASE 2: SINGLE UI UPDATE ═══════════
+      console.log('🎯 [Accept All] PHASE 2: Single UI update...');
+      
+      invalidate('Delivery');
+      await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+      
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
       }));
+      window.dispatchEvent(new CustomEvent('pendingToInTransit', {
+        detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+      }));
+      
+      console.log('✅ [Accept All] PHASE 2 Complete - UI updated');
 
-      // Step 4: Sort by delivery_time_start and group by store for staged optimization
-      console.log('🟢 [Assign All] Step 4: Sorting by delivery_time_start and optimizing in stages...');
-
-      // CRITICAL: Sort all pending deliveries by delivery_time_start BEFORE grouping
-      const sortedPendingDeliveries = [...allPendingDeliveries].sort((a, b) => {
-        const timeA = a.delivery_time_start ? parseInt(a.delivery_time_start.split(':')[0]) * 60 + parseInt(a.delivery_time_start.split(':')[1]) : Infinity;
-        const timeB = b.delivery_time_start ? parseInt(b.delivery_time_start.split(':')[0]) * 60 + parseInt(b.delivery_time_start.split(':')[1]) : Infinity;
-        return timeA - timeB;
+      // ═══════════ PHASE 3: SILENT OPTIMIZATION ═══════════
+      console.log('🔄 [Accept All] PHASE 3: Running silent route optimization...');
+      
+      await base44.functions.invoke('optimizeRouteRealTime', {
+        driverId: delivery.driver_id,
+        deliveryDate: delivery.delivery_date,
+        currentLocalTime: currentLocalTime,
+        generatePolyline: false
       });
+      
+      console.log('✅ [Accept All] PHASE 3 Complete - Route optimized silently');
 
-      console.log(`  Sorted ${sortedPendingDeliveries.length} deliveries by delivery_time_start`);
-
-      // Group deliveries by store_id for staged optimization
-      const deliveriesByStore = new Map();
-      for (const d of sortedPendingDeliveries) {
-        const storeId = d.store_id;
-        if (!deliveriesByStore.has(storeId)) {
-          deliveriesByStore.set(storeId, []);
-        }
-        deliveriesByStore.get(storeId).push(d);
-      }
-
-      console.log(`  Found ${deliveriesByStore.size} store groups to optimize`);
-
-      // CRITICAL: Run recursive route optimizer
-      try {
-        console.log('🔄 [Accept/Assign All] Running optimizeRouteRealTime...');
-        await base44.functions.invoke('optimizeRouteRealTime', {
-          driverId: delivery.driver_id,
-          deliveryDate: delivery.delivery_date,
-          currentLocalTime: currentLocalTime,
-          generatePolyline: false
-        });
-        console.log('✅ [Accept/Assign All] Route optimized');
-
-        // CRITICAL: Refresh UI to show reordered stops
-        invalidate('Delivery');
-        await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-        console.log('✅ [Accept/Assign All] UI refreshed with new stop order');
-
-        // CRITICAL: Trigger map route line refresh
-        window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
-      } catch (optimizeError) {
-        console.warn('⚠️ [Accept/Assign All] Route optimizer failed, continuing without optimization:', optimizeError);
-      }
-
-      // Step 5: Update TR#s sequentially for newly accepted stops
-      console.log('🟢 [Assign All] Step 5: Assigning sequential TR#s...');
-
-      const pickupTR = parseInt(delivery.tracking_number, 10);
-      const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
-      console.log(`  Using pickup TR# ${baseTR} as base`);
-
-      // Sort pending by patient name for consistent TR# assignment
-      const sortedPending = [...allPendingDeliveries].sort((a, b) =>
-        (a.patient_name || '').localeCompare(b.patient_name || '')
-      );
-
-      // OPTIMIZED: Batch all TR# assignments in parallel
-      const trUpdatePromises = sortedPending.map((pd, i) =>
-        updateDeliveryLocal(pd.id, {
-          tracking_number: String(baseTR + i + 1)
-        }, { skipSmartRefresh: true })
-      );
-
-      await Promise.all(trUpdatePromises);
-      console.log(`✅ Assigned TR#s sequentially to ${sortedPending.length} deliveries`);
-
-      // Step 6 & 7: Let smart refresh handle the sync
-      console.log('🟢 [Assign All] Step 6-7: Smart refresh will sync data...');
-      // Don't call forceRefreshDriverDeliveries here - it floods API
-      // Smart refresh will pick up the changes automatically
+      // ═══════════ PHASE 4: FINAL UI UPDATE ═══════════
+      console.log('🎯 [Accept All] PHASE 4: Final UI update with optimized route...');
+      
+      invalidate('Delivery');
+      await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+      
+      window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
+      
+      console.log('✅ [Accept All] PHASE 4 Complete');
 
       // Send notifications
       const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
       if (isDriverAction) {
-        await notifyDriverAcceptedAll({
-          driver: currentUser,
-          store,
-          appUsers
-        });
+        notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch(err => console.warn('Notification failed:', err));
       } else {
         const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
         if (assignedDriver) {
-          await notifyDispatcherAssignedAll({
+          notifyDispatcherAssignedAll({
             dispatcher: currentUser,
             driver: assignedDriver,
             store,
             deliveries: allPendingDeliveries,
             patients
-          });
+          }).catch(err => console.warn('Notification failed:', err));
         }
       }
 
-      console.log('✅ [Assign All] Complete');
+    } catch (error) {
+      console.error('❌ [Accept All] Error:', error);
+      toast.error(`Failed to accept all: ${error.message}`);
     } finally {
-      // Step 8: Reset and resume smart refresh + location poller
-      console.log('🟢 [Assign All] Step 8: Resuming location poller and smart refresh...');
-      const { driverLocationPoller } = await import('../utils/driverLocationPoller');
       driverLocationPoller.resume();
-
-      smartRefreshManager.lastRefreshTimes = {
-        driverLocation: 0,
-        activeDeliveries: 0,
-        todayDeliveries: 0,
-        appUsers: 0,
-        patients: 0,
-        stores: 0
-      };
+      smartRefreshManager.resume();
       setIsEntityUpdating(false);
-      console.log('  ✅ Smart refresh and location poller resumed');
-
-      // CRITICAL: Collapse the card after assign/accept all completes
+      setIsAcceptingAll(false);
       if (onClick) {
         onClick(null);
       }
-    }
-    } finally {
-      setIsAcceptingAll(false);
     }
   };
 
