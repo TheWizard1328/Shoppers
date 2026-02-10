@@ -212,45 +212,55 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
       await smartRefreshMgr.waitForRateLimit();
     }
 
-    // STEP 1: Fetch and sync ENTIRE AppUser entity (all drivers)
-    console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching ALL AppUsers...');
-    const allAppUsers = await AppUser.list();
-    console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers (Mode: ${fetchAllDriversDeliveries ? 'ALL DRIVERS' : 'Individual'})`);
+    // STEP 1: Fetch and sync ENTIRE AppUser entity (all drivers) - SKIP if synced recently
+    const timeSinceLastAppUserSync = Date.now() - (smartRefreshMgr?._lastAppUserSyncTime || 0);
+    const shouldSkipAppUserSync = timeSinceLastAppUserSync < 10000; // Skip if synced within last 10 seconds
 
-    if (allAppUsers && allAppUsers.length > 0) {
-      // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
-      const appUsersByUserId = new Map();
-      allAppUsers.forEach(au => {
-        if (!au || !au.user_id) return;
-        const existing = appUsersByUserId.get(au.user_id);
-        
-        if (!existing) {
-          appUsersByUserId.set(au.user_id, au);
-        } else {
-          const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
-          const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
-          const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
-          const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
-
-          if (newLocationTime > existingLocationTime) {
-            appUsersByUserId.set(au.user_id, au);
-          } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
-            appUsersByUserId.set(au.user_id, au);
-          }
-        }
-      });
-      const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
-      const duplicatesRemoved = allAppUsers.length - deduplicatedAppUsers.length;
-      if (duplicatesRemoved > 0) {
-        console.warn(`⚠️ [PrioritySyncBeforeRefresh] Removed ${duplicatesRemoved} duplicate AppUsers`);
-      }
-
-      const saveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
-      console.log(`✅ [PrioritySyncBeforeRefresh] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, saveResult);
-      await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
-      if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
+    if (shouldSkipAppUserSync) {
+      console.log('⏭️ [PrioritySyncBeforeRefresh] STEP 1: Skipping AppUser sync (synced recently)');
     } else {
-      console.warn('⚠️ [PrioritySyncBeforeRefresh] No AppUsers returned from API');
+      console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching ALL AppUsers...');
+      const allAppUsers = await AppUser.list();
+      console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers (Mode: ${fetchAllDriversDeliveries ? 'ALL DRIVERS' : 'Individual'})`);
+
+      if (allAppUsers && allAppUsers.length > 0) {
+        // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
+        const appUsersByUserId = new Map();
+        allAppUsers.forEach(au => {
+          if (!au || !au.user_id) return;
+          const existing = appUsersByUserId.get(au.user_id);
+
+          if (!existing) {
+            appUsersByUserId.set(au.user_id, au);
+          } else {
+            const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+            const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+            const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+            const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+
+            if (newLocationTime > existingLocationTime) {
+              appUsersByUserId.set(au.user_id, au);
+            } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
+              appUsersByUserId.set(au.user_id, au);
+            }
+          }
+        });
+        const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
+        const duplicatesRemoved = allAppUsers.length - deduplicatedAppUsers.length;
+        if (duplicatesRemoved > 0) {
+          console.warn(`⚠️ [PrioritySyncBeforeRefresh] Removed ${duplicatesRemoved} duplicate AppUsers`);
+        }
+
+        const saveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
+        console.log(`✅ [PrioritySyncBeforeRefresh] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, saveResult);
+        await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
+        if (smartRefreshMgr) {
+          smartRefreshMgr.recordSuccess();
+          smartRefreshMgr._lastAppUserSyncTime = Date.now();
+        }
+      } else {
+        console.warn('⚠️ [PrioritySyncBeforeRefresh] No AppUsers returned from API');
+      }
     }
     
     await new Promise(r => setTimeout(r, 500));
