@@ -41,11 +41,25 @@ export const AppDataProvider = ({ children, value }) => {
         }
       } else if (entityType === 'AppUser') {
         if (eventType === 'create' || eventType === 'update') {
-          // Notify driver location update
+          // CRITICAL: Update appUsers array in context for instant UI updates
+          if (value.updateAppUsersLocally) {
+            value.updateAppUsersLocally([data], false);
+          }
+          
+          // Notify driver location update for map markers
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
               detail: { appUsers: [data], singleUpdate: true, fromRealtime: true }
             }));
+          }
+          
+          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
+          smartRefreshManager.notifyRealtimeUpdate('AppUser');
+        } else if (eventType === 'delete') {
+          // Remove from appUsers array
+          if (value.updateAppUsersLocally && value.appUsers) {
+            const filtered = value.appUsers.filter(au => au?.id !== data.id);
+            value.updateAppUsersLocally(filtered, true);
           }
           
           // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
