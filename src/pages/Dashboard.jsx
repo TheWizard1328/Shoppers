@@ -1222,11 +1222,32 @@ function Dashboard() {
     return driversSource;
   }, [appUsers, currentUser, stores, selectedDate, deliveries]);
 
-  // CRITICAL: Show location toggle on mobile devices regardless of layout mode
+  // CRITICAL: Show location toggle when mobile device OR primary tracker device
+  const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
+  
+  // Check if current device is primary tracker
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    
+    const checkPrimaryDevice = async () => {
+      try {
+        const { getCurrentDevice } = await import('@/components/utils/deviceManager');
+        const device = await getCurrentDevice(currentUser.id);
+        const isPrimary = device?.is_primary_tracker !== false;
+        setIsPrimaryDevice(isPrimary);
+      } catch (error) {
+        console.warn('⚠️ [Primary Device Check] Failed:', error.message);
+        setIsPrimaryDevice(false);
+      }
+    };
+    
+    checkPrimaryDevice();
+  }, [currentUser?.id]);
+  
   const shouldShowLocationToggle = useMemo(() => {
-    const isMobileDevice = isMobile; // Already uses isMobileDevice() - detects by user agent
-    return isMobileDevice && isDriver && !userHasRole(currentUser, 'dispatcher');
-  }, [isMobile, isDriver, currentUser]);
+    // Show when: (mobile device OR primary tracker) AND is driver AND not dispatcher
+    return (isMobile || isPrimaryDevice) && isDriver && !userHasRole(currentUser, 'dispatcher');
+  }, [isMobile, isPrimaryDevice, isDriver, currentUser]);
 
   const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), []);
 
