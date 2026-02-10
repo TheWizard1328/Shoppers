@@ -7,6 +7,7 @@ import { invalidate } from "./dataManager";
 import { touchUserCache } from "./auth";
 import { queueEntityRequest } from "./requestQueue";
 import { initializeAutoDarkMode, getSetting } from "./userSettingsManager";
+import { globalFilters } from "./globalFilters";
 
 // Module-level cache for isOfflineDBLoadComplete (imported dynamically)
 let _isOfflineDBLoadComplete = null;
