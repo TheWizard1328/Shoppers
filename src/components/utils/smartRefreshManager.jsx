@@ -2094,15 +2094,18 @@ class SmartRefreshManager {
     const activeDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : todayStr;
     const selectedDriverId = globalFilters?.getSelectedDriverId?.() || filters?.deliveryFilter?.driver_id;
     const isViewingTodayDate = activeDateStr === todayStr;
-    
+
     // CRITICAL: Check global Show All state
     const { showAllDataManager } = await import('./showAllDataManager');
     const isShowAllMode = showAllDataManager.getShowAllState();
     const isAllDriversMode = selectedDriverId === 'all';
     const isIndividualDriverMode = !isShowAllMode && !isAllDriversMode && selectedDriverId && selectedDriverId !== 'all';
-    
+
     // Determine which driver ID to use for filtering
     const activeDriverId = isIndividualDriverMode ? selectedDriverId : null;
+
+    // CRITICAL: Update showAllDrivers flag based on actual mode BEFORE using activeDriverId
+    const shouldFetchAllDrivers = isShowAllMode || isAllDriversMode || showAllDrivers;
     
     console.log(`🔍 [SmartRefresh] View mode - Show All: ${isShowAllMode}, All Drivers: ${isAllDriversMode}, Individual: ${isIndividualDriverMode}, Driver: ${activeDriverId || 'ALL'}`);
     
