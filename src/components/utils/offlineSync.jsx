@@ -199,8 +199,9 @@ const syncPatientsBatched = async (Entity, filter, latestServerTimestamp) => {
  * @param {string} selectedDateStr - The active/current date (YYYY-MM-DD)
  * @param {string} cityId - Optional city ID to filter by (for city-specific sync)
  * @param {object} smartRefreshMgr - SmartRefreshManager instance for rate limiting
+ * @param {boolean} fetchAllDriversDeliveries - If true, fetches ALL drivers' deliveries (Show All/All Drivers mode)
  */
-export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId = null, smartRefreshMgr = null) => {
+export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId = null, smartRefreshMgr = null, fetchAllDriversDeliveries = false) => {
   if (syncPaused) return { skipped: true };
   
   try {
@@ -212,9 +213,9 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     }
 
     // STEP 1: Fetch and sync ENTIRE AppUser entity (all drivers)
-    console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching AppUsers...');
+    console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching ALL AppUsers...');
     const allAppUsers = await AppUser.list();
-    console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers:`, allAppUsers?.map(u => ({ id: u.id, user_id: u.user_id, user_name: u.user_name })));
+    console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers (Mode: ${fetchAllDriversDeliveries ? 'ALL DRIVERS' : 'Individual'})`);
 
     if (allAppUsers && allAppUsers.length > 0) {
       // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
@@ -260,12 +261,25 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
       await smartRefreshMgr.waitForRateLimit();
     }
     
-    // STEP 2: Fetch and sync Deliveries for active date (filtered by city if provided)
+    // STEP 2: Fetch and sync Deliveries for active date
+    // CRITICAL: If in Show All or All Drivers mode, fetch ALL drivers' deliveries for the date
+    // If in Individual Driver mode, only fetch for the selected driver
     const deliveryFilter = { delivery_date: selectedDateStr };
-    if (cityId) {
-      // If city is provided, we'd need to filter by stores in that city
-      // For now, fetch all - smartRefreshManager will handle city filtering
+    
+    if (!fetchAllDriversDeliveries) {
+      // Individual driver mode - filter by driver if provided
+      const { globalFilters } = await import('./globalFilters');
+      const selectedDriverId = globalFilters?.getSelectedDriverId?.();
+      if (selectedDriverId && selectedDriverId !== 'all') {
+        deliveryFilter.driver_id = selectedDriverId;
+        console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching deliveries for driver ${selectedDriverId} only`);
+      } else {
+        console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching ALL drivers' deliveries (All Drivers mode)`);
+      }
+    } else {
+      console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching ALL drivers' deliveries (Show All mode)`);
     }
+    
     const deliveries = await Delivery.filter(deliveryFilter);
     if (deliveries && deliveries.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);

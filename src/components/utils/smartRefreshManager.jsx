@@ -2089,11 +2089,25 @@ class SmartRefreshManager {
     this._refreshStartTime = Date.now();
     const updates = {};
 
-    // CRITICAL: STEP 0 - Capture CURRENT state BEFORE refresh starts
+    // CRITICAL: STEP 0 - Determine view mode (Show All vs All Drivers vs Individual Driver)
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const activeDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : todayStr;
-    const activeDriverId = filters?.deliveryFilter?.driver_id;
+    const selectedDriverId = globalFilters?.getSelectedDriverId?.() || filters?.deliveryFilter?.driver_id;
     const isViewingTodayDate = activeDateStr === todayStr;
+    
+    // CRITICAL: Check global Show All state
+    const { showAllDataManager } = await import('./showAllDataManager');
+    const isShowAllMode = showAllDataManager.getShowAllState();
+    const isAllDriversMode = selectedDriverId === 'all';
+    const isIndividualDriverMode = !isShowAllMode && !isAllDriversMode && selectedDriverId && selectedDriverId !== 'all';
+    
+    // Determine which driver ID to use for filtering
+    const activeDriverId = isIndividualDriverMode ? selectedDriverId : null;
+    
+    console.log(`🔍 [SmartRefresh] View mode - Show All: ${isShowAllMode}, All Drivers: ${isAllDriversMode}, Individual: ${isIndividualDriverMode}, Driver: ${activeDriverId || 'ALL'}`);
+    
+    // CRITICAL: Update showAllDrivers flag based on actual mode
+    const shouldFetchAllDrivers = isShowAllMode || isAllDriversMode || showAllDrivers;
 
     // Capture state BEFORE refresh
     const stateBeforeRefresh = {
@@ -2122,10 +2136,11 @@ class SmartRefreshManager {
 
     // CRITICAL: Run priority sync FIRST before any other refresh operations
     // This ensures AppUsers, active date Deliveries, and associated Patients are always fresh
+    // CRITICAL: When in Show All or All Drivers mode, fetch ALL drivers' deliveries
     try {
       const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
       const { performPrioritySyncBeforeRefresh } = await import('./offlineSync');
-      await performPrioritySyncBeforeRefresh(selectedDateStr, filters?.cityFilter?.city_id || null, this);
+      await performPrioritySyncBeforeRefresh(selectedDateStr, filters?.cityFilter?.city_id || null, this, shouldFetchAllDrivers);
     } catch (priorityError) {
       console.warn('⚠️ [SmartRefresh] Priority sync failed:', priorityError.message);
       // Continue with regular refresh even if priority sync fails
@@ -2137,21 +2152,21 @@ class SmartRefreshManager {
       if (isViewingTodayDate) {
         // PRIORITY 0 (CRITICAL): Load AppUsers from offline DB (kept fresh by priority sync every 15s)
         // Only fetch from API every 2 minutes if offline DB is stale
-        const shouldFetchAppUsers = showAllDrivers || (currentPage === 'Dashboard');
+        // CRITICAL: When in Show All or All Drivers mode, ALWAYS process all drivers
+        const shouldFetchAppUsers = shouldFetchAllDrivers || (currentPage === 'Dashboard');
 
           if (this.shouldRefresh('appUsers') && currentData.appUsers && shouldFetchAppUsers) {
           try {
-            console.log('📡 [SmartRefresh] PRIORITY 0: Loading driver locations from offline DB (synced every 15s)');
+            console.log(`📡 [SmartRefresh] PRIORITY 0: Loading driver locations from offline DB (Show All: ${isShowAllMode}, All Drivers: ${isAllDriversMode})`);
             const { offlineDB } = await import('./offlineDatabase');
             const appUsersFromOfflineDB = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
 
             if (appUsersFromOfflineDB && appUsersFromOfflineDB.length > 0) {
               console.log(`📍 [SmartRefresh] Loaded ${appUsersFromOfflineDB.length} driver locations from offline DB`);
               
-              // Update state with fresh locations from offline DB
-              if (!updates.appUsers || appUsersFromOfflineDB.length !== (updates.appUsers?.length || 0)) {
-                updates.appUsers = appUsersFromOfflineDB;
-              }
+              // CRITICAL: ALWAYS update state with ALL AppUsers from offline DB
+              // This ensures all driver markers are refreshed, not just the active driver
+              updates.appUsers = appUsersFromOfflineDB;
 
               // Process through driverLocationPoller
               try {
@@ -2168,17 +2183,21 @@ class SmartRefreshManager {
                     selectedDate || new Date(),
                     true, // forceNotify
                     currentPage || 'Dashboard',
-                    showAllDrivers
+                    shouldFetchAllDrivers // Use the resolved flag
                   );
                 }
               } catch (pollerError) {
                 console.warn('⚠️ [SmartRefresh] Failed to process through poller:', pollerError.message);
               }
 
-              // Dispatch event
+              // Dispatch event - CRITICAL: Include the mode flags
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                  detail: { appUsers: appUsersFromOfflineDB }
+                  detail: { 
+                    appUsers: appUsersFromOfflineDB,
+                    showAllDrivers: shouldFetchAllDrivers,
+                    forceAll: true
+                  }
                 }));
               }
             }
@@ -2192,8 +2211,9 @@ class SmartRefreshManager {
 
       // PRIORITY 1: Active route data (15-second cycle)
       // Now uses fresh driver locations from offline DB (just synced above)
+      // CRITICAL: Pass the shouldFetchAllDrivers flag to fetch all drivers when in Show All/All Drivers mode
       if (this.shouldRefresh('activeRoute')) {
-        const activeResult = await this.refreshActiveRoute(currentData, filters, showAllDrivers, currentPage, selectedDate);
+        const activeResult = await this.refreshActiveRoute(currentData, filters, shouldFetchAllDrivers, currentPage, selectedDate);
         if (activeResult) {
           Object.assign(updates, activeResult);
         }
@@ -2324,12 +2344,22 @@ class SmartRefreshManager {
           }
         }
         
-        // Force return AppUsers from offline DB
-        if (!updates.appUsers && isViewingTodayDate) {
-          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-          if (offlineAppUsers && offlineAppUsers.length > 0) {
-            updates.appUsers = offlineAppUsers;
-            console.log(`🔄 [SmartRefresh] Force returning ${offlineAppUsers.length} AppUsers from offline DB for UI sync`);
+        // CRITICAL: ALWAYS force return ALL AppUsers from offline DB for proper location marker updates
+        // This ensures that location markers update for ALL drivers in Show All and All Drivers modes
+        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        if (offlineAppUsers && offlineAppUsers.length > 0 && isViewingTodayDate) {
+          updates.appUsers = offlineAppUsers;
+          console.log(`🔄 [SmartRefresh] Force returning ${offlineAppUsers.length} AppUsers from offline DB for location marker sync (Mode: ${isShowAllMode ? 'Show All' : isAllDriversMode ? 'All Drivers' : 'Individual'})`);
+          
+          // CRITICAL: Dispatch location update event with mode flags
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { 
+                appUsers: offlineAppUsers,
+                showAllDrivers: shouldFetchAllDrivers,
+                forceAll: true
+              }
+            }));
           }
         }
         
