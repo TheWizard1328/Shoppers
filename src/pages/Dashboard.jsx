@@ -6575,6 +6575,11 @@ function Dashboard() {
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
               detail: { appUsers: [updatedAppUser[0]], singleUpdate: true }
             }));
+
+            // CRITICAL: Reset smart refresh and location poller timers to prevent immediate duplicate update
+            console.log('⏱️ [Status Update] Resetting smart refresh and location poller timers...');
+            smartRefreshManager.resetTimers();
+            driverLocationPoller.resetTimers();
           } catch (error) {
             console.warn('⚠️ Driver location update failed:', error.message);
           }
