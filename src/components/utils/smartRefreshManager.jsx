@@ -724,6 +724,7 @@ class SmartRefreshManager {
 
   /**
    * Smart refresh for SELECTED DATE deliveries only
+   * CRITICAL: Skip purge-resync if a broadcast just came in (within 3 seconds)
    * CRITICAL: Now respects pending local updates from updateDeliveriesLocally
    * CRITICAL: Uses offline database first to minimize API calls
    */
@@ -733,6 +734,30 @@ class SmartRefreshManager {
       try {
           const dateStr = format(selectedDate, 'yyyy-MM-dd');
           const currentDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date === dateStr);
+
+          // CRITICAL: Check if we just received a broadcast update
+          // If so, skip the purge-resync and use offline DB instead
+          const lastBroadcast = this.lastBroadcastUpdate.get('Delivery') || 0;
+          const timeSinceBroadcast = Date.now() - lastBroadcast;
+
+          if (timeSinceBroadcast < 3000) {
+            console.log(`⏭️ [SmartRefresh] Skipping Delivery purge-resync - broadcast received ${timeSinceBroadcast}ms ago`);
+            // Load from offline DB instead
+            try {
+              const { offlineDB } = await import('./offlineDatabase');
+              const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+              if (offlineDeliveries && offlineDeliveries.length > 0) {
+                const otherDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
+                return {
+                  hasChanges: false,
+                  deliveries: [...otherDeliveries, ...offlineDeliveries]
+                };
+              }
+            } catch (offlineError) {
+              console.warn('⚠️ [SmartRefresh] Failed to load from offline DB:', offlineError);
+            }
+            return null;
+          }
 
           // PURGE AND RESYNC: Fetch ALL deliveries for this date from API
           const dateFilter = { ...filters, delivery_date: dateStr };
