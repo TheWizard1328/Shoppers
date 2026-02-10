@@ -370,12 +370,16 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
 export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = null) => {
   try {
     console.log('🔄 [PreRenderSync] FORCING fresh AppUsers and Cities from API before map render...');
-    
+
+    // CRITICAL: Invalidate AppUser cache BEFORE uploading location to ensure fresh data
+    console.log('🗑️ [PreRenderSync] CRITICAL: Clearing AppUser cache before location upload...');
+    invalidateEntityCache('AppUser');
+
     // CRITICAL STEP 0: Upload current driver location FIRST (if driver and has location)
     if (currentUser) {
       const { base44 } = await import('@/api/base44Client');
       const { locationTracker } = await import('./locationTracker');
-      
+
       // Check if this is a driver with active location tracking
       const isTrackingLocation = locationTracker.isTracking && locationTracker.lastPosition;
       
