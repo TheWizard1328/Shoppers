@@ -2727,185 +2727,128 @@ class SmartRefreshManager {
    }
 
    /**
-    * NEW: Full AppUser sync - every 15 seconds
-    * CRITICAL: Skip purge-resync if a broadcast just came in (within 3 seconds)
+    * NEW: Incremental AppUser sync - every 15 seconds
+    * CRITICAL: No purging - only incremental updates from API merged into offline DB
+    * Then returns all AppUsers from offline DB for UI update
     * @param {boolean} showAllDrivers - If true, processes all drivers through poller
     */
     async refreshAllAppUsersFullSync(currentAppUsers, currentPageName = null, selectedDate = null, showAllDrivers = false) {
       try {
-        // CRITICAL: Check if we just received a broadcast update
-        // If so, skip the purge-resync and just use offline DB
-        const lastBroadcast = this.lastBroadcastUpdate.get('AppUser') || 0;
-        const timeSinceBroadcast = Date.now() - lastBroadcast;
+        const { offlineDB } = await import('./offlineDatabase');
 
-        if (timeSinceBroadcast < 3000) {
-          console.log(`⏭️ [SmartRefresh] Skipping AppUser purge-resync - broadcast received ${timeSinceBroadcast}ms ago`);
-          // Load from offline DB instead
-          try {
-            const { offlineDB } = await import('./offlineDatabase');
-            const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-            if (offlineAppUsers && offlineAppUsers.length > 0) {
-              return {
-                hasChanges: false,
-                appUsers: offlineAppUsers
-              };
+        // STEP 1: Get last sync time from offline DB to only fetch updated AppUsers
+        const lastSyncStatus = await offlineDB.getSyncStatus('AppUser');
+        const lastSyncTime = lastSyncStatus?.lastSync ? new Date(lastSyncStatus.lastSync) : new Date(Date.now() - 86400000); // Default 24h ago
+
+        console.log(`📡 [SmartRefresh] Fetching AppUsers updated since ${lastSyncTime.toISOString()}`);
+        await this.waitForRateLimit();
+
+        // STEP 2: Fetch only incremental updates from API
+        const incrementalAppUsers = await queueEntityRequest(
+          () => base44.entities.AppUser.filter({
+            updated_date: { $gte: lastSyncTime.toISOString() }
+          }),
+          'AppUser filter [incremental]'
+        );
+
+        this.recordSuccess();
+
+        // STEP 3: Update GPS for primary device if applicable
+        const { isDriver } = await import('./userRoles');
+        const { locationTracker } = await import('./locationTracker');
+        const { getCurrentDevice } = await import('./deviceManager');
+
+        if (this._currentUser && isDriver(this._currentUser) && locationTracker.lastPosition) {
+          const currentDevice = await getCurrentDevice(this._currentUser.id);
+          const isPrimaryTracker = currentDevice?.is_primary_tracker !== false;
+
+          if (isPrimaryTracker) {
+            const nowISO = new Date().toISOString();
+            const updateData = {
+              current_latitude: locationTracker.lastPosition.latitude,
+              current_longitude: locationTracker.lastPosition.longitude,
+              location_updated_at: nowISO
+            };
+
+            try {
+              await base44.entities.AppUser.update(currentAppUsers.find(au => au.user_id === this._currentUser.id)?.id, updateData);
+              console.log(`📍 [SmartRefresh] Updated primary device GPS: ${updateData.current_latitude.toFixed(6)}, ${updateData.current_longitude.toFixed(6)}`);
+            } catch (error) {
+              console.warn('⚠️ [SmartRefresh] Failed to push GPS:', error.message);
             }
-          } catch (offlineError) {
-            console.warn('⚠️ [SmartRefresh] Failed to load from offline DB:', offlineError);
           }
+        }
+
+        // STEP 4: Merge incremental updates into offline DB (additive, not destructive)
+        if (incrementalAppUsers && incrementalAppUsers.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, incrementalAppUsers);
+          console.log(`✅ [SmartRefresh] Merged ${incrementalAppUsers.length} incremental AppUser updates to offline DB`);
+        }
+
+        // STEP 5: Load ALL AppUsers from offline DB and return for UI update
+        const allOfflineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+
+        if (!allOfflineAppUsers || allOfflineAppUsers.length === 0) {
+          console.warn('⚠️ [SmartRefresh] No AppUsers in offline DB');
           return null;
         }
 
-        // STEP 1: Read entire AppUser database from API
-        console.log('🔄 [SmartRefresh] STEP 1: Reading entire AppUser database from API...');
-        await this.waitForRateLimit();
-        const allAppUsers = await queueEntityRequest(
-          () => base44.entities.AppUser.list(),
-          'AppUser list [FULL SYNC]'
-        );
+        console.log(`📍 [SmartRefresh] Returning ${allOfflineAppUsers.length} AppUsers from offline DB for UI update`);
 
-       this.recordSuccess();
+        // STEP 6: Update UI with driver locations
+        try {
+          const { driverLocationPoller } = await import('./driverLocationPoller');
+          const currentUser = this._currentUser;
 
-       if (!allAppUsers || allAppUsers.length === 0) {
-         console.warn('⚠️ [SmartRefresh] No AppUsers returned from API');
-         return null;
-       }
+          if (currentUser) {
+            driverLocationPoller.processLocationData(
+              currentUser,
+              [],
+              [],
+              [],
+              allOfflineAppUsers,
+              selectedDate || new Date(),
+              true, // forceNotify
+              currentPageName || 'Dashboard',
+              showAllDrivers
+            );
+          }
+        } catch (pollerError) {
+          console.warn('⚠️ [SmartRefresh] Failed to process through poller:', pollerError.message);
+        }
 
-       console.log(`📥 [SmartRefresh] Fetched ${allAppUsers.length} AppUsers from API`);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: {
+              appUsers: allOfflineAppUsers,
+              forceAll: true,
+              showAllDrivers: showAllDrivers
+            }
+          }));
+        }
 
-       // STEP 2: Update PRIMARY device GPS to both online and offline databases
-       const { isDriver } = await import('./userRoles');
-       const { locationTracker } = await import('./locationTracker');
-       const { getCurrentDevice } = await import('./deviceManager');
+        // STEP 7: Update sync status
+        await offlineDB.updateSyncStatus('AppUser', {
+          recordCount: allOfflineAppUsers.length,
+          status: 'synced',
+          lastSync: new Date().toISOString()
+        });
 
-       if (this._currentUser && isDriver(this._currentUser) && locationTracker.lastPosition) {
-         // Check if this device is the primary tracker
-         const currentDevice = await getCurrentDevice(this._currentUser.id);
-         const isPrimaryTracker = currentDevice?.is_primary_tracker !== false;
-
-         if (isPrimaryTracker) {
-           const currentAppUser = allAppUsers.find(au => au.user_id === this._currentUser.id);
-           if (currentAppUser) {
-             console.log('📍 [SmartRefresh] STEP 2: Updating PRIMARY device GPS to online + offline...');
-
-             const nowISO = new Date().toISOString();
-             const updateData = {
-               current_latitude: locationTracker.lastPosition.latitude,
-               current_longitude: locationTracker.lastPosition.longitude,
-               location_updated_at: nowISO
-             };
-
-             try {
-               // Push to API first
-               await base44.entities.AppUser.update(currentAppUser.id, updateData);
-               console.log(`✅ [SmartRefresh] Pushed GPS to API: ${updateData.current_latitude.toFixed(6)}, ${updateData.current_longitude.toFixed(6)}`);
-
-               // Update in fetched dataset (will be saved to offline DB in STEP 4)
-               currentAppUser.current_latitude = updateData.current_latitude;
-               currentAppUser.current_longitude = updateData.current_longitude;
-               currentAppUser.location_updated_at = updateData.location_updated_at;
-             } catch (error) {
-               console.warn('⚠️ [SmartRefresh] Failed to push GPS to API:', error.message);
-             }
-           }
-         }
-       }
-
-       // Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
-       const appUsersByUserId = new Map();
-       allAppUsers.forEach(au => {
-         if (!au || !au.user_id) return;
-         const existing = appUsersByUserId.get(au.user_id);
-
-         if (!existing) {
-           appUsersByUserId.set(au.user_id, au);
-         } else {
-           const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
-           const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
-           const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
-           const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
-
-           // Prioritize by location_updated_at first
-           if (newLocationTime > existingLocationTime) {
-             appUsersByUserId.set(au.user_id, au);
-           } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
-             // If location times equal, use updated_date
-             appUsersByUserId.set(au.user_id, au);
-           }
-         }
-       });
-       const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
-       const duplicatesRemoved = allAppUsers.length - deduplicatedAppUsers.length;
-       if (duplicatesRemoved > 0) {
-         console.warn(`⚠️ [SmartRefresh] Removed ${duplicatesRemoved} duplicate AppUsers`);
-       }
-
-       // STEP 3: Update UI with driver locations and statuses
-       console.log(`📍 [SmartRefresh] STEP 3: Updating UI with ${deduplicatedAppUsers.length} driver locations...`);
-       
-       try {
-         const { driverLocationPoller } = await import('./driverLocationPoller');
-         const currentUser = this._currentUser;
-
-         if (currentUser) {
-           console.log(`📍 [SmartRefresh] Processing ${deduplicatedAppUsers.length} AppUsers through poller (showAllDrivers: ${showAllDrivers})`);
-           driverLocationPoller.processLocationData(
-             currentUser, 
-             [], 
-             [], 
-             [], 
-             deduplicatedAppUsers, 
-             selectedDate || new Date(),
-             true, // forceNotify
-             currentPageName || 'Dashboard',
-             showAllDrivers // Pass through showAllDrivers flag
-           );
-         }
-       } catch (pollerError) {
-         console.warn('⚠️ [SmartRefresh] Failed to process through poller:', pollerError.message);
-       }
-
-       if (typeof window !== 'undefined') {
-         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-           detail: { 
-             appUsers: deduplicatedAppUsers, 
-             forceAll: true,
-             showAllDrivers: showAllDrivers 
-           }
-         }));
-       }
-
-       // STEP 4: Save updated data to offline DB
-       try {
-         const { offlineDB } = await import('./offlineDatabase');
-         console.log(`💾 [SmartRefresh] STEP 4: Saving ${deduplicatedAppUsers.length} AppUsers to offline DB...`);
-         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
-         console.log(`✅ [SmartRefresh] AppUsers saved to offline DB`);
-
-         await offlineDB.updateSyncStatus('AppUser', {
-           recordCount: deduplicatedAppUsers.length,
-           status: 'synced',
-           lastSync: new Date().toISOString()
-         });
-       } catch (offlineError) {
-         console.error('❌ [SmartRefresh] Failed to save AppUsers to offline DB:', offlineError.message);
-       }
-
-       return {
-         hasChanges: true,
-         appUsers: deduplicatedAppUsers
-       };
-     } catch (error) {
-       this.recordError();
-       this.recordConnectionError(error);
-       console.error('❌ [SmartRefresh] Full AppUser sync error:', error.message);
-       if (error.response?.status === 429 || error.message?.includes('429')) {
-         console.warn('⏰ [SmartRefresh] Rate limit on full AppUser sync');
-         this.notifyRateLimit(true);
-       }
-       return null;
-     }
-   }
+        return {
+          hasChanges: true,
+          appUsers: allOfflineAppUsers
+        };
+      } catch (error) {
+        this.recordError();
+        this.recordConnectionError(error);
+        console.error('❌ [SmartRefresh] Incremental AppUser sync error:', error.message);
+        if (error.response?.status === 429 || error.message?.includes('429')) {
+          console.warn('⏰ [SmartRefresh] Rate limit on AppUser sync');
+          this.notifyRateLimit(true);
+        }
+        return null;
+      }
+    }
 
    /**
     * NEW: Full Cities sync - every 5 minutes, entire dataset in one API hit
