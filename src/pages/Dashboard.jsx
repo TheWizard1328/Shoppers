@@ -1222,7 +1222,7 @@ function Dashboard() {
     return driversSource;
   }, [appUsers, currentUser, stores, selectedDate, deliveries]);
 
-  // CRITICAL: Show location toggle on primary tracker devices (all mobile controls)
+  // CRITICAL: Show location toggle on mobile AND primary tracker devices
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
   
   // Check if current device is primary tracker
@@ -1245,10 +1245,9 @@ function Dashboard() {
   }, [currentUser?.id]);
   
   const shouldShowLocationToggle = useMemo(() => {
-    // Show when: is primary tracker AND is driver AND not dispatcher
-    // Primary tracker = mobile device, so show all mobile controls regardless of screen size
-    return isPrimaryDevice && isDriver && !userHasRole(currentUser, 'dispatcher');
-  }, [isPrimaryDevice, isDriver, currentUser]);
+    // CRITICAL: Show when mobile AND primary device (both must be true)
+    return isMobile && isPrimaryDevice && isDriver && !userHasRole(currentUser, 'dispatcher');
+  }, [isMobile, isPrimaryDevice, isDriver, currentUser]);
 
   const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), []);
 
@@ -1351,6 +1350,12 @@ function Dashboard() {
       return `absolute top-2 ${snapshotOffset}`;
     }
   }, [screenWidth, cardWidth, isSnapshotModeActive]);
+
+  // Determine if stats card is centered or in upper left corner
+  const isStatsCardCentered = useMemo(() => {
+    const ratio = screenWidth / cardWidth;
+    return ratio < 2;
+  }, [screenWidth, cardWidth]);
 
   const optimizationMessagePositioning = useMemo(() => {
     // Always center below stats card
@@ -8186,8 +8191,8 @@ function Dashboard() {
                     </>
                 }
 
-                  {/* Mobile: Offline Sync Indicator in expanded section */}
-                  {isMobile &&
+                  {/* Offline Sync Indicator - embedded when stats card is centered */}
+                  {isStatsCardCentered &&
                 <>
                       <div className="border-t border-slate-200 mt-2 pt-2"></div>
                       <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
@@ -8247,8 +8252,8 @@ function Dashboard() {
           </div>
         }
 
-        {/* Desktop: Offline Sync Indicator */}
-        {!isMobile && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
+        {/* Offline Sync Indicator - separate when stats card is in upper left corner */}
+        {!isStatsCardCentered && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
 
         {/* Real-time ETA Tracker - ONLY for mobile drivers viewing their own route */}
         {realTimeETAEnabled && isMobile && isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
