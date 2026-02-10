@@ -1135,14 +1135,8 @@ class SmartRefreshManager {
       const updatedAppUsers = currentAppUsers.map(au => {
         const offlineVersion = offlineAppUsers.find(ad => ad.user_id === au.user_id);
         if (offlineVersion) {
-          // CRITICAL: If this AppUser has a pending status change, preserve local value
-          if (this.hasPendingAppUserUpdate(au.id)) {
-            console.log(`🛡️ [SmartRefresh] Preserving local AppUser ${au.id} - has pending status change`);
-            return au;
-          }
-
           // CRITICAL: Always use offline DB version (it's kept fresh by priority sync)
-          // This prevents bouncing between old/new data
+          // This prevents bouncing between old/new data and ensures real-time location updates
           return offlineVersion;
         }
         return au;
