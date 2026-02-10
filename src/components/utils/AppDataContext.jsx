@@ -16,7 +16,7 @@ export const AppDataProvider = ({ children, value }) => {
     const userCityIds = value.currentUser.city_ids || (value.currentUser.city_id ? [value.currentUser.city_id] : []);
     
     // Start real-time subscriptions
-    cityFilteredRealtimeSync.start(value.selectedCityId, value.selectedDate, userCityIds);
+    cityFilteredRealtimeSync.start(value.selectedCityId, value.selectedDate);
 
     // Subscribe to real-time updates
     const unsubscribe = cityFilteredRealtimeSync.subscribe(({ entityType, eventType, data }) => {
