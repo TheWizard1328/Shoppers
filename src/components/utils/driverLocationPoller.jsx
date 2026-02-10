@@ -329,15 +329,17 @@ class DriverLocationPoller {
       .sort()
       .join('|');
     
+    console.log(`🔍 [Poller] Notify check - currentKey: ${currentKey.substring(0, 100)}..., forceNotify: ${forceNotify}, lastKey: ${this._lastNotifiedKey?.substring(0, 100) || 'NONE'}...`);
+    
     // Skip notification if data hasn't changed (prevents duplicate notifications)
     // BUT always notify on forceNotify to ensure fresh data propagates
     if (currentKey === this._lastNotifiedKey && !forceNotify) {
-      console.log('⏭️ [Poller] Skipping duplicate notification - data unchanged');
+      console.log('⏭️ [Poller] Skipping notification - data unchanged and not forced');
       return;
     }
     
     this._lastNotifiedKey = currentKey;
-    console.log(`📡 [Poller] Notifying subscribers with NEW data (${activeDriversWithLocation.length} drivers)`);
+    console.log(`📡 [Poller] SENDING NOTIFICATION with ${activeDriversWithLocation.length} drivers (forceNotify: ${forceNotify})`);
     
     // Convert array of users to array of location objects
     const currentUserId = this.currentUser?.id;
