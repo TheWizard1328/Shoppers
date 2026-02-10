@@ -244,20 +244,53 @@ class LocationTracker {
         lat: latitude.toFixed(6),
         lon: longitude.toFixed(6),
         timestamp: nowISO,
-        response: updatedAppUser ? 'SUCCESS' : 'FAILED'
+        appUserId: this.appUserId,
+        response: updatedAppUser ? 'SUCCESS' : 'FAILED',
+        uploadedData: updateData
       });
+
+      if (!updatedAppUser) {
+        console.error('❌ [LocationTracker] API upload returned falsy response!');
+      }
 
       // Step 2: Immediately pull down ALL AppUsers from API (fresh data for everyone)
       const allAppUsers = await base44.entities.AppUser.list();
-      console.log(`📥 [LocationTracker] Pulled down ${allAppUsers.length} AppUsers from API`);
+      console.log(`📥 [LocationTracker] Pulled down ${allAppUsers.length} AppUsers from API after upload`);
+      
+      // Verify current driver is in the list with updated coordinates
+      const currentDriverInList = allAppUsers.find(au => au.id === this.appUserId);
+      if (currentDriverInList) {
+        console.log(`✅ [LocationTracker] Current driver found in API response:`, {
+          lat: currentDriverInList.current_latitude?.toFixed(6),
+          lon: currentDriverInList.current_longitude?.toFixed(6),
+          timestamp: currentDriverInList.location_updated_at
+        });
+      } else {
+        console.error(`❌ [LocationTracker] Current driver ${this.appUserId} NOT found in API response!`);
+      }
 
       // Step 3: Overwrite offline DB with fresh API data
+      let offlineDbSaved = false;
       try {
         const { offlineDB } = await import('./offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
-        console.log(`💾 [LocationTracker] Synced to offline DB`);
+        console.log(`💾 [LocationTracker] Synced ${allAppUsers.length} AppUsers to offline DB`);
+        offlineDbSaved = true;
+        
+        // Verify offline DB was updated
+        const offlineAppUser = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        const offlineCurrentDriver = offlineAppUser?.find(au => au.id === this.appUserId);
+        if (offlineCurrentDriver) {
+          console.log(`✅ [LocationTracker] Verified in offline DB:`, {
+            lat: offlineCurrentDriver.current_latitude?.toFixed(6),
+            lon: offlineCurrentDriver.current_longitude?.toFixed(6),
+            timestamp: offlineCurrentDriver.location_updated_at
+          });
+        } else {
+          console.error(`❌ [LocationTracker] Current driver NOT in offline DB after save!`);
+        }
       } catch (offlineError) {
-        console.warn('⚠️ [LocationTracker] Failed to sync to offline DB:', offlineError.message);
+        console.error('❌ [LocationTracker] FAILED TO SYNC to offline DB:', offlineError.message);
       }
 
       // Step 4: Broadcast update and trigger UI refresh
