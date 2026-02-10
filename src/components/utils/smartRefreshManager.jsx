@@ -2188,7 +2188,6 @@ class SmartRefreshManager {
       }
       
       // PRIORITY 2: Historical date sync (opportunistic, one at a time)
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
       const historicalDates = [...new Set(
         currentData.deliveries
           ?.filter(d => d && d.delivery_date && d.delivery_date !== todayStr)
