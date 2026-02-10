@@ -206,12 +206,25 @@ export default function PullToSync({
         console.warn('⚠️ [Pull to Sync] Failed to refresh polylines:', polylineError.message);
       }
 
+      // CRITICAL: Check current FAB phase before reactivation
+      const currentFABPhase = window.__currentFABPhase || 1;
+      
       // Callback to parent component for additional refresh logic
       if (onSyncComplete) {
         await onSyncComplete(freshDeliveries, freshPatients, freshAppUsers);
       }
 
       console.log('✅ [Pull to Sync] Sync complete!');
+      
+      // CRITICAL: Only reactivate FAB if NOT on phase 1
+      if (currentFABPhase !== 1) {
+        console.log(`📍 [Pull to Sync] Reactivating FAB (was on phase ${currentFABPhase})`);
+        const { fabControlEvents } = await import('@/components/utils/fabControlEvents');
+        fabControlEvents.notifyDataReady();
+      } else {
+        console.log('⏭️ [Pull to Sync] Skipping FAB reactivation - already on phase 1');
+      }
+      
       toast.success('Data synced', {
         description: `${freshDeliveries.length} deliveries, ${uniquePatientIds.length} patients, ${freshAppUsers.length} users`
       });
