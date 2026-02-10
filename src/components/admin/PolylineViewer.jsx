@@ -69,6 +69,8 @@ const MapUpdater = ({ coordinates }) => {
 
 export default function PolylineViewer({ users = [] }) {
   const [polylines, setPolylines] = useState([]);
+  const [breadcrumbs, setBreadcrumbs] = useState([]);
+  const [viewMode, setViewMode] = useState('polylines');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPolyline, setSelectedPolyline] = useState(null);
   const [decodedCoordinates, setDecodedCoordinates] = useState([]);
@@ -77,20 +79,24 @@ export default function PolylineViewer({ users = [] }) {
   const [dateFilter, setDateFilter] = useState('');
 
   useEffect(() => {
-    const fetchPolylines = async () => {
+    const fetchData = async () => {
       try {
         setIsLoading(true);
-        const data = await base44.entities.DriverRoutePolyline.list('-delivery_date');
-        setPolylines(data || []);
+        const polylinesData = await base44.entities.DriverRoutePolyline.list('-delivery_date');
+        setPolylines(polylinesData || []);
+        
+        const breadcrumbsData = await base44.entities.DeliveryBreadcrumbs.list('-delivery_date');
+        setBreadcrumbs(breadcrumbsData || []);
       } catch (error) {
-        console.error('Error fetching polylines:', error);
+        console.error('Error fetching data:', error);
         setPolylines([]);
+        setBreadcrumbs([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchPolylines();
+    fetchData();
   }, []);
 
   const handlePolylineClick = (polyline) => {
@@ -118,13 +124,28 @@ export default function PolylineViewer({ users = [] }) {
     return filtered;
   }, [polylines, driverFilter, dateFilter]);
 
+  const filteredBreadcrumbs = useMemo(() => {
+    let filtered = breadcrumbs;
+
+    if (driverFilter !== 'all') {
+      filtered = filtered.filter(b => b.driver_id === driverFilter);
+    }
+
+    if (dateFilter) {
+      filtered = filtered.filter(b => b.delivery_date === dateFilter);
+    }
+
+    return filtered;
+  }, [breadcrumbs, driverFilter, dateFilter]);
+
   const availableDrivers = useMemo(() => {
-    const driverIds = [...new Set(polylines.map(p => p.driver_id))];
+    const dataSource = viewMode === 'polylines' ? polylines : breadcrumbs;
+    const driverIds = [...new Set(dataSource.map(p => p.driver_id))];
     return driverIds.map(id => ({
       id,
       name: getDriverName(id)
     }));
-  }, [polylines, users]);
+  }, [polylines, breadcrumbs, users, viewMode]);
 
   const handleSelectAll = (checked) => {
     if (checked) {
@@ -202,7 +223,7 @@ export default function PolylineViewer({ users = [] }) {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MapPin className="w-5 h-5" />
-            Google Polyline Data
+            {viewMode === 'polylines' ? 'Google Polyline Data' : 'GPS Breadcrumbs'}
           </div>
           <div className="flex gap-2">
             {selectedPolylines.size > 0 && (
@@ -241,6 +262,25 @@ export default function PolylineViewer({ users = [] }) {
         ) : (
           <>
             <div className="flex gap-3 mb-4">
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                <Button
+                  variant={viewMode === 'polylines' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('polylines')}
+                  className="h-8"
+                >
+                  Polylines
+                </Button>
+                <Button
+                  variant={viewMode === 'breadcrumbs' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('breadcrumbs')}
+                  className="h-8"
+                >
+                  Breadcrumbs
+                </Button>
+              </div>
+
               <Select value={driverFilter} onValueChange={setDriverFilter}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="All Drivers" />
@@ -288,12 +328,12 @@ export default function PolylineViewer({ users = [] }) {
                       className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
                     />
                     <h3 className="font-semibold text-sm">
-                      Polyline Records ({filteredPolylines.length})
+                      {viewMode === 'polylines' ? `Polyline Records (${filteredPolylines.length})` : `Breadcrumb Records (${filteredBreadcrumbs.length})`}
                     </h3>
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  {filteredPolylines.map((polyline) => (
+                  {viewMode === 'polylines' ? filteredPolylines.map((polyline) => (
                     <div
                       key={polyline.id}
                       className={`p-3 border-b transition-colors ${
@@ -331,6 +371,46 @@ export default function PolylineViewer({ users = [] }) {
                         </div>
                       </div>
                     </div>
+                  )) : filteredBreadcrumbs.map((breadcrumb) => (
+                    <div
+                      key={breadcrumb.id}
+                      className={`p-3 border-b transition-colors ${
+                        selectedPolyline?.id === breadcrumb.id
+                          ? 'bg-blue-50 border-l-4 border-l-blue-500'
+                          : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <Checkbox
+                          checked={selectedPolylines.has(breadcrumb.id)}
+                          onCheckedChange={(checked) => handleSelectPolyline(breadcrumb.id, checked)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-1"
+                        />
+                        <div 
+                          className="flex-1 cursor-pointer"
+                          onClick={() => {
+                            setSelectedPolyline(breadcrumb);
+                            setDecodedCoordinates(breadcrumb.coordinates || []);
+                          }}
+                        >
+                          <div className="font-medium text-sm mb-1">
+                            {getDriverName(breadcrumb.driver_id)}
+                          </div>
+                          <div className="text-xs text-slate-600 space-y-1">
+                            <div>📅 {format(new Date(breadcrumb.delivery_date + 'T00:00:00'), 'MMM d, yyyy')}</div>
+                            <div className="flex justify-between">
+                              <span>📍 {breadcrumb.coordinates?.length || 0} points</span>
+                            </div>
+                            {breadcrumb.created_date && (
+                              <div className="text-slate-400">
+                                Created: {format(new Date(breadcrumb.created_date), 'h:mm a')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -342,7 +422,7 @@ export default function PolylineViewer({ users = [] }) {
                     center={decodedCoordinates[0]}
                     zoom={13}
                     style={{ height: '100%', width: '100%' }}
-                    key={`polyline-${selectedPolyline.id}`}
+                    key={`${viewMode}-${selectedPolyline.id}`}
                   >
                     <TileLayer
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -353,13 +433,13 @@ export default function PolylineViewer({ users = [] }) {
                       <>
                         <Polyline
                           positions={decodedCoordinates}
-                          color="blue"
-                          weight={4}
+                          color={viewMode === 'polylines' ? 'blue' : 'red'}
+                          weight={viewMode === 'polylines' ? 4 : 2}
                           opacity={0.7}
                         />
                         
-                        {/* Origin marker */}
-                        {selectedPolyline.segment_origin_lat && selectedPolyline.segment_origin_lon && (
+                        {/* Origin marker - only for polylines */}
+                        {viewMode === 'polylines' && selectedPolyline.segment_origin_lat && selectedPolyline.segment_origin_lon && (
                           <Marker position={[selectedPolyline.segment_origin_lat, selectedPolyline.segment_origin_lon]}>
                             <Popup>
                               <strong>Origin</strong>
@@ -369,8 +449,8 @@ export default function PolylineViewer({ users = [] }) {
                           </Marker>
                         )}
                         
-                        {/* Destination marker */}
-                        {selectedPolyline.segment_dest_lat && selectedPolyline.segment_dest_lon && (
+                        {/* Destination marker - only for polylines */}
+                        {viewMode === 'polylines' && selectedPolyline.segment_dest_lat && selectedPolyline.segment_dest_lon && (
                           <Marker position={[selectedPolyline.segment_dest_lat, selectedPolyline.segment_dest_lon]}>
                             <Popup>
                               <strong>Destination</strong>
