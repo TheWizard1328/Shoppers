@@ -757,7 +757,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
   };
 
   const confirmAndImport = async () => {
-
+    // CRITICAL: Pause smart refresh, offline sync, and all mutations during import
+    if (typeof window !== 'undefined') {
+      const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+      smartRefreshManager.pause();
+    }
 
     if (onImportStart) {
       onImportStart();
@@ -1151,9 +1155,19 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         });
       }
     } finally {
-      setIsProcessing(false);
-    }
-  };
+       setIsProcessing(false);
+       // CRITICAL: Resume smart refresh, offline sync, and mutations after import completes
+       if (typeof window !== 'undefined') {
+         try {
+           const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+           smartRefreshManager.resume();
+           console.log('▶️ [PatientImport] Resumed smart refresh after import');
+         } catch (e) {
+           console.warn('⚠️ [PatientImport] Failed to resume smart refresh:', e.message);
+         }
+       }
+     }
+    };
 
 
   // columnOptions is no longer needed as there's no user mapping UI
