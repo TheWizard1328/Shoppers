@@ -43,7 +43,7 @@ class SmartRefreshManager {
     // OPTIMIZED: Batch entire entity syncs to reduce API calls
     this.intervals = {
       activeRoute: 15000,            // 15s - TODAY's deliveries + driver locations (priority)
-      appUsers: 15000,               // 15s - ENTIRE AppUser dataset in one hit (all drivers)
+      appUsers: 120000,              // 2min - ENTIRE AppUser dataset (reduced from 15s to prevent rate limits)
       cities: 300000,                // 5min - ENTIRE Cities dataset in one hit
       stores: 300000,                // 5min - ENTIRE Stores dataset in one hit
       patients: 86400000,            // Once a day - ENTIRE Patient dataset + last 90 days deliveries
