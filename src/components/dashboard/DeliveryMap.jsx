@@ -1843,7 +1843,7 @@ export default function DeliveryMap({
       if (!driver?.home_latitude || !driver?.home_longitude ||
           typeof driver.home_latitude !== 'number' || typeof driver.home_longitude !== 'number' ||
           isNaN(driver.home_latitude) || isNaN(driver.home_longitude)) {
-        console.warn(`[DeliveryMap] Driver ${driverName} has invalid home coordinates:`, { 
+        console.warn(`[DeliveryMap] Driver ${driver.user_name} has invalid home coordinates:`, { 
           home_lat: driver?.home_latitude, 
           home_lon: driver?.home_longitude 
         });
