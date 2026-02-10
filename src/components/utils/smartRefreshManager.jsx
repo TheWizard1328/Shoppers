@@ -2088,10 +2088,10 @@ class SmartRefreshManager {
 
    // TEMPORARY: Just trigger pull to sync instead of smart refresh logic
    try {
-     console.log('🔄 [SmartRefresh] TEMP: Triggering pull to sync...');
+     console.log('🔄 [SmartRefresh] TEMP: Triggering silent pull to sync...');
      if (typeof window !== 'undefined') {
        window.dispatchEvent(new CustomEvent('triggerPullToSync', {
-         detail: { source: 'smartRefresh' }
+         detail: { source: 'smartRefresh', silent: true }
        }));
      }
      return null;
