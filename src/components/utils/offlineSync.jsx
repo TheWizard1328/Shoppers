@@ -21,7 +21,8 @@ import {
   fetchDeliveriesDedup, 
   fetchPatientsDedup, 
   fetchCitiesDedup, 
-  fetchStoresDedup 
+  fetchStoresDedup,
+  invalidateEntityCache
 } from './dataSyncCoordinator';
 
 // Configuration
@@ -260,6 +261,7 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
 
         const saveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
         console.log(`✅ [PrioritySyncBeforeRefresh] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, saveResult);
+        invalidateEntityCache('AppUser');
         await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
         if (smartRefreshMgr) {
           smartRefreshMgr.recordSuccess();
@@ -298,10 +300,11 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     
     const deliveries = await fetchDeliveriesDedup(selectedDateStr, deliveryFilter);
     if (deliveries && deliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-      await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString(), new Date().toISOString());
-      if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
-    }
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+        invalidateEntityCache('Delivery');
+        await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString(), new Date().toISOString());
+        if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
+      }
     
     await new Promise(r => setTimeout(r, 500));
     notifySyncStatus({ status: 'priority_sync', phase: 'patients' });
@@ -328,10 +331,11 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
         const batchPatients = await fetchPatientsDedup({ id: { $in: batchIds } });
         
         if (batchPatients && batchPatients.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
-          patients = [...patients, ...batchPatients];
-          if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
-        }
+              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+              invalidateEntityCache('Patient');
+              patients = [...patients, ...batchPatients];
+              if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
+            }
         await new Promise(r => setTimeout(r, 200));
       }
     }
@@ -444,10 +448,11 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
       }
 
       // CRITICAL STEP 3: Save fresh AppUsers to offline DB in ONE bulk operation
-      console.log('💾 [PreRenderSync] STEP 3: Saving fresh AppUsers to offline DB...');
-      const appUserSaveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
-      console.log(`✅ [PreRenderSync] Saved ${deduplicatedAppUsers.length} fresh AppUsers to offline DB`);
-      await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
+        console.log('💾 [PreRenderSync] STEP 3: Saving fresh AppUsers to offline DB...');
+        const appUserSaveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
+        console.log(`✅ [PreRenderSync] Saved ${deduplicatedAppUsers.length} fresh AppUsers to offline DB`);
+        invalidateEntityCache('AppUser');
+        await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
     } else {
       console.warn('⚠️ [PreRenderSync] No AppUsers returned from API');
@@ -462,8 +467,9 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
     console.log('🏙️ [PreRenderSync] Fetching fresh Cities (deduplicated)...');
     const cities = await fetchCitiesDedup();
     if (cities && cities.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
-      await offlineDB.updateSyncMetadata('City', new Date().toISOString(), new Date().toISOString());
+    await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+    invalidateEntityCache('City');
+    await offlineDB.updateSyncMetadata('City', new Date().toISOString(), new Date().toISOString());
       console.log(`✅ [PreRenderSync] Synced ${cities.length} fresh Cities to offline DB`);
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
     }
@@ -526,20 +532,23 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     // Step 1: AppUsers with timestamp check (or fresh if underpopulated)
     const appUserResult = await syncEntityWithTimestampCheck('AppUser', AppUser, {}, {});
+    invalidateEntityCache('AppUser');
     const appUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     // Step 2: Cities with timestamp check (force if underpopulated)
     const cityResult = await syncEntityWithTimestampCheck('City', City, {}, {});
+    invalidateEntityCache('City');
     const cities = await offlineDB.getAll(offlineDB.STORES.CITIES);
-    
+
     // CRITICAL: If cities are empty after sync attempt, force full list
     if (!cities || cities.length === 0) {
       console.warn('⚠️ [LoadPriorityData] Cities empty after sync, forcing full fetch...');
       const citiesFromAPI = await City.list();
       if (citiesFromAPI && citiesFromAPI.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.CITIES, citiesFromAPI);
+        invalidateEntityCache('City');
       }
       const updatedCities = await offlineDB.getAll(offlineDB.STORES.CITIES);
     }
@@ -548,13 +557,15 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
 
     // Step 3: Stores with timestamp check (force if empty)
     const storeResult = await syncEntityWithTimestampCheck('Store', Store, {}, {});
+    invalidateEntityCache('Store');
     let stores = await offlineDB.getAll(offlineDB.STORES.STORES);
-    
+
     if (!stores || stores.length === 0) {
       console.warn('⚠️ [LoadPriorityData] Stores empty after sync, forcing full fetch...');
       const storesFromAPI = await Store.list();
       if (storesFromAPI && storesFromAPI.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.STORES, storesFromAPI);
+        invalidateEntityCache('Store');
         stores = storesFromAPI;
       }
     }
@@ -565,6 +576,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     let patients = [];
     try {
       const patientResult = await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' }, { status: 'active' });
+      invalidateEntityCache('Patient');
       patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
       patients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
     } catch (patientError) {
@@ -578,9 +590,10 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     const deliveries = await Delivery.filter(deliveryFilter);
     
     if (deliveries && deliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-      
-      // CRITICAL: Sync patients referenced in these deliveries
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+        invalidateEntityCache('Delivery');
+
+        // CRITICAL: Sync patients referenced in these deliveries
       const patientIds = new Set(
         deliveries
           .filter(d => d && d.patient_id)
@@ -596,6 +609,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
           const batchPatients = await Patient.filter({ id: { $in: batchIds } });
           if (batchPatients && batchPatients.length > 0) {
             await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+            invalidateEntityCache('Patient');
             patients = [...patients, ...batchPatients];
           }
           await new Promise(r => setTimeout(r, 200));
@@ -685,12 +699,15 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     await new Promise(r => setTimeout(r, 2000));
     
     await syncEntityWithTimestampCheck('City', City, {}, {});
+    invalidateEntityCache('City');
     await new Promise(r => setTimeout(r, 2000));
-    
+
     await syncEntityWithTimestampCheck('Store', Store, {}, {});
+    invalidateEntityCache('Store');
     await new Promise(r => setTimeout(r, 2000));
-    
+
     await syncEntityWithTimestampCheck('AppUser', AppUser, {}, {});
+    invalidateEntityCache('AppUser');
     await new Promise(r => setTimeout(r, 2000));
     
     // CRITICAL: Skip patient sync in background unless it's been 24+ hours since last full sync
@@ -702,6 +719,7 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     
     if (shouldSyncPatients) {
       await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' }, { status: 'active' });
+      invalidateEntityCache('Patient');
       await new Promise(r => setTimeout(r, 2000));
     }
     
@@ -722,6 +740,7 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
     if (deliveries.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+      invalidateEntityCache('Delivery');
 
       // CRITICAL: Extract unique patient IDs from these deliveries and sync them immediately
       // This ensures all patients referenced in current deliveries are up-to-date across all devices
@@ -741,6 +760,7 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
 
           if (batchPatients && batchPatients.length > 0) {
             await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+            invalidateEntityCache('Patient');
           }
 
           await new Promise(r => setTimeout(r, 500));
@@ -980,18 +1000,21 @@ export const forceSyncAll = async () => {
     });
     const appUsers = Array.from(appUsersByUserId.values());
     await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+    invalidateEntityCache('AppUser');
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10, count: appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 15 });
     const cities = await City.list();
     await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+    invalidateEntityCache('City');
     notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 20, count: cities.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 22 });
     const stores = await Store.list();
     await offlineDB.bulkSave(offlineDB.STORES.STORES, stores);
+    invalidateEntityCache('Store');
     notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 24, count: stores.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
@@ -1187,10 +1210,10 @@ export const restartDeliveryPatientSync = async () => {
         .filter(d => d && d.patient_id)
         .map(d => d.patient_id)
     );
-    
+
     const uniquePatientIdsList = Array.from(uniquePatientIdsFromLastWeek);
     console.log(`📍 [OfflineSync] Found ${uniquePatientIdsList.length} unique patients in ${allDeliveriesLastWeek.length} deliveries from last 7 days`);
-    
+
     // Step 2: Sync ONLY those unique patient IDs in batches
     // CRITICAL: Sync ALL active patients, not just recent ones
     // This ensures payroll page has complete patient data for any historical date
@@ -1214,6 +1237,7 @@ export const restartDeliveryPatientSync = async () => {
 
         allPatients = allPatients.concat(patientBatch);
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientBatch);
+        invalidateEntityCache('Patient');
 
         const batchNumber = Math.floor(patientOffset / PATIENT_PAGE_SIZE) + 1;
         const batchProgress = 55 + Math.min(20, Math.floor((allPatients.length / 4000) * 20));
@@ -1282,6 +1306,7 @@ export const restartDeliveryPatientSync = async () => {
     const appUsers = Array.from(appUsersByUserId2.values());
     console.log(`👤 [ForceSyncAll] Fetched ${appUsers?.length || 0} AppUsers, saving to offline DB...`);
     const appUserSaveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
+    invalidateEntityCache('AppUser');
     console.log(`✅ [ForceSyncAll] AppUsers save result:`, appUserSaveResult);
 
     // Verify the save
