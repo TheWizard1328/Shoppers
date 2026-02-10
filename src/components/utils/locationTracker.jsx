@@ -407,18 +407,9 @@ class LocationTracker {
       console.log('📍 [LocationTracker] Already tracking - skipping start');
       return;
     }
-    
+
     const userName = user.user_name || user.full_name || 'Unknown';
     const userIdLast4 = user.id ? user.id.slice(-4) : '????';
-
-    // CRITICAL: Only primary devices should track and send locations
-    const currentDevice = await getCurrentDevice(user.id);
-    const isPrimaryTracker = currentDevice?.is_primary_tracker !== false;
-    
-    if (!isPrimaryTracker) {
-      console.log(`⚠️ [LocationTracker] Non-primary device - location tracking disabled. Only primary device sends locations.`);
-      throw new Error('Location tracking is only enabled on your primary device. Please use your primary device for location sharing.');
-    }
 
     console.log(`🚀 [LocationTracker] Starting location tracking for ${userName} (...${userIdLast4})`);
 
@@ -489,11 +480,11 @@ class LocationTracker {
         }
       );
 
-      // CRITICAL: Start heartbeat interval to force updates every 15s even when stationary
-      // watchPosition doesn't fire callbacks when stationary, so we need to force it
+      // CRITICAL: ALWAYS upload location + timestamp every 15s regardless of driver status or location sharing setting
+      // Primary devices upload continuously while app is running
       this.heartbeatInterval = setInterval(() => {
         if (this.lastPosition && this.isTracking) {
-          console.log('💓 [LocationTracker] Heartbeat tick - forcing timestamp update with last known position');
+          console.log('💓 [LocationTracker] Heartbeat tick - forcing timestamp + location update with last known position');
           this.updateLocationInDatabase(
             this.lastPosition.latitude,
             this.lastPosition.longitude,
@@ -502,7 +493,7 @@ class LocationTracker {
           );
         }
       }, this.updateInterval);
-      console.log('💓 [LocationTracker] Started 15s heartbeat interval for stationary updates');
+      console.log('💓 [LocationTracker] Started 15s heartbeat interval - PRIMARY device will upload location + timestamp continuously');
     });
   }
 
