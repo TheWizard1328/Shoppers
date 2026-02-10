@@ -39,6 +39,22 @@ import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
 
+// Wrapper to reload data when Routes tab is opened
+const PolylineViewerWrapper = ({ users, activeUtilityTab }) => {
+  const [dataLoaded, setDataLoaded] = useState(false);
+
+  useEffect(() => {
+    if (activeUtilityTab === 'polylines' && !dataLoaded) {
+      console.log('🔄 [Routes Tab] Loading polyline and breadcrumb data...');
+      setDataLoaded(true);
+    }
+  }, [activeUtilityTab, dataLoaded]);
+
+  // Always render PolylineViewer - it handles its own data loading
+  // The key prop forces re-mount when tab is opened, triggering fresh data fetch
+  return <PolylineViewer key={activeUtilityTab === 'polylines' ? 'active' : 'inactive'} users={users} />;
+};
+
 // Custom Confirmation Dialog Component
 const ConfirmationDialog = ({ open, onOpenChange, title, description, onConfirm, confirmText = "Delete", variant = "destructive" }) => {
   return (
@@ -4600,7 +4616,7 @@ export default function AdminUtilities() {
           </TabsContent>
 
           <TabsContent value="polylines">
-            <PolylineViewer users={mergedUsers} />
+            <PolylineViewerWrapper users={mergedUsers} activeUtilityTab={activeUtilityTab} />
           </TabsContent>
 
           <TabsContent value="api-logs">
