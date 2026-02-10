@@ -2155,8 +2155,8 @@ class SmartRefreshManager {
                     freshAppUsersFromOfflineDB, 
                     selectedDate || new Date(), // Use actual selected date from context
                     true, // forceNotify
-                    currentPageName || 'Dashboard', // Use actual current page from context
-                    false // showAllDrivers - not needed here
+                    currentPage || 'Dashboard', // Use actual current page from context
+                    true // showAllDrivers - true to ensure all markers update
                   );
                 }
               } catch (pollerError) {
