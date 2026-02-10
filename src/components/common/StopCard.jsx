@@ -838,14 +838,17 @@ export default function StopCard({
       console.log('🔄 [Accept All] PHASE 3: Running silent route optimization...');
       window.dispatchEvent(new CustomEvent('routeOptimizationStarted'));
       
-      await base44.functions.invoke('optimizeRouteRealTime', {
-        driverId: delivery.driver_id,
-        deliveryDate: delivery.delivery_date,
-        currentLocalTime: currentLocalTime,
-        generatePolyline: false
-      });
-      
-      console.log('✅ [Accept All] PHASE 3 Complete - Route optimized silently');
+      try {
+        await base44.functions.invoke('optimizeRouteRealTime', {
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          currentLocalTime: currentLocalTime,
+          generatePolyline: false
+        });
+        console.log('✅ [Accept All] PHASE 3 Complete - Route optimized silently');
+      } finally {
+        window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
+      }
 
       // ═══════════ PHASE 4: FINAL UI UPDATE ═══════════
       console.log('🎯 [Accept All] PHASE 4: Final UI update with optimized route...');
