@@ -64,9 +64,10 @@ export default function PullToSync({
 
   // Listen for programmatic trigger events (e.g., from route import completion)
   useEffect(() => {
-    const handleTriggerSync = async () => {
-      console.log('🔄 [PullToSync] Sync triggered programmatically from import');
-      await performSync();
+    const handleTriggerSync = async (event) => {
+      const silent = event.detail?.silent || false;
+      console.log(`🔄 [PullToSync] Sync triggered programmatically (silent: ${silent})`);
+      await performSync(silent);
     };
 
     window.addEventListener('triggerPullToSync', handleTriggerSync);
@@ -287,9 +288,11 @@ export default function PullToSync({
         window.backgroundSyncManager.resume();
       }
       console.error('❌ [Pull to Sync] Sync failed:', error);
-      toast.error('Sync failed', {
-        description: error.message
-      });
+      if (!silent) {
+        toast.error('Sync failed', {
+          description: error.message
+        });
+      }
     } finally {
       // Resume all background managers after sync
       console.log('▶️ [Pull to Sync] Resuming managers...');
