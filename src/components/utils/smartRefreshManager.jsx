@@ -120,6 +120,9 @@ class SmartRefreshManager {
     // These should be removed from UI even if smart refresh brings them back from stale offline DB
     this.deletedDeliveryIds = new Set();
     this.deletedPatientIds = new Set();
+    
+    // Track last AppUser sync time to avoid duplicate syncs on initial load
+    this._lastAppUserSyncTime = 0;
   }
   
   /**
