@@ -2703,18 +2703,41 @@ class SmartRefreshManager {
 
    /**
     * NEW: Full AppUser sync - every 15 seconds
-    * NEW Workflow: 1) Read AppUsers from API 2) Update GPS if on default device 3) Update UI 4) Save to offline DB
+    * CRITICAL: Skip purge-resync if a broadcast just came in (within 3 seconds)
     * @param {boolean} showAllDrivers - If true, processes all drivers through poller
     */
-   async refreshAllAppUsersFullSync(currentAppUsers, currentPageName = null, selectedDate = null, showAllDrivers = false) {
-     try {
-       // STEP 1: Read entire AppUser database from API
-       console.log('🔄 [SmartRefresh] STEP 1: Reading entire AppUser database from API...');
-       await this.waitForRateLimit();
-       const allAppUsers = await queueEntityRequest(
-         () => base44.entities.AppUser.list(),
-         'AppUser list [FULL SYNC]'
-       );
+    async refreshAllAppUsersFullSync(currentAppUsers, currentPageName = null, selectedDate = null, showAllDrivers = false) {
+      try {
+        // CRITICAL: Check if we just received a broadcast update
+        // If so, skip the purge-resync and just use offline DB
+        const lastBroadcast = this.lastBroadcastUpdate.get('AppUser') || 0;
+        const timeSinceBroadcast = Date.now() - lastBroadcast;
+
+        if (timeSinceBroadcast < 3000) {
+          console.log(`⏭️ [SmartRefresh] Skipping AppUser purge-resync - broadcast received ${timeSinceBroadcast}ms ago`);
+          // Load from offline DB instead
+          try {
+            const { offlineDB } = await import('./offlineDatabase');
+            const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+            if (offlineAppUsers && offlineAppUsers.length > 0) {
+              return {
+                hasChanges: false,
+                appUsers: offlineAppUsers
+              };
+            }
+          } catch (offlineError) {
+            console.warn('⚠️ [SmartRefresh] Failed to load from offline DB:', offlineError);
+          }
+          return null;
+        }
+
+        // STEP 1: Read entire AppUser database from API
+        console.log('🔄 [SmartRefresh] STEP 1: Reading entire AppUser database from API...');
+        await this.waitForRateLimit();
+        const allAppUsers = await queueEntityRequest(
+          () => base44.entities.AppUser.list(),
+          'AppUser list [FULL SYNC]'
+        );
 
        this.recordSuccess();
 
