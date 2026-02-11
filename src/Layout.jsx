@@ -200,13 +200,79 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
     return () => unsubscribe();
   }, [selectedDateStr, selectedDriverId]);
 
-  // REMOVED: Backend stats polling - now handled by real-time subscriptions only
+  // Load stats from offline DB
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !selectedDateStr) return;
 
-    // Listen for delivery changes to clear cache
+    const loadStats = async () => {
+      setIsLoading(true);
+      setHasError(false);
+      
+      try {
+        const selectedDate = new Date(selectedDateStr + 'T00:00:00');
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const monthStr = format(selectedDate, 'yyyy-MM');
+        
+        // Load deliveries from offline DB
+        const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        
+        if (!allDeliveries || allDeliveries.length === 0) {
+          setStats(null);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Filter deliveries for today and month
+        const todayDeliveries = allDeliveries.filter(d => d?.delivery_date === selectedDateStr);
+        const monthDeliveries = allDeliveries.filter(d => d?.delivery_date?.startsWith(monthStr));
+        
+        // Calculate today's stats
+        const todayPatientDeliveries = todayDeliveries.filter(d => d && d.patient_id);
+        const todayActiveDrivers = new Set(todayDeliveries.filter(d => d?.driver_id).map(d => d.driver_id)).size;
+        const todayActiveStops = todayPatientDeliveries.length;
+        const todayCompleted = todayPatientDeliveries.filter(d => d?.status === 'completed').length;
+        const todayFailed = todayPatientDeliveries.filter(d => d?.status === 'failed').length;
+        const todayReturns = todayPatientDeliveries.filter(d => {
+          const notes = d?.delivery_notes || '';
+          return notes.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes);
+        }).length;
+        
+        // Calculate month's stats
+        const monthPatientDeliveries = monthDeliveries.filter(d => d && d.patient_id);
+        const monthCompleted = monthPatientDeliveries.filter(d => d?.status === 'completed').length;
+        const monthFailed = monthPatientDeliveries.filter(d => d?.status === 'failed').length;
+        const monthReturns = monthPatientDeliveries.filter(d => {
+          const notes = d?.delivery_notes || '';
+          return notes.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes);
+        }).length;
+        
+        setStats({
+          today: {
+            activeDrivers: todayActiveDrivers,
+            activeStops: todayActiveStops,
+            completed: todayCompleted,
+            failed: todayFailed,
+            returns: todayReturns
+          },
+          month: {
+            completed: monthCompleted,
+            failed: monthFailed,
+            returns: monthReturns
+          }
+        });
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Failed to load QuickStats:', error);
+        setHasError(true);
+        setIsLoading(false);
+      }
+    };
+    
+    loadStats();
+    
+    // Listen for delivery changes to refresh stats
     const handleDeliveryChange = () => {
-      lastFetchRef.current = { date: null, driver: null, timestamp: 0 };
+      loadStats();
     };
     
     window.addEventListener('refreshDeliveryStats', handleDeliveryChange);
