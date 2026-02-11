@@ -147,29 +147,42 @@ export default function StoreDeliveryNotification({
                 </div>
                 
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-lg mb-1">
-                    {activeNotification.status === 'completed' ? 'Delivery Completed' : 'Delivery Failed'}
-                  </h3>
-                  <p className="text-sm mb-2">
-                    <span className="font-semibold">{activeNotification.patientName}</span> by <span className="font-semibold">{activeNotification.driverName}</span>
-                  </p>
-                  
-                  <div className="flex items-center gap-2 text-sm mb-2">
-                    <span className="font-medium">Time: {activeNotification.completionTime}</span>
-                  </div>
+                   <div className="space-y-1.5">
+                     {/* Completion line */}
+                     <p className="text-sm">
+                       <span className="font-semibold">{activeNotification.driverName}</span> has completed delivery for
+                     </p>
 
-                  {activeNotification.codInfo && (
-                    <div className="bg-white/10 rounded-lg p-2">
-                      <div className="flex items-center gap-1.5 text-sm mb-1">
-                        <DollarSign className="w-4 h-4" />
-                        <span className="font-medium">COD: ${activeNotification.codInfo.amount}</span>
-                      </div>
-                      <div className="text-xs text-white/90">
-                        Collected: ${activeNotification.codInfo.collected} via {activeNotification.codInfo.paymentTypes}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                     {/* Patient name */}
+                     <p className="text-sm font-semibold">{activeNotification.patientName}</p>
+
+                     {/* Completion time */}
+                     <p className="text-xs text-white/90">{activeNotification.completionTime}</p>
+
+                     {/* Next route info if available */}
+                     {activeNotification.nextRouteInfo && (
+                       <div className="pt-2 border-t border-white/20">
+                         <p className="text-sm">
+                           and is on Route {activeNotification.nextRouteInfo.stopOrder}
+                         </p>
+                         <p className="text-sm font-semibold">{activeNotification.nextRouteInfo.patientName}</p>
+                         <p className="text-xs text-white/90">ETA: {activeNotification.nextRouteInfo.eta}</p>
+                       </div>
+                     )}
+
+                     {activeNotification.codInfo && (
+                       <div className="bg-white/10 rounded-lg p-2 mt-2">
+                         <div className="flex items-center gap-1.5 text-sm mb-1">
+                           <DollarSign className="w-4 h-4" />
+                           <span className="font-medium">COD: ${activeNotification.codInfo.amount}</span>
+                         </div>
+                         <div className="text-xs text-white/90">
+                           Collected: ${activeNotification.codInfo.collected} via {activeNotification.codInfo.paymentTypes}
+                         </div>
+                       </div>
+                     )}
+                   </div>
+                 </div>
               </div>
               
               <Button
