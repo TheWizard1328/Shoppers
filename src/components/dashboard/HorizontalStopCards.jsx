@@ -57,6 +57,24 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const autoScrollEnabledRef = React.useRef(true);
   const touchStartXRef = React.useRef(null);
 
+  // CRITICAL: Listen for collapseAllStopCards event and collapse all cards
+  React.useEffect(() => {
+    const handleCollapseAll = () => {
+      console.log('🗜️ [HorizontalStopCards] Collapsing all cards');
+      if (onSelectionChange) {
+        onSelectionChange(null, false);
+      } else if (onCardClick) {
+        onCardClick(null);
+      }
+    };
+    
+    window.addEventListener('collapseAllStopCards', handleCollapseAll);
+    
+    return () => {
+      window.removeEventListener('collapseAllStopCards', handleCollapseAll);
+    };
+  }, [onSelectionChange, onCardClick]);
+
   // Helper function to smoothly scroll to center a specific card element
   const scrollToCenterCard = React.useCallback((cardElement) => {
     const container = containerRef.current;
