@@ -2941,18 +2941,23 @@ export default function DeliveryMap({
 
             if (!nextStop) return;
             
-            // Determine start point
+            // Determine start point - PRIORITY ORDER
             let startPoint = null;
             
+            // Priority 1: Current user's live GPS location (mobile blue dot)
             if (driverId === currentUser?.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
               startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
+              console.log(`📍 [TYPE 1] Using live GPS for ${driverId}`);
             }
             
+            // Priority 2: Shared location marker from AppUser (green marker)
             if (!startPoint && sharedMarker?.latitude && sharedMarker?.longitude) {
               startPoint = [sharedMarker.latitude, sharedMarker.longitude];
+              console.log(`📍 [TYPE 1] Using shared marker for ${driverId}: ${sharedMarker.latitude.toFixed(6)}, ${sharedMarker.longitude.toFixed(6)}`);
             }
             
-            if (!startPoint && sharedMarker) {
+            // Priority 3: Last completed stop
+            if (!startPoint) {
               const allDriverStops = [...deliveryMarkers, ...pickupMarkers].filter(m => m && m.driver_id === driverId);
               const completedStops = allDriverStops
                 .filter(s => finishedStatuses.includes(s.status) && s.actual_delivery_time)
@@ -2960,17 +2965,23 @@ export default function DeliveryMap({
               
               if (completedStops.length > 0) {
                 startPoint = [completedStops[0].latitude, completedStops[0].longitude];
+                console.log(`📍 [TYPE 1] Using last completed stop for ${driverId}`);
               }
             }
             
-            if (!startPoint && sharedMarker) {
+            // Priority 4: Home location
+            if (!startPoint) {
               const driver = safeUsers.find(u => u && u.id === driverId);
               if (driver?.home_latitude && driver?.home_longitude) {
                 startPoint = [driver.home_latitude, driver.home_longitude];
+                console.log(`📍 [TYPE 1] Using home location for ${driverId}`);
               }
             }
             
-            if (!startPoint) return;
+            if (!startPoint) {
+              console.warn(`⚠️ [TYPE 1] No valid start point found for driver ${driverId}`);
+              return;
+            }
             
             polylines.push(
               <Polyline
