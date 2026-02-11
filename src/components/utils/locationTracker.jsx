@@ -805,11 +805,9 @@ class LocationTracker {
 
         await base44.entities.DeliveryBreadcrumbs.create({
           driver_id: this.appUserId,
-          delivery_date: new Date().toISOString().split('T')[0],
           latitude: latitude,
           longitude: longitude,
-          timestamp: new Date().toISOString(),
-          is_primary_device: true
+          timestamp: new Date().toISOString()
         });
 
         console.log(`🍞 [LocationTracker] Breadcrumb recorded: ${(distanceMeters).toFixed(0)}m from last`);
