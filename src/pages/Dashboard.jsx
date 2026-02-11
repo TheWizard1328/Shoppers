@@ -310,6 +310,7 @@ function Dashboard() {
   const [showPatientForm, setShowPatientForm] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
   const [patientFormCallback, setPatientFormCallback] = useState(null);
+  const [patientFormMode, setPatientFormMode] = useState(null); // 'duplicate' | 'newAddress' | null
   const [calendarMonth, setCalendarMonth] = useState(selectedDate);
   const [mapViewPhase, setMapViewPhase] = useState(1); // Will be loaded from user settings
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
@@ -6037,9 +6038,10 @@ function Dashboard() {
     setShowPatientForm(true);
   };
 
-  const handleCreatePatientFromDelivery = (callback, initialData = null) => {
+  const handleCreatePatientFromDelivery = (callback, initialData = null, mode = null) => {
     setEditingPatient(initialData);
     setPatientFormCallback(() => callback);
+    setPatientFormMode(mode); // 'duplicate' | 'newAddress' | null
     setShowPatientForm(true);
   };
 
@@ -8842,11 +8844,13 @@ function Dashboard() {
           cities={[]}
           currentUser={currentUser}
           allPatients={patients}
+          duplicateMode={patientFormMode}
           onSave={handleSavePatient}
           onCancel={() => {
             setShowPatientForm(false);
             setEditingPatient(null);
             setPatientFormCallback(null);
+            setPatientFormMode(null);
           }}
           returnPatientOnSave={!!patientFormCallback} />
 
