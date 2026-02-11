@@ -72,25 +72,37 @@ class CityFilteredRealtimeSync {
       }
 
       // Process the event
-      try {
-        if (event.type === 'create' || event.type === 'update') {
-            // Save to offline DB
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]);
-            console.log(`✅ [Realtime Delivery] Saved to offline DB: ${event.data.patient_name || event.data.id}`);
+       try {
+         if (event.type === 'create' || event.type === 'update') {
+             // CRITICAL: Fetch fresh delivery data to ensure ALL fields (isNextDelivery, etc.) are current
+             let freshDelivery = event.data;
+             try {
+               const fetched = await base44.entities.Delivery.filter({ id: event.data?.id });
+               if (fetched && fetched.length > 0) {
+                 freshDelivery = fetched[0];
+                 console.log(`📥 [Realtime Delivery] Fetched fresh data for ${freshDelivery.patient_name || freshDelivery.id} - isNextDelivery: ${freshDelivery.isNextDelivery}`);
+               }
+             } catch (fetchError) {
+               console.warn(`⚠️ [Realtime Delivery] Failed to fetch fresh data, using event data: ${fetchError.message}`);
+             }
 
-            // CRITICAL: Broadcast to ALL devices in city
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('deliveriesImported', {
-                detail: { 
-                  deliveries: [event.data],
-                  source: 'realtime'
-                }
-              }));
-            }, 0);
+             // Save fresh data to offline DB
+             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery]);
+             console.log(`✅ [Realtime Delivery] Saved to offline DB: ${freshDelivery.patient_name || freshDelivery.id}`);
 
-            // Notify subscribers (UI will filter by date/route)
-            this.notifySubscribers('Delivery', event.type, event.data);
-            this.lastDeliveryUpdate = Date.now();
+             // CRITICAL: Broadcast to ALL devices in city with complete fresh data
+             setTimeout(() => {
+               window.dispatchEvent(new CustomEvent('deliveriesImported', {
+                 detail: { 
+                   deliveries: [freshDelivery],
+                   source: 'realtime'
+                 }
+               }));
+             }, 0);
+
+             // Notify subscribers with fresh data (UI will filter by date/route)
+             this.notifySubscribers('Delivery', event.type, freshDelivery);
+             this.lastDeliveryUpdate = Date.now();
           } else if (event.type === 'delete') {
             // Remove from offline DB
             await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id);
