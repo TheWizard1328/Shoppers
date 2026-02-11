@@ -168,12 +168,13 @@ export default function PatientForm({
     return null;
   }, [currentUser, cities, stores, formData.store_id]);
 
+  // CRITICAL: Generate unique PID immediately on mount for new patients
   useEffect(() => {
-    if (!patient && !formData.patient_id) {
-      const newPID = generatePatientId(allPatients.map((p) => p.patient_id));
+    if (!patient) {
+      const newPID = generatePatientId(allPatients.map((p) => p?.patient_id).filter(Boolean));
       setFormData((prev) => ({ ...prev, patient_id: newPID }));
     }
-  }, [patient, allPatients]);
+  }, [patient]);
 
   useEffect(() => {
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
