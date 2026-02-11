@@ -439,7 +439,7 @@ class LocationTracker {
     const userName = user.user_name || user.full_name || 'Unknown';
     const userIdLast4 = user.id ? user.id.slice(-4) : '????';
 
-    console.log(`🚀 [LocationTracker] Starting location tracking for ${userName} (...${userIdLast4}) - Active user always tracks regardless of status`);
+    console.log(`🚀 [LocationTracker] Starting location tracking for ${userName} (...${userIdLast4}) - PRIMARY device always tracks while app is open`);
 
     if (!navigator.geolocation) {
       throw new Error('Geolocation is not supported by this browser');
@@ -508,11 +508,15 @@ class LocationTracker {
         }
       );
 
-      // CRITICAL: ALWAYS upload location + timestamp every 15s regardless of driver status or location sharing setting
-      // Primary devices upload continuously while app is running
+      // CRITICAL: PRIMARY DEVICE RULE - Always upload location every 15s while app is open
+      // This happens regardless of:
+      // - driver_status (on_duty, off_duty, on_break)
+      // - location_tracking_enabled toggle
+      // - Other settings or toggles
+      // The primary device is the source of truth for this driver's location
       this.heartbeatInterval = setInterval(() => {
         if (this.lastPosition && this.isTracking) {
-          console.log('💓 [LocationTracker] Heartbeat tick - forcing timestamp + location update with last known position');
+          console.log('💓 [LocationTracker] Heartbeat tick - PRIMARY device uploading coordinates (always on while app is open)');
           this.updateLocationInDatabase(
             this.lastPosition.latitude,
             this.lastPosition.longitude,
@@ -521,7 +525,7 @@ class LocationTracker {
           );
         }
       }, this.updateInterval);
-      console.log('💓 [LocationTracker] Started 15s heartbeat interval - PRIMARY device will upload location + timestamp continuously');
+      console.log('💓 [LocationTracker] Started 15s heartbeat - PRIMARY ALWAYS LOGS regardless of toggles/status');
     });
   }
 
