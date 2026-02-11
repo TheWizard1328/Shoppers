@@ -268,10 +268,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         // CRITICAL: Update UI state FIRST (optimistic update)
         setIsLocationSharingEnabled(false);
         sessionStorage.setItem('locationSharingEnabled', 'false');
-        
-        // CRITICAL: Tell locationTracker to stop updating location_updated_at
-        // but continue tracking coordinates
-        locationTracker.setDriverStatus('off_duty');
+
+        // CRITICAL: Signal toggle event for immediate GPS upload
+        locationTracker.signalLocationSharingToggle(false);
         
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: false,
