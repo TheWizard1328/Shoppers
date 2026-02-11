@@ -43,7 +43,8 @@ const DriverLocationBadge = ({ users = [] }) => {
           status: user.driver_status,
           latChanged,
           lngChanged,
-          timestampChanged
+          timestampChanged,
+          sortOrder: user.sort_order ?? Infinity
         };
 
         // Update previous state tracking
@@ -61,7 +62,10 @@ const DriverLocationBadge = ({ users = [] }) => {
     return () => window.removeEventListener('driverLocationsUpdated', handleLocationUpdate);
   }, []);
 
-  const drivers = Object.values(driverStatus).sort((a, b) => a.name.localeCompare(b.name));
+  const drivers = Object.values(driverStatus).sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+    return a.name.localeCompare(b.name);
+  });
 
   if (drivers.length === 0) {
     return null;
@@ -85,15 +89,15 @@ const DriverLocationBadge = ({ users = [] }) => {
             {driver.name}
           </span>
           <span>
-            <span className={driver.latChanged ? 'text-green-500' : 'text-slate-600 dark:text-slate-400'}>
+            <span className={`transition-colors duration-300 ${driver.latChanged || driver.lngChanged ? 'text-green-500 font-semibold' : 'text-slate-600 dark:text-slate-400'}`}>
               {driver.lat?.toFixed(6) || '?'}
             </span>
             {', '}
-            <span className={driver.lngChanged ? 'text-green-500' : 'text-slate-600 dark:text-slate-400'}>
+            <span className={`transition-colors duration-300 ${driver.latChanged || driver.lngChanged ? 'text-green-500 font-semibold' : 'text-slate-600 dark:text-slate-400'}`}>
               {driver.lng?.toFixed(6) || '?'}
             </span>
           </span>
-          <span className={driver.timestampChanged ? 'text-green-500' : 'text-slate-500 dark:text-slate-400'} style={{ marginLeft: 'auto' }}>
+          <span className={`transition-colors duration-300 ${driver.timestampChanged ? 'text-green-500 font-semibold' : 'text-slate-500 dark:text-slate-400'}`} style={{ marginLeft: 'auto' }}>
             {driver.timestamp ? format(new Date(driver.timestamp), 'HH:mm:ss') : '?'}
           </span>
         </div>
