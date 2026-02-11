@@ -17,65 +17,32 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
       setLastSeenMessageId(storedLastSeen);
     }
 
-    let pollingInterval = null;
-
-    // Simple polling function - no SSE to avoid auth issues
-    // OPTIMIZED: Check localStorage first, skip API when recently checked
-    const checkForNewMessages = async () => {
-      try {
-        // CRITICAL: Use localStorage check first to avoid unnecessary API calls
-        const lastAPICheck = localStorage.getItem(`lastMessageAPICheck_${currentUser.id}`);
-        const timeSinceLastCheck = Date.now() - (parseInt(lastAPICheck) || 0);
+    // Subscribe to real-time message updates
+    const unsubscribe = base44.entities.Message.subscribe((event) => {
+      // Only process new messages where current user is the receiver
+      if (event.data?.receiver_id !== currentUser.id) return;
+      
+      if (event.type === 'create' || (event.type === 'update' && !event.data.read)) {
+        const currentLastSeen = localStorage.getItem(`lastSeenMessageId_${currentUser.id}`);
         
-        // Skip API call if we checked within last 120 seconds (prevent rate limits)
-        if (timeSinceLastCheck < 120000) {
-          return;
-        }
-
-        const unreadMessages = await base44.entities.Message.filter({
-          receiver_id: currentUser.id,
-          read: false
-        }, '-created_date', 1);
-
-        // Record successful API call
-        localStorage.setItem(`lastMessageAPICheck_${currentUser.id}`, Date.now().toString());
-
-        if (unreadMessages.length > 0) {
-          const latestMessage = unreadMessages[0];
-          const currentLastSeen = localStorage.getItem(`lastSeenMessageId_${currentUser.id}`);
+        if (event.data.id !== currentLastSeen) {
+          setNotification(event.data);
+          setLastSeenMessageId(event.data.id);
+          localStorage.setItem(`lastSeenMessageId_${currentUser.id}`, event.data.id);
           
-          if (latestMessage.id !== currentLastSeen) {
-            setNotification(latestMessage);
-            setLastSeenMessageId(latestMessage.id);
-            localStorage.setItem(`lastSeenMessageId_${currentUser.id}`, latestMessage.id);
-            
-            if (autoDismissTimeoutRef.current) {
-              clearTimeout(autoDismissTimeoutRef.current);
-            }
-            
-            autoDismissTimeoutRef.current = setTimeout(() => {
-              setNotification(null);
-            }, 8000);
+          if (autoDismissTimeoutRef.current) {
+            clearTimeout(autoDismissTimeoutRef.current);
           }
+          
+          autoDismissTimeoutRef.current = setTimeout(() => {
+            setNotification(null);
+          }, 8000);
         }
-      } catch (error) {
-        // Silently ignore errors to prevent auth issues
-        console.warn('Message notification check failed:', error.message);
       }
-    };
-
-    // Initial check after a short delay to ensure auth is ready
-    const initialTimeout = setTimeout(() => {
-      checkForNewMessages();
-      // Poll every 90 seconds to reduce API load (increased from 30s)
-      pollingInterval = setInterval(checkForNewMessages, 90000);
-    }, 3000);
+    });
 
     return () => {
-      clearTimeout(initialTimeout);
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-      }
+      unsubscribe();
       if (autoDismissTimeoutRef.current) {
         clearTimeout(autoDismissTimeoutRef.current);
       }
