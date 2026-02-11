@@ -431,19 +431,19 @@ export default function PatientForm({
     console.log('💾 [PatientForm] Saving patient...');
 
     try {
-      // STEP 1: Save to offline database and wait for backend sync
       let savedPatientId;
       let backendPatient;
       
       if (patient) {
+        // STEP 1: Update existing patient via offline mutations
         await updatePatientLocal(patient.id, dataToSave);
         savedPatientId = patient.id;
-        console.log('  ✅ Updated patient in offline DB');
+        console.log('  ✅ Updated patient locally');
       } else {
-        console.log('  📝 Creating new patient...');
+        // STEP 1: Create new patient directly on backend
+        console.log('  📝 Creating new patient on backend...');
         const { base44 } = await import('@/api/base44Client');
         
-        // Create directly on backend for new patients
         backendPatient = await base44.entities.Patient.create(dataToSave);
         savedPatientId = backendPatient.id;
         console.log('  ✅ Patient created on backend:', savedPatientId);
