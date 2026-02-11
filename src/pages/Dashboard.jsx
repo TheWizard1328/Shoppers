@@ -374,11 +374,11 @@ function Dashboard() {
   const [cardsReadyForFAB, setCardsReadyForFAB] = useState(false);
 
   // ==================== REAL-TIME SUBSCRIPTIONS ====================
-  // Subscribe to Patient and Delivery entity changes via WebSockets
+  // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
   useEffect(() => {
     if (!currentUser || !isDataLoaded) return;
 
-    console.log('🔌 [Real-time] Subscribing to Patient and Delivery changes...');
+    console.log('🔌 [Real-time] Subscribing to Patient, Delivery, and AppUser changes...');
     
     // CRITICAL: Listen for immediate updates from Done button (includes fresh data)
     const handleImmediateDeliveryUpdate = async (event) => {
@@ -396,14 +396,6 @@ function Dashboard() {
           updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
         }
         
-        // Force refresh driver locations and markers
-        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
-        const latestAppUsers = locationUpdates?.appUsers || appUsers;
-        
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: latestAppUsers, forceAll: true }
-        }));
-        
         console.log('✅ [Dashboard] Immediate update complete');
       }
     };
@@ -415,20 +407,16 @@ function Dashboard() {
       console.log(`📡 [Real-time Patient] ${event.type} event:`, event.data?.full_name || event.id);
       
       if (event.type === 'create') {
-        // Add new patient to offline DB and context
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [event.data]).catch(console.error);
-          // Refresh data to update context
           refreshData?.();
         }
       } else if (event.type === 'update') {
-        // Update patient in offline DB and context
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [event.data]).catch(console.error);
           refreshData?.();
         }
       } else if (event.type === 'delete') {
-        // Remove patient from offline DB
         offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, event.id).catch(console.error);
         refreshData?.();
       }
@@ -438,67 +426,43 @@ function Dashboard() {
     const unsubscribeDeliveries = base44.entities.Delivery.subscribe((event) => {
       console.log(`📡 [Real-time Delivery] ${event.type} event:`, event.data?.patient_name || event.id, 'driver:', event.data?.driver_id);
       
-      // CRITICAL: Check if this delivery is for the selected date
       const deliveryDate = event.data?.delivery_date;
-      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-      const isForSelectedDate = deliveryDate === selectedDateStr;
-      
-      // CRITICAL: Determine if this is another driver's change
       const isOwnChange = event.data?.driver_id === currentUser?.id;
       const isOtherDriver = !isOwnChange;
       
-      // DEBUG: Log who made the change
-      if (isOtherDriver) {
-        console.log(`🔔 [Real-time] OTHER DRIVER UPDATE - driver_id: ${event.data?.driver_id}, my id: ${currentUser?.id}`);
-      } else {
-        console.log(`📍 [Real-time] OWN UPDATE - same driver`);
-      }
-      
       if (event.type === 'create') {
-        // Add new delivery to offline DB and context
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
           
-          // CRITICAL: Update UI incrementally from offline DB - NO API calls
           if (updateDeliveriesLocally) {
             updateDeliveriesLocally([event.data], false);
           }
           
-          // Trigger map and legend update
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
             detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeCreate' }
           }));
         }
       } else if (event.type === 'update') {
-        // Update delivery in offline DB and context
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
           
-          // CRITICAL: Update UI incrementally - ALWAYS, regardless of who made the change
           if (updateDeliveriesLocally) {
-            console.log(`🔄 [Real-time] Updating UI with delivery: ${event.data.patient_name}, status: ${event.data.status}`);
             updateDeliveriesLocally([event.data], false);
           }
           
-          // CRITICAL: If this is another driver's update, dispatch collapseAllStopCards
           if (isOtherDriver && ['completed', 'failed', 'cancelled'].includes(event.data.status)) {
-            console.log(`🗜️ [Real-time] Other driver completed stop - collapsing all cards`);
             window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
           }
           
-          // Trigger map update
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
             detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeUpdate', fromOtherDriver: isOtherDriver }
           }));
           
-          // CRITICAL: Force stats card refresh
           window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         }
       } else if (event.type === 'delete') {
-        // Remove delivery from offline DB and context
         offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id).catch(console.error);
         
-        // CRITICAL: Update UI by filtering local state - NO API calls
         if (updateDeliveriesLocally && deliveries) {
           const filtered = deliveries.filter(d => d?.id !== event.id);
           updateDeliveriesLocally(filtered, true);
@@ -510,11 +474,30 @@ function Dashboard() {
       }
     });
 
+    // Subscribe to AppUser entity changes (driver locations)
+    const unsubscribeAppUsers = base44.entities.AppUser.subscribe((event) => {
+      console.log(`📡 [Real-time AppUser] ${event.type} event:`, event.data?.user_name || event.id);
+      
+      if (event.type === 'create' || event.type === 'update') {
+        if (event.data) {
+          offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [event.data]).catch(console.error);
+          
+          // Update driver locations immediately
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: [event.data], singleUpdate: true, fromRealtime: true }
+          }));
+        }
+      } else if (event.type === 'delete') {
+        offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, event.id).catch(console.error);
+      }
+    });
+
     return () => {
-      console.log('🔌 [Real-time] Unsubscribing from Patient and Delivery changes');
+      console.log('🔌 [Real-time] Unsubscribing from all entity changes');
       window.removeEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
       unsubscribePatients();
       unsubscribeDeliveries();
+      unsubscribeAppUsers();
     };
   }, [currentUser?.id, isDataLoaded]);
 
@@ -2264,93 +2247,18 @@ function Dashboard() {
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
   }, [reactivateFAB]);
 
-  // CRITICAL: Periodic smart refresh - ACTUALLY calls smartRefreshManager.performSmartRefresh()
-  useEffect(() => {
-    if (!isDataLoaded || !currentUser || !isFiltersReady) {
-      return;
-    }
+  // REMOVED: Periodic smart refresh polling - now using real-time WebSocket subscriptions only
 
-    // CRITICAL: Set current user in smart refresh manager for location polling
-    smartRefreshManager.setCurrentUser(currentUser);
-    
-    console.log('🔄 [Dashboard] Smart refresh manager initialized');
-
-    const runPeriodicSmartRefresh = async () => {
-      if (showDeliveryForm || showPatientForm || showOptimizationSettings) {
-        return; // Skip when forms are open
-      }
-      
-      console.log('🔄 [Periodic Refresh] Running smart refresh cycle...');
-
-      // Build filters for smart refresh
-      const filters = {
-        deliveryFilter: {
-          delivery_date: format(selectedDate, 'yyyy-MM-dd')
-        }
-      };
-      
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        filters.deliveryFilter.driver_id = selectedDriverId;
-      }
-
-      // CRITICAL: Call the actual smart refresh manager
-      const updates = await smartRefreshManager.performSmartRefresh(
-        {
-          deliveries,
-          patients,
-          stores,
-          cities,
-          appUsers,
-          drivers
-        },
-        filters,
-        false, // isEntityUpdating
-        showAllDriverMarkers, // showAllDrivers
-        'Dashboard', // currentPage
-        selectedDate // selectedDate
-      );
-
-      if (updates) {
-        console.log('✅ [Periodic Refresh] Smart refresh completed with updates:', Object.keys(updates));
-        
-        // Update local state with smart refresh results
-        if (updates.deliveries && updateDeliveriesLocally) {
-          updateDeliveriesLocally(updates.deliveries, true);
-        }
-        
-        if (updates.appUsers) {
-          // Process through poller
-          driverLocationPoller.processLocationData(
-            currentUser, 
-            updates.deliveries || deliveries, 
-            drivers, 
-            stores, 
-            updates.appUsers, 
-            selectedDate, 
-            true,
-            'Dashboard',
-            showAllDriverMarkers
-          );
-        }
-      }
-    };
-
-    // CRITICAL: Only run on interval, NOT immediately when driver selection changes
-    const interval = setInterval(runPeriodicSmartRefresh, 15000);
-
-    return () => clearInterval(interval);
-  }, [isDataLoaded, currentUser?.id, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, deliveries, patients, stores, cities, appUsers, drivers]);
-
-  // CRITICAL: Listen for real-time AppUser location updates from other drivers
+  // CRITICAL: Listen for driver location updates and update markers immediately
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
       const { appUsers: updatedAppUsers, singleUpdate, fromRealtime, forceAll } = event.detail || {};
       
       if (!updatedAppUsers || !Array.isArray(updatedAppUsers)) return;
       
-      console.log(`📡 [Dashboard] Real-time location update - ${updatedAppUsers.length} drivers, fromRealtime: ${fromRealtime}, forceAll: ${forceAll}`);
+      console.log(`📡 [Dashboard] Driver location update - ${updatedAppUsers.length} drivers, fromRealtime: ${fromRealtime}`);
       
-      // CRITICAL: Process through poller to update markers
+      // Update markers immediately
       driverLocationPoller.processLocationData(
         currentUser,
         deliveries,
@@ -2358,7 +2266,7 @@ function Dashboard() {
         stores,
         updatedAppUsers,
         selectedDate,
-        true, // forceNotify
+        true,
         'Dashboard',
         showAllDriverMarkers
       );
@@ -2368,45 +2276,34 @@ function Dashboard() {
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
   }, [currentUser, deliveries, drivers, stores, selectedDate, showAllDriverMarkers]);
 
-  // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
-  // CRITICAL: Initialize poller once on mount
+  // CRITICAL: Initialize driver location poller (now driven by WebSocket updates, not polling)
   useEffect(() => {
     if (!isDataLoaded || !currentUser) {
       return;
     }
 
-    driverLocationPoller.start(() => {
-
-
-      // Callback provided for future use
-    }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {
+    const unsubscribe = driverLocationPoller.subscribe((locations) => {
       if (!locations || !Array.isArray(locations)) return;
 
-      // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
-      // On all other devices/scenarios, show the shared marker
       const isTrackingOnThisDevice = locationTracker.isTracking === true;
       const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;
       
       const filteredLocations = shouldFilterSelf ?
       locations.filter((loc) => {
         if (loc._isSelf === true) {
-          console.log('🚫 [Dashboard] Hiding self shared marker on mobile (live GPS active)');
           return false;
         }
         return true;
       }) :
       locations;
 
-      console.log(`📍 [Dashboard] Poller updated allDriverLocations with ${filteredLocations.length} drivers`);
-
       setAllDriverLocations(filteredLocations);
     });
 
     return () => {
       unsubscribe();
-      driverLocationPoller.stop();
     };
-  }, [isDataLoaded, currentUser?.id, currentUser?.user_id, isMobile, isDriver]);
+  }, [isDataLoaded, currentUser?.id, isMobile, isDriver]);
 
   // REMOVED: Excessive location data reprocessing effect
   // The poller already handles updates through:
