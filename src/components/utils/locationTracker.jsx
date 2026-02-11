@@ -369,6 +369,14 @@ class LocationTracker {
       this.failedUpdateCount = 0;
       this.backoffTime = 0;
 
+      // CRITICAL: Update breadcrumbs every other location update (30 seconds) if moved > 100m
+      if (!timestampOnly && !this.lastPosition?.skipBreadcrumb) {
+        this.locationUpdateCounter++;
+        if (this.locationUpdateCounter % 2 === 0) {
+          await this.updateBreadcrumb(latitude, longitude);
+        }
+      }
+
       console.log(`✅✅✅ [LocationTracker] UPLOAD COMPLETE - Next in ${this.updateInterval/1000}s`);
 
       window.dispatchEvent(new CustomEvent('driverLocationUpdated', {
@@ -515,6 +523,11 @@ class LocationTracker {
     this.failedUpdateCount = 0;
     this.backoffTime = 0;
     this.lastCoordinateUpdate = 0;
+
+    // Breadcrumb tracking
+    this.lastBreadcrumbPosition = null;
+    this.locationUpdateCounter = 0;
+    this.minBreadcrumbDistance = 100; // 100 meters
 
     // Test GPS capabilities
     const capabilities = await this.checkGPSCapabilities();
@@ -733,6 +746,75 @@ class LocationTracker {
         this.stopTracking();
       }
       throw error;
+    }
+  }
+
+  /**
+   * Calculate distance between two coordinates in meters (Haversine)
+   */
+  calculateDistanceInMeters(lat1, lon1, lat2, lon2) {
+    const R = 6371000; // Earth's radius in meters
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  }
+
+  /**
+   * Update driver breadcrumbs (GPS trail)
+   * Only adds breadcrumb if moved > 100m from last one
+   */
+  async updateBreadcrumb(latitude, longitude) {
+    try {
+      if (!this.lastBreadcrumbPosition) {
+        // First breadcrumb for this tracking session
+        this.lastBreadcrumbPosition = { latitude, longitude };
+        
+        await base44.entities.DeliveryBreadcrumbs.create({
+          driver_id: this.appUserId,
+          delivery_date: new Date().toISOString().split('T')[0],
+          latitude: latitude,
+          longitude: longitude,
+          timestamp: new Date().toISOString(),
+          is_primary_device: true
+        });
+        
+        console.log(`🍞 [LocationTracker] Initial breadcrumb recorded`);
+        return;
+      }
+
+      // Check distance from last breadcrumb
+      const distanceMeters = this.calculateDistanceInMeters(
+        this.lastBreadcrumbPosition.latitude,
+        this.lastBreadcrumbPosition.longitude,
+        latitude,
+        longitude
+      );
+
+      // Only add breadcrumb if > 100m from last one
+      if (distanceMeters >= this.minBreadcrumbDistance) {
+        this.lastBreadcrumbPosition = { latitude, longitude };
+        
+        await base44.entities.DeliveryBreadcrumbs.create({
+          driver_id: this.appUserId,
+          delivery_date: new Date().toISOString().split('T')[0],
+          latitude: latitude,
+          longitude: longitude,
+          timestamp: new Date().toISOString(),
+          is_primary_device: true
+        });
+        
+        console.log(`🍞 [LocationTracker] Breadcrumb recorded: ${(distanceMeters).toFixed(0)}m from last`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ [LocationTracker] Failed to update breadcrumb:`, error.message);
     }
   }
 
