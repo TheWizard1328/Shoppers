@@ -2678,13 +2678,14 @@ export default function StopCard({
                                       console.log('✅ [COMPLETE] COD auto-collected and saved');
                                     }
 
-                                    // CRITICAL: For pickups with pending deliveries, trigger Accept All FIRST
+                                    // CRITICAL: For pickups with pending deliveries, trigger Accept All FIRST, then continue to complete pickup
                                     if (isPickup && pendingPickups && pendingPickups.length > 0) {
                                       const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');
                                       if (hasPendingDeliveries) {
                                         console.log('⚠️ [Complete Pickup] Pending deliveries detected - triggering Accept All logic...');
                                         await handleAcceptAllStops();
-                                        console.log('✅ [Complete Pickup] Accept All logic completed - now completing pickup...');
+                                        console.log('✅ [Complete Pickup] Accept All logic completed - now continuing to complete pickup itself...');
+                                        // Continue execution - don't return early
                                       }
                                     }
 
