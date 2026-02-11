@@ -3484,8 +3484,7 @@ export default function DeliveryForm({
       // CRITICAL: Resume background operations AFTER closing form
       // CRITICAL: Always close form after successful update
       onCancel();
-      
-      // Resume managers after form closes (non-blocking)
+      // Resume managers immediately (non-blocking)
       setTimeout(async () => {
         try {
           const { smartRefreshManager } = await import('../utils/smartRefreshManager');
@@ -3498,11 +3497,11 @@ export default function DeliveryForm({
           routePolylineManager?.resume?.();
           fabControlEvents.resumeFAB();
           
-          console.log('▶️ [DeliveryForm Update] Resumed background operations');
+          console.log('▶️ [DeliveryForm] Resumed background operations');
         } catch (error) {
           console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
         }
-      }, 100);
+      }, 0);
     } catch (error) {
       setError(error.message);
     } finally {
