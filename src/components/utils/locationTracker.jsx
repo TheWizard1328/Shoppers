@@ -55,17 +55,17 @@ class LocationTracker {
   loadSettings() {
     try {
       const settings = getRouteOptimizationSettings();
-      // CRITICAL: Always use locked 15-second interval regardless of settings
-      this.updateInterval = this._lockedUpdateInterval || 15000;
+      // Interval locked to 5 seconds for primary device polling
+      this.updateInterval = 5000; // 5 seconds GPS polling
 
-      if (settings.minMovementDistanceMeters) {
-        this.minDistanceChange = settings.minMovementDistanceMeters;
-      }
+      // 200m minimum movement threshold
+      this.minDistanceChange = 200;
 
-      console.log(`📍 [LocationTracker] Interval locked to ${this.updateInterval / 1000}s (primary device)`);
+      console.log(`📍 [LocationTracker] Interval: ${this.updateInterval / 1000}s, distance threshold: ${this.minDistanceChange}m`);
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
-      this.updateInterval = 15000; // Default 15 seconds
+      this.updateInterval = 5000; // Default 5 seconds
+      this.minDistanceChange = 200; // Default 200m
     }
   }
 
