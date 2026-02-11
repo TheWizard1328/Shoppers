@@ -3219,6 +3219,12 @@ export default function AdminUtilities() {
     console.log('🚀 [AdminUtilities] Starting simple polling (no smart refresh) for tab:', activeDataTab);
 
     const performRefresh = async () => {
+      // CRITICAL: Skip refresh when form/import dialog is open
+      if (editingDelivery || showRouteImport) {
+        console.log('⏭️ [AdminUtilities] Form open - skipping polling refresh');
+        return;
+      }
+      
       try {
         console.log('🔄 [AdminUtilities] Polling refetch for tab:', activeDataTab);
         
@@ -3253,7 +3259,7 @@ export default function AdminUtilities() {
         refreshIntervalRef.current = null;
       }
     };
-  }, [activeDataTab, filtersReady, dataLoading, refetchDeliveries, refetchPatients, refetchStores, refetchAppUsers, refetchCities]);
+  }, [activeDataTab, filtersReady, dataLoading, editingDelivery, showRouteImport, refetchDeliveries, refetchPatients, refetchStores, refetchAppUsers, refetchCities]);
 
 
 
