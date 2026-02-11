@@ -7649,33 +7649,6 @@ function Dashboard() {
           console.log(`✅ [City Sync] Synced ${freshCities.length} cities to offline DB`);
         }
         
-        // CRITICAL: Check Cities sync metadata
-        const cityMeta = await offlineDB.getSyncMetadata('City');
-        let needsCitySync = false;
-        
-        if (!cityMeta || !cityMeta.last_sync_time) {
-          console.log('📊 [City Check] No sync metadata found - syncing fresh data');
-          needsCitySync = true;
-        } else {
-          const lastSyncTime = new Date(cityMeta.last_sync_time).getTime();
-          const ageMs = now - lastSyncTime;
-          
-          if (ageMs > fiveMinutesInMs) {
-            console.log(`📊 [City Check] Data is ${Math.floor(ageMs / 60000)} minutes old - syncing fresh data`);
-            needsCitySync = true;
-          } else {
-            console.log(`✅ [City Check] Data is ${Math.floor(ageMs / 1000)} seconds old - using cached data`);
-          }
-        }
-        
-        if (needsCitySync) {
-          console.log('📥 [City Sync] Fetching fresh City data from API...');
-          const freshCities = await base44.entities.City.list();
-          await offlineDB.bulkSave(offlineDB.STORES.CITIES, freshCities);
-          await offlineDB.updateSyncMetadata('City', new Date().toISOString());
-          console.log(`✅ [City Sync] Synced ${freshCities.length} cities to offline DB`);
-        }
-        
         // CRITICAL: Check Stores sync metadata
         const storeMeta = await offlineDB.getSyncMetadata('Store');
         let needsStoreSync = false;
