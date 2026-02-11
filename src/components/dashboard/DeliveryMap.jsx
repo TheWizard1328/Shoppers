@@ -2659,10 +2659,13 @@ export default function DeliveryMap({
           });
           
           driversWithIncompleteStops.forEach(driverId => {
-            // Skip driver on break
+            // CRITICAL: Skip drivers who are off_duty or on_break - no polylines should be drawn
             const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
-            if (driverAppUser?.driver_status === 'on_break') return;
+            if (!driverAppUser || driverAppUser.driver_status !== 'on_duty') return;
 
+            // CRITICAL: Only draw Type 1 polylines if driver has shared location marker (on_duty with location)
+            const sharedMarker = driverLocationMarkers.find(m => m && m.driver_id === driverId);
+            
             // Get next stop for this driver - try isNextDelivery first
             let nextStop = deliveryMarkers.find(d => 
               d && 
@@ -2718,16 +2721,13 @@ export default function DeliveryMap({
               startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
             }
             
-            // 2) Shared location marker
-            if (!startPoint) {
-              const sharedMarker = driverLocationMarkers.find(m => m.driver_id === driverId);
-              if (sharedMarker?.latitude && sharedMarker?.longitude) {
-                startPoint = [sharedMarker.latitude, sharedMarker.longitude];
-              }
+            // 2) Shared location marker (CRITICAL: Must exist to draw polyline)
+            if (!startPoint && sharedMarker?.latitude && sharedMarker?.longitude) {
+              startPoint = [sharedMarker.latitude, sharedMarker.longitude];
             }
             
-            // 3) Last completed stop
-            if (!startPoint) {
+            // 3) Last completed stop (only if on_duty driver has actual completed stops)
+            if (!startPoint && sharedMarker) {
               const allDriverStops = [...deliveryMarkers, ...pickupMarkers].filter(m => m && m.driver_id === driverId);
               const completedStops = allDriverStops
                 .filter(s => finishedStatuses.includes(s.status) && s.actual_delivery_time)
@@ -2738,14 +2738,15 @@ export default function DeliveryMap({
               }
             }
             
-            // 4) Driver home location
-            if (!startPoint) {
+            // 4) Driver home location (only if on_duty driver has shared marker)
+            if (!startPoint && sharedMarker) {
               const driver = safeUsers.find(u => u && u.id === driverId);
               if (driver?.home_latitude && driver?.home_longitude) {
                 startPoint = [driver.home_latitude, driver.home_longitude];
               }
             }
             
+            // CRITICAL: Only draw polyline if start point was found (requires shared marker for off-duty drivers)
             if (!startPoint) return;
             
             // TYPE 1: Blue dotted line to next stop
