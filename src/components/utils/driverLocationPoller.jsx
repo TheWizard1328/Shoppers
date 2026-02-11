@@ -298,7 +298,6 @@ class DriverLocationPoller {
   notifySubscribers(activeDriversWithLocation, forceNotify = false) {
     console.log(`📡 [Poller] Notifying ${activeDriversWithLocation.length} drivers`);
     
-    // Convert array of users to array of location objects
     const currentUserId = this.currentUser?.id;
     const currentUserUserId = this.currentUser?.user_id;
 
@@ -326,7 +325,6 @@ class DriverLocationPoller {
       };
     });
 
-    // Notify callback subscribers
     this.subscribers.forEach(callback => {
       try {
         callback(locationObjects);
@@ -335,7 +333,6 @@ class DriverLocationPoller {
       }
     });
 
-    // CRITICAL: Also dispatch window event for markers component
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
         detail: { 
@@ -343,7 +340,6 @@ class DriverLocationPoller {
           forceAll: forceNotify
         }
       }));
-      console.log(`📡 [Poller] Dispatched driverLocationsUpdated with ${activeDriversWithLocation.length} drivers (key: ${currentKey.substring(0, 50)}...)`);
     }
   }
 
