@@ -123,31 +123,31 @@ export default function DualStatsMarquee({
       <div className="grid grid-cols-4 gap-1 mb-2">
         <StatBadge
           icon={Package}
-          value={totalDeliveries}
-          driverCount={isDispatcher ? totalDrivers : isDriver && totalPickups > 0 ? totalPickups : undefined}
+          value={totalDeliveries ?? 0}
+          driverCount={isDispatcher ? totalDrivers : isDriver && (totalPickups ?? 0) > 0 ? (totalPickups ?? 0) : undefined}
           color="blue"
           label="Total"
           tooltip={tooltipValues.total} />
 
         <StatBadge
           icon={Truck}
-          value={inTransitDeliveries}
-          driverCount={isDispatcher ? inTransitDrivers : isDriver && activePickups > 0 ? activePickups : undefined}
+          value={inTransitDeliveries ?? 0}
+          driverCount={isDispatcher ? inTransitDrivers : isDriver && (activePickups ?? 0) > 0 ? (activePickups ?? 0) : undefined}
           color="purple"
           label="Active"
           tooltip={tooltipValues.activeStops} />
 
         <StatBadge
           icon={CheckCircle}
-          value={completedDeliveries}
-          driverCount={isDispatcher && completedDeliveries > 0 ? completedDrivers : isDriver && completedPickups > 0 ? completedPickups : undefined}
+          value={completedDeliveries ?? 0}
+          driverCount={isDispatcher && (completedDeliveries ?? 0) > 0 ? completedDrivers : isDriver && (completedPickups ?? 0) > 0 ? (completedPickups ?? 0) : undefined}
           color="green"
           label="Completed"
           tooltip={tooltipValues.completed} />
 
         <StatBadge
           icon={XCircle}
-          value={`${failedDeliveries}/${returnedDeliveries}`}
+          value={`${failedDeliveries ?? 0}/${returnedDeliveries ?? 0}`}
           color="red"
           label="Failed/Returned"
           tooltip={tooltipValues.failed} />
