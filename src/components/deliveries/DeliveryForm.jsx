@@ -1501,9 +1501,10 @@ export default function DeliveryForm({
     // Get full patient data
     const fullPatient = patients.find((p) => p && p.id === patient.id) || patient;
     
-    // Create patient object for form with empty name/phone (indicating duplicate mode)
+    // Create patient object for form with empty name/phone/patient_id (indicating duplicate mode)
     const patientWithEmpty = {
       ...fullPatient,
+      patient_id: '', // CRITICAL: Clear patient_id to trigger new PID generation
       full_name: '',
       phone: '',
       phone_secondary: '',
@@ -1690,9 +1691,10 @@ export default function DeliveryForm({
       recurring_bimonthly: fullPatient.recurring_bimonthly || false
     }));
     
-    // Create patient object with all pre-filled data but empty address
+    // Create patient object with all pre-filled data but empty address/patient_id
     const patientWithoutAddress = {
       ...fullPatient,
+      patient_id: '', // CRITICAL: Clear patient_id to trigger new PID generation
       address: '', // Empty address
       unit_number: '', // Empty unit
       _newAddressSource: true,
@@ -1710,7 +1712,7 @@ export default function DeliveryForm({
         setNewPatientMode(null);
         // CRITICAL: Auto-add new patient to staged (true parameter)
         handlePatientSelect(createdPatient, true);
-      }, patientWithoutAddress);
+      }, patientWithoutAddress, 'newAddress');
     }
   }, [formData.delivery_date, stores, drivers, onCreatePatient, handlePatientSelect, patients, isMobileDevice]);
 
@@ -4538,6 +4540,7 @@ export default function DeliveryForm({
                             // CRITICAL: Auto-add new patient to staged (true parameter)
                             handlePatientSelect(newPatient, true);
                           }, {
+                            patient_id: '', // CRITICAL: Empty patient_id to trigger new PID generation
                             full_name: '',
                             phone: '',
                             store_id: defaultStoreId,
