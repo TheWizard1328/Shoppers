@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
+import { parseLocalTimestamp } from '@/components/utils/localTimeHelper';
 
 export default function ChatWindow({
   currentUser,
