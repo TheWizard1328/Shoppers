@@ -72,7 +72,7 @@ export default function DispatcherPickupNotification({
       driverName: driver.user_name || 'Driver',
       storeName: store.name,
       eta: pickup.delivery_time_eta || pickup.delivery_time_start || 'N/A',
-      travelTime: travelTime,
+      minutesRemaining: minutesRemaining,
       pickupId: pickup.id
     });
 
