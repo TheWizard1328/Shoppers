@@ -768,15 +768,22 @@ class LocationTracker {
   }
 
   /**
-   * Update driver breadcrumbs (GPS trail)
-   * Only adds breadcrumb if moved > 100m from last one
-   */
+    * Update driver breadcrumbs (GPS trail)
+    * CRITICAL: Only saves if driver is on_duty (location sharing status is ignored)
+    * Only adds breadcrumb if moved > 100m from last one
+    */
   async updateBreadcrumb(latitude, longitude) {
+    // CRITICAL: Only save breadcrumbs if driver is on_duty - location sharing status doesn't matter
+    if (this.driverStatus !== 'on_duty') {
+      console.log(`🍞 [LocationTracker] Breadcrumb skipped - driver status is ${this.driverStatus}, not on_duty`);
+      return;
+    }
+
     try {
       if (!this.lastBreadcrumbPosition) {
         // First breadcrumb for this tracking session
         this.lastBreadcrumbPosition = { latitude, longitude };
-        
+
         await base44.entities.DeliveryBreadcrumbs.create({
           driver_id: this.appUserId,
           delivery_date: new Date().toISOString().split('T')[0],
@@ -785,7 +792,7 @@ class LocationTracker {
           timestamp: new Date().toISOString(),
           is_primary_device: true
         });
-        
+
         console.log(`🍞 [LocationTracker] Initial breadcrumb recorded`);
         return;
       }
@@ -801,7 +808,7 @@ class LocationTracker {
       // Only add breadcrumb if > 100m from last one
       if (distanceMeters >= this.minBreadcrumbDistance) {
         this.lastBreadcrumbPosition = { latitude, longitude };
-        
+
         await base44.entities.DeliveryBreadcrumbs.create({
           driver_id: this.appUserId,
           delivery_date: new Date().toISOString().split('T')[0],
@@ -810,7 +817,7 @@ class LocationTracker {
           timestamp: new Date().toISOString(),
           is_primary_device: true
         });
-        
+
         console.log(`🍞 [LocationTracker] Breadcrumb recorded: ${(distanceMeters).toFixed(0)}m from last`);
       }
     } catch (error) {
