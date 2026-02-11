@@ -2661,9 +2661,9 @@ export default function DeliveryMap({
             // Skip driver on break
             const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
             if (driverAppUser?.driver_status === 'on_break') return;
-            
-            // Get next stop for this driver
-            const nextStop = deliveryMarkers.find(d => 
+
+            // Get next stop for this driver - try isNextDelivery first
+            let nextStop = deliveryMarkers.find(d => 
               d && 
               d.driver_id === driverId &&
               d.isNextDelivery === true &&
@@ -2680,7 +2680,33 @@ export default function DeliveryMap({
               typeof p.latitude === 'number' &&
               typeof p.longitude === 'number'
             );
-            
+
+            // CRITICAL: Fallback for other drivers - use first incomplete stop if no isNextDelivery flag
+            if (!nextStop) {
+              const driverIncompleteDeliveries = deliveryMarkers.filter(d =>
+                d && 
+                d.driver_id === driverId &&
+                !finishedStatuses.includes(d.status) &&
+                d.status !== 'pending' &&
+                typeof d.latitude === 'number' &&
+                typeof d.longitude === 'number'
+              ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+              const driverIncompletePickups = pickupMarkers.filter(p =>
+                p && 
+                p.driver_id === driverId &&
+                !finishedStatuses.includes(p.status) &&
+                p.status !== 'pending' &&
+                typeof p.latitude === 'number' &&
+                typeof p.longitude === 'number'
+              ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+              const allIncomplete = [...driverIncompletePickups, ...driverIncompleteDeliveries]
+                .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+              nextStop = allIncomplete[0];
+            }
+
             if (!nextStop) return;
             
             // Determine start point (priority: live location > shared marker > last completed > home)
