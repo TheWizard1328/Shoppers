@@ -129,8 +129,8 @@ export default function DispatcherPickupNotification({
                 </div>
                 
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-lg mb-1">
-                    Your driver is on his way.
+                  <h3 className={`font-bold mb-1 ${activeNotification.hasArrived ? 'text-2xl' : 'text-lg'}`}>
+                    {activeNotification.hasArrived ? 'Your driver has arrived.' : 'Your driver is on his way.'}
                   </h3>
                   <p className="text-sm text-emerald-50 mb-2">
                     <span className="font-semibold">{activeNotification.driverName}</span> is heading to <span className="font-semibold">{activeNotification.storeName}</span>
