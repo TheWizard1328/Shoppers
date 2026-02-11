@@ -2284,8 +2284,11 @@ function Dashboard() {
     console.log('🔄 [Dashboard] Smart refresh manager initialized');
 
     const runPeriodicSmartRefresh = async () => {
-      if (showDeliveryForm || showPatientForm || showOptimizationSettings) {
-        return; // Skip when forms are open
+      // CRITICAL: Skip when ANY form/overlay is open
+      const isAnyFormOpen = showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant;
+      if (isAnyFormOpen) {
+        console.log('⏭️ [Periodic Refresh] Form/overlay open - skipping this cycle');
+        return;
       }
       
       // CRITICAL: Skip if mount syncs just ran (prevent rate limits)
@@ -2370,7 +2373,7 @@ function Dashboard() {
       clearTimeout(initialDelay);
       clearInterval(interval);
     };
-  }, [isDataLoaded, currentUser?.id, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, deliveries, patients, stores, cities, appUsers, drivers]);
+  }, [isDataLoaded, currentUser?.id, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant, deliveries, patients, stores, cities, appUsers, drivers]);
 
   // CRITICAL: Listen for real-time AppUser location updates from other drivers
   useEffect(() => {
@@ -2600,13 +2603,12 @@ function Dashboard() {
       setIsFormOverlayOpen(isAnyFormOpen);
     }
     
-    // CRITICAL: Only pause smart refresh (route optimization) when form is open
-    // DO NOT pause mutations - the form needs them to save deliveries
-    if (showDeliveryForm) {
-      console.log('⏸️ [Dashboard] Delivery form opened - pausing smart refresh only');
+    // CRITICAL: Pause smart refresh when ANY form/overlay is open
+    if (isAnyFormOpen) {
+      console.log('⏸️ [Dashboard] Form/overlay opened - pausing smart refresh');
       smartRefreshManager.pause();
     } else {
-      console.log('▶️ [Dashboard] Delivery form closed - resuming smart refresh');
+      console.log('▶️ [Dashboard] All forms closed - resuming smart refresh');
       smartRefreshManager.resume();
     }
   }, [showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant, setIsFormOverlayOpen]);
