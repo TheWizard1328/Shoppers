@@ -1723,9 +1723,9 @@ export default function StopCard({
             document.body
           )}
 
-          {/* BODY SECTION - Expandable - Always show when expanded (driver stripping only applies to collapsed state) */}
+          {/* BODY SECTION - Expandable - Always show when expanded (BUT never for dispatcher-stripped cards) */}
           <AnimatePresence>
-            {isExpanded &&
+            {isExpanded && !isStrippedForDispatcher &&
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="mt-2 pt-3 pb-2 space-y-3 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                   {/* Phone number - moved below divider - HIDE for finished patient deliveries */}
