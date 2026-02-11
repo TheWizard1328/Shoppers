@@ -148,7 +148,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const validDrivers = updatedAppUsers.filter(user => {
           if (!user) return false;
           if (!user.current_latitude || !user.current_longitude) {
-            console.log(`❌ [DriverMarkers] Skipping ${user.user_name || user.id} - no coordinates`);
             return false;
           }
 
@@ -158,7 +157,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           const isSelf = userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
 
           if (isSelf && isPrimaryDevice) {
-            console.log(`🚫 [DriverMarkers] Skipping self marker on primary device`);
             return false;
           }
 
