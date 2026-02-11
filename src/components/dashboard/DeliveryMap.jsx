@@ -3200,7 +3200,6 @@ export default function DeliveryMap({
           );
         })}
 
-        {/* ===== RENDER ORDER 4: Route markers (pickups & deliveries) ===== */}
         {/* Store Pickup Markers - NOW WITH FANNING AND HIGHLIGHT HALOS */}
         {pickupMarkers.map((pickup, index) => {
           const locationKey = `${pickup.latitude.toFixed(6)},${pickup.longitude.toFixed(6)}`;
