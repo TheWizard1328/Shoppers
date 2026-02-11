@@ -2887,7 +2887,6 @@ export default function DeliveryMap({
           if (!home.latitude || !home.longitude ||
               typeof home.latitude !== 'number' || typeof home.longitude !== 'number' ||
               isNaN(home.latitude) || isNaN(home.longitude)) {
-            console.warn('[DeliveryMap] Invalid home marker coordinates:', home);
             return null;
           }
           
