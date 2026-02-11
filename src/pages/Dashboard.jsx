@@ -2286,6 +2286,12 @@ function Dashboard() {
         return; // Skip when forms are open
       }
       
+      // CRITICAL: Skip if mount syncs just ran (prevent rate limits)
+      if (!hasTriggeredSmartRefreshRef.current) {
+        console.log('⏭️ [Periodic Refresh] Mount sync still running - skipping this cycle');
+        return;
+      }
+      
       console.log('🔄 [Periodic Refresh] Running smart refresh cycle...');
 
       // Build filters for smart refresh
@@ -2299,8 +2305,11 @@ function Dashboard() {
         filters.deliveryFilter.driver_id = selectedDriverId;
       }
 
-      // CRITICAL: Call the actual smart refresh manager
-      const updates = await smartRefreshManager.performSmartRefresh(
+      // CRITICAL: Wrap in try-catch to handle rate limits gracefully
+      let updates = null;
+      try {
+        // CRITICAL: Call the actual smart refresh manager
+        updates = await smartRefreshManager.performSmartRefresh(
         {
           deliveries,
           patients,
@@ -2316,35 +2325,49 @@ function Dashboard() {
         selectedDate // selectedDate
       );
 
-      if (updates) {
-        console.log('✅ [Periodic Refresh] Smart refresh completed with updates:', Object.keys(updates));
-        
-        // Update local state with smart refresh results
-        if (updates.deliveries && updateDeliveriesLocally) {
-          updateDeliveriesLocally(updates.deliveries, true);
+        if (updates) {
+          console.log('✅ [Periodic Refresh] Smart refresh completed with updates:', Object.keys(updates));
+          
+          // Update local state with smart refresh results
+          if (updates.deliveries && updateDeliveriesLocally) {
+            updateDeliveriesLocally(updates.deliveries, true);
+          }
+          
+          if (updates.appUsers) {
+            // Process through poller
+            driverLocationPoller.processLocationData(
+              currentUser, 
+              updates.deliveries || deliveries, 
+              drivers, 
+              stores, 
+              updates.appUsers, 
+              selectedDate, 
+              true,
+              'Dashboard',
+              showAllDriverMarkers
+            );
+          }
         }
-        
-        if (updates.appUsers) {
-          // Process through poller
-          driverLocationPoller.processLocationData(
-            currentUser, 
-            updates.deliveries || deliveries, 
-            drivers, 
-            stores, 
-            updates.appUsers, 
-            selectedDate, 
-            true,
-            'Dashboard',
-            showAllDriverMarkers
-          );
+      } catch (error) {
+        // CRITICAL: Handle rate limits gracefully
+        if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
+          console.log('⏰ [Periodic Refresh] Rate limited - skipping this cycle');
+          return;
         }
+        console.warn('⚠️ [Periodic Refresh] Error:', error.message);
       }
     };
 
-    // CRITICAL: Only run on interval, NOT immediately when driver selection changes
+    // CRITICAL: Delay first run by 30 seconds after mount to avoid overlap with mount syncs
+    const initialDelay = setTimeout(runPeriodicSmartRefresh, 30000);
+    
+    // Then run on interval every 15 seconds
     const interval = setInterval(runPeriodicSmartRefresh, 15000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initialDelay);
+      clearInterval(interval);
+    };
   }, [isDataLoaded, currentUser?.id, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, deliveries, patients, stores, cities, appUsers, drivers]);
 
   // CRITICAL: Listen for real-time AppUser location updates from other drivers
@@ -7743,9 +7766,47 @@ function Dashboard() {
     hasTriggeredSmartRefreshRef.current = true;
     
     const triggerPrioritySyncAndLoadUI = async () => {
-      console.log(`🔄 [Dashboard Mount - STEP 2] Running priority offline DB sync...`);
+      console.log(`🔄 [Dashboard Mount - STEP 2] Checking if priority sync needed...`);
       
       try {
+        // CRITICAL: Check if we just ran pre-render sync (within last 10 seconds)
+        const appUserMeta = await offlineDB.getSyncMetadata('AppUser');
+        const now = Date.now();
+        
+        const justSynced = appUserMeta?.last_sync_time && 
+          (now - new Date(appUserMeta.last_sync_time).getTime() < 10000);
+        
+        if (justSynced) {
+          console.log(`⏭️ [Dashboard Mount - STEP 2] Pre-render sync just ran - skipping priority sync to avoid rate limits`);
+          
+          // Just load from offline DB without syncing again
+          const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+          const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+          
+          if (updateDeliveriesLocally && freshDeliveries) {
+            const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+            updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+          }
+          
+          if (freshAppUsers && freshAppUsers.length > 0) {
+            driverLocationPoller.processLocationData(
+              currentUser, 
+              freshDeliveries || [], 
+              drivers, 
+              stores, 
+              freshAppUsers, 
+              selectedDate, 
+              true,
+              'Dashboard',
+              showAllDriverMarkers
+            );
+          }
+          
+          setForceRender((prev) => prev + 1);
+          console.log(`✅ [Dashboard Mount - STEP 2] Loaded from offline DB - skipped redundant sync`);
+          return;
+        }
+        
         // Run priority sync to update offline DB (AppUsers, Deliveries, Patients)
         const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync');
         const cityId = globalFilters.getSelectedCityId();
