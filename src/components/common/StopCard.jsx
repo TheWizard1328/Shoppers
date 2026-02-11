@@ -2722,7 +2722,9 @@ export default function StopCard({
                                     };
 
                                     // CRITICAL: Save to both offline and online databases
+                                    console.log('💾 [COMPLETE] Saving completion to databases...');
                                     await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
+                                    console.log('✅ [COMPLETE] Saved to databases');
 
                                     // CRITICAL: Re-fetch ALL deliveries to ensure we see the newly transitioned deliveries
                                     console.log('🔄 [Complete Pickup] Re-fetching ALL deliveries after Accept All...');
@@ -2778,18 +2780,23 @@ export default function StopCard({
                                       }
                                     }
 
-                                    // Force UI refresh with new data
+                                    // Force UI refresh with ONLY local data (skip API call)
+                                    console.log('🔄 [COMPLETE] Refreshing UI with local data...');
                                     invalidate('Delivery');
-                                    const freshDeliveries = await base44.entities.Delivery.filter({
-                                      driver_id: delivery.driver_id,
-                                      delivery_date: delivery.delivery_date
-                                    });
 
+                                    // CRITICAL: Use local data only to avoid slow API call
                                     if (updateDeliveriesLocally) {
-                                      const otherDeliveries = allDeliveries.filter((d) =>
-                                        d && (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date)
-                                      );
-                                      updateDeliveriesLocally([...otherDeliveries, ...freshDeliveries], true);
+                                     const updatedDeliveries = allDeliveries.map(d => {
+                                       if (d.id === delivery.id) {
+                                         return { ...d, ...completionUpdate };
+                                       }
+                                       if (incompleteDeliveries.length > 0 && d.id === incompleteDeliveries[0].id) {
+                                         return { ...d, isNextDelivery: true };
+                                       }
+                                       return d;
+                                     });
+                                     updateDeliveriesLocally(updatedDeliveries, true);
+                                     console.log('✅ [COMPLETE] UI updated with local data');
                                     }
 
                                     // CRITICAL: Trigger map and stop cards update immediately
@@ -2822,60 +2829,59 @@ export default function StopCard({
                                     console.log('🔄 [COMPLETE] PHASE 2: Background tasks starting...');
                                     setIsProcessingBackground(true);
 
-                                    // Background: Route optimization
-                                    base44.functions.invoke('optimizeRouteRealTime', {
-                                      driverId: delivery.driver_id,
-                                      deliveryDate: delivery.delivery_date,
-                                      currentLocalTime: format(currentTime, 'HH:mm'),
-                                      generatePolyline: false
-                                    }).then(() => {
-                                      console.log('✅ [COMPLETE] Background: Route optimized');
-                                      // Trigger final map update after optimization
-                                      window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
-                                    }).catch((err) => console.warn('⚠️ [COMPLETE] Background optimization failed:', err));
+                                    // Background: Route optimization (fire and forget - don't wait)
+                                    Promise.all([
+                                     base44.functions.invoke('optimizeRouteRealTime', {
+                                       driverId: delivery.driver_id,
+                                       deliveryDate: delivery.delivery_date,
+                                       currentLocalTime: format(currentTime, 'HH:mm'),
+                                       generatePolyline: false
+                                     }).then(() => {
+                                       console.log('✅ [COMPLETE] Background: Route optimized');
+                                       window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
+                                     }).catch((err) => console.warn('⚠️ [COMPLETE] Background optimization failed:', err)),
 
-                                    // Background: Send notification
-                                    if (userHasRole(currentUser, 'driver')) {
-                                      notifyDriverCompleted({
-                                        driver: currentUser,
-                                        patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                        delivery,
-                                        store,
-                                        appUsers
-                                      }).catch((err) => console.warn('Notification failed:', err));
-                                    }
+                                     // Background: Send notification
+                                     userHasRole(currentUser, 'driver') ? notifyDriverCompleted({
+                                       driver: currentUser,
+                                       patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                       delivery,
+                                       store,
+                                       appUsers
+                                     }).catch((err) => console.warn('Notification failed:', err)) : Promise.resolve(),
 
-                                    // Background: AI route re-optimization
-                                    const today = format(new Date(), 'yyyy-MM-dd');
-                                    triggerRouteOptimization({
-                                      driverId: currentUser.id,
-                                      deliveryDate: today,
-                                      trigger: 'delivery_complete',
-                                      completedDeliveryId: delivery.id,
-                                      onNotification: (notification) => {
-                                        if (notification.type === 'next_stop') {
-                                          toast.success(notification.message, {
-                                            description: notification.aiSuggestion
-                                          });
-                                        }
-                                      }
-                                    }).catch((err) => console.warn('Route optimization failed:', err)).finally(() => {
-                                      setIsProcessingBackground(false);
+                                     // Background: AI route re-optimization
+                                     triggerRouteOptimization({
+                                       driverId: currentUser.id,
+                                       deliveryDate: format(new Date(), 'yyyy-MM-dd'),
+                                       trigger: 'delivery_complete',
+                                       completedDeliveryId: delivery.id,
+                                       onNotification: (notification) => {
+                                         if (notification.type === 'next_stop') {
+                                           toast.success(notification.message, {
+                                             description: notification.aiSuggestion
+                                           });
+                                         }
+                                       }
+                                     }).catch((err) => console.warn('Route optimization failed:', err))
+                                    ]).finally(() => {
+                                     setIsProcessingBackground(false);
+                                     console.log('✅ [COMPLETE] All background tasks complete');
                                     });
 
                                   } catch (error) {
-                                   console.error('❌ [COMPLETE] Error:', error);
-                                   fabControlEvents.reactivateFAB(true);
-                                   setIsProcessingBackground(false);
+                                  console.error('❌ [COMPLETE] Error:', error);
+                                  fabControlEvents.reactivateFAB(true);
+                                  setIsProcessingBackground(false);
+                                  setIsCompleting(false);
                                   } finally {
-                                   const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                   driverLocationPoller.resume();
-                                   setIsCompleting(false);
+                                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                  driverLocationPoller.resume();
 
-                                   // CRITICAL: Collapse ALL cards after completion
-                                   if (typeof window !== 'undefined') {
-                                     window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
-                                   }
+                                  // CRITICAL: Collapse ALL cards after completion
+                                  if (typeof window !== 'undefined') {
+                                    window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
+                                  }
                                   }
                                 }}
                                 size="sm"
