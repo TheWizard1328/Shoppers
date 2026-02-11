@@ -2872,6 +2872,15 @@ export default function DeliveryMap({
           );
         })()}
 
+        {/* ===== RENDER ORDER 2: Shared location markers ===== */}
+         <DriverLocationMarkers 
+           users={driverLocationMarkers}
+           currentUser={currentUser}
+           activeDriver={null}
+           deliveries={deliveriesForLocationFilter}
+           selectedDate={selectedDate}
+         />
+
         {/* TYPE 1 POLYLINE: Blue dotted line from driver location to next stop - RENDER WITH POLYLINES & SHARED MARKERS */}
          {isViewingCurrentDate && (() => {
            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
