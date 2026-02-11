@@ -479,6 +479,9 @@ function Dashboard() {
       const isOwnChange = event.data?.driver_id === currentUser?.id;
       const isOtherDriver = !isOwnChange;
       
+      // CRITICAL: Check if this is a non-primary device
+      const isNonPrimaryDevice = !isPrimaryDevice;
+      
       // DEBUG: Log who made the change
       if (isOtherDriver) {
         console.log(`🔔 [Real-time] OTHER DRIVER UPDATE - driver_id: ${event.data?.driver_id}, my id: ${currentUser?.id}`);
