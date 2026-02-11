@@ -1966,9 +1966,14 @@ function Dashboard() {
               return; // Skip proximity snap logic below
             }
 
-            // PHASE 3 LOCKED: Continuous re-centering (every location update)
-            // Show all active drivers + incomplete stops (Show All mode = all drivers, Single Driver mode = selected driver only)
+            // PHASE 3 LOCKED: NO continuous re-centering (unlike Phase 2)
+            // Phase 3 stays locked but does NOT re-zoom on GPS updates
+            // Only re-centers when FAB is manually clicked or data changes
             if (mapViewPhaseRef.current === 3 && isMapViewLockedRef.current) {
+              // CRITICAL: Skip automatic re-centering - Phase 3 zooms ONCE when activated, then stays locked
+              console.log('⏭️ [Phase 3 GPS] Locked but no auto-zoom - only manual FAB click triggers re-center');
+              return; // Exit early - don't re-calculate bounds
+              
               const allCoordinatesPhase3 = [];
               const todayStrPhase3 = format(new Date(), 'yyyy-MM-dd');
               const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
