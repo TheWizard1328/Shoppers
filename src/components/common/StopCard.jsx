@@ -1898,6 +1898,13 @@ export default function StopCard({
                                   detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                                 }));
                                 
+                                // Collapse the card
+                                if (onSelectionChange) {
+                                  onSelectionChange(delivery.id, false);
+                                } else if (onClick) {
+                                  onClick(null);
+                                }
+                                
                                 driverLocationPoller.resume();
                                 fabControlEvents.reactivateFAB(true);
                                 toast.success('COD saved and delivery completed!');
