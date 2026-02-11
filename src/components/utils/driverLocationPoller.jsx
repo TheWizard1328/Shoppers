@@ -163,122 +163,136 @@ class DriverLocationPoller {
     const todayStr = new Date().toISOString().split('T')[0];
 
     // CRITICAL: Filter drivers based on NEW visibility rules
-    const activeDriversWithLocation = users.filter(user => {
-      if (!user) return false;
+     const activeDriversWithLocation = users.filter(user => {
+       if (!user) return false;
 
-      const driverId = user.id || user.user_name;
-      const isSelf = user.user_name === currentUserId || 
-                     user.id === currentUserId || 
-                     user.user_name === currentUserUserId ||
-                     user.id === currentUserUserId;
+       const driverId = user.id || user.user_name;
+       const isSelf = user.user_name === currentUserId || 
+                      user.id === currentUserId || 
+                      user.user_name === currentUserUserId ||
+                      user.id === currentUserUserId;
 
-      // CRITICAL: Check self BEFORE coordinates to enable debugging
-      if (isSelf) {
-        console.log(`🔍 [Poller] SELF MARKER CHECK:`, {
-          userId: user.user_name,
-          hasCoordinates: !!(user.current_latitude && user.current_longitude),
-          current_latitude: user.current_latitude,
-          current_longitude: user.current_longitude,
-          location_updated_at: user.location_updated_at,
-          driver_status: user.driver_status,
-          location_tracking_enabled: user.location_tracking_enabled
-        });
-      }
+       // CRITICAL: Check self BEFORE coordinates to enable debugging
+       if (isSelf) {
+         console.log(`🔍 [Poller] SELF MARKER CHECK:`, {
+           userId: user.user_name,
+           hasCoordinates: !!(user.current_latitude && user.current_longitude),
+           current_latitude: user.current_latitude,
+           current_longitude: user.current_longitude,
+           location_updated_at: user.location_updated_at,
+           driver_status: user.driver_status,
+           location_tracking_enabled: user.location_tracking_enabled
+         });
+       }
 
-      // Skip if no valid coordinates
-      if (!user.current_latitude || !user.current_longitude) {
-        if (isSelf) {
-          console.log(`❌ [Poller] SELF marker BLOCKED - no coordinates in AppUser entity`);
-        }
-        return false;
-      }
+       // Skip if no valid coordinates
+       if (!user.current_latitude || !user.current_longitude) {
+         if (isSelf) {
+           console.log(`❌ [Poller] SELF marker BLOCKED - no coordinates in AppUser entity`);
+         }
+         return false;
+       }
 
-      // Already filtered by coordinates above, no additional timestamp checks needed
+       // Already filtered by coordinates above, no additional timestamp checks needed
 
-      // ========================================
-      // RULE 1: Own location marker - ALWAYS visible regardless of any status/toggle
-      // ========================================
-      if (isSelf) {
-        console.log(`✅ [Poller] Including SELF marker - bypasses all checks`, {
-          userId: user.user_name,
-          driver_status: user.driver_status,
-          location_tracking_enabled: user.location_tracking_enabled
-        });
-        return true;
-      }
+       // ========================================
+       // RULE 1: Own location marker - VISIBLE ONLY ON NON-PRIMARY DEVICES
+       // ========================================
+       if (isSelf) {
+         // CRITICAL: Non-primary device shows self marker ONLY when "Show All" is OFF
+         // Primary device NEVER shows self marker
+         // When "Show All" is ON, self marker is suppressed (user sees it via live location layer)
+         const isPrimaryDevice = localStorage.getItem(`device_is_primary_${currentUserId}`) === 'true';
 
-      // Skip inactive users for other drivers
-      if (user.status === 'inactive') return false;
+         if (isPrimaryDevice) {
+           console.log(`🚫 [Poller] SELF marker BLOCKED on PRIMARY device (always hidden)`);
+           return false;
+         }
 
-      // Must be in same city (admin exempted via city checks in parent)
-      if (currentUserCityId && user.city_id !== currentUserCityId) return false;
+         if (!showAllDrivers) {
+           console.log(`✅ [Poller] Including SELF marker on NON-PRIMARY device (Show All OFF)`, {
+             userId: user.user_name,
+             driver_status: user.driver_status
+           });
+           return true;
+         }
 
-      // ========================================
-      // RULE 2: Admins (AppOwners) - can see all drivers in city if On Duty OR On Break
-      // ========================================
-      if (isAdmin) {
-        // Admin sees drivers if they are On Duty OR On Break (regardless of location_tracking_enabled)
-        if (user.driver_status === 'on_duty' || user.driver_status === 'on_break') {
-          console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - status: ${user.driver_status}`);
-          return true;
-        }
+         console.log(`🚫 [Poller] SELF marker BLOCKED on NON-PRIMARY device (Show All ON)`);
+         return false;
+       }
 
-        return false;
-      }
+       // Skip inactive users for other drivers
+       if (user.status === 'inactive') return false;
 
-      // ========================================
-      // RULE 3: Dispatchers viewing assigned drivers
-      // ========================================
-      if (isDispatcher && !isDriver) {
-        const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
+       // Must be in same city (admin exempted via city checks in parent)
+       if (currentUserCityId && user.city_id !== currentUserCityId) return false;
 
-        // Check if driver has ANY deliveries for dispatcher's stores (today)
-        const hasDeliveriesFromDispatcherStores = (deliveries || []).some(delivery => {
-          if (!delivery) return false;
-          if (delivery.driver_id !== driverId) return false;
-          if (delivery.delivery_date !== todayStr) return false;
-          if (!dispatcherStoreIds.has(delivery.store_id)) return false;
-          return true;
-        });
+       // ========================================
+       // RULE 2: Admins (AppOwners) - can see all drivers in city if On Duty OR On Break
+       // ========================================
+       if (isAdmin) {
+         // Admin sees drivers if they are On Duty OR On Break (regardless of location_tracking_enabled)
+         if (user.driver_status === 'on_duty' || user.driver_status === 'on_break') {
+           console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - status: ${user.driver_status}`);
+           return true;
+         }
 
-        if (!hasDeliveriesFromDispatcherStores) {
-          return false;
-        }
+         return false;
+       }
 
-        // Dispatchers see assigned drivers if On Duty OR On Break (even after completing route)
-        if (user.driver_status === 'on_duty' || user.driver_status === 'on_break') {
-          console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - status: ${user.driver_status}`);
-          return true;
-        }
+       // ========================================
+       // RULE 3: Dispatchers viewing assigned drivers
+       // ========================================
+       if (isDispatcher && !isDriver) {
+         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
 
-        return false;
-      }
+         // Check if driver has ANY deliveries for dispatcher's stores (today)
+         const hasDeliveriesFromDispatcherStores = (deliveries || []).some(delivery => {
+           if (!delivery) return false;
+           if (delivery.driver_id !== driverId) return false;
+           if (delivery.delivery_date !== todayStr) return false;
+           if (!dispatcherStoreIds.has(delivery.store_id)) return false;
+           return true;
+         });
 
-      // ========================================
-      // RULE 4: Drivers viewing other drivers
-      // ========================================
-      if (isDriver) {
-        // Must be in "show all" or "all drivers" mode
-        if (!showAllDrivers) {
-          return false;
-        }
+         if (!hasDeliveriesFromDispatcherStores) {
+           return false;
+         }
 
-        // Other driver must be On Duty OR On Break
-        if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
-          return false;
-        }
+         // Dispatchers see assigned drivers if On Duty OR On Break (even after completing route)
+         if (user.driver_status === 'on_duty' || user.driver_status === 'on_break') {
+           console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - status: ${user.driver_status}`);
+           return true;
+         }
 
-        // Other driver must have location sharing enabled
-        if (user.location_tracking_enabled !== true) {
-          return false;
-        }
+         return false;
+       }
 
-        console.log(`✅ [Poller] Driver seeing other driver ${user.user_name}`);
-        return true;
-      }
+       // ========================================
+       // RULE 4: Drivers viewing other drivers
+       // ========================================
+       if (isDriver) {
+         // Must be in "show all" or "all drivers" mode
+         if (!showAllDrivers) {
+           return false;
+         }
 
-      return false;
-    });
+         // Other driver must be On Duty OR On Break
+         if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
+           return false;
+         }
+
+         // Other driver must have location sharing enabled
+         if (user.location_tracking_enabled !== true) {
+           return false;
+         }
+
+         console.log(`✅ [Poller] Driver seeing other driver ${user.user_name}`);
+         return true;
+       }
+
+       return false;
+     });
 
     // CRITICAL: ALWAYS notify subscribers with current locations to prevent disappearing markers
     // Don't check for changes - just broadcast the current state every time
