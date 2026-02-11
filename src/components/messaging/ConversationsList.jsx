@@ -72,18 +72,25 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
   useEffect(() => {
     if (!currentUser?.id) return;
     
-    // Delay initial load to avoid competing with other API calls
-    const timer = setTimeout(() => {
-      fetchMessages(loadedDays, false);
-    }, 2000);
+    // Load initial messages
+    fetchMessages(loadedDays, false);
+
+    // Subscribe to real-time message updates - only for messages where user is the receiver
+    const unsubscribe = base44.entities.Message.subscribe((event) => {
+      // Only process new messages where current user is the receiver
+      if (event.data?.receiver_id !== currentUser.id) return;
+      
+      if (event.type === 'create') {
+        setMessages(prev => {
+          const exists = prev.some(m => m.id === event.data.id);
+          return exists ? prev : [...prev, event.data];
+        });
+      } else if (event.type === 'update') {
+        setMessages(prev => prev.map(m => m.id === event.data.id ? event.data : m));
+      }
+    });
     
-    // Poll for new messages every 2 minutes
-    const interval = setInterval(() => fetchMessages(loadedDays, false), 120000);
-    
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
+    return () => unsubscribe();
   }, [currentUser?.id]);
 
   const handleLoadMore = async () => {
