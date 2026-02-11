@@ -88,9 +88,15 @@ export default function PolylineViewer({ users = [] }) {
         console.log(`✅ [PolylineViewer] Loaded ${polylinesData?.length || 0} polylines`);
         setPolylines(polylinesData || []);
         
-        const breadcrumbsData = await base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 1000);
-        console.log(`✅ [PolylineViewer] Loaded ${breadcrumbsData?.length || 0} breadcrumbs`);
-        setBreadcrumbs(breadcrumbsData || []);
+        // Try to load breadcrumbs, but fail gracefully if entity doesn't exist
+        try {
+          const breadcrumbsData = await base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 1000);
+          console.log(`✅ [PolylineViewer] Loaded ${breadcrumbsData?.length || 0} breadcrumbs`);
+          setBreadcrumbs(breadcrumbsData || []);
+        } catch (breadcrumbError) {
+          console.warn('⚠️ [PolylineViewer] DeliveryBreadcrumbs entity not available:', breadcrumbError.message);
+          setBreadcrumbs([]);
+        }
       } catch (error) {
         console.error('❌ [PolylineViewer] Error fetching data:', error);
         setPolylines([]);
