@@ -237,20 +237,6 @@ class LocationTracker {
       console.log(`⏰ [LocationTracker] GPS update - moved ${distance.toFixed(0)}m, uploading coordinates + timestamp`);
     }
 
-    let distance = 0;
-    const timeSinceLastUpdate = now - this.lastUpdate;
-    if (this.lastPosition) {
-      distance = this.calculateDistance(
-        this.lastPosition.latitude,
-        this.lastPosition.longitude,
-        latitude,
-        longitude
-      );
-      console.log(`📍 [LocationTracker] Heartbeat update - moved ${distance.toFixed(0)}m (${Math.floor(timeSinceLastUpdate/1000)}s since last)`);
-    } else {
-      console.log('🚀 [LocationTracker] First location update');
-    }
-
     // CRITICAL: Set lastUpdate BEFORE attempting upload for deduplication
     this.lastUpdate = now;
     this.lastUploadTime = now; // Track for deduplication
