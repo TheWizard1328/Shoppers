@@ -446,6 +446,13 @@ function Dashboard() {
       const isOwnChange = event.data?.driver_id === currentUser?.id;
       const isOtherDriver = !isOwnChange;
       
+      // DEBUG: Log who made the change
+      if (isOtherDriver) {
+        console.log(`🔔 [Real-time] OTHER DRIVER UPDATE - driver_id: ${event.data?.driver_id}, my id: ${currentUser?.id}`);
+      } else {
+        console.log(`📍 [Real-time] OWN UPDATE - same driver`);
+      }
+      
       if (event.type === 'create') {
         // Add new delivery to offline DB and context
         if (event.data) {
@@ -466,15 +473,25 @@ function Dashboard() {
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
           
-          // CRITICAL: Update UI incrementally from offline DB - NO API calls
+          // CRITICAL: Update UI incrementally - ALWAYS, regardless of who made the change
           if (updateDeliveriesLocally) {
+            console.log(`🔄 [Real-time] Updating UI with delivery: ${event.data.patient_name}, status: ${event.data.status}`);
             updateDeliveriesLocally([event.data], false);
+          }
+          
+          // CRITICAL: If this is another driver's update, dispatch collapseAllStopCards
+          if (isOtherDriver && ['completed', 'failed', 'cancelled'].includes(event.data.status)) {
+            console.log(`🗜️ [Real-time] Other driver completed stop - collapsing all cards`);
+            window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
           }
           
           // Trigger map update
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeUpdate' }
+            detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeUpdate', fromOtherDriver: isOtherDriver }
           }));
+          
+          // CRITICAL: Force stats card refresh
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         }
       } else if (event.type === 'delete') {
         // Remove delivery from offline DB and context
