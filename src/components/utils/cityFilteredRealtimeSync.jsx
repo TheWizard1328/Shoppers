@@ -118,14 +118,18 @@ class CityFilteredRealtimeSync {
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [event.data]);
           console.log(`✅ [Realtime AppUser] Saved ${event.data.user_name} to offline DB - coords: ${coords}`);
           
-          // CRITICAL: Broadcast location update to all subscribers in this city
+          // CRITICAL: Broadcast location update directly to Dashboard
           // Includes current latitude/longitude and location_updated_at timestamp
           if (event.data.location_tracking_enabled && event.data.current_latitude && event.data.current_longitude) {
             console.log(`📢 [Realtime AppUser] LOCATION BROADCAST - ${event.data.user_name} at ${coords} (${event.data.location_updated_at})`);
+            // Dispatch event for Dashboard to pick up immediately
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: [event.data], fromRealtime: true }
+            }));
           }
           
-          // Notify all subscribers (UI will render location data)
-          console.log(`📢 [Realtime AppUser] Notifying ${this.updateCallbacks.size} subscribers about ${event.data.user_name}`);
+          // Notify all internal subscribers (e.g. AppDataContext)
+          console.log(`📢 [Realtime AppUser] Notifying ${this.updateCallbacks.size} internal subscribers about ${event.data.user_name}`);
           this.notifySubscribers('AppUser', event.type, event.data);
           this.lastAppUserUpdate = Date.now();
         } else if (event.type === 'delete') {
