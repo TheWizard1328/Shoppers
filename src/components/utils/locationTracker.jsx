@@ -227,8 +227,9 @@ class LocationTracker {
       console.log('🚀 [LocationTracker] First location update');
     }
 
-    // CRITICAL: Set lastUpdate AFTER logging to show accurate time difference
+    // CRITICAL: Set lastUpdate BEFORE attempting upload for deduplication
     this.lastUpdate = now;
+    this.lastUploadTime = now; // Track for deduplication
 
     try {
       // Check if online before attempting update
