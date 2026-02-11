@@ -2872,6 +2872,126 @@ export default function DeliveryMap({
           );
         })()}
 
+        {/* TYPE 1 POLYLINE: Blue dotted line from driver location to next stop - RENDER WITH POLYLINES & SHARED MARKERS */}
+        {isViewingCurrentDate && (() => {
+          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+          const polylines = [];
+          
+          // CRITICAL: Get all unique driver IDs that have incomplete stops from MERGED markers
+          const driversWithIncompleteStops = new Set();
+          [...deliveryMarkers, ...pickupMarkers].forEach(m => {
+            if (!m || !m.driver_id) return;
+            if (finishedStatuses.includes(m.status) || m.status === 'pending') return;
+            driversWithIncompleteStops.add(m.driver_id);
+          });
+          
+          driversWithIncompleteStops.forEach(driverId => {
+            // CRITICAL: Skip drivers who are off_duty or on_break
+            const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
+            if (!driverAppUser || driverAppUser.driver_status !== 'on_duty') return;
+
+            // CRITICAL: Only draw Type 1 polylines if driver has shared location marker
+            const sharedMarker = driverLocationMarkers.find(m => m && m.driver_id === driverId);
+            if (!sharedMarker) return;
+            
+            // Get next stop for this driver
+            let nextStop = deliveryMarkers.find(d => 
+              d && 
+              d.driver_id === driverId &&
+              d.isNextDelivery === true &&
+              !finishedStatuses.includes(d.status) &&
+              d.status !== 'pending' &&
+              typeof d.latitude === 'number' &&
+              typeof d.longitude === 'number'
+            ) || pickupMarkers.find(p => 
+              p && 
+              p.driver_id === driverId &&
+              p.isNextDelivery === true &&
+              !finishedStatuses.includes(p.status) &&
+              p.status !== 'pending' &&
+              typeof p.latitude === 'number' &&
+              typeof p.longitude === 'number'
+            );
+
+            // Fallback for other drivers
+            if (!nextStop) {
+              const driverIncompleteDeliveries = deliveryMarkers.filter(d =>
+                d && 
+                d.driver_id === driverId &&
+                !finishedStatuses.includes(d.status) &&
+                d.status !== 'pending' &&
+                typeof d.latitude === 'number' &&
+                typeof d.longitude === 'number'
+              ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+              const driverIncompletePickups = pickupMarkers.filter(p =>
+                p && 
+                p.driver_id === driverId &&
+                !finishedStatuses.includes(p.status) &&
+                p.status !== 'pending' &&
+                typeof p.latitude === 'number' &&
+                typeof p.longitude === 'number'
+              ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+              const allIncomplete = [...driverIncompletePickups, ...driverIncompleteDeliveries]
+                .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+              nextStop = allIncomplete[0];
+            }
+
+            if (!nextStop) return;
+            
+            // Determine start point
+            let startPoint = null;
+            
+            if (driverId === currentUser?.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
+              startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
+            }
+            
+            if (!startPoint && sharedMarker?.latitude && sharedMarker?.longitude) {
+              startPoint = [sharedMarker.latitude, sharedMarker.longitude];
+            }
+            
+            if (!startPoint && sharedMarker) {
+              const allDriverStops = [...deliveryMarkers, ...pickupMarkers].filter(m => m && m.driver_id === driverId);
+              const completedStops = allDriverStops
+                .filter(s => finishedStatuses.includes(s.status) && s.actual_delivery_time)
+                .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+              
+              if (completedStops.length > 0) {
+                startPoint = [completedStops[0].latitude, completedStops[0].longitude];
+              }
+            }
+            
+            if (!startPoint && sharedMarker) {
+              const driver = safeUsers.find(u => u && u.id === driverId);
+              if (driver?.home_latitude && driver?.home_longitude) {
+                startPoint = [driver.home_latitude, driver.home_longitude];
+              }
+            }
+            
+            if (!startPoint) return;
+            
+            polylines.push(
+              <Polyline
+                key={`type1-${driverId}-${nextStop.id}-${polylineRenderKey}`}
+                positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
+                pathOptions={{
+                  color: '#3B82F6',
+                  weight: 4,
+                  opacity: 0.7,
+                  dashArray: '2, 8',
+                  lineJoin: 'round',
+                  lineCap: 'round'
+                }}
+                pane="overlayPane"
+              />
+            );
+          });
+          
+          return polylines.length > 0 ? polylines : null;
+        })()}
+
         {/* ===== RENDER ORDER 2: Shared location markers ===== */}
         <DriverLocationMarkers 
           users={driverLocationMarkers}
