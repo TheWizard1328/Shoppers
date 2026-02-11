@@ -1856,10 +1856,7 @@ export default function DeliveryMap({
       if (!driver?.home_latitude || !driver?.home_longitude ||
           typeof driver.home_latitude !== 'number' || typeof driver.home_longitude !== 'number' ||
           isNaN(driver.home_latitude) || isNaN(driver.home_longitude)) {
-        console.warn(`[DeliveryMap] Driver ${driverId} has invalid home coordinates:`, { 
-          latitude: driver?.home_latitude, 
-          longitude: driver?.home_longitude 
-        });
+        // Skip silently - don't spam console for missing home coordinates
         return; // Skip drivers without valid home coordinates
       }
 
