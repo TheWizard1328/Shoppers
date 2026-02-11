@@ -181,7 +181,17 @@ class CityFilteredRealtimeSync {
           // Save to offline DB
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [event.data]);
           console.log(`✅ [Realtime Patient] Saved ${event.data.full_name} to offline DB`);
-          
+
+          // CRITICAL: Broadcast to all devices in city
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('patientsImported', {
+              detail: { 
+                patients: [event.data],
+                source: 'realtime'
+              }
+            }));
+          }, 0);
+
           // Broadcast to all city subscribers
           this.notifySubscribers('Patient', event.type, event.data);
           this.lastPatientUpdate = Date.now();
@@ -189,7 +199,7 @@ class CityFilteredRealtimeSync {
           // Remove from offline DB
           await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, event.id);
           console.log(`✅ [Realtime Patient] Deleted from offline DB: ${event.id}`);
-          
+
           // Broadcast deletion
           this.notifySubscribers('Patient', event.type, { id: event.id });
           this.lastPatientUpdate = Date.now();
