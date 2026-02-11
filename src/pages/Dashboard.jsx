@@ -86,6 +86,7 @@ import EndOfDayStatsDialog from '../components/dashboard/EndOfDayStatsDialog';
 import { toast } from 'sonner';
 import PullToSync from '../components/dashboard/PullToSync';
 import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
+import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
 
 // FIXED: StatBadge - simple component without hooks to avoid violations
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
@@ -9096,6 +9097,15 @@ function Dashboard() {
         }} />
 
       }
+
+      {/* Dispatcher Pickup Notification - alerts when driver is en route to their store */}
+      <DispatcherPickupNotification
+        deliveries={deliveries}
+        stores={stores}
+        appUsers={appUsers}
+        currentUser={currentUser}
+        isDispatcher={isDispatcher}
+      />
 
       {/* Quick Route Adjustments Dialog */}
       {isDriver &&
