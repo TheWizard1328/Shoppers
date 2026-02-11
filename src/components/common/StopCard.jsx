@@ -2865,23 +2865,19 @@ export default function StopCard({
 
                                   } catch (error) {
                                    console.error('❌ [COMPLETE] Error:', error);
-                                   toast.error(`Failed to complete: ${error.message}`);
                                    fabControlEvents.reactivateFAB(true);
                                    setIsProcessingBackground(false);
-                                   setIsCompleting(false);
-                                   setIsFailing(false);
                                   } finally {
                                    const { driverLocationPoller } = await import('../utils/driverLocationPoller');
                                    driverLocationPoller.resume();
                                    setIsCompleting(false);
-                                   setIsFailing(false);
 
                                    // CRITICAL: Collapse ALL cards after completion
                                    if (typeof window !== 'undefined') {
                                      window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
                                    }
                                   }
-                                  }}
+                                }}
                                 size="sm"
                                 disabled={isCompleting || isProcessingBackground || isFailing}
                                 className={`rounded-md px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 md:h-8 border-r !text-white ${

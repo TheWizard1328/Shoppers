@@ -3504,10 +3504,7 @@ export default function DeliveryForm({
         }
       }, 100);
     } catch (error) {
-      console.error('❌ [DeliveryForm] Update failed:', error);
       setError(error.message);
-      toast.error(`Update failed: ${error.message}`);
-      setIsSaving(false);
     } finally {
       setIsSaving(false);
     }
