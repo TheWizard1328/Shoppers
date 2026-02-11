@@ -107,6 +107,9 @@ export default function DispatcherPickupNotification({
                   <h3 className="font-bold text-lg mb-1">
                     Your driver is on his way.
                   </h3>
+                  <p className="text-sm text-emerald-50 mb-2">
+                    <span className="font-semibold">{activeNotification.driverName}</span> is heading to <span className="font-semibold">{activeNotification.storeName}</span>
+                  </p>
                   
                   <div className="flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-1.5">
