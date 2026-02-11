@@ -2977,16 +2977,7 @@ export default function DeliveryMap({
           });
           
           return polylines.length > 0 ? polylines : null;
-        })()}
-
-        {/* ===== RENDER ORDER 2: Shared location markers ===== */}
-        <DriverLocationMarkers 
-          users={driverLocationMarkers}
-          currentUser={currentUser}
-          activeDriver={null}
-          deliveries={deliveriesForLocationFilter}
-          selectedDate={selectedDate}
-        />
+          })()}
 
         {/* ===== RENDER ORDER 3: Home markers ===== */}
         {driverHomeMarkers.map((home) => {
