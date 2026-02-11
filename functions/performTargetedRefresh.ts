@@ -61,9 +61,12 @@ Deno.serve(async (req) => {
     )];
 
     // Fetch AppUsers for drivers in this city (includes location data)
-    const appUsers = await base44.asServiceRole.entities.AppUser.filter({
-      user_id: { $in: uniqueDriverIds }
-    });
+    let appUsers = [];
+    if (uniqueDriverIds.length > 0) {
+      appUsers = await base44.asServiceRole.entities.AppUser.filter({
+        user_id: { $in: uniqueDriverIds }
+      });
+    }
     
     console.log(`🚗 [Targeted Refresh] Found ${appUsers.length} drivers with locations`);
 
