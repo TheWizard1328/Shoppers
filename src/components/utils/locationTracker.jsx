@@ -184,19 +184,33 @@ class LocationTracker {
       return;
     }
 
-    const timeForHeartbeat = (now - this.lastUpdate) >= this.updateInterval;
+    // CRITICAL: Check deduplication - prevent duplicate uploads within 2 seconds
+    if (!forceUpdate && (now - this.lastUploadTime) < this.minTimeBetweenUploads) {
+      const msRemaining = this.minTimeBetweenUploads - (now - this.lastUploadTime);
+      console.log(`⏳ [LocationTracker] Dedup: Waiting ${msRemaining}ms to prevent duplicate upload`);
+      return;
+    }
 
-    // CRITICAL: Skip timing check if forceUpdate=true (called from heartbeat interval)
-    if (!forceUpdate && !timeForHeartbeat) {
-      const secondsRemaining = Math.ceil((this.updateInterval - (now - this.lastUpdate)) / 1000);
-      console.log(`⏳ [LocationTracker] Waiting ${secondsRemaining}s until next heartbeat`);
-      return; // Silently skip if heartbeat not due
+    // Check distance threshold (200m minimum movement)
+    let distance = 0;
+    if (this.lastPosition && !forceUpdate) {
+      distance = this.calculateDistance(
+        this.lastPosition.latitude,
+        this.lastPosition.longitude,
+        latitude,
+        longitude
+      );
+
+      if (distance < this.minDistanceChange) {
+        console.log(`📍 [LocationTracker] Moved only ${distance.toFixed(0)}m - waiting for ${this.minDistanceChange}m threshold`);
+        return; // Skip update if distance below threshold
+      }
     }
 
     if (forceUpdate) {
-      console.log(`💓 [LocationTracker] Forced heartbeat update - uploading coordinates + timestamp (stationary)`);
+      console.log(`💓 [LocationTracker] EVENT-DRIVEN UPDATE - uploading coordinates + timestamp`);
     } else {
-      console.log(`⏰ [LocationTracker] GPS-triggered update - uploading coordinates + timestamp (moving)`);
+      console.log(`⏰ [LocationTracker] GPS update - moved ${distance.toFixed(0)}m, uploading coordinates + timestamp`);
     }
 
     let distance = 0;
