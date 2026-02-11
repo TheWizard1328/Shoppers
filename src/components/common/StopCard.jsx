@@ -157,6 +157,8 @@ export default function StopCard({
   const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false);
   const [pendingFailureStatus, setPendingFailureStatus] = useState(null);
   const [isFailing, setIsFailing] = useState(false);
+  const [isCreatingReturn, setIsCreatingReturn] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const codAmountInputRefs = useRef([]);
   const { setIsEntityUpdating, forceRefreshDriverDeliveries, refreshData, updateDeliveriesLocally } = useAppData();
@@ -932,6 +934,7 @@ export default function StopCard({
   const handleConfirmReturn = async () => {
     if (!onCreateReturn || !returnPatient) return;
 
+    setIsCreatingReturn(true);
     try {
       await onCreateReturn({
         originalDelivery: delivery,
@@ -981,6 +984,8 @@ export default function StopCard({
     } catch (error) {
       console.error('Failed to create return:', error);
       alert('Failed to create return delivery');
+    } finally {
+      setIsCreatingReturn(false);
     }
   };
 
@@ -1694,13 +1699,15 @@ export default function StopCard({
                   <Button
                     variant="outline"
                     className="flex-1"
-                    onClick={handleCancelReturn}>
+                    onClick={handleCancelReturn}
+                    disabled={isCreatingReturn}>
                     Cancel
                   </Button>
                   <Button
                     className="flex-1 bg-orange-600 hover:bg-orange-700"
-                    onClick={handleConfirmReturn}>
-                    <Undo2 className="w-4 h-4 mr-2" />
+                    onClick={handleConfirmReturn}
+                    disabled={isCreatingReturn}>
+                    {isCreatingReturn ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Undo2 className="w-4 h-4 mr-2" />}
                     Create Return
                   </Button>
                 </div>
@@ -2426,8 +2433,8 @@ export default function StopCard({
                           onClick={handleReturnClick}
                           size="sm"
                           className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 md:px-3 text-sm md:text-xs bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8 flex-1"
-                          disabled={isPreparingReturn || hasFutureReturn || hasCompletedDelivery || shouldDisableRetryReturn || isFailing}>
-                          {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                          disabled={isPreparingReturn || isCreatingReturn || hasFutureReturn || hasCompletedDelivery || shouldDisableRetryReturn || isFailing}>
+                          {isPreparingReturn || isCreatingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                           Return
                         </Button>
 
@@ -2437,6 +2444,7 @@ export default function StopCard({
                             onClick={async (e) => {
                               e.stopPropagation();
                               fabControlEvents.deactivateFAB();
+                              setIsRestarting(true);
                               setIsEntityUpdating(true);
                               setIsProcessingBackground(true);
                               console.log('⏸️ [Restart] Pausing location poller...');
@@ -3035,6 +3043,7 @@ export default function StopCard({
                           onClick={async (e) => {
                             e.stopPropagation();
                             fabControlEvents.deactivateFAB();
+                            setIsRestarting(true);
                             setIsEntityUpdating(true);
                             setIsProcessingBackground(true);
                             console.log('⏸️ [Restart] Pausing location poller...');
@@ -3113,15 +3122,16 @@ export default function StopCard({
 
                               fabControlEvents.reactivateFAB(true);
                               setIsProcessingBackground(false);
+                              setIsRestarting(false);
                             }
-                          }}
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
-                          disabled={isProcessingBackground || isFailing}>
-                          {isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
-                          <span className="text-white">Restart</span>
-                          </Button>
-                          }
+                            }}
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
+                            disabled={isRestarting || isProcessingBackground || isFailing}>
+                            {isRestarting || isProcessingBackground ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                            <span className="text-white">Restart</span>
+                            </Button>
+                            }
 
                       <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
