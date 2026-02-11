@@ -4134,8 +4134,8 @@ function Dashboard() {
           mapLockExpiresAtRef.current = null;
           console.log(`🔵 [Date Change] Phase ${mapViewPhase} - NO TIMER - stays locked until FAB click`);
         } else if (mapViewPhase === 1) {
-          // Phase 1 - Set 3-second unlock timer
-          const lockDuration = 3000;
+          // Phase 1 - Set 500ms unlock timer (auto-activation from date change)
+          const lockDuration = 500;
           const expiresAt = Date.now() + lockDuration;
           mapLockExpiresAtRef.current = expiresAt;
 
@@ -4285,8 +4285,8 @@ function Dashboard() {
         }
         mapLockExpiresAtRef.current = null;
       } else if (mapViewPhase === 1) {
-        // Phase 1 - Set 3-second unlock timer
-        const lockDuration = 3000;
+        // Phase 1 - Set 500ms unlock timer (auto-activation from driver change)
+        const lockDuration = 500;
         const expiresAt = Date.now() + lockDuration;
         mapLockExpiresAtRef.current = expiresAt;
 
