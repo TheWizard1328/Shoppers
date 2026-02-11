@@ -56,9 +56,33 @@ export default function ChatWindow({
     };
 
     fetchMessages();
-    // Poll for new messages every 8 seconds when chat is open
-    const interval = setInterval(fetchMessages, 8000);
-    return () => clearInterval(interval);
+
+    // Subscribe to real-time message updates
+    const unsubscribe = base44.entities.Message.subscribe((event) => {
+      // Only process messages for this conversation
+      if (event.data?.conversation_id !== conversationId) return;
+      
+      if (event.type === 'create' || event.type === 'update') {
+        setMessages(prev => {
+          const exists = prev.some(m => m.id === event.data.id);
+          if (exists) {
+            return prev.map(m => m.id === event.data.id ? event.data : m);
+          } else {
+            return [...prev, event.data];
+          }
+        });
+
+        // Mark as read if this message is for the current user and is unread
+        if (event.data.receiver_id === currentUser?.id && !event.data.read) {
+          base44.entities.Message.update(event.data.id, { read: true });
+          if (onMessagesRead) {
+            onMessagesRead(1);
+          }
+        }
+      }
+    });
+
+    return () => unsubscribe();
   }, [conversationId, currentUser?.id, onMessagesRead]);
 
   useEffect(() => {
