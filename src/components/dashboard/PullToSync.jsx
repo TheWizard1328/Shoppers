@@ -78,7 +78,7 @@ export default function PullToSync({
   const performSync = async (silent = false) => {
     setIsSyncing(true);
     setShowOverlay(!silent);
-    console.log(`🔄 [Pull to Sync] Starting ${silent ? 'silent' : 'full'} offline database sync...`);
+    console.log(`🔄 [Pull to Sync] Starting ${silent ? 'silent' : 'full'} targeted refresh...`);
 
     try {
       // CRITICAL: Pause all background managers to prevent data overwrites
@@ -98,67 +98,56 @@ export default function PullToSync({
       if (window.backgroundSyncManager?.pause) {
         window.backgroundSyncManager.pause();
       }
+
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      // Get city's store IDs for filtering
-      const cityStores = await base44.entities.Store.filter({ city_id: selectedCityId });
-      const cityStoreIds = cityStores.map(s => s.id);
-      
-      console.log(`📅 [Pull to Sync] Syncing for date: ${selectedDateStr}, city: ${selectedCityId}`);
-      console.log(`🏪 [Pull to Sync] City has ${cityStoreIds.length} stores`);
+      console.log(`🎯 [Pull to Sync] Targeted refresh: date=${selectedDateStr}, city=${selectedCityId}`);
 
-      // STEP 1: Purge deliveries for selected date/city from offline DB
-      console.log('🗑️ [Pull to Sync] Purging deliveries for selected date...');
+      // CRITICAL: Use backend function for clean, rate-limit-free data fetch
+      const { performTargetedRefresh } = await import('@/functions/performTargetedRefresh');
+      const response = await performTargetedRefresh({
+        cityId: selectedCityId,
+        deliveryDate: selectedDateStr
+      });
+
+      const { data } = response;
+      if (!data) {
+        throw new Error('No data returned from targeted refresh');
+      }
+
+      const { deliveries: freshDeliveries, patients: freshPatients, appUsers: freshAppUsers, stores: freshStores } = data;
+      
+      console.log(`✅ [Pull to Sync] Received: ${freshDeliveries?.length || 0} deliveries, ${freshPatients?.length || 0} patients, ${freshAppUsers?.length || 0} drivers, ${freshStores?.length || 0} stores`);
+
+      // STEP 1: Clear and save deliveries
+      console.log('💾 [Pull to Sync] Clearing deliveries for selected date...');
       const deleteResult = await offlineDB.deleteDeliveriesByDate(selectedDateStr);
-      console.log(`✅ [Pull to Sync] Deleted ${deleteResult?.deletedCount || 0} deliveries from offline DB`);
+      console.log(`✅ [Pull to Sync] Deleted ${deleteResult?.deletedCount || 0} old deliveries`);
 
-      // STEP 2: Fetch fresh deliveries for ALL drivers in selected city/date
-      console.log('📥 [Pull to Sync] Fetching fresh deliveries from backend...');
-      const freshDeliveries = cityStoreIds.length > 0 
-        ? await base44.entities.Delivery.filter({ 
-            delivery_date: selectedDateStr,
-            store_id: { $in: cityStoreIds }
-          })
-        : await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-      
-      console.log(`✅ [Pull to Sync] Fetched ${freshDeliveries.length} deliveries`);
-
-      // STEP 3: Save deliveries to offline DB in one shot
-      if (freshDeliveries.length > 0) {
+      if (freshDeliveries && freshDeliveries.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
         console.log(`✅ [Pull to Sync] Saved ${freshDeliveries.length} deliveries to offline DB`);
       }
 
-      // STEP 4: Get unique patient IDs and fetch related patients
-      const uniquePatientIds = [...new Set(
-        freshDeliveries
-          .filter(d => d?.patient_id)
-          .map(d => d.patient_id)
-      )];
-      
-      let freshPatients = [];
-      if (uniquePatientIds.length > 0) {
-        console.log(`📥 [Pull to Sync] Fetching ${uniquePatientIds.length} patients...`);
-        freshPatients = await base44.entities.Patient.filter({ 
-          id: { $in: uniquePatientIds } 
-        });
-        
+      // STEP 2: Save patients
+      if (freshPatients && freshPatients.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
         console.log(`✅ [Pull to Sync] Saved ${freshPatients.length} patients to offline DB`);
       }
 
-      // STEP 5: Clear ALL AppUsers from offline DB
-      console.log('🗑️ [Pull to Sync] Clearing all AppUsers from offline DB...');
+      // STEP 3: Clear and save AppUsers
+      console.log('🗑️ [Pull to Sync] Clearing all AppUsers...');
       await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
-      console.log('✅ [Pull to Sync] Cleared AppUsers from offline DB');
-
-      // STEP 6: Fetch ALL AppUsers and save in one shot
-      console.log('📥 [Pull to Sync] Fetching ALL AppUsers from backend...');
-      const freshAppUsers = await base44.entities.AppUser.list();
       
-      if (freshAppUsers.length > 0) {
+      if (freshAppUsers && freshAppUsers.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
         console.log(`✅ [Pull to Sync] Saved ${freshAppUsers.length} AppUsers to offline DB`);
+      }
+
+      // STEP 4: Save stores
+      if (freshStores && freshStores.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.STORES, freshStores);
+        console.log(`✅ [Pull to Sync] Saved ${freshStores.length} stores to offline DB`);
       }
 
       // STEP 6.5: Update current driver's location from primary tracking device
