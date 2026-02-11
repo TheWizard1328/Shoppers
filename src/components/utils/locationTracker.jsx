@@ -293,13 +293,33 @@ class LocationTracker {
         console.error('❌ [LocationTracker] FAILED TO SYNC to offline DB:', offlineError.message);
       }
 
-      // Step 4: Broadcast update and trigger UI refresh
-      broadcastMutation('AppUser', 'update', this.appUserId, updatedAppUser);
+      // Step 4: Broadcast update with the ACTUAL update payload (not API response)
+      // CRITICAL: Use the data we sent, not the response - ensures other devices get fresh coordinates
+      const broadcastData = {
+        id: this.appUserId,
+        user_id: this.currentUser.id,
+        user_name: userName,
+        current_latitude: latitude,
+        current_longitude: longitude,
+        location_updated_at: nowISO,
+        driver_status: this.driverStatus,
+        ...updatedAppUser // Merge with API response for other fields
+      };
+      
+      console.log(`📡 [LocationTracker] Broadcasting location update for ${userName}:`, {
+        lat: latitude.toFixed(6),
+        lon: longitude.toFixed(6),
+        timestamp: nowISO,
+        broadcastingTo: 'ALL devices via WebSocket'
+      });
+      
+      await broadcastMutation('AppUser', 'update', this.appUserId, broadcastData);
 
       // Dispatch event with ALL fresh driver locations
       if (typeof window !== 'undefined') {
+        console.log(`📡 [LocationTracker] Dispatching driverLocationsUpdated with ${allAppUsers.length} drivers`);
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: allAppUsers }
+          detail: { appUsers: allAppUsers, fromLocationTracker: true }
         }));
       }
 
