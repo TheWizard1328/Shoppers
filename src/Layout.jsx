@@ -200,100 +200,25 @@ const QuickStats = ({ currentUser, storeIds = [], isMobile, screenWidth }) => {
     return () => unsubscribe();
   }, [selectedDateStr, selectedDriverId]);
 
-  // Fetch stats - only when filters change or on delivery events
-  // CRITICAL: Use longer cache duration and avoid fetching on every driver change
+  // REMOVED: Backend stats polling - now handled by real-time subscriptions only
   useEffect(() => {
     if (!currentUser) return;
 
-    const fetchStats = async (force = false) => {
-      // CRITICAL: Allow re-fetch on driver/date changes, but with minimal cache (5 seconds)
-      const now = Date.now();
-      if (!force &&
-      lastFetchRef.current.date === selectedDateStr &&
-      lastFetchRef.current.driver === selectedDriverId &&
-      now - lastFetchRef.current.timestamp < 5000) {
-        return;
-      }
-
-      try {
-        setHasError(false);
-        if (!stats) setIsLoading(true); // Only show loading on first load
-
-        const driverId = selectedDriverId === 'all' ? null : selectedDriverId;
-
-        let filteredStoreIds = [];
-        if (userHasRole(currentUser, 'admin')) {
-          filteredStoreIds = storeIds;
-        } else if (userHasRole(currentUser, 'dispatcher')) {
-          filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
-        } else if (userHasRole(currentUser, 'driver')) {
-          filteredStoreIds = storeIds;
-        }
-
-        const response = await base44.functions.invoke('getDeliveryStats', {
-          selectedDate: selectedDateStr,
-          driverId: driverId,
-          storeIds: filteredStoreIds.length > 0 ? filteredStoreIds : null
-        }).catch(error => {
-          // Silently catch 401 errors - likely auth hasn't stabilized yet
-          if (error?.response?.status === 401) {
-            console.warn('QuickStats auth not ready, will retry on next cycle');
-            return null;
-          }
-          throw error;
-        });
-
-        if (!response) {
-          // Auth not ready yet - skip this fetch
-          return;
-        }
-        
-        const data = response?.data || response;
-        if (data && data.today) {
-          setStats(data);
-          lastFetchRef.current = { date: selectedDateStr, driver: selectedDriverId, timestamp: now };
-
-          // CRITICAL: Dispatch events to pass stats to Dashboard
-          if (data.performanceStats) {
-            window.dispatchEvent(new CustomEvent('performanceStatsUpdated', {
-              detail: data.performanceStats
-            }));
-          }
-
-          // Dispatch delivery stats (today's counts)
-          window.dispatchEvent(new CustomEvent('deliveryStatsUpdated', {
-            detail: data
-          }));
-        } else {
-          setHasError(true);
-        }
-      } catch (error) {
-        if (error.response?.status !== 500) {
-          console.warn('Stats fetch error:', error.message);
-        }
-        setHasError(true);
-      } finally {
-        setIsLoading(false);
-      }
+    // Listen for delivery changes to clear cache
+    const handleDeliveryChange = () => {
+      lastFetchRef.current = { date: null, driver: null, timestamp: 0 };
     };
-
-    // Initial fetch - delay to let offline data load first
-    const timer = setTimeout(() => fetchStats(), 5000);
-
-    // Listen for delivery changes (imports, status changes, etc.)
-    const handleDeliveryChange = () => fetchStats(true);
+    
     window.addEventListener('refreshDeliveryStats', handleDeliveryChange);
     window.addEventListener('deliveriesImported', handleDeliveryChange);
     window.addEventListener('offlineSyncComplete', handleDeliveryChange);
 
     return () => {
-      clearTimeout(timer);
       window.removeEventListener('refreshDeliveryStats', handleDeliveryChange);
       window.removeEventListener('deliveriesImported', handleDeliveryChange);
       window.removeEventListener('offlineSyncComplete', handleDeliveryChange);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, selectedDateStr, selectedDriverId]); // Removed storeIds to reduce re-fetches
+  }, [currentUser, selectedDateStr, selectedDriverId]);
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
   <div className="flex items-center justify-between text-sm">
@@ -1484,75 +1409,15 @@ export default function Layout({ children, currentPageName }) {
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
-    // CRITICAL: Listen for driver location updates and refresh ALL UI data from offline DB
+    // CRITICAL: Listen for driver location updates
     const handleDriverLocationUpdated = async (event) => {
-      // CRITICAL: Skip location processing if not on Dashboard or viewing past date
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const selectedDateStr = globalFilters.getSelectedDate() || todayStr;
       
       if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) {
-        console.log(`⏭️ [Layout] Skipping driver location update - not on Dashboard today (page: ${currentPageName}, date: ${selectedDateStr})`);
         return;
       }
-
-      console.log('📍 [Layout] Driver location updated - refreshing data from offline DB');
-      
-      // Load fresh data from offline DB (instant, no API calls)
-      try {
-        const { offlineDB } = await import('./components/utils/offlineDatabase');
-        const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
-        
-        // CRITICAL: Always update state with latest data, even if form is open
-        // This ensures location tracking continues and data stays fresh
-        
-        // Load deliveries for selected date from offline DB
-        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        if (freshDeliveries && freshDeliveries.length > 0) {
-          setDeliveries(freshDeliveries);
-        }
-        
-        // Load patients from offline DB
-        const freshPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-        if (freshPatients && freshPatients.length > 0) {
-          setPatients(freshPatients);
-        }
-        
-        // Load AppUsers from offline DB
-        const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        if (freshAppUsers && freshAppUsers.length > 0) {
-          setAppUsers(freshAppUsers);
-          
-          // Update merged users
-          setUsers(prev => {
-            const mergedMap = new Map();
-            prev.forEach(u => mergedMap.set(u.id, u));
-            freshAppUsers.forEach(au => {
-              const existing = mergedMap.get(au.user_id);
-              if (existing) {
-                mergedMap.set(au.user_id, { ...existing, ...au });
-              } else {
-                const pseudoUser = createMergedUser(null, au);
-                if (pseudoUser) mergedMap.set(pseudoUser.id, pseudoUser);
-              }
-            });
-            return Array.from(mergedMap.values());
-          });
-        }
-        
-        // CRITICAL: Skip Dashboard UI refresh events if form is open
-        // UI will refresh when form closes
-        if (isFormOverlayOpen) {
-          console.log('⏸️ [Layout] Form open - data updated but skipping Dashboard UI events');
-          return;
-        }
-        
-        // Refresh Dashboard UI with stats update
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        
-        console.log('✅ [Layout] UI data refreshed from offline DB');
-      } catch (error) {
-        console.error('❌ [Layout] Failed to refresh from offline DB:', error);
-      }
+      // Skip data refresh on every location update to avoid rate limits
     };
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
 
@@ -2560,57 +2425,18 @@ export default function Layout({ children, currentPageName }) {
   const [routeCounts, setRouteCounts] = useState({ monthly: '...', yearly: '...' });
   const [entityCounts, setEntityCounts] = useState({ patients: '...', cities: '...', stores: '...', users: '...' });
 
+  // REMOVED: Backend stats polling for sidebar - now using local data only
   useEffect(() => {
     if (!currentUser || !dataLoaded) return;
-
-    const fetchStats = async () => {
-      try {
-        let filteredStoreIds = [];
-
-        if (userHasRole(currentUser, 'admin')) {
-          filteredStoreIds = stores.map((s) => s?.id).filter(Boolean);
-        } else if (userHasRole(currentUser, 'dispatcher')) {
-          filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
-        } else if (userHasRole(currentUser, 'driver')) {
-          const driverStoreIds = new Set(
-            deliveries.
-            filter((d) => d && d.driver_id === currentUser.id).
-            map((d) => d.store_id).
-            filter(Boolean)
-          );
-          filteredStoreIds = Array.from(driverStoreIds);
-        }
-
-        const response = await base44.functions.invoke('getDeliveryStats', {
-          selectedDate: globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd'),
-          driverId: userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') ? currentUser.id : null,
-          storeIds: filteredStoreIds.length > 0 ? filteredStoreIds : null
-        });
-
-        const data = response?.data || response;
-
-        if (data?.deliveries && data?.drivers) {
-          setRouteCounts({
-            monthly: data.deliveries.monthly,
-            yearly: data.deliveries.yearly
-          });
-        }
-        if (data?.entityCounts) {
-          setEntityCounts(data.entityCounts);
-        }
-      } catch (error) {}
-    };
-
-    // Delay stats fetch to 5 seconds after data loaded
-    const timer = setTimeout(fetchStats, 5000);
-    // Poll every 5 minutes
-    const interval = setInterval(fetchStats, 300000);
-
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
-  }, [currentUser, dataLoaded]);
+    
+    // Calculate entity counts locally
+    setEntityCounts({
+      patients: patients.length,
+      cities: cities.length,
+      stores: stores.length,
+      users: users.length
+    });
+  }, [currentUser, dataLoaded, patients.length, cities.length, stores.length, users.length]);
 
   const statsCardPositioning = useMemo(() => {
     const ratio = screenWidth / cardWidth;
