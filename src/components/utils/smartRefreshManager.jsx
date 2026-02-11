@@ -2087,7 +2087,7 @@ class SmartRefreshManager {
     const isViewingTodayDate = activeDateStr === todayStr;
 
     // CRITICAL: Check global Show All state
-    const { showAllDataManager } = await import('./showAllDataManager.js');
+    const { showAllDataManager } = await import('./showAllDataManager');
     const isShowAllMode = showAllDataManager.getShowAllState();
     const isAllDriversMode = selectedDriverId === 'all';
     const isIndividualDriverMode = !isShowAllMode && !isAllDriversMode && selectedDriverId && selectedDriverId !== 'all';
