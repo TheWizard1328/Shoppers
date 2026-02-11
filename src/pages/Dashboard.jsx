@@ -2342,7 +2342,12 @@ function Dashboard() {
   // CRITICAL: Listen for real-time AppUser location updates from other drivers
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
-      const { appUsers: updatedAppUsers, singleUpdate, fromRealtime, forceAll } = event.detail || {};
+      const { appUsers: updatedAppUsers, singleUpdate, fromRealtime, forceAll, fromPoller } = event.detail || {};
+      
+      // CRITICAL: Skip if this event came from the poller itself (prevent infinite loop)
+      if (fromPoller === true) {
+        return;
+      }
       
       if (!updatedAppUsers || !Array.isArray(updatedAppUsers)) return;
       
