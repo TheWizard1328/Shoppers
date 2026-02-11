@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { MapPinOff, AlertCircle, Activity, RefreshCw, Satellite, Eye, EyeOff } from "lucide-react";
 import { locationTracker } from "../utils/locationTracker";
 import { base44 } from "@/api/base44Client";
-import { userHasRole } from "../utils/userRoles";
+import { userHasRole, isAppOwner } from "../utils/userRoles";
 import { isMobileDevice as checkIsMobileDevice } from "../utils/deviceUtils";
 
 export default function LocationTrackingToggle({ user, onUserUpdate, onLocationStatusChange }) {
@@ -40,7 +40,6 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const isDriver = useMemo(() => user ? userHasRole(user, 'driver') : false, [user]);
   const isAdmin = useMemo(() => user ? userHasRole(user, 'admin') : false, [user]);
   const isOwner = useMemo(() => {
-    const { isAppOwner } = require('../utils/userRoles');
     return user ? isAppOwner(user) : false;
   }, [user]);
 
