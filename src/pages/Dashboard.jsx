@@ -515,31 +515,24 @@ function Dashboard() {
             updateDeliveriesLocally([event.data], false);
           }
           
-          // CRITICAL: If this is a non-primary device AND delivery has isNextDelivery=true, auto-center and collapse
-          if (isNonPrimaryDevice && event.data.isNextDelivery === true) {
-            console.log(`📍 [Non-Primary Device] isNextDelivery detected - collapsing cards and auto-centering`);
-            
-            // Collapse all cards
+          // CRITICAL: After UI update, check if any delivery now has isNextDelivery=true and auto-center
+          setTimeout(() => {
+            // Collapse all expanded cards
             setSelectedCardId(null);
             setHighlightedCardId(null);
             cardExpandedAtRef.current = null;
             window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
             
-            // Auto-center to next delivery card
-            setTimeout(() => {
-              const cardElement = document.getElementById(`stop-card-${event.data.id}`);
+            // Find and center the next delivery card
+            const nextDeliveryCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+            if (nextDeliveryCard) {
+              const cardElement = document.getElementById(`stop-card-${nextDeliveryCard.id}`);
               if (cardElement) {
                 cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                console.log(`✅ [Non-Primary Device] Auto-centered to next delivery card: ${event.data.patient_name}`);
+                console.log(`✅ [Real-time Broadcast] Auto-centered to next delivery card: ${nextDeliveryCard.patient_name}`);
               }
-            }, 300);
-          }
-          
-          // CRITICAL: If this is another driver's update, dispatch collapseAllStopCards
-          if (isOtherDriver && ['completed', 'failed', 'cancelled'].includes(event.data.status)) {
-            console.log(`🗜️ [Real-time] Other driver completed stop - collapsing all cards`);
-            window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
-          }
+            }
+          }, 400);
           
           // Trigger map update
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
