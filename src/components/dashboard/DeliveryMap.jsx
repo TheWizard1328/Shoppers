@@ -834,15 +834,28 @@ export default function DeliveryMap({
     
     // CRITICAL: Also refresh markers when deliveries are updated via smart refresh or Pull to Sync
     const handleDeliveriesUpdatedForMarkers = async (event) => {
-      const { triggeredBy, allDrivers } = event.detail || {};
+      const { triggeredBy, allDrivers, source } = event.detail || {};
       
-      // Only refresh if this update affects all drivers (smart refresh, Pull to Sync, etc.)
-      if (!allDrivers && triggeredBy !== 'pullToSyncComplete' && triggeredBy !== 'periodicRefresh' && triggeredBy !== 'manualRefresh') {
+      // CRITICAL: Accept 'deliveriesImported' from real-time sync to update placeholder markers
+      const isAllDriversUpdate = allDrivers || 
+                                  triggeredBy === 'pullToSyncComplete' || 
+                                  triggeredBy === 'periodicRefresh' || 
+                                  triggeredBy === 'manualRefresh' ||
+                                  source === 'realtime_sync' ||
+                                  source === 'route_importer';
+      
+      // Only refresh if this update affects all drivers
+      if (!isAllDriversUpdate) {
         return;
       }
       
       // Only refresh if showing other drivers
-      if (!showOtherDriverDeliveries || selectedDriverId === 'all' || !selectedDate) {
+      if (!showOtherDriverDeliveries && selectedDriverId !== 'all') {
+        return;
+      }
+      
+      // Skip if no date selected
+      if (!selectedDate) {
         return;
       }
       
