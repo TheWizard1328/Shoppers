@@ -2873,26 +2873,25 @@ export default function DeliveryMap({
         })()}
 
         {/* TYPE 1 POLYLINE: Blue dotted line from driver location to next stop - RENDER WITH POLYLINES & SHARED MARKERS */}
-        {isViewingCurrentDate && (() => {
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          const polylines = [];
-          
-          // CRITICAL: Get all unique driver IDs that have incomplete stops from MERGED markers
-          const driversWithIncompleteStops = new Set();
-          [...deliveryMarkers, ...pickupMarkers].forEach(m => {
-            if (!m || !m.driver_id) return;
-            if (finishedStatuses.includes(m.status) || m.status === 'pending') return;
-            driversWithIncompleteStops.add(m.driver_id);
-          });
-          
-          driversWithIncompleteStops.forEach(driverId => {
-            // CRITICAL: Skip drivers who are off_duty or on_break
-            const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
-            if (!driverAppUser || driverAppUser.driver_status !== 'on_duty') return;
+         {isViewingCurrentDate && (() => {
+           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+           const polylines = [];
 
-            // CRITICAL: Only draw Type 1 polylines if driver has shared location marker
-            const sharedMarker = driverLocationMarkers.find(m => m && m.driver_id === driverId);
-            if (!sharedMarker) return;
+           // CRITICAL: Get all unique driver IDs that have incomplete stops from MERGED markers
+           const driversWithIncompleteStops = new Set();
+           [...deliveryMarkers, ...pickupMarkers].forEach(m => {
+             if (!m || !m.driver_id) return;
+             if (finishedStatuses.includes(m.status) || m.status === 'pending') return;
+             driversWithIncompleteStops.add(m.driver_id);
+           });
+
+           driversWithIncompleteStops.forEach(driverId => {
+             // CRITICAL: Skip drivers who are off_duty or on_break
+             const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
+             if (!driverAppUser || driverAppUser.driver_status !== 'on_duty') return;
+
+             // CRITICAL: Type 1 polylines DON'T require shared marker to exist first
+             // Just need driver AppUser data with current location
             
             // Get next stop for this driver
             let nextStop = deliveryMarkers.find(d => 
