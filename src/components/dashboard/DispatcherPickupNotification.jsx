@@ -114,10 +114,10 @@ export default function DispatcherPickupNotification({
                       <span className="font-medium">ETA: {activeNotification.eta}</span>
                     </div>
                     
-                    {activeNotification.travelTime && (
+                    {activeNotification.minutesRemaining && (
                       <div className="flex items-center gap-1.5">
                         <Navigation className="w-4 h-4" />
-                        <span className="font-medium">{activeNotification.travelTime}</span>
+                        <span className="font-medium">{activeNotification.minutesRemaining} remaining</span>
                       </div>
                     )}
                   </div>
