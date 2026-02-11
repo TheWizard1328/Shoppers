@@ -19,7 +19,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const [hasError, setHasError] = useState(false);
   const [gpsCapabilities, setGpsCapabilities] = useState(null);
   const autoStartedRef = useRef(false);
-  const consecutiveErrorsRef = useRef(0);
+  const consecutiveErrorsRef = useRef(false);
   // CRITICAL: Track toggle state independently to prevent reversion during data refresh
   // Use a key in sessionStorage to persist user's choice across component remounts
   const [isLocationSharingEnabled, setIsLocationSharingEnabled] = useState(() => {
@@ -39,6 +39,10 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const isMobile = useMemo(() => checkIsMobileDevice(), []);
   const isDriver = useMemo(() => user ? userHasRole(user, 'driver') : false, [user]);
   const isAdmin = useMemo(() => user ? userHasRole(user, 'admin') : false, [user]);
+  const isOwner = useMemo(() => {
+    const { isAppOwner } = require('../utils/userRoles');
+    return user ? isAppOwner(user) : false;
+  }, [user]);
 
   // Always sync localUser with user prop - but respect sessionStorage for toggle state
   useEffect(() => {
@@ -71,14 +75,16 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     return () => window.removeEventListener('locationSharingDisabled', handleSharingDisabled);
   }, []);
 
-  // CRITICAL: Always start tracking on mobile devices for drivers/admins
+  // CRITICAL: Always start tracking on mobile devices for drivers/admins/owner
   useEffect(() => {
-    if (!isMobile || (!isDriver && !isAdmin) || !localUser?.id) return;
+    if (!localUser?.id) return;
+    if (!isMobile && !isOwner) return;
+    if (!isDriver && !isAdmin && !isOwner) return;
 
     const autoStartTracking = async () => {
       // Always auto-start tracking if not already running
       if (!locationTracker.isTracking && !autoStartedRef.current) {
-        console.log('🚀 [LocationSharing] Auto-starting location tracking (always on for mobile drivers)');
+        console.log('🚀 [LocationSharing] Auto-starting location tracking (always on for primary device)');
         autoStartedRef.current = true;
 
         try {
@@ -93,11 +99,11 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     };
 
     autoStartTracking();
-  }, [localUser?.id, isMobile, isDriver, isAdmin]);
+  }, [localUser?.id, isMobile, isDriver, isAdmin, isOwner]);
 
   // Update tracking status and countdown periodically
   useEffect(() => {
-    if (!isMobile || (!isDriver && !isAdmin)) return;
+    if (!isOwner && (!isMobile || (!isDriver && !isAdmin))) return;
 
     const updateStatus = () => {
       const status = locationTracker.getStatus();
@@ -132,18 +138,18 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     const interval = setInterval(updateStatus, 1000);
 
     return () => clearInterval(interval);
-  }, [isMobile, isDriver, isAdmin, isLocationSharingEnabled]);
+  }, [isMobile, isDriver, isAdmin, isOwner, isLocationSharingEnabled]);
 
   // Check GPS capabilities
   useEffect(() => {
-    if (!isMobile || (!isDriver && !isAdmin)) return;
+    if (!isOwner && (!isMobile || (!isDriver && !isAdmin))) return;
 
     if (typeof locationTracker.checkGPSCapabilities === 'function') {
       locationTracker.checkGPSCapabilities().then((capabilities) => {
         setGpsCapabilities(capabilities);
       });
     }
-  }, [isMobile, isDriver, isAdmin]);
+  }, [isMobile, isDriver, isAdmin, isOwner]);
 
   // Determine location status and notify parent
   useEffect(() => {
@@ -363,7 +369,8 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   };
 
   // Conditional return AFTER all hooks
-  if (!isMobile || (!isDriver && !isAdmin)) {
+  // CRITICAL: Always show for app owner (regardless of device type or role)
+  if (!isOwner && (!isMobile || (!isDriver && !isAdmin))) {
     return null;
   }
 
