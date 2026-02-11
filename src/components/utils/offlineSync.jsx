@@ -283,12 +283,11 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     // STEP 2: Fetch and sync Deliveries for active date with deduplication
     // CRITICAL: If in Show All or All Drivers mode, fetch ALL drivers' deliveries for the date
     let deliveryFilter = {};
-    let selectedDriverId = null; // CRITICAL: Declare variable before use
     
     if (!fetchAllDriversDeliveries) {
       // Individual driver mode - filter by driver if provided
       const { globalFilters } = await import('./globalFilters');
-      selectedDriverId = globalFilters?.getSelectedDriverId?.();
+      const selectedDriverId = globalFilters?.getSelectedDriverId?.();
       if (selectedDriverId && selectedDriverId !== 'all') {
         deliveryFilter.driver_id = selectedDriverId;
         console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching deliveries for driver ${selectedDriverId} only (deduplicated)`);
