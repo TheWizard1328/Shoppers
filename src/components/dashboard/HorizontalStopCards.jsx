@@ -130,16 +130,22 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
     
     const handleSmartRefreshComplete = () => {
-      // RULE 2: On every refresh, if no cards expanded AND next card not centered, then center it
-      if (!selectedCardId && !isNextDeliveryCardCentered()) {
-        console.log('🎯 [Auto-Center Rule 2] Smart refresh - centering next delivery card (not centered)');
-        const nextCard = validCards.find((card) => card?.isNextDelivery === true);
-        if (nextCard) {
-          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-          if (cardElement) {
-            scrollToCenterCard(cardElement);
-          }
+      // RULE 2: Collapse all cards, then center next delivery if not centered
+      if (!isNextDeliveryCardCentered()) {
+        console.log('🎯 [Auto-Center Rule 2] Smart refresh - collapsing all and centering next');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
         }
+        
+        setTimeout(() => {
+          const nextCard = validCards.find((card) => card?.isNextDelivery === true);
+          if (nextCard) {
+            const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+            if (cardElement) {
+              scrollToCenterCard(cardElement);
+            }
+          }
+        }, 100);
       }
     };
     
