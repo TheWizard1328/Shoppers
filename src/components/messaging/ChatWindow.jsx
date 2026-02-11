@@ -31,10 +31,11 @@ export default function ChatWindow({
       try {
         const allMessages = await base44.entities.Message.filter(
           { conversation_id: conversationId },
-          'created_date'
+          '-created_date'
         );
         console.log('📨 [ChatWindow] Fetched messages:', allMessages.length, 'for conversation:', conversationId);
-        setMessages(allMessages || []);
+        // Reverse to show oldest first in thread, newest at bottom
+        setMessages((allMessages || []).reverse());
 
         // Mark unread messages as read (in parallel for speed)
         const unreadMessages = allMessages.filter(
