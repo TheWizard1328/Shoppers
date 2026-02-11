@@ -337,7 +337,8 @@ class DriverLocationPoller {
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
         detail: { 
           appUsers: activeDriversWithLocation,
-          forceAll: forceNotify
+          forceAll: forceNotify,
+          fromPoller: true // CRITICAL: Flag to prevent infinite recursion
         }
       }));
     }
