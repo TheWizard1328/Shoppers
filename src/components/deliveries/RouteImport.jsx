@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -2088,8 +2087,8 @@ export default function RouteImport({
           const deliveriesForDate = deliveriesByDate.get(date);
 
           try {
-            console.log(`📦 [RouteImport] Date ${dateIndex + 1}/${sortedDates.length} (${date}): Creating ${deliveriesForDate.length} deliveries`);
-            setProgressMessage(`Creating deliveries for ${date} (${dateIndex + 1}/${sortedDates.length})...`);
+            console.log(`📦 [RouteImport] Date ${dateIndex + 1}/${sortedCreateDates.length} (${date}): Creating ${deliveriesForDate.length} deliveries`);
+            setProgressMessage(`Creating deliveries for ${date} (${dateIndex + 1}/${sortedCreateDates.length})...`);
 
             const createdDeliveries = await retryWithBackoff(async () => {
               return await base44.entities.Delivery.bulkCreate(deliveriesForDate);
@@ -2098,6 +2097,16 @@ export default function RouteImport({
             console.log(`✅ [RouteImport] Date ${date}: ${createdDeliveries.length} deliveries created`);
 
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
+
+            // CRITICAL: Broadcast immediately to all devices after each batch
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('deliveriesImported', {
+                detail: {
+                  deliveries: createdDeliveries,
+                  source: 'route_import'
+                }
+              }));
+            }, 0);
 
             createdDeliveries.forEach((createdDelivery) => {
               overallResults.created++;
