@@ -174,6 +174,7 @@ export const useAppData = () => {
       isDataLoaded: false,
       refreshData: () => {},
       updateDeliveriesLocally: () => {},
+      updateAppUsersLocally: () => {},
       forceRefreshDriverDeliveries: async () => {},
       isFormOverlayOpen: false,
       setIsFormOverlayOpen: () => {},

@@ -252,6 +252,7 @@ function Dashboard() {
     isDataLoaded,
     refreshData,
     updateDeliveriesLocally,
+    updateAppUsersLocally,
     forceRefreshDriverDeliveries,
     setIsFormOverlayOpen,
     setIsEntityUpdating,
@@ -2336,6 +2337,33 @@ function Dashboard() {
     return () => clearInterval(interval);
   }, [isDataLoaded, currentUser?.id, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, deliveries, patients, stores, cities, appUsers, drivers]);
 
+  // CRITICAL: Listen for real-time AppUser location updates from other drivers
+  useEffect(() => {
+    const handleDriverLocationUpdate = (event) => {
+      const { appUsers: updatedAppUsers, singleUpdate, fromRealtime, forceAll } = event.detail || {};
+      
+      if (!updatedAppUsers || !Array.isArray(updatedAppUsers)) return;
+      
+      console.log(`📡 [Dashboard] Real-time location update - ${updatedAppUsers.length} drivers, fromRealtime: ${fromRealtime}, forceAll: ${forceAll}`);
+      
+      // CRITICAL: Process through poller to update markers
+      driverLocationPoller.processLocationData(
+        currentUser,
+        deliveries,
+        drivers,
+        stores,
+        updatedAppUsers,
+        selectedDate,
+        true, // forceNotify
+        'Dashboard',
+        showAllDriverMarkers
+      );
+    };
+    
+    window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
+    return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
+  }, [currentUser, deliveries, drivers, stores, selectedDate, showAllDriverMarkers]);
+
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   // CRITICAL: Initialize poller once on mount
   useEffect(() => {
@@ -2365,7 +2393,7 @@ function Dashboard() {
       }) :
       locations;
 
-      // Setting filtered driver locations
+      console.log(`📍 [Dashboard] Poller updated allDriverLocations with ${filteredLocations.length} drivers`);
 
       setAllDriverLocations(filteredLocations);
     });
