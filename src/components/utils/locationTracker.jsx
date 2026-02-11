@@ -70,7 +70,7 @@ class LocationTracker {
   }
 
   /**
-   * Set driver duty status - tracked for reference but doesn't control location updates
+   * Set driver duty status - track for immediate GPS upload on status change
    */
   setDriverStatus(status) {
     const previousStatus = this.driverStatus;
@@ -78,12 +78,36 @@ class LocationTracker {
     
     console.log(`📍 [LocationTracker] Driver status changed: ${previousStatus} → ${status}`);
     
+    // EVENT-DRIVEN: Mark for immediate update on next poll
+    this._pendingEventUpdate = true;
+    this._eventUpdateTime = Date.now();
+    
     // CRITICAL: Update liveDistanceTracker's driver status too
     if (liveDistanceTracker.isTracking) {
       liveDistanceTracker.updateDriverStatus(status);
     }
     
     return status === 'on_duty' || status === 'on_break';
+  }
+
+  /**
+   * Signal that a stop event occurred (completion, failure, cancellation)
+   * Triggers immediate GPS upload on next poll
+   */
+  signalStopEvent(eventType = 'completion') {
+    console.log(`🎯 [LocationTracker] Stop event: ${eventType} - marking for GPS upload`);
+    this._pendingEventUpdate = true;
+    this._eventUpdateTime = Date.now();
+  }
+
+  /**
+   * Signal that location sharing was toggled
+   * Triggers immediate GPS upload on next poll
+   */
+  signalLocationSharingToggle(enabled) {
+    console.log(`📍 [LocationTracker] Location sharing toggled: ${enabled ? 'ON' : 'OFF'} - marking for GPS upload`);
+    this._pendingEventUpdate = true;
+    this._eventUpdateTime = Date.now();
   }
 
   /**
