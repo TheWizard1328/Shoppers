@@ -56,12 +56,15 @@ export default function DispatcherPickupNotification({
 
     if (!store || !driver) return;
 
-    // Calculate travel time (simple approximation based on distance if available)
-    let travelTime = null;
-    if (pickup.travel_dist && pickup.travel_dist > 0) {
-      // Assume 40 km/h average speed
-      const travelMinutes = Math.round((pickup.travel_dist / 40) * 60);
-      travelTime = `${travelMinutes} min`;
+    // Calculate total minutes remaining until arrival (ETA)
+    let minutesRemaining = null;
+    if (pickup.delivery_time_eta) {
+      const now = new Date();
+      const [etaHours, etaMinutes] = pickup.delivery_time_eta.split(':').map(Number);
+      const etaTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), etaHours, etaMinutes);
+      const diffMs = etaTime - now;
+      const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+      minutesRemaining = `${diffMinutes} min`;
     }
 
     setActiveNotification({
