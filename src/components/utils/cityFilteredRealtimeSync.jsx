@@ -118,7 +118,13 @@ class CityFilteredRealtimeSync {
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [event.data]);
           console.log(`✅ [Realtime AppUser] Saved ${event.data.user_name} to offline DB - coords: ${coords}`);
           
-          // Notify subscribers
+          // CRITICAL: Broadcast location update to all subscribers in this city
+          // Includes current latitude/longitude and location_updated_at timestamp
+          if (event.data.location_tracking_enabled && event.data.current_latitude && event.data.current_longitude) {
+            console.log(`📢 [Realtime AppUser] LOCATION BROADCAST - ${event.data.user_name} at ${coords} (${event.data.location_updated_at})`);
+          }
+          
+          // Notify all subscribers (UI will render location data)
           console.log(`📢 [Realtime AppUser] Notifying ${this.updateCallbacks.size} subscribers about ${event.data.user_name}`);
           this.notifySubscribers('AppUser', event.type, event.data);
           this.lastAppUserUpdate = Date.now();
@@ -136,7 +142,50 @@ class CityFilteredRealtimeSync {
       }
     });
 
-    console.log('✅ [RealtimeSync] Subscriptions active');
+    // Subscribe to Patient changes for stores in the selected city
+    this.patientUnsubscribe = base44.entities.Patient.subscribe(async (event) => {
+      console.log(`📡 [Realtime Patient] ${event.type} for ${event.data?.full_name || event.id}`);
+
+      // Filter patients by store city
+      if (event.type !== 'delete' && event.data?.store_id) {
+        try {
+          // Verify the patient's store is in the selected city
+          const store = await offlineDB.getById(offlineDB.STORES.STORES, event.data.store_id);
+          
+          if (!store || store.city_id !== cityId) {
+            console.log(`⏭️ [Realtime Patient] Skipping - patient store in different city`);
+            return;
+          }
+        } catch (error) {
+          console.warn('⚠️ [Realtime Patient] Failed to check store city:', error);
+        }
+      }
+
+      // Process the event
+      try {
+        if (event.type === 'create' || event.type === 'update') {
+          // Save to offline DB
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [event.data]);
+          console.log(`✅ [Realtime Patient] Saved ${event.data.full_name} to offline DB`);
+          
+          // Broadcast to all city subscribers
+          this.notifySubscribers('Patient', event.type, event.data);
+          this.lastPatientUpdate = Date.now();
+        } else if (event.type === 'delete') {
+          // Remove from offline DB
+          await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, event.id);
+          console.log(`✅ [Realtime Patient] Deleted from offline DB: ${event.id}`);
+          
+          // Broadcast deletion
+          this.notifySubscribers('Patient', event.type, { id: event.id });
+          this.lastPatientUpdate = Date.now();
+        }
+      } catch (error) {
+        console.error('❌ [Realtime Patient] Error processing event:', error);
+      }
+    });
+
+    console.log('✅ [RealtimeSync] Subscriptions active for city - broadcasting AppUser locations + Patients to all users');
   }
 
   /**
