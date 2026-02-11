@@ -8434,6 +8434,7 @@ function Dashboard() {
                     </Button>
                   </div>
 
+                  {/* Location Toggle - Primary devices only */}
                   {shouldShowLocationToggle &&
                 <>
                       <div className="border-t border-slate-200 mt-2 pt-2"></div>
@@ -8443,36 +8444,40 @@ function Dashboard() {
                       onToggle={async () => {
                         await refreshUser();
                       }} />
-                      
-                      {/* Quick Route Adjustments */}
-                      {isDriver && selectedDriverId === currentUser?.id &&
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowQuickAdjustments(true)}
-                      className="h-8 gap-1.5 px-2 flex-shrink-0"
-                      title="Quick route adjustments"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                          <span className="text-xs">Adjust</span>
-                        </Button>
-                    }
-                      
-                      {/* AI Smart Prioritization */}
-                      {isDriver && selectedDriverId === currentUser?.id &&
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowSmartPrioritization(true)}
-                      className="h-8 gap-1.5 px-2 flex-shrink-0"
-                      title="AI delivery prioritization"
-                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                          <Sparkles className="w-3 h-3" />
-                          <span className="text-xs">AI</span>
-                        </Button>
-                    }
                       </div>
                     </>
                 }
+                  
+                  {/* Route Management Buttons - All drivers viewing their own route */}
+                  {isDriver && selectedDriverId === currentUser?.id && (
+                    <>
+                      {!shouldShowLocationToggle && <div className="border-t border-slate-200 mt-2 pt-2"></div>}
+                      <div className="flex items-center gap-2">
+                        {/* Quick Route Adjustments */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowQuickAdjustments(true)}
+                          className="h-8 gap-1.5 px-2 flex-shrink-0"
+                          title="Quick route adjustments"
+                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                          <span className="text-xs">Adjust</span>
+                        </Button>
+                        
+                        {/* AI Smart Prioritization */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowSmartPrioritization(true)}
+                          className="h-8 gap-1.5 px-2 flex-shrink-0"
+                          title="AI delivery prioritization"
+                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                          <Sparkles className="w-3 h-3" />
+                          <span className="text-xs">AI</span>
+                        </Button>
+                      </div>
+                    </>
+                  )}
 
                   {/* Offline Sync Indicator - embedded when stats card is centered */}
                   {isStatsCardCentered &&
