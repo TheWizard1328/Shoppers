@@ -7588,9 +7588,41 @@ function Dashboard() {
     hasPreRenderSyncRef.current = true;
     
     const preRenderSync = async () => {
-      console.log('🔄 [Dashboard Mount - STEP 0] Pre-render sync: forcing fresh AppUsers and Cities...');
+      console.log('🔄 [Dashboard Mount - STEP 0] Pre-render sync: checking AppUser freshness...');
       
       try {
+        // CRITICAL: Check AppUser sync metadata first
+        const appUserMeta = await offlineDB.getSyncMetadata('AppUser');
+        const now = Date.now();
+        const fiveMinutesInMs = 5 * 60 * 1000;
+        
+        let needsAppUserSync = false;
+        
+        if (!appUserMeta || !appUserMeta.last_sync_time) {
+          console.log('📊 [AppUser Check] No sync metadata found - syncing fresh data');
+          needsAppUserSync = true;
+        } else {
+          const lastSyncTime = new Date(appUserMeta.last_sync_time).getTime();
+          const ageMs = now - lastSyncTime;
+          
+          if (ageMs > fiveMinutesInMs) {
+            console.log(`📊 [AppUser Check] Data is ${Math.floor(ageMs / 60000)} minutes old - syncing fresh data`);
+            needsAppUserSync = true;
+          } else {
+            console.log(`✅ [AppUser Check] Data is ${Math.floor(ageMs / 1000)} seconds old - using cached data`);
+          }
+        }
+        
+        // CRITICAL: Force AppUser sync if needed
+        if (needsAppUserSync) {
+          console.log('📥 [AppUser Sync] Fetching fresh AppUser data from API...');
+          const freshAppUsers = await base44.entities.AppUser.list();
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+          await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString());
+          console.log(`✅ [AppUser Sync] Synced ${freshAppUsers.length} users to offline DB`);
+        }
+        
+        // Run standard pre-render sync
         const { initializeOfflineDBBeforeRender } = await import('@/components/utils/offlineSync');
         const result = await initializeOfflineDBBeforeRender(smartRefreshManager, currentUser);
         
