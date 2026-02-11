@@ -2642,7 +2642,8 @@ export default function DeliveryMap({
         }
 
         {/* TYPE 1 POLYLINE: Blue dotted line from driver location to next stop */}
-        {isViewingCurrentDate && (() => {
+        {/* CRITICAL: Render AFTER driverLocationMarkers are ready to prevent disappearing */}
+        {isViewingCurrentDate && driverLocationMarkers.length >= 0 && (() => {
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           const polylines = [];
           
@@ -2662,6 +2663,9 @@ export default function DeliveryMap({
 
             // CRITICAL: Only draw Type 1 polylines if driver has shared location marker (on_duty with location)
             const sharedMarker = driverLocationMarkers.find(m => m && m.driver_id === driverId);
+            
+            // CRITICAL: Don't render polyline if shared marker not ready yet
+            if (!sharedMarker) return;
             
             // Get next stop for this driver - try isNextDelivery first
             let nextStop = deliveryMarkers.find(d => 
