@@ -179,10 +179,17 @@ export default function StopCard({
   }, [delivery?._isStripped, currentUser]);
 
   const isStrippedForDispatcher = useMemo(() => {
-    // CRITICAL: Never strip for dispatchers - they see full info for ALL deliveries
-    // This allows dispatchers to see full details for deliveries from their assigned stores
-    return false;
-  }, [delivery?._isStripped, delivery?.store_id, currentUser]);
+    // Dispatchers only see full info for stores they're assigned to
+    if (!currentUser || !delivery) return false;
+    if (!userHasRole(currentUser, 'dispatcher')) return false;
+    
+    // Admin dispatchers see everything
+    if (userHasRole(currentUser, 'admin')) return false;
+    
+    // Strip if delivery's store is NOT in dispatcher's assigned stores
+    const dispatcherStoreIds = currentUser.store_ids || [];
+    return !dispatcherStoreIds.includes(delivery.store_id);
+  }, [delivery?.store_id, currentUser]);
 
   const isStrippedDelivery = isStrippedForDriver || isStrippedForDispatcher;
 
