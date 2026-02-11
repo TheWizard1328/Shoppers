@@ -63,9 +63,17 @@ Deno.serve(async (req) => {
     // Fetch AppUsers for drivers in this city (includes location data)
     let appUsers = [];
     if (uniqueDriverIds.length > 0) {
-      // Fetch all AppUsers then filter by driver_id matches
-      const allAppUsers = await base44.asServiceRole.entities.AppUser.list();
-      appUsers = allAppUsers.filter(au => uniqueDriverIds.includes(au.id));
+      try {
+        // Fetch AppUsers by ID
+        appUsers = await base44.asServiceRole.entities.AppUser.filter({ 
+          id: { $in: uniqueDriverIds } 
+        });
+      } catch (error) {
+        console.warn(`⚠️ [Targeted Refresh] Failed to fetch drivers by ID, using fallback list: ${error.message}`);
+        // Fallback: fetch all and filter
+        const allAppUsers = await base44.asServiceRole.entities.AppUser.list();
+        appUsers = allAppUsers.filter(au => uniqueDriverIds.includes(au.id));
+      }
     }
     
     console.log(`🚗 [Targeted Refresh] Found ${appUsers.length} drivers with locations`);
