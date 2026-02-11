@@ -82,13 +82,17 @@ export default function PolylineViewer({ users = [] }) {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const polylinesData = await base44.entities.DriverRoutePolyline.list('-delivery_date');
+        console.log('📥 [PolylineViewer] Fetching polylines and breadcrumbs...');
+        
+        const polylinesData = await base44.entities.DriverRoutePolyline.list('-delivery_date', 1000);
+        console.log(`✅ [PolylineViewer] Loaded ${polylinesData?.length || 0} polylines`);
         setPolylines(polylinesData || []);
         
-        const breadcrumbsData = await base44.entities.DeliveryBreadcrumbs.list('-delivery_date');
+        const breadcrumbsData = await base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 1000);
+        console.log(`✅ [PolylineViewer] Loaded ${breadcrumbsData?.length || 0} breadcrumbs`);
         setBreadcrumbs(breadcrumbsData || []);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('❌ [PolylineViewer] Error fetching data:', error);
         setPolylines([]);
         setBreadcrumbs([]);
       } finally {
