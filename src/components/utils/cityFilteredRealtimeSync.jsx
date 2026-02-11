@@ -202,6 +202,11 @@ class CityFilteredRealtimeSync {
       this.appUserUnsubscribe = null;
     }
 
+    if (this.patientUnsubscribe) {
+      this.patientUnsubscribe();
+      this.patientUnsubscribe = null;
+    }
+
     this.isActive = false;
     this.currentCityId = null;
     this.currentDate = null;
