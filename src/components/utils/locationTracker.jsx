@@ -531,24 +531,34 @@ class LocationTracker {
         }
       );
 
-      // CRITICAL: PRIMARY DEVICE RULE - Always upload location every 15s while app is open
-      // This happens regardless of:
-      // - driver_status (on_duty, off_duty, on_break)
-      // - location_tracking_enabled toggle
-      // - Other settings or toggles
-      // The primary device is the source of truth for this driver's location
+      // Poll GPS every 5 seconds - primary device tracks location
+      // Only uploads if: moved > 200m OR event-driven (stop completion, status change, sharing toggle)
       this.heartbeatInterval = setInterval(() => {
         if (this.lastPosition && this.isTracking) {
-          console.log('💓 [LocationTracker] Heartbeat tick - PRIMARY device uploading coordinates (always on while app is open)');
-          this.updateLocationInDatabase(
-            this.lastPosition.latitude,
-            this.lastPosition.longitude,
-            this.lastPosition.accuracy,
-            true // forceUpdate = true to bypass timing checks
-          );
+          // Check for event-driven update within last 5 seconds
+          const isEventDriven = this._pendingEventUpdate && (now - this._eventUpdateTime) < 5000;
+
+          if (isEventDriven) {
+            console.log('💓 [LocationTracker] Poll: Event-driven update pending - checking coordinates');
+            this._pendingEventUpdate = false;
+            this.updateLocationInDatabase(
+              this.lastPosition.latitude,
+              this.lastPosition.longitude,
+              this.lastPosition.accuracy,
+              true // forceUpdate - skip distance check
+            );
+          } else {
+            // Normal polling - check distance threshold
+            this.updateLocationInDatabase(
+              this.lastPosition.latitude,
+              this.lastPosition.longitude,
+              this.lastPosition.accuracy,
+              false // Normal update - applies distance threshold
+            );
+          }
         }
       }, this.updateInterval);
-      console.log(`💓 [LocationTracker] Started ${this.updateInterval/1000}s heartbeat - PRIMARY ALWAYS LOGS regardless of toggles/status`);
+      console.log(`📍 [LocationTracker] Started ${this.updateInterval/1000}s GPS polling - uploads if moved > ${this.minDistanceChange}m or event-driven`);
     });
   }
 
