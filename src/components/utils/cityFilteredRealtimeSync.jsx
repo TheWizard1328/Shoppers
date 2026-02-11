@@ -233,7 +233,8 @@ class CityFilteredRealtimeSync {
   getTimeSinceLastUpdate() {
     return {
       delivery: this.lastDeliveryUpdate ? Date.now() - this.lastDeliveryUpdate : null,
-      appUser: this.lastAppUserUpdate ? Date.now() - this.lastAppUserUpdate : null
+      appUser: this.lastAppUserUpdate ? Date.now() - this.lastAppUserUpdate : null,
+      patient: this.lastPatientUpdate ? Date.now() - this.lastPatientUpdate : null
     };
   }
 }
