@@ -1204,10 +1204,10 @@ export default function StopCard({
             </div>
           </div>
 
-          {/* Show address/phone: NOT driver-stripped, AND (not finished OR expanded), allow dispatcher-stripped when expanded */}
-          {!isStrippedForDriver && (!isFinishedDelivery || isExpanded) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
+          {/* Show address/phone: NOT driver-stripped AND NOT dispatcher-stripped, AND (not finished OR expanded) */}
+          {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
 
-          {!isStrippedForDriver && (!isFinishedDelivery || isExpanded) && <div className="flex flex-col">
+          {!isStrippedForDriver && !isStrippedForDispatcher && (!isFinishedDelivery || isExpanded) && <div className="flex flex-col">
             <div className="flex items-start justify-between">
               <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
                 {finalDisplayAddress ?
