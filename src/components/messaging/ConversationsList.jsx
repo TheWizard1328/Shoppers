@@ -76,18 +76,17 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     // Load initial messages
     fetchMessages(loadedDays, false);
 
-    // Subscribe to real-time message updates - only for messages where user is the receiver
+    // Subscribe to ALL message updates for this user (sent and received)
     const unsubscribe = base44.entities.Message.subscribe((event) => {
-      // Only process new messages where current user is the receiver
-      if (event.data?.receiver_id !== currentUser.id) return;
-      
-      if (event.type === 'create') {
+      if (event.type === 'create' || event.type === 'update') {
+        // Update messages if sender or receiver is current user
+        const isRelated = event.data?.receiver_id === currentUser.id || event.data?.sender_id === currentUser.id;
+        if (!isRelated) return;
+
         setMessages(prev => {
           const exists = prev.some(m => m.id === event.data.id);
-          return exists ? prev : [...prev, event.data];
+          return exists ? prev.map(m => m.id === event.data.id ? event.data : m) : [...prev, event.data];
         });
-      } else if (event.type === 'update') {
-        setMessages(prev => prev.map(m => m.id === event.data.id ? event.data : m));
       }
     });
     
