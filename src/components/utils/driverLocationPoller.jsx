@@ -136,34 +136,7 @@ class DriverLocationPoller {
     const now = Date.now();
     const maxStaleTime = 5 * 60 * 1000; // 5 minutes - hide marker if no updates
     
-    console.log(`🔍 [Poller] Processing ${users.length} users before deduplication/filtering`);
-    
-    // CRITICAL: First deduplicate by user ID across ALL users (including stale), keeping most recent
-    const userMap = new Map();
-    users.forEach(user => {
-      if (!user || !(user.id || user.user_name)) return;
-      
-      const userId = user.id || user.user_name;
-      const existingUser = userMap.get(userId);
-      
-      if (!existingUser) {
-        userMap.set(userId, user);
-      } else {
-        // Keep the user with the most recent location timestamp
-        const newTimestamp = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
-        const existingTimestamp = existingUser.location_updated_at ? new Date(existingUser.location_updated_at).getTime() : 0;
-        
-        if (newTimestamp > existingTimestamp) {
-          console.log(`⚠️ [Poller] Duplicate user ${userId} - keeping NEWER: ${user.location_updated_at} (vs old: ${existingUser.location_updated_at})`);
-          userMap.set(userId, user);
-        } else {
-          console.log(`⚠️ [Poller] Duplicate user ${userId} - keeping EXISTING: ${existingUser.location_updated_at} (vs old: ${user.location_updated_at})`);
-        }
-      }
-    });
-    
-    users = Array.from(userMap.values());
-    console.log(`✅ [Poller] After deduplication: ${users.length} unique users`);
+    console.log(`🔍 [Poller] Processing ${users.length} users (no deduplication - from real-time stream)`);
     
     // Filter to only users with valid coordinates
     users = users.filter(user => {
@@ -323,23 +296,7 @@ class DriverLocationPoller {
     }
 
   notifySubscribers(activeDriversWithLocation, forceNotify = false) {
-    // CRITICAL: Create unique key from location data to detect changes
-    const currentKey = activeDriversWithLocation
-      .map(u => `${u.id}:${u.location_updated_at}:${u.current_latitude},${u.current_longitude}`)
-      .sort()
-      .join('|');
-    
-    console.log(`🔍 [Poller] Notify check - currentKey: ${currentKey.substring(0, 100)}..., forceNotify: ${forceNotify}, lastKey: ${this._lastNotifiedKey?.substring(0, 100) || 'NONE'}...`);
-    
-    // Skip notification if data hasn't changed (prevents duplicate notifications)
-    // BUT always notify on forceNotify to ensure fresh data propagates
-    if (currentKey === this._lastNotifiedKey && !forceNotify) {
-      console.log('⏭️ [Poller] Skipping notification - data unchanged and not forced');
-      return;
-    }
-    
-    this._lastNotifiedKey = currentKey;
-    console.log(`📡 [Poller] SENDING NOTIFICATION with ${activeDriversWithLocation.length} drivers (forceNotify: ${forceNotify})`);
+    console.log(`📡 [Poller] Notifying ${activeDriversWithLocation.length} drivers`);
     
     // Convert array of users to array of location objects
     const currentUserId = this.currentUser?.id;
