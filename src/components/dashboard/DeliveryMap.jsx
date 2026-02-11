@@ -2943,7 +2943,6 @@ export default function DeliveryMap({
             
             // CRITICAL: TYPE 1 polyline ALWAYS uses driver's current location from AppUser entity
             // This is the same point as the shared location marker or live location marker on primary device
-            const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
             if (!driverAppUser?.current_latitude || !driverAppUser?.current_longitude) {
               console.log(`⚠️ [TYPE 1] No current location for driver ${driverId} in AppUser`);
               return;
