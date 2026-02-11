@@ -3106,9 +3106,6 @@ export default function DeliveryMap({
           
           return polylines.length > 0 ? polylines : null;
         })()}
-
-        {/* ===== RENDER ORDER 3: Home markers ===== */}
-        {driverHomeMarkers.map((home) => {
           // CRITICAL: Validate coordinates before rendering marker
           if (!home.latitude || !home.longitude ||
               typeof home.latitude !== 'number' || typeof home.longitude !== 'number' ||
