@@ -545,6 +545,7 @@ class LocationTracker {
       // Only uploads if: moved > 200m OR event-driven (stop completion, status change, sharing toggle)
       this.heartbeatInterval = setInterval(() => {
         if (this.lastPosition && this.isTracking) {
+          const now = Date.now();
           // Check for event-driven update within last 5 seconds
           const isEventDriven = this._pendingEventUpdate && (now - this._eventUpdateTime) < 5000;
 
