@@ -253,49 +253,48 @@ class LocationTracker {
         console.error('❌ [LocationTracker] API upload returned falsy response!');
       }
 
-      // Step 2: Update ONLY this driver in offline DB (not all drivers)
-      // This is much faster and prevents overwriting other drivers' fresh location data
+      // Step 2: Fetch ALL AppUsers from API to ensure cross-device sync
+      // CRITICAL: All devices need the same fresh data, not just their own offline DB
+      const allAppUsers = await base44.entities.AppUser.list();
+      console.log(`📥 [LocationTracker] Fetched ${allAppUsers.length} AppUsers from API after upload`);
+      
+      // Verify current driver is in the list with updated coordinates
+      const currentDriverInList = allAppUsers.find(au => au.id === this.appUserId);
+      if (currentDriverInList) {
+        console.log(`✅ [LocationTracker] Current driver found in API response:`, {
+          lat: currentDriverInList.current_latitude?.toFixed(6),
+          lon: currentDriverInList.current_longitude?.toFixed(6),
+          timestamp: currentDriverInList.location_updated_at
+        });
+      } else {
+        console.error(`❌ [LocationTracker] Current driver ${this.appUserId} NOT found in API response!`);
+      }
+
+      // Step 3: Save ALL AppUsers to offline DB (ensures all devices have same fresh data)
       try {
         const { offlineDB } = await import('./offlineDatabase');
-        
-        // Build the updated AppUser object with fresh coordinates
-        const updatedSingleAppUser = {
-          ...updatedAppUser,
-          id: this.appUserId,
-          user_id: this.currentUser.id,
-          user_name: userName,
-          current_latitude: latitude,
-          current_longitude: longitude,
-          location_updated_at: nowISO,
-          driver_status: this.driverStatus
-        };
-        
-        // Save only this driver to offline DB
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [updatedSingleAppUser]);
-        console.log(`💾 [LocationTracker] Updated offline DB for ${userName} ONLY (faster)`);
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+        console.log(`💾 [LocationTracker] Saved ${allAppUsers.length} AppUsers to offline DB`);
         
         // Verify offline DB was updated
-        const allOfflineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        const offlineCurrentDriver = allOfflineAppUsers?.find(au => au.id === this.appUserId);
+        const offlineCurrentDriver = allAppUsers.find(au => au.id === this.appUserId);
         if (offlineCurrentDriver) {
           console.log(`✅ [LocationTracker] Verified in offline DB:`, {
             lat: offlineCurrentDriver.current_latitude?.toFixed(6),
             lon: offlineCurrentDriver.current_longitude?.toFixed(6),
             timestamp: offlineCurrentDriver.location_updated_at
           });
-          
-          // Dispatch event with ALL AppUsers from offline DB (includes other drivers)
-          if (typeof window !== 'undefined') {
-            console.log(`📡 [LocationTracker] Dispatching driverLocationsUpdated with ${allOfflineAppUsers.length} drivers from offline DB`);
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: allOfflineAppUsers, fromLocationTracker: true, singleUpdate: true }
-            }));
-          }
-        } else {
-          console.error(`❌ [LocationTracker] Current driver NOT in offline DB after save!`);
         }
       } catch (offlineError) {
         console.error('❌ [LocationTracker] FAILED TO SYNC to offline DB:', offlineError.message);
+      }
+
+      // Dispatch event with ALL fresh AppUsers from API
+      if (typeof window !== 'undefined') {
+        console.log(`📡 [LocationTracker] Dispatching driverLocationsUpdated with ${allAppUsers.length} drivers from API`);
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: allAppUsers, fromLocationTracker: true }
+        }));
       }
 
       // CRITICAL: Always update UserDevice last_active_at for primary tracker
