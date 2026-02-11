@@ -92,7 +92,7 @@ export default function DispatcherPickupNotification({
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
-          className="fixed top-20 left-1/2 -translate-x-1/2 z-[9999] max-w-md w-full mx-4"
+          className="fixed top-20 right-4 z-[9999] max-w-md"
         >
           <div 
             className="bg-emerald-600 text-white rounded-xl shadow-2xl p-4 border-2 border-emerald-400"
