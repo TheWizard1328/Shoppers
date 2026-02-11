@@ -15,27 +15,35 @@ const broadcastMutation = async (entity, action, id, data) => {
 };
 
 class LocationTracker {
-  constructor() {
-    this.watchId = null;
-    this.heartbeatInterval = null; // CRITICAL: Force timestamp updates every 15s even when stationary
-    this.isTracking = false;
-    this.lastPosition = null;
-    this.lastUpdate = 0;
-    this.lastCoordinateUpdate = 0;
-    this.currentUser = null;
-    this.appUserId = null;
-    this.driverStatus = 'off_duty';
-    this.updateInterval = 15000; // 15 seconds heartbeat - ALWAYS updates timestamp even if stationary
-    this.coordinateUpdateInterval = 15000; // 15 seconds max without coordinate update
+    constructor() {
+      this.watchId = null;
+      this.heartbeatInterval = null; // Poll GPS every 5 seconds
+      this.isTracking = false;
+      this.lastPosition = null;
+      this.lastUpdate = 0;
+      this.lastCoordinateUpdate = 0;
+      this.currentUser = null;
+      this.appUserId = null;
+      this.driverStatus = 'off_duty';
+      this.updateInterval = 5000; // 5 seconds GPS polling
+      this.coordinateUpdateInterval = 5000; // 5 seconds between coordinate updates
 
-    // CRITICAL: Lock interval to 15 seconds - override any settings that try to change it
-    this._lockedUpdateInterval = 15000;
-    this.minDistanceChange = 50; // 50 meters - reduced threshold so stationary drivers still update
-    this.failedUpdateCount = 0;
-    this.maxFailedUpdates = 3;
-    this.backoffTime = 0;
-    this.lastSuccessfulUpdate = 0;
-    this.deviceCapabilities = null;
+      // Distance threshold - only upload if moved > 200m
+      this.minDistanceChange = 200; // 200 meters minimum movement to trigger upload
+
+      // Deduplication - prevent duplicate updates within 2 seconds
+      this.lastUploadTime = 0;
+      this.minTimeBetweenUploads = 2000; // 2 second minimum between uploads
+
+      this.failedUpdateCount = 0;
+      this.maxFailedUpdates = 3;
+      this.backoffTime = 0;
+      this.lastSuccessfulUpdate = 0;
+      this.deviceCapabilities = null;
+
+      // Event-driven updates tracking
+      this._pendingEventUpdate = false;
+      this._eventUpdateTime = 0;
     
     // Load settings from RouteOptimizationSettings
     this.loadSettings();
