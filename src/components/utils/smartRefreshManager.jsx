@@ -2086,9 +2086,8 @@ class SmartRefreshManager {
     const selectedDriverId = globalFilters?.getSelectedDriverId?.() || filters?.deliveryFilter?.driver_id;
     const isViewingTodayDate = activeDateStr === todayStr;
 
-    // CRITICAL: Check global Show All state
-    const { showAllDataManager } = await import('./showAllDataManager');
-    const isShowAllMode = showAllDataManager.getShowAllState();
+    // CRITICAL: Check global Show All state directly from localStorage (avoid dynamic import error)
+    const isShowAllMode = localStorage.getItem('rxdeliver_show_all_driver_markers') === 'true';
     const isAllDriversMode = selectedDriverId === 'all';
     const isIndividualDriverMode = !isShowAllMode && !isAllDriversMode && selectedDriverId && selectedDriverId !== 'all';
 
