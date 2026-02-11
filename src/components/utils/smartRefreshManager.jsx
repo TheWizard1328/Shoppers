@@ -31,9 +31,9 @@ class LightweightRefreshManager {
       cacheRefresh: 0
     };
 
-    // Rate limiting
+    // Rate limiting - relaxed for better perf
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 5000;
+    this.minTimeBetweenCalls = 500;  // Reduced from 5000ms for faster cycles
     this.consecutiveErrors = 0;
     this.maxConsecutiveErrors = 2;
     this.errorCooldownUntil = 0;

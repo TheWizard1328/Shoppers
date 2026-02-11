@@ -53,27 +53,22 @@ Deno.serve(async (req) => {
       console.log(`👥 [Targeted Refresh] Found ${patients.length} patients`);
     }
 
-    // STEP 4: Get unique driver IDs from deliveries
-    const uniqueDriverIds = [...new Set(
-      deliveries
-        .filter(d => d?.driver_id)
-        .map(d => d.driver_id)
-    )];
-
-    // Fetch AppUsers for drivers in this city (includes location data)
+    // STEP 4: Get ALL drivers in the city (not just assigned to deliveries)
     let appUsers = [];
-    if (uniqueDriverIds.length > 0) {
-      try {
-        // Fetch AppUsers by ID
-        appUsers = await base44.asServiceRole.entities.AppUser.filter({ 
-          id: { $in: uniqueDriverIds } 
-        });
-      } catch (error) {
-        console.warn(`⚠️ [Targeted Refresh] Failed to fetch drivers by ID, using fallback list: ${error.message}`);
-        // Fallback: fetch all and filter
-        const allAppUsers = await base44.asServiceRole.entities.AppUser.list();
-        appUsers = allAppUsers.filter(au => uniqueDriverIds.includes(au.id));
-      }
+    try {
+      // Fetch ALL AppUsers with city_ids matching this city
+      appUsers = await base44.asServiceRole.entities.AppUser.filter({ 
+        city_ids: { $in: [cityId] }
+      });
+      console.log(`🚗 [Targeted Refresh] Found ${appUsers.length} drivers assigned to city`);
+    } catch (error) {
+      console.warn(`⚠️ [Targeted Refresh] Failed to fetch drivers by city, fetching all: ${error.message}`);
+      // Fallback: fetch all AppUsers and filter by city
+      const allAppUsers = await base44.asServiceRole.entities.AppUser.list();
+      appUsers = allAppUsers.filter(au => 
+        au?.city_ids?.includes(cityId) || au?.city_id === cityId
+      );
+      console.log(`🚗 [Targeted Refresh] Filtered ${appUsers.length} drivers from all users`);
     }
     
     console.log(`🚗 [Targeted Refresh] Found ${appUsers.length} drivers with locations`);
