@@ -35,6 +35,10 @@ class LocationTracker {
       this.lastUploadTime = 0;
       this.minTimeBetweenUploads = 2000; // 2 second minimum between uploads
 
+      // Heartbeat timestamp updates - keep location fresh even when stationary
+      this.lastTimestampUpdate = 0;
+      this.timestampUpdateInterval = 120000; // 2 minutes - update timestamp to prevent stale mode
+
       this.failedUpdateCount = 0;
       this.maxFailedUpdates = 3;
       this.backoffTime = 0;
@@ -199,17 +203,17 @@ class LocationTracker {
     return R * c;
   }
 
-  async updateLocationInDatabase(latitude, longitude, accuracy, forceUpdate = false) {
+  async updateLocationInDatabase(latitude, longitude, accuracy, forceUpdate = false, timestampOnly = false) {
     const now = Date.now();
 
     // Check if we're in backoff period (unless forced)
-    if (!forceUpdate && this.backoffTime > 0 && (now - this.lastUpdate) < this.backoffTime) {
+    if (!forceUpdate && !timestampOnly && this.backoffTime > 0 && (now - this.lastUpdate) < this.backoffTime) {
       console.log('⏸️ [LocationTracker] Skipping update - in backoff period');
       return;
     }
 
     // CRITICAL: Check deduplication - prevent duplicate uploads within 2 seconds
-    if (!forceUpdate && (now - this.lastUploadTime) < this.minTimeBetweenUploads) {
+    if (!forceUpdate && !timestampOnly && (now - this.lastUploadTime) < this.minTimeBetweenUploads) {
       const msRemaining = this.minTimeBetweenUploads - (now - this.lastUploadTime);
       console.log(`⏳ [LocationTracker] Dedup: Waiting ${msRemaining}ms to prevent duplicate upload`);
       return;
@@ -217,7 +221,7 @@ class LocationTracker {
 
     // Check distance threshold (200m minimum movement)
     let distance = 0;
-    if (this.lastPosition && !forceUpdate) {
+    if (this.lastPosition && !forceUpdate && !timestampOnly) {
       distance = this.calculateDistance(
         this.lastPosition.latitude,
         this.lastPosition.longitude,
@@ -231,7 +235,9 @@ class LocationTracker {
       }
     }
 
-    if (forceUpdate) {
+    if (timestampOnly) {
+      console.log(`💓 [LocationTracker] HEARTBEAT UPDATE - refreshing timestamp only (keeping driver online)`);
+    } else if (forceUpdate) {
       console.log(`💓 [LocationTracker] EVENT-DRIVEN UPDATE - uploading coordinates + timestamp`);
     } else {
       console.log(`⏰ [LocationTracker] GPS update - moved ${distance.toFixed(0)}m, uploading coordinates + timestamp`);
@@ -261,11 +267,14 @@ class LocationTracker {
       console.log(`📤 [LocationTracker] Uploading location for ${userName} (...${userIdLast4}):`, {
         lat: latitude.toFixed(6),
         lng: longitude.toFixed(6),
-        timestamp: nowISO
+        timestamp: nowISO,
+        timestampOnly
       });
 
-      // CRITICAL: Primary device always uploads coordinates + timestamp
-      const updateData = {
+      // CRITICAL: Timestamp-only updates just refresh location_updated_at (keep coordinates)
+      const updateData = timestampOnly ? {
+        location_updated_at: nowISO
+      } : {
         current_latitude: latitude,
         current_longitude: longitude,
         location_updated_at: nowISO
@@ -352,8 +361,11 @@ class LocationTracker {
 
       // NOTE: lastUpdate already set BEFORE upload to prevent double-uploads
       this.lastSuccessfulUpdate = now;
-      this.lastCoordinateUpdate = now;
-      this.lastPosition = { latitude, longitude, accuracy };
+      if (!timestampOnly) {
+        this.lastCoordinateUpdate = now;
+        this.lastPosition = { latitude, longitude, accuracy };
+      }
+      this.lastTimestampUpdate = now; // Track timestamp updates separately
       this.failedUpdateCount = 0;
       this.backoffTime = 0;
 
@@ -542,10 +554,15 @@ class LocationTracker {
       );
 
       // Poll GPS every 5 seconds - primary device tracks location
-      // Only uploads if: moved > 200m OR event-driven (stop completion, status change, sharing toggle)
+      // Uploads if: moved > 200m OR event-driven OR timestamp needs refresh (every 2min)
       this.heartbeatInterval = setInterval(() => {
         if (this.lastPosition && this.isTracking) {
           const now = Date.now();
+          
+          // Check if timestamp needs refreshing (every 2 minutes to prevent stale mode)
+          const timeSinceLastTimestamp = now - this.lastTimestampUpdate;
+          const needsTimestampRefresh = timeSinceLastTimestamp >= this.timestampUpdateInterval;
+          
           // Check for event-driven update within last 5 seconds
           const isEventDriven = this._pendingEventUpdate && (now - this._eventUpdateTime) < 5000;
 
@@ -556,7 +573,18 @@ class LocationTracker {
               this.lastPosition.latitude,
               this.lastPosition.longitude,
               this.lastPosition.accuracy,
-              true // forceUpdate - skip distance check
+              true, // forceUpdate - skip distance check
+              false // not timestamp-only
+            );
+          } else if (needsTimestampRefresh && this.driverStatus === 'on_duty') {
+            // HEARTBEAT: Update timestamp only to keep driver online (even when stationary)
+            console.log(`💓 [LocationTracker] Poll: ${(timeSinceLastTimestamp/1000).toFixed(0)}s since last timestamp - refreshing to prevent stale`);
+            this.updateLocationInDatabase(
+              this.lastPosition.latitude,
+              this.lastPosition.longitude,
+              this.lastPosition.accuracy,
+              false, // not force
+              true // timestamp-only update
             );
           } else {
             // Normal polling - check distance threshold
@@ -564,12 +592,13 @@ class LocationTracker {
               this.lastPosition.latitude,
               this.lastPosition.longitude,
               this.lastPosition.accuracy,
-              false // Normal update - applies distance threshold
+              false, // Normal update - applies distance threshold
+              false // not timestamp-only
             );
           }
         }
       }, this.updateInterval);
-      console.log(`📍 [LocationTracker] Started ${this.updateInterval/1000}s GPS polling - uploads if moved > ${this.minDistanceChange}m or event-driven`);
+      console.log(`📍 [LocationTracker] Started ${this.updateInterval/1000}s GPS polling - uploads if moved > ${this.minDistanceChange}m, event-driven, or timestamp refresh (2min)`);
     });
   }
 
@@ -587,6 +616,7 @@ class LocationTracker {
     this.lastPosition = null;
     this.lastUpdate = 0;
     this.lastCoordinateUpdate = 0;
+    this.lastTimestampUpdate = 0;
     this.currentUser = null;
     this.appUserId = null;
     this.failedUpdateCount = 0;
