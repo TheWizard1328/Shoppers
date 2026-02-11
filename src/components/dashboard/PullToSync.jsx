@@ -260,22 +260,11 @@ export default function PullToSync({
       
       if (!silent) {
         toast.success('Data synced', {
-          description: `${freshDeliveries.length} deliveries, ${uniquePatientIds.length} patients, ${freshAppUsers.length} users`
+          description: `${freshDeliveries.length} deliveries, ${freshPatients.length} patients, ${freshAppUsers.length} users`
         });
       }
 
-      } catch (error) {
-      // Resume managers even on error
-      console.log('⏸️ [Pull to Sync] Resuming managers after error...');
-      if (window.smartRefreshManager?.resume) {
-        window.smartRefreshManager.resume();
-      }
-      if (window.realtimeSyncManager?.resume) {
-        window.realtimeSyncManager.resume();
-      }
-      if (window.backgroundSyncManager?.resume) {
-        window.backgroundSyncManager.resume();
-      }
+    } catch (error) {
       console.error('❌ [Pull to Sync] Sync failed:', error);
       if (!silent) {
         toast.error('Sync failed', {
