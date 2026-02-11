@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { MessageCircle, Search, Trash2, ChevronUp, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { format, subDays } from 'date-fns';
+import { parseLocalTimestamp } from '@/components/utils/localTimeHelper';
 
 export default function ConversationsList({ currentUser, users, onSelectConversation, selectedConversationId, onUnreadCountChange }) {
   const [messages, setMessages] = useState([]);
