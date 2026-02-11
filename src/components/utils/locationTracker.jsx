@@ -25,11 +25,11 @@ class LocationTracker {
     this.currentUser = null;
     this.appUserId = null;
     this.driverStatus = 'off_duty';
-    this.updateInterval = 15000; // 15 seconds heartbeat - ALWAYS updates timestamp even if stationary
-    this.coordinateUpdateInterval = 15000; // 15 seconds max without coordinate update
+    this.updateInterval = 5000; // 5 seconds heartbeat - ALWAYS updates timestamp even if stationary
+    this.coordinateUpdateInterval = 5000; // 5 seconds max without coordinate update
 
-    // CRITICAL: Lock interval to 15 seconds - override any settings that try to change it
-    this._lockedUpdateInterval = 15000;
+    // CRITICAL: Lock interval to 5 seconds - override any settings that try to change it
+    this._lockedUpdateInterval = 5000;
     this.minDistanceChange = 50; // 50 meters - reduced threshold so stationary drivers still update
     this.failedUpdateCount = 0;
     this.maxFailedUpdates = 3;
@@ -47,14 +47,14 @@ class LocationTracker {
   loadSettings() {
     try {
       const settings = getRouteOptimizationSettings();
-      // CRITICAL: Always use locked 15-second interval regardless of settings
-      this.updateInterval = this._lockedUpdateInterval || 15000;
+      // CRITICAL: Always use locked 5-second interval regardless of settings
+      this.updateInterval = this._lockedUpdateInterval || 5000;
 
       if (settings.minMovementDistanceMeters) {
         this.minDistanceChange = settings.minMovementDistanceMeters;
       }
 
-      console.log(`📍 [LocationTracker] Interval locked to ${this.updateInterval / 1000}s`);
+      console.log(`📍 [LocationTracker] Interval locked to ${this.updateInterval / 1000}s (primary device)`);
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
       this.updateInterval = 15000;
@@ -525,7 +525,7 @@ class LocationTracker {
           );
         }
       }, this.updateInterval);
-      console.log('💓 [LocationTracker] Started 15s heartbeat - PRIMARY ALWAYS LOGS regardless of toggles/status');
+      console.log(`💓 [LocationTracker] Started ${this.updateInterval/1000}s heartbeat - PRIMARY ALWAYS LOGS regardless of toggles/status`);
     });
   }
 
