@@ -148,26 +148,36 @@ export default function StoreDeliveryNotification({
                 
                 <div className="flex-1 min-w-0">
                    <div className="space-y-1.5">
-                     {/* Completion line */}
-                     <p className="text-sm">
-                       <span className="font-semibold">{activeNotification.driverName}</span> has completed delivery for
-                     </p>
-
-                     {/* Patient name */}
-                     <p className="text-sm font-semibold">{activeNotification.patientName}</p>
-
-                     {/* Completion time */}
-                     <p className="text-xs text-white/90">{activeNotification.completionTime}</p>
-
-                     {/* Next route info if available */}
-                     {activeNotification.nextRouteInfo && (
-                       <div className="pt-2 border-t border-white/20">
+                     {/* If same store: show completion + next route. If different store: show only next route */}
+                     {activeNotification.nextRouteInfo && !activeNotification.nextRouteInfo.sameStore ? (
+                       <>
+                         {/* Different store - show only next route info */}
                          <p className="text-sm">
-                           and is on Route {activeNotification.nextRouteInfo.stopOrder}
+                           <span className="font-semibold">{activeNotification.driverName}</span> is on Route {activeNotification.nextRouteInfo.stopOrder}
                          </p>
                          <p className="text-sm font-semibold">{activeNotification.nextRouteInfo.patientName}</p>
                          <p className="text-xs text-white/90">ETA: {activeNotification.nextRouteInfo.eta}</p>
-                       </div>
+                       </>
+                     ) : (
+                       <>
+                         {/* Same store or no next delivery - show completion info */}
+                         <p className="text-sm">
+                           <span className="font-semibold">{activeNotification.driverName}</span> has completed delivery for
+                         </p>
+                         <p className="text-sm font-semibold">{activeNotification.patientName}</p>
+                         <p className="text-xs text-white/90">{activeNotification.completionTime}</p>
+
+                         {/* Show next route if same store */}
+                         {activeNotification.nextRouteInfo && activeNotification.nextRouteInfo.sameStore && (
+                           <div className="pt-2 border-t border-white/20">
+                             <p className="text-sm">
+                               and is on Route {activeNotification.nextRouteInfo.stopOrder}
+                             </p>
+                             <p className="text-sm font-semibold">{activeNotification.nextRouteInfo.patientName}</p>
+                             <p className="text-xs text-white/90">ETA: {activeNotification.nextRouteInfo.eta}</p>
+                           </div>
+                         )}
+                       </>
                      )}
 
                      {activeNotification.codInfo && (
