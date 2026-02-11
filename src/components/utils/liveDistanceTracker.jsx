@@ -309,13 +309,7 @@ class LiveDistanceTracker {
       });
 
       // STEP 7: Calculate total accumulated distance (all completed + current in-progress)
-      // Get all completed deliveries for today
-      const allTodayDeliveries = await base44.entities.Delivery.filter({
-        driver_id: this.currentUser.id,
-        delivery_date: todayStr
-      });
-      
-      const finishedStatuses = ['completed', 'failed', 'cancelled'];
+      // Use allTodayDeliveries already fetched in STEP 3
       const completedDeliveries = allTodayDeliveries.filter(d => 
         d && finishedStatuses.includes(d.status)
       );
