@@ -1831,9 +1831,87 @@ export default function StopCard({
                             <span style={{ color: 'var(--text-slate-600)' }}> / ${codTotalRequired.toFixed(2)}</span>
                           </div>
 
-                          <Button size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700" onClick={(e) => { e.stopPropagation(); handleSaveCODPayments(); }} disabled={codPayments.length === 0 || isCompleting}>
-                            {isCompleting ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
-                            Save
+                          <Button size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-sm md:text-xs !text-white bg-emerald-600 hover:bg-emerald-700" onClick={async (e) => { 
+                            e.stopPropagation(); 
+                            if (onCODUpdate) {
+                              try {
+                                setIsCompleting(true);
+                                fabControlEvents.deactivateFAB();
+                                const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                driverLocationPoller.pause();
+                                
+                                // Save COD payments
+                                await onCODUpdate(delivery.id, codPayments, true);
+                                setShowCODCollection(false);
+                                
+                                // Auto-complete the delivery
+                                const currentTime = new Date();
+                                const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                                const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+                                const roundedHours = Math.floor(roundedMinutes / 60);
+                                const roundedMins = roundedMinutes % 60;
+                                const year = currentTime.getFullYear();
+                                const month = String(currentTime.getMonth() + 1).padStart(2, '0');
+                                const day = String(currentTime.getDate()).padStart(2, '0');
+                                const hours = String(roundedHours).padStart(2, '0');
+                                const minutes = String(roundedMins).padStart(2, '0');
+                                const offsetMinutes = -currentTime.getTimezoneOffset();
+                                const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+                                const offsetMins = Math.abs(offsetMinutes) % 60;
+                                const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+                                const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
+                                const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:00${offsetString}`;
+                                
+                                await updateDeliveryLocal(delivery.id, {
+                                  status: 'completed',
+                                  actual_delivery_time: localTimeString,
+                                  isNextDelivery: false
+                                }, { skipSmartRefresh: true });
+                                
+                                // Find next incomplete delivery
+                                const driverDeliveries = allDeliveries.filter(d => 
+                                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                                );
+                                const incompleteDeliveries = driverDeliveries.filter(d => 
+                                  d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
+                                ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                                
+                                if (incompleteDeliveries.length > 0) {
+                                  await updateDeliveryLocal(incompleteDeliveries[0].id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                                  invalidate('Delivery');
+                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                  
+                                  setTimeout(() => {
+                                    const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
+                                    if (nextCardElement) {
+                                      nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                    }
+                                  }, 100);
+                                } else {
+                                  fabControlEvents.notifyDoneButtonClicked();
+                                  window.dispatchEvent(new CustomEvent('showRouteSummary', {
+                                    detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                  }));
+                                }
+                                
+                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                  detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                }));
+                                
+                                driverLocationPoller.resume();
+                                fabControlEvents.reactivateFAB(true);
+                                toast.success('COD saved and delivery completed!');
+                              } catch (error) {
+                                console.error('❌ Failed to save COD and complete:', error);
+                                toast.error(`Failed: ${error.message}`);
+                                fabControlEvents.reactivateFAB(true);
+                              } finally {
+                                setIsCompleting(false);
+                              }
+                            }
+                          }} disabled={codPayments.length === 0 || isCompleting}>
+                            {isCompleting ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1" />}
+                            Save & Complete
                           </Button>
                         </div>
                       </motion.div>
