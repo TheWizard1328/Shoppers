@@ -256,7 +256,7 @@ class LiveDistanceTracker {
       // Update last position for next iteration
       this.lastPosition = { lat: currentLat, lon: currentLon };
 
-      // STEP 3: Only update travel_dist if driver is on_duty AND has moved
+      // STEP 3: Only update travel_dist if driver is on_duty AND has moved AND first stop is completed
       if (this.currentUser.driver_status !== 'on_duty') {
         console.log(`⏭️ [LiveDistanceTracker] Driver is ${this.currentUser.driver_status}, skipping travel_dist update`);
         return;
@@ -267,17 +267,29 @@ class LiveDistanceTracker {
         return;
       }
 
+      // CRITICAL: Check if at least one stop has been completed before tracking distance
+      const todayStr = new Date().toISOString().split('T')[0];
+      const allTodayDeliveries = await base44.entities.Delivery.filter({
+        driver_id: this.currentUser.id,
+        delivery_date: todayStr
+      });
+      
+      const finishedStatuses = ['completed', 'failed', 'cancelled'];
+      const hasCompletedStops = allTodayDeliveries.some(d => 
+        d && finishedStatuses.includes(d.status)
+      );
+      
+      if (!hasCompletedStops) {
+        console.log('⏭️ [LiveDistanceTracker] No completed stops yet - mileage tracking starts after first stop');
+        return;
+      }
+
       // STEP 4: Add distance to accumulated total
       this.accumulatedDistance += distanceMoved;
       console.log(`📊 [LiveDistanceTracker] Accumulated distance: ${this.accumulatedDistance.toFixed(3)} km`);
 
       // STEP 5: Find the next delivery (isNextDelivery = true)
-      const todayStr = new Date().toISOString().split('T')[0];
-      const nextDeliveries = await base44.entities.Delivery.filter({
-        driver_id: this.currentUser.id,
-        delivery_date: todayStr,
-        isNextDelivery: true
-      });
+      const nextDeliveries = allTodayDeliveries.filter(d => d && d.isNextDelivery === true);
 
       const nextDelivery = nextDeliveries?.[0];
 
