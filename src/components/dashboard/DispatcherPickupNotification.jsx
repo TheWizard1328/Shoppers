@@ -132,23 +132,27 @@ export default function DispatcherPickupNotification({
                   <h3 className={`font-bold mb-1 ${activeNotification.hasArrived ? 'text-2xl' : 'text-lg'}`}>
                     {activeNotification.hasArrived ? 'Your driver has arrived.' : 'Your driver is on his way.'}
                   </h3>
-                  <p className="text-sm text-emerald-50 mb-2">
-                    <span className="font-semibold">{activeNotification.driverName}</span> is heading to <span className="font-semibold">{activeNotification.storeName}</span>
-                  </p>
-                  
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-4 h-4" />
-                      <span className="font-medium">ETA: {activeNotification.eta}</span>
-                    </div>
-                    
-                    {activeNotification.minutesRemaining && (
-                      <div className="flex items-center gap-1.5">
-                        <Navigation className="w-4 h-4" />
-                        <span className="font-medium">{activeNotification.minutesRemaining} remaining</span>
+                  {!activeNotification.hasArrived && (
+                    <>
+                      <p className="text-sm text-emerald-50 mb-2">
+                        <span className="font-semibold">{activeNotification.driverName}</span> is heading to <span className="font-semibold">{activeNotification.storeName}</span>
+                      </p>
+
+                      <div className="flex items-center gap-4 text-sm">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-4 h-4" />
+                          <span className="font-medium">ETA: {activeNotification.eta}</span>
+                        </div>
+
+                        {activeNotification.minutesRemaining && (
+                          <div className="flex items-center gap-1.5">
+                            <Navigation className="w-4 h-4" />
+                            <span className="font-medium">{activeNotification.minutesRemaining} remaining</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </div>
               </div>
               
