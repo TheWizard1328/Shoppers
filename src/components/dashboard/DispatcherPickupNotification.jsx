@@ -68,6 +68,18 @@ export default function DispatcherPickupNotification({
 
     if (!store || !driver) return;
 
+    // Check if driver is within 500m of store
+    let hasArrived = false;
+    if (driver.current_latitude && driver.current_longitude && store.latitude && store.longitude) {
+      const distanceInMeters = calculateDistance(
+        driver.current_latitude,
+        driver.current_longitude,
+        store.latitude,
+        store.longitude
+      );
+      hasArrived = distanceInMeters <= 500;
+    }
+
     // Calculate total minutes remaining until arrival (ETA)
     let minutesRemaining = null;
     if (pickup.delivery_time_eta) {
@@ -85,6 +97,7 @@ export default function DispatcherPickupNotification({
       storeName: store.name,
       eta: pickup.delivery_time_eta || pickup.delivery_time_start || 'N/A',
       minutesRemaining: minutesRemaining,
+      hasArrived: hasArrived,
       pickupId: pickup.id
     });
 
