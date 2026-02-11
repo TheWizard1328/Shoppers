@@ -2301,7 +2301,7 @@ export default function StopCard({
             }
           </AnimatePresence>
 
-          {/* FOOTER SECTION - Driver-stripped: hide UNLESS Retry or Return buttons are available */}
+          {/* FOOTER SECTION - Driver/Dispatcher-stripped: hide UNLESS Retry or Return buttons are available */}
           {(() => {
             // For drivers: hide footer unless Retry or Return buttons are available
             if (isStrippedForDriver) {
@@ -2309,6 +2309,9 @@ export default function StopCard({
               const hasReturnButton = delivery.status === 'failed' && !isPickup && !hasFutureReturn && !hasCompletedDelivery;
               if (!hasRetryButton && !hasReturnButton) return null;
             }
+
+            // For dispatchers: hide footer completely for non-assigned store deliveries
+            if (isStrippedForDispatcher) return null;
 
             // CRITICAL: Show footer for finished deliveries UNLESS route is complete AND card is collapsed
             // Show if: not finished OR expanded OR (finished but route not complete)
