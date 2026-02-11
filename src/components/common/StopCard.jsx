@@ -1597,11 +1597,9 @@ export default function StopCard({
                   description: `Dispatch has been notified. Reason: ${reason}`
                 });
 
-                // CRITICAL: Collapse the card after marking as failed/cancelled
-                if (onSelectionChange) {
-                  onSelectionChange(delivery.id, false);
-                } else if (onClick) {
-                  onClick(null);
+                // CRITICAL: Collapse ALL cards after marking as failed/cancelled
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
                 }
 
               } catch (error) {
@@ -2771,16 +2769,10 @@ export default function StopCard({
                                       detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                                     }));
 
-                                    // CRITICAL: Collapse the current card immediately by deselecting it
-                                    // This ensures if the card was expanded, it will now be condensed
-                                    // Use setTimeout to ensure this happens AFTER state updates
-                                    setTimeout(() => {
-                                      if (onSelectionChange) {
-                                        onSelectionChange(delivery.id, false);
-                                      } else if (onClick) {
-                                        onClick(null);
-                                      }
-                                    }, 0);
+                                    // CRITICAL: Collapse ALL cards first
+                                    if (typeof window !== 'undefined') {
+                                      window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
+                                    }
 
                                     // CRITICAL: Scroll to next delivery card immediately
                                     if (incompleteDeliveries.length > 0) {
@@ -2852,11 +2844,9 @@ export default function StopCard({
                                    driverLocationPoller.resume();
                                    setIsCompleting(false);
 
-                                   // CRITICAL: Ensure card is collapsed after completion
-                                   if (onSelectionChange) {
-                                     onSelectionChange(delivery.id, false);
-                                   } else if (onClick) {
-                                     onClick(null);
+                                   // CRITICAL: Collapse ALL cards after completion
+                                   if (typeof window !== 'undefined') {
+                                     window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
                                    }
                                   }
                                 }}
