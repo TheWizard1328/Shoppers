@@ -176,7 +176,7 @@ export default function ChatWindow({
                   className="text-xs mt-1"
                   style={{ color: isOwnMessage ? 'rgba(255,255,255,0.7)' : 'var(--text-slate-400)' }}
                 >
-                  {msg.created_date && format(new Date(msg.created_date), 'h:mm a')}
+                  {msg.created_date && format(parseLocalTimestamp(msg.created_date), 'h:mm a')}
                   {isOwnMessage && msg.read && ' • Read'}
                 </p>
               </div>
