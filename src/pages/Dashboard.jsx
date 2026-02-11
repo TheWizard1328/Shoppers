@@ -1263,7 +1263,11 @@ function Dashboard() {
   }, [currentUser?.id]);
   
   const shouldShowLocationToggle = useMemo(() => {
-    // CRITICAL: Show when mobile AND primary device (both must be true)
+    // CRITICAL: Always show for app owner (regardless of device/role)
+    if (isAppOwner(currentUser)) {
+      return true;
+    }
+    // Show when mobile AND primary device (both must be true)
     return isMobile && isPrimaryDevice && isDriver && !userHasRole(currentUser, 'dispatcher');
   }, [isMobile, isPrimaryDevice, isDriver, currentUser]);
 
