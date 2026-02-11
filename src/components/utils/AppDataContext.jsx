@@ -41,17 +41,26 @@ export const AppDataProvider = ({ children, value }) => {
         }
       } else if (entityType === 'AppUser') {
         if (eventType === 'create' || eventType === 'update') {
+          const coords = `${data.current_latitude?.toFixed(6)}, ${data.current_longitude?.toFixed(6)}`;
+          console.log(`🔔 [AppDataContext] AppUser ${eventType} via realtime - user: ${data.user_name}, coords: ${coords}, timestamp: ${data.location_updated_at}`);
+          
           // CRITICAL: Update appUsers array in context for instant UI updates
           if (value.updateAppUsersLocally) {
-            console.log(`🔔 [AppDataContext] AppUser update via realtime - user: ${data.user_name}, coords: ${data.current_latitude}, ${data.current_longitude}`);
+            console.log(`📝 [AppDataContext] Calling updateAppUsersLocally for ${data.user_name}`);
             value.updateAppUsersLocally([data], false);
           }
           
-          // Notify driver location update for map markers
+          // CRITICAL: Dispatch location update event IMMEDIATELY for map markers and badges
           if (typeof window !== 'undefined') {
-            console.log(`📍 [AppDataContext] Dispatching driverLocationsUpdated for ${data.user_name}`);
+            console.log(`📡 [AppDataContext] Dispatching driverLocationsUpdated for ${data.user_name} with coords ${coords}`);
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
               detail: { appUsers: [data], singleUpdate: true, fromRealtime: true }
+            }));
+            
+            // CRITICAL: Also dispatch generic AppUser update for location badges
+            console.log(`📡 [AppDataContext] Dispatching appUserUpdated for ${data.user_name}`);
+            window.dispatchEvent(new CustomEvent('appUserUpdated', {
+              detail: { appUser: data, fromRealtime: true }
             }));
           }
           

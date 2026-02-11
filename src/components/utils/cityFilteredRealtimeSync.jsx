@@ -95,7 +95,8 @@ class CityFilteredRealtimeSync {
 
     // Subscribe to ALL AppUser changes (filter by city only)
     this.appUserUnsubscribe = base44.entities.AppUser.subscribe(async (event) => {
-      console.log(`📡 [Realtime AppUser] ${event.type}:`, event.data?.user_name || event.id);
+      const coords = event.data ? `${event.data.current_latitude?.toFixed(6)}, ${event.data.current_longitude?.toFixed(6)}` : 'N/A';
+      console.log(`📡 [Realtime AppUser] ${event.type} for ${event.data?.user_name || event.id} - coords: ${coords}, timestamp: ${event.data?.location_updated_at}`);
 
       // Filter by the currently selected city (not user's cities)
       if (event.type !== 'delete' && event.data) {
@@ -113,9 +114,10 @@ class CityFilteredRealtimeSync {
         if (event.type === 'create' || event.type === 'update') {
           // Save to offline DB
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [event.data]);
-          console.log(`✅ [Realtime AppUser] Saved to offline DB: ${event.data.user_name || event.data.id}`);
+          console.log(`✅ [Realtime AppUser] Saved ${event.data.user_name} to offline DB - coords: ${coords}`);
           
           // Notify subscribers
+          console.log(`📢 [Realtime AppUser] Notifying ${this.updateCallbacks.size} subscribers about ${event.data.user_name}`);
           this.notifySubscribers('AppUser', event.type, event.data);
           this.lastAppUserUpdate = Date.now();
         } else if (event.type === 'delete') {
