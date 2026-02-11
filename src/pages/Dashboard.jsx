@@ -7622,6 +7622,60 @@ function Dashboard() {
           console.log(`✅ [AppUser Sync] Synced ${freshAppUsers.length} users to offline DB`);
         }
         
+        // CRITICAL: Check Cities sync metadata
+        const cityMeta = await offlineDB.getSyncMetadata('City');
+        let needsCitySync = false;
+        
+        if (!cityMeta || !cityMeta.last_sync_time) {
+          console.log('📊 [City Check] No sync metadata found - syncing fresh data');
+          needsCitySync = true;
+        } else {
+          const lastSyncTime = new Date(cityMeta.last_sync_time).getTime();
+          const ageMs = now - lastSyncTime;
+          
+          if (ageMs > fiveMinutesInMs) {
+            console.log(`📊 [City Check] Data is ${Math.floor(ageMs / 60000)} minutes old - syncing fresh data`);
+            needsCitySync = true;
+          } else {
+            console.log(`✅ [City Check] Data is ${Math.floor(ageMs / 1000)} seconds old - using cached data`);
+          }
+        }
+        
+        if (needsCitySync) {
+          console.log('📥 [City Sync] Fetching fresh City data from API...');
+          const freshCities = await base44.entities.City.list();
+          await offlineDB.bulkSave(offlineDB.STORES.CITIES, freshCities);
+          await offlineDB.updateSyncMetadata('City', new Date().toISOString());
+          console.log(`✅ [City Sync] Synced ${freshCities.length} cities to offline DB`);
+        }
+        
+        // CRITICAL: Check Stores sync metadata
+        const storeMeta = await offlineDB.getSyncMetadata('Store');
+        let needsStoreSync = false;
+        
+        if (!storeMeta || !storeMeta.last_sync_time) {
+          console.log('📊 [Store Check] No sync metadata found - syncing fresh data');
+          needsStoreSync = true;
+        } else {
+          const lastSyncTime = new Date(storeMeta.last_sync_time).getTime();
+          const ageMs = now - lastSyncTime;
+          
+          if (ageMs > fiveMinutesInMs) {
+            console.log(`📊 [Store Check] Data is ${Math.floor(ageMs / 60000)} minutes old - syncing fresh data`);
+            needsStoreSync = true;
+          } else {
+            console.log(`✅ [Store Check] Data is ${Math.floor(ageMs / 1000)} seconds old - using cached data`);
+          }
+        }
+        
+        if (needsStoreSync) {
+          console.log('📥 [Store Sync] Fetching fresh Store data from API...');
+          const freshStores = await base44.entities.Store.list();
+          await offlineDB.bulkSave(offlineDB.STORES.STORES, freshStores);
+          await offlineDB.updateSyncMetadata('Store', new Date().toISOString());
+          console.log(`✅ [Store Sync] Synced ${freshStores.length} stores to offline DB`);
+        }
+        
         // Run standard pre-render sync
         const { initializeOfflineDBBeforeRender } = await import('@/components/utils/offlineSync');
         const result = await initializeOfflineDBBeforeRender(smartRefreshManager, currentUser);
