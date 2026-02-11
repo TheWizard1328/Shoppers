@@ -54,19 +54,34 @@ export default function DualStatsMarquee({
   // CRITICAL: For DRIVERS - basic numbers are deliveries, superscripts are pickups
   // For DISPATCHERS - basic numbers are deliveries, superscripts are unique driver counts
   
+  // CRITICAL: Don't show 0's during refresh - preserve previous values if localStats is undefined/empty
+  // This prevents the marquee from flashing all zeros during data refreshes
+  const hasValidLocalStats = localStats && (
+    localStats.total > 0 || 
+    localStats.completed > 0 || 
+    localStats.inTransit > 0 ||
+    localStats.failed > 0 ||
+    localStats.returned > 0
+  );
+  
   // Basic values (patient deliveries only)
-  const totalDeliveries = localStats?.total || 0;
-  const completedDeliveries = localStats?.completed || 0;
-  const failedDeliveries = localStats?.failed || 0;
-  const returnedDeliveries = localStats?.returned || 0;
+  const totalDeliveries = hasValidLocalStats ? (localStats?.total || 0) : (localStats?.total ?? null);
+  const completedDeliveries = hasValidLocalStats ? (localStats?.completed || 0) : (localStats?.completed ?? null);
+  const failedDeliveries = hasValidLocalStats ? (localStats?.failed || 0) : (localStats?.failed ?? null);
+  const returnedDeliveries = hasValidLocalStats ? (localStats?.returned || 0) : (localStats?.returned ?? null);
   
   // Pickup values for drivers
-  const totalPickups = localStats?.totalPickups || 0;
-  const activePickups = (localStats?.activePickupsEnRoute || 0); // En Route pickups only
-  const completedPickups = localStats?.completedPickups || 0;
+  const totalPickups = hasValidLocalStats ? (localStats?.totalPickups || 0) : (localStats?.totalPickups ?? null);
+  const activePickups = hasValidLocalStats ? (localStats?.activePickupsEnRoute || 0) : (localStats?.activePickupsEnRoute ?? null);
+  const completedPickups = hasValidLocalStats ? (localStats?.completedPickups || 0) : (localStats?.completedPickups ?? null);
   
   // Active delivery counts (for active stops badge)
-  const inTransitDeliveries = localStats?.inTransit || 0;
+  const inTransitDeliveries = hasValidLocalStats ? (localStats?.inTransit || 0) : (localStats?.inTransit ?? null);
+  
+  // If all values are null (refresh in progress), don't render anything yet
+  if (totalDeliveries === null && completedDeliveries === null && inTransitDeliveries === null) {
+    return null;
+  }
   
   // Driver counts for dispatchers (from backend stats)
   // CRITICAL: Safely access nested property with null checks
