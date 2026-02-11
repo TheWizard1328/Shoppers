@@ -43,11 +43,13 @@ export const AppDataProvider = ({ children, value }) => {
         if (eventType === 'create' || eventType === 'update') {
           // CRITICAL: Update appUsers array in context for instant UI updates
           if (value.updateAppUsersLocally) {
+            console.log(`🔔 [AppDataContext] AppUser update via realtime - user: ${data.user_name}, coords: ${data.current_latitude}, ${data.current_longitude}`);
             value.updateAppUsersLocally([data], false);
           }
           
           // Notify driver location update for map markers
           if (typeof window !== 'undefined') {
+            console.log(`📍 [AppDataContext] Dispatching driverLocationsUpdated for ${data.user_name}`);
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
               detail: { appUsers: [data], singleUpdate: true, fromRealtime: true }
             }));
