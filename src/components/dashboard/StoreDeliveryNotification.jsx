@@ -55,6 +55,31 @@ export default function StoreDeliveryNotification({
 
     if (!store || !driver) return;
 
+    // Find next incomplete delivery for this driver
+    let nextDelivery = null;
+    let nextRouteInfo = null;
+    
+    const driverDeliveries = deliveries.filter(d => 
+      d && d.delivery_date === todayStr && d.driver_id === delivery.driver_id && d.patient_id
+    );
+    const incompleteDeliveries = driverDeliveries
+      .filter(d => d.id !== delivery.id && d.status !== 'completed' && d.status !== 'failed' && d.status !== 'cancelled')
+      .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+    
+    if (incompleteDeliveries.length > 0) {
+      nextDelivery = incompleteDeliveries[0];
+      const sameStore = nextDelivery.store_id === delivery.store_id;
+      const stopOrder = nextDelivery.stop_order || 1;
+      const eta = nextDelivery.delivery_time_eta || nextDelivery.delivery_time_start || 'N/A';
+      
+      nextRouteInfo = {
+        sameStore,
+        stopOrder,
+        patientName: nextDelivery.patient_name || 'Patient',
+        eta: eta
+      };
+    }
+
     // Extract COD info
     let codInfo = null;
     if (delivery.cod_total_amount_required && delivery.cod_total_amount_required > 0) {
@@ -82,6 +107,7 @@ export default function StoreDeliveryNotification({
       status: delivery.status,
       completionTime: delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'h:mm a') : 'N/A',
       codInfo: codInfo,
+      nextRouteInfo: nextRouteInfo,
       deliveryId: delivery.id
     });
 
