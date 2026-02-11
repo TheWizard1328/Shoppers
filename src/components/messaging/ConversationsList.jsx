@@ -313,7 +313,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
                   {conv.lastMessage?.content}
                 </p>
                 <p className="text-xs" style={{ color: 'var(--text-slate-400)' }}>
-                  {conv.lastMessage?.created_date && format(new Date(conv.lastMessage.created_date), 'MMM d, h:mm a')}
+                  {conv.lastMessage?.created_date && format(parseLocalTimestamp(conv.lastMessage.created_date), 'MMM d, h:mm a')}
                 </p>
               </div>
             </div>
