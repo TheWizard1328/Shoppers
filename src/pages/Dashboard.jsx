@@ -1666,31 +1666,8 @@ function Dashboard() {
 
 
 
-  // Listen for screen resize event from DeliveryMap and re-apply FAB phase
-  useEffect(() => {
-    const handleScreenResized = () => {
-      console.log('📱 [Dashboard] Screen resized - re-applying FAB phase');
-      
-      // CRITICAL: Only auto-center and zoom if on phase 1
-      if (mapViewPhase === 1) {
-        // Mark as programmatic move
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        
-        // Lock and trigger map view
-        setIsMapViewLocked(true);
-        setMapViewTrigger((prev) => prev + 1);
-        
-        // Auto-unlock after 500ms
-        setTimeout(() => {
-          setIsMapViewLocked(false);
-        }, 500);
-      }
-    };
-    
-    window.addEventListener('screenResized', handleScreenResized);
-    return () => window.removeEventListener('screenResized', handleScreenResized);
-  }, [mapViewPhase]);
+  // REMOVED: Screen resize no longer triggers FAB phase activation
+  // Phase 1 only activates on initial page load/refresh
 
   useEffect(() => {
     let resizeTimeout;
