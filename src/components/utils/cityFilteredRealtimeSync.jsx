@@ -74,22 +74,42 @@ class CityFilteredRealtimeSync {
       // Process the event
       try {
         if (event.type === 'create' || event.type === 'update') {
-          // Save to offline DB
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]);
-          console.log(`✅ [Realtime Delivery] Saved to offline DB: ${event.data.patient_name || event.data.id}`);
-          
-          // Notify subscribers (UI will filter by date/route)
-          this.notifySubscribers('Delivery', event.type, event.data);
-          this.lastDeliveryUpdate = Date.now();
-        } else if (event.type === 'delete') {
-          // Remove from offline DB
-          await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id);
-          console.log(`✅ [Realtime Delivery] Deleted from offline DB: ${event.id}`);
-          
-          // Notify subscribers
-          this.notifySubscribers('Delivery', event.type, { id: event.id });
-          this.lastDeliveryUpdate = Date.now();
-        }
+            // Save to offline DB
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]);
+            console.log(`✅ [Realtime Delivery] Saved to offline DB: ${event.data.patient_name || event.data.id}`);
+
+            // CRITICAL: Broadcast to ALL devices immediately
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { 
+                deliveries: [event.data],
+                triggeredBy: 'realtime',
+                allDrivers: true,
+                fromRealtime: true
+              }
+            }));
+
+            // Notify subscribers (UI will filter by date/route)
+            this.notifySubscribers('Delivery', event.type, event.data);
+            this.lastDeliveryUpdate = Date.now();
+          } else if (event.type === 'delete') {
+            // Remove from offline DB
+            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id);
+            console.log(`✅ [Realtime Delivery] Deleted from offline DB: ${event.id}`);
+
+            // CRITICAL: Broadcast deletion to ALL devices
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { 
+                deletedIds: [event.id],
+                triggeredBy: 'realtime',
+                allDrivers: true,
+                fromRealtime: true
+              }
+            }));
+
+            // Notify subscribers
+            this.notifySubscribers('Delivery', event.type, { id: event.id });
+            this.lastDeliveryUpdate = Date.now();
+          }
       } catch (error) {
         console.error('❌ [Realtime Delivery] Error processing event:', error);
       }
