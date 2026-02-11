@@ -369,12 +369,9 @@ class LocationTracker {
       this.failedUpdateCount = 0;
       this.backoffTime = 0;
 
-      // CRITICAL: Update breadcrumbs every other location update (30 seconds) if moved > 100m
-      if (!timestampOnly && !this.lastPosition?.skipBreadcrumb) {
-        this.locationUpdateCounter++;
-        if (this.locationUpdateCounter % 2 === 0) {
-          await this.updateBreadcrumb(latitude, longitude);
-        }
+      // CRITICAL: Update breadcrumbs on coordinate updates (not timestamp-only) when on_duty
+      if (!timestampOnly && this.driverStatus === 'on_duty') {
+        await this.updateBreadcrumb(latitude, longitude);
       }
 
       console.log(`✅✅✅ [LocationTracker] UPLOAD COMPLETE - Next in ${this.updateInterval/1000}s`);
