@@ -230,9 +230,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         setIsLocationSharingEnabled(true);
         sessionStorage.setItem('locationSharingEnabled', 'true');
         
-        // CRITICAL: Tell locationTracker to start updating BEFORE database update
-        locationTracker.setDriverStatus('on_duty');
-        
+        // CRITICAL: Signal toggle event for immediate GPS upload
+        locationTracker.signalLocationSharingToggle(true);
+
         // CRITICAL: Start tracking if not already running
         if (!locationTracker.isTracking) {
           try {
