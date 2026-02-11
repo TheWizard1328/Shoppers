@@ -156,6 +156,7 @@ export default function StopCard({
   const [acceptingIndividual, setAcceptingIndividual] = useState({});
   const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false);
   const [pendingFailureStatus, setPendingFailureStatus] = useState(null);
+  const [isFailing, setIsFailing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const codAmountInputRefs = useRef([]);
   const { setIsEntityUpdating, forceRefreshDriverDeliveries, refreshData, updateDeliveriesLocally } = useAppData();
@@ -1456,6 +1457,7 @@ export default function StopCard({
 
                 setShowFailureReasonDialog(false);
                 setPendingFailureStatus(null);
+                setIsFailing(true);
 
                 fabControlEvents.deactivateFAB();
                 smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
@@ -1581,6 +1583,23 @@ export default function StopCard({
                   console.warn('⚠️ [Failed/Cancelled] Route optimizer failed:', optimizeError);
                 }
 
+                // CRITICAL: Find next incomplete delivery and set isNextDelivery flag
+                const driverDeliveries = allDeliveries.filter((d) =>
+                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                );
+                const incompleteDeliveries = driverDeliveries.filter((d) =>
+                  d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
+                ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+                if (incompleteDeliveries.length > 0) {
+                  console.log(`✅ [FAILURE] Setting isNextDelivery=true on ${incompleteDeliveries[0].patient_name || 'Pickup'}`);
+                  await updateDeliveryLocal(incompleteDeliveries[0].id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                  
+                  // Final refresh to show isNextDelivery update
+                  invalidate('Delivery');
+                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                }
+
                 // Notify dispatchers
                 if (userHasRole(currentUser, 'driver')) {
                   await notifyDriverFailed({
@@ -1606,6 +1625,7 @@ export default function StopCard({
                 console.error('❌ [FAILURE] Error:', error);
                 toast.error(`Failed to mark as ${status}: ${error.message}`);
               } finally {
+                setIsFailing(false);
                 fabControlEvents.reactivateFAB(true);
               }
             }}
@@ -2609,17 +2629,17 @@ export default function StopCard({
                             isNextDelivery ?
                               <Button
                                 onClick={async (e) => {
-                                  e.stopPropagation();
+                                 e.stopPropagation();
 
-                                  fabControlEvents.deactivateFAB();
-                                  setIsCompleting(true);
-                                  setIsProcessingBackground(true);
-                                  console.log('⏸️ [Complete] Pausing location poller...');
-                                  const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-                                  driverLocationPoller.pause();
+                                 fabControlEvents.deactivateFAB();
+                                 setIsCompleting(true);
+                                 setIsProcessingBackground(true);
+                                 console.log('⏸️ [Complete] Pausing location poller...');
+                                 const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+                                 driverLocationPoller.pause();
 
-                                  smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-                                  await new Promise((resolve) => setTimeout(resolve, 50));
+                                 smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+                                 await new Promise((resolve) => setTimeout(resolve, 50));
 
                                   try {
                                     // CRITICAL: Verify delivery still exists before completing
@@ -2851,9 +2871,11 @@ export default function StopCard({
                                   }
                                 }}
                                 size="sm"
-                                disabled={isCompleting || isProcessingBackground}
-                                className="rounded-md bg-emerald-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-emerald-700 h-10 md:h-8 border-r border-emerald-500 !text-white">
-                                {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
+                                disabled={isCompleting || isProcessingBackground || isFailing}
+                                className={`rounded-md px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 md:h-8 border-r !text-white ${
+                                  isFailing ? 'bg-red-600 hover:bg-red-700 border-red-500' : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'
+                                }`}>
+                                {isCompleting || isFailing ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                                 <span className="text-white">Complete</span>
                               </Button> :
                               onStartDelivery &&
