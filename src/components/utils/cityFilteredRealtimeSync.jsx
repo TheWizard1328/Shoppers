@@ -7,12 +7,14 @@ class CityFilteredRealtimeSync {
   constructor() {
     this.deliveryUnsubscribe = null;
     this.appUserUnsubscribe = null;
+    this.patientUnsubscribe = null;
     this.isActive = false;
     this.currentCityId = null;
     this.currentDate = null;
     this.updateCallbacks = new Set();
     this.lastDeliveryUpdate = null;
     this.lastAppUserUpdate = null;
+    this.lastPatientUpdate = null;
   }
 
   /**
