@@ -152,12 +152,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
             return false;
           }
 
-          // CRITICAL: Only show on_duty or on_break drivers
-          if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
-            console.log(`⏭️ [DriverMarkers] Skipping ${user.user_name} - status: ${user.driver_status}`);
-            return false;
-          }
-
           const currentUserId = currentUser?.id;
           const currentUserUserId = currentUser?.user_id;
           const userId = user.id || user.user_id;
@@ -165,6 +159,19 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
           if (isSelf && isPrimaryDevice) {
             console.log(`🚫 [DriverMarkers] Skipping self marker on primary device`);
+            return false;
+          }
+
+          // CRITICAL: Self marker on non-primary device ALWAYS shows (regardless of status or location sharing)
+          const isSelfOnNonPrimary = isSelf && !isPrimaryDevice;
+          if (isSelfOnNonPrimary) {
+            console.log(`✅ [DriverMarkers] Including self marker on non-primary device (status: ${user.driver_status})`);
+            return true;
+          }
+
+          // CRITICAL: Other drivers - only show on_duty or on_break
+          if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
+            console.log(`⏭️ [DriverMarkers] Skipping ${user.user_name} - status: ${user.driver_status}`);
             return false;
           }
 
@@ -207,10 +214,14 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                      user.user_id === currentUserId;
 
       // CRITICAL: NEVER show self marker on primary device (live location is separate)
-      // Only show self marker on non-primary devices (shared location from primary)
+      // CRITICAL: Self marker on non-primary device ALWAYS shows (regardless of status/location sharing)
       if (isSelf) {
         const shouldShow = !isPrimaryDevice;
-        console.log(`${shouldShow ? '✅' : '🚫'} [DriverMarkers - users prop] Self marker - isPrimaryDevice: ${isPrimaryDevice}, showing: ${shouldShow}`);
+        if (shouldShow) {
+          console.log(`✅ [DriverMarkers - users prop] Self marker on non-primary - ALWAYS showing (status: ${user.driver_status})`);
+        } else {
+          console.log(`🚫 [DriverMarkers - users prop] Self marker on primary - blocked`);
+        }
         return shouldShow;
       }
 
@@ -225,7 +236,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         }
       }
 
-      // CRITICAL: Only show on_duty or on_break drivers (except self on primary)
+      // CRITICAL: Other drivers - only show on_duty or on_break
       if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
         console.log(`⏭️ [DriverMarkers - users prop] ${user.user_name} - wrong status: ${user.driver_status}`);
         return false;
