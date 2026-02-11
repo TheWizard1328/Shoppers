@@ -408,7 +408,37 @@ function Dashboard() {
       }
     };
     
+    // CRITICAL: Listen for deliveriesImported events from route importer and real-time sync
+    const handleDeliveriesImported = async (event) => {
+      const { deliveries: importedDeliveries, source } = event.detail || {};
+      
+      if (!importedDeliveries || !Array.isArray(importedDeliveries)) return;
+      
+      console.log(`📡 [Dashboard] deliveriesImported event - ${importedDeliveries.length} deliveries from ${source}`);
+      
+      // CRITICAL: If "Show All" mode is active OR "All Drivers" mode, update UI with imported deliveries
+      if (showAllDriverMarkers || selectedDriverId === 'all') {
+        console.log(`🔄 [Dashboard] Show All/All Drivers active - updating UI with imported deliveries`);
+        
+        // Update UI immediately
+        if (updateDeliveriesLocally) {
+          updateDeliveriesLocally(importedDeliveries, false);
+        }
+        
+        // Force map update
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { 
+            triggeredBy: 'deliveriesImported',
+            source: source
+          }
+        }));
+        
+        console.log('✅ [Dashboard] UI updated with imported deliveries');
+      }
+    };
+    
     window.addEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
+    window.addEventListener('deliveriesImported', handleDeliveriesImported);
 
     // Subscribe to Patient entity changes
     const unsubscribePatients = base44.entities.Patient.subscribe((event) => {
@@ -513,10 +543,11 @@ function Dashboard() {
     return () => {
       console.log('🔌 [Real-time] Unsubscribing from Patient and Delivery changes');
       window.removeEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
+      window.removeEventListener('deliveriesImported', handleDeliveriesImported);
       unsubscribePatients();
       unsubscribeDeliveries();
     };
-  }, [currentUser?.id, isDataLoaded]);
+  }, [currentUser?.id, isDataLoaded, showAllDriverMarkers, selectedDriverId, updateDeliveriesLocally]);
 
 
 
