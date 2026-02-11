@@ -78,6 +78,16 @@ class CityFilteredRealtimeSync {
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]);
             console.log(`✅ [Realtime Delivery] Saved to offline DB: ${event.data.patient_name || event.data.id}`);
 
+            // CRITICAL: Broadcast to ALL devices in city
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('deliveriesImported', {
+                detail: { 
+                  deliveries: [event.data],
+                  source: 'realtime'
+                }
+              }));
+            }, 0);
+
             // Notify subscribers (UI will filter by date/route)
             this.notifySubscribers('Delivery', event.type, event.data);
             this.lastDeliveryUpdate = Date.now();
