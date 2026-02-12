@@ -233,7 +233,7 @@ export default function DeliveryForm({
     return format(new Date(), 'HH:mm');
   });
   const [showStagedPanel, setShowStagedPanel] = useState(false);
-  const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, staged: null });
+  const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, staged: null, transferPickupId: null });
   const [isDeletingPending, setIsDeletingPending] = useState(false);
   const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
   const { deviceType } = getUserAgentInfo();
@@ -5809,46 +5809,160 @@ export default function DeliveryForm({
 
 
       {/* Delete Pending Confirmation Dialog */}
-      {deleteConfirmation.show && deleteConfirmation.staged &&
-      <div className="fixed inset-0 z-[10020] bg-black/60 flex items-center justify-center p-4">
-          <div className="rounded-lg shadow-xl max-w-sm w-full p-4 border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
-            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Delete Pending Delivery?</h3>
-            <p className="text-sm mb-4" style={{ color: 'var(--text-slate-600)' }}>
-              Are you sure you want to delete the pending delivery for <strong style={{ color: 'var(--text-slate-900)' }}>{deleteConfirmation.staged.patient_name}</strong>? This action cannot be undone.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDeleteConfirmation({ show: false, staged: null })}
-              disabled={isDeletingPending}>
-                Cancel
-              </Button>
-              <Button
-              variant="destructive"
-              size="sm"
-              disabled={isDeletingPending}
-              onClick={async () => {
+      {deleteConfirmation.show && deleteConfirmation.staged && (() => {
+        const isPickup = !deleteConfirmation.staged.patient_id;
+        
+        // Find other pickups for same store (only if deleting a pickup)
+        const otherPickups = isPickup ? sortedStagedDeliveries.filter(s => 
+          s.id && !s.patient_id && 
+          s.store_id === deleteConfirmation.staged.store_id &&
+          s.id !== deleteConfirmation.staged.id
+        ) : [];
+        
+        // Find pending stops linked to this pickup
+        const linkedStops = isPickup ? sortedStagedDeliveries.filter(s => 
+          s.id && s.patient_id && 
+          s.puid === deleteConfirmation.staged.stop_id
+        ) : [];
+        
+        // Auto-select first pickup if available (only on first render)
+        React.useEffect(() => {
+          if (deleteConfirmation.show && isPickup && linkedStops.length > 0 && otherPickups.length > 0 && !deleteConfirmation.transferPickupId) {
+            setDeleteConfirmation(prev => ({
+              ...prev,
+              transferPickupId: otherPickups[0].id
+            }));
+          }
+        }, [deleteConfirmation.show]);
+        
+        return (
+          <div className="fixed inset-0 z-[10030] bg-black/60 flex items-center justify-center p-4">
+            <div className="rounded-lg shadow-xl max-w-md w-full p-4 border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+              <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>
+                Delete Pending {isPickup ? 'Pickup' : 'Delivery'}?
+              </h3>
+              <p className="text-sm mb-4" style={{ color: 'var(--text-slate-600)' }}>
+                {isPickup ? (
+                  <>Delete pickup for <strong style={{ color: 'var(--text-slate-900)' }}>{deleteConfirmation.staged.store_name}</strong> [{deleteConfirmation.staged.ampm_deliveries}]?</>
+                ) : (
+                  <>Delete delivery for <strong style={{ color: 'var(--text-slate-900)' }}>{deleteConfirmation.staged.patient_name}</strong>? This action cannot be undone.</>
+                )}
+              </p>
+              
+              {isPickup && linkedStops.length > 0 && (
+                <>
+                  <p className="text-sm mb-2 text-orange-600 font-medium">
+                    ⚠️ {linkedStops.length} pending stop{linkedStops.length > 1 ? 's' : ''} linked to this pickup
+                  </p>
+                  
+                  {otherPickups.length > 0 ? (
+                    <div className="mb-4 space-y-2">
+                      <Label className="text-sm font-semibold">Transfer stops to:</Label>
+                      <Select
+                        value={deleteConfirmation.transferPickupId || otherPickups[0]?.id || "delete_all"}
+                        onValueChange={(value) => setDeleteConfirmation(prev => ({
+                          ...prev,
+                          transferPickupId: value === "delete_all" ? null : value
+                        }))}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="z-[10040]">
+                          <SelectItem value="delete_all">
+                            🗑️ Delete All Stops
+                          </SelectItem>
+                          {otherPickups.map(pickup => (
+                            <SelectItem key={pickup.id} value={pickup.id}>
+                              {pickup.store_name} [{pickup.ampm_deliveries}] (TR: {pickup.tracking_number})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <p className="text-sm mb-4 text-red-600 font-medium">
+                      ⚠️ All Stops Will Be Deleted
+                    </p>
+                  )}
+                </>
+              )}
+              
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDeleteConfirmation({ show: false, staged: null, transferPickupId: null })}
+                  disabled={isDeletingPending}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={isDeletingPending}
+                  onClick={async () => {
                 const staged = deleteConfirmation.staged;
                 if (!staged || !staged.id) return;
 
+                const isPickup = !staged.patient_id;
+                const transferPickupId = deleteConfirmation.transferPickupId;
+
                 setIsDeletingPending(true);
                 try {
-                  console.log('🗑️ [DeliveryForm] Deleting pending delivery:', staged.id, staged.patient_name);
+                  // TRANSFER LOGIC for pickups with linked stops
+                  if (isPickup && transferPickupId) {
+                    const linkedStops = sortedStagedDeliveries.filter(s => 
+                      s.id && s.patient_id && s.puid === staged.stop_id
+                    );
+                    
+                    if (linkedStops.length > 0) {
+                      console.log(`🔄 [DeliveryForm] Transferring ${linkedStops.length} stops to new pickup...`);
+                      
+                      // Get target pickup details
+                      const targetPickup = sortedStagedDeliveries.find(s => s.id === transferPickupId);
+                      if (!targetPickup) throw new Error('Target pickup not found');
+                      
+                      const targetPickupTR = parseInt(targetPickup.tracking_number, 10) || 0;
+                      const targetStore = stores.find(s => s?.id === targetPickup.store_id);
+                      const storeAbbrev = targetStore?.abbreviation || '';
+                      
+                      // Count existing stops for target pickup
+                      const existingTargetStops = sortedStagedDeliveries.filter(s =>
+                        s.id && s.patient_id && s.puid === targetPickup.stop_id
+                      ).length;
+                      
+                      // Update all linked stops with new PUID and TR#
+                      for (let i = 0; i < linkedStops.length; i++) {
+                        const stop = linkedStops[i];
+                        const newTR = `${storeAbbrev}${targetPickupTR + existingTargetStops + i + 1}`;
+                        
+                        await updateDeliveryLocal(stop.id, {
+                          puid: targetPickup.stop_id,
+                          tracking_number: newTR,
+                          store_id: targetPickup.store_id,
+                          ampm_deliveries: targetPickup.ampm_deliveries
+                        });
+                        
+                        console.log(`✅ [Transfer] ${stop.patient_name}: PUID ${staged.stop_id} → ${targetPickup.stop_id}, TR ${stop.tracking_number} → ${newTR}`);
+                      }
+                      
+                      console.log(`✅ [DeliveryForm] Transferred ${linkedStops.length} stops to new pickup`);
+                    }
+                  }
                   
-                  // CRITICAL: Delete from both offline and online databases
-                  // This also triggers immediate mutation notification to update Layout state
+                  console.log('🗑️ [DeliveryForm] Deleting pending:', staged.id, staged.patient_name || 'Pickup');
+                  
+                  // Delete the original pickup/delivery
                   await deleteDeliveryLocal(staged.id);
-                  console.log('✅ [DeliveryForm] Pending delivery deleted from offline and online DBs');
+                  console.log('✅ [DeliveryForm] Pending deleted from offline and online DBs');
 
-                  // CRITICAL: Invalidate cache immediately to force refresh
+                  // Invalidate cache
                   const { invalidate } = await import('../utils/dataManager');
                   invalidate('Delivery');
 
                   // Remove from staged list
                   setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
                   
-                  // CRITICAL: Update projected list - restore the deleted patient if it was a projection
+                  // Update projected list
                   const remainingStagedIds = new Set(
                     stagedDeliveries
                       .filter((item) => item.id !== staged.id && item._tempId !== staged._tempId)
@@ -5857,34 +5971,32 @@ export default function DeliveryForm({
                   );
                   const filteredPredictions = fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id));
                   setProjectedDeliveries(filteredPredictions);
-                  console.log(`✅ [DeliveryForm] Restored ${filteredPredictions.length} projections after pending deletion`);
 
-                  // Mark that we have changes to activate Done button
                   setHasChanges(true);
                   setHasPendingDeletes(true);
-                  
-                  console.log('✅ [DeliveryForm] Pending delivery deleted and cache invalidated');
 
-                  // Clear editing state if this was the one being edited
                   if (editingStagedId === staged._tempId) {
                     setEditingStagedId(null);
                     handleClearForm();
                   }
 
-                  setDeleteConfirmation({ show: false, staged: null });
+                  setDeleteConfirmation({ show: false, staged: null, transferPickupId: null });
                 } catch (error) {
-                  console.error('❌ [DeliveryForm] Failed to delete pending delivery:', error);
-                  setError(`Failed to delete: ${error.message}`);
+                  console.error('❌ [DeliveryForm] Failed to delete:', error);
+                  setError(`Failed: ${error.message}`);
                 } finally {
                   setIsDeletingPending(false);
                 }
               }}>
-                {isDeletingPending ? 'Deleting...' : 'Delete'}
+                {isDeletingPending ? 'Processing...' : (
+                  deleteConfirmation.transferPickupId ? 'Trans & Del' : 'Delete'
+                )}
               </Button>
             </div>
           </div>
         </div>
-      }
+        );
+      })()}
     </div>
   );
 }
