@@ -502,11 +502,39 @@ function Dashboard() {
       }
     });
 
-    // Subscribe to Delivery entity changes
+    // CRITICAL: Listen for deliveryUpdated events from cityFilteredRealtimeSync
+    const handleDeliveryUpdated = (event) => {
+      const { delivery, type } = event.detail || {};
+      
+      if (!delivery) return;
+      
+      console.log(`📡 [Dashboard] Received deliveryUpdated event - ${type}:`, delivery.patient_name || delivery.id);
+      console.log('📦 [Dashboard] Delivery data:', JSON.stringify({ id: delivery.id, status: delivery.status, isNextDelivery: delivery.isNextDelivery }, null, 2));
+      
+      // Update UI immediately
+      if (updateDeliveriesLocally) {
+        console.log(`🔄 [Dashboard] Updating UI with delivery: ${delivery.patient_name}, status: ${delivery.status}`);
+        updateDeliveriesLocally([delivery], false);
+      }
+      
+      // Trigger map update
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { deliveryDate: delivery.delivery_date, triggeredBy: 'realtimeDeliveryEvent' }
+      }));
+      
+      // Force stats refresh
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      
+      console.log('✅ [Dashboard] deliveryUpdated processed');
+    };
+    
+    window.addEventListener('deliveryUpdated', handleDeliveryUpdated);
+    
+    // Subscribe to Delivery entity changes (keep for debugging)
     console.log('🔌 [Dashboard] Setting up Delivery subscription...');
     const unsubscribeDeliveries = base44.entities.Delivery.subscribe((event) => {
-      console.log(`📡 [Real-time Delivery] ${event.type} event:`, event.data?.patient_name || event.id, 'driver:', event.data?.driver_id);
-      console.log('📦 [Real-time Delivery] Full event data:', JSON.stringify(event.data, null, 2));
+      console.log(`📡 [Real-time Delivery DIRECT] ${event.type} event:`, event.data?.patient_name || event.id, 'driver:', event.data?.driver_id);
+      console.log('📦 [Real-time Delivery DIRECT] Full event data:', JSON.stringify(event.data, null, 2));
       
       // CRITICAL: Check if this delivery is for the selected date
       const deliveryDate = event.data?.delivery_date;
@@ -609,6 +637,7 @@ function Dashboard() {
       console.log('🔌 [Real-time] Unsubscribing from Patient, Delivery, and AppUser changes');
       window.removeEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
+      window.removeEventListener('deliveryUpdated', handleDeliveryUpdated);
       if (unsubscribePatients) {
         unsubscribePatients();
         console.log('✅ [Real-time] Unsubscribed from Patient');
