@@ -375,6 +375,9 @@ function Dashboard() {
   const [pullToSyncKey, setPullToSyncKey] = useState(0);
   const [cardsReadyForFAB, setCardsReadyForFAB] = useState(false);
 
+  // CRITICAL: Declare isPrimaryDevice early (before useEffects that need it)
+  const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
+
   // ==================== REAL-TIME SUBSCRIPTIONS ====================
   // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
   useEffect(() => {
