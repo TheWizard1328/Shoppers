@@ -101,55 +101,31 @@ export default function PullToSync({
 
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      console.log(`🎯 [Pull to Sync] Step 1: Fetching ALL data from online database in parallel...`);
+      console.log(`🎯 [Pull to Sync] Step 1: Fetching ALL deliveries for ${selectedDateStr} from online database...`);
 
-      // STEP 1: Fetch ALL data in parallel from online database
-      const [freshDeliveries, freshPatients, freshAppUsers, freshCities, freshStores] = await Promise.all([
-        base44.entities.Delivery.filter({ delivery_date: selectedDateStr }),
-        base44.entities.Patient.list(),
-        base44.entities.AppUser.list(),
-        base44.entities.City.list(),
-        base44.entities.Store.list()
-      ]);
-      
-      console.log(`✅ [Pull to Sync] Step 1: Fetched from online database:`);
-      console.log(`   - ${freshDeliveries?.length || 0} deliveries`);
-      console.log(`   - ${freshPatients?.length || 0} patients`);
-      console.log(`   - ${freshAppUsers?.length || 0} appUsers`);
-      console.log(`   - ${freshCities?.length || 0} cities`);
-      console.log(`   - ${freshStores?.length || 0} stores`);
+      // STEP 1: Fetch ALL deliveries for selected date directly from online database (all drivers)
+      const freshDeliveries = await base44.entities.Delivery.filter({ 
+        delivery_date: selectedDateStr 
+      });
+      console.log(`✅ [Pull to Sync] Step 1: Fetched ${freshDeliveries?.length || 0} deliveries from online database`);
 
-      // STEP 2: Update offline database with ALL fresh data
-      console.log('💾 [Pull to Sync] Step 2: Updating offline database...');
-      
-      // Clear and save deliveries
+      // STEP 2: Update offline database with fresh deliveries
+      console.log('💾 [Pull to Sync] Step 2: Updating offline database with fresh deliveries...');
       const deleteResult = await offlineDB.deleteDeliveriesByDate(selectedDateStr);
       console.log(`   - Deleted ${deleteResult?.deletedCount || 0} old deliveries`);
+
       if (freshDeliveries && freshDeliveries.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        console.log(`   ✅ Saved ${freshDeliveries.length} deliveries to offline DB`);
       }
+
+      // STEP 3: Load fresh deliveries from offline DB and update UI
+      console.log('🔄 [Pull to Sync] Step 3: Loading deliveries from offline DB for UI update...');
+      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+      console.log(`   ✅ Loaded ${offlineDeliveries?.length || 0} deliveries from offline DB`);
       
-      // Clear and save AppUsers
-      await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
-      if (freshAppUsers && freshAppUsers.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-      }
-      
-      // Save Patients, Cities, Stores
-      if (freshPatients && freshPatients.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-      }
-      if (freshCities && freshCities.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.CITIES, freshCities);
-      }
-      if (freshStores && freshStores.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.STORES, freshStores);
-      }
-      
-      console.log('✅ [Pull to Sync] Step 2: All data saved to offline DB');
-      
-      // STEP 3: Dispatch immediate UI update
-      console.log('🖥️ [Pull to Sync] Step 3: Dispatching UI update event...');
+      // STEP 4: Update UI with deliveries from offline database
+      console.log('🖥️ [Pull to Sync] Step 4: Updating UI with offline deliveries...');
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { 
           deliveryDate: selectedDateStr, 
@@ -159,8 +135,8 @@ export default function PullToSync({
       }));
       console.log('   ✅ UI update event dispatched')
 
-      // STEP 4: Read from offline DB for UI update
-      console.log('🔄 [Pull to Sync] Step 4: Reading from offline DB for complete UI update...');
+      // STEP 5: Full read of offline DB after resync - AppUsers, Cities, Stores, Deliveries, Patients
+      console.log('🔄 [Pull to Sync] Step 5: Full read from offline DB after resync...');
       
       try {
         // 5A: Read all AppUsers from offline DB
