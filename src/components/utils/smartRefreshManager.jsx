@@ -502,6 +502,12 @@ class LightweightRefreshManager {
    * Perform smart refresh - main method called by Dashboard
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating, showAllDrivers, currentPage, selectedDate) {
+    // CRITICAL: Guard against undefined parameters
+    if (!currentData || !filters || !currentPage) {
+      console.warn('⚠️ [SmartRefresh] Missing required parameters - skipping refresh');
+      return null;
+    }
+    
     // Delegate to performLightweightRefresh
     return await this.performLightweightRefresh(currentData);
   }
