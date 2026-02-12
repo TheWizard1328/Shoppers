@@ -3181,7 +3181,7 @@ function Dashboard() {
         }
         break;
 
-      case 3: // "Center on Incomplete Stops Only"
+      case 3: // "Center on Incomplete Stops Only + Their Drivers"
         console.clear;
         const allCoordinatesPhase3 = [];
         
@@ -3193,13 +3193,10 @@ function Dashboard() {
         // CRITICAL: Determine if "Show All" mode OR "All Drivers" mode is active
         const isShowAllOrAllDriversMode = showAllDriverMarkers || selectedDriverId === 'all';
         
-        // CRITICAL: Phase 3 shows ONLY incomplete stops (no driver markers, no home markers)
-        // This is pure "show me what's left to do" view
-        
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
         
         if (isShowAllOrAllDriversMode) {
-          // MODE 1: Show All / All Drivers - include incomplete stops
+          // MODE 1: Show All / All Drivers - include ALL incomplete stops from ALL drivers
           let allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStrPhase3);
           
           // CRITICAL: Filter by dispatcher stores if applicable
@@ -3214,25 +3211,18 @@ function Dashboard() {
             allDateDeliveries = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
           }
           
-          // CRITICAL: Filter to ONLY incomplete stops from dispatcher's stores
+          // CRITICAL: Filter to ONLY incomplete stops (pickups + deliveries)
           const incompleteAllDrivers = allDateDeliveries.filter((d) => {
             if (!d) return false;
             if (finishedStatuses.includes(d.status)) return false;
             if (d.status === 'pending') return false;
-            
-            // CRITICAL: For dispatchers, only include stops from their stores
-            if (isDispatcher && !isAdmin && currentUser?.store_ids) {
-              const dispatcherStoreIds = new Set(currentUser.store_ids);
-              if (!dispatcherStoreIds.has(d.store_id)) return false;
-            }
-            
             return true;
           });
           
-          // CRITICAL: Get unique driver IDs from incomplete deliveries
+          // CRITICAL: Get unique driver IDs from incomplete deliveries ONLY
           const driversWithIncompleteStops = new Set(incompleteAllDrivers.map(d => d.driver_id).filter(Boolean));
           
-          console.log(`📍 [Phase 3 - Show All] Including ${incompleteAllDrivers.length} incomplete stops + ${driversWithIncompleteStops.size} driver markers`);
+          console.log(`📍 [Phase 3 - Show All] ${incompleteAllDrivers.length} incomplete stops + ${driversWithIncompleteStops.size} driver markers`);
           
           // Add incomplete stop coordinates
           incompleteAllDrivers.forEach((delivery) => {
@@ -3249,21 +3239,18 @@ function Dashboard() {
             }
           });
           
-          // CRITICAL: Add driver markers for drivers with incomplete deliveries (only if viewing today)
+          // CRITICAL: Add driver markers ONLY for drivers with incomplete stops (only if viewing today)
           if (isViewingTodayPhase3) {
             driversWithIncompleteStops.forEach((driverId) => {
               const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
               if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
-                // Only include if driver has location tracking enabled and is on_duty
-                if (driverAppUser.driver_status === 'on_duty' && driverAppUser.location_tracking_enabled === true) {
-                  allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
-                }
+                allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
               }
             });
           }
           
         } else {
-          // MODE 2: Single Driver - include only selected driver's incomplete stops from dispatcher's stores
+          // MODE 2: Single Driver - include only selected driver's incomplete stops
           const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
           
           const incompleteStopsActiveDriver = deliveriesWithStopOrder.filter((d) => {
@@ -3281,7 +3268,7 @@ function Dashboard() {
             return true;
           });
           
-          console.log(`📍 [Phase 3 - Single Driver] Including ${incompleteStopsActiveDriver.length} incomplete stops + driver marker`);
+          console.log(`📍 [Phase 3 - Single Driver] ${incompleteStopsActiveDriver.length} incomplete stops + driver marker`);
           
           // Add incomplete stop coordinates
           incompleteStopsActiveDriver.forEach((delivery) => {
@@ -3298,14 +3285,11 @@ function Dashboard() {
             }
           });
           
-          // CRITICAL: Add driver marker for the selected driver (only if viewing today)
-          if (isViewingTodayPhase3) {
+          // CRITICAL: Add driver marker ONLY if they have incomplete stops (only if viewing today)
+          if (isViewingTodayPhase3 && incompleteStopsActiveDriver.length > 0) {
             const driverAppUser = appUsers?.find(au => au?.user_id === targetDriverId);
             if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
-              // Only include if driver has location tracking enabled and is on_duty
-              if (driverAppUser.driver_status === 'on_duty' && driverAppUser.location_tracking_enabled === true) {
-                allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
-              }
+              allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
             }
           }
         }
