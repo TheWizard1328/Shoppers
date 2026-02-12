@@ -1078,23 +1078,36 @@ export default function DeliveryForm({
 
     const timeSlot = getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries);
 
-    // Check if we need to create a new pickup (when in-progress stops exist but no incomplete pickup for this store)
-    let puid = getPickupStopIdForDelivery(patientStore.id, formData.delivery_date, timeSlot, allDeliveries);
+    // CRITICAL: Check staged pickups FIRST before calling backend
+    const stagedPickup = stagedDeliveries.find((d) =>
+      !d.patient_id && d.store_id === patientStore.id &&
+      d.delivery_date === formData.delivery_date &&
+      d.driver_id === autoSelectedDriverId &&
+      (d.ampm_deliveries || 'AM') === timeSlot
+    );
 
-    try {
-      const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
-        storeId: patientStore.id,
-        deliveryDate: formData.delivery_date,
-        driverId: autoSelectedDriverId,
-        ampmDeliveries: timeSlot
-      });
+    let puid = stagedPickup?.puid || stagedPickup?.stop_id;
 
-      if (pickupResponse.data?.puid) {
-        puid = pickupResponse.data.puid;
-        console.log(`✅ [handlePatientSelect] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
+    if (!puid) {
+      puid = getPickupStopIdForDelivery(patientStore.id, formData.delivery_date, timeSlot, allDeliveries);
+
+      try {
+        const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
+          storeId: patientStore.id,
+          deliveryDate: formData.delivery_date,
+          driverId: autoSelectedDriverId,
+          ampmDeliveries: timeSlot
+        });
+
+        if (pickupResponse.data?.puid) {
+          puid = pickupResponse.data.puid;
+          console.log(`✅ [handlePatientSelect] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
+        }
+      } catch (error) {
+        console.warn('⚠️ [handlePatientSelect] ensurePickupForDelivery failed, using fallback PUID:', error.message);
       }
-    } catch (error) {
-      console.warn('⚠️ [handlePatientSelect] ensurePickupForDelivery failed, using fallback PUID:', error.message);
+    } else {
+      console.log(`✅ [handlePatientSelect] Using PUID from staged pickup: ${puid}`);
     }
 
     const stagedDelivery = {
@@ -1963,21 +1976,34 @@ export default function DeliveryForm({
     let puid = null;
     const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
 
-    // First try the backend function to handle in-progress route scenario
-    try {
-      const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
-        storeId: store.id,
-        deliveryDate: formData.delivery_date,
-        driverId: formData.driver_id,
-        ampmDeliveries: timeSlot
-      });
+    // CRITICAL: Check staged pickups FIRST
+    const stagedPickup = stagedDeliveries.find((d) =>
+      !d.patient_id && d.store_id === store.id &&
+      d.delivery_date === formData.delivery_date &&
+      d.driver_id === formData.driver_id &&
+      (d.ampm_deliveries || 'AM') === timeSlot
+    );
 
-      if (pickupResponse.data?.puid) {
-        puid = pickupResponse.data.puid;
-        console.log(`✅ [handleAddToStaging] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
+    if (stagedPickup) {
+      puid = stagedPickup.puid || stagedPickup.stop_id;
+      console.log(`✅ [handleAddToStaging] Using PUID from staged pickup: ${puid}`);
+    } else {
+      // Try the backend function
+      try {
+        const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
+          storeId: store.id,
+          deliveryDate: formData.delivery_date,
+          driverId: formData.driver_id,
+          ampmDeliveries: timeSlot
+        });
+
+        if (pickupResponse.data?.puid) {
+          puid = pickupResponse.data.puid;
+          console.log(`✅ [handleAddToStaging] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
+        }
+      } catch (error) {
+        console.warn('⚠️ [handleAddToStaging] ensurePickupForDelivery failed:', error.message);
       }
-    } catch (error) {
-      console.warn('⚠️ [handleAddToStaging] ensurePickupForDelivery failed:', error.message);
     }
 
     // Fallback to local logic if backend didn't return a PUID
@@ -2080,17 +2106,23 @@ export default function DeliveryForm({
             const pickupPromises = driverAssignedStores
               .filter(assignedStore => assignedStore && assignedStore.id !== formData.store_id)
               .map(async (assignedStore) => {
-                // Check if pickup already exists
-                const pickupExists = allDeliveries?.some(d =>
+                const assignedTimeSlot = getStoreAssignedTimeSlot(assignedStore, formData.delivery_date, allDeliveries);
+
+                // CRITICAL: Check BOTH staged AND allDeliveries for existing pickup
+                const pickupExists = stagedDeliveries.some(d =>
                   !d.patient_id && d.store_id === assignedStore.id &&
                   d.delivery_date === formData.delivery_date &&
                   d.driver_id === formData.driver_id &&
-                  (d.status === 'pending' || d.status === 'en_route' || d.status === 'in_transit' || d.status === 'completed')
+                  (d.ampm_deliveries || 'AM') === assignedTimeSlot
+                ) || allDeliveries?.some(d =>
+                  !d.patient_id && d.store_id === assignedStore.id &&
+                  d.delivery_date === formData.delivery_date &&
+                  d.driver_id === formData.driver_id &&
+                  (d.status === 'pending' || d.status === 'en_route' || d.status === 'in_transit' || d.status === 'completed') &&
+                  (d.ampm_deliveries || 'AM') === assignedTimeSlot
                 );
 
                 if (!pickupExists) {
-                  const assignedTimeSlot = getStoreAssignedTimeSlot(assignedStore, formData.delivery_date, allDeliveries);
-                  
                   try {
                     console.log(`📦 [AutoAddPickups] Creating en_route pickup for: ${assignedStore.name} [${assignedTimeSlot}]`);
                     
@@ -2101,20 +2133,33 @@ export default function DeliveryForm({
                       ampmDeliveries: assignedTimeSlot
                     });
 
-                    if (pickupResponse.data?.puid) {
+                    if (pickupResponse.data?.puid && pickupResponse.data?.pickup) {
                       console.log(`✅ [AutoAddPickups] Created en_route pickup for ${assignedStore.name}: ${pickupResponse.data.puid}`);
+                      return pickupResponse.data.pickup;
                     }
-                    return true;
                   } catch (error) {
                     console.warn(`⚠️ [AutoAddPickups] Failed to create pickup for ${assignedStore.name}:`, error.message);
-                    return false;
                   }
+                } else {
+                  console.log(`⏭️ [AutoAddPickups] Pickup already exists for ${assignedStore.name} [${assignedTimeSlot}]`);
                 }
-                return false;
+                return null;
               });
 
             // Wait for all pickups to be created
-            await Promise.all(pickupPromises);
+            const newPickups = (await Promise.all(pickupPromises)).filter(Boolean);
+            
+            // CRITICAL: Add new pickups to staged list immediately
+            if (newPickups.length > 0) {
+              setStagedDeliveries((prev) => [...prev, ...newPickups.map(p => ({
+                ...p,
+                _tempId: Date.now() + Math.random(),
+                store_name: stores.find(s => s?.id === p.store_id)?.name,
+                store_abbreviation: stores.find(s => s?.id === p.store_id)?.abbreviation
+              }))]);
+              console.log(`✅ [AutoAddPickups] Added ${newPickups.length} new pickups to staged list`);
+            }
+            
             console.log(`✅ [AutoAddPickups] All default pickups created for driver`);
 
             // Trigger data refresh to show new pickups
@@ -4098,6 +4143,19 @@ export default function DeliveryForm({
     const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
     const autoDriverId = autoSelectedDriverId || formData.driver_id;
 
+    // CRITICAL: Check staged pickups FIRST
+    const stagedPickup = stagedDeliveries.find((d) =>
+      !d.patient_id && d.store_id === projected.store_id &&
+      d.delivery_date === formData.delivery_date &&
+      d.driver_id === autoDriverId &&
+      (d.ampm_deliveries || 'AM') === timeSlot
+    );
+
+    if (stagedPickup) {
+      puid = stagedPickup.puid || stagedPickup.stop_id;
+      console.log(`✅ [confirmAddProjectedToStaged] Using PUID from staged pickup: ${puid}`);
+    }
+
     // CRITICAL: Build staged item FIRST, then update both states atomically
     const newStagedItem = {
       patient_id: projected.patient_id,
@@ -4165,8 +4223,8 @@ export default function DeliveryForm({
     setStagedDeliveries((prev) => [...prev, newStagedItem]);
     setHasChanges(true);
 
-    // Now do async PUID lookup and update the staged item if needed
-    if (autoDriverId) {
+    // Now do async PUID lookup ONLY if not found in staged
+    if (autoDriverId && !puid) {
       try {
         const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
           storeId: projected.store_id,

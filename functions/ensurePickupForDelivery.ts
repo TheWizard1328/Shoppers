@@ -172,7 +172,8 @@ Deno.serve(async (req) => {
         return Response.json({ 
             puid: newPickup.stop_id,
             pickupId: newPickup.id,
-            isNew: true 
+            isNew: true,
+            pickup: newPickup // Return full pickup object
         });
 
     } catch (error) {
