@@ -3229,8 +3229,12 @@ function Dashboard() {
             return true;
           });
           
-          console.log(`📍 [Phase 3 - Show All] Including ${incompleteAllDrivers.length} incomplete stops (NO driver markers)`);
+          // CRITICAL: Get unique driver IDs from incomplete deliveries
+          const driversWithIncompleteStops = new Set(incompleteAllDrivers.map(d => d.driver_id).filter(Boolean));
           
+          console.log(`📍 [Phase 3 - Show All] Including ${incompleteAllDrivers.length} incomplete stops + ${driversWithIncompleteStops.size} driver markers`);
+          
+          // Add incomplete stop coordinates
           incompleteAllDrivers.forEach((delivery) => {
             if (delivery.patient_id) {
               const patient = patients.find((p) => p?.id === delivery.patient_id);
@@ -3244,6 +3248,19 @@ function Dashboard() {
               }
             }
           });
+          
+          // CRITICAL: Add driver markers for drivers with incomplete deliveries (only if viewing today)
+          if (isViewingTodayPhase3) {
+            driversWithIncompleteStops.forEach((driverId) => {
+              const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
+              if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+                // Only include if driver has location tracking enabled and is on_duty
+                if (driverAppUser.driver_status === 'on_duty' && driverAppUser.location_tracking_enabled === true) {
+                  allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
+                }
+              }
+            });
+          }
           
         } else {
           // MODE 2: Single Driver - include only selected driver's incomplete stops from dispatcher's stores
@@ -3264,8 +3281,9 @@ function Dashboard() {
             return true;
           });
           
-          console.log(`📍 [Phase 3 - Single Driver] Including ${incompleteStopsActiveDriver.length} incomplete stops (NO driver markers)`);
+          console.log(`📍 [Phase 3 - Single Driver] Including ${incompleteStopsActiveDriver.length} incomplete stops + driver marker`);
           
+          // Add incomplete stop coordinates
           incompleteStopsActiveDriver.forEach((delivery) => {
             if (delivery.patient_id) {
               const patient = patients.find((p) => p?.id === delivery.patient_id);
@@ -3279,6 +3297,17 @@ function Dashboard() {
               }
             }
           });
+          
+          // CRITICAL: Add driver marker for the selected driver (only if viewing today)
+          if (isViewingTodayPhase3) {
+            const driverAppUser = appUsers?.find(au => au?.user_id === targetDriverId);
+            if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+              // Only include if driver has location tracking enabled and is on_duty
+              if (driverAppUser.driver_status === 'on_duty' && driverAppUser.location_tracking_enabled === true) {
+                allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
+              }
+            }
+          }
         }
         
         // 3. Only fit bounds if we have actual markers to show (NO city center fallback)
