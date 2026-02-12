@@ -1664,20 +1664,22 @@ export default function Layout({ children, currentPageName }) {
           u?.id === update.data?.user_id ? { ...u, ...update.data } : u
           ));
 
-          // CRITICAL: Update offline DB immediately
-          const { offlineDB } = await import('./components/utils/offlineDatabase');
-          if (update.data) {
-            offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [update.data]).catch(console.error);
-          }
+          // CRITICAL: Update offline DB immediately (async but don't await)
+          import('./components/utils/offlineDatabase').then(({ offlineDB }) => {
+            if (update.data) {
+              offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [update.data]).catch(console.error);
+            }
+          });
 
           // CRITICAL: If this is the current user, refresh their context
           if (update.data?.user_id === currentUser?.id) {
             console.log('🔄 [Layout Real-time] Current user AppUser updated - refreshing context');
             clearUserCache();
-            const refreshedUser = await getEffectiveUser();
-            if (refreshedUser) {
-              setCurrentUser(refreshedUser);
-            }
+            getEffectiveUser().then(refreshedUser => {
+              if (refreshedUser) {
+                setCurrentUser(refreshedUser);
+              }
+            });
           }
 
           // CRITICAL: Dispatch event to update map markers AND polylines immediately
