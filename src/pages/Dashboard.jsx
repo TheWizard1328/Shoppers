@@ -2404,15 +2404,13 @@ function Dashboard() {
       console.log('🔄 [Periodic Refresh] Running smart refresh cycle...');
 
       // Build filters for smart refresh
+      // CRITICAL: Always fetch ALL drivers for the selected date (don't filter by selectedDriverId)
+      // The UI selection is just a view filter, not a data loading filter
       const filters = {
         deliveryFilter: {
           delivery_date: format(selectedDate, 'yyyy-MM-dd')
         }
       };
-      
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        filters.deliveryFilter.driver_id = selectedDriverId;
-      }
 
       // CRITICAL: Wrap in try-catch to handle rate limits gracefully
       let updates = null;
