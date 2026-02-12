@@ -20,8 +20,8 @@ class LightweightRefreshManager {
     this.intervals = {
       cities: 300000,        // 5min - Full Cities dataset
       stores: 300000,        // 5min - Full Stores dataset
-      appUsers: 60000,       // 1min - AppUser backup sync (catches WebSocket misses)
-      offlineSync: 60000,    // 1min - Offline DB reconciliation
+      appUsers: 0,           // DISABLED - rely on WebSocket subscriptions to update offline DB
+      offlineSync: 0,        // DISABLED - offlineDB reads, not syncs
       cacheRefresh: 300000   // 5min - Cache consistency check
     };
 
