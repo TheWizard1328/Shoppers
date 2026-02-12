@@ -215,41 +215,17 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   return [];
 };
 
+// NO CACHE OPERATIONS - all removed
 export const invalidate = (entityName) => {
-  const keysToDelete = [];
-  for (const key of cache.keys()) {
-    if (key.startsWith(`${entityName}_`)) {
-      keysToDelete.push(key);
-    }
-  }
-  if (keysToDelete.length > 0) {
-    keysToDelete.forEach(key => {
-      cache.delete(key);
-      cacheTimestamps.delete(key);
-    });
-  }
-  
-  // Also invalidate delivery range cache for Delivery entities
-  if (entityName === 'Delivery') {
-    invalidateDeliveryRangeCache();
-  }
+  // No-op - no cache to invalidate
 };
 
 export const getCached = (entityName) => {
-  const cacheKey = `${entityName}_default_noquery_all`;
-  if (cache.has(cacheKey)) {
-    const timestamp = cacheTimestamps.get(cacheKey);
-    if (timestamp && Date.now() - timestamp < CACHE_DURATION) {
-      return cache.get(cacheKey);
-    }
-  }
   return null;
 };
 
 export const setCached = (entityName, data) => {
-  const cacheKey = `${entityName}_default_noquery_all`;
-  cache.set(cacheKey, data);
-  cacheTimestamps.set(cacheKey, Date.now());
+  // No-op - no cache to set
 };
 
 /**
