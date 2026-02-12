@@ -533,10 +533,10 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
       return false; // Indicate it was already deleted
     }
 
-    // STEP 3: CRITICAL - Invalidate dataManager cache
-    const { invalidate } = await import('./dataManager');
-    invalidate('Delivery');
-    console.log('🗑️ [EntityMutations] Invalidated Delivery cache after delete');
+    // STEP 3: CRITICAL - Remove from cache (prevents deleted item from showing)
+    const { removeDeletedFromCache } = await import('./dataManager');
+    removeDeletedFromCache('Delivery', [deliveryId]);
+    console.log('🗑️ [EntityMutations] Removed deleted delivery from all caches');
     
     // STEP 4: Mark as deleted in smart refresh to prevent resurrection
     const { smartRefreshManager } = await import('./smartRefreshManager');
