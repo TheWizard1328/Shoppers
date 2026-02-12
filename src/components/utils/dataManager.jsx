@@ -229,26 +229,30 @@ export const setCached = (entityName, data) => {
 };
 
 /**
- * Get deliveries for a specific date range with caching
- * @param {string} startDate - Start date (yyyy-MM-dd)
- * @param {string} endDate - End date (yyyy-MM-dd)
- * @param {object} filters - Additional filters (store_id, driver_id, etc.)
- * @param {boolean} forceRefresh - Force bypass cache
- * @returns {Promise<Array>} - Deliveries for that date range
+ * Get deliveries for a specific date range - NO CACHE, always from offline DB or API
  */
 export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}, forceRefresh = false) => {
-  const cacheKey = `Delivery_range_${startDate}_${endDate}_${JSON.stringify(filters)}`;
-  
-  // Check cache first
-  if (!forceRefresh) {
-    const cachedData = deliveryRangeCache.get(cacheKey);
-    const cachedTimestamp = deliveryRangeCacheTimestamps.get(cacheKey);
+  // Try offline DB first
+  try {
+    const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const filtered = allOfflineDeliveries.filter(d => {
+      if (!d?.delivery_date) return false;
+      if (d.delivery_date < startDate || d.delivery_date > endDate) return false;
+      
+      // Apply additional filters
+      for (const [key, value] of Object.entries(filters)) {
+        if (d[key] !== value) return false;
+      }
+      
+      return true;
+    });
     
-    if (cachedData && cachedTimestamp && (Date.now() - cachedTimestamp < DELIVERY_RANGE_CACHE_DURATION)) {
-      return cachedData;
+    if (filtered.length > 0) {
+      return filtered;
     }
-  }
+  } catch (offlineError) {}
   
+  // Fallback: Fetch from API
   const rangeFilters = {
     ...filters,
     delivery_date: {
@@ -258,27 +262,25 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
   };
   
   try {
-    // CRITICAL: Wait for rate limit before making API call
     await waitForRateLimit();
-    
     const Entity = entities.Delivery;
     const deliveries = await Entity.filter(rangeFilters, '-updated_date');
     
-    // Cache the result
-    deliveryRangeCache.set(cacheKey, deliveries);
-    deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
+    // Save to offline DB
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     
     return deliveries;
   } catch (error) {
-    // Handle WebSocket errors gracefully
-    if (error.message?.includes('WebSocket') || error.message?.includes('closed without opened')) {
-      if (deliveryRangeCache.has(cacheKey)) {
-        return deliveryRangeCache.get(cacheKey);
-      }
+    // Final fallback: try offline DB again
+    try {
+      const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      return allOfflineDeliveries.filter(d => {
+        if (!d?.delivery_date) return false;
+        return d.delivery_date >= startDate && d.delivery_date <= endDate;
+      });
+    } catch (e) {
       return [];
     }
-    
-    throw error;
   }
 };
 
