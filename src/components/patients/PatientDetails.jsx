@@ -20,8 +20,7 @@ import {
 "lucide-react";
 import { format } from "date-fns";
 
-const DeliveryCalendar = ({ deliveries, patient }) => {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+const RecentDeliveries = ({ deliveries, patient }) => {
 
   // Filter deliveries for this patient only (across all drivers)
   const patientDeliveries = deliveries.filter((d) => d.patient_id === patient.id);
