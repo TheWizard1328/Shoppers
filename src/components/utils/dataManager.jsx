@@ -31,24 +31,8 @@ const entities = {
   SquareTransaction
 };
 
-const cache = new Map();
-const cacheTimestamps = new Map();
-const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes - balance between freshness and rate limit protection
-
-// Advanced caching for frequently accessed entities (Store, AppUser, UserSettings)
-const frequentEntityCache = new Map(); // For entities accessed multiple times per session
-const frequentEntityTimestamps = new Map();
-const FREQUENT_ENTITY_TTL = 5 * 60 * 1000; // 5 minutes for frequently accessed data
-
-// Compressed cache for user settings to reduce API calls
-const userSettingsCache = new Map();
-const userSettingsCacheTimestamps = new Map();
-const USER_SETTINGS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes - user settings rarely change
-
-// Date range-based delivery cache for staged loading
-const deliveryRangeCache = new Map();
-const deliveryRangeCacheTimestamps = new Map();
-const DELIVERY_RANGE_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes for historical data
+// CRITICAL: NO IN-MEMORY CACHE - Use offline DB exclusively
+// Deleted all cache layers to prevent stale data and reappearing deleted items
 
 // Track offline DB load completion
 let offlineDBLoadComplete = false;
