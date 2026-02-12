@@ -722,10 +722,7 @@ function Dashboard() {
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
 
-  // CRITICAL: Show location toggle on mobile AND primary tracker devices
-  const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
-  
-  // Check if current device is primary tracker
+  // Check if current device is primary tracker (isPrimaryDevice state declared earlier)
   useEffect(() => {
     if (!currentUser?.id) return;
     
