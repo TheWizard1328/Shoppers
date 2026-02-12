@@ -1397,6 +1397,10 @@ export default function StopCard({
                     className="flex-1 bg-red-600 hover:bg-red-700"
                     onClick={async () => {
                       try {
+                        // CRITICAL: Unpause mutations before delete operations
+                        const { pauseAllMutations, resumeAllMutations } = await import('../utils/entityMutations');
+                        resumeAllMutations();
+                        
                         // CRITICAL: If transfer pickup selected, transfer pending stops first
                         if (isPickup && selectedTransferPickupId && selectedTransferPickupId !== 'delete_all' && pendingPickups && pendingPickups.length > 0) {
                           console.log('🔄 [Transfer] Transferring pending stops to new pickup:', selectedTransferPickupId);
