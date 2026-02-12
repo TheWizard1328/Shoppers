@@ -62,7 +62,7 @@ const RecentDeliveries = ({ deliveries, patient }) => {
                 <div
                   key={delivery.id}
                   className={`p-3 rounded-lg border ${colors.bg} ${colors.border}`}>
-                  <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-start justify-between mb-3">
                     <span className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                       {format(new Date(delivery.delivery_date + 'T12:00:00'), 'EEE, MMM d')}
                     </span>
@@ -79,34 +79,28 @@ const RecentDeliveries = ({ deliveries, patient }) => {
                           {delivery.driver_name}
                         </Badge>
                       )}
+                      {delivery.cod_payments && delivery.cod_payments.length > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {delivery.cod_payments[0].type}: ${delivery.cod_payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
+                        </Badge>
+                      )}
                     </div>
                   </div>
-                  <div className="space-y-1 text-xs">
-                    {delivery.tracking_number && (
-                      <div style={{ color: 'var(--text-slate-600)' }}>
-                        <span className="font-medium">TR#:</span> {delivery.tracking_number}
-                      </div>
-                    )}
-                    {delivery.stop_id && (
-                      <div style={{ color: 'var(--text-slate-600)' }}>
-                        <span className="font-medium">Stop:</span> {delivery.stop_id}
-                      </div>
-                    )}
-                    {delivery.actual_delivery_time && (
-                      <div style={{ color: 'var(--text-slate-600)' }}>
-                        <span className="font-medium">Completed:</span> {format(new Date(delivery.actual_delivery_time), 'HH:mm')}
-                      </div>
-                    )}
-                    {delivery.cod_total_amount_required && (
-                      <div style={{ color: 'var(--text-slate-600)' }}>
-                        <span className="font-medium">COD Required:</span> ${delivery.cod_total_amount_required.toFixed(2)}
-                      </div>
-                    )}
-                    {delivery.cod_payments && delivery.cod_payments.length > 0 && (
-                      <div style={{ color: 'var(--text-slate-600)' }}>
-                        <span className="font-medium">Collected:</span> ${delivery.cod_payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
-                      </div>
-                    )}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      {delivery.tracking_number && (
+                        <div style={{ color: 'var(--text-slate-600)' }}>
+                          <span className="font-medium">TR#:</span> {delivery.tracking_number}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      {delivery.actual_delivery_time && (
+                        <div style={{ color: 'var(--text-slate-600)' }}>
+                          <span className="font-medium">Completed:</span> {format(new Date(delivery.actual_delivery_time), 'HH:mm')}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
