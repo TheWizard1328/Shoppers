@@ -57,50 +57,73 @@ class CityFilteredRealtimeSync {
     // Subscribe to ALL Delivery changes (NO city filtering - process everything)
     console.log('🔌 [cityFilteredRealtimeSync] Setting up Delivery subscription - NO FILTERS');
     this.deliveryUnsubscribe = base44.entities.Delivery.subscribe(async (event) => {
+      // DIAGNOSTIC: Track all events in a batch to detect if WebSocket is sending them individually or together
+      this.batchDeliveryEvents.push({
+        timestamp: Date.now(),
+        type: event.type,
+        id: event.id,
+        patient_name: event.data?.patient_name,
+        status: event.data?.status
+      });
+
+      // Clear and log batch every 500ms to see WebSocket packet pattern
+      if (this.batchTimeout) {
+        clearTimeout(this.batchTimeout);
+      }
+      this.batchTimeout = setTimeout(() => {
+        if (this.batchDeliveryEvents.length > 0) {
+          console.log(`🔍 [DIAGNOSTIC] WebSocket Delivery batch (${this.batchDeliveryEvents.length} events):`);
+          this.batchDeliveryEvents.forEach((e, i) => {
+            console.log(`  [${i + 1}] ${e.type} - ${e.patient_name || e.id} (status: ${e.status})`);
+          });
+          this.batchDeliveryEvents = [];
+        }
+      }, 500);
+
       console.log(`📡 [Realtime Delivery] ${event.type}:`, event.data?.patient_name || event.id);
       console.log('📦 [Realtime Delivery] Full event:', JSON.stringify({ type: event.type, id: event.id, status: event.data?.status, isNextDelivery: event.data?.isNextDelivery, driver_id: event.data?.driver_id }, null, 2));
 
       // Process the event WITHOUT any filtering
        try {
-         if (event.type === 'create' || event.type === 'update') {
-             console.log(`🚀 [Realtime Delivery] PROCESSING ${event.type} for ${event.data?.patient_name || event.id}`);
-             
-             // Use event data directly - don't fetch again
-             const freshDelivery = event.data;
+          if (event.type === 'create' || event.type === 'update') {
+              console.log(`🚀 [Realtime Delivery] PROCESSING ${event.type} for ${event.data?.patient_name || event.id}`);
 
-             // Save to offline DB
-             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery]);
-             console.log(`✅ [Realtime Delivery] Saved to offline DB: ${freshDelivery.patient_name || freshDelivery.id}`);
+              // Use event data directly - don't fetch again
+              const freshDelivery = event.data;
 
-             // CRITICAL: Update UI immediately by calling updateDeliveriesLocally directly
-             console.log(`📡 [Realtime Delivery] Broadcasting deliveryUpdated event to UI`);
-             window.dispatchEvent(new CustomEvent('deliveryUpdated', {
-               detail: { 
-                 delivery: freshDelivery,
-                 type: event.type,
-                 source: 'realtime'
-               }
-             }));
+              // Save to offline DB
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery]);
+              console.log(`✅ [Realtime Delivery] Saved to offline DB: ${freshDelivery.patient_name || freshDelivery.id}`);
+
+              // CRITICAL: Update UI immediately by calling updateDeliveriesLocally directly
+              console.log(`📡 [Realtime Delivery] Broadcasting deliveryUpdated event to UI`);
+              window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+                detail: { 
+                  delivery: freshDelivery,
+                  type: event.type,
+                  source: 'realtime'
+                }
+              }));
+
+              // Notify subscribers
+              this.notifySubscribers('Delivery', event.type, freshDelivery);
+              this.lastDeliveryUpdate = Date.now();
+
+              console.log(`✅ [Realtime Delivery] Complete - UI should update now`);
+           } else if (event.type === 'delete') {
+             console.log(`🗑️ [Realtime Delivery] PROCESSING delete for ${event.id}`);
+
+             // Remove from offline DB
+             await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id);
+             console.log(`✅ [Realtime Delivery] Deleted from offline DB: ${event.id}`);
 
              // Notify subscribers
-             this.notifySubscribers('Delivery', event.type, freshDelivery);
+             this.notifySubscribers('Delivery', event.type, { id: event.id });
              this.lastDeliveryUpdate = Date.now();
-             
-             console.log(`✅ [Realtime Delivery] Complete - UI should update now`);
-          } else if (event.type === 'delete') {
-            console.log(`🗑️ [Realtime Delivery] PROCESSING delete for ${event.id}`);
-            
-            // Remove from offline DB
-            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id);
-            console.log(`✅ [Realtime Delivery] Deleted from offline DB: ${event.id}`);
-
-            // Notify subscribers
-            this.notifySubscribers('Delivery', event.type, { id: event.id });
-            this.lastDeliveryUpdate = Date.now();
-          }
-      } catch (error) {
-        console.error('❌ [Realtime Delivery] Error processing event:', error);
-      }
+           }
+       } catch (error) {
+         console.error('❌ [Realtime Delivery] Error processing event:', error);
+       }
     });
 
     // Subscribe to ALL AppUser changes (filter by city only)
