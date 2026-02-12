@@ -4155,13 +4155,33 @@ function Dashboard() {
         console.log(`🔒 [Date Change] Protected ${priorityDeliveries.length} deliveries from smart refresh`);
       }
 
-      // STEP 4: Dispatch event to force map and stop cards to re-render
+      // STEP 4: CRITICAL - Process AppUsers through location poller to update markers
+      console.log('📍 [Date Change] Processing driver locations through poller...');
+      driverLocationPoller.processLocationData(
+        currentUser, 
+        priorityDeliveries, 
+        drivers, 
+        stores, 
+        appUsers, 
+        new Date(dateStr + 'T00:00:00'), 
+        true,
+        'Dashboard',
+        showAllDriverMarkers
+      );
+      
+      // Dispatch location update event
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+        detail: { appUsers: appUsers, forceAll: true }
+      }));
+      console.log('✅ [Date Change] Driver locations processed');
+
+      // STEP 5: Dispatch event to force map and stop cards to re-render
       // CRITICAL: NO route optimization on date change
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { deliveryDate: dateStr, triggeredBy: 'dateChange' }
       }));
 
-      // STEP 5: Resume UI immediately (don't wait for background loads)
+      // STEP 6: Resume UI immediately (don't wait for background loads)
       setIsEntityUpdating(false);
 
       // CRITICAL: Force stats refresh immediately after date change
