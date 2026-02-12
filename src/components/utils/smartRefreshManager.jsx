@@ -520,6 +520,8 @@ class LightweightRefreshManager {
       const { offlineDB } = await import('./offlineDatabase');
       
       // STEP 1: Read deliveries from offline DB for selected date
+      // TEMPORARILY DISABLED - Testing WebSocket real-time sync
+      /*
           if (filters.deliveryFilter?.delivery_date) {
             const deliveryDate = filters.deliveryFilter.delivery_date;
             console.log(`📦 [SmartRefresh] Reading deliveries for ${deliveryDate} from offline DB...`);
@@ -534,8 +536,11 @@ class LightweightRefreshManager {
               updates.isFullReplacementDeliveries = true;
             }
           }
+      */
       
       // STEP 2: Read AppUsers from offline DB (WebSocket subscriptions keep this in sync)
+      // TEMPORARILY DISABLED - Testing WebSocket real-time sync
+      /*
       if (currentData.appUsers) {
         console.log(`👥 [SmartRefresh] Reading AppUsers from offline DB...`);
         
@@ -546,6 +551,7 @@ class LightweightRefreshManager {
           updates.appUsers = offlineAppUsers;
         }
       }
+      */
       
       // STEP 3: Perform lightweight refresh for other entities (Cities, Stores)
       const lightweightUpdates = await this.performLightweightRefresh(currentData);
