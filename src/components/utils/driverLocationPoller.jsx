@@ -66,62 +66,45 @@ class DriverLocationPoller {
     * @param {boolean} showAllDrivers - Whether "show all" or "all drivers" mode is active
     */
   async processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false, currentPageName = null, showAllDrivers = false) {
-    // Skip processing if paused (e.g., during imports)
-    if (this.isPaused) {
-      console.log(`⏸️ [DriverLocationPoller] Paused - skipping location processing`);
-      return;
-    }
+   // Skip processing if paused (e.g., during imports)
+   if (this.isPaused) {
+     console.log(`⏸️ [DriverLocationPoller] Paused - skipping location processing`);
+     return;
+   }
 
-    // CRITICAL: Skip page/date check when forceNotify=true (smart refresh with fresh data)
-    // Only enforce Dashboard/today check for automatic polling cycles
-    if (!forceNotify && currentPageName && selectedDate) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const selectedDateStr = selectedDate instanceof Date 
-        ? selectedDate.toISOString().split('T')[0]
-        : selectedDate;
+   // CRITICAL: Validate appUsers FIRST before any other checks
+   if (!appUsers || !Array.isArray(appUsers) || appUsers.length === 0) {
+     console.warn('⚠️ [DriverLocationPoller] No appUsers data provided - skipping location processing');
+     // Still notify with empty array to clear stale markers
+     this.notifySubscribers([]);
+     return;
+   }
 
-      if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) {
-        console.log(`⏭️ [DriverLocationPoller] Skipping location processing - not on Dashboard today (page: ${currentPageName}, date: ${selectedDateStr})`);
-        return;
-      }
-    }
-    
-    console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} driver locations (forceNotify: ${forceNotify}, currentPage: ${currentPageName})`);
-    
-    // Count drivers with coordinates
-    const driversWithCoords = appUsers.filter(u => u && u.current_latitude && u.current_longitude).length;
-    console.log(`📊 [DriverLocationPoller] Input: ${driversWithCoords}/${appUsers.length} drivers have coordinates`);
-    
-    // DEBUG: Log first few users to see what data we're getting
-    if (appUsers.length > 0) {
-      console.log(`📊 [Poller] Sample appUsers data:`, appUsers.slice(0, 2).map(u => ({
-        user_name: u.user_name,
-        location_updated_at: u.location_updated_at,
-        driver_status: u.driver_status,
-        location_tracking_enabled: u.location_tracking_enabled,
-        current_latitude: u.current_latitude,
-        current_longitude: u.current_longitude,
-        id: u.id,
-        user_id: u.user_id
-      })));
-    } else {
-      console.warn(`⚠️ [Poller] No appUsers data provided to processLocationData!`);
-    }
+   // CRITICAL: Skip page/date check when forceNotify=true (smart refresh with fresh data)
+   // Only enforce Dashboard/today check for automatic polling cycles
+   if (!forceNotify && currentPageName && selectedDate) {
+     const todayStr = new Date().toISOString().split('T')[0];
+     const selectedDateStr = selectedDate instanceof Date 
+       ? selectedDate.toISOString().split('T')[0]
+       : selectedDate;
 
-    // Update internal current user reference
-    this.currentUser = currentUser;
+     if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) {
+       console.log(`⏭️ [DriverLocationPoller] Skipping location processing - not on Dashboard today (page: ${currentPageName}, date: ${selectedDateStr})`);
+       return;
+     }
+   }
 
-    // CRITICAL: ALWAYS pull fresh data from API - don't use stale prop data at all
-    let usersData = null;
-    
-    // CRITICAL: Use provided appUsers - don't make additional API calls to avoid rate limits
-    usersData = appUsers;
-    
-    // If we still don't have data, skip processing
-    if (!usersData || usersData.length === 0) {
-      console.warn('⚠️ [DriverLocationPoller] No data available to process');
-      return;
-    }
+   console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} driver locations (forceNotify: ${forceNotify}, currentPage: ${currentPageName})`);
+
+   // Count drivers with coordinates
+   const driversWithCoords = appUsers.filter(u => u && u.current_latitude && u.current_longitude).length;
+   console.log(`📊 [DriverLocationPoller] Input: ${driversWithCoords}/${appUsers.length} drivers have coordinates`);
+
+   // Update internal current user reference
+   this.currentUser = currentUser;
+
+   // Use provided appUsers directly
+   let usersData = appUsers;
 
     // Process location data silently
 
