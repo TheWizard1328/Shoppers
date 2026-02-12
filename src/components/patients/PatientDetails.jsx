@@ -8,6 +8,7 @@ import { formatPhoneNumber } from "../utils/phoneFormatter";
 import {
   BarChart3,
   Package,
+  Calendar,
   CheckCircle,
   Clock,
   ExternalLink,
