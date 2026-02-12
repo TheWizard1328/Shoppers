@@ -690,10 +690,10 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       return false;
     }
     
-    // STEP 3: CRITICAL - Invalidate dataManager cache
-    const { invalidate } = await import('./dataManager');
-    invalidate('Delivery');
-    console.log('🗑️ [EntityMutations] Invalidated Delivery cache after batch delete');
+    // STEP 3: CRITICAL - Remove deleted items from cache (prevents deleted items from showing)
+    const { removeDeletedFromCache } = await import('./dataManager');
+    removeDeletedFromCache('Delivery', deliveryIds);
+    console.log('🗑️ [EntityMutations] Removed deleted deliveries from all caches');
     
     // STEP 4: Mark as deleted in smart refresh
     const { smartRefreshManager } = await import('./smartRefreshManager');
