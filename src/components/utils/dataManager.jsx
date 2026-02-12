@@ -505,111 +505,21 @@ const loadBackgroundDeliveries = async (selectedDateStr, filters, onComplete, in
   }
 };
 
-/**
- * Invalidate delivery range cache - optionally for specific date only
- */
+// NO CACHE OPERATIONS - all removed
 export const invalidateDeliveryRangeCache = (specificDate = null) => {
-  if (specificDate) {
-    for (const key of deliveryRangeCache.keys()) {
-      if (key.includes(specificDate)) {
-        deliveryRangeCache.delete(key);
-        deliveryRangeCacheTimestamps.delete(key);
-      }
-    }
-  } else {
-    deliveryRangeCache.clear();
-    deliveryRangeCacheTimestamps.clear();
-  }
+  // No-op
 };
 
-/**
- * Update specific entity in cache(s) directly
- * This prevents UI flickering by updating the cache immediately
- */
 export const updateCache = (entityName, id, newData) => {
-  for (const key of cache.keys()) {
-    if (key.startsWith(`${entityName}_`)) {
-      const cachedArray = cache.get(key);
-      const index = cachedArray.findIndex(item => item.id === id);
-      if (index > -1) {
-        cachedArray[index] = newData;
-      }
-    }
-  }
-  
-  if (entityName === 'Delivery') {
-    for (const key of deliveryRangeCache.keys()) {
-      const cachedArray = deliveryRangeCache.get(key);
-      const index = cachedArray.findIndex(item => item.id === id);
-      if (index > -1) {
-        cachedArray[index] = newData;
-      }
-    }
-  }
+  // No-op
 };
 
-/**
- * CRITICAL: Remove deleted items from all caches
- * Called after batch deletes to ensure cache doesn't contain deleted records
- */
 export const removeDeletedFromCache = (entityName, deletedIds) => {
-  const deletedIdSet = new Set(deletedIds);
-  
-  // Remove from main cache
-  for (const key of cache.keys()) {
-    if (key.startsWith(`${entityName}_`)) {
-      const cachedArray = cache.get(key);
-      const filtered = cachedArray.filter(item => !deletedIdSet.has(item.id));
-      if (filtered.length !== cachedArray.length) {
-        cache.set(key, filtered);
-        console.log(`🗑️ [DataManager] Removed ${cachedArray.length - filtered.length} deleted ${entityName}s from cache`);
-      }
-    }
-  }
-  
-  // Remove from delivery range cache if applicable
-  if (entityName === 'Delivery') {
-    for (const key of deliveryRangeCache.keys()) {
-      const cachedArray = deliveryRangeCache.get(key);
-      const filtered = cachedArray.filter(item => !deletedIdSet.has(item.id));
-      if (filtered.length !== cachedArray.length) {
-        deliveryRangeCache.set(key, filtered);
-        console.log(`🗑️ [DataManager] Removed ${cachedArray.length - filtered.length} deleted deliveries from range cache`);
-      }
-    }
-  }
+  // No-op
 };
 
-/**
- * Invalidate deliveries for a specific date only
- * This is more efficient than invalidating all delivery caches
- * @param {string} dateString - Date in yyyy-MM-dd format
- */
 export const invalidateDeliveriesForDate = (dateString) => {
-  if (!dateString) {
-    return;
-  }
-  
-  let keysDeleted = 0;
-  
-  // Clear from main cache - any key containing this date
-  for (const key of cache.keys()) {
-    if (key.startsWith('Delivery_') && key.includes(dateString)) {
-      cache.delete(key);
-      cacheTimestamps.delete(key);
-      keysDeleted++;
-    }
-  }
-  
-  // Clear from delivery range cache - any range that includes this date
-  for (const key of deliveryRangeCache.keys()) {
-    if (key.includes(dateString)) {
-      deliveryRangeCache.delete(key);
-      deliveryRangeCacheTimestamps.delete(key);
-      keysDeleted++;
-    }
-  }
-  
+  // No-op
 };
 
 /**
