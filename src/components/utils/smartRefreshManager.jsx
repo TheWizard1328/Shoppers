@@ -520,18 +520,20 @@ class LightweightRefreshManager {
       const { offlineDB } = await import('./offlineDatabase');
       
       // STEP 1: Read deliveries from offline DB for selected date
-      if (filters.deliveryFilter?.delivery_date) {
-        const deliveryDate = filters.deliveryFilter.delivery_date;
-        console.log(`📦 [SmartRefresh] Reading deliveries for ${deliveryDate} from offline DB...`);
-        
-        const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-        const dateDeliveries = (offlineDeliveries || []).filter(d => d.delivery_date === deliveryDate);
-        
-        if (dateDeliveries.length > 0) {
-          console.log(`✅ [SmartRefresh] Found ${dateDeliveries.length} deliveries in offline DB`);
-          updates.deliveries = dateDeliveries;
-        }
-      }
+          if (filters.deliveryFilter?.delivery_date) {
+            const deliveryDate = filters.deliveryFilter.delivery_date;
+            console.log(`📦 [SmartRefresh] Reading deliveries for ${deliveryDate} from offline DB...`);
+
+            const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+            const dateDeliveries = (offlineDeliveries || []).filter(d => d.delivery_date === deliveryDate);
+
+            if (dateDeliveries.length > 0) {
+              console.log(`✅ [SmartRefresh] Found ${dateDeliveries.length} deliveries in offline DB`);
+              // CRITICAL: Full replacement to remove stale/deleted polylines and elements
+              updates.deliveries = dateDeliveries;
+              updates.isFullReplacementDeliveries = true;
+            }
+          }
       
       // STEP 2: Read AppUsers from offline DB (WebSocket subscriptions keep this in sync)
       if (currentData.appUsers) {
