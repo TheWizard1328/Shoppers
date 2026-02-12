@@ -27,8 +27,11 @@ export const AppDataProvider = ({ children, value }) => {
             value.updateDeliveriesLocally([data], false);
           }
           
-          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
-          smartRefreshManager.notifyRealtimeUpdate('Delivery');
+          // CRITICAL: Trigger immediate smart refresh to read from offline DB
+          console.log(`⚡ [AppDataContext] Triggering smart refresh on Delivery update`);
+          if (value.triggerSmartRefresh) {
+            value.triggerSmartRefresh();
+          }
         } else if (eventType === 'delete') {
           // Remove from UI
           if (value.updateDeliveriesLocally && value.deliveries) {
@@ -36,8 +39,10 @@ export const AppDataProvider = ({ children, value }) => {
             value.updateDeliveriesLocally(filtered, true);
           }
           
-          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
-          smartRefreshManager.notifyRealtimeUpdate('Delivery');
+          // CRITICAL: Trigger immediate smart refresh
+          if (value.triggerSmartRefresh) {
+            value.triggerSmartRefresh();
+          }
         }
       } else if (entityType === 'AppUser') {
         if (eventType === 'create' || eventType === 'update') {
@@ -64,8 +69,11 @@ export const AppDataProvider = ({ children, value }) => {
             }));
           }
           
-          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
-          smartRefreshManager.notifyRealtimeUpdate('AppUser');
+          // CRITICAL: Trigger immediate smart refresh to read from offline DB
+          console.log(`⚡ [AppDataContext] Triggering smart refresh on AppUser update`);
+          if (value.triggerSmartRefresh) {
+            value.triggerSmartRefresh();
+          }
         } else if (eventType === 'delete') {
           // Remove from appUsers array
           if (value.updateAppUsersLocally && value.appUsers) {
@@ -73,8 +81,10 @@ export const AppDataProvider = ({ children, value }) => {
             value.updateAppUsersLocally(filtered, true);
           }
           
-          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
-          smartRefreshManager.notifyRealtimeUpdate('AppUser');
+          // CRITICAL: Trigger immediate smart refresh
+          if (value.triggerSmartRefresh) {
+            value.triggerSmartRefresh();
+          }
         }
       }
     });
