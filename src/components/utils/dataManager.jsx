@@ -59,38 +59,7 @@ export const isOfflineDBLoadComplete = () => {
   return offlineDBLoadComplete;
 };
 
-/**
- * Get cached data for frequently accessed entities (with shorter TTL)
- * Used for Store, AppUser, and similar entities that are accessed multiple times
- */
-export const getFrequentCache = (entityName) => {
-  const cacheKey = `${entityName}_frequent`;
-  if (frequentEntityCache.has(cacheKey)) {
-    const timestamp = frequentEntityTimestamps.get(cacheKey);
-    if (timestamp && Date.now() - timestamp < FREQUENT_ENTITY_TTL) {
-      return frequentEntityCache.get(cacheKey);
-    }
-  }
-  return null;
-};
-
-/**
- * Set frequently accessed entity cache
- */
-export const setFrequentCache = (entityName, data) => {
-  const cacheKey = `${entityName}_frequent`;
-  frequentEntityCache.set(cacheKey, data);
-  frequentEntityTimestamps.set(cacheKey, Date.now());
-};
-
-/**
- * Invalidate frequent entity cache
- */
-export const invalidateFrequentCache = (entityName) => {
-  const cacheKey = `${entityName}_frequent`;
-  frequentEntityCache.delete(cacheKey);
-  frequentEntityTimestamps.delete(cacheKey);
-};
+// NO FREQUENT CACHE - removed
 
 export const getData = async (entityName, sortKey = null, queryOrLimit = null, forceRefresh = false) => {
   // Determine if queryOrLimit is a query object or a limit number
