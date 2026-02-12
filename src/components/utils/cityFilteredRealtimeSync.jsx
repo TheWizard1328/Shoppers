@@ -95,21 +95,36 @@ class CityFilteredRealtimeSync {
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery]);
               console.log(`✅ [Realtime Delivery] Saved to offline DB: ${freshDelivery.patient_name || freshDelivery.id}`);
 
-              // CRITICAL: Update UI immediately by calling updateDeliveriesLocally directly
-              console.log(`📡 [Realtime Delivery] Broadcasting deliveryUpdated event to UI`);
+              // CRITICAL: Dispatch MULTIPLE events to ensure all components update
+              console.log(`📡 [Realtime Delivery] Broadcasting update to ALL UI components`);
+              
+              // Event 1: deliveryUpdated for specific listeners
               window.dispatchEvent(new CustomEvent('deliveryUpdated', {
                 detail: { 
                   delivery: freshDelivery,
                   type: event.type,
-                  source: 'realtime'
+                  source: 'realtime',
+                  fromRealtime: true
                 }
               }));
+              
+              // Event 2: deliveriesUpdated for map/dashboard refresh
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: { 
+                  deliveryDate: freshDelivery.delivery_date,
+                  triggeredBy: 'realtimeWebSocket',
+                  fromRealtime: true
+                }
+              }));
+              
+              // Event 3: Force stats refresh
+              window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
               // Notify subscribers
               this.notifySubscribers('Delivery', event.type, freshDelivery);
               this.lastDeliveryUpdate = Date.now();
 
-              console.log(`✅ [Realtime Delivery] Complete - UI should update now`);
+              console.log(`✅ [Realtime Delivery] Complete - multiple UI update events dispatched`);
            } else if (event.type === 'delete') {
              console.log(`🗑️ [Realtime Delivery] PROCESSING delete for ${event.id}`);
 
@@ -149,15 +164,18 @@ class CityFilteredRealtimeSync {
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [event.data]);
           console.log(`✅ [Realtime AppUser] Saved ${event.data.user_name} to offline DB - coords: ${coords}`);
           
-          // CRITICAL: Broadcast location update directly to Dashboard
-          // Includes current latitude/longitude and location_updated_at timestamp
-          if (event.data.location_tracking_enabled && event.data.current_latitude && event.data.current_longitude) {
-            console.log(`📢 [Realtime AppUser] LOCATION BROADCAST - ${event.data.user_name} at ${coords} (${event.data.location_updated_at})`);
-            // Dispatch event for Dashboard to pick up immediately
-            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: [event.data], fromRealtime: true }
-            }));
-          }
+          // CRITICAL: Broadcast location update directly to Dashboard - ALWAYS broadcast, not just when tracking
+          console.log(`📢 [Realtime AppUser] LOCATION BROADCAST - ${event.data.user_name} at ${coords} (${event.data.location_updated_at})`);
+          
+          // Dispatch event for Dashboard to pick up immediately
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: [event.data], fromRealtime: true, singleUpdate: true }
+          }));
+          
+          // CRITICAL: Also dispatch generic AppUser update for UI components
+          window.dispatchEvent(new CustomEvent('appUserUpdated', {
+            detail: { appUser: event.data, fromRealtime: true }
+          }));
           
           // Notify all internal subscribers (e.g. AppDataContext)
           console.log(`📢 [Realtime AppUser] Notifying ${this.updateCallbacks.size} internal subscribers about ${event.data.user_name}`);
