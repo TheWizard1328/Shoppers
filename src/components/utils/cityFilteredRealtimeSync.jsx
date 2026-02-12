@@ -15,6 +15,10 @@ class CityFilteredRealtimeSync {
     this.lastDeliveryUpdate = null;
     this.lastAppUserUpdate = null;
     this.lastPatientUpdate = null;
+    
+    // Batch event tracking for diagnostics
+    this.batchDeliveryEvents = [];
+    this.batchTimeout = null;
   }
 
   /**
