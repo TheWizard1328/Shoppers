@@ -7653,6 +7653,94 @@ function Dashboard() {
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const [forceRender, setForceRender] = useState(0);
 
+  // Listen for pullToSyncDataReady events - full update regardless of current state
+  useEffect(() => {
+    const handlePullToSyncDataReady = async (event) => {
+      const { 
+        deliveries: freshDeliveries,
+        appUsers: freshAppUsers,
+        cities: freshCities,
+        stores: freshStores,
+        patients: freshPatients
+      } = event.detail || {};
+      
+      console.log('🔄 [Dashboard] Pull to sync data ready - forcing FULL UI update');
+      console.log(`   Deliveries: ${freshDeliveries?.length || 0}`);
+      console.log(`   AppUsers: ${freshAppUsers?.length || 0}`);
+      console.log(`   Patients: ${freshPatients?.length || 0}`);
+      
+      try {
+        // CRITICAL: Clear all polylines and markers BEFORE updating state
+        setCurrentToNextPolyline(null);
+        setDriverRoutes([]);
+        setAllDriverLocations([]);
+        
+        // CRITICAL: Use flushSync for synchronous updates - forces React to apply changes immediately
+        flushSync(() => {
+          // Full replacement of all entities
+          if (updateDeliveriesLocally && freshDeliveries) {
+            updateDeliveriesLocally(freshDeliveries, true);
+          }
+          
+          if (updateAppUsersLocally && freshAppUsers) {
+            updateAppUsersLocally(freshAppUsers, true);
+          }
+        });
+        
+        console.log('✅ [Dashboard] State updated synchronously via flushSync');
+        
+        // Force complete UI re-render
+        setForceRender((prev) => prev + 1);
+        
+        // CRITICAL: Process AppUsers through location poller for marker generation
+        if (freshAppUsers && freshAppUsers.length > 0) {
+          driverLocationPoller.processLocationData(
+            currentUser,
+            freshDeliveries || [],
+            drivers,
+            stores,
+            freshAppUsers,
+            selectedDate,
+            true,
+            'Dashboard',
+            showAllDriverMarkers
+          );
+        }
+        
+        // Force map update
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { 
+            deliveryDate: format(selectedDate, 'yyyy-MM-dd'), 
+            triggeredBy: 'pullToSyncDataReady',
+            forceFullUpdate: true
+          }
+        }));
+        
+        // Force stats refresh
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        
+        // Force map repositioning
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger(prev => prev + 1);
+        
+        // Auto-unlock after 500ms
+        setTimeout(() => {
+          setIsMapViewLocked(false);
+        }, 500);
+        
+        console.log('✅ [Dashboard] Full UI update complete from pull-to-sync');
+        
+      } catch (error) {
+        console.error('❌ [Dashboard] Pull to sync update failed:', error);
+      }
+    };
+    
+    window.addEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
+    return () => window.removeEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
+  }, [updateDeliveriesLocally, updateAppUsersLocally, selectedDate, currentUser, drivers, stores, showAllDriverMarkers]);
+
   // Listen for data source changes and reload deliveries for ALL drivers
   useEffect(() => {
     const handleDataSourceChange = async (event) => {
