@@ -722,7 +722,7 @@ function Dashboard() {
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
 
-  // Check if current device is primary tracker (isPrimaryDevice state declared earlier)
+  // Check if current device is primary tracker (state declared at line 379)
   useEffect(() => {
     if (!currentUser?.id) return;
     
