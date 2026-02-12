@@ -220,9 +220,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       if (currentPath.includes('/dashboard') || currentPath === '/') {
         console.log('🎯 [Manual Refresh] Using targeted refresh for Dashboard');
         
-        // Trigger pull-to-sync programmatically (silent mode)
+        // Trigger pull-to-sync programmatically (silent mode - no overlay)
         window.dispatchEvent(new CustomEvent('triggerPullToSync', {
-          detail: { silent: false }
+          detail: { silent: true }
         }));
         
         console.log('✅ [Manual Refresh] Triggered targeted refresh');
@@ -281,7 +281,19 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       setHasError(true);
       setTimeout(() => setHasError(false), 3000);
     } finally {
-      setTimeout(() => setIsManualRefreshing(false), 1000);
+      // CRITICAL: Listen for pull-to-sync completion to stop spinner
+      const handleSyncComplete = () => {
+        setIsManualRefreshing(false);
+        window.removeEventListener('pullToSyncComplete', handleSyncComplete);
+      };
+      
+      // Add listener for completion
+      window.addEventListener('pullToSyncComplete', handleSyncComplete);
+      
+      // Fallback timeout in case event doesn't fire
+      setTimeout(() => {
+        handleSyncComplete();
+      }, 5000);
     }
   };
 
