@@ -8014,11 +8014,11 @@ function Dashboard() {
                       }
                     }} />
                   
-                  {/* Connection Quality Indicator - App Owner Only */}
-                  {isAppOwner(currentUser) && <ConnectionIndicator />}
+                  {/* Connection Quality Indicator */}
+                  <ConnectionIndicator />
                   
-                  {/* Error Flag Indicator - App Owner Only */}
-                  {isAppOwner(currentUser) && <ErrorFlagIndicator />}
+                  {/* Error Flag Indicator */}
+                  <ErrorFlagIndicator />
                 </div>
                 }
               </div>
