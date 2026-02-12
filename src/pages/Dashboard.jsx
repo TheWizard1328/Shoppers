@@ -7776,9 +7776,9 @@ function Dashboard() {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
     if (!hasPreRenderSyncRef.current) return; // Wait for AppUser sync first
     if (!hasLoadedOfflineDataRef.current) return; // Wait for offline data to load first
-    if (hasTriggeredSmartRefreshRef.current) return; // Only run once
+    if (hasTriggeredPrioritySyncRef.current) return; // Only run once
     
-    hasTriggeredSmartRefreshRef.current = true;
+    hasTriggeredPrioritySyncRef.current = true;
     
     const backgroundPrioritySync = async () => {
       console.log(`🔄 [Dashboard Mount - STEP 2] Starting background priority sync...`);
