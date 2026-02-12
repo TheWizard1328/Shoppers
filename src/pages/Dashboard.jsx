@@ -7711,7 +7711,6 @@ function Dashboard() {
   
   // CRITICAL: STEP 1 - Load everything from offline DB FIRST for instant UI
   const hasLoadedOfflineDataRef = useRef(false);
-  const hasTriggeredSmartRefreshRef = useRef(false);
   
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
