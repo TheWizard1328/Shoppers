@@ -7738,23 +7738,43 @@ function Dashboard() {
       console.log(`📦 [Dashboard Mount - STEP 1] Loading offline DB for initial UI...`);
       
       try {
-        // Load from offline DB for instant UI
+        // CRITICAL: Load BOTH deliveries AND AppUsers from offline DB
         const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        const mountAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
         
-        if (mountDeliveries && mountDeliveries.length > 0) {
-          console.log(`✅ [Dashboard Mount - STEP 1] Loaded ${mountDeliveries.length} deliveries from offline DB`);
-          
-          // Update UI immediately
-          if (updateDeliveriesLocally) {
-            const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-            updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
-          }
-          setForceRender((prev) => prev + 1);
-          
-          console.log(`✅ [Dashboard Mount - STEP 1] Initial UI updated - user can see data now`);
-        } else {
-          console.log(`📭 [Dashboard Mount - STEP 1] No offline data - will wait for smart refresh`);
+        console.log(`📦 [Dashboard Mount - STEP 1] Loaded ${mountDeliveries?.length || 0} deliveries, ${mountAppUsers?.length || 0} AppUsers from offline DB`);
+        
+        // Update deliveries UI
+        if (mountDeliveries && mountDeliveries.length > 0 && updateDeliveriesLocally) {
+          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+          updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
+          console.log(`✅ [Dashboard Mount - STEP 1] Deliveries UI updated`);
         }
+        
+        // CRITICAL: Process AppUsers through location poller to generate markers
+        if (mountAppUsers && mountAppUsers.length > 0) {
+          driverLocationPoller.processLocationData(
+            currentUser, 
+            mountDeliveries || [], 
+            drivers, 
+            stores, 
+            mountAppUsers, 
+            selectedDate, 
+            true,
+            'Dashboard',
+            showAllDriverMarkers
+          );
+          
+          // Dispatch location update event
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: mountAppUsers, forceAll: true }
+          }));
+          
+          console.log(`✅ [Dashboard Mount - STEP 1] AppUsers processed - location markers ready`);
+        }
+        
+        setForceRender((prev) => prev + 1);
+        console.log(`✅ [Dashboard Mount - STEP 1] Initial UI updated - user can see data now`);
       } catch (error) {
         console.warn('⚠️ [Dashboard Mount - STEP 1] Offline DB load failed:', error.message);
       }
