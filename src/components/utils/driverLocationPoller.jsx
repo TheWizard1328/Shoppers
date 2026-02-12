@@ -202,7 +202,10 @@ class DriverLocationPoller {
          // CRITICAL: Non-primary device shows self marker ONLY when "Show All" is OFF
          // Primary device NEVER shows self marker
          // When "Show All" is ON, self marker is suppressed (user sees it via live location layer)
-         const isPrimaryDevice = localStorage.getItem(`device_is_primary_${currentUserId}`) === 'true';
+         
+         // CRITICAL: Check using user.user_id (the actual User entity ID), not currentUser.id (AppUser ID)
+         const userEntityId = user.user_id;
+         const isPrimaryDevice = localStorage.getItem(`device_is_primary_${userEntityId}`) === 'true';
 
          if (isPrimaryDevice) {
            console.log(`🚫 [Poller] SELF marker BLOCKED on PRIMARY device (always hidden)`);
