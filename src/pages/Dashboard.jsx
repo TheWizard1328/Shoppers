@@ -376,11 +376,11 @@ function Dashboard() {
   const [cardsReadyForFAB, setCardsReadyForFAB] = useState(false);
 
   // ==================== REAL-TIME SUBSCRIPTIONS ====================
-  // Subscribe to Patient and Delivery entity changes via WebSockets
+  // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
   useEffect(() => {
     if (!currentUser || !isDataLoaded) return;
 
-    console.log('🔌 [Real-time] Subscribing to Patient and Delivery changes...');
+    console.log('🔌 [Real-time] Subscribing to Patient, Delivery, and AppUser changes...');
     
     // CRITICAL: Listen for immediate updates from Done button (includes fresh data)
     const handleImmediateDeliveryUpdate = async (event) => {
@@ -463,6 +463,36 @@ function Dashboard() {
         // Remove patient from offline DB
         offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, event.id).catch(console.error);
         refreshData?.();
+      }
+    });
+
+    // Subscribe to AppUser entity changes
+    const unsubscribeAppUsers = base44.entities.AppUser.subscribe((event) => {
+      console.log(`📡 [Real-time AppUser] ${event.type} event:`, event.data?.user_name || event.id);
+      
+      if (event.type === 'update') {
+        // Update AppUser in offline DB and context
+        if (event.data) {
+          offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [event.data]).catch(console.error);
+          
+          // CRITICAL: If this is the current user, refresh their data immediately
+          if (event.data.user_id === currentUser?.id) {
+            console.log('🔄 [Real-time AppUser] Current user updated - refreshing UI');
+            if (refreshUser) {
+              refreshUser();
+            }
+          }
+          
+          // CRITICAL: Broadcast to all components that AppUser data changed
+          if (updateAppUsersLocally) {
+            updateAppUsersLocally([event.data], false);
+          }
+          
+          // Update driver location markers
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: [event.data], singleUpdate: true, fromRealtime: true }
+          }));
+        }
       }
     });
 
@@ -559,11 +589,12 @@ function Dashboard() {
     });
 
     return () => {
-      console.log('🔌 [Real-time] Unsubscribing from Patient and Delivery changes');
+      console.log('🔌 [Real-time] Unsubscribing from Patient, Delivery, and AppUser changes');
       window.removeEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
       unsubscribePatients();
       unsubscribeDeliveries();
+      unsubscribeAppUsers();
     };
   }, [currentUser?.id, isDataLoaded, showAllDriverMarkers, selectedDriverId, updateDeliveriesLocally]);
 
