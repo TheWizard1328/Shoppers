@@ -67,11 +67,8 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   const query = isQueryObject ? queryOrLimit : null;
   const limit = !isQueryObject && typeof queryOrLimit === 'number' ? queryOrLimit : null;
   
-  const cacheKey = `${entityName}_${sortKey || 'default'}_${JSON.stringify(query) || 'noquery'}_${limit || 'all'}`;
-  
   // OFFLINE-FIRST: Try IndexedDB for ALL critical entities ALWAYS
-  // CRITICAL: This prevents rate limits by using local data first
-  // NEVER skip offline DB - even on forceRefresh, try offline first then update in background
+  // NO IN-MEMORY CACHE - only offline DB
   if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'Store' || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
     try {
       const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
@@ -84,11 +81,11 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       let offlineData = await offlineDB.getAll(storeName);
       
       if (offlineData && offlineData.length > 0) {
-        cache.set(cacheKey, offlineData);
-        cacheTimestamps.set(cacheKey, Date.now());
-        
         // Check staleness: refresh in background if stale or forceRefresh
-        const isStale = (Date.now() - (cacheTimestamps.get(cacheKey) || 0)) > CACHE_DURATION;
+        const meta = await offlineDB.getSyncMetadata(entityName);
+        const lastSync = meta?.last_sync_time ? new Date(meta.last_sync_time).getTime() : 0;
+        const isStale = (Date.now() - lastSync) > (15 * 60 * 1000); // 15 min
+        
         if (forceRefresh || isStale) {
           (async () => {
             try {
@@ -102,8 +99,7 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
               }
               if (freshData && freshData.length > 0) {
                 await offlineDB.bulkSave(storeName, freshData);
-                cache.set(cacheKey, freshData);
-                cacheTimestamps.set(cacheKey, Date.now());
+                await offlineDB.updateSyncMetadata(entityName, new Date().toISOString());
               }
             } catch (bgError) {}
           })();
@@ -113,24 +109,16 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       }
     } catch (offlineError) {}
   }
-  
-  if (cache.has(cacheKey)) {
-    const timestamp = cacheTimestamps.get(cacheKey);
-    if (timestamp && Date.now() - timestamp < CACHE_DURATION) {
-      return cache.get(cacheKey);
-    }
-  }
 
+  // Fallback: Fetch from API if offline DB empty
   let retries = 3;
   let lastError = null;
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      // CRITICAL: Wait for rate limit before making API call
       await waitForRateLimit();
 
       if (attempt > 0) {
-        // Exponential backoff: 1s, 2s, 4s
         const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
@@ -143,12 +131,7 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       const startTime = Date.now();
       let data;
       
-      // FIXED: Use correct method signatures
-      // .list(sortKey?, limit?) - for listing without filters
-      // .filter(query, sortKey?, limit?) - for filtering with query
-      
       if (query) {
-        // Use filter method when query exists
         if (sortKey && limit) {
           data = await Entity.filter(query, sortKey, limit);
         } else if (sortKey) {
@@ -157,8 +140,6 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
           data = await Entity.filter(query);
         }
       } else {
-        // Use list method when no query
-        // CRITICAL: Apply default limits for SquareTransaction to prevent rate limits
         const defaultLimit = (entityName === 'SquareTransaction') ? 100 : limit;
 
         if (sortKey && defaultLimit) {
@@ -171,15 +152,11 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
           data = await Entity.list();
         }
       }
-
-      cache.set(cacheKey, data);
-      cacheTimestamps.set(cacheKey, Date.now());
       
-      // Track response time for connection quality
       const responseTime = Date.now() - startTime;
       connectionMonitor.recordResponseTime(responseTime);
 
-      // BACKGROUND: Save to IndexedDB for offline access
+      // Save to offline DB
       if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'Store' || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
         const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
                           entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
@@ -188,8 +165,8 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
                           entityName === 'Store' ? offlineDB.STORES.STORES :
                           entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS :
                           offlineDB.STORES.SQUARE_TRANSACTIONS;
-        offlineDB.bulkSave(storeName, data).catch(err => {
-        });
+        await offlineDB.bulkSave(storeName, data);
+        await offlineDB.updateSyncMetadata(entityName, new Date().toISOString());
       }
 
       return data;
@@ -197,20 +174,24 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
     } catch (error) {
         lastError = error;
 
-        // Handle WebSocket errors gracefully (return cached data if available)
-        if (error.message?.includes('WebSocket') || error.message?.includes('closed without opened')) {
-          if (cache.has(cacheKey)) {
-            return cache.get(cacheKey);
-          }
-          cache.set(cacheKey, []);
-          cacheTimestamps.set(cacheKey, Date.now());
-          return [];
+        // Try offline DB on any error
+        if (entityName === 'Patient' || entityName === 'Delivery' || entityName === 'AppUser' || entityName === 'City' || entityName === 'Store' || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
+          try {
+            const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : 
+                              entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
+                              entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
+                              entityName === 'City' ? offlineDB.STORES.CITIES :
+                              entityName === 'Store' ? offlineDB.STORES.STORES :
+                              entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS :
+                              offlineDB.STORES.SQUARE_TRANSACTIONS;
+            const fallbackData = await offlineDB.getAll(storeName);
+            if (fallbackData && fallbackData.length > 0) {
+              return fallbackData;
+            }
+          } catch (offlineError) {}
         }
 
-        // CRITICAL: Handle 403 Forbidden gracefully (user doesn't have permission)
         if (error.response?.status === 403 || error.message?.includes('403')) {
-          cache.set(cacheKey, []);
-          cacheTimestamps.set(cacheKey, Date.now());
           return [];
         }
 
@@ -220,7 +201,6 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
 
         if (error.response?.status === 429 || error.message?.includes('429')) {
           connectionMonitor.recordError('rate_limit');
-          // Exponential backoff for rate limits: 2s, 4s, 8s
           const backoffDelay = Math.min(2000 * Math.pow(2, attempt), 10000);
           await new Promise(resolve => setTimeout(resolve, backoffDelay));
           if (attempt < retries - 1) continue;
@@ -230,10 +210,6 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
 
         break;
       }
-  }
-  
-  if (cache.has(cacheKey)) {
-    return cache.get(cacheKey);
   }
   
   return [];
