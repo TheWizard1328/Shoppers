@@ -6617,8 +6617,23 @@ function Dashboard() {
       // STEP 2: Update delivery status DIRECTLY to database (bypass offline mutations)
       try {
         console.log('💾 [STATUS] Updating database directly...');
+        console.log('📤 [STATUS] Update payload:', JSON.stringify(updateData, null, 2));
+        console.log('📍 [STATUS] Delivery ID:', deliveryId);
+        
         await base44.entities.Delivery.update(deliveryId, updateData);
-        console.log('✅ [STATUS] Database updated');
+        console.log('✅ [STATUS] Database updated - WebSocket should broadcast now');
+        
+        // CRITICAL: Trigger explicit delivery broadcast for real-time listeners
+        window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+          detail: { 
+            deliveryId, 
+            updates: updateData,
+            driverId,
+            deliveryDate,
+            source: 'statusUpdate'
+          }
+        }));
+        console.log('📡 [STATUS] Broadcast deliveryUpdated event for real-time sync');
         
         // Update offline DB using bulkSave (save method may not exist)
         const freshDelivery = await base44.entities.Delivery.filter({ id: deliveryId });
@@ -7206,12 +7221,28 @@ function Dashboard() {
       const completedStopsStep2 = allDriverDeliveries.filter((d) => finishedStatusesStep2.includes(d.status));
       const nextStopOrderStep2 = completedStopsStep2.length + 1;
 
-      await base44.entities.Delivery.update(deliveryId, {
+      const startUpdatePayload = {
         isNextDelivery: true,
         status: newStatus,
         stop_order: nextStopOrderStep2
-      });
+      };
+      
+      console.log('📤 [START] Update payload:', JSON.stringify(startUpdatePayload, null, 2));
+      
+      await base44.entities.Delivery.update(deliveryId, startUpdatePayload);
       console.log(`   ✅ isNextDelivery flag set, status updated, and stop_order set to ${nextStopOrderStep2}`);
+      
+      // CRITICAL: Trigger explicit broadcast for real-time listeners on other devices
+      window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+        detail: { 
+          deliveryId, 
+          updates: startUpdatePayload,
+          driverId,
+          deliveryDate,
+          source: 'startDelivery'
+        }
+      }));
+      console.log('📡 [START] Broadcast deliveryUpdated event for real-time sync');
 
       // STEP 3: Re-fetch deliveries to ensure we have the latest data with updated isNextDelivery flag
       console.log('📊 [START] Step 3: Re-fetching deliveries to verify isNextDelivery persisted...');
