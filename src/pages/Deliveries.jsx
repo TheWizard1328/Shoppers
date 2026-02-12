@@ -447,61 +447,74 @@ export default function DeliveriesPage() {
          }
 
          // STEP 2: Start background sync from online DB (non-blocking)
-         setTimeout(async () => {
-           try {
-             console.log('🔄 [Deliveries] Starting background sync from online DB...');
-             const currentYear = new Date().getFullYear();
-             const startYear = 2020;
-             const allYearData = [];
+         // CRITICAL: Only sync if it's been >24 hours since last historical sync
+         const lastHistoricalSyncKey = 'lastHistoricalDeliveriesSyncTime';
+         const lastSyncTime = localStorage.getItem(lastHistoricalSyncKey);
+         const hoursSinceLastSync = lastSyncTime ? (Date.now() - parseInt(lastSyncTime)) / (1000 * 60 * 60) : Infinity;
+         
+         if (hoursSinceLastSync > 24) {
+           console.log(`🔄 [Deliveries] Starting background historical sync (last sync: ${hoursSinceLastSync.toFixed(1)}h ago)`);
+           setTimeout(async () => {
+             try {
+               const currentYear = new Date().getFullYear();
+               const startYear = 2020;
+               const allYearData = [];
 
-             // Fetch each year with throttling to avoid rate limits
-             for (let year = currentYear; year >= startYear; year--) {
-               console.log(`📅 [Deliveries Background] Fetching year ${year}...`);
-               const quarters = [
-                 { start: `${year}-01-01`, end: `${year}-03-31`, label: 'Q1' },
-                 { start: `${year}-04-01`, end: `${year}-06-30`, label: 'Q2' },
-                 { start: `${year}-07-01`, end: `${year}-09-30`, label: 'Q3' },
-                 { start: `${year}-10-01`, end: `${year}-12-31`, label: 'Q4' }
-               ];
+               // Fetch each year with throttling to avoid rate limits
+               for (let year = currentYear; year >= startYear; year--) {
+                 console.log(`📅 [Deliveries Background] Fetching year ${year}...`);
+                 const quarters = [
+                   { start: `${year}-01-01`, end: `${year}-03-31`, label: 'Q1' },
+                   { start: `${year}-04-01`, end: `${year}-06-30`, label: 'Q2' },
+                   { start: `${year}-07-01`, end: `${year}-09-30`, label: 'Q3' },
+                   { start: `${year}-10-01`, end: `${year}-12-31`, label: 'Q4' }
+                 ];
 
-               for (const quarter of quarters) {
-                 try {
-                   const quarterData = await base44.entities.Delivery.filter({
-                     delivery_date: { $gte: quarter.start, $lte: quarter.end }
-                   }, '-delivery_date');
-                   
-                   if (quarterData && quarterData.length > 0) {
-                     allYearData.push(...quarterData);
+                 for (const quarter of quarters) {
+                   try {
+                     const quarterData = await base44.entities.Delivery.filter({
+                       delivery_date: { $gte: quarter.start, $lte: quarter.end }
+                     }, '-delivery_date');
+                     
+                     if (quarterData && quarterData.length > 0) {
+                       allYearData.push(...quarterData);
+                     }
+                     
+                     // Throttle: wait 500ms between quarter requests to avoid rate limits
+                     await new Promise(resolve => setTimeout(resolve, 500));
+                   } catch (quarterError) {
+                     console.warn(`⚠️ [Deliveries Background] Failed to fetch ${year} ${quarter.label}:`, quarterError.message);
+                     // Continue with other quarters even if one fails
                    }
-                   
-                   // Throttle: wait 500ms between quarter requests to avoid rate limits
-                   await new Promise(resolve => setTimeout(resolve, 500));
-                 } catch (quarterError) {
-                   console.warn(`⚠️ [Deliveries Background] Failed to fetch ${year} ${quarter.label}:`, quarterError.message);
-                   // Continue with other quarters even if one fails
                  }
                }
-             }
 
-             console.log(`✅ [Deliveries Background] Synced ${allYearData.length} deliveries from online DB`);
+               console.log(`✅ [Deliveries Background] Synced ${allYearData.length} deliveries from online DB`);
 
-             // Save to offline DB
-             if (allYearData.length > 0) {
-               const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
-               await offlineDBInstance.bulkSave(offlineDBInstance.STORES.DELIVERIES, allYearData);
-               console.log(`💾 [Deliveries Background] Saved ${allYearData.length} to offline DB`);
-               
-               // Update UI with fresh data
-               if (isMounted.current) {
-                 setAllDeliveries(allYearData);
-                 console.log('✅ [Deliveries Background] UI updated with fresh online data');
+               // Save to offline DB
+               if (allYearData.length > 0) {
+                 const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
+                 await offlineDBInstance.bulkSave(offlineDBInstance.STORES.DELIVERIES, allYearData);
+                 console.log(`💾 [Deliveries Background] Saved ${allYearData.length} to offline DB`);
+                 
+                 // Update UI with fresh data
+                 if (isMounted.current) {
+                   setAllDeliveries(allYearData);
+                   console.log('✅ [Deliveries Background] UI updated with fresh online data');
+                 }
                }
+               
+               // CRITICAL: Mark sync complete to prevent repeated syncing
+               localStorage.setItem(lastHistoricalSyncKey, Date.now().toString());
+               console.log('🕐 [Deliveries Background] Historical sync timestamp updated');
+             } catch (error) {
+               console.error('❌ [Deliveries Background] Sync failed:', error);
+               // Silently fail - offline data is already displayed
              }
-           } catch (error) {
-             console.error('❌ [Deliveries Background] Sync failed:', error);
-             // Silently fail - offline data is already displayed
-           }
-         }, 100); // Start background sync after 100ms
+           }, 100); // Start background sync after 100ms
+         } else {
+           console.log(`⏭️ [Deliveries] Skipping historical sync (last sync: ${hoursSinceLastSync.toFixed(1)}h ago, need >24h)`);
+         }
 
         if (deliveriesData && deliveriesData.length > 0) {
           const dates = deliveriesData.map((d) => d.delivery_date).filter(Boolean).sort();
