@@ -1395,7 +1395,7 @@ export default function StopCard({
                     onClick={async () => {
                       try {
                         // CRITICAL: If transfer pickup selected, transfer pending stops first
-                        if (isPickup && selectedTransferPickupId && pendingPickups && pendingPickups.length > 0) {
+                        if (isPickup && selectedTransferPickupId && selectedTransferPickupId !== 'delete_all' && pendingPickups && pendingPickups.length > 0) {
                           console.log('🔄 [Transfer] Transferring pending stops to new pickup:', selectedTransferPickupId);
                           
                           const newPickup = allDeliveries.find(d => d.id === selectedTransferPickupId);
