@@ -3372,16 +3372,21 @@ export default function Layout({ children, currentPageName }) {
                   <ConflictManager />
                   
                   {/* Message Notification Balloon */}
-                  {currentUser && !showMessaging &&
-      <MessageNotificationBalloon
-        currentUser={currentUser}
-        onOpenConversation={(conversationId, otherUserId, otherUserName) => {
-          setInitialConversation({ conversationId, otherUserId, otherUserName });
-          setShowMessaging(true);
-          setUnreadMessageCount(0);
-        }} />
+                               {currentUser && !showMessaging &&
+                   <MessageNotificationBalloon
+                     currentUser={currentUser}
+                     onOpenConversation={(conversationId, otherUserId, otherUserName) => {
+                       setInitialConversation({ conversationId, otherUserId, otherUserName });
+                       setShowMessaging(true);
+                       setUnreadMessageCount(0);
+                     }} />
 
-      }
+                   }
+
+                               {/* WebSocket Diagnostics Card - App Owners only, non-primary devices */}
+                               {isAppOwner(currentUser) &&
+                   <WebSocketDiagnosticsCard />
+                   }
 
                   {showDeliveryImport &&
       <RouteImport
