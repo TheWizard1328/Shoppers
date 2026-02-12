@@ -508,6 +508,11 @@ class LightweightRefreshManager {
       return null;
     }
     
+    // CRITICAL: Skip if paused
+    if (this._paused) {
+      return null;
+    }
+    
     // Delegate to performLightweightRefresh
     return await this.performLightweightRefresh(currentData);
   }
