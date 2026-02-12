@@ -208,6 +208,9 @@ export default function PullToSync({
       if (onSyncComplete) {
         await onSyncComplete(offlineDeliveries, [], []);
       }
+      
+      // CRITICAL: Dispatch completion event for SmartRefreshIndicator
+      window.dispatchEvent(new CustomEvent('pullToSyncComplete'));
 
       console.log(`✅ [Pull to Sync] ${silent ? 'Silent sync' : 'Sync'} complete!`);
       
