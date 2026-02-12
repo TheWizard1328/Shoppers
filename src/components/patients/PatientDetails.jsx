@@ -97,6 +97,16 @@ const RecentDeliveries = ({ deliveries, patient }) => {
                         <span className="font-medium">Completed:</span> {format(new Date(delivery.actual_delivery_time), 'HH:mm')}
                       </div>
                     )}
+                    {delivery.cod_total_amount_required && (
+                      <div style={{ color: 'var(--text-slate-600)' }}>
+                        <span className="font-medium">COD Required:</span> ${delivery.cod_total_amount_required.toFixed(2)}
+                      </div>
+                    )}
+                    {delivery.cod_payments && delivery.cod_payments.length > 0 && (
+                      <div style={{ color: 'var(--text-slate-600)' }}>
+                        <span className="font-medium">Collected:</span> ${delivery.cod_payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
