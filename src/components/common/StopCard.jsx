@@ -796,9 +796,12 @@ export default function StopCard({
 
   const handleAcceptAllStops = async () => {
     setIsAcceptingAll(true);
+    
+    // Import poller early to ensure it's available
+    const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+    
     try {
       console.log('🟢 [Accept All] PHASE 1: Pausing and transitioning all pending stops...');
-      const { driverLocationPoller } = await import('../utils/driverLocationPoller');
       driverLocationPoller.pause();
       smartRefreshManager.pause();
       setIsEntityUpdating(true);
