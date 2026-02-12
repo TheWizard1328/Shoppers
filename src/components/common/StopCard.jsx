@@ -1457,7 +1457,7 @@ export default function StopCard({
                       }
                     }}>
                     <Trash2 className="w-4 h-4 mr-2" />
-                    {selectedTransferPickupId ? 'Trans & Del' : 'Delete'}
+                    {availableTransferPickups.length === 0 ? 'Delete All' : selectedTransferPickupId && selectedTransferPickupId !== 'delete_all' ? 'Trans & Del' : 'Delete'}
                   </Button>
                 </div>
               </div>
