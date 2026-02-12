@@ -62,10 +62,22 @@ const RecentDeliveries = ({ deliveries, patient }) => {
                 <div
                   key={delivery.id}
                   className={`p-3 rounded-lg border ${colors.bg} ${colors.border}`}>
-                  <div className="flex items-start justify-between mb-3">
-                    <span className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                      {format(new Date(delivery.delivery_date + 'T12:00:00'), 'EEE, MMM d')}
-                    </span>
+                  <div className="grid grid-cols-2 gap-3 mb-2">
+                    <div className="text-xs space-y-1">
+                      <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                        {format(new Date(delivery.delivery_date + 'T12:00:00'), 'EEE, MMM d')}
+                      </div>
+                      {delivery.tracking_number && (
+                        <div style={{ color: 'var(--text-slate-600)' }}>
+                          <span className="font-medium">TR#:</span> {delivery.tracking_number}
+                        </div>
+                      )}
+                      {delivery.actual_delivery_time && (
+                        <div style={{ color: 'var(--text-slate-600)' }}>
+                          <span className="font-medium">Completed:</span> {format(new Date(delivery.actual_delivery_time), 'HH:mm')}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex flex-col gap-1 items-end">
                       <Badge className={`text-xs ${colors.badge}`} style={{ color: 'var(--text-slate-900)' }}>
                         {delivery.status === 'in_transit' ? 'In Transit' : 
@@ -86,22 +98,11 @@ const RecentDeliveries = ({ deliveries, patient }) => {
                       )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      {delivery.tracking_number && (
-                        <div style={{ color: 'var(--text-slate-600)' }}>
-                          <span className="font-medium">TR#:</span> {delivery.tracking_number}
-                        </div>
-                      )}
+                  {delivery.delivery_notes && (
+                    <div className="text-xs pt-2 border-t" style={{ color: 'var(--text-slate-600)', borderColor: 'var(--border-slate-300)' }}>
+                      <span className="font-medium">Notes:</span> {delivery.delivery_notes}
                     </div>
-                    <div className="text-right">
-                      {delivery.actual_delivery_time && (
-                        <div style={{ color: 'var(--text-slate-600)' }}>
-                          <span className="font-medium">Completed:</span> {format(new Date(delivery.actual_delivery_time), 'HH:mm')}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })}
