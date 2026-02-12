@@ -22,54 +22,25 @@ import { format } from "date-fns";
 
 const RecentDeliveries = ({ deliveries, patient }) => {
 
-  // Filter deliveries for this patient only (across all drivers)
-  const patientDeliveries = deliveries.filter((d) => d.patient_id === patient.id);
+  // Filter deliveries for this patient and sort by date (most recent first)
+  const patientDeliveries = deliveries
+    .filter((d) => d.patient_id === patient.id)
+    .sort((a, b) => new Date(b.delivery_date) - new Date(a.delivery_date))
+    .slice(0, 5);
 
-  // Group deliveries by date
-  const deliveriesByDate = patientDeliveries.reduce((acc, delivery) => {
-    const dateKey = delivery.delivery_date;
-    if (!acc[dateKey]) acc[dateKey] = [];
-    acc[dateKey].push(delivery);
-    return acc;
-  }, {});
-
-  // Determine badge color for a date
-  const getDateBadgeInfo = (dateStr) => {
-    const dayDeliveries = deliveriesByDate[dateStr] || [];
-    if (dayDeliveries.length === 0) return null;
-
-    const hasCompleted = dayDeliveries.some((d) => ['completed', 'delivered'].includes(d.status));
-    const hasFailed = dayDeliveries.some((d) => d.status === 'failed' && !d.delivery_notes?.toLowerCase().includes('return'));
-    const hasReturned = dayDeliveries.some((d) => d.status === 'failed' && d.delivery_notes?.toLowerCase().includes('return'));
-
-    // Split badge logic
-    if (hasCompleted && hasFailed || hasCompleted && hasReturned) {
-      return { type: 'split', left: 'green', right: hasFailed ? 'red' : 'orange' };
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed':
+        return { bg: 'bg-emerald-50', border: 'border-emerald-200', badge: 'bg-emerald-100' };
+      case 'failed':
+        return { bg: 'bg-red-50', border: 'border-red-200', badge: 'bg-red-100' };
+      case 'pending':
+        return { bg: 'bg-amber-50', border: 'border-amber-200', badge: 'bg-amber-100' };
+      case 'in_transit':
+        return { bg: 'bg-blue-50', border: 'border-blue-200', badge: 'bg-blue-100' };
+      default:
+        return { bg: 'bg-slate-50', border: 'border-slate-200', badge: 'bg-slate-100' };
     }
-    if (hasFailed && hasReturned) {
-      return { type: 'split', left: 'red', right: 'orange' };
-    }
-
-    // Single badge
-    if (hasCompleted) return { type: 'single', color: 'green' };
-    if (hasReturned) return { type: 'single', color: 'orange' };
-    if (hasFailed) return { type: 'single', color: 'red' };
-
-    return { type: 'single', color: 'gray' };
-  };
-
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
-  const calendarStart = startOfWeek(monthStart);
-  const calendarEnd = endOfWeek(monthEnd);
-  const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-
-  const handlePrevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
   return (
