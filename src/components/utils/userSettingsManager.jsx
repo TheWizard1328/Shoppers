@@ -371,15 +371,8 @@ export async function saveSetting(userId, key, value) {
 
   if (!offlineManager.getOnlineStatus()) {
     console.log(`📴 [UserSettings] Offline - queuing setting ${key} for sync`);
-    await offlineManager.queueAction({
-      type: 'updateUserSettings',
-      userId,
-      key,
-      value,
-      isGlobal,
-      deviceIdentifier,
-      data: { [key]: value }
-    });
+    // Don't queue UserSettings updates when offline - just update cache
+    // UserSettings should sync when online via background refresh
     return cachedSettings;
   }
 
@@ -422,19 +415,7 @@ export async function saveSetting(userId, key, value) {
 
   } catch (error) {
     console.error('❌ [UserSettings] Error saving setting:', error);
-    
-    if (error.message?.includes('Network') || error.message?.includes('fetch')) {
-      await offlineManager.queueAction({
-        type: 'updateUserSettings',
-        userId,
-        key,
-        value,
-        isGlobal,
-        deviceIdentifier,
-        data: { [key]: value }
-      });
-    }
-    
+    // On error, just return cached - will retry on background refresh
     return cachedSettings || { ...DEFAULT_SETTINGS, [key]: value };
   }
 }
@@ -482,12 +463,8 @@ export async function saveSettings(userId, settings) {
 
   if (!offlineManager.getOnlineStatus()) {
     console.log(`📴 [UserSettings] Offline - queuing settings for sync`);
-    await offlineManager.queueAction({
-      type: 'updateUserSettings',
-      userId,
-      deviceIdentifier,
-      data: settings
-    });
+    // Don't queue UserSettings updates when offline - just update cache
+    // UserSettings should sync when online via background refresh
     return cachedSettings;
   }
 
@@ -536,16 +513,7 @@ export async function saveSettings(userId, settings) {
 
   } catch (error) {
     console.error('❌ [UserSettings] Error saving settings:', error);
-    
-    if (error.message?.includes('Network') || error.message?.includes('fetch')) {
-      await offlineManager.queueAction({
-        type: 'updateUserSettings',
-        userId,
-        deviceIdentifier,
-        data: settings
-      });
-    }
-    
+    // On error, just return cached - will retry on background refresh
     return cachedSettings || { ...DEFAULT_SETTINGS, ...settings };
   }
 }
