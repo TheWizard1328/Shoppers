@@ -441,6 +441,72 @@ class LightweightRefreshManager {
   }
 
   /**
+   * Clear pending updates for specific driver/date
+   */
+  clearPendingUpdatesForDriver(driverId, deliveryDate) {
+    const keysToDelete = [];
+    this.pendingLocalUpdates.forEach((value, key) => {
+      if (value.driverId === driverId && value.deliveryDate === deliveryDate) {
+        keysToDelete.push(key);
+      }
+    });
+    keysToDelete.forEach(key => this.pendingLocalUpdates.delete(key));
+    console.log(`🗑️ [SmartRefresh] Cleared ${keysToDelete.length} pending updates for driver ${driverId}`);
+  }
+
+  /**
+   * Reset timers (called after status updates to prevent duplicate location polls)
+   */
+  resetTimers() {
+    this.lastRefreshTimes.appUsers = Date.now();
+    console.log('⏱️ [SmartRefresh] Reset appUsers timer to prevent immediate duplicate poll');
+  }
+
+  /**
+   * Refresh driver locations - simplified for Dashboard usage
+   */
+  async refreshDriverLocations(currentAppUsers, forceNotify = false, currentPageName = null, selectedDate = null, immediate = false) {
+    try {
+      // Skip if paused
+      if (this._paused && !immediate) {
+        console.log('⏸️ [SmartRefresh] Paused - skipping location refresh');
+        return { hasChanges: false, appUsers: currentAppUsers };
+      }
+
+      console.log('📍 [SmartRefresh] Refreshing driver locations...');
+      await this.waitForRateLimit();
+      
+      const freshAppUsers = await base44.entities.AppUser.list();
+      
+      this.recordSuccess();
+      
+      if (freshAppUsers && freshAppUsers.length > 0) {
+        // Save to offline DB
+        const { offlineDB } = await import('./offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+        
+        console.log(`✅ [SmartRefresh] Refreshed ${freshAppUsers.length} driver locations`);
+        
+        return { hasChanges: true, appUsers: freshAppUsers };
+      }
+      
+      return { hasChanges: false, appUsers: currentAppUsers };
+    } catch (error) {
+      this.recordError();
+      console.warn('⚠️ [SmartRefresh] Location refresh failed:', error.message);
+      return { hasChanges: false, appUsers: currentAppUsers };
+    }
+  }
+
+  /**
+   * Perform smart refresh - main method called by Dashboard
+   */
+  async performSmartRefresh(currentData, filters, isEntityUpdating, showAllDrivers, currentPage, selectedDate) {
+    // Delegate to performLightweightRefresh
+    return await this.performLightweightRefresh(currentData);
+  }
+
+  /**
    * Get manager status
    */
   getStatus() {
