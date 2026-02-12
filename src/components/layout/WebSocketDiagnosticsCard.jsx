@@ -10,13 +10,11 @@ export default function WebSocketDiagnosticsCard() {
     // Check if this is the primary device
     const checkPrimaryDevice = async () => {
       try {
-        const { deviceManager } = await import('@/components/utils/deviceManager');
-        const settings = await deviceManager.getUserSettings();
-        const devices = settings?.device_settings_profiles || {};
-        const currentDeviceId = deviceManager.getDeviceIdentifier();
-        const currentDevice = devices[currentDeviceId];
-        setIsPrimaryDevice(currentDevice?.is_primary_tracker !== true);
+        const { isPrimaryTracker } = await import('@/components/utils/deviceManager');
+        const isTracking = await isPrimaryTracker();
+        setIsPrimaryDevice(isTracking);
       } catch (error) {
+        console.log('⚠️ [WebSocketDiagnosticsCard] Failed to check primary device status:', error.message);
         setIsPrimaryDevice(true);
       }
     };
@@ -25,15 +23,16 @@ export default function WebSocketDiagnosticsCard() {
   }, []);
 
   useEffect(() => {
-    if (isPrimaryDevice) return; // Don't show on primary device
+    if (isPrimaryDevice) return; // Only show on non-primary devices
 
-    const handleDeliveryUpdate = (e) => {
-      const { delivery, type, source } = e.detail;
+    const handleWebSocketEvent = (e) => {
+      const { data } = e.detail || {};
+      if (!data) return;
       
       setEvent({
-        type,
-        patientName: delivery.patient_name || delivery.id,
-        status: delivery.status,
+        source: 'WebSocket',
+        patientName: data.patient_name || data.name || 'Update',
+        status: data.status,
         timestamp: Date.now()
       });
 
@@ -45,8 +44,13 @@ export default function WebSocketDiagnosticsCard() {
       return () => clearTimeout(timeout);
     };
 
-    window.addEventListener('deliveryUpdated', handleDeliveryUpdate);
-    return () => window.removeEventListener('deliveryUpdated', handleDeliveryUpdate);
+    window.addEventListener('deliveryUpdated', handleWebSocketEvent);
+    window.addEventListener('driverLocationsUpdated', handleWebSocketEvent);
+    
+    return () => {
+      window.removeEventListener('deliveryUpdated', handleWebSocketEvent);
+      window.removeEventListener('driverLocationsUpdated', handleWebSocketEvent);
+    };
   }, [isPrimaryDevice]);
 
   if (!event || isPrimaryDevice) return null;
