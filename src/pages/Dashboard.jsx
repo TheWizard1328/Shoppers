@@ -7770,7 +7770,7 @@ function Dashboard() {
   }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, hasPreRenderSyncRef.current]);
   
   // CRITICAL: STEP 2 - Background priority sync to update offline DB
-  const hasTriggeredSmartRefreshRef = useRef(false);
+  const hasTriggeredPrioritySyncRef = useRef(false);
   
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
