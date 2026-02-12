@@ -608,7 +608,7 @@ function Dashboard() {
       unsubscribeDeliveries();
       unsubscribeAppUsers();
     };
-  }, [currentUser?.id, isDataLoaded, showAllDriverMarkers, selectedDriverId, updateDeliveriesLocally, updateAppUsersLocally, refreshUser]);
+  }, [currentUser?.id, isDataLoaded, showAllDriverMarkers, selectedDriverId, updateDeliveriesLocally, updateAppUsersLocally, refreshUser, deliveries, appUsers, selectedDate, isPrimaryDevice, refreshData]);
 
 
 
