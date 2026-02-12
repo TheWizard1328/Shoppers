@@ -3183,6 +3183,7 @@ export default function StopCard({
                               fabControlEvents.reactivateFAB(true);
                               setIsProcessingBackground(false);
                               setIsRestarting(false);
+                              setIsEntityUpdating(false);
                             }
                             }}
                             size="sm"
