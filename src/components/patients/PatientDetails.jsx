@@ -191,8 +191,8 @@ export default function PatientDetails({ patient, deliveries, deliveryStats }) {
         </Card>
       }
 
-      {/* Delivery Calendar */}
-      <DeliveryCalendar deliveries={deliveries} patient={patient} />
+      {/* Recent Deliveries */}
+      <RecentDeliveries deliveries={deliveries} patient={patient} />
     </div>);
 
 }
