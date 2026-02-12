@@ -51,8 +51,10 @@ class CityFilteredRealtimeSync {
     console.log(`🔌 [RealtimeSync] Starting subscriptions for city: ${cityId}`);
 
     // Subscribe to ALL Delivery changes in the city (NO date filtering - let UI decide)
+    console.log('🔌 [cityFilteredRealtimeSync] Setting up Delivery subscription...');
     this.deliveryUnsubscribe = base44.entities.Delivery.subscribe(async (event) => {
       console.log(`📡 [Realtime Delivery] ${event.type}:`, event.data?.patient_name || event.id);
+      console.log('📦 [Realtime Delivery] Full event:', JSON.stringify({ type: event.type, id: event.id, status: event.data?.status, isNextDelivery: event.data?.isNextDelivery }, null, 2));
 
       // CRITICAL: Only filter by city, NOT by date
       // This ensures we catch ALL delivery updates in the city

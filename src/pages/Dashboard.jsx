@@ -503,8 +503,10 @@ function Dashboard() {
     });
 
     // Subscribe to Delivery entity changes
+    console.log('🔌 [Dashboard] Setting up Delivery subscription...');
     const unsubscribeDeliveries = base44.entities.Delivery.subscribe((event) => {
       console.log(`📡 [Real-time Delivery] ${event.type} event:`, event.data?.patient_name || event.id, 'driver:', event.data?.driver_id);
+      console.log('📦 [Real-time Delivery] Full event data:', JSON.stringify(event.data, null, 2));
       
       // CRITICAL: Check if this delivery is for the selected date
       const deliveryDate = event.data?.delivery_date;
@@ -607,9 +609,18 @@ function Dashboard() {
       console.log('🔌 [Real-time] Unsubscribing from Patient, Delivery, and AppUser changes');
       window.removeEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
-      unsubscribePatients();
-      unsubscribeDeliveries();
-      unsubscribeAppUsers();
+      if (unsubscribePatients) {
+        unsubscribePatients();
+        console.log('✅ [Real-time] Unsubscribed from Patient');
+      }
+      if (unsubscribeDeliveries) {
+        unsubscribeDeliveries();
+        console.log('✅ [Real-time] Unsubscribed from Delivery');
+      }
+      if (unsubscribeAppUsers) {
+        unsubscribeAppUsers();
+        console.log('✅ [Real-time] Unsubscribed from AppUser');
+      }
     };
   }, [currentUser?.id, isDataLoaded, showAllDriverMarkers, selectedDriverId, updateDeliveriesLocally, updateAppUsersLocally, refreshUser, deliveries, appUsers, selectedDate, isPrimaryDevice, refreshData]);
 
