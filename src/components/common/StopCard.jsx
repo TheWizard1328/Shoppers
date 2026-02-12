@@ -1361,24 +1361,15 @@ export default function StopCard({
                             <SelectValue placeholder="Select pickup location" />
                           </SelectTrigger>
                           <SelectContent className="z-[999999]">
-                            <SelectItem value={null}>None - Delete All</SelectItem>
-                            {allDeliveries
-                              ?.filter(d => 
-                                d && !d.patient_id && 
-                                d.store_id === delivery.store_id && 
-                                d.delivery_date === delivery.delivery_date &&
-                                d.driver_id === delivery.driver_id &&
-                                d.id !== delivery.id &&
-                                d.status !== 'completed' && d.status !== 'cancelled'
-                              )
-                              .map(pickup => (
-                                <SelectItem key={pickup.id} value={pickup.id}>
-                                  {store?.name} [{pickup.ampm_deliveries || 'AM'}] (TR# {pickup.tracking_number})
-                                </SelectItem>
-                              ))}
+                            <SelectItem value="delete_all">All Stops Will Be Deleted</SelectItem>
+                            {availableTransferPickups.map(pickup => (
+                              <SelectItem key={pickup.id} value={pickup.id}>
+                                {store?.name} [{pickup.ampm_deliveries || 'AM'}] (TR# {pickup.tracking_number})
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
-                        {selectedTransferPickupId && (
+                        {selectedTransferPickupId && selectedTransferPickupId !== 'delete_all' && (
                           <p className="text-xs text-blue-700 italic">
                             Pending stops will be updated with new PUID and TR# range
                           </p>
