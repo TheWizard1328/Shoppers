@@ -2356,7 +2356,7 @@ function Dashboard() {
       }
       
       // CRITICAL: Skip if mount syncs just ran (prevent rate limits)
-      if (!hasTriggeredPrioritySyncRef.current) {
+      if (!hasTriggeredSmartRefreshRef.current) {
         console.log('⏭️ [Periodic Refresh] Mount sync still running - skipping this cycle');
         return;
       }
