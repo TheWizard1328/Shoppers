@@ -66,13 +66,20 @@ const RecentDeliveries = ({ deliveries, patient }) => {
                     <span className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                       {format(new Date(delivery.delivery_date + 'T12:00:00'), 'EEE, MMM d')}
                     </span>
-                    <Badge className={`text-xs ${colors.badge}`} style={{ color: 'var(--text-slate-900)' }}>
-                      {delivery.status === 'in_transit' ? 'In Transit' : 
-                       delivery.status === 'completed' ? 'Completed' :
-                       delivery.status === 'pending' ? 'Pending' :
-                       delivery.status === 'failed' ? 'Failed' : 
-                       delivery.status}
-                    </Badge>
+                    <div className="flex flex-col gap-1 items-end">
+                      <Badge className={`text-xs ${colors.badge}`} style={{ color: 'var(--text-slate-900)' }}>
+                        {delivery.status === 'in_transit' ? 'In Transit' : 
+                         delivery.status === 'completed' ? 'Completed' :
+                         delivery.status === 'pending' ? 'Pending' :
+                         delivery.status === 'failed' ? 'Failed' : 
+                         delivery.status}
+                      </Badge>
+                      {delivery.driver_name && (
+                        <Badge variant="outline" className="text-xs" style={{ color: 'var(--text-slate-700)' }}>
+                          {delivery.driver_name}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-1 text-xs">
                     {delivery.tracking_number && (
