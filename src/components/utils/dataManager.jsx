@@ -285,62 +285,46 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
 };
 
 /**
- * Load deliveries for a specific date (priority loading)
- * Used for loading today's/selected date's data first
- * CRITICAL: ALWAYS try offline DB first to prevent rate limits
- * 
- * @param {string} dateStr - Date in yyyy-MM-dd format
- * @param {object} filters - Filters to apply (store_id, driver_id, etc.)
- * @param {boolean} forceRefresh - Force bypass cache
- * @returns {Promise<Array>} - Deliveries for that date
+ * Load deliveries for a specific date - NO CACHE, always from offline DB or API
  */
 export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh = false) => {
   const { driver_id, ...filtersWithoutDriver } = filters;
-  const cacheKey = `Delivery_date_${dateStr}_${JSON.stringify(filtersWithoutDriver)}`;
   
-    try {
-      let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
-      
-      if (filtersWithoutDriver.store_id) {
-        const storeIds = filtersWithoutDriver.store_id.$in || [filtersWithoutDriver.store_id];
-        offlineData = offlineData.filter(d => storeIds.includes(d.store_id));
-      }
-      
-      if (offlineData && offlineData.length > 0) {
-        deliveryRangeCache.set(cacheKey, offlineData);
-        deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
-        
-        // Check staleness: refresh in background if stale or forceRefresh
-        const isStale = (Date.now() - (deliveryRangeCacheTimestamps.get(cacheKey) || 0)) > DELIVERY_RANGE_CACHE_DURATION;
-        if (forceRefresh || isStale) {
-          (async () => {
-            try {
-              await waitForRateLimit();
-              const dateFilters = { ...filtersWithoutDriver, delivery_date: dateStr };
-              const freshDeliveries = await Delivery.filter(dateFilters, '-updated_date');
-              
-              if (freshDeliveries && freshDeliveries.length > 0) {
-                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-                deliveryRangeCache.set(cacheKey, freshDeliveries);
-                deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
-              }
-            } catch (bgError) {}
-          })();
-        }
-        
-        return offlineData;
-      }
-    } catch (offlineError) {}
-  
-  if (!forceRefresh) {
-    const cachedData = deliveryRangeCache.get(cacheKey);
-    const cachedTimestamp = deliveryRangeCacheTimestamps.get(cacheKey);
+  // Try offline DB first
+  try {
+    let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
     
-    if (cachedData && cachedTimestamp && (Date.now() - cachedTimestamp < DELIVERY_RANGE_CACHE_DURATION)) {
-      return cachedData;
+    if (filtersWithoutDriver.store_id) {
+      const storeIds = filtersWithoutDriver.store_id.$in || [filtersWithoutDriver.store_id];
+      offlineData = offlineData.filter(d => storeIds.includes(d.store_id));
     }
-  }
+    
+    if (offlineData && offlineData.length > 0) {
+      // Check staleness: refresh in background if stale or forceRefresh
+      const meta = await offlineDB.getSyncMetadata('Delivery');
+      const lastSync = meta?.last_sync_time ? new Date(meta.last_sync_time).getTime() : 0;
+      const isStale = (Date.now() - lastSync) > (15 * 60 * 1000); // 15 min
+      
+      if (forceRefresh || isStale) {
+        (async () => {
+          try {
+            await waitForRateLimit();
+            const dateFilters = { ...filtersWithoutDriver, delivery_date: dateStr };
+            const freshDeliveries = await Delivery.filter(dateFilters, '-updated_date');
+            
+            if (freshDeliveries && freshDeliveries.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+              await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString());
+            }
+          } catch (bgError) {}
+        })();
+      }
+      
+      return offlineData;
+    }
+  } catch (offlineError) {}
   
+  // Fallback: Fetch from API
   const dateFilters = {
     ...filtersWithoutDriver,
     delivery_date: dateStr
@@ -348,21 +332,15 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
   
   try {
     await waitForRateLimit();
-    
     const Entity = entities.Delivery;
     const deliveries = await Entity.filter(dateFilters, '-updated_date');
     
-    deliveryRangeCache.set(cacheKey, deliveries);
-    deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
-
-    offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries).catch(err => {});
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString());
 
     return deliveries;
   } catch (error) {
-    if (deliveryRangeCache.has(cacheKey)) {
-      return deliveryRangeCache.get(cacheKey);
-    }
-    
+    // Final fallback: try offline DB again
     try {
       let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
       if (offlineData && offlineData.length > 0) {
