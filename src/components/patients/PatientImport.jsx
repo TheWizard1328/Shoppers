@@ -940,11 +940,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
               }
 
               try {
-                await retryWithBackoff(async () => {
-                  const updated = await base44.entities.Patient.update(id, patientData);
-                  await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updated]);
-                  return updated;
+                const updated = await retryWithBackoff(async () => {
+                  return await base44.entities.Patient.update(id, patientData);
                 }, 5, 2000, 2);
+
+                await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updated]);
 
                 totalUpdated++;
                 setImportProgress((prev) => ({
