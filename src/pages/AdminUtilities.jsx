@@ -352,6 +352,7 @@ const COLUMN_CONFIGS = {
     { id: 'tracking', label: 'TR#', defaultVisible: true },
     { id: 'delivery_to', label: 'Delivery To', defaultVisible: true },
     { id: 'driver', label: 'Driver', defaultVisible: true },
+    { id: 'distance', label: 'Distance', defaultVisible: true },
     { id: 'status', label: 'Status', defaultVisible: true },
     { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
   ],
@@ -616,6 +617,7 @@ const DeliveryDataTable = ({
       tracking: 100,
       delivery_to: 250,
       driver: 120,
+      distance: 90,
       status: 120,
       actions: 150
     };
@@ -1086,6 +1088,13 @@ const DeliveryDataTable = ({
                       </Button>
                     </ResizableColumnHeader>
                   )}
+                  {visibleColumns.includes('distance') && (
+                    <ResizableColumnHeader width={columnWidths.distance} onResize={(w) => updateColumnWidth('distance', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('travel_dist')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        Dist {getSortIcon('travel_dist')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
                   {visibleColumns.includes('status') && (
                     <ResizableColumnHeader width={columnWidths.status} onResize={(w) => updateColumnWidth('status', w)}>
                       <Button variant="ghost" onClick={() => onSortChange('status')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
@@ -1199,6 +1208,13 @@ const DeliveryDataTable = ({
                                 )}
                               </div>
                             )}
+                          </td>
+                        )}
+                        {visibleColumns.includes('distance') && (
+                          <td className="p-2">
+                            <span className="text-sm font-mono" style={{ color: 'var(--text-slate-900)' }}>
+                              {delivery.travel_dist ? `${delivery.travel_dist.toFixed(2)}k` : '-'}
+                            </span>
                           </td>
                         )}
                         {visibleColumns.includes('status') && (
