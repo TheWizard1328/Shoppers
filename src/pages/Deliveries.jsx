@@ -514,11 +514,17 @@ export default function DeliveriesPage() {
 
                console.log(`✅ [Deliveries Background] Synced ${allYearData.length} deliveries from online DB`);
 
+               // CRITICAL: Filter out deleted deliveries before saving to offline DB
+               const { smartRefreshManager } = await import('../components/utils/smartRefreshManager');
+               const filteredData = allYearData.filter(delivery => !smartRefreshManager.isDeliveryDeleted(delivery.id));
+               
+               console.log(`🗑️ [Deliveries Background] Filtered out ${allYearData.length - filteredData.length} deleted deliveries`);
+
                // Save to offline DB
-               if (allYearData.length > 0) {
+               if (filteredData.length > 0) {
                  const { offlineDB: offlineDBInstance } = await import('../components/utils/offlineDatabase');
-                 await offlineDBInstance.bulkSave(offlineDBInstance.STORES.DELIVERIES, allYearData);
-                 console.log(`💾 [Deliveries Background] Saved ${allYearData.length} to offline DB`);
+                 await offlineDBInstance.bulkSave(offlineDBInstance.STORES.DELIVERIES, filteredData);
+                 console.log(`💾 [Deliveries Background] Saved ${filteredData.length} to offline DB`);
                  
                  // Update UI with fresh data
                  if (isMounted.current) {
