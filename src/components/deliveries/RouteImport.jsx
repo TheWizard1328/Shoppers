@@ -2359,19 +2359,27 @@ export default function RouteImport({
         const importedDriversSet = new Set(driverDatePairs.map(p => p.driverId));
         const importedDatesSet = new Set(driverDatePairs.map(p => p.date));
         
-        // Find the most recent date
-        const sortedDates = Array.from(importedDatesSet).sort().reverse();
-        const mostRecentDate = sortedDates[0];
+        // CRITICAL: Check if any imported dates equal today's date
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
         
-        if (mostRecentDate) {
-          console.log(`🔄 [RouteImport] Processing next delivery markers for date: ${mostRecentDate}`);
+        console.log(`🔄 [RouteImport] Processing next delivery markers for ${importedDatesSet.size} dates, ${importedDriversSet.size} drivers`);
+        
+        // CRITICAL: Iterate through ALL imported dates
+        for (const importDate of importedDatesSet) {
+          // CRITICAL: Only update isNextDelivery if this date equals today
+          if (importDate !== todayStr) {
+            console.log(`⏭️ [RouteImport] Skipping next delivery markers for ${importDate} (not today)`);
+            continue;
+          }
+          
+          console.log(`🔄 [RouteImport] Processing next delivery markers for TODAY (${importDate})`);
           
           for (const driverId of importedDriversSet) {
             try {
               // STEP 1: Reset all isNextDelivery flags for this driver on this date
               const allDeliveriesForDriver = await base44.entities.Delivery.filter({
                 driver_id: driverId,
-                delivery_date: mostRecentDate
+                delivery_date: importDate
               });
               
               for (const delivery of allDeliveriesForDriver) {
