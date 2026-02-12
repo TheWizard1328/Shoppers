@@ -45,110 +45,62 @@ const RecentDeliveries = ({ deliveries, patient }) => {
 
   return (
     <Card className="shadow-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-      <CardHeader className="px-4 py-2 flex flex-col space-y-1.5">
+      <CardHeader className="px-4 py-2">
         <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
-          <Calendar className="w-5 h-5 text-emerald-600" />
-          Delivery History
+          <Package className="w-5 h-5 text-blue-600" />
+          Recent Deliveries
         </CardTitle>
-        <div className="flex items-center justify-center gap-2 mt-2">
-          <Button variant="ghost" size="sm" onClick={handlePrevMonth}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <span className="text-sm font-medium min-w-[120px] text-center">
-            {format(currentMonth, 'MMMM yyyy')}
-          </span>
-          <Button variant="ghost" size="sm" onClick={handleNextMonth}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
       </CardHeader>
       <CardContent>
-        {/* Weekday headers */}
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) =>
-          <div key={day} className="text-center text-xs font-semibold py-2" style={{ color: 'var(--text-slate-600)' }}>
-              {day}
-            </div>
-          )}
-        </div>
-
-        {/* Calendar grid */}
-        <div className="grid grid-cols-7 gap-1">
-          {calendarDays.map((day) => {
-            const dateStr = format(day, 'yyyy-MM-dd');
-            const todayStr = format(new Date(), 'yyyy-MM-dd');
-            const isToday = dateStr === todayStr;
-            const badgeInfo = getDateBadgeInfo(dateStr);
-            const isCurrentMonth = isSameMonth(day, currentMonth);
-
-            return (
-              <div
-                key={dateStr}
-                className={`aspect-square p-1 rounded-lg flex items-center justify-center text-sm relative ${
-                isToday ? 'ring-2 ring-blue-500 ring-inset' : ''}`}
-                style={{ color: !isCurrentMonth ? 'var(--text-slate-300)' : 'var(--text-slate-900)' }}>
-
-                {badgeInfo ?
-                badgeInfo.type === 'split' ?
-                <div className="relative w-full h-full flex items-center justify-center">
-                      <div className="absolute inset-0 flex">
-                        <div className={`w-1/2 rounded-l-lg ${
-                    badgeInfo.left === 'green' ? 'bg-emerald-500' :
-                    badgeInfo.left === 'red' ? 'bg-red-500' :
-                    'bg-orange-500'}`
-                    } />
-                        <div className={`w-1/2 rounded-r-lg ${
-                    badgeInfo.right === 'green' ? 'bg-emerald-500' :
-                    badgeInfo.right === 'red' ? 'bg-red-500' :
-                    'bg-orange-500'}`
-                    } />
+        {patientDeliveries.length === 0 ? (
+          <p className="text-sm text-center py-4" style={{ color: 'var(--text-slate-500)' }}>
+            No deliveries found
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {patientDeliveries.map((delivery) => {
+              const colors = getStatusColor(delivery.status);
+              return (
+                <div
+                  key={delivery.id}
+                  className={`p-3 rounded-lg border ${colors.bg} ${colors.border}`}>
+                  <div className="flex items-start justify-between mb-2">
+                    <span className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                      {format(new Date(delivery.delivery_date + 'T12:00:00'), 'EEE, MMM d')}
+                    </span>
+                    <Badge className={`text-xs ${colors.badge}`} style={{ color: 'var(--text-slate-900)' }}>
+                      {delivery.status === 'in_transit' ? 'In Transit' : 
+                       delivery.status === 'completed' ? 'Completed' :
+                       delivery.status === 'pending' ? 'Pending' :
+                       delivery.status === 'failed' ? 'Failed' : 
+                       delivery.status}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    {delivery.tracking_number && (
+                      <div style={{ color: 'var(--text-slate-600)' }}>
+                        <span className="font-medium">TR#:</span> {delivery.tracking_number}
                       </div>
-                      <span className="relative z-10 font-semibold text-white">
-                        {format(day, 'd')}
-                      </span>
-                    </div> :
-
-                <div className={`w-full h-full rounded-lg flex items-center justify-center font-semibold text-white ${
-                badgeInfo.color === 'green' ? 'bg-emerald-500' :
-                badgeInfo.color === 'red' ? 'bg-red-500' :
-                badgeInfo.color === 'orange' ? 'bg-orange-500' :
-                'bg-slate-400'}`
-                }>
-                      {format(day, 'd')}
-                    </div> :
-
-
-                <span>{format(day, 'd')}</span>
-                }
-              </div>);
-
-          })}
-        </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap gap-4 mt-4 pt-4 text-xs" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-emerald-500" />
-            <span style={{ color: 'var(--text-slate-600)' }}>Completed</span>
+                    )}
+                    {delivery.stop_id && (
+                      <div style={{ color: 'var(--text-slate-600)' }}>
+                        <span className="font-medium">Stop:</span> {delivery.stop_id}
+                      </div>
+                    )}
+                    {delivery.actual_delivery_time && (
+                      <div style={{ color: 'var(--text-slate-600)' }}>
+                        <span className="font-medium">Completed:</span> {format(new Date(delivery.actual_delivery_time), 'HH:mm')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-red-500" />
-            <span style={{ color: 'var(--text-slate-600)' }}>Failed</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-orange-500" />
-            <span style={{ color: 'var(--text-slate-600)' }}>Returned</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded flex">
-              <div className="w-1/2 bg-emerald-500 rounded-l" />
-              <div className="w-1/2 bg-red-500 rounded-r" />
-            </div>
-            <span style={{ color: 'var(--text-slate-600)' }}>Mixed Status</span>
-          </div>
-        </div>
+        )}
       </CardContent>
-    </Card>);
+    </Card>
+  );
 
 };
 
