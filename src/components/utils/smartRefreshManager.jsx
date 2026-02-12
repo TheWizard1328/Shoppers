@@ -500,6 +500,7 @@ class LightweightRefreshManager {
 
   /**
    * Perform smart refresh - main method called by Dashboard
+   * CRITICAL: Reads from offline DB, NOT API - WebSocket subscriptions keep offline DB in sync
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating, showAllDrivers, currentPage, selectedDate) {
     // CRITICAL: Guard against undefined parameters
@@ -513,40 +514,44 @@ class LightweightRefreshManager {
       return null;
     }
     
-    // CRITICAL: Fetch ALL deliveries for selected date and update offline DB
     const updates = {};
     
     try {
-      // STEP 1: Refresh deliveries for selected date (ALL drivers in city)
+      const { offlineDB } = await import('./offlineDatabase');
+      
+      // STEP 1: Read deliveries from offline DB for selected date
       if (filters.deliveryFilter?.delivery_date) {
         const deliveryDate = filters.deliveryFilter.delivery_date;
-        console.log(`📦 [SmartRefresh] Fetching ALL deliveries for ${deliveryDate}...`);
+        console.log(`📦 [SmartRefresh] Reading deliveries for ${deliveryDate} from offline DB...`);
         
-        await this.waitForRateLimit();
-        const freshDeliveries = await queueEntityRequest(
-          () => base44.entities.Delivery.filter({ delivery_date: deliveryDate }),
-          'Delivery list for date'
-        );
+        const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        const dateDeliveries = (offlineDeliveries || []).filter(d => d.delivery_date === deliveryDate);
         
-        this.recordSuccess();
-        
-        if (freshDeliveries && freshDeliveries.length > 0) {
-          // Save to offline DB
-          const { offlineDB } = await import('./offlineDatabase');
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-          console.log(`✅ [SmartRefresh] Saved ${freshDeliveries.length} deliveries to offline DB`);
-          
-          updates.deliveries = freshDeliveries;
+        if (dateDeliveries.length > 0) {
+          console.log(`✅ [SmartRefresh] Found ${dateDeliveries.length} deliveries in offline DB`);
+          updates.deliveries = dateDeliveries;
         }
       }
       
-      // STEP 2: Perform lightweight refresh for other entities
+      // STEP 2: Read AppUsers from offline DB (WebSocket subscriptions keep this in sync)
+      if (currentData.appUsers) {
+        console.log(`👥 [SmartRefresh] Reading AppUsers from offline DB...`);
+        
+        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        
+        if (offlineAppUsers && offlineAppUsers.length > 0) {
+          console.log(`✅ [SmartRefresh] Found ${offlineAppUsers.length} AppUsers in offline DB`);
+          updates.appUsers = offlineAppUsers;
+        }
+      }
+      
+      // STEP 3: Perform lightweight refresh for other entities (Cities, Stores)
       const lightweightUpdates = await this.performLightweightRefresh(currentData);
       if (lightweightUpdates) {
         Object.assign(updates, lightweightUpdates);
       }
       
-      // STEP 3: Notify subscribers if we have updates
+      // STEP 4: Notify subscribers if we have updates
       if (Object.keys(updates).length > 0) {
         this.notifySubscribers(updates);
         
@@ -561,7 +566,6 @@ class LightweightRefreshManager {
       return Object.keys(updates).length > 0 ? updates : null;
       
     } catch (error) {
-      this.recordError();
       console.warn('⚠️ [SmartRefresh] Error during refresh:', error.message);
       return null;
     }
