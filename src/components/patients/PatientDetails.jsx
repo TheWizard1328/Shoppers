@@ -8,15 +8,12 @@ import { formatPhoneNumber } from "../utils/phoneFormatter";
 import {
   BarChart3,
   Package,
-  Calendar,
   CheckCircle,
   Clock,
   ExternalLink,
   XCircle,
   FileText,
-  Users,
-  ChevronLeft,
-  ChevronRight } from
+  Users } from
 "lucide-react";
 import { format } from "date-fns";
 
