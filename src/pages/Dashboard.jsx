@@ -719,6 +719,28 @@ function Dashboard() {
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
 
+  // CRITICAL: Show location toggle on mobile AND primary tracker devices
+  const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
+  
+  // Check if current device is primary tracker
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    
+    const checkPrimaryDevice = async () => {
+      try {
+        const { getCurrentDevice } = await import('@/components/utils/deviceManager');
+        const device = await getCurrentDevice(currentUser.id);
+        const isPrimary = device?.is_primary_tracker !== false;
+        setIsPrimaryDevice(isPrimary);
+      } catch (error) {
+        console.warn('⚠️ [Primary Device Check] Failed:', error.message);
+        setIsPrimaryDevice(false);
+      }
+    };
+    
+    checkPrimaryDevice();
+  }, [currentUser?.id]);
+
   // Track dynamically measured heights for map padding
   // CRITICAL: Start at 0, will be measured once cards render
   const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0);
@@ -1332,28 +1354,6 @@ function Dashboard() {
     return driversSource;
   }, [appUsers, currentUser, stores, selectedDate, deliveries]);
 
-  // CRITICAL: Show location toggle on mobile AND primary tracker devices
-  const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
-  
-  // Check if current device is primary tracker
-  useEffect(() => {
-    if (!currentUser?.id) return;
-    
-    const checkPrimaryDevice = async () => {
-      try {
-        const { getCurrentDevice } = await import('@/components/utils/deviceManager');
-        const device = await getCurrentDevice(currentUser.id);
-        const isPrimary = device?.is_primary_tracker !== false;
-        setIsPrimaryDevice(isPrimary);
-      } catch (error) {
-        console.warn('⚠️ [Primary Device Check] Failed:', error.message);
-        setIsPrimaryDevice(false);
-      }
-    };
-    
-    checkPrimaryDevice();
-  }, [currentUser?.id]);
-  
   const shouldShowLocationToggle = useMemo(() => {
     // CRITICAL: Always show for app owner (regardless of device/role)
     if (isAppOwner(currentUser)) {
