@@ -164,6 +164,7 @@ export default function StopCard({
   const { setIsEntityUpdating, forceRefreshDriverDeliveries, refreshData, updateDeliveriesLocally } = useAppData();
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
+  const [selectedTransferPickupId, setSelectedTransferPickupId] = useState('');
 
   // Detect if this is a stripped delivery (from other store)
   // For drivers: strip completed deliveries (_isStripped flag from Dashboard)
@@ -1311,15 +1312,52 @@ export default function StopCard({
                     </>}
                   </div>
 
-                  {/* CRITICAL: Warning for pickups with pending deliveries */}
+                  {/* CRITICAL: Warning for pickups with pending deliveries + Transfer option */}
                   {isPickup && delivery.stop_id && pendingPickups && pendingPickups.length > 0 &&
-                    <div className="rounded-lg p-3 border-2 border-amber-400" style={{ background: 'var(--bg-amber-50)' }}>
-                      <p className="text-sm font-semibold text-amber-800 mb-1">
-                        ⚠️ Warning: {pendingPickups.length} Pending Delivery{pendingPickups.length > 1 ? 's' : ''} Will Also Be Deleted
-                      </p>
-                      <p className="text-xs text-amber-700">
-                        {pendingPickups.map(p => p.patient_name).join(', ')}
-                      </p>
+                    <div className="rounded-lg p-3 border-2 border-amber-400 space-y-3" style={{ background: 'var(--bg-amber-50)' }}>
+                      <div>
+                        <p className="text-sm font-semibold text-amber-800 mb-1">
+                          ⚠️ Warning: {pendingPickups.length} Pending Delivery{pendingPickups.length > 1 ? 's' : ''} Will {selectedTransferPickupId ? 'Be Transferred' : 'Also Be Deleted'}
+                        </p>
+                        <p className="text-xs text-amber-700">
+                          {pendingPickups.map(p => p.patient_name).join(', ')}
+                        </p>
+                      </div>
+                      
+                      {/* Transfer Pickup Selection */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold text-amber-900">Transfer to another pickup (optional):</Label>
+                        <Select
+                          value={selectedTransferPickupId}
+                          onValueChange={(value) => setSelectedTransferPickupId(value)}
+                        >
+                          <SelectTrigger className="h-8 text-sm bg-white">
+                            <SelectValue placeholder="Select pickup location" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[999999]">
+                            <SelectItem value={null}>None - Delete All</SelectItem>
+                            {allDeliveries
+                              ?.filter(d => 
+                                d && !d.patient_id && 
+                                d.store_id === delivery.store_id && 
+                                d.delivery_date === delivery.delivery_date &&
+                                d.driver_id === delivery.driver_id &&
+                                d.id !== delivery.id &&
+                                d.status !== 'completed' && d.status !== 'cancelled'
+                              )
+                              .map(pickup => (
+                                <SelectItem key={pickup.id} value={pickup.id}>
+                                  {store?.name} [{pickup.ampm_deliveries || 'AM'}] (TR# {pickup.tracking_number})
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedTransferPickupId && (
+                          <p className="text-xs text-blue-700 italic">
+                            Pending stops will be updated with new PUID and TR# range
+                          </p>
+                        )}
+                      </div>
                     </div>
                   }
 
@@ -1339,6 +1377,39 @@ export default function StopCard({
                     className="flex-1 bg-red-600 hover:bg-red-700"
                     onClick={async () => {
                       try {
+                        // CRITICAL: If transfer pickup selected, transfer pending stops first
+                        if (isPickup && selectedTransferPickupId && pendingPickups && pendingPickups.length > 0) {
+                          console.log('🔄 [Transfer] Transferring pending stops to new pickup:', selectedTransferPickupId);
+                          
+                          const newPickup = allDeliveries.find(d => d.id === selectedTransferPickupId);
+                          if (!newPickup) {
+                            toast.error('Selected pickup not found');
+                            return;
+                          }
+                          
+                          const newPuid = newPickup.stop_id;
+                          const newPickupTR = parseInt(newPickup.tracking_number, 10);
+                          
+                          // Update all pending stops with new PUID and TR# range
+                          const sortedPending = [...pendingPickups].sort((a, b) =>
+                            (a.patient_name || '').localeCompare(b.patient_name || '')
+                          );
+                          
+                          const updatePromises = sortedPending.map((pending, index) => {
+                            const newTR = String(newPickupTR + index + 1);
+                            console.log(`📦 [Transfer] ${pending.patient_name}: PUID ${pending.puid} → ${newPuid}, TR# ${pending.tracking_number} → ${newTR}`);
+                            return base44.entities.Delivery.update(pending.id, {
+                              puid: newPuid,
+                              tracking_number: newTR,
+                              ampm_deliveries: newPickup.ampm_deliveries
+                            });
+                          });
+                          
+                          await Promise.all(updatePromises);
+                          console.log('✅ [Transfer] All pending stops transferred');
+                          toast.success(`Transferred ${pendingPickups.length} pending stop(s)`);
+                        }
+                        
                         // CRITICAL: Delete Square COD item if delivery has COD and is in_transit
                         if (delivery.status === 'in_transit' && delivery.cod_total_amount_required > 0 && delivery.patient_id) {
                           try {
@@ -1355,12 +1426,14 @@ export default function StopCard({
 
                         await onDeleteDelivery(delivery.id);
                         setShowDeleteConfirm(false);
+                        setSelectedTransferPickupId('');
                       } catch (error) {
                         console.error('Delete failed:', error);
+                        toast.error(`Failed: ${error.message}`);
                       }
                     }}>
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
+                    {selectedTransferPickupId ? 'Trans & Del' : 'Delete'}
                   </Button>
                 </div>
               </div>
