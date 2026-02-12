@@ -7656,7 +7656,7 @@ function Dashboard() {
     return () => window.removeEventListener('dataSourceChanged', handleDataSourceChange);
   }, [selectedDate, updateDeliveriesLocally, deliveries, setForceRender]);
 
-  // CRITICAL: STEP 0 - Force fresh AppUsers and Cities sync BEFORE initial render
+  // CRITICAL: STEP 0 - Sync AppUser from online if stale (>1 minute)
   const hasPreRenderSyncRef = useRef(false);
   
   useEffect(() => {
@@ -7666,103 +7666,41 @@ function Dashboard() {
     hasPreRenderSyncRef.current = true;
     
     const preRenderSync = async () => {
-      console.log('🔄 [Dashboard Mount - STEP 0] Pre-render sync: checking AppUser freshness...');
+      console.log('🔄 [Dashboard Mount - STEP 0] Checking AppUser freshness...');
       
       try {
-        // CRITICAL: Check AppUser sync metadata first
+        // CRITICAL: Check AppUser sync metadata - 1 minute threshold
         const appUserMeta = await offlineDB.getSyncMetadata('AppUser');
         const now = Date.now();
-        const fiveMinutesInMs = 5 * 60 * 1000;
+        const oneMinuteInMs = 60 * 1000; // 1 minute threshold
         
         let needsAppUserSync = false;
         
         if (!appUserMeta || !appUserMeta.last_sync_time) {
-          console.log('📊 [AppUser Check] No sync metadata found - syncing fresh data');
+          console.log('📊 [AppUser Check] No sync metadata - fetching from API');
           needsAppUserSync = true;
         } else {
           const lastSyncTime = new Date(appUserMeta.last_sync_time).getTime();
           const ageMs = now - lastSyncTime;
           
-          if (ageMs > fiveMinutesInMs) {
-            console.log(`📊 [AppUser Check] Data is ${Math.floor(ageMs / 60000)} minutes old - syncing fresh data`);
+          if (ageMs > oneMinuteInMs) {
+            console.log(`📊 [AppUser Check] Stale (${Math.floor(ageMs / 1000)}s old) - fetching from API`);
             needsAppUserSync = true;
           } else {
-            console.log(`✅ [AppUser Check] Data is ${Math.floor(ageMs / 1000)} seconds old - using cached data`);
+            console.log(`✅ [AppUser Check] Fresh (${Math.floor(ageMs / 1000)}s old) - using offline DB`);
           }
         }
         
-        // CRITICAL: Force AppUser sync if needed
+        // CRITICAL: Only sync AppUser from API if stale
         if (needsAppUserSync) {
-          console.log('📥 [AppUser Sync] Fetching fresh AppUser data from API...');
+          console.log('📥 [AppUser Sync] Fetching from API...');
           const freshAppUsers = await base44.entities.AppUser.list();
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
           await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString());
-          console.log(`✅ [AppUser Sync] Synced ${freshAppUsers.length} users to offline DB`);
+          console.log(`✅ [AppUser Sync] ${freshAppUsers.length} users synced to offline DB`);
         }
         
-        // CRITICAL: Check Cities sync metadata
-        const cityMeta = await offlineDB.getSyncMetadata('City');
-        let needsCitySync = false;
-        
-        if (!cityMeta || !cityMeta.last_sync_time) {
-          console.log('📊 [City Check] No sync metadata found - syncing fresh data');
-          needsCitySync = true;
-        } else {
-          const lastSyncTime = new Date(cityMeta.last_sync_time).getTime();
-          const ageMs = now - lastSyncTime;
-          
-          if (ageMs > fiveMinutesInMs) {
-            console.log(`📊 [City Check] Data is ${Math.floor(ageMs / 60000)} minutes old - syncing fresh data`);
-            needsCitySync = true;
-          } else {
-            console.log(`✅ [City Check] Data is ${Math.floor(ageMs / 1000)} seconds old - using cached data`);
-          }
-        }
-        
-        if (needsCitySync) {
-          console.log('📥 [City Sync] Fetching fresh City data from API...');
-          const freshCities = await base44.entities.City.list();
-          await offlineDB.bulkSave(offlineDB.STORES.CITIES, freshCities);
-          await offlineDB.updateSyncMetadata('City', new Date().toISOString());
-          console.log(`✅ [City Sync] Synced ${freshCities.length} cities to offline DB`);
-        }
-        
-        // CRITICAL: Check Stores sync metadata
-        const storeMeta = await offlineDB.getSyncMetadata('Store');
-        let needsStoreSync = false;
-        
-        if (!storeMeta || !storeMeta.last_sync_time) {
-          console.log('📊 [Store Check] No sync metadata found - syncing fresh data');
-          needsStoreSync = true;
-        } else {
-          const lastSyncTime = new Date(storeMeta.last_sync_time).getTime();
-          const ageMs = now - lastSyncTime;
-          
-          if (ageMs > fiveMinutesInMs) {
-            console.log(`📊 [Store Check] Data is ${Math.floor(ageMs / 60000)} minutes old - syncing fresh data`);
-            needsStoreSync = true;
-          } else {
-            console.log(`✅ [Store Check] Data is ${Math.floor(ageMs / 1000)} seconds old - using cached data`);
-          }
-        }
-        
-        if (needsStoreSync) {
-          console.log('📥 [Store Sync] Fetching fresh Store data from API...');
-          const freshStores = await base44.entities.Store.list();
-          await offlineDB.bulkSave(offlineDB.STORES.STORES, freshStores);
-          await offlineDB.updateSyncMetadata('Store', new Date().toISOString());
-          console.log(`✅ [Store Sync] Synced ${freshStores.length} stores to offline DB`);
-        }
-        
-        // Run standard pre-render sync
-        const { initializeOfflineDBBeforeRender } = await import('@/components/utils/offlineSync');
-        const result = await initializeOfflineDBBeforeRender(smartRefreshManager, currentUser);
-        
-        if (result.success) {
-          console.log(`✅ [Dashboard Mount - STEP 0] Pre-render sync complete: ${result.appUsers?.length || 0} users, ${result.cities?.length || 0} cities`);
-        } else {
-          console.warn('⚠️ [Dashboard Mount - STEP 0] Pre-render sync had issues:', result.error);
-        }
+        console.log(`✅ [Dashboard Mount - STEP 0] Pre-render sync complete`);
       } catch (error) {
         console.error('❌ [Dashboard Mount - STEP 0] Pre-render sync failed:', error);
       }
