@@ -369,9 +369,9 @@ class LocationTracker {
       this.failedUpdateCount = 0;
       this.backoffTime = 0;
 
-      // CRITICAL: Update breadcrumbs on coordinate updates (not timestamp-only) when on_duty
+      // CRITICAL: Collect breadcrumbs on coordinate updates (not timestamp-only) when on_duty
       if (!timestampOnly && this.driverStatus === 'on_duty') {
-        await this.updateBreadcrumb(latitude, longitude);
+        await this.collectBreadcrumb(latitude, longitude, Date.now());
       }
 
       console.log(`✅✅✅ [LocationTracker] UPLOAD COMPLETE - Next in ${this.updateInterval/1000}s`);
@@ -764,25 +764,34 @@ class LocationTracker {
   }
 
   /**
-    * Update driver breadcrumbs (GPS trail)
-    * CRITICAL: Only saves if driver is on_duty (location sharing status is ignored)
-    * Only adds breadcrumb if moved > 100m from last one
+    * Collect GPS breadcrumbs (offline-first strategy)
+    * CRITICAL: Only saves if driver is on_duty
+    * Stores [lat, lng, timestamp_ms] in offline DB, associated with driver_id
     */
-  async updateBreadcrumb(latitude, longitude) {
-    // CRITICAL: Only save breadcrumbs if driver is on_duty - location sharing status doesn't matter
+  async collectBreadcrumb(latitude, longitude, timestamp) {
+    // CRITICAL: Only collect breadcrumbs if driver is on_duty
     if (this.driverStatus !== 'on_duty') {
-      console.log(`🍞 [LocationTracker] Breadcrumb skipped - driver status is ${this.driverStatus}, not on_duty`);
       return;
     }
 
     try {
-      // Need activeDelivery context - check if driver has current delivery
-      // For now, skip breadcrumbs until we have proper delivery context
-      // TODO: Implement breadcrumb tracking when delivery context is available
-      console.log(`🍞 [LocationTracker] Breadcrumb collection requires delivery context - implement via activeDelivery tracking`);
-      return;
+      const { offlineDB } = await import('./offlineDatabase');
+
+      // Get or create breadcrumb collection for this driver
+      const existingBreadcrumbs = await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, this.appUserId);
+
+      const breadcrumbPoint = [latitude, longitude, timestamp];
+
+      const breadcrumbData = {
+        driver_id: this.appUserId,
+        timestamp: timestamp,
+        breadcrumbs: existingBreadcrumbs?.breadcrumbs ? [...existingBreadcrumbs.breadcrumbs, breadcrumbPoint] : [breadcrumbPoint]
+      };
+
+      await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, breadcrumbData);
+      console.log(`🍞 [LocationTracker] Collected breadcrumb for driver ${this.appUserId}: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
     } catch (error) {
-      console.warn(`⚠️ [LocationTracker] Failed to update breadcrumb:`, error.message);
+      console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
     }
   }
 
