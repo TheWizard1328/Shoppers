@@ -556,11 +556,14 @@ class LightweightRefreshManager {
       // STEP 4: Notify subscribers if we have updates
       if (Object.keys(updates).length > 0) {
         this.notifySubscribers(updates);
-        
-        // Dispatch smartRefreshComplete event
+
+        // Dispatch smartRefreshComplete event with full replacement flags
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('smartRefreshComplete', {
-            detail: { updates }
+            detail: { 
+              updates,
+              isFullReplacementDeliveries: updates.isFullReplacementDeliveries || false
+            }
           }));
         }
       }
