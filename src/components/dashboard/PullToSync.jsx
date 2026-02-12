@@ -101,103 +101,31 @@ export default function PullToSync({
 
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      console.log(`🎯 [Pull to Sync] Targeted refresh: date=${selectedDateStr}, city=${selectedCityId}`);
+      console.log(`🎯 [Pull to Sync] Step 1: Fetching ALL deliveries for ${selectedDateStr} from online database...`);
 
-      // CRITICAL: Use backend function for clean, rate-limit-free data fetch
-      const { performTargetedRefresh } = await import('@/functions/performTargetedRefresh');
-      const response = await performTargetedRefresh({
-        cityId: selectedCityId,
-        deliveryDate: selectedDateStr
+      // STEP 1: Fetch ALL deliveries for selected date directly from online database (all drivers)
+      const freshDeliveries = await base44.entities.Delivery.filter({ 
+        delivery_date: selectedDateStr 
       });
+      console.log(`✅ [Pull to Sync] Step 1: Fetched ${freshDeliveries?.length || 0} deliveries from online database`);
 
-      const { data } = response;
-      if (!data) {
-        throw new Error('No data returned from targeted refresh');
-      }
-
-      const { deliveries: freshDeliveries, patients: freshPatients, appUsers: freshAppUsers, stores: freshStores } = data;
-      
-      console.log(`✅ [Pull to Sync] Received: ${freshDeliveries?.length || 0} deliveries, ${freshPatients?.length || 0} patients, ${freshAppUsers?.length || 0} drivers, ${freshStores?.length || 0} stores`);
-
-      // STEP 1: Clear and save deliveries
-      console.log('💾 [Pull to Sync] Clearing deliveries for selected date...');
+      // STEP 2: Update offline database with fresh deliveries
+      console.log('💾 [Pull to Sync] Step 2: Updating offline database with fresh deliveries...');
       const deleteResult = await offlineDB.deleteDeliveriesByDate(selectedDateStr);
-      console.log(`✅ [Pull to Sync] Deleted ${deleteResult?.deletedCount || 0} old deliveries`);
+      console.log(`   - Deleted ${deleteResult?.deletedCount || 0} old deliveries`);
 
       if (freshDeliveries && freshDeliveries.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        console.log(`✅ [Pull to Sync] Saved ${freshDeliveries.length} deliveries to offline DB`);
+        console.log(`   ✅ Saved ${freshDeliveries.length} deliveries to offline DB`);
       }
 
-      // STEP 2: Save patients
-      if (freshPatients && freshPatients.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-        console.log(`✅ [Pull to Sync] Saved ${freshPatients.length} patients to offline DB`);
-      }
-
-      // STEP 3: Clear and save AppUsers
-      console.log('🗑️ [Pull to Sync] Clearing all AppUsers...');
-      await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+      // STEP 3: Load fresh deliveries from offline DB and update UI
+      console.log('🔄 [Pull to Sync] Step 3: Loading deliveries from offline DB for UI update...');
+      const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+      console.log(`   ✅ Loaded ${offlineDeliveries?.length || 0} deliveries from offline DB`);
       
-      if (freshAppUsers && freshAppUsers.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-        console.log(`✅ [Pull to Sync] Saved ${freshAppUsers.length} AppUsers to offline DB`);
-      }
-
-      // STEP 4: Save stores
-      if (freshStores && freshStores.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.STORES, freshStores);
-        console.log(`✅ [Pull to Sync] Saved ${freshStores.length} stores to offline DB`);
-      }
-
-      // STEP 6.5: Update current driver's location from primary tracking device
-      const { locationTracker } = await import('@/components/utils/locationTracker');
-      
-      if (locationTracker.isTracking && window.__currentUser) {
-        const currentAppUser = freshAppUsers.find(u => u.user_id === window.__currentUser.user_id);
-        
-        if (currentAppUser && locationTracker.lastKnownLocation) {
-          console.log('📍 [Pull to Sync] Updating current driver location from primary tracking device...');
-          
-          const locationUpdate = {
-            current_latitude: locationTracker.lastKnownLocation.latitude,
-            current_longitude: locationTracker.lastKnownLocation.longitude,
-            location_updated_at: new Date().toISOString()
-          };
-
-          // Update online database
-          try {
-            await base44.entities.AppUser.update(currentAppUser.id, locationUpdate);
-            console.log('✅ [Pull to Sync] Updated online AppUser with fresh location');
-          } catch (error) {
-            console.warn('⚠️ [Pull to Sync] Failed to update online AppUser:', error.message);
-          }
-
-          // Update offline database
-          const updatedAppUser = { ...currentAppUser, ...locationUpdate };
-          await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
-          
-          // Update in-memory array for subsequent processing
-          const userIndex = freshAppUsers.findIndex(u => u.id === currentAppUser.id);
-          if (userIndex !== -1) {
-            freshAppUsers[userIndex] = updatedAppUser;
-          }
-          
-          console.log('✅ [Pull to Sync] Updated offline AppUser with fresh location');
-        }
-      }
-
-      // STEP 7: Trigger UI update with fresh data from offline database
-      console.log('🔄 [Pull to Sync] Triggering UI update with fresh offline data...');
-      
-      // Load fresh AppUsers from offline DB (includes updated location)
-      const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-      
-      // Dispatch events to update map markers and deliveries
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: { appUsers: offlineAppUsers, forceAll: true }
-      }));
-      
+      // STEP 4: Update UI with deliveries from offline database
+      console.log('🖥️ [Pull to Sync] Step 4: Updating UI with offline deliveries...');
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { 
           deliveryDate: selectedDateStr, 
@@ -205,62 +133,95 @@ export default function PullToSync({
           allDrivers: true 
         }
       }));
+      console.log('   ✅ UI update event dispatched')
 
-      // CRITICAL: Process driver locations through poller with fresh offline data
-      try {
-        const { driverLocationPoller } = await import('@/components/utils/driverLocationPoller');
-        
-        driverLocationPoller.processLocationData(
-          window.__currentUser, 
-          freshDeliveries, 
-          [], // drivers loaded from context
-          [], // stores loaded from context
-          offlineAppUsers, // Use fresh offline data with updated location
-          selectedDate, 
-          true // forceNotify
-        );
-        console.log('✅ [Pull to Sync] Processed driver locations through poller with offline data');
-      } catch (pollerError) {
-        console.warn('⚠️ [Pull to Sync] Failed to process through poller:', pollerError.message);
-      }
-
-      // CRITICAL: Refresh polylines for all drivers with fresh offline data
-      try {
-        const { routePolylineManager } = await import('@/components/utils/routePolylineManager');
-        const uniqueDriverIds = [...new Set(freshDeliveries.map(d => d.driver_id).filter(Boolean))];
-        
-        for (const driverId of uniqueDriverIds) {
-          await routePolylineManager.resetAndRefresh(driverId, selectedDateStr);
+      // STEP 5: Begin slower, methodical updates for patients, app users, cities, and stores
+      console.log('🔄 [Pull to Sync] Step 5: Starting background updates for patients, users, cities, stores...');
+      
+      // Background update: Fetch and save patients
+      base44.entities.Patient.list().then(async (freshPatients) => {
+        if (freshPatients && freshPatients.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+          console.log(`✅ [Pull to Sync - Background] Saved ${freshPatients.length} patients to offline DB`);
         }
-        console.log(`✅ [Pull to Sync] Refreshed polylines for ${uniqueDriverIds.length} drivers`);
-      } catch (polylineError) {
-        console.warn('⚠️ [Pull to Sync] Failed to refresh polylines:', polylineError.message);
-      }
+      }).catch((error) => console.warn('⚠️ [Pull to Sync - Background] Patients sync failed:', error.message));
 
-      // CRITICAL: Check current FAB phase before reactivation
-      const currentFABPhase = window.__currentFABPhase || 1;
-      
-      // Callback to parent component with fresh offline data
-      const finalAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-      
+      // Background update: Fetch and save app users
+      base44.entities.AppUser.list().then(async (freshAppUsers) => {
+        console.log('🗑️ [Pull to Sync - Background] Clearing all AppUsers...');
+        await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+        
+        if (freshAppUsers && freshAppUsers.length > 0) {
+          // Update current driver's location from primary tracking device if available
+          const { locationTracker } = await import('@/components/utils/locationTracker');
+          if (locationTracker.isTracking && window.__currentUser) {
+            const currentAppUser = freshAppUsers.find(u => u.user_id === window.__currentUser.user_id);
+            
+            if (currentAppUser && locationTracker.lastKnownLocation) {
+              console.log('📍 [Pull to Sync - Background] Updating current driver location from primary tracking device...');
+              
+              currentAppUser.current_latitude = locationTracker.lastKnownLocation.latitude;
+              currentAppUser.current_longitude = locationTracker.lastKnownLocation.longitude;
+              currentAppUser.location_updated_at = new Date().toISOString();
+              
+              // Update online database
+              try {
+                await base44.entities.AppUser.update(currentAppUser.id, {
+                  current_latitude: currentAppUser.current_latitude,
+                  current_longitude: currentAppUser.current_longitude,
+                  location_updated_at: currentAppUser.location_updated_at
+                });
+                console.log('✅ [Pull to Sync - Background] Updated online AppUser with fresh location');
+              } catch (error) {
+                console.warn('⚠️ [Pull to Sync - Background] Failed to update online AppUser:', error.message);
+              }
+            }
+          }
+          
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+          console.log(`✅ [Pull to Sync - Background] Saved ${freshAppUsers.length} AppUsers to offline DB`);
+          
+          // Dispatch location updates
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: freshAppUsers, forceAll: true }
+          }));
+        }
+      }).catch((error) => console.warn('⚠️ [Pull to Sync - Background] AppUsers sync failed:', error.message));
+
+      // Background update: Fetch and save cities
+      base44.entities.City.list().then(async (freshCities) => {
+        if (freshCities && freshCities.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.CITIES, freshCities);
+          console.log(`✅ [Pull to Sync - Background] Saved ${freshCities.length} cities to offline DB`);
+        }
+      }).catch((error) => console.warn('⚠️ [Pull to Sync - Background] Cities sync failed:', error.message));
+
+      // Background update: Fetch and save stores
+      base44.entities.Store.list().then(async (freshStores) => {
+        if (freshStores && freshStores.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.STORES, freshStores);
+          console.log(`✅ [Pull to Sync - Background] Saved ${freshStores.length} stores to offline DB`);
+        }
+      }).catch((error) => console.warn('⚠️ [Pull to Sync - Background] Stores sync failed:', error.message));
+
+      // STEP 6: Callback to parent component with deliveries
       if (onSyncComplete) {
-        await onSyncComplete(freshDeliveries, freshPatients, finalAppUsers);
+        await onSyncComplete(offlineDeliveries, [], []);
       }
 
       console.log(`✅ [Pull to Sync] ${silent ? 'Silent sync' : 'Sync'} complete!`);
       
-      // CRITICAL: Only reactivate FAB if NOT on phase 1
+      // CRITICAL: Reactivate FAB
+      const currentFABPhase = window.__currentFABPhase || 1;
       if (currentFABPhase !== 1) {
         console.log(`📍 [Pull to Sync] Reactivating FAB (was on phase ${currentFABPhase})`);
         const { fabControlEvents } = await import('@/components/utils/fabControlEvents');
         fabControlEvents.notifyDataReady();
-      } else {
-        console.log('⏭️ [Pull to Sync] Skipping FAB reactivation - already on phase 1');
       }
       
       if (!silent) {
         toast.success('Data synced', {
-          description: `${freshDeliveries.length} deliveries, ${freshPatients.length} patients, ${freshAppUsers.length} users`
+          description: `${freshDeliveries.length} deliveries updated`
         });
       }
 
