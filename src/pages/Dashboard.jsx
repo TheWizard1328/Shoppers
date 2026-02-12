@@ -7709,28 +7709,29 @@ function Dashboard() {
     preRenderSync();
   }, [currentUser?.id, isFiltersReady]);
   
-  // CRITICAL: STEP 1 - Load deliveries from offline DB first and show initial UI
+  // CRITICAL: STEP 1 - Load everything from offline DB FIRST for instant UI
   const hasLoadedOfflineDataRef = useRef(false);
   const hasTriggeredSmartRefreshRef = useRef(false);
   
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
-    if (!hasPreRenderSyncRef.current) return; // Wait for pre-render sync first
+    if (!hasPreRenderSyncRef.current) return; // Wait for AppUser sync first
     if (hasLoadedOfflineDataRef.current) return;
     
     hasLoadedOfflineDataRef.current = true;
     
     const loadOfflineDataFirst = async () => {
-      console.log(`📦 [Dashboard Mount - STEP 1] Loading offline DB for initial UI...`);
+      console.log(`📦 [Dashboard Mount - STEP 1] Loading ALL data from offline DB for instant UI...`);
       
       try {
-        // CRITICAL: Load BOTH deliveries AND AppUsers from offline DB
+        // CRITICAL: Load everything from offline DB - no API calls
         const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
         const mountAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        const mountPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
         
-        console.log(`📦 [Dashboard Mount - STEP 1] Loaded ${mountDeliveries?.length || 0} deliveries, ${mountAppUsers?.length || 0} AppUsers from offline DB`);
+        console.log(`📦 [Dashboard Mount - STEP 1] Loaded from offline DB: ${mountDeliveries?.length || 0} deliveries, ${mountAppUsers?.length || 0} appUsers, ${mountPatients?.length || 0} patients`);
         
-        // Update deliveries UI
+        // Update deliveries UI immediately
         if (mountDeliveries && mountDeliveries.length > 0 && updateDeliveriesLocally) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
@@ -7760,7 +7761,7 @@ function Dashboard() {
         }
         
         setForceRender((prev) => prev + 1);
-        console.log(`✅ [Dashboard Mount - STEP 1] Initial UI updated - user can see data now`);
+        console.log(`✅ [Dashboard Mount - STEP 1] Initial UI ready from offline DB`);
       } catch (error) {
         console.warn('⚠️ [Dashboard Mount - STEP 1] Offline DB load failed:', error.message);
       }
