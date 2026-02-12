@@ -2234,12 +2234,12 @@ export default function RouteImport({
               throw new Error('Missing delivery ID');
             }
 
-            // Retry on backend
+            // Update on backend and sync to offline DB
             const updatedDelivery = await retryWithBackoff(async () => {
               return await base44.entities.Delivery.update(id, cleanDeliveryData(updatePayload));
             }, 3, 2000, 2);
-            
-            // Save to IndexedDB
+
+            // Save updated data to both online (via update) and offline (via bulkSave)
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
             
             overallResults.updated++;
