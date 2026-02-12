@@ -83,7 +83,7 @@ export const AppDataProvider = ({ children, value }) => {
       unsubscribe();
       cityFilteredRealtimeSync.stop();
     };
-  }, [value.currentUser?.id, value.selectedCityId, value.selectedDate]);
+  }, [value.currentUser?.id, value.selectedCityId, value.selectedDate, value.updateDeliveriesLocally, value.updateAppUsersLocally, value.deliveries, value.appUsers]);
   
   // Wrap updateDeliveriesLocally to register pending updates with driver/date context
   const wrappedUpdateDeliveriesLocally = (updates, isFullReplacement = false) => {
