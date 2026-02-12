@@ -5,7 +5,7 @@
 
 // CRITICAL: Use stable database name and version to prevent recreation
 const DB_NAME = 'rxdeliver_persistent_offline_v1';
-const DB_VERSION = 5; // Incremented to add SYNC_METADATA store
+const DB_VERSION = 6; // Incremented to add PENDING_BREADCRUMBS store
 
 // Store names
 const STORES = {
@@ -20,7 +20,7 @@ const STORES = {
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations',
   SYNC_METADATA: 'sync_metadata', // Timestamp tracking per entity
-  CURRENT_BREADCRUMBS: 'current_breadcrumbs' // Real-time GPS breadcrumb trails being generated
+  PENDING_BREADCRUMBS: 'pending_breadcrumbs' // Temporary GPS breadcrumbs [lat, lng, timestamp_ms] being collected for current route
 };
 
 let dbInstance = null;
@@ -144,10 +144,8 @@ const openDatabase = () => {
         db.createObjectStore(STORES.SYNC_METADATA, { keyPath: 'entity_name' });
       }
 
-      if (!db.objectStoreNames.contains(STORES.CURRENT_BREADCRUMBS)) {
-        const breadcrumbStore = db.createObjectStore(STORES.CURRENT_BREADCRUMBS, { keyPath: 'id', autoIncrement: true });
-        breadcrumbStore.createIndex('driver_id', 'driver_id', { unique: false });
-        breadcrumbStore.createIndex('delivery_date', 'delivery_date', { unique: false });
+      if (!db.objectStoreNames.contains(STORES.PENDING_BREADCRUMBS)) {
+        const breadcrumbStore = db.createObjectStore(STORES.PENDING_BREADCRUMBS, { keyPath: 'driver_id' });
         breadcrumbStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
 
