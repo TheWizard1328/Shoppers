@@ -1664,6 +1664,22 @@ export default function Layout({ children, currentPageName }) {
           u?.id === update.data?.user_id ? { ...u, ...update.data } : u
           ));
 
+          // CRITICAL: Update offline DB immediately
+          const { offlineDB } = await import('./components/utils/offlineDatabase');
+          if (update.data) {
+            offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [update.data]).catch(console.error);
+          }
+
+          // CRITICAL: If this is the current user, refresh their context
+          if (update.data?.user_id === currentUser?.id) {
+            console.log('🔄 [Layout Real-time] Current user AppUser updated - refreshing context');
+            clearUserCache();
+            const refreshedUser = await getEffectiveUser();
+            if (refreshedUser) {
+              setCurrentUser(refreshedUser);
+            }
+          }
+
           // CRITICAL: Dispatch event to update map markers AND polylines immediately
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
             detail: { appUsers: null, singleUpdate: update.data }
@@ -1825,6 +1841,23 @@ export default function Layout({ children, currentPageName }) {
           const update = updatesMap.get(delivery.id);
           if (update) return { ...delivery, ...update };
           return delivery;
+        });
+      });
+    }
+  }, []);
+
+  // Granular AppUser update function for immediate UI synchronization
+  const updateAppUsersLocally = useCallback((newAppUsers, isFullReplacement = false) => {
+    if (isFullReplacement) {
+      setAppUsers([...newAppUsers.filter(Boolean)]);
+    } else {
+      setAppUsers((prevAppUsers) => {
+        const updatesMap = new Map(newAppUsers.map((u) => [u.id, u]));
+        return prevAppUsers.map((appUser) => {
+          if (!appUser) return appUser;
+          const update = updatesMap.get(appUser.id);
+          if (update) return { ...appUser, ...update };
+          return appUser;
         });
       });
     }
@@ -3417,6 +3450,7 @@ export default function Layout({ children, currentPageName }) {
           isDataLoaded: dataLoaded,
           refreshData: triggerFullDataLoadRef.current,
           updateDeliveriesLocally: updateDeliveriesLocally,
+          updateAppUsersLocally: updateAppUsersLocally,
           isFormOverlayOpen: isFormOverlayOpen,
           setIsFormOverlayOpen: setIsFormOverlayOpen,
           isEntityUpdating: isEntityUpdating,
@@ -3427,7 +3461,8 @@ export default function Layout({ children, currentPageName }) {
           // Data is already loaded from last 30 days - Dashboard filters locally
           dataReadyForSelectedDate: dataLoaded,
           isSnapshotModeActive: isSnapshotModeActive,
-          setIsSnapshotModeActive: setIsSnapshotModeActive
+          setIsSnapshotModeActive: setIsSnapshotModeActive,
+          dataSource: dataSource
         }}>
             <div className={`app-container ${isTabletPortrait ? 'tablet-portrait' : (isMobile ? 'mobile-device' : 'desktop-device')}`}>
               {(isMobile || isTabletPortrait) && sidebarOpen &&

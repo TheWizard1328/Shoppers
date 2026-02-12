@@ -20,6 +20,7 @@ class LightweightRefreshManager {
     this.intervals = {
       cities: 300000,        // 5min - Full Cities dataset
       stores: 300000,        // 5min - Full Stores dataset
+      appUsers: 15000,       // 15sec - AppUser backup sync (catches WebSocket misses)
       offlineSync: 60000,    // 1min - Offline DB reconciliation
       cacheRefresh: 300000   // 5min - Cache consistency check
     };
@@ -27,6 +28,7 @@ class LightweightRefreshManager {
     this.lastRefreshTimes = {
       cities: 0,
       stores: 0,
+      appUsers: 0,
       offlineSync: 0,
       cacheRefresh: 0
     };
@@ -108,6 +110,7 @@ class LightweightRefreshManager {
       this.lastRefreshTimes = {
         cities: 0,
         stores: 0,
+        appUsers: 0,
         offlineSync: 0,
         cacheRefresh: 0
       };
@@ -302,6 +305,7 @@ class LightweightRefreshManager {
 
   /**
    * LIGHTWEIGHT: Sync Cities + Stores every 5 minutes
+   * AppUser syncs every 15 seconds as backup for WebSocket
    * These don't have real-time subscriptions, so periodic refresh is needed
    */
   async performLightweightRefresh(currentData) {
@@ -368,6 +372,42 @@ class LightweightRefreshManager {
         } catch (e) {
           this.recordError();
           console.warn('⚠️ [LightweightRefresh] Stores refresh failed:', e.message);
+        }
+      }
+
+      // CRITICAL: Refresh AppUsers every 15 seconds as backup for WebSocket
+      // This catches status changes that WebSocket might miss
+      if (this.shouldRefresh('appUsers') && currentData.appUsers) {
+        try {
+          console.log('👥 [LightweightRefresh] Syncing AppUsers (backup for WebSocket)');
+          await this.waitForRateLimit();
+          const allAppUsers = await queueEntityRequest(
+            () => base44.entities.AppUser.list(),
+            'AppUser list'
+          );
+
+          this.recordSuccess();
+
+          if (allAppUsers && allAppUsers.length > 0) {
+            const diff = diffEntityArrays(currentData.appUsers, allAppUsers);
+            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+              updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
+              console.log(`✅ [LightweightRefresh] AppUsers updated: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
+              
+              // CRITICAL: Save to offline DB immediately
+              const { offlineDB } = await import('./offlineDatabase');
+              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
+              
+              // Broadcast the updates
+              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
+              }));
+            }
+          }
+          this.markRefreshed('appUsers');
+        } catch (e) {
+          this.recordError();
+          console.warn('⚠️ [LightweightRefresh] AppUsers refresh failed:', e.message);
         }
       }
 
