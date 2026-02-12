@@ -6163,7 +6163,6 @@ function Dashboard() {
     console.log('⚙️ [DELETE] Starting background post-delete operations...');
     try {
       setIsEntityUpdating(true);
-      pauseOfflineMutations();
       pauseOfflineSync();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -6212,8 +6211,7 @@ function Dashboard() {
     } catch (error) {
       console.error('❌ [DELETE] Background operations failed:', error);
     } finally {
-      console.log('▶️ [DELETE] Resuming smart refresh, offline sync, and mutations');
-      resumeOfflineMutations();
+      console.log('▶️ [DELETE] Resuming smart refresh and offline sync');
       resumeOfflineSync();
       setIsEntityUpdating(false);
     }
