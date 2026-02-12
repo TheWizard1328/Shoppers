@@ -588,8 +588,8 @@ Deno.serve(async (req) => {
           performanceStats.totalExtraKm = totalExtraKm;
           performanceStats.extraKmLimit = extraKmLimit;
 
-          // Total Time on Duty: ALWAYS calculate (for current and past routes)
-          // CRITICAL: Times are stored as LOCAL device time - extract HH:MM directly, no UTC conversion
+          // Total Time on Duty: From first stop completion to current time (if on_duty) OR last stop (if complete)
+          // CRITICAL: All times based on LOCAL device time - NO UTC conversions
           const extractLocalTimeMinutes = (timeStr) => {
             if (!timeStr) return null;
             // Extract HH:MM directly from the string - this IS local time, not UTC
@@ -612,7 +612,7 @@ Deno.serve(async (req) => {
           console.log(`⏱️ [TIME ON DUTY] Driver: ${driverId}, Date: ${todayStr}`);
           console.log(`⏱️ [TIME ON DUTY] Break time from DB: ${breakTimeMinutes} min`);
           
-          // Calculate from first finished stop to last finished stop (or current time if on_duty), minus breaks
+          // Get finished stops sorted by completion time
           const finishedWithTimes = todayDeliveries
             .filter(d => d && d.actual_delivery_time)
             .map(d => ({ ...d, localMinutes: extractLocalTimeMinutes(d.actual_delivery_time) }))
@@ -625,21 +625,31 @@ Deno.serve(async (req) => {
           if (finishedWithTimes.length > 0) {
             const firstMinutes = finishedWithTimes[0].localMinutes;
 
-            // Determine end time: last stop OR current time if driver is on_duty
+            // CRITICAL: Determine end time based on route completion status
             let endMinutes;
             const allPatientDeliveries = todayDeliveries.filter(d => d && d.patient_id);
             const routeComplete = allPatientDeliveries.length > 0 &&
               allPatientDeliveries.every(d => finishedStatuses.includes(d.status));
 
             if (routeComplete) {
-              // Route complete - use last stop's completion time
+              // Route complete - use last stop's completion time (completed/cancelled/failed)
               endMinutes = finishedWithTimes[finishedWithTimes.length - 1].localMinutes;
-              console.log(`⏱️ [TIME CALC] Route complete - using last stop time`);
+              console.log(`⏱️ [TIME CALC] Route complete - using last stop completion time`);
             } else {
-              // Still on duty or no patient deliveries - use current device time
-              const now = new Date();
-              endMinutes = now.getHours() * 60 + now.getMinutes();
-              console.log(`⏱️ [TIME CALC] Route active/no patients - using current time`);
+              // Route incomplete - check if driver is currently on_duty
+              const driverAppUser = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
+              const driverStatus = driverAppUser?.[0]?.driver_status;
+              
+              if (driverStatus === 'on_duty') {
+                // Driver is on duty - use current time
+                const now = new Date();
+                endMinutes = now.getHours() * 60 + now.getMinutes();
+                console.log(`⏱️ [TIME CALC] Driver on_duty - using current time`);
+              } else {
+                // Driver not on duty (off_duty or on_break) - use last stop time
+                endMinutes = finishedWithTimes[finishedWithTimes.length - 1].localMinutes;
+                console.log(`⏱️ [TIME CALC] Driver ${driverStatus} - using last stop time`);
+              }
             }
             
             // Calculate raw duration and deduct breaks
@@ -789,7 +799,7 @@ Deno.serve(async (req) => {
           totalKmAllDrivers += driverTotalKm;
           totalExtraKmAllDrivers += driverTotalExtraKm;
           
-          // CRITICAL: Calculate time on duty for this driver using DriverDailyActivity
+          // CRITICAL: Calculate time on duty for this driver
           // Get break time from DriverDailyActivity
           const driverDailyActivities = await base44.asServiceRole.entities.DriverDailyActivity.filter({
             driver_id: driverUserId,
@@ -798,7 +808,7 @@ Deno.serve(async (req) => {
           const driverDailyActivity = driverDailyActivities?.[0];
           const breakTimeMinutes = driverDailyActivity?.total_break_time_minutes || 0;
           
-          // First to last stop minus breaks
+          // Extract local time minutes from timestamp
           const extractLocalTimeMinutesForAllDrivers = (timeStr) => {
             if (!timeStr) return null;
             const match = timeStr.match(/T(\d{2}):(\d{2})/);
@@ -817,11 +827,41 @@ Deno.serve(async (req) => {
           let driverDutyMinutes = 0;
           if (finishedDeliveriesForTime.length > 0) {
             const driverFirstMinutes = finishedDeliveriesForTime[0].localMinutes;
-            const driverLastMinutes = finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].localMinutes;
             
-            const rawDurationMinutes = driverLastMinutes - driverFirstMinutes;
+            // CRITICAL: Determine end time based on route completion
+            let endMinutes;
+            const driverPatientDeliveries = driverDeliveries.filter(d => d && d.patient_id);
+            const driverRouteComplete = driverPatientDeliveries.length > 0 &&
+              driverPatientDeliveries.every(d => finishedStatuses.includes(d.status));
+            
+            if (driverRouteComplete) {
+              // Route complete - use last stop completion time
+              endMinutes = finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].localMinutes;
+              console.log(`⏱️ [All Drivers - ${driverUserId}] Route complete - using last stop time`);
+            } else {
+              // Route incomplete - check driver status
+              const driverCurrentStatus = allDriverAppUsers.find(au => au?.user_id === driverUserId)?.driver_status;
+              
+              if (driverCurrentStatus === 'on_duty') {
+                // On duty - use current time
+                const now = new Date();
+                endMinutes = now.getHours() * 60 + now.getMinutes();
+                console.log(`⏱️ [All Drivers - ${driverUserId}] on_duty - using current time`);
+              } else {
+                // Not on duty - use last stop time
+                endMinutes = finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].localMinutes;
+                console.log(`⏱️ [All Drivers - ${driverUserId}] ${driverCurrentStatus} - using last stop time`);
+              }
+            }
+            
+            let rawDurationMinutes = endMinutes - driverFirstMinutes;
+            
+            // Handle day boundary crossing
+            if (rawDurationMinutes < 0) {
+              rawDurationMinutes += 24 * 60;
+            }
+            
             driverDutyMinutes = Math.max(0, rawDurationMinutes - breakTimeMinutes);
-            
             console.log(`⏱️ [All Drivers - ${driverUserId}] Raw: ${rawDurationMinutes}min, Breaks: ${breakTimeMinutes}min, Duty: ${driverDutyMinutes}min`);
           }
           
