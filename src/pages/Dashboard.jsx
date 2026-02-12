@@ -81,7 +81,7 @@ import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimiz
 import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments';
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 import SmartPrioritizationPanel from '../components/dashboard/SmartPrioritizationPanel';
-import DualStatsMarquee from '../components/dashboard/DualStatsMarquee';
+import ActivePayStats from '../components/dashboard/ActivePayStats';
 import EndOfDayStatsDialog from '../components/dashboard/EndOfDayStatsDialog';
 import { toast } from 'sonner';
 import PullToSync from '../components/dashboard/PullToSync';
@@ -8147,7 +8147,7 @@ function Dashboard() {
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <DualStatsMarquee
+              <ActivePayStats
                 deliveryStats={deliveryStats}
                 localStats={stats}
                 isDispatcher={isDispatcher}
