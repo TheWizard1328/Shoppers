@@ -776,42 +776,11 @@ class LocationTracker {
     }
 
     try {
-      if (!this.lastBreadcrumbPosition) {
-        // First breadcrumb for this tracking session
-        this.lastBreadcrumbPosition = { latitude, longitude };
-
-        await base44.entities.DeliveryBreadcrumbs.create({
-          driver_id: this.appUserId,
-          latitude: latitude,
-          longitude: longitude,
-          timestamp: new Date().toISOString()
-        });
-
-        console.log(`🍞 [LocationTracker] Initial breadcrumb recorded`);
-        return;
-      }
-
-      // Check distance from last breadcrumb
-      const distanceMeters = this.calculateDistanceInMeters(
-        this.lastBreadcrumbPosition.latitude,
-        this.lastBreadcrumbPosition.longitude,
-        latitude,
-        longitude
-      );
-
-      // Only add breadcrumb if > 100m from last one
-      if (distanceMeters >= this.minBreadcrumbDistance) {
-        this.lastBreadcrumbPosition = { latitude, longitude };
-
-        await base44.entities.DeliveryBreadcrumbs.create({
-          driver_id: this.appUserId,
-          latitude: latitude,
-          longitude: longitude,
-          timestamp: new Date().toISOString()
-        });
-
-        console.log(`🍞 [LocationTracker] Breadcrumb recorded: ${(distanceMeters).toFixed(0)}m from last`);
-      }
+      // Need activeDelivery context - check if driver has current delivery
+      // For now, skip breadcrumbs until we have proper delivery context
+      // TODO: Implement breadcrumb tracking when delivery context is available
+      console.log(`🍞 [LocationTracker] Breadcrumb collection requires delivery context - implement via activeDelivery tracking`);
+      return;
     } catch (error) {
       console.warn(`⚠️ [LocationTracker] Failed to update breadcrumb:`, error.message);
     }
