@@ -155,13 +155,17 @@ export default function DeviceRegistration({ currentUser, onDeviceRegistered }) 
 
       // Save to localStorage
       localStorage.setItem(DEVICE_ID_KEY, deviceIdentifier);
+      localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
 
+      console.log('✅ Device created:', newDevice);
       setShowDialog(false);
       if (onDeviceRegistered) onDeviceRegistered(newDevice);
+      
+      // CRITICAL: Reload page to complete initialization with registered device
+      window.location.reload();
     } catch (error) {
       console.error('Failed to create device:', error);
       alert('Failed to create device. Please try again.');
-    } finally {
       setIsSaving(false);
     }
   };
