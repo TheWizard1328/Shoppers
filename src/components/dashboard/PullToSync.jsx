@@ -135,73 +135,84 @@ export default function PullToSync({
       }));
       console.log('   ✅ UI update event dispatched')
 
-      // STEP 5: Full read of offline DB after resync - AppUsers, Cities, Stores, Deliveries, Patients
-      console.log('🔄 [Pull to Sync] Step 5: Full read from offline DB after resync...');
+      // STEP 5: Fetch and save Patients, AppUsers, Cities, Stores to offline DB FIRST
+      console.log('🔄 [Pull to Sync] Step 5: Fetching fresh Patients, AppUsers, Cities, Stores...');
       
-      try {
-        // 5A: Read all AppUsers from offline DB
-        console.log('👥 [Pull to Sync] Reading AppUsers from offline DB...');
-        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS) || [];
-        console.log(`✅ [Pull to Sync] Read ${offlineAppUsers.length} AppUsers from offline DB`);
-        
-        // 5B: Read all Cities from offline DB
-        console.log('🏙️ [Pull to Sync] Reading Cities from offline DB...');
-        const offlineCities = await offlineDB.getAll(offlineDB.STORES.CITIES) || [];
-        console.log(`✅ [Pull to Sync] Read ${offlineCities.length} Cities from offline DB`);
-        
-        // 5C: Filter Stores for selected city from offline DB
-        console.log(`🏪 [Pull to Sync] Reading Stores for city ${selectedCityId} from offline DB...`);
-        const allOfflineStores = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
-        const offlineStoresForCity = allOfflineStores.filter(s => s.city_id === selectedCityId);
-        console.log(`✅ [Pull to Sync] Read ${offlineStoresForCity.length} Stores for selected city`);
-        
-        // 5D: Get AppUsers in selected city
-        const appUsersInCity = offlineAppUsers.filter(au => 
-          au.city_ids?.includes(selectedCityId) || au.city_id === selectedCityId
-        );
-        console.log(`✅ [Pull to Sync] Found ${appUsersInCity.length} AppUsers in selected city`);
-        
-        // 5E: Filter Deliveries for all users in selected city (already loaded for selected date)
-        const deliveriesForCity = (offlineDeliveries || []).filter(d => {
-          const driverInCity = appUsersInCity.some(au => au.id === d.driver_id);
-          return driverInCity;
-        });
-        console.log(`✅ [Pull to Sync] Filtered ${deliveriesForCity.length} deliveries for users in city`);
-        
-        // 5F: Read Patients related to retrieved deliveries from offline DB
-        console.log('👤 [Pull to Sync] Reading Patients from offline DB...');
-        const allOfflinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS) || [];
-        const relatedPatientIds = new Set(deliveriesForCity.map(d => d.patient_id).filter(Boolean));
-        const relatedPatients = allOfflinePatients.filter(p => relatedPatientIds.has(p.id));
-        console.log(`✅ [Pull to Sync] Read ${relatedPatients.length} related patients from offline DB`);
-        
-        // 5G: Dispatch complete UI update with all data
-        console.log('🖥️ [Pull to Sync] Dispatching complete UI update with all entities...');
-        window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
-          detail: { 
-            deliveryDate: selectedDateStr,
-            deliveries: offlineDeliveries,
-            appUsers: offlineAppUsers,
-            cities: offlineCities,
-            stores: allOfflineStores,
-            patients: allOfflinePatients,
-            appUsersInCity,
-            storesInCity: offlineStoresForCity,
-            deliveriesForCity,
-            relatedPatients,
-            triggeredBy: 'pullToSync'
+      const syncPromises = [
+        // Fetch Patients
+        base44.entities.Patient.list().then(async (freshPatients) => {
+          if (freshPatients && freshPatients.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+            console.log(`✅ [Pull to Sync] Saved ${freshPatients.length} patients to offline DB`);
           }
-        }));
-        console.log('✅ [Pull to Sync] UI update event dispatched');
+          return freshPatients || [];
+        }).catch((error) => {
+          console.warn('⚠️ [Pull to Sync] Patients sync failed:', error.message);
+          return [];
+        }),
         
-        // STEP 6: Callback to parent component
-        if (onSyncComplete) {
-          await onSyncComplete(offlineDeliveries, appUsersInCity, relatedPatients);
+        // Fetch AppUsers
+        base44.entities.AppUser.list().then(async (freshAppUsers) => {
+          console.log('🗑️ [Pull to Sync] Clearing all AppUsers...');
+          await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+          
+          if (freshAppUsers && freshAppUsers.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+            console.log(`✅ [Pull to Sync] Saved ${freshAppUsers.length} AppUsers to offline DB`);
+          }
+          return freshAppUsers || [];
+        }).catch((error) => {
+          console.warn('⚠️ [Pull to Sync] AppUsers sync failed:', error.message);
+          return [];
+        }),
+        
+        // Fetch Cities
+        base44.entities.City.list().then(async (freshCities) => {
+          if (freshCities && freshCities.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.CITIES, freshCities);
+            console.log(`✅ [Pull to Sync] Saved ${freshCities.length} cities to offline DB`);
+          }
+          return freshCities || [];
+        }).catch((error) => {
+          console.warn('⚠️ [Pull to Sync] Cities sync failed:', error.message);
+          return [];
+        }),
+        
+        // Fetch Stores
+        base44.entities.Store.list().then(async (freshStores) => {
+          if (freshStores && freshStores.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.STORES, freshStores);
+            console.log(`✅ [Pull to Sync] Saved ${freshStores.length} stores to offline DB`);
+          }
+          return freshStores || [];
+        }).catch((error) => {
+          console.warn('⚠️ [Pull to Sync] Stores sync failed:', error.message);
+          return [];
+        })
+      ];
+      
+      // CRITICAL: Wait for ALL fetches to complete and save to offline DB
+      const [freshPatients, freshAppUsers, freshCities, freshStores] = await Promise.all(syncPromises);
+      console.log('✅ [Pull to Sync] All entities fetched and saved to offline DB');
+      
+      // STEP 6: Dispatch complete UI update with fresh data
+      console.log('🖥️ [Pull to Sync] Dispatching complete UI update with all entities...');
+      window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+        detail: { 
+          deliveryDate: selectedDateStr,
+          deliveries: offlineDeliveries,
+          appUsers: freshAppUsers,
+          cities: freshCities,
+          stores: freshStores,
+          patients: freshPatients,
+          triggeredBy: 'pullToSync'
         }
-        
-      } catch (error) {
-        console.error('❌ [Pull to Sync] Step 5 failed:', error.message);
-        throw error;
+      }));
+      console.log('✅ [Pull to Sync] UI update event dispatched with fresh data');
+      
+      // STEP 7: Callback to parent component
+      if (onSyncComplete) {
+        await onSyncComplete(offlineDeliveries, freshAppUsers, freshPatients);
       }
       
       // CRITICAL: Dispatch completion event for SmartRefreshIndicator
