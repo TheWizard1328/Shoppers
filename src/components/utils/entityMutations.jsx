@@ -14,6 +14,36 @@
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 
+// ========================================
+// UTILITY: Sanitize actual_delivery_time
+// ========================================
+
+/**
+ * Removes timezone offsets from actual_delivery_time string
+ * Converts "2025-01-15T14:30:00-07:00" to "2025-01-15T14:30:00"
+ */
+const sanitizeActualDeliveryTime = (timeString) => {
+  if (!timeString || typeof timeString !== 'string') return timeString;
+  
+  // Remove timezone offsets: -07:00, +05:00, Z, etc.
+  return timeString.replace(/([+-]\d{2}:?\d{2}|Z)$/, '');
+};
+
+/**
+ * Sanitizes delivery data before saving
+ * Ensures actual_delivery_time has no timezone offset
+ */
+const sanitizeDeliveryData = (deliveryData) => {
+  if (!deliveryData) return deliveryData;
+  
+  const sanitized = { ...deliveryData };
+  if (sanitized.actual_delivery_time) {
+    sanitized.actual_delivery_time = sanitizeActualDeliveryTime(sanitized.actual_delivery_time);
+  }
+  
+  return sanitized;
+};
+
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data, ids = null) => {
   try {
@@ -310,9 +340,12 @@ export const createDelivery = async (deliveryData, options = {}) => {
   await pauseSmartRefresh();
 
   try {
+    // CRITICAL: Sanitize actual_delivery_time before saving
+    const sanitizedData = sanitizeDeliveryData(deliveryData);
+    
     const tempId = `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const localDelivery = {
-      ...deliveryData,
+      ...sanitizedData,
       id: tempId,
       created_date: new Date().toISOString(),
       updated_date: new Date().toISOString(),
@@ -324,8 +357,8 @@ export const createDelivery = async (deliveryData, options = {}) => {
     notifyMutation({ type: 'create', entity: 'Delivery', id: tempId, data: localDelivery });
 
     try {
-      // STEP 2: Create on backend
-      const backendDelivery = await base44.entities.Delivery.create(deliveryData);
+      // STEP 2: Create on backend (with sanitized data)
+      const backendDelivery = await base44.entities.Delivery.create(sanitizedData);
       console.log('☁️ [EntityMutations] Backend created:', backendDelivery.id);
       
       // STEP 3: Replace temp with real in IndexedDB
@@ -352,7 +385,7 @@ export const createDelivery = async (deliveryData, options = {}) => {
       return backendDelivery;
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Delivery sync failed, queuing:', error.message);
-      await offlineDB.addPendingMutation({ operation: 'create', entity: 'Delivery', recordId: tempId, payload: deliveryData });
+      await offlineDB.addPendingMutation({ operation: 'create', entity: 'Delivery', recordId: tempId, payload: sanitizedData });
       await restartSmartRefresh();
       return localDelivery;
     }
@@ -370,6 +403,9 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
   
   if (mutationsPaused) throw new Error('Mutations are paused');
   
+  // CRITICAL: Sanitize actual_delivery_time before updating
+  const sanitizedUpdates = sanitizeDeliveryData(updates);
+  
   // CRITICAL: Skip ALL SmartRefresh operations during batch
   const shouldManageSmartRefresh = !skipSmartRefresh && !isBatchOperation;
   if (shouldManageSmartRefresh) await pauseSmartRefresh();
@@ -381,7 +417,7 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
     if (!existing) {
       // Not in IndexedDB - update backend directly, then sync to local
       try {
-        const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
+        const backendDelivery = await base44.entities.Delivery.update(deliveryId, sanitizedUpdates);
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
         
         // CRITICAL: Update cache directly to prevent UI flickering
@@ -403,13 +439,13 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
     }
 
     // STEP 1: Update IndexedDB locally FIRST
-    const updated = { ...existing, ...updates, updated_date: new Date().toISOString() };
+    const updated = { ...existing, ...sanitizedUpdates, updated_date: new Date().toISOString() };
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updated]);
     console.log('💾 [EntityMutations] Updated IndexedDB for:', deliveryId);
     
     // STEP 2: Update backend (sync to server)
     try {
-      const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
+      const backendDelivery = await base44.entities.Delivery.update(deliveryId, sanitizedUpdates);
       console.log('☁️ [EntityMutations] Backend updated for:', deliveryId);
       
       // STEP 3: Update IndexedDB with backend response (authoritative version)
@@ -428,7 +464,7 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Delivery update sync failed, queuing:', error.message);
-      await offlineDB.addPendingMutation({ operation: 'update', entity: 'Delivery', recordId: deliveryId, payload: updates });
+      await offlineDB.addPendingMutation({ operation: 'update', entity: 'Delivery', recordId: deliveryId, payload: sanitizedUpdates });
       
       // STEP 5 (fallback): Notify UI with local version if backend fails
       notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
@@ -501,7 +537,10 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
   await pauseSmartRefresh();
 
   try {
-    const localDeliveries = deliveriesData.map(d => ({
+    // CRITICAL: Sanitize all deliveries before saving
+    const sanitizedDeliveriesData = deliveriesData.map(d => sanitizeDeliveryData(d));
+    
+    const localDeliveries = sanitizedDeliveriesData.map(d => ({
       ...d,
       id: `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       created_date: new Date().toISOString(),
@@ -514,8 +553,8 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
     localDeliveries.forEach(d => notifyMutation({ type: 'create', entity: 'Delivery', id: d.id, data: d }));
 
     try {
-      // STEP 2: Create on backend
-      const backendDeliveries = await base44.entities.Delivery.bulkCreate(deliveriesData);
+      // STEP 2: Create on backend (with sanitized data)
+      const backendDeliveries = await base44.entities.Delivery.bulkCreate(sanitizedDeliveriesData);
       console.log(`☁️ [EntityMutations] Backend created ${backendDeliveries.length} deliveries`);
       
       // STEP 3: Replace temps with real in IndexedDB
