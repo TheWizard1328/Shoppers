@@ -526,10 +526,10 @@ export default function DeliveriesPage() {
                  await offlineDBInstance.bulkSave(offlineDBInstance.STORES.DELIVERIES, filteredData);
                  console.log(`💾 [Deliveries Background] Saved ${filteredData.length} to offline DB`);
                  
-                 // Update UI with fresh data
+                 // Update UI with fresh data (excluding deleted)
                  if (isMounted.current) {
-                   setAllDeliveries(allYearData);
-                   console.log('✅ [Deliveries Background] UI updated with fresh online data');
+                   setAllDeliveries(filteredData);
+                   console.log('✅ [Deliveries Background] UI updated with fresh online data (deleted filtered)');
                  }
                }
                
