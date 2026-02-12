@@ -664,6 +664,38 @@ export const updateCache = (entityName, id, newData) => {
 };
 
 /**
+ * CRITICAL: Remove deleted items from all caches
+ * Called after batch deletes to ensure cache doesn't contain deleted records
+ */
+export const removeDeletedFromCache = (entityName, deletedIds) => {
+  const deletedIdSet = new Set(deletedIds);
+  
+  // Remove from main cache
+  for (const key of cache.keys()) {
+    if (key.startsWith(`${entityName}_`)) {
+      const cachedArray = cache.get(key);
+      const filtered = cachedArray.filter(item => !deletedIdSet.has(item.id));
+      if (filtered.length !== cachedArray.length) {
+        cache.set(key, filtered);
+        console.log(`🗑️ [DataManager] Removed ${cachedArray.length - filtered.length} deleted ${entityName}s from cache`);
+      }
+    }
+  }
+  
+  // Remove from delivery range cache if applicable
+  if (entityName === 'Delivery') {
+    for (const key of deliveryRangeCache.keys()) {
+      const cachedArray = deliveryRangeCache.get(key);
+      const filtered = cachedArray.filter(item => !deletedIdSet.has(item.id));
+      if (filtered.length !== cachedArray.length) {
+        deliveryRangeCache.set(key, filtered);
+        console.log(`🗑️ [DataManager] Removed ${cachedArray.length - filtered.length} deleted deliveries from range cache`);
+      }
+    }
+  }
+};
+
+/**
  * Invalidate deliveries for a specific date only
  * This is more efficient than invalidating all delivery caches
  * @param {string} dateString - Date in yyyy-MM-dd format
