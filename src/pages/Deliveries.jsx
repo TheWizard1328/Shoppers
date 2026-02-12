@@ -447,12 +447,35 @@ export default function DeliveriesPage() {
          }
 
          // STEP 2: Start background sync from online DB (non-blocking)
-         // CRITICAL: Only sync if it's been >24 hours since last historical sync
+         // CRITICAL: Age-based sync intervals - older data syncs less frequently
          const lastHistoricalSyncKey = 'lastHistoricalDeliveriesSyncTime';
          const lastSyncTime = localStorage.getItem(lastHistoricalSyncKey);
          const hoursSinceLastSync = lastSyncTime ? (Date.now() - parseInt(lastSyncTime)) / (1000 * 60 * 60) : Infinity;
          
-         if (hoursSinceLastSync > 24) {
+         // Determine sync interval based on data age
+         const getSyncInterval = () => {
+           const currentDate = new Date();
+           const currentMonth = currentDate.getMonth();
+           const currentYear = currentDate.getFullYear();
+           
+           // Recent data (current & last month): 12h interval
+           // 2-3 months ago: 48h interval
+           // 4-6 months ago: 1 week interval
+           // 6+ months ago: 2 weeks interval
+           // 1+ year ago: 30 days interval
+           return {
+             recent: 12,      // current + last month
+             months2_3: 48,   // 2-3 months ago
+             months4_6: 168,  // 4-6 months ago (1 week)
+             months6plus: 336, // 6+ months ago (2 weeks)
+             year1plus: 720   // 1+ year ago (30 days)
+           };
+         };
+         
+         const intervals = getSyncInterval();
+         const shouldSync = hoursSinceLastSync > intervals.recent;
+         
+         if (shouldSync) {
            console.log(`🔄 [Deliveries] Starting background historical sync (last sync: ${hoursSinceLastSync.toFixed(1)}h ago)`);
            setTimeout(async () => {
              try {
