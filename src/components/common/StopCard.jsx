@@ -1387,7 +1387,10 @@ export default function StopCard({
                   <Button
                     variant="outline"
                     className="flex-1"
-                    onClick={() => setShowDeleteConfirm(false)}>
+                    onClick={() => {
+                      setShowDeleteConfirm(false);
+                      setSelectedTransferPickupId('');
+                    }}>
                     Cancel
                   </Button>
                   <Button
