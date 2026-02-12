@@ -1033,12 +1033,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
             const patientData = item.data;
 
             try {
+              // Retry with backend API and sync to offline DB
+              const updated = await base44.entities.Patient.update(id, patientData);
+              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updated]);
 
-
-              // CRITICAL: Retry with backend API
-              await base44.entities.Patient.update(id, patientData);
               totalUpdated++;
-
 
               const errorIndex = importErrors.indexOf(item.errorMsg);
               if (errorIndex > -1) {
@@ -1052,7 +1051,6 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                 current: i + 1
               }));
             } catch (retryError) {
-
               const newErrorMsg = `Final retry update failed for patient ID ${id} (${patientData.full_name}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
               const errorIndex = importErrors.indexOf(item.errorMsg);
               if (errorIndex > -1) {
