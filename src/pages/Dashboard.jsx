@@ -4155,25 +4155,45 @@ function Dashboard() {
         console.log(`🔒 [Date Change] Protected ${priorityDeliveries.length} deliveries from smart refresh`);
       }
 
-      // STEP 4: CRITICAL - Process AppUsers through location poller to update markers
-      console.log('📍 [Date Change] Processing driver locations through poller...');
-      driverLocationPoller.processLocationData(
-        currentUser, 
-        priorityDeliveries, 
-        drivers, 
-        stores, 
-        appUsers, 
-        new Date(dateStr + 'T00:00:00'), 
-        true,
-        'Dashboard',
-        showAllDriverMarkers
-      );
+      // STEP 4: CRITICAL - Load fresh appUsers and process through poller
+      console.log('📍 [Date Change] Loading fresh appUsers and processing locations...');
+      let freshAppUsers = appUsers;
       
-      // Dispatch location update event
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: { appUsers: appUsers, forceAll: true }
-      }));
-      console.log('✅ [Date Change] Driver locations processed');
+      // Try to load from offline DB first, fallback to current appUsers if empty
+      try {
+        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        if (offlineAppUsers && offlineAppUsers.length > 0) {
+          freshAppUsers = offlineAppUsers;
+          console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from offline DB`);
+        } else {
+          console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from context (offline DB empty)`);
+        }
+      } catch (dbError) {
+        console.warn('⚠️ [Date Change] Failed to load appUsers from offline DB, using context:', dbError.message);
+      }
+      
+      // Process through location poller with fresh appUsers
+      if (freshAppUsers && freshAppUsers.length > 0) {
+        driverLocationPoller.processLocationData(
+          currentUser, 
+          priorityDeliveries, 
+          drivers, 
+          stores, 
+          freshAppUsers, 
+          new Date(dateStr + 'T00:00:00'), 
+          true,
+          'Dashboard',
+          showAllDriverMarkers
+        );
+        
+        // Dispatch location update event
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: freshAppUsers, forceAll: true }
+        }));
+        console.log('✅ [Date Change] Driver locations processed');
+      } else {
+        console.warn('⚠️ [Date Change] No appUsers available - skipping location processing');
+      }
 
       // STEP 5: Dispatch event to force map and stop cards to re-render
       // CRITICAL: NO route optimization on date change
