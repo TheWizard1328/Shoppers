@@ -3199,10 +3199,10 @@ function Dashboard() {
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
         
         if (isShowAllOrAllDriversMode) {
-          // MODE 1: Show All / All Drivers - include ALL drivers' incomplete stops
+          // MODE 1: Show All / All Drivers - include incomplete stops
           let allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStrPhase3);
           
-          // Filter by dispatcher stores if applicable
+          // CRITICAL: Filter by dispatcher stores if applicable
           if (isDispatcher && !isAdmin && currentUser?.store_ids) {
             const dispatcherStoreIds = new Set(currentUser.store_ids);
             const driversWithStoreDeliveries = new Set(
@@ -3214,10 +3214,18 @@ function Dashboard() {
             allDateDeliveries = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
           }
           
+          // CRITICAL: Filter to ONLY incomplete stops from dispatcher's stores
           const incompleteAllDrivers = allDateDeliveries.filter((d) => {
             if (!d) return false;
             if (finishedStatuses.includes(d.status)) return false;
             if (d.status === 'pending') return false;
+            
+            // CRITICAL: For dispatchers, only include stops from their stores
+            if (isDispatcher && !isAdmin && currentUser?.store_ids) {
+              const dispatcherStoreIds = new Set(currentUser.store_ids);
+              if (!dispatcherStoreIds.has(d.store_id)) return false;
+            }
+            
             return true;
           });
           
@@ -3238,7 +3246,7 @@ function Dashboard() {
           });
           
         } else {
-          // MODE 2: Single Driver - include only selected driver's incomplete stops
+          // MODE 2: Single Driver - include only selected driver's incomplete stops from dispatcher's stores
           const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
           
           const incompleteStopsActiveDriver = deliveriesWithStopOrder.filter((d) => {
@@ -3247,6 +3255,7 @@ function Dashboard() {
             if (d.status === 'pending') return false;
             if (d.driver_id !== targetDriverId) return false;
             
+            // CRITICAL: For dispatchers, only include stops from their stores
             if (isDispatcher && !isAdmin && currentUser?.store_ids) {
               const dispatcherStoreIds = new Set(currentUser.store_ids);
               if (!dispatcherStoreIds.has(d.store_id)) return false;
