@@ -165,6 +165,26 @@ export default function StopCard({
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
   const [selectedTransferPickupId, setSelectedTransferPickupId] = useState('');
+  
+  // Auto-select transfer pickup when delete dialog opens
+  const availableTransferPickups = useMemo(() => {
+    if (!isPickup || !delivery || !allDeliveries) return [];
+    return allDeliveries.filter(d => 
+      d && !d.patient_id && 
+      d.store_id === delivery.store_id && 
+      d.delivery_date === delivery.delivery_date &&
+      d.driver_id === delivery.driver_id &&
+      d.id !== delivery.id &&
+      d.status !== 'completed' && d.status !== 'cancelled'
+    );
+  }, [isPickup, delivery, allDeliveries]);
+  
+  useEffect(() => {
+    if (showDeleteConfirm && isPickup && pendingPickups && pendingPickups.length > 0) {
+      // Auto-select first available pickup, or empty if none
+      setSelectedTransferPickupId(availableTransferPickups.length > 0 ? availableTransferPickups[0].id : '');
+    }
+  }, [showDeleteConfirm, isPickup, pendingPickups, availableTransferPickups]);
 
   // Detect if this is a stripped delivery (from other store)
   // For drivers: strip completed deliveries (_isStripped flag from Dashboard)
