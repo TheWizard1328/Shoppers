@@ -471,9 +471,17 @@ function Dashboard() {
       console.log(`📡 [Real-time AppUser] ${event.type} event:`, event.data?.user_name || event.id);
       
       if (event.type === 'update') {
-        // Update AppUser in offline DB and context
+        // CRITICAL: Update offline DB and UI simultaneously
         if (event.data) {
+          // Update offline DB
           offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [event.data]).catch(console.error);
+          
+          // Update UI immediately
+          if (updateAppUsersLocally) {
+            updateAppUsersLocally([event.data], false);
+          }
+          
+          console.log(`✅ [Real-time AppUser Update] Updated offline DB + UI simultaneously`);
           
           // CRITICAL: If this is the current user, refresh their data immediately
           if (event.data.user_id === currentUser?.id) {
@@ -481,11 +489,6 @@ function Dashboard() {
             if (refreshUser) {
               refreshUser();
             }
-          }
-          
-          // CRITICAL: Broadcast to all components that AppUser data changed
-          if (updateAppUsersLocally) {
-            updateAppUsersLocally([event.data], false);
           }
           
           // Update driver location markers
@@ -520,11 +523,12 @@ function Dashboard() {
       }
       
       if (event.type === 'create') {
-        // Add new delivery to offline DB and context
+        // CRITICAL: Update offline DB and UI simultaneously
         if (event.data) {
+          // Update offline DB
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
           
-          // CRITICAL: Update UI incrementally from offline DB - NO API calls
+          // Update UI immediately
           if (updateDeliveriesLocally) {
             updateDeliveriesLocally([event.data], false);
           }
@@ -533,17 +537,22 @@ function Dashboard() {
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
             detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeCreate' }
           }));
+          
+          console.log(`✅ [Real-time Create] Updated offline DB + UI simultaneously`);
         }
       } else if (event.type === 'update') {
-        // Update delivery in offline DB and context
+        // CRITICAL: Update offline DB and UI simultaneously
         if (event.data) {
+          // Update offline DB
           offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
           
-          // CRITICAL: Update UI incrementally - ALWAYS, regardless of who made the change
+          // Update UI immediately
           if (updateDeliveriesLocally) {
             console.log(`🔄 [Real-time] Updating UI with delivery: ${event.data.patient_name}, status: ${event.data.status}`);
             updateDeliveriesLocally([event.data], false);
           }
+          
+          console.log(`✅ [Real-time Update] Updated offline DB + UI simultaneously`);
           
           // CRITICAL: After UI update, check if any delivery now has isNextDelivery=true and auto-center
           setTimeout(() => {
@@ -573,10 +582,11 @@ function Dashboard() {
           window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         }
       } else if (event.type === 'delete') {
-        // Remove delivery from offline DB and context
+        // CRITICAL: Update offline DB and UI simultaneously
+        // Remove from offline DB
         offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id).catch(console.error);
         
-        // CRITICAL: Update UI by filtering local state - NO API calls
+        // Update UI by filtering local state
         if (updateDeliveriesLocally && deliveries) {
           const filtered = deliveries.filter(d => d?.id !== event.id);
           updateDeliveriesLocally(filtered, true);
@@ -585,6 +595,8 @@ function Dashboard() {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: { triggeredBy: 'realtimeDelete' }
         }));
+        
+        console.log(`✅ [Real-time Delete] Updated offline DB + UI simultaneously`);
       }
     });
 
@@ -7751,7 +7763,7 @@ function Dashboard() {
     loadOfflineDataFirst();
   }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, hasPreRenderSyncRef.current]);
   
-  // CRITICAL: STEP 2 - Trigger priority sync to update offline DB, then load UI from fresh offline data
+  // CRITICAL: STEP 2 - Trigger priority sync to update offline DB + UI simultaneously
   useEffect(() => {
     if (!currentUser || !isDataLoaded || !isFiltersReady) return;
     if (!hasPreRenderSyncRef.current) return; // Wait for pre-render sync first
@@ -7760,8 +7772,8 @@ function Dashboard() {
     
     hasTriggeredSmartRefreshRef.current = true;
     
-    const triggerPrioritySyncAndLoadUI = async () => {
-      console.log(`🔄 [Dashboard Mount - STEP 2] Checking if priority sync needed...`);
+    const triggerPrioritySyncAndUpdateUI = async () => {
+      console.log(`🔄 [Dashboard Mount - STEP 2] Starting priority sync...`);
       
       try {
         // CRITICAL: Check if we just ran pre-render sync (within last 10 seconds)
@@ -7773,56 +7785,31 @@ function Dashboard() {
         
         if (justSynced) {
           console.log(`⏭️ [Dashboard Mount - STEP 2] Pre-render sync just ran - skipping priority sync to avoid rate limits`);
-          
-          // Just load from offline DB without syncing again
-          const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-          const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-          
-          if (updateDeliveriesLocally && freshDeliveries) {
-            const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-            updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
-          }
-          
-          if (freshAppUsers && freshAppUsers.length > 0) {
-            driverLocationPoller.processLocationData(
-              currentUser, 
-              freshDeliveries || [], 
-              drivers, 
-              stores, 
-              freshAppUsers, 
-              selectedDate, 
-              true,
-              'Dashboard',
-              showAllDriverMarkers
-            );
-          }
-          
-          setForceRender((prev) => prev + 1);
-          console.log(`✅ [Dashboard Mount - STEP 2] Loaded from offline DB - skipped redundant sync`);
           return;
         }
         
-        // Run priority sync to update offline DB (AppUsers, Deliveries, Patients)
+        // Run priority sync to fetch from API and update offline DB
         const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync');
         const cityId = globalFilters.getSelectedCityId();
         
-        await performPrioritySyncBeforeRefresh(selectedDateStr, cityId, smartRefreshManager);
+        const syncResult = await performPrioritySyncBeforeRefresh(selectedDateStr, cityId, smartRefreshManager);
         console.log(`✅ [Dashboard Mount - STEP 2] Priority sync complete - offline DB updated`);
         
         // Wait for DB writes to complete
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        // STEP 3: Load fresh data from offline DB and update UI
-        console.log(`📦 [Dashboard Mount - STEP 3] Loading fresh data from offline DB after sync...`);
+        // CRITICAL: Load fresh data from offline DB and update BOTH offline DB and UI
+        console.log(`📦 [Dashboard Mount - STEP 2.5] Loading fresh data from offline DB...`);
         const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
         const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
         
-        console.log(`✅ [Dashboard Mount - STEP 3] Loaded ${freshDeliveries?.length || 0} deliveries, ${freshAppUsers?.length || 0} users from offline DB`);
+        console.log(`✅ [Dashboard Mount - STEP 2.5] Loaded ${freshDeliveries?.length || 0} deliveries, ${freshAppUsers?.length || 0} users from offline DB`);
         
-        // Update context with fresh data
+        // CRITICAL: Update UI simultaneously with offline DB
         if (updateDeliveriesLocally && freshDeliveries) {
           const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
           updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+          console.log(`✅ [Dashboard Mount - STEP 2.5] UI updated with ${freshDeliveries.length} deliveries`);
         }
         
         // Process location data through poller
@@ -7850,10 +7837,10 @@ function Dashboard() {
         }));
         
         setForceRender((prev) => prev + 1);
-        console.log(`✅ [Dashboard Mount - STEP 3] UI updated with fresh offline data`);
+        console.log(`✅ [Dashboard Mount - STEP 2.5] Offline DB and UI updated simultaneously`);
         
-        // STEP 4: Background sync for historical data
-        console.log(`🔄 [Dashboard Mount - STEP 4] Triggering background sync...`);
+        // STEP 3: Background sync for historical data
+        console.log(`🔄 [Dashboard Mount - STEP 3] Triggering background sync...`);
         const { performBackgroundSync } = await import('@/components/utils/offlineSync');
         setTimeout(() => {
           performBackgroundSync(selectedDateStr, null).catch(error => {
@@ -7871,7 +7858,7 @@ function Dashboard() {
     };
     
     // Delay to allow UI to fully render first
-    setTimeout(triggerPrioritySyncAndLoadUI, 500);
+    setTimeout(triggerPrioritySyncAndUpdateUI, 500);
   }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, hasPreRenderSyncRef.current, hasLoadedOfflineDataRef.current]);
 
   useEffect(() => {
