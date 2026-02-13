@@ -32,10 +32,12 @@ const showBroadcastNotification = async (entityName, eventType, data) => {
   // CRITICAL: Don't show notifications on primary device (it made the change)
   try {
     const { deviceManager } = await import('./deviceManager');
-    const isPrimary = await deviceManager.isPrimaryTracker();
-    if (isPrimary) {
-      console.log(`ℹ️ [RealtimeSync] Suppressing notification on primary device`);
-      return;
+    if (deviceManager && typeof deviceManager.isPrimaryTracker === 'function') {
+      const isPrimary = await deviceManager.isPrimaryTracker();
+      if (isPrimary) {
+        console.log(`ℹ️ [RealtimeSync] Suppressing notification on primary device`);
+        return;
+      }
     }
   } catch (error) {
     console.warn('⚠️ [RealtimeSync] Could not check primary device status:', error);
