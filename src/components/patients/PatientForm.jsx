@@ -895,7 +895,7 @@ export default function PatientForm({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2" style={{ opacity: !formData.store_id ? '0.5' : '1', pointerEvents: !formData.store_id ? 'none' : 'auto' }}>
                     <div className="px-3 py-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)' }}>
                       <div className="border-b pb-2 mb-3" style={{ borderColor: 'var(--border-slate-300)' }}>
                         <h3 className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Preferences</h3>
