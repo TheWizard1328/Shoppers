@@ -808,18 +808,6 @@ export default function DeliveryMap({
     }
   }, [currentDriverLocation?.latitude, currentDriverLocation?.longitude]);
   
-  // CRITICAL: Force polyline update when driverLocationMarkers changes
-  // This ensures Type 1 polylines use the same updated locations as shared markers
-  useEffect(() => {
-    if (!driverLocationMarkers || driverLocationMarkers.length === 0) return;
-    
-    console.log(`🔵 [Polyline Trigger] driverLocationMarkers updated (${driverLocationMarkers.length} markers) - forcing Type 1 polyline re-render`);
-    setPolylineRenderKey(prev => prev + 1);
-  }, [
-    // Track actual location data from processed markers
-    driverLocationMarkers.map(m => `${m?.id}:${m?.latitude?.toFixed(6)}:${m?.longitude?.toFixed(6)}`).join('|')
-  ]);
-  
   // Listen for real-time driver location updates from SmartRefreshManager
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
