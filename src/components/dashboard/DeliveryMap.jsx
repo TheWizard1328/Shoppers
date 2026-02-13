@@ -1808,31 +1808,21 @@ export default function DeliveryMap({
     stopsByDriver.forEach((stops, driverId) => {
       const allStops = [...stops.deliveries, ...stops.pickups];
       
-      // Check if ANY stop has been completed
-      const hasCompletedAnyStop = allStops.some(s => finishedStatuses.includes(s.status));
+      // Count incomplete stops (exclude pending)
+      const incompleteStops = allStops.filter(s => !finishedStatuses.includes(s.status) && s.status !== 'pending');
+      const completedStops = allStops.filter(s => finishedStatuses.includes(s.status));
       
-      // If no stops completed yet, SHOW home marker
-      if (!hasCompletedAnyStop) {
+      // RULE 1: Show home marker if ALL stops are incomplete (route not started)
+      if (incompleteStops.length > 0 && completedStops.length === 0) {
         driversToShowHome.add(driverId);
         return;
       }
       
-      // CRITICAL: After first stop is completed, EXCLUDE home marker from bounds calculation
-      // But still show the marker visually
-      if (hasCompletedAnyStop) {
-        driversToExcludeFromBounds.add(driverId);
-      }
-      
-      // If stops have been completed, check if there are incomplete pickups remaining
-      const hasIncompletePickups = stops.pickups.some(p => !finishedStatuses.includes(p.status) && p.status !== 'pending');
-      
-      // If NO incomplete pickups remain, SHOW home marker (route is heading home)
-      // CRITICAL: And INCLUDE it in bounds calculation (remove from exclude list)
-      if (!hasIncompletePickups) {
+      // RULE 2: Show home marker if ALL stops are complete (heading home)
+      if (incompleteStops.length === 0 && completedStops.length > 0) {
         driversToShowHome.add(driverId);
-        driversToExcludeFromBounds.delete(driverId); // Re-include in bounds when heading home
         
-        // NEW: Check if ALL patient deliveries are complete for this driver
+        // Check if ALL patient deliveries are complete for "Go Home" button
         const patientDeliveriesForDriver = stops.deliveries.filter(d => d && d.patient_id);
         const allPatientDeliveriesComplete = patientDeliveriesForDriver.length > 0 && 
           patientDeliveriesForDriver.every(d => finishedStatuses.includes(d.status));
@@ -1840,8 +1830,10 @@ export default function DeliveryMap({
         if (allPatientDeliveriesComplete) {
           driversWithCompleteRoute.add(driverId);
         }
+        return;
       }
-      // Otherwise, HIDE home marker (still working on pickups)
+      
+      // RULE 3: Hide home marker if some stops are complete and some are incomplete (mid-route)
     });
 
     // CRITICAL: If no drivers found but we have cached markers, preserve them during refresh
