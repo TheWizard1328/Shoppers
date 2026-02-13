@@ -4369,15 +4369,17 @@ export default function AdminUtilities() {
         </div>
 
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-1 md:gap-0 h-auto md:h-10">
-            <TabsTrigger value="data" className="text-xs md:text-sm px-2 md:px-4 py-2">Data</TabsTrigger>
-            <TabsTrigger value="store-metrics" className="text-xs md:text-sm px-2 md:px-4 py-2">Metrics</TabsTrigger>
-            <TabsTrigger value="user-settings" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden md:block">Settings</TabsTrigger>
-            <TabsTrigger value="app-settings" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden md:block">App</TabsTrigger>
-            <TabsTrigger value="message-rules" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden lg:block">Messages</TabsTrigger>
-            <TabsTrigger value="polylines" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden lg:block">Routes</TabsTrigger>
-            <TabsTrigger value="api-logs" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden lg:block">Logs</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
+            <TabsList className="flex md:grid w-max md:w-full md:grid-cols-7 gap-1 md:gap-0 h-auto md:h-10 min-w-full">
+              <TabsTrigger value="data" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Data</TabsTrigger>
+              <TabsTrigger value="store-metrics" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Metrics</TabsTrigger>
+              <TabsTrigger value="user-settings" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Settings</TabsTrigger>
+              <TabsTrigger value="app-settings" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">App</TabsTrigger>
+              <TabsTrigger value="message-rules" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Messages</TabsTrigger>
+              <TabsTrigger value="polylines" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Routes</TabsTrigger>
+              <TabsTrigger value="api-logs" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Logs</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="data">
             {(dataLoading && activeDataTab !== 'deliveries') || (dataLoading && activeDataTab === 'deliveries' && !allDeliveries?.length) ? (
@@ -4388,13 +4390,15 @@ export default function AdminUtilities() {
             ) : (
               <div className="space-y-6">
                 <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full">
-                   <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 gap-1 md:gap-0 h-auto md:h-10">
-                     <TabsTrigger value="deliveries" className="text-xs md:text-sm px-2 md:px-4 py-2">Deliveries</TabsTrigger>
-                     <TabsTrigger value="patients" className="text-xs md:text-sm px-2 md:px-4 py-2">Patients</TabsTrigger>
-                     <TabsTrigger value="stores" className="text-xs md:text-sm px-2 md:px-4 py-2">Stores</TabsTrigger>
-                     <TabsTrigger value="users" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden sm:block">Users</TabsTrigger>
-                     <TabsTrigger value="cities" className="text-xs md:text-sm px-2 md:px-4 py-2 hidden sm:block">Cities</TabsTrigger>
-                   </TabsList>
+                   <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
+                     <TabsList className="flex md:grid w-max md:w-full md:grid-cols-5 gap-1 md:gap-0 h-auto md:h-10 min-w-full">
+                       <TabsTrigger value="deliveries" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Deliveries</TabsTrigger>
+                       <TabsTrigger value="patients" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Patients</TabsTrigger>
+                       <TabsTrigger value="stores" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Stores</TabsTrigger>
+                       <TabsTrigger value="users" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Users</TabsTrigger>
+                       <TabsTrigger value="cities" className="text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap">Cities</TabsTrigger>
+                     </TabsList>
+                   </div>
 
                   <TabsContent value="deliveries" className="mt-6">
                     <div className="space-y-4">
