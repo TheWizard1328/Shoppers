@@ -14,7 +14,8 @@ const DriverLocationBadge = ({ users = [] }) => {
       const newStatus = {};
       
       appUsers.forEach(user => {
-        if (!user || (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break')) {
+        // CRITICAL: Show all drivers with location timestamps for App Owners (regardless of duty status)
+        if (!user || !user.location_updated_at) {
           return;
         }
 
