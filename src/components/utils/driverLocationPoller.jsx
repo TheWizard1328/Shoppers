@@ -279,12 +279,13 @@ class DriverLocationPoller {
            return false;
          }
 
-         // Other driver must be On Duty OR On Break AND have location_tracking_enabled
+         // Other driver must be On Duty OR On Break AND location_tracking_enabled
          if ((user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') || !user.location_tracking_enabled) {
            return false;
          }
 
-         // CRITICAL: Show drivers even with stale locations as long as they have coordinates, are on_duty/on_break, and have location_tracking_enabled
+         // CRITICAL: Show drivers even with stale locations as long as they have coordinates and are on_duty/on_break with tracking enabled
+
          console.log(`✅ [Poller] Driver seeing other driver ${user.user_name}, staleness: ${user._staleness}`);
          return true;
        }
