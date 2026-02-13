@@ -808,16 +808,19 @@ export default function DeliveryMap({
     }
   }, [currentDriverLocation?.latitude, currentDriverLocation?.longitude]);
   
+  // CRITICAL: Create stable dependency string for location tracking
+  const realtimeLocationKey = useMemo(() => {
+    if (!realtimeAppUsers || realtimeAppUsers.length === 0) return '';
+    return realtimeAppUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(6)}:${u?.current_longitude?.toFixed(6)}`).join('|');
+  }, [realtimeAppUsers]);
+  
   // CRITICAL: Force polyline update when realtimeAppUsers location data changes
   useEffect(() => {
-    if (!realtimeAppUsers || realtimeAppUsers.length === 0) return;
+    if (!realtimeLocationKey) return;
     
-    console.log(`🔵 [Polyline Trigger] realtimeAppUsers updated - forcing Type 1 polyline re-render`);
+    console.log(`🔵 [Polyline Trigger] realtimeAppUsers location changed - forcing Type 1 polyline re-render`);
     setPolylineRenderKey(prev => prev + 1);
-  }, [
-    // Track actual location data changes with stable key
-    realtimeAppUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(6)}:${u?.current_longitude?.toFixed(6)}`).join('|')
-  ]);
+  }, [realtimeLocationKey]);
   
   // Listen for real-time driver location updates from SmartRefreshManager
   useEffect(() => {
