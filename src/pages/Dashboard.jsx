@@ -2493,10 +2493,16 @@ function Dashboard() {
     };
 
     // CRITICAL: Delay first run by 30 seconds after mount to avoid overlap with mount syncs
-    const initialDelay = setTimeout(runPeriodicSmartRefresh, 30000);
+    const initialDelay = setTimeout(() => {
+      runPeriodicSmartRefresh();
+      smartRefreshManager.checkHeartbeatAndSync();
+    }, 30000);
     
     // Then run on interval every 15 seconds
-    const interval = setInterval(runPeriodicSmartRefresh, 15000);
+    const interval = setInterval(() => {
+      runPeriodicSmartRefresh();
+      smartRefreshManager.checkHeartbeatAndSync();
+    }, 15000);
 
     return () => {
       clearTimeout(initialDelay);
