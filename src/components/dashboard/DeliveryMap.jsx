@@ -1785,14 +1785,18 @@ export default function DeliveryMap({
     polylineRenderKey // CRITICAL: Force recalculation when driver locations update
   ]);
   
-  // CRITICAL: Trigger polyline update when driverLocationMarkers changes
-  // This ensures Type 1 polylines render on initial load and updates
+  // CRITICAL: Trigger polyline update whenever shared markers change (ANY driver)
+  // This ensures Type 1 polylines draw immediately when shared location markers appear
   useEffect(() => {
     if (driverLocationMarkers.length > 0) {
-      console.log(`🔵 [Polyline Trigger] driverLocationMarkers ready (${driverLocationMarkers.length} markers) - updating Type 1 polylines`);
+      console.log(`🔵 [Polyline Trigger] Shared markers updated (${driverLocationMarkers.length} drivers) - re-drawing Type 1 polylines`);
       setPolylineRenderKey(prev => prev + 1);
+      setSharedMarkersKey(prev => prev + 1);
     }
-  }, [driverLocationMarkers.length, sharedMarkersKey]);
+  }, [
+    // Track each driver's location precisely to trigger polyline updates
+    driverLocationMarkers.map(m => `${m?.id}:${m?.latitude?.toFixed(6)}:${m?.longitude?.toFixed(6)}`).join('|')
+  ]);
 
   // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY OR FUTURE
   const currentDriverMarker = useMemo(() => {
@@ -2907,119 +2911,48 @@ export default function DeliveryMap({
             
             console.log('🔵 [Type1Poly-Complete] Processing driversWithCompleteRoute:', Array.from(driversWithCompleteRoute).map(id => getDriverNameComplete(id)));
             
+            // SECTION 2: Type 1 polylines to HOME for drivers with complete routes
+            // CRITICAL: Use shared marker data directly - same location source as markers
             driversWithCompleteRoute.forEach(driverId => {
               const driverName = getDriverNameComplete(driverId);
               console.log(`🔵 [Type1Poly-Complete] Processing driver: ${driverName}`);
 
-              // CRITICAL: Priority order for driver location lookup:
-              // 1. realtimeAppUsers (freshest from WebSocket updates)
-              // 2. driverLookupMap (stable sorted drivers)
-              // 3. safeUsers (cached fallback)
-              // 4. Synthetic from delivery data (last resort)
-              let driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId) || 
-                                  driverLookupMap.get(driverId) || 
-                                  safeUsers.find(u => u && u.id === driverId);
-
-              if (!driverAppUser) {
-                // Fallback: Create synthetic driver from any delivery with this driver_id
-                const anyDeliveryForDriver = [...deliveryMarkers, ...pickupMarkers].find(m => m && m.driver_id === driverId);
-                if (anyDeliveryForDriver?.driver_name) {
-                  driverAppUser = {
-                    id: driverId,
-                    user_name: anyDeliveryForDriver.driver_name,
-                    full_name: anyDeliveryForDriver.driver_name,
-                    current_latitude: anyDeliveryForDriver.driver?.current_latitude,
-                    current_longitude: anyDeliveryForDriver.driver?.current_longitude,
-                    location_updated_at: anyDeliveryForDriver.driver?.location_updated_at,
-                    home_latitude: anyDeliveryForDriver.driver?.home_latitude,
-                    home_longitude: anyDeliveryForDriver.driver?.home_longitude
-                  };
-                  console.log(`🔵 [Type1Poly-Complete] ✅ Created synthetic driver from delivery.driver_name: ${driverAppUser.user_name}`);
-                } else {
-                  console.warn(`🔵 [Type1Poly-Complete] ❌ SKIP - driverAppUser not found for: ${driverName}`);
-                  return;
-                }
-              }
-
-              console.log(`🔵 [Type1Poly-Complete] ✅ Driver location:`, {
-                lat: driverAppUser.current_latitude?.toFixed(6),
-                lng: driverAppUser.current_longitude?.toFixed(6),
-                timestamp: driverAppUser.location_updated_at
-              });
-
-              console.log(`🔵 [Type1Poly-Complete] driverAppUser found for ${driverName}:`, {
-                driver_status: driverAppUser.driver_status,
-                has_current_lat: !!driverAppUser.current_latitude,
-                has_current_lng: !!driverAppUser.current_longitude,
-                location_updated_at: driverAppUser.location_updated_at
-              });
-
-              // CRITICAL: Determine current location based on device type
-              // Primary device: use live GPS location from currentDriverLocation
-              // Other devices: use shared AppUser location
-              const isCurrentUserOnMobile = currentUser && driverId === currentUser.id && isMobile;
+              // CRITICAL: Use shared marker data for location - same source as visible markers
+              const sharedMarker = driverLocationMarkers.find(m => m && m.id === driverId);
               
-              console.log(`🔵 [Type1Poly-Complete] isCurrentUserOnMobile for ${driverName}:`, isCurrentUserOnMobile, {
-                has_currentUser: !!currentUser,
-                currentUser_name: currentUser?.user_name || currentUser?.full_name || 'Unknown',
-                checking_driver: driverName,
-                isMobile,
-                has_currentDriverLocation: !!currentDriverLocation,
-                currentDriverLocation_lat: currentDriverLocation?.latitude?.toFixed(5),
-                currentDriverLocation_lng: currentDriverLocation?.longitude?.toFixed(5)
-              });
-
-              let driverCurrentLocation = null;
-
-              if (isCurrentUserOnMobile) {
-                // Primary device - MUST use live GPS location from currentDriverLocation
-                if (currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
-                  driverCurrentLocation = [currentDriverLocation.latitude, currentDriverLocation.longitude];
-                  console.log(`🔵 [Type1Poly-Complete] ✅ Using LIVE GPS location for ${driverName}:`, driverCurrentLocation.map(c => c.toFixed(5)));
-                } else {
-                  console.warn(`🔵 [Type1Poly-Complete] ⚠️ isCurrentUserOnMobile=true but no currentDriverLocation for ${driverName}!`);
-                }
-              } else {
-                // Other devices - use shared AppUser location
-                if (driverAppUser.current_latitude && driverAppUser.current_longitude) {
-                  driverCurrentLocation = [driverAppUser.current_latitude, driverAppUser.current_longitude];
-                  console.log(`🔵 [Type1Poly-Complete] ✅ Using SHARED location for ${driverName}:`, driverCurrentLocation.map(c => c.toFixed(5)));
-                } else {
-                  console.warn(`🔵 [Type1Poly-Complete] ⚠️ No AppUser location for ${driverName}`);
-                }
-              }
-
-              if (!driverCurrentLocation) {
-                console.warn(`🔵 [Type1Poly-Complete] ❌ SKIP - No driverCurrentLocation for ${driverName}`);
+              if (!sharedMarker) {
+                console.warn(`🔵 [Type1Poly-Complete] ❌ SKIP - No shared marker for ${driverName}`);
                 return;
               }
+
+              console.log(`🔵 [Type1Poly-Complete] ✅ Using shared marker location for ${driverName}:`, {
+                lat: sharedMarker.latitude?.toFixed(6),
+                lng: sharedMarker.longitude?.toFixed(6),
+                timestamp: sharedMarker.location_updated_at
+              });
 
               // Get driver's home location
               const driverHomeMarker = driverHomeMarkers.find(h => h.driverId === driverId);
               if (!driverHomeMarker || !driverHomeMarker.latitude || !driverHomeMarker.longitude) {
-                console.warn(`🔵 [Type1Poly-Complete] ❌ SKIP - No home marker for ${driverName}`, {
-                  has_driverHomeMarker: !!driverHomeMarker,
-                  has_latitude: driverHomeMarker?.latitude,
-                  has_longitude: driverHomeMarker?.longitude
-                });
+                console.warn(`🔵 [Type1Poly-Complete] ❌ SKIP - No home marker for ${driverName}`);
                 return;
               }
 
-              // CRITICAL: Include location coordinates in key to force re-render on location update
-              const locationKey = `${driverCurrentLocation[0].toFixed(6)}-${driverCurrentLocation[1].toFixed(6)}`;
+              // CRITICAL: Use shared marker's coordinates directly - same as visible marker
+              const startPoint = [sharedMarker.latitude, sharedMarker.longitude];
+              const locationKey = `${startPoint[0].toFixed(6)}-${startPoint[1].toFixed(6)}`;
 
               console.log(`🔵 [Type1Poly-Complete] ✅ RENDERING Type 1 polyline to HOME for ${driverName}:`, {
-                from: driverCurrentLocation.map(c => c.toFixed(5)),
+                from: startPoint.map(c => c.toFixed(5)),
                 to: [driverHomeMarker.latitude.toFixed(5), driverHomeMarker.longitude.toFixed(5)],
                 polylineKey: `type1-home-${driverId}-${locationKey}-${polylineRenderKey}`
               });
 
-              // Draw blue dotted line from current location to home
               polylines.push(
                 <Polyline
                   key={`type1-home-${driverId}-${locationKey}-${polylineRenderKey}`}
                   positions={[
-                    driverCurrentLocation,
+                    startPoint,
                     [driverHomeMarker.latitude, driverHomeMarker.longitude]
                   ]}
                   pathOptions={{
@@ -3208,59 +3141,27 @@ return polylines.length > 0 ? polylines : null;
           console.log('🔵 [Type1Poly] driversWithIncompleteStops:', Array.from(driversWithIncompleteStops).map(id => getDriverName(id)));
 
           // SECTION 1: Type 1 polylines for drivers WITH incomplete stops (to next stop)
-
+          // CRITICAL: Use shared marker data directly - same location source as markers
           driversWithIncompleteStops.forEach(driverId => {
             const driverName = getDriverName(driverId);
             console.log(`🔵 [Type1Poly-Incomplete] Processing driver: ${driverName}`);
 
-            // CRITICAL: Priority order for driver location lookup:
-            // 1. realtimeAppUsers (freshest from WebSocket updates)
-            // 2. driverLookupMap (stable sorted drivers)
-            // 3. safeUsers (cached fallback)
-            // 4. Synthetic from delivery data (last resort)
-            let driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId) || 
-                                driverLookupMap.get(driverId) || 
-                                safeUsers.find(u => u && u.id === driverId);
+            // CRITICAL: Use shared marker data for location - same source as visible markers
+            const sharedMarker = driverLocationMarkers.find(m => m && m.id === driverId);
             
-            if (!driverAppUser) {
-              // Fallback: Create synthetic driver from any delivery with this driver_id
-              const anyDeliveryForDriver = [...deliveryMarkers, ...pickupMarkers].find(m => m && m.driver_id === driverId);
-              if (anyDeliveryForDriver?.driver_name) {
-                driverAppUser = {
-                  id: driverId,
-                  user_name: anyDeliveryForDriver.driver_name,
-                  full_name: anyDeliveryForDriver.driver_name,
-                  current_latitude: anyDeliveryForDriver.driver?.current_latitude,
-                  current_longitude: anyDeliveryForDriver.driver?.current_longitude,
-                  location_updated_at: anyDeliveryForDriver.driver?.location_updated_at,
-                  home_latitude: anyDeliveryForDriver.driver?.home_latitude,
-                  home_longitude: anyDeliveryForDriver.driver?.home_longitude
-                };
-                console.log(`🔵 [Type1Poly-Incomplete] ✅ Created synthetic driver from delivery.driver_name: ${driverAppUser.user_name}`);
-              } else {
-                console.warn(`🔵 [Type1Poly-Incomplete] ❌ SKIP - driverAppUser not found for: ${driverName}`);
-                return;
-              }
+            if (!sharedMarker) {
+              console.warn(`🔵 [Type1Poly-Incomplete] ❌ SKIP - No shared marker for ${driverName}`);
+              return;
             }
             
-            console.log(`🔵 [Type1Poly-Incomplete] ✅ Driver location:`, {
-              lat: driverAppUser.current_latitude?.toFixed(6),
-              lng: driverAppUser.current_longitude?.toFixed(6),
-              timestamp: driverAppUser.location_updated_at
+            console.log(`🔵 [Type1Poly-Incomplete] ✅ Using shared marker location for ${driverName}:`, {
+              lat: sharedMarker.latitude?.toFixed(6),
+              lng: sharedMarker.longitude?.toFixed(6),
+              timestamp: sharedMarker.location_updated_at
             });
 
-            console.log(`🔵 [Type1Poly-Incomplete] driverAppUser found for ${driverName}:`, {
-              driver_status: driverAppUser.driver_status,
-              has_current_lat: !!driverAppUser.current_latitude,
-              has_current_lng: !!driverAppUser.current_longitude,
-              location_updated_at: driverAppUser.location_updated_at
-            });
-
-             // CRITICAL: Type 1 polylines DON'T require shared marker to exist first
-             // Just need driver AppUser data with current location
-
-             // Get next stop for this driver
-             let nextStop = deliveryMarkers.find(d => 
+            // Get next stop for this driver
+            let nextStop = deliveryMarkers.find(d => 
               d && 
               d.driver_id === driverId &&
               d.isNextDelivery === true &&
@@ -3268,7 +3169,7 @@ return polylines.length > 0 ? polylines : null;
               d.status !== 'pending' &&
               typeof d.latitude === 'number' &&
               typeof d.longitude === 'number'
-             ) || pickupMarkers.find(p => 
+            ) || pickupMarkers.find(p => 
               p && 
               p.driver_id === driverId &&
               p.isNextDelivery === true &&
@@ -3276,17 +3177,17 @@ return polylines.length > 0 ? polylines : null;
               p.status !== 'pending' &&
               typeof p.latitude === 'number' &&
               typeof p.longitude === 'number'
-             );
+            );
 
-             console.log(`🔵 [Type1Poly-Incomplete] nextStop (via isNextDelivery) for ${driverName}:`, nextStop ? {
+            console.log(`🔵 [Type1Poly-Incomplete] nextStop (via isNextDelivery) for ${driverName}:`, nextStop ? {
               patient: nextStop.patient?.full_name || nextStop.store?.name || 'Unknown',
               stop_order: nextStop.stop_order,
               latitude: nextStop.latitude.toFixed(5),
               longitude: nextStop.longitude.toFixed(5)
-             } : 'NOT FOUND');
+            } : 'NOT FOUND');
 
-             // Fallback for other drivers
-             if (!nextStop) {
+            // Fallback for other drivers
+            if (!nextStop) {
               const driverIncompleteDeliveries = deliveryMarkers.filter(d =>
                 d && 
                 d.driver_id === driverId &&
@@ -3315,64 +3216,25 @@ return polylines.length > 0 ? polylines : null;
                 latitude: nextStop.latitude.toFixed(5),
                 longitude: nextStop.longitude.toFixed(5)
               } : 'STILL NOT FOUND');
-              }
+            }
 
-              if (!nextStop) {
+            if (!nextStop) {
               console.warn(`🔵 [Type1Poly-Incomplete] ❌ SKIP - No nextStop found for: ${driverName}`);
               return;
-              }
+            }
 
-             // CRITICAL: Determine current location based on device type
-             // Primary device: use live GPS location from currentDriverLocation
-             // Other devices: use shared AppUser location
-             const isCurrentUserOnMobile = currentUser && driverId === currentUser.id && isMobile;
+            // CRITICAL: Use shared marker's coordinates directly - same as visible marker
+            const startPoint = [sharedMarker.latitude, sharedMarker.longitude];
+            const locationKey = `${startPoint[0].toFixed(6)}-${startPoint[1].toFixed(6)}`;
 
-             console.log(`🔵 [Type1Poly-Incomplete] isCurrentUserOnMobile for ${driverName}:`, isCurrentUserOnMobile, {
-               has_currentUser: !!currentUser,
-               currentUser_name: currentUser?.user_name || currentUser?.full_name || 'Unknown',
-               checking_driver: driverName,
-               isMobile,
-               has_currentDriverLocation: !!currentDriverLocation,
-               currentDriverLocation_lat: currentDriverLocation?.latitude?.toFixed(5),
-               currentDriverLocation_lng: currentDriverLocation?.longitude?.toFixed(5)
-             });
+            console.log(`🔵 [Type1Poly-Incomplete] ✅ RENDERING Type 1 polyline for ${driverName}:`, {
+              from: startPoint.map(c => c.toFixed(5)),
+              to: [nextStop.latitude.toFixed(5), nextStop.longitude.toFixed(5)],
+              nextStop: nextStop.patient?.full_name || nextStop.store?.name || 'Unknown',
+              polylineKey: `type1-${driverId}-${nextStop.id}-${locationKey}-${polylineRenderKey}`
+            });
 
-             let startPoint = null;
-
-             if (isCurrentUserOnMobile) {
-               // Primary device - MUST use live GPS location from currentDriverLocation
-               if (currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
-                 startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
-                 console.log(`🔵 [Type1Poly-Incomplete] ✅ Using LIVE GPS location for ${driverName}:`, startPoint.map(c => c.toFixed(5)));
-               } else {
-                 console.warn(`🔵 [Type1Poly-Incomplete] ⚠️ isCurrentUserOnMobile=true but no currentDriverLocation for ${driverName}!`);
-               }
-             } else {
-               // Other devices - use shared AppUser location
-               if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
-                 startPoint = [driverAppUser.current_latitude, driverAppUser.current_longitude];
-                 console.log(`🔵 [Type1Poly-Incomplete] ✅ Using SHARED location for ${driverName}:`, startPoint.map(c => c.toFixed(5)));
-               } else {
-                 console.warn(`🔵 [Type1Poly-Incomplete] ⚠️ No AppUser location for ${driverName}`);
-               }
-             }
-
-             if (!startPoint) {
-               console.warn(`🔵 [Type1Poly-Incomplete] ❌ SKIP - No startPoint for ${driverName}`);
-               return;
-             }
-
-             // CRITICAL: Include location coordinates in key to force re-render on location update
-             const locationKey = `${startPoint[0].toFixed(6)}-${startPoint[1].toFixed(6)}`;
-
-             console.log(`🔵 [Type1Poly-Incomplete] ✅ RENDERING Type 1 polyline for ${driverName}:`, {
-               from: startPoint.map(c => c.toFixed(5)),
-               to: [nextStop.latitude.toFixed(5), nextStop.longitude.toFixed(5)],
-               nextStop: nextStop.patient?.full_name || nextStop.store?.name || 'Unknown',
-               polylineKey: `type1-${driverId}-${nextStop.id}-${locationKey}-${polylineRenderKey}`
-             });
-
-             polylines.push(
+            polylines.push(
               <Polyline
                 key={`type1-${driverId}-${nextStop.id}-${locationKey}-${polylineRenderKey}`}
                 positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
@@ -3386,8 +3248,8 @@ return polylines.length > 0 ? polylines : null;
                 }}
                 pane="overlayPane"
               />
-             );
-             });
+            );
+          });
 
              console.log(`🔵 [Type1Poly-Incomplete] Total polylines to render: ${polylines.length}`);
              
