@@ -51,8 +51,12 @@ export default function WebSocketDiagnosticsCard() {
     if (isPrimaryDevice) return; // Only show on non-primary devices
 
     const handleWebSocketEvent = (e) => {
-      const { data, entityName, updatedBy, changedFields } = e.detail || {};
+      const { data, type, id, updatedBy, changedFields } = e.detail || {};
       if (!data) return;
+      
+      // Extract entity name from event target
+      const eventType = e.type; // e.g., 'realtimeUpdate_Delivery'
+      const entityName = eventType.replace('realtimeUpdate_', '');
       
       // Determine what to display based on entity type
       let displayInfo = {
@@ -95,12 +99,15 @@ export default function WebSocketDiagnosticsCard() {
       return () => clearTimeout(timeout);
     };
 
-    window.addEventListener('deliveryUpdated', handleWebSocketEvent);
-    window.addEventListener('driverLocationsUpdated', handleWebSocketEvent);
+    // Listen to specific real-time update events
+    window.addEventListener('realtimeUpdate_Delivery', handleWebSocketEvent);
+    window.addEventListener('realtimeUpdate_Patient', handleWebSocketEvent);
+    window.addEventListener('realtimeUpdate_AppUser', handleWebSocketEvent);
     
     return () => {
-      window.removeEventListener('deliveryUpdated', handleWebSocketEvent);
-      window.removeEventListener('driverLocationsUpdated', handleWebSocketEvent);
+      window.removeEventListener('realtimeUpdate_Delivery', handleWebSocketEvent);
+      window.removeEventListener('realtimeUpdate_Patient', handleWebSocketEvent);
+      window.removeEventListener('realtimeUpdate_AppUser', handleWebSocketEvent);
     };
   }, [isPrimaryDevice]);
 

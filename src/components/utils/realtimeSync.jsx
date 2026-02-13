@@ -90,6 +90,20 @@ const showBroadcastNotification = async (entityName, eventType, data) => {
 };
 
 /**
+ * Helper to detect changed fields between old and new data
+ */
+const getChangedFields = (oldData, newData) => {
+  if (!oldData || !newData) return [];
+  const changed = [];
+  for (const key in newData) {
+    if (oldData[key] !== newData[key]) {
+      changed.push(key);
+    }
+  }
+  return changed;
+};
+
+/**
  * Subscribe to entity changes
  */
 const subscribeToEntity = (entityName) => {
@@ -101,27 +115,61 @@ const subscribeToEntity = (entityName) => {
   try {
     console.log(`🔗 [RealtimeSync] Subscribing to ${entityName} WebSocket...`);
 
+    // Keep track of entity data to detect changes
+    const entityDataCache = new Map();
+
     const unsubscribe = base44.entities[entityName].subscribe((event) => {
       const { type, id, data } = event;
       
-      console.log(`📡 [RealtimeSync] ${entityName} ${type}: ${id}`);
+      // Get current user name for "updatedBy"
+      let updatedBy = 'System';
+      try {
+        const userCache = sessionStorage.getItem('effectiveUserCache');
+        if (userCache) {
+          const parsed = JSON.parse(userCache);
+          updatedBy = parsed?.user?.user_name || parsed?.user?.full_name || 'System';
+        }
+      } catch (e) {
+        // Ignore
+      }
+
+      // Detect changed fields for updates
+      let changedFields = [];
+      if (type === 'update') {
+        const oldData = entityDataCache.get(id);
+        changedFields = getChangedFields(oldData, data);
+        entityDataCache.set(id, data);
+      } else if (type === 'create') {
+        entityDataCache.set(id, data);
+      } else if (type === 'delete') {
+        entityDataCache.delete(id);
+      }
       
-      // Show broadcast notification
+      console.log(`📡 [RealtimeSync] ${entityName} ${type}: ${id}`, changedFields.length > 0 ? `changed: ${changedFields.join(', ')}` : '');
+      
+      // Show broadcast notification with metadata
       showBroadcastNotification(entityName, type, data);
 
-      // Notify all listeners
+      // Notify all listeners with full metadata
       listeners.forEach(callback => {
         try {
-          callback({ entityType: entityName, eventType: type, data, id });
+          callback({ 
+            entityType: entityName, 
+            eventType: type, 
+            data, 
+            id,
+            updatedBy,
+            changedFields
+          });
         } catch (error) {
           console.error('❌ [RealtimeSync] Listener error:', error);
         }
       });
 
-      // Dispatch custom event for other parts of the app
+      // Dispatch custom event for other parts of the app with full metadata
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, {
-          detail: { type, id, data }
+          detail: { type, id, data, updatedBy, changedFields }
         }));
       }
     });

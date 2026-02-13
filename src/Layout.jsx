@@ -4009,6 +4009,7 @@ export default function Layout({ children, currentPageName }) {
                 {/* Mobile Header - Hidden in snapshot mode */}
                 {!isSnapshotModeActive &&
                 <header
+                data-mobile-header
                 className="mobile-header border-b px-4 py-3 sticky top-0"
                 style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
 
