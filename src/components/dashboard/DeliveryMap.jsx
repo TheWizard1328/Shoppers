@@ -717,7 +717,20 @@ export default function DeliveryMap({
   const safePatients = Array.isArray(patients) ? patients : [];
   const safeStores = Array.isArray(stores) ? stores : [];
   const safeDriverLocations = Array.isArray(driverLocations) ? driverLocations : [];
-  const safeUsers = Array.isArray(realtimeAppUsers) ? realtimeAppUsers : [];
+  
+  // CRITICAL: Use previous cached users if current is empty to prevent flickering
+  const prevSafeUsersRef = useRef([]);
+  const safeUsers = (() => {
+    if (Array.isArray(realtimeAppUsers) && realtimeAppUsers.length > 0) {
+      prevSafeUsersRef.current = realtimeAppUsers;
+      return realtimeAppUsers;
+    } else if (prevSafeUsersRef.current.length > 0) {
+      console.warn(`⚠️ [DeliveryMap] realtimeAppUsers empty - preserving ${prevSafeUsersRef.current.length} cached users`);
+      return prevSafeUsersRef.current;
+    } else {
+      return [];
+    }
+  })();
 
   // CRITICAL: ALWAYS use users prop directly (contains fresh AppUser data from context)
   // Update immediately when users change - no complex comparison needed
@@ -2840,7 +2853,7 @@ export default function DeliveryMap({
           if (isViewingCurrentDate) {
             // Helper to get driver name (defined in parent scope)
             const getDriverNameComplete = (driverId) => {
-              const driver = realtimeAppUsers.find(u => u && u.id === driverId);
+              const driver = safeUsers.find(u => u && u.id === driverId);
               return driver ? (driver.user_name || driver.full_name || `Driver-${driverId}`) : `Unknown-${driverId}`;
             };
             
@@ -2850,7 +2863,7 @@ export default function DeliveryMap({
               const driverName = getDriverNameComplete(driverId);
               console.log(`🔵 [Type1Poly-Complete] Processing driver: ${driverName}`);
               
-              const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
+              const driverAppUser = safeUsers.find(u => u && u.id === driverId);
               if (!driverAppUser) {
                 console.warn(`🔵 [Type1Poly-Complete] ❌ SKIP - driverAppUser not found for: ${driverName}`);
                 return;
@@ -3073,7 +3086,7 @@ return polylines.length > 0 ? polylines : null;
 
           // Helper to get driver name
           const getDriverName = (driverId) => {
-            const driver = realtimeAppUsers.find(u => u && u.id === driverId);
+            const driver = safeUsers.find(u => u && u.id === driverId);
             return driver ? (driver.user_name || driver.full_name || `Driver-${driverId}`) : `Unknown-${driverId}`;
           };
 
@@ -3113,7 +3126,7 @@ return polylines.length > 0 ? polylines : null;
             const driverName = getDriverName(driverId);
             console.log(`🔵 [Type1Poly-Incomplete] Processing driver: ${driverName}`);
 
-            const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
+            const driverAppUser = safeUsers.find(u => u && u.id === driverId);
             if (!driverAppUser) {
               console.warn(`🔵 [Type1Poly-Incomplete] ❌ SKIP - driverAppUser not found for: ${driverName}`);
               return;
