@@ -8104,6 +8104,14 @@ function Dashboard() {
         
         console.log(`✅ [Dashboard Mount - STEP 2] Background sync and UI update complete`);
         
+        // CRITICAL: Trigger silent pull-to-sync after background sync completes
+        console.log('🔇 [Dashboard Mount - STEP 2] Triggering silent pull-to-sync for full refresh...');
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('triggerPullToSync', {
+            detail: { silent: true, reason: 'initial_load' }
+          }));
+        }, 2000);
+        
       } catch (error) {
         if (error.response?.status === 429 || error.message?.includes('429')) {
           console.log('⏰ [Dashboard Mount - STEP 2] Rate limited - using offline data');
