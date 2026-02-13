@@ -2767,9 +2767,54 @@ export default function DeliveryMap({
               }
             }
           });
-          
+
+          // CRITICAL: NEW - Type 1 polyline for drivers with complete routes (to home)
+          driversWithCompleteRoute.forEach(driverId => {
+            const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
+            if (!driverAppUser) return;
+
+            // Check if this is current user on mobile (use live location)
+            const isCurrentUserOnMobile = currentUser && driverId === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude;
+
+            let driverCurrentLocation = null;
+
+            if (isCurrentUserOnMobile) {
+              // Use live GPS location from primary device
+              driverCurrentLocation = [currentDriverLocation.latitude, currentDriverLocation.longitude];
+            } else if (driverAppUser.current_latitude && driverAppUser.current_longitude) {
+              // Use shared location from AppUser
+              driverCurrentLocation = [driverAppUser.current_latitude, driverAppUser.current_longitude];
+            }
+
+            if (!driverCurrentLocation) return;
+
+            // Get driver's home location
+            const driverHomeMarker = driverHomeMarkers.find(h => h.driverId === driverId);
+            if (!driverHomeMarker || !driverHomeMarker.latitude || !driverHomeMarker.longitude) return;
+
+            // Draw blue dotted line from current location to home
+            polylines.push(
+              <Polyline
+                key={`type1-home-${driverId}-${polylineRenderKey}`}
+                positions={[
+                  driverCurrentLocation,
+                  [driverHomeMarker.latitude, driverHomeMarker.longitude]
+                ]}
+                pathOptions={{
+                  color: '#3B82F6',
+                  weight: 4,
+                  opacity: 0.7,
+                  dashArray: '2, 8',
+                  lineJoin: 'round',
+                  lineCap: 'round'
+                }}
+                pane="overlayPane"
+              />
+            );
+          });
+
           return polylines.length > 0 ? polylines : null;
-        })()}
+          })()}
 
         {/* DEPRECATED: Old route drawing logic - replaced by Type 2 & 3 polylines above */}
 
@@ -2896,6 +2941,28 @@ export default function DeliveryMap({
              if (!m || !m.driver_id) return;
              if (finishedStatuses.includes(m.status) || m.status === 'pending') return;
              driversWithIncompleteStops.add(m.driver_id);
+           });
+
+           // CRITICAL: Also check for drivers with COMPLETED routes who need home polyline
+           const driversWithCompleteRoute = new Set();
+           const driverStopsMap = new Map();
+           
+           [...deliveryMarkers, ...pickupMarkers].forEach(m => {
+             if (!m || !m.driver_id) return;
+             if (!driverStopsMap.has(m.driver_id)) {
+               driverStopsMap.set(m.driver_id, { incomplete: [], complete: [] });
+             }
+             if (finishedStatuses.includes(m.status)) {
+               driverStopsMap.get(m.driver_id).complete.push(m);
+             } else if (m.status !== 'pending') {
+               driverStopsMap.get(m.driver_id).incomplete.push(m);
+             }
+           });
+           
+           driverStopsMap.forEach((stops, driverId) => {
+             if (stops.incomplete.length === 0 && stops.complete.length > 0) {
+               driversWithCompleteRoute.add(driverId);
+             }
            });
 
            driversWithIncompleteStops.forEach(driverId => {
