@@ -166,8 +166,21 @@ Deno.serve(async (req) => {
       return a.distance - b.distance;
     });
 
-    console.log('[googlePlacesAutocomplete] Returning', predictions.length, 'predictions (sorted by distance)');
-    return Response.json({ predictions });
+    // CRITICAL: Filter to only 75km range from assigned store
+    const MAX_DISTANCE_KM = 75;
+    const filteredPredictions = predictions.filter(p => {
+      // Include predictions with no distance (can't calculate) to avoid breaking autocomplete
+      if (p.distance === null) return true;
+      // Filter out those beyond 75km
+      const withinRange = p.distance <= MAX_DISTANCE_KM;
+      if (!withinRange) {
+        console.log(`[googlePlacesAutocomplete] Filtering out "${p.description}" - ${p.distance.toFixed(1)}km (exceeds ${MAX_DISTANCE_KM}km limit)`);
+      }
+      return withinRange;
+    });
+
+    console.log(`[googlePlacesAutocomplete] Returning ${filteredPredictions.length}/${predictions.length} predictions (within ${MAX_DISTANCE_KM}km)`);
+    return Response.json({ predictions: filteredPredictions });
 
   } catch (error) {
     console.error('[googlePlacesAutocomplete] Caught error:', error);
