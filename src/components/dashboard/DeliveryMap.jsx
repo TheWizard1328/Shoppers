@@ -85,6 +85,10 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
 
   const statusColor = statusColors[status] || '#94A3B8';
   const driverColor = isNextDelivery ? '#FDE047' : borderColor; // Bright yellow ring for next delivery
+  
+  // CRITICAL: White outer ring for other drivers
+  const outerRingColor = isOtherDriver ? '#FFFFFF' : statusColor;
+  const innerCircleColor = isOtherDriver ? statusColor : driverColor;
 
   // CRITICAL: Match exact sizing from regular markers
   let baseSize = 24 * 0.75;
@@ -120,7 +124,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
       <div class="simple-circle-marker" style="
         width: ${baseSize}px;
         height: ${baseSize}px;
-        background-color: ${driverColor};
+        background-color: ${innerCircleColor};
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -130,7 +134,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
         font-weight: bold;
         color: ${textColor};
         box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        border: ${isOtherDriver ? '3px' : '2px'} solid ${statusColor};
+        border: ${isOtherDriver ? '3px' : '2px'} solid ${outerRingColor};
         opacity: ${isOtherDriver ? 0.75 : 1};
         position: relative;
       ">
@@ -252,11 +256,11 @@ const getContrastColor = (backgroundColor) => {
 
 // MODIFIED: Create icons with zoom-aware sizing - REMOVED duplicateCount badge
 const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isMobile = false, isHighlighted = false, isNextDelivery = false, hasIncompleteStops = true, isOtherDriver = false) => {
-  // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
+  // CRITICAL: Failed/cancelled/completed takes precedence over next delivery yellow
   const isFinished = FINISHED_STATUSES.includes(status);
-  const shouldShowNextBlue = isNextDelivery && !isFinished && hasIncompleteStops;
+  const shouldShowNextYellow = isNextDelivery && !isFinished && hasIncompleteStops;
   
-  const innerColor = shouldShowNextBlue ? '#3B82F6' : getInnerSymbolColor(status, true);
+  const innerColor = shouldShowNextYellow ? '#FBBF24' : getInnerSymbolColor(status, true);
   const showNumber = zoomLevel >= ZOOM_LEVELS.HIDE_NUMBERS && number;
   const hasDuplicates = duplicateCount > 1;
 
