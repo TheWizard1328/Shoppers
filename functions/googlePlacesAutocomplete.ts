@@ -169,8 +169,11 @@ Deno.serve(async (req) => {
     // CRITICAL: Filter to only 75km range from assigned store
     const MAX_DISTANCE_KM = 75;
     const filteredPredictions = predictions.filter(p => {
-      // Include predictions with no distance (can't calculate) to avoid breaking autocomplete
-      if (p.distance === null) return true;
+      // Only include predictions where distance was successfully calculated
+      if (p.distance === null) {
+        console.log(`[googlePlacesAutocomplete] Filtering out "${p.description}" - unable to calculate distance`);
+        return false;
+      }
       // Filter out those beyond 75km
       const withinRange = p.distance <= MAX_DISTANCE_KM;
       if (!withinRange) {
