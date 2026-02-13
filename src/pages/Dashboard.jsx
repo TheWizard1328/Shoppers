@@ -6796,6 +6796,52 @@ function Dashboard() {
       const patientDeliveriesOnly = allDriverDeliveries.filter((d) => d && d.patient_id);
       const routeComplete = patientDeliveriesOnly.length > 0 &&
       patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturnByMarkers(d));
+      
+      // CRITICAL: Check if this was the last incomplete stop
+      const incompleteDeliveriesCount = deliveriesWithStopOrder.filter((d) =>
+        d && d.driver_id === driverId && d.delivery_date === deliveryDate &&
+        !finishedStatuses.includes(d.status) && d.status !== 'pending'
+      ).length;
+      
+      const wasLastStop = incompleteDeliveriesCount === 1; // Before this update, there was 1 incomplete (the one we just finished)
+      
+      // CRITICAL: If this was the last stop AND FAB is in Phase 2 or 3, switch to Phase 1
+      if (wasLastStop && (currentPhase === 2 || currentPhase === 3)) {
+        console.log(`🎯 [Last Stop Complete] Switching from Phase ${currentPhase} to Phase 1 for 500ms`);
+        
+        // Clear any existing timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+        
+        // Set to Phase 1 and lock
+        setMapViewPhase(1);
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+        
+        // Save Phase 1 to user settings
+        if (currentUser?.id) {
+          saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
+        }
+        
+        // Auto-unlock after 500ms
+        const lockDuration = 500;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+        
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+            console.log('⏰ [Last Stop Complete] Phase 1 auto-unlocked after 500ms');
+          }
+        }, lockDuration);
+      }
 
       // CRITICAL: Check if route is complete (current driver only)
       if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id && driverId === currentUser?.id) {
