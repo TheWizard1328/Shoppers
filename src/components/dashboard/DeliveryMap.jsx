@@ -84,7 +84,9 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
   };
 
   const statusColor = statusColors[status] || '#94A3B8';
-  const driverColor = isNextDelivery ? '#FDE047' : borderColor; // Bright yellow ring for next delivery
+  // CRITICAL: White border ring for other drivers, yellow for isNextDelivery
+  const ringColor = isNextDelivery ? '#FDE047' : (isOtherDriver ? '#FFFFFF' : borderColor);
+  const driverColor = ringColor;
 
   // CRITICAL: Match exact sizing from regular markers
   let baseSize = 24 * 0.75;
@@ -256,7 +258,8 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextBlue = isNextDelivery && !isFinished && hasIncompleteStops;
   
-  const innerColor = shouldShowNextBlue ? '#3B82F6' : getInnerSymbolColor(status, true);
+  // CRITICAL: Yellow cross for isNextDelivery pickups, otherwise use status-based color
+  const innerColor = shouldShowNextBlue ? '#FDE047' : getInnerSymbolColor(status, true);
   const showNumber = zoomLevel >= ZOOM_LEVELS.HIDE_NUMBERS && number;
   const hasDuplicates = duplicateCount > 1;
 
