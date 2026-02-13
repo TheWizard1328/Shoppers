@@ -730,11 +730,31 @@ export default function PatientForm({
               {/* Container 1: Store/Status/Time Windows */}
               <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)' }}>
                 <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-4 space-y-1">
+                  <div className="col-span-6 space-y-1">
+                    <Label htmlFor="store_id" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Assigned Store *</Label>
+                    <Select
+                      value={formData.store_id}
+                      onValueChange={(value) => setFormData((prev) => ({ ...prev, store_id: value }))}
+                      disabled={isStoreDisabled}>
+                      <SelectTrigger ref={storeSelectRef} className="h-10 md:h-9 text-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                        <SelectValue placeholder="Select store..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px] overflow-y-auto z-[99999]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+                        {availableStores.map((store) =>
+                        <SelectItem key={store.id} value={store.id}>
+                            {store.name}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="col-span-6 space-y-1">
                     <Label htmlFor="status" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Status</Label>
                     <Select
                       value={formData.status}
-                      onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}>
+                      onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
+                      disabled={!formData.store_id}>
                       <SelectTrigger className="h-10 md:h-9 text-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                         <SelectValue />
                       </SelectTrigger>
@@ -744,31 +764,35 @@ export default function PatientForm({
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
 
-                  <div className="col-span-4 space-y-1">
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-6 space-y-1">
                     <Label htmlFor="time_window_start" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Deliver After</Label>
                     <Input
                       id="time_window_start"
                       type="time"
                       value={formData.time_window_start}
                       onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
+                      disabled={!formData.store_id}
                       className="h-10 md:h-9 text-sm"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
 
-                  <div className="col-span-4 space-y-1">
+                  <div className="col-span-6 space-y-1">
                     <Label htmlFor="time_window_end" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Deliver Before</Label>
                     <Input
                       id="time_window_end"
                       type="time"
                       value={formData.time_window_end}
                       onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
+                      disabled={!formData.store_id}
                       className="h-10 md:h-9 text-sm"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-12 gap-2">
+                <div className="grid grid-cols-12 gap-2" style={{ opacity: !formData.store_id ? '0.5' : '1', pointerEvents: !formData.store_id ? 'none' : 'auto' }}>
                   <div className="col-span-6 space-y-1">
                     <Label htmlFor="store_id" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Assigned Store *</Label>
                     <Select
