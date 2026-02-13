@@ -583,6 +583,61 @@ class LightweightRefreshManager {
   }
 
   /**
+   * Update polylines with fresh driver coordinates
+   * Grabs current on-duty driver locations and sends them to render Type 1 polylines
+   */
+  async updatePolylines(currentAppUsers = []) {
+    try {
+      console.log('🗺️ [SmartRefresh] Updating polylines with fresh driver coordinates...');
+      
+      // Get fresh AppUser data for all on-duty drivers
+      const freshAppUsers = await queueEntityRequest(
+        () => base44.entities.AppUser.list(),
+        'AppUser list for polylines'
+      );
+      
+      if (!freshAppUsers || freshAppUsers.length === 0) {
+        console.warn('⚠️ [SmartRefresh] No drivers found for polyline update');
+        return null;
+      }
+
+      // Filter for on-duty drivers
+      const onDutyDrivers = freshAppUsers.filter(user => 
+        user.driver_status === 'on_duty' && user.current_latitude && user.current_longitude
+      );
+
+      console.log(`📍 [SmartRefresh] Found ${onDutyDrivers.length} on-duty drivers with valid coordinates`);
+
+      if (onDutyDrivers.length === 0) {
+        return null;
+      }
+
+      // Save to offline DB
+      const { offlineDB } = await import('./offlineDatabase');
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+
+      // Dispatch event with fresh coordinates for polyline rendering
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('polylineUpdateTriggered', {
+          detail: { 
+            onDutyDrivers,
+            freshAppUsers,
+            timestamp: Date.now()
+          }
+        }));
+      }
+
+      console.log(`✅ [SmartRefresh] Polyline update dispatched for ${onDutyDrivers.length} drivers`);
+      
+      return { onDutyDrivers, freshAppUsers };
+    } catch (error) {
+      this.recordError();
+      console.warn('⚠️ [SmartRefresh] Polyline update failed:', error.message);
+      return null;
+    }
+  }
+
+  /**
    * Get manager status
    */
   getStatus() {
