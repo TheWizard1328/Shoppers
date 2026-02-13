@@ -353,6 +353,21 @@ export default function PatientForm({
 
     let dataToSave = { ...formData };
 
+    // CRITICAL: For new patients, ensure unique PID by city
+    if (!patient && !dataToSave.patient_id) {
+      // Filter allPatients to only those in the user's current city
+      const cityId = currentUser?.city_id;
+      const patientsInCity = allPatients.filter(p => {
+        if (!cityId) return true; // If no city filter, include all
+        const storeForPatient = stores?.find(s => s?.id === p?.store_id);
+        return storeForPatient?.city_id === cityId;
+      });
+      
+      const existingPIDsInCity = patientsInCity.map((p) => p?.patient_id).filter(Boolean);
+      dataToSave.patient_id = generatePatientId(existingPIDsInCity);
+      console.log(`🆔 [PatientForm] Generated unique PID: ${dataToSave.patient_id} (city: ${cityId})`);
+    }
+
     // Recalculate distance from store before saving (in case store changed)
     // UNLESS it was manually edited by app owner (preserve manual edits)
     if (dataToSave.store_id && dataToSave.latitude && dataToSave.longitude && stores) {
@@ -412,11 +427,6 @@ export default function PatientForm({
         default:
           break;
       }
-    }
-
-    if (!patient && !dataToSave.patient_id) {
-      const existingPatients = allPatients;
-      dataToSave.patient_id = generatePatientId(existingPatients.map((p) => p.patient_id));
     }
 
     if (dataToSave.patient_id) {
