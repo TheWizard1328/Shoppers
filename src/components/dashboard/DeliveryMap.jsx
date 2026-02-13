@@ -1614,6 +1614,7 @@ export default function DeliveryMap({
   // This ensures shared markers render even when driverLocations prop is empty
   // Use ref to cache previous markers and only update when actual data changes
   const prevDriverLocationMarkersRef = useRef([]);
+  const [sharedMarkersKey, setSharedMarkersKey] = useState(0);
   
   const driverLocationMarkers = useMemo(() => {
     // CRITICAL: Only show on today or future dates
@@ -1783,6 +1784,15 @@ export default function DeliveryMap({
     deliveriesForLocationFilter.map(d => `${d?.id}:${d?.driver_id}:${d?.delivery_date}:${d?.status}`).join('|'),
     polylineRenderKey // CRITICAL: Force recalculation when driver locations update
   ]);
+  
+  // CRITICAL: Trigger polyline update when driverLocationMarkers changes
+  // This ensures Type 1 polylines render on initial load and updates
+  useEffect(() => {
+    if (driverLocationMarkers.length > 0) {
+      console.log(`🔵 [Polyline Trigger] driverLocationMarkers ready (${driverLocationMarkers.length} markers) - updating Type 1 polylines`);
+      setPolylineRenderKey(prev => prev + 1);
+    }
+  }, [driverLocationMarkers.length, sharedMarkersKey]);
 
   // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY OR FUTURE
   const currentDriverMarker = useMemo(() => {
