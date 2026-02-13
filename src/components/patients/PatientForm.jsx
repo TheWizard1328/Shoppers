@@ -514,11 +514,56 @@ export default function PatientForm({
       console.log('  ✅ Cache invalidated');
 
       // STEP 5: Call parent onSave if provided (triggers parent refresh)
-      if (onSave && !returnPatientOnSave) {
-        await onSave(dataToSave);
+      if (returnPatientOnSave) {
+        // Reset form for next patient in "Save & Add" mode
+        const newPID = generatePatientId(allPatients.map((p) => p?.patient_id).filter(Boolean));
+        setFormData({
+          patient_id: newPID,
+          full_name: "",
+          phone: "",
+          phone_secondary: "",
+          address: "",
+          unit_number: "",
+          notes: "",
+          store_id: formData.store_id,
+          time_window_start: "",
+          time_window_end: "",
+          status: "active",
+          latitude: null,
+          longitude: null,
+          distance_from_store: null,
+          mailbox_ok: false,
+          call_upon_arrival: false,
+          ring_bell: false,
+          dont_ring_bell: false,
+          back_door: false
+        });
+        setIsRecurring(false);
+        setFrequency('');
+        setWeeklyDays([]);
+
+        // Call parent callback with saved patient
+        if (onSave) {
+          await onSave(dataToSave);
+        }
+
+        // Auto-focus address field for next entry
+        setTimeout(() => {
+          if (addressInputRef.current) {
+            const inputElement = addressInputRef.current instanceof HTMLInputElement 
+              ? addressInputRef.current 
+              : addressInputRef.current?.querySelector('input');
+            if (inputElement) {
+              inputElement.focus();
+            }
+          }
+        }, 100);
+      } else {
+        if (onSave) {
+          await onSave(dataToSave);
+        }
+        onCancel();
       }
-      
-      onCancel();
     } catch (error) {
       console.error('❌ [PatientForm] Save error:', error);
       alert(`Failed to save patient: ${error.message}`);
