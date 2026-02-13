@@ -2997,7 +2997,7 @@ export default function DeliveryMap({
            driversWithIncompleteStops.forEach(driverId => {
              // CRITICAL: Skip drivers who are off_duty or on_break
              const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
-             if (!driverAppUser || driverAppUser.driver_status !== 'on_duty') return;
+             if (!driverAppUser) return; // || driverAppUser.driver_status !== 'on_duty'
 
              // CRITICAL: Type 1 polylines DON'T require shared marker to exist first
              // Just need driver AppUser data with current location
