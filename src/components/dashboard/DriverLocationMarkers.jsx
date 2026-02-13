@@ -164,16 +164,31 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
             return false;
           }
 
-          // CRITICAL: Self marker on non-primary device ALWAYS shows (regardless of status or location sharing)
+          // CRITICAL: Self marker on non-primary device - show if: on_duty/on_break OR (off_duty with recent heartbeat < 5min)
           const isSelfOnNonPrimary = isSelf && !isPrimaryDevice;
           if (isSelfOnNonPrimary) {
-            console.log(`✅ [DriverMarkers] Including self marker on non-primary device (status: ${user.driver_status})`);
+            // Check heartbeat age for off_duty status
+            if (user.driver_status === 'off_duty') {
+              if (user.location_updated_at) {
+                const ageMs = Date.now() - new Date(user.location_updated_at).getTime();
+                const ageMinutes = ageMs / (1000 * 60);
+                if (ageMinutes >= 5) {
+                  console.log(`⏭️ [DriverMarkers] Self off_duty for ${ageMinutes.toFixed(1)}min - clearing marker`);
+                  return false;
+                }
+                console.log(`✅ [DriverMarkers] Self off_duty but recent heartbeat (${ageMinutes.toFixed(1)}min) - showing marker`);
+                return true;
+              }
+              console.log(`⏭️ [DriverMarkers] Self off_duty with no timestamp - clearing marker`);
+              return false;
+            }
+            console.log(`✅ [DriverMarkers] Self marker on non-primary device (status: ${user.driver_status})`);
             return true;
           }
 
-          // CRITICAL: Other drivers - only show on_duty or on_break
+          // CRITICAL: Other drivers - only clear if off_duty (ignore staleness)
           if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
-            console.log(`⏭️ [DriverMarkers] Skipping ${user.user_name} - status: ${user.driver_status}`);
+            console.log(`⏭️ [DriverMarkers] ${user.user_name} is off_duty - clearing marker`);
             return false;
           }
 
@@ -216,15 +231,32 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                      user.user_id === currentUserId;
 
       // CRITICAL: NEVER show self marker on primary device (live location is separate)
-      // CRITICAL: Self marker on non-primary device ALWAYS shows (regardless of status/location sharing)
+      // CRITICAL: Self marker on non-primary device - show if: on_duty/on_break OR (off_duty with recent heartbeat < 5min)
       if (isSelf) {
         const shouldShow = !isPrimaryDevice;
-        if (shouldShow) {
-          console.log(`✅ [DriverMarkers - users prop] Self marker on non-primary - ALWAYS showing (status: ${user.driver_status})`);
-        } else {
+        if (!shouldShow) {
           console.log(`🚫 [DriverMarkers - users prop] Self marker on primary - blocked`);
+          return false;
         }
-        return shouldShow;
+        
+        // Check heartbeat age for off_duty status
+        if (user.driver_status === 'off_duty') {
+          if (user.location_updated_at) {
+            const ageMs = Date.now() - new Date(user.location_updated_at).getTime();
+            const ageMinutes = ageMs / (1000 * 60);
+            if (ageMinutes >= 5) {
+              console.log(`⏭️ [DriverMarkers - users prop] Self off_duty for ${ageMinutes.toFixed(1)}min - clearing`);
+              return false;
+            }
+            console.log(`✅ [DriverMarkers - users prop] Self off_duty but recent heartbeat (${ageMinutes.toFixed(1)}min)`);
+            return true;
+          }
+          console.log(`⏭️ [DriverMarkers - users prop] Self off_duty with no timestamp - clearing`);
+          return false;
+        }
+        
+        console.log(`✅ [DriverMarkers - users prop] Self marker on non-primary (status: ${user.driver_status})`);
+        return true;
       }
 
       // CRITICAL: Don't show OTHER markers for past dates
@@ -238,9 +270,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         }
       }
 
-      // CRITICAL: Other drivers - only show on_duty or on_break
+      // CRITICAL: Other drivers - only clear if off_duty (ignore staleness/heartbeat age)
       if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
-        console.log(`⏭️ [DriverMarkers - users prop] ${user.user_name} - wrong status: ${user.driver_status}`);
+        console.log(`⏭️ [DriverMarkers - users prop] ${user.user_name} is off_duty - clearing marker`);
         return false;
       }
       
@@ -358,7 +390,23 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       // CRITICAL: Don't show off-duty drivers or past date markers
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const isViewingPastDate = selectedDate && selectedDate < todayStr;
-      const isOffDuty = user.driver_status !== 'on_duty' && user.driver_status !== 'on_break';
+      
+      // For self on non-primary: check 5min heartbeat rule if off_duty
+      // For others: only clear if off_duty
+      let isOffDuty = false;
+      if (isCurrentUserOnNonPrimaryDevice) {
+        if (user.driver_status === 'off_duty') {
+          if (user.location_updated_at) {
+            const ageMs = Date.now() - new Date(user.location_updated_at).getTime();
+            const ageMinutes = ageMs / (1000 * 60);
+            isOffDuty = ageMinutes >= 5;
+          } else {
+            isOffDuty = true;
+          }
+        }
+      } else {
+        isOffDuty = user.driver_status !== 'on_duty' && user.driver_status !== 'on_break';
+      }
       
       const shouldShowMarker = (user.location_tracking_enabled === true || isCurrentUserOnNonPrimaryDevice) && 
                                user.status !== 'inactive' && 
