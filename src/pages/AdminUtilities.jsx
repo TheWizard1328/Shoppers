@@ -2185,11 +2185,28 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
                         </td>
                       )}
                       {visibleColumns.includes('current_coords') && (
-                        <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-900)' }}>
-                          {user.current_latitude && user.current_longitude 
-                            ? `${user.current_latitude.toFixed(5)}, ${user.current_longitude.toFixed(5)}`
-                            : '-'
-                          }
+                        <td className="p-3">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-mono text-xs" style={{ color: 'var(--text-slate-900)' }}>
+                              {user.current_latitude && user.current_longitude 
+                                ? `${user.current_latitude.toFixed(5)}, ${user.current_longitude.toFixed(5)}`
+                                : '-'
+                              }
+                            </span>
+                            {user.driver_status && (
+                              <Badge variant={
+                                user.driver_status === 'on_duty' ? 'default' :
+                                user.driver_status === 'on_break' ? 'secondary' :
+                                'outline'
+                              } className="text-[10px] px-1 py-0 h-4 w-fit">
+                                {user.driver_status === 'on_duty' ? 'On Duty' :
+                                 user.driver_status === 'on_break' ? 'On Break' :
+                                 user.driver_status === 'off_duty' ? 'Off Duty' :
+                                 user.driver_status === 'online' ? 'Online' :
+                                 user.driver_status}
+                              </Badge>
+                            )}
+                          </div>
                         </td>
                       )}
                       {visibleColumns.includes('city') && (
