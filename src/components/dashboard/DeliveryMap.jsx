@@ -770,9 +770,17 @@ export default function DeliveryMap({
 
       // CRITICAL: Handle single driver updates (from status toggle, etc.)
       if (singleUpdate) {
-        setRealtimeAppUsers(prev => prev.map(u => 
-          u?.id === singleUpdate.user_id ? { ...u, ...singleUpdate } : u
-        ));
+        console.log(`🔄 [DeliveryMap] Single AppUser update:`, singleUpdate.user_name || singleUpdate.full_name);
+        setRealtimeAppUsers(prev => {
+          // CRITICAL: Don't update if prev is empty - preserve data
+          if (!prev || prev.length === 0) {
+            console.warn(`⚠️ [DeliveryMap] Skipping single update - realtimeAppUsers is empty`);
+            return prev;
+          }
+          return prev.map(u => 
+            u?.id === singleUpdate.user_id ? { ...u, ...singleUpdate } : u
+          );
+        });
         // CRITICAL: Force polyline re-render when driver location changes
         setPolylineRenderKey(prev => prev + 1);
         // CRITICAL: Force delivery marker refresh to update status colors
@@ -782,11 +790,15 @@ export default function DeliveryMap({
 
       // CRITICAL: Handle bulk updates (from smart refresh) - update immediately
       if (appUsers && appUsers.length > 0) {
+        console.log(`🔄 [DeliveryMap] Bulk AppUser update: ${appUsers.length} users`);
         setRealtimeAppUsers(appUsers);
         // CRITICAL: Force polyline re-render when driver locations change
         setPolylineRenderKey(prev => prev + 1);
         // CRITICAL: Force delivery marker refresh to update status colors
         setRouteRenderKey(prev => prev + 1);
+      } else if (appUsers && appUsers.length === 0) {
+        // CRITICAL: Don't clear realtimeAppUsers on empty bulk update - preserve existing data
+        console.warn(`⚠️ [DeliveryMap] Received empty appUsers array - preserving existing ${realtimeAppUsers.length} users`);
       }
     };
 
@@ -1568,6 +1580,12 @@ export default function DeliveryMap({
       return [];
     }
 
+    // CRITICAL: If safeUsers is empty, preserve previous markers to prevent flickering
+    if (!safeUsers || safeUsers.length === 0) {
+      console.warn(`⚠️ [DeliveryMap] safeUsers is empty - preserving ${prevDriverLocationMarkersRef.current.length} previous markers`);
+      return prevDriverLocationMarkersRef.current;
+    }
+
     const isCurrentUserAdmin = currentUser && userHasRole(currentUser, 'admin');
     const isCurrentUserDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
     const isCurrentUserDriver = currentUser && userHasRole(currentUser, 'driver');
@@ -1695,10 +1713,19 @@ export default function DeliveryMap({
       };
     }).filter(Boolean);
 
-    // CRITICAL: Always return fresh array to ensure polyline positions update
-    // The slight performance hit is worth it for accurate real-time tracking
-    prevDriverLocationMarkersRef.current = markers;
-    return markers;
+    // CRITICAL: Only update cache if we have valid markers
+    if (markers.length > 0) {
+      console.log(`✅ [DeliveryMap] driverLocationMarkers: ${markers.length} markers calculated`);
+      prevDriverLocationMarkersRef.current = markers;
+      return markers;
+    } else if (prevDriverLocationMarkersRef.current.length > 0) {
+      // No new markers but we had markers before - preserve them
+      console.warn(`⚠️ [DeliveryMap] No new markers calculated - preserving ${prevDriverLocationMarkersRef.current.length} previous markers`);
+      return prevDriverLocationMarkersRef.current;
+    } else {
+      // No markers at all
+      return [];
+    }
   // CRITICAL: Include polylineRenderKey to force refresh when locations update
   }, [
     selectedDate, // CRITICAL: Must recalculate when date changes to filter past dates
@@ -1811,6 +1838,12 @@ export default function DeliveryMap({
         return prevDriverHomeMarkersRef.current;
       }
       return [];
+    }
+
+    // CRITICAL: If safeUsers is empty, preserve previous markers
+    if (!safeUsers || safeUsers.length === 0) {
+      console.warn(`⚠️ [DeliveryMap] safeUsers empty in driverHomeMarkers - preserving ${prevDriverHomeMarkersRef.current.length} previous markers`);
+      return prevDriverHomeMarkersRef.current;
     }
 
     // CRITICAL: Dispatchers should not see home locations
