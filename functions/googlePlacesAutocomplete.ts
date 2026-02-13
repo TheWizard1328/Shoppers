@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
     });
 
     // CRITICAL: Filter to only 75km range from assigned store
-    const MAX_DISTANCE_KM = 75;
+    const MAX_DISTANCE_KM = 150;
     const filteredPredictions = predictions.filter(p => {
       // Include predictions with no distance (couldn't calculate - show them)
       if (p.distance === null) return true;
