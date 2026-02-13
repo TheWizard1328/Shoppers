@@ -2900,11 +2900,29 @@ export default function DeliveryMap({
             driversWithCompleteRoute.forEach(driverId => {
               const driverName = getDriverNameComplete(driverId);
               console.log(`🔵 [Type1Poly-Complete] Processing driver: ${driverName}`);
-              
-              const driverAppUser = safeUsers.find(u => u && u.id === driverId);
+
+              // CRITICAL: Use driverLookupMap first, then fallback to denormalized driver_name from deliveries
+              let driverAppUser = driverLookupMap.get(driverId) || safeUsers.find(u => u && u.id === driverId);
+
               if (!driverAppUser) {
-                console.warn(`🔵 [Type1Poly-Complete] ❌ SKIP - driverAppUser not found for: ${driverName}`);
-                return;
+                // Fallback: Create synthetic driver from any delivery with this driver_id
+                const anyDeliveryForDriver = [...deliveryMarkers, ...pickupMarkers].find(m => m && m.driver_id === driverId);
+                if (anyDeliveryForDriver?.driver_name) {
+                  driverAppUser = {
+                    id: driverId,
+                    user_name: anyDeliveryForDriver.driver_name,
+                    full_name: anyDeliveryForDriver.driver_name,
+                    current_latitude: anyDeliveryForDriver.driver?.current_latitude,
+                    current_longitude: anyDeliveryForDriver.driver?.current_longitude,
+                    location_updated_at: anyDeliveryForDriver.driver?.location_updated_at,
+                    home_latitude: anyDeliveryForDriver.driver?.home_latitude,
+                    home_longitude: anyDeliveryForDriver.driver?.home_longitude
+                  };
+                  console.log(`🔵 [Type1Poly-Complete] ✅ Created synthetic driver from delivery.driver_name: ${driverAppUser.user_name}`);
+                } else {
+                  console.warn(`🔵 [Type1Poly-Complete] ❌ SKIP - driverAppUser not found for: ${driverName}`);
+                  return;
+                }
               }
 
               console.log(`🔵 [Type1Poly-Complete] driverAppUser found for ${driverName}:`, {
@@ -3173,10 +3191,28 @@ return polylines.length > 0 ? polylines : null;
             const driverName = getDriverName(driverId);
             console.log(`🔵 [Type1Poly-Incomplete] Processing driver: ${driverName}`);
 
-            const driverAppUser = safeUsers.find(u => u && u.id === driverId);
+            // CRITICAL: Use driverLookupMap first, then fallback to denormalized driver_name from deliveries
+            let driverAppUser = driverLookupMap.get(driverId) || safeUsers.find(u => u && u.id === driverId);
+            
             if (!driverAppUser) {
-              console.warn(`🔵 [Type1Poly-Incomplete] ❌ SKIP - driverAppUser not found for: ${driverName}`);
-              return;
+              // Fallback: Create synthetic driver from any delivery with this driver_id
+              const anyDeliveryForDriver = [...deliveryMarkers, ...pickupMarkers].find(m => m && m.driver_id === driverId);
+              if (anyDeliveryForDriver?.driver_name) {
+                driverAppUser = {
+                  id: driverId,
+                  user_name: anyDeliveryForDriver.driver_name,
+                  full_name: anyDeliveryForDriver.driver_name,
+                  current_latitude: anyDeliveryForDriver.driver?.current_latitude,
+                  current_longitude: anyDeliveryForDriver.driver?.current_longitude,
+                  location_updated_at: anyDeliveryForDriver.driver?.location_updated_at,
+                  home_latitude: anyDeliveryForDriver.driver?.home_latitude,
+                  home_longitude: anyDeliveryForDriver.driver?.home_longitude
+                };
+                console.log(`🔵 [Type1Poly-Incomplete] ✅ Created synthetic driver from delivery.driver_name: ${driverAppUser.user_name}`);
+              } else {
+                console.warn(`🔵 [Type1Poly-Incomplete] ❌ SKIP - driverAppUser not found for: ${driverName}`);
+                return;
+              }
             }
 
             console.log(`🔵 [Type1Poly-Incomplete] driverAppUser found for ${driverName}:`, {
