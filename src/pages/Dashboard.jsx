@@ -4497,10 +4497,19 @@ function Dashboard() {
       setSelectedCardId(null);
       setHighlightedCardId(null);
 
-      // Restore previous map state and reactivate FAB
+      // Restore previous map state (center, zoom, and bounds) and reactivate FAB
       setTimeout(() => {
         if (previousMapState) {
-          setShouldFitBounds(previousMapState);
+          // CRITICAL: Restore all saved map state properties
+          if (previousMapState.center) {
+            setMapCenter(previousMapState.center);
+          }
+          if (previousMapState.zoom) {
+            setMapZoom(previousMapState.zoom);
+          }
+          if (previousMapState.shouldFitBounds) {
+            setShouldFitBounds(previousMapState.shouldFitBounds);
+          }
           setPreviousMapState(null);
         }
 
@@ -4535,10 +4544,12 @@ function Dashboard() {
         }
       }
 
-      // Save current shouldFitBounds state (if any) to restore later
-      if (shouldFitBounds) {
-        setPreviousMapState(shouldFitBounds);
-      }
+      // CRITICAL: Save current map state (center, zoom, and bounds) to restore later
+      setPreviousMapState({
+        center: mapCenter,
+        zoom: mapZoom,
+        shouldFitBounds: shouldFitBounds
+      });
 
       setSelectedCardId(delivery.id);
       setHighlightedCardId(delivery.id);
