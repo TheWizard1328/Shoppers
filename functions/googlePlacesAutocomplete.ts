@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
     }
 
     // Convert new API format and fetch driving distances via Directions API
-    const predictions = await Promise.all(
+    const predictions = (await Promise.all(
       (data.suggestions || []).map(async suggestion => {
         const placePrediction = suggestion.placePrediction;
         if (!placePrediction) return null;
