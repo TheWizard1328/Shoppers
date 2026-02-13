@@ -5838,15 +5838,16 @@ export default function DeliveryForm({
           s.puid === deleteConfirmation.staged.stop_id
         ) : [];
         
-        // Auto-select first pickup if available (only on first render)
-        React.useEffect(() => {
-          if (deleteConfirmation.show && isPickup && linkedStops.length > 0 && otherPickups.length > 0 && !deleteConfirmation.transferPickupId) {
+        // Auto-select first pickup if available (directly, not via useEffect)
+        if (isPickup && linkedStops.length > 0 && otherPickups.length > 0 && !deleteConfirmation.transferPickupId) {
+          // Use setTimeout to avoid state update during render
+          setTimeout(() => {
             setDeleteConfirmation(prev => ({
               ...prev,
               transferPickupId: otherPickups[0].id
             }));
-          }
-        }, [deleteConfirmation.show]);
+          }, 0);
+        }
         
         return (
           <div className="fixed inset-0 z-[10030] bg-black/60 flex items-center justify-center p-4">
