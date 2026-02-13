@@ -604,7 +604,7 @@ function Dashboard() {
         // CRITICAL: Update offline DB and UI simultaneously
         if (event.data) {
           // Update offline DB
-          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
           
           // Update UI immediately
           if (updateDeliveriesLocally) {
@@ -635,7 +635,7 @@ function Dashboard() {
           
           // Trigger map update
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeUpdate', fromOtherDriver: isOtherDriver }
+            detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeUpdate', fromOtherDriver: isOtherDriver, allDrivers: isOtherDriver }
           }));
           
           // CRITICAL: Force stats card refresh

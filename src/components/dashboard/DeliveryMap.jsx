@@ -929,17 +929,18 @@ export default function DeliveryMap({
     
     // CRITICAL: Also refresh markers when deliveries are updated via smart refresh or Pull to Sync
     const handleDeliveriesUpdatedForMarkers = async (event) => {
-      const { triggeredBy, allDrivers, source } = event.detail || {};
+      const { triggeredBy, allDrivers, source, fromOtherDriver } = event.detail || {};
       
       // CRITICAL: Accept 'deliveriesImported' from real-time sync to update placeholder markers
       const isAllDriversUpdate = allDrivers || 
+                                  fromOtherDriver ||
                                   triggeredBy === 'pullToSyncComplete' || 
                                   triggeredBy === 'periodicRefresh' || 
                                   triggeredBy === 'manualRefresh' ||
                                   source === 'realtime_sync' ||
                                   source === 'route_importer';
       
-      // Only refresh if this update affects all drivers
+      // Only refresh if this update affects all drivers OR from another driver
       if (!isAllDriversUpdate) {
         return;
       }
@@ -955,12 +956,15 @@ export default function DeliveryMap({
       }
       
       try {
-        // Load from offline DB (already updated by smart refresh/Pull to Sync)
+        console.log(`🔄 [DeliveryMap] Refreshing markers from offline DB - triggered by ${triggeredBy || 'unknown'}, allDrivers: ${allDrivers}, fromOtherDriver: ${fromOtherDriver}`);
+        
+        // Load from offline DB (already updated by smart refresh/Pull to Sync/Real-time)
         const { offlineDB } = await import('./../../components/utils/offlineDatabase');
         let allDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
         
         if (allDeliveries && allDeliveries.length > 0) {
           const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== selectedDriverId);
+          console.log(`✅ [DeliveryMap] Updated otherDriverDeliveries with ${others.length} markers`);
           setOtherDriverDeliveries([...others]);
         }
       } catch (error) {
