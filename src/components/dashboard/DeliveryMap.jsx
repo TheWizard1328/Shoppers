@@ -3222,11 +3222,8 @@ return polylines.length > 0 ? polylines : null;
              });
 
              console.log(`🔵 [Type1Poly-Incomplete] Total polylines to render: ${polylines.length}`);
-
+             
              return polylines.length > 0 ? polylines : null;
-             })()}
-          
-          return polylines.length > 0 ? polylines : null;
           })()}
 
         {/* ===== RENDER ORDER 3: Home markers ===== */}
