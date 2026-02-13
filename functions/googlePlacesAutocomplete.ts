@@ -47,14 +47,19 @@ Deno.serve(async (req) => {
       includedRegionCodes: ['CA']
     };
 
-    // Add origin point for distance-based sorting (works with new API)
+    // Add location restriction to search radius (15km around origin)
     if (latitude && longitude) {
-      requestBody.origin = {
-        latitude: latitude,
-        longitude: longitude
+      requestBody.locationRestriction = {
+        circle: {
+          center: {
+            latitude: latitude,
+            longitude: longitude
+          },
+          radiusMeters: 15000 // 15km radius
+        }
       };
-      console.log('[googlePlacesAutocomplete] ✅ Added origin point for sorting:');
-      console.log('[googlePlacesAutocomplete]    Origin:', latitude, longitude);
+      console.log('[googlePlacesAutocomplete] ✅ Added location restriction (15km radius):');
+      console.log('[googlePlacesAutocomplete]    Center:', latitude, longitude);
       console.log('[googlePlacesAutocomplete]    Full requestBody:', JSON.stringify(requestBody, null, 2));
     } else {
       console.warn('[googlePlacesAutocomplete] ⚠️ NO COORDINATES PROVIDED - using Canada-wide search');
