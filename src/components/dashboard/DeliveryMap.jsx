@@ -751,6 +751,13 @@ export default function DeliveryMap({
   // State to force re-render of polylines when driver locations change
   const [polylineRenderKey, setPolylineRenderKey] = useState(0);
   
+  // CRITICAL: Force polyline update when currentDriverLocation changes (live GPS on primary device)
+  useEffect(() => {
+    if (currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
+      setPolylineRenderKey(prev => prev + 1);
+    }
+  }, [currentDriverLocation?.latitude, currentDriverLocation?.longitude]);
+  
   // Listen for real-time driver location updates from SmartRefreshManager
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
@@ -2838,36 +2845,39 @@ export default function DeliveryMap({
 
             // SECTION 2: Type 1 polylines for drivers with COMPLETE routes (to home)
             driversWithCompleteRoute.forEach(driverId => {
-            const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
-            if (!driverAppUser) return;
+              const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
+              if (!driverAppUser) return;
 
-            // Check if this is current user on mobile (use live location)
-            const isCurrentUserOnMobile = currentUser && driverId === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude;
+              // Check if this is current user on mobile (use live location)
+              const isCurrentUserOnMobile = currentUser && driverId === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude;
 
-            let driverCurrentLocation = null;
+              let driverCurrentLocation = null;
 
-            if (isCurrentUserOnMobile) {
-              // Use live GPS location from primary device
-              driverCurrentLocation = [currentDriverLocation.latitude, currentDriverLocation.longitude];
-            } else if (driverAppUser.current_latitude && driverAppUser.current_longitude) {
-              // Use shared location from AppUser
-              driverCurrentLocation = [driverAppUser.current_latitude, driverAppUser.current_longitude];
-            }
+              if (isCurrentUserOnMobile) {
+                // Use live GPS location from primary device
+                driverCurrentLocation = [currentDriverLocation.latitude, currentDriverLocation.longitude];
+              } else if (driverAppUser.current_latitude && driverAppUser.current_longitude) {
+                // Use shared location from AppUser
+                driverCurrentLocation = [driverAppUser.current_latitude, driverAppUser.current_longitude];
+              }
 
-            if (!driverCurrentLocation) return;
+              if (!driverCurrentLocation) return;
 
-            // Get driver's home location
-            const driverHomeMarker = driverHomeMarkers.find(h => h.driverId === driverId);
-            if (!driverHomeMarker || !driverHomeMarker.latitude || !driverHomeMarker.longitude) return;
+              // Get driver's home location
+              const driverHomeMarker = driverHomeMarkers.find(h => h.driverId === driverId);
+              if (!driverHomeMarker || !driverHomeMarker.latitude || !driverHomeMarker.longitude) return;
 
-            // Draw blue dotted line from current location to home
-            polylines.push(
-              <Polyline
-                key={`type1-home-${driverId}-${polylineRenderKey}`}
-                positions={[
-                  driverCurrentLocation,
-                  [driverHomeMarker.latitude, driverHomeMarker.longitude]
-                ]}
+              // CRITICAL: Include location coordinates in key to force re-render on location update
+              const locationKey = `${driverCurrentLocation[0].toFixed(6)}-${driverCurrentLocation[1].toFixed(6)}`;
+
+              // Draw blue dotted line from current location to home
+              polylines.push(
+                <Polyline
+                  key={`type1-home-${driverId}-${locationKey}-${polylineRenderKey}`}
+                  positions={[
+                    driverCurrentLocation,
+                    [driverHomeMarker.latitude, driverHomeMarker.longitude]
+                  ]}
                 pathOptions={{
                   color: '#3B82F6',
                   weight: 4,
@@ -3082,19 +3092,32 @@ export default function DeliveryMap({
 
             if (!nextStop) return;
             
-            // CRITICAL: TYPE 1 polyline ALWAYS uses driver's current location from AppUser entity
-            // This is the same point as the shared location marker or live location marker on primary device
-            if (!driverAppUser?.current_latitude || !driverAppUser?.current_longitude) {
-              console.log(`⚠️ [TYPE 1] No current location for driver ${driverId} in AppUser`);
+            // CRITICAL: Determine current location based on device type
+            // Primary device: use live GPS location
+            // Other devices: use shared AppUser location
+            const isCurrentUserOnMobile = currentUser && driverId === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude;
+            
+            let startPoint = null;
+            
+            if (isCurrentUserOnMobile) {
+              // Primary device - use live GPS location
+              startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
+            } else if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+              // Other devices - use shared AppUser location
+              startPoint = [driverAppUser.current_latitude, driverAppUser.current_longitude];
+            }
+            
+            if (!startPoint) {
+              console.log(`⚠️ [TYPE 1] No current location for driver ${driverId}`);
               return;
             }
             
-            const startPoint = [driverAppUser.current_latitude, driverAppUser.current_longitude];
-            console.log(`📍 [TYPE 1] Using AppUser location for ${driverId}: ${startPoint[0].toFixed(6)}, ${startPoint[1].toFixed(6)}`)
+            // CRITICAL: Include location coordinates in key to force re-render on location update
+            const locationKey = `${startPoint[0].toFixed(6)}-${startPoint[1].toFixed(6)}`;
             
             polylines.push(
               <Polyline
-                key={`type1-${driverId}-${nextStop.id}-${polylineRenderKey}`}
+                key={`type1-${driverId}-${nextStop.id}-${locationKey}-${polylineRenderKey}`}
                 positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
                 pathOptions={{
                   color: '#3B82F6',
