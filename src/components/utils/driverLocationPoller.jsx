@@ -261,8 +261,8 @@ class DriverLocationPoller {
            return false;
          }
 
-         // Dispatchers see assigned drivers if On Duty OR On Break (even with stale locations)
-         if (user.driver_status === 'on_duty' || user.driver_status === 'on_break') {
+         // Dispatchers see assigned drivers if On Duty OR On Break AND location_tracking_enabled
+         if ((user.driver_status === 'on_duty' || user.driver_status === 'on_break') && user.location_tracking_enabled) {
            console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - status: ${user.driver_status}, staleness: ${user._staleness}`);
            return true;
          }
