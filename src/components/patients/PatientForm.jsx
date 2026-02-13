@@ -881,8 +881,8 @@ export default function PatientForm({
                 </div>
               </div>
 
-              {/* Container 3: Patient Notes */}
-              <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)' }}>
+              {/* Container 4: Patient Notes */}
+              <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id ? '0.5' : '1', pointerEvents: !formData.store_id ? 'none' : 'auto' }}>
                 <div className="px-2 py-2 space-y-1">
                   <Label htmlFor="notes" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
                   <Textarea
