@@ -353,8 +353,13 @@ export default function PatientForm({
 
     let dataToSave = { ...formData };
 
+    console.log('📝 [PatientForm] handleSubmit - dataToSave.patient_id:', dataToSave.patient_id);
+    console.log('📝 [PatientForm] handleSubmit - patient:', patient);
+    console.log('📝 [PatientForm] handleSubmit - duplicateMode:', duplicateMode);
+
     // CRITICAL: For new patients, ensure unique PID by city
     if (!patient && !dataToSave.patient_id) {
+      console.log('🔄 [PatientForm] Generating new PID for new patient...');
       // Filter allPatients to only those in the user's current city
       const cityId = currentUser?.city_id;
       const patientsInCity = allPatients.filter(p => {
@@ -362,10 +367,14 @@ export default function PatientForm({
         const storeForPatient = stores?.find(s => s?.id === p?.store_id);
         return storeForPatient?.city_id === cityId;
       });
-      
+
       const existingPIDsInCity = patientsInCity.map((p) => p?.patient_id).filter(Boolean);
       dataToSave.patient_id = generatePatientId(existingPIDsInCity);
       console.log(`🆔 [PatientForm] Generated unique PID: ${dataToSave.patient_id} (city: ${cityId})`);
+    } else if (dataToSave.patient_id) {
+      console.log('🆔 [PatientForm] Using existing PID:', dataToSave.patient_id);
+    } else {
+      console.log('⚠️ [PatientForm] WARNING - No PID available!');
     }
 
     // Recalculate distance from store before saving (in case store changed)
