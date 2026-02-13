@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 export default function WebSocketDiagnosticsCard() {
   const [event, setEvent] = useState(null);
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
+  const [topOffset, setTopOffset] = useState(72);
 
   useEffect(() => {
     // Check if this is the primary device
@@ -20,6 +21,30 @@ export default function WebSocketDiagnosticsCard() {
     };
 
     checkPrimaryDevice();
+  }, []);
+
+  // Calculate top offset based on mobile header visibility
+  useEffect(() => {
+    const updateTopOffset = () => {
+      const mobileHeader = document.querySelector('[data-mobile-header]');
+      if (mobileHeader) {
+        const headerHeight = mobileHeader.getBoundingClientRect().height;
+        setTopOffset(headerHeight + 8); // Add 8px buffer
+      } else {
+        setTopOffset(72); // Default fallback
+      }
+    };
+
+    updateTopOffset();
+    
+    // Update on resize/orientation change
+    window.addEventListener('resize', updateTopOffset);
+    window.addEventListener('orientationchange', updateTopOffset);
+    
+    return () => {
+      window.removeEventListener('resize', updateTopOffset);
+      window.removeEventListener('orientationchange', updateTopOffset);
+    };
   }, []);
 
   useEffect(() => {
@@ -56,7 +81,10 @@ export default function WebSocketDiagnosticsCard() {
   if (!event || isPrimaryDevice) return null;
 
   return (
-    <Card className="fixed top-[72px] right-4 w-72 p-3 bg-blue-50 border-blue-200 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2">
+    <Card 
+      className="fixed right-4 w-72 p-3 bg-blue-50 border-blue-200 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2"
+      style={{ top: `${topOffset}px` }}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
           <div className="text-xs font-semibold text-blue-900">WebSocket Event</div>
