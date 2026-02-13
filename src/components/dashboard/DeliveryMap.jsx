@@ -379,10 +379,10 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
 const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false) => {
   // CRITICAL: Returns take precedence over other statuses for color
   const isFinished = FINISHED_STATUSES.includes(status);
-  const shouldShowNextBlue = isNextInLine && !isFinished && hasIncompleteStops;
+  const shouldShowNextYellow = isNextInLine && !isFinished && hasIncompleteStops;
   const isPending = status === 'pending';
   
-  const statusColor = isReturn ? '#F97316' : (shouldShowNextBlue ? '#3B82F6' : getInnerSymbolColor(status, false));
+  const statusColor = isReturn ? '#F97316' : (shouldShowNextYellow ? '#FFEA00' : getInnerSymbolColor(status, false));
   const hasYellowHalo = isFirstTime && zoomLevel >= ZOOM_LEVELS.SIMPLIFY_ROUTES;
   const hasDuplicates = duplicateCount > 1;
   const showNumber = zoomLevel >= ZOOM_LEVELS.HIDE_NUMBERS && number;
@@ -413,7 +413,7 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   // Keep size consistent - no enlargement on highlight
   const size = isActive ? baseSize * 1.15 : baseSize;
   
-  const numberColor = shouldShowNextBlue ? '#FFFFFF' : ((status === 'failed' || status === 'cancelled') ? 'white' : (FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(statusColor)));
+  const numberColor = shouldShowNextYellow ? '#000000' : ((status === 'failed' || status === 'cancelled') ? 'white' : (FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(statusColor)));
 
   return L.divIcon({
     html: `
