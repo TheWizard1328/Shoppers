@@ -604,7 +604,7 @@ function Dashboard() {
         // CRITICAL: Update offline DB and UI simultaneously
         if (event.data) {
           // Update offline DB
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
+          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
           
           // Update UI immediately
           if (updateDeliveriesLocally) {
