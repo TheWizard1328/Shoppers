@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
           distance
         };
       })
-    );
+    )).filter(p => p !== null);
 
     // Sort by distance (closest first)
     predictions.sort((a, b) => {
