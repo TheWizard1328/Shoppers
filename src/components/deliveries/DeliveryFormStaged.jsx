@@ -183,36 +183,36 @@ export default function DeliveryFormStaged({
                 </div>
 
                 <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded ml-1"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (staged.id) {
-                      setDeleteConfirmation({ show: true, staged });
-                    } else {
-                      setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
-                      
-                      const remainingStagedIds = new Set(
-                        stagedDeliveries
-                          .filter((item) => item._tempId !== staged._tempId)
-                          .map(d => d.patient_id)
-                          .filter(Boolean)
-                      );
-                      const filteredPredictions = fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id));
-                      setProjectedDeliveries(filteredPredictions);
-                      
-                      if (editingStagedId === staged._tempId) {
-                        setEditingStagedId(null);
-                        handleClearForm();
-                      }
-                      
-                      if (!isMobileDevice) {
-                        setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-                      }
-                    }
-                  }}>
+                   type="button"
+                   size="sm"
+                   variant="ghost"
+                   className="h-7 w-7 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded ml-1"
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     if (staged.id) {
+                       setDeleteConfirmation({ show: true, staged });
+                     } else {
+                       setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
+
+                       const remainingStagedIds = new Set(
+                         stagedDeliveries
+                           .filter((item) => item._tempId !== staged._tempId)
+                           .map(d => d.patient_id)
+                           .filter(Boolean)
+                       );
+                       const filteredPredictions = fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id));
+                       setProjectedDeliveries(filteredPredictions);
+
+                       if (editingStagedId === staged._tempId) {
+                         setEditingStagedId(null);
+                         handleClearForm();
+                       }
+
+                       if (!isMobileDevice) {
+                         setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+                       }
+                     }
+                   }}>
                   <Trash2 className="w-5 h-5" />
                 </Button>
               </div>
