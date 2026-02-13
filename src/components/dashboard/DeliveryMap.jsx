@@ -2728,6 +2728,12 @@ export default function DeliveryMap({
 
         {/* TYPE 2 & 3 POLYLINES: Colored lines connecting stops in stop_order sequence */}
          {showRoutes && (() => {
+           // CRITICAL: Return cached polylines if safeUsers is empty
+           if (!safeUsers || safeUsers.length === 0) {
+             console.warn(`⚠️ [DeliveryMap] safeUsers empty in Type 2/3 polylines - skipping render`);
+             return null;
+           }
+           
            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
            const polylines = [];
 
@@ -3081,6 +3087,15 @@ return polylines.length > 0 ? polylines : null;
         {/* TYPE 1 POLYLINE: Blue dotted line from driver location to next stop - RENDER WITH POLYLINES & SHARED MARKERS */}
         {isViewingCurrentDate && (() => {
           console.log('🔵 [Type1Poly] Starting Type 1 polyline render block');
+          
+          // CRITICAL: Skip rendering if safeUsers is empty to prevent flickering
+          if (!safeUsers || safeUsers.length === 0) {
+            console.warn(`⚠️ [Type1Poly] safeUsers is empty (${safeUsers?.length || 0}) - skipping Type 1 polylines`);
+            return null;
+          }
+          
+          console.log(`✅ [Type1Poly] safeUsers has ${safeUsers.length} users - proceeding with render`);
+          
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           const polylines = [];
 
