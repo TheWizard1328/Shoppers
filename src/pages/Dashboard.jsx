@@ -2933,8 +2933,31 @@ function Dashboard() {
         // CRITICAL: Also load from window.__mapDriverLocationMarkers (rendered on map)
         const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
 
-        if (isViewingToday && shouldIncludeSharedLocations && (allDriverLocations.length > 0 || mapDriverLocationMarkers.length > 0) && (Array.isArray(allDriverLocations) || Array.isArray(mapDriverLocationMarkers))) {
+        if (isViewingToday && shouldIncludeSharedLocations) {
           let addedCount = 0;
+          
+          // CRITICAL: For dispatchers viewing a single driver, prioritize AppUser data directly
+          if (isDispatcher && selectedDriverId && selectedDriverId !== 'all') {
+            const assignedDriverAppUser = appUsers?.find(au => au?.user_id === selectedDriverId);
+            if (assignedDriverAppUser?.current_latitude && assignedDriverAppUser?.current_longitude) {
+              console.log(`📍 [Phase 1 - Dispatcher] Including assigned driver's location from AppUser:`, {
+                driver: assignedDriverAppUser.user_name,
+                lat: assignedDriverAppUser.current_latitude.toFixed(6),
+                lng: assignedDriverAppUser.current_longitude.toFixed(6),
+                timestamp: assignedDriverAppUser.location_updated_at
+              });
+              allCoordinates.push([assignedDriverAppUser.current_latitude, assignedDriverAppUser.current_longitude]);
+              hasDriverMarkers = true;
+              addedCount++;
+            } else {
+              console.warn(`⚠️ [Phase 1 - Dispatcher] Assigned driver has no location data:`, {
+                selectedDriverId,
+                appUser: assignedDriverAppUser ? 'found' : 'not found',
+                has_lat: !!assignedDriverAppUser?.current_latitude,
+                has_lng: !!assignedDriverAppUser?.current_longitude
+              });
+            }
+          }
           
           // Combine both sources for shared locations
           const allLocationSources = [...(allDriverLocations || []), ...mapDriverLocationMarkers];
@@ -2962,6 +2985,12 @@ function Dashboard() {
             // CRITICAL: Skip current user on mobile (blue dot shows instead) - but NOT for dispatchers
             const isCurrentUserLocation = isMobile && !isDispatcher && location.driver_id === currentUser?.id;
             if (isCurrentUserLocation) {
+              return;
+            }
+            
+            // CRITICAL: Skip if this is the assigned driver (already added above for dispatchers)
+            if (isDispatcher && selectedDriverId && selectedDriverId !== 'all' && location.driver_id === selectedDriverId) {
+              console.log('⏭️ [Phase 1 - Dispatcher] Skipping duplicate - assigned driver already added from AppUser');
               return;
             }
 
