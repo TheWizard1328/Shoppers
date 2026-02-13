@@ -2935,18 +2935,8 @@ export default function DeliveryMap({
            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
            const polylines = [];
 
-           // CRITICAL: Get all unique driver IDs that have incomplete stops from MERGED markers
-           const driversWithIncompleteStops = new Set();
-           [...deliveryMarkers, ...pickupMarkers].forEach(m => {
-             if (!m || !m.driver_id) return;
-             if (finishedStatuses.includes(m.status) || m.status === 'pending') return;
-             driversWithIncompleteStops.add(m.driver_id);
-           });
-
-           // CRITICAL: Also check for drivers with COMPLETED routes who need home polyline
-           const driversWithCompleteRoute = new Set();
+           // CRITICAL: Build map of all driver stops to determine route completion
            const driverStopsMap = new Map();
-           
            [...deliveryMarkers, ...pickupMarkers].forEach(m => {
              if (!m || !m.driver_id) return;
              if (!driverStopsMap.has(m.driver_id)) {
@@ -2958,7 +2948,17 @@ export default function DeliveryMap({
                driverStopsMap.get(m.driver_id).incomplete.push(m);
              }
            });
-           
+
+           // CRITICAL: Get all unique driver IDs that have incomplete stops from MERGED markers
+           const driversWithIncompleteStops = new Set();
+           driverStopsMap.forEach((stops, driverId) => {
+             if (stops.incomplete.length > 0) {
+               driversWithIncompleteStops.add(driverId);
+             }
+           });
+
+           // CRITICAL: Get drivers with COMPLETED routes who need home polyline
+           const driversWithCompleteRoute = new Set();
            driverStopsMap.forEach((stops, driverId) => {
              if (stops.incomplete.length === 0 && stops.complete.length > 0) {
                driversWithCompleteRoute.add(driverId);
