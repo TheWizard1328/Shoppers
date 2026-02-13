@@ -3318,7 +3318,7 @@ function Dashboard() {
         }
         break;
 
-      case 3: // "Center on Incomplete Stops Only + Their Drivers"
+      case 3: // "Center on Incomplete Stops Only + Their Drivers + Pending"
         console.clear;
         const allCoordinatesPhase3 = [];
         
@@ -3333,7 +3333,7 @@ function Dashboard() {
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
         
         if (isShowAllOrAllDriversMode) {
-          // MODE 1: Show All / All Drivers - include ALL incomplete stops from ALL drivers
+          // MODE 1: Show All / All Drivers - include ALL incomplete + pending stops from ALL drivers
           let allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStrPhase3);
           
           // CRITICAL: Filter by dispatcher stores if applicable
@@ -3348,21 +3348,20 @@ function Dashboard() {
             allDateDeliveries = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
           }
           
-          // CRITICAL: Filter to ONLY incomplete stops (pickups + deliveries)
-          const incompleteAllDrivers = allDateDeliveries.filter((d) => {
+          // CRITICAL: Include BOTH incomplete AND pending stops
+          const incompleteAndPendingAllDrivers = allDateDeliveries.filter((d) => {
             if (!d) return false;
             if (finishedStatuses.includes(d.status)) return false;
-            if (d.status === 'pending') return false;
-            return true;
+            return true; // Include both in_transit/en_route AND pending
           });
           
-          // CRITICAL: Get unique driver IDs from incomplete deliveries ONLY
-          const driversWithIncompleteStops = new Set(incompleteAllDrivers.map(d => d.driver_id).filter(Boolean));
+          // CRITICAL: Get unique driver IDs from incomplete + pending deliveries
+          const driversWithIncompleteOrPendingStops = new Set(incompleteAndPendingAllDrivers.map(d => d.driver_id).filter(Boolean));
           
-          console.log(`📍 [Phase 3 - Show All] ${incompleteAllDrivers.length} incomplete stops + ${driversWithIncompleteStops.size} driver markers`);
+          console.log(`📍 [Phase 3 - Show All] ${incompleteAndPendingAllDrivers.length} incomplete+pending stops + ${driversWithIncompleteOrPendingStops.size} driver markers`);
           
-          // Add incomplete stop coordinates
-          incompleteAllDrivers.forEach((delivery) => {
+          // Add incomplete + pending stop coordinates
+          incompleteAndPendingAllDrivers.forEach((delivery) => {
             if (delivery.patient_id) {
               const patient = patients.find((p) => p?.id === delivery.patient_id);
               if (patient?.latitude && patient?.longitude) {
@@ -3376,9 +3375,9 @@ function Dashboard() {
             }
           });
           
-          // CRITICAL: Add driver markers ONLY for drivers with incomplete stops (only if viewing today)
+          // CRITICAL: Add driver markers ONLY for drivers with incomplete OR pending stops (only if viewing today)
           if (isViewingTodayPhase3) {
-            driversWithIncompleteStops.forEach((driverId) => {
+            driversWithIncompleteOrPendingStops.forEach((driverId) => {
               const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
               if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
                 allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
@@ -3387,13 +3386,13 @@ function Dashboard() {
           }
           
         } else {
-          // MODE 2: Single Driver - include only selected driver's incomplete stops
+          // MODE 2: Single Driver - include selected driver's incomplete + pending stops
           const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
           
-          const incompleteStopsActiveDriver = deliveriesWithStopOrder.filter((d) => {
+          const incompleteAndPendingActiveDriver = deliveriesWithStopOrder.filter((d) => {
             if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
             if (finishedStatuses.includes(d.status)) return false;
-            if (d.status === 'pending') return false;
+            // INCLUDE pending deliveries
             if (d.driver_id !== targetDriverId) return false;
             
             // CRITICAL: For dispatchers, only include stops from their stores
@@ -3405,10 +3404,10 @@ function Dashboard() {
             return true;
           });
           
-          console.log(`📍 [Phase 3 - Single Driver] ${incompleteStopsActiveDriver.length} incomplete stops + driver marker`);
+          console.log(`📍 [Phase 3 - Single Driver] ${incompleteAndPendingActiveDriver.length} incomplete+pending stops + driver marker`);
           
-          // Add incomplete stop coordinates
-          incompleteStopsActiveDriver.forEach((delivery) => {
+          // Add incomplete + pending stop coordinates
+          incompleteAndPendingActiveDriver.forEach((delivery) => {
             if (delivery.patient_id) {
               const patient = patients.find((p) => p?.id === delivery.patient_id);
               if (patient?.latitude && patient?.longitude) {
@@ -3422,8 +3421,8 @@ function Dashboard() {
             }
           });
           
-          // CRITICAL: Add driver marker ONLY if they have incomplete stops (only if viewing today)
-          if (isViewingTodayPhase3 && incompleteStopsActiveDriver.length > 0) {
+          // CRITICAL: Add driver marker ONLY if they have incomplete OR pending stops (only if viewing today)
+          if (isViewingTodayPhase3 && incompleteAndPendingActiveDriver.length > 0) {
             const driverAppUser = appUsers?.find(au => au?.user_id === targetDriverId);
             if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
               allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
