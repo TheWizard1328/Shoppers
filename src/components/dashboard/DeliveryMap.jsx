@@ -2798,52 +2798,8 @@ export default function DeliveryMap({
             }
           });
 
-          // CRITICAL: NEW - Type 1 polyline for drivers with complete routes (to home)
-          driversWithCompleteRoute.forEach(driverId => {
-            const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
-            if (!driverAppUser) return;
-
-            // Check if this is current user on mobile (use live location)
-            const isCurrentUserOnMobile = currentUser && driverId === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude;
-
-            let driverCurrentLocation = null;
-
-            if (isCurrentUserOnMobile) {
-              // Use live GPS location from primary device
-              driverCurrentLocation = [currentDriverLocation.latitude, currentDriverLocation.longitude];
-            } else if (driverAppUser.current_latitude && driverAppUser.current_longitude) {
-              // Use shared location from AppUser
-              driverCurrentLocation = [driverAppUser.current_latitude, driverAppUser.current_longitude];
-            }
-
-            if (!driverCurrentLocation) return;
-
-            // Get driver's home location
-            const driverHomeMarker = driverHomeMarkers.find(h => h.driverId === driverId);
-            if (!driverHomeMarker || !driverHomeMarker.latitude || !driverHomeMarker.longitude) return;
-
-            // Draw blue dotted line from current location to home
-            polylines.push(
-              <Polyline
-                key={`type1-home-${driverId}-${polylineRenderKey}`}
-                positions={[
-                  driverCurrentLocation,
-                  [driverHomeMarker.latitude, driverHomeMarker.longitude]
-                ]}
-                pathOptions={{
-                  color: '#3B82F6',
-                  weight: 4,
-                  opacity: 0.7,
-                  dashArray: '2, 8',
-                  lineJoin: 'round',
-                  lineCap: 'round'
-                }}
-                pane="overlayPane"
-              />
-            );
-            });
-
-            // SECTION 2: Type 1 polylines for drivers with COMPLETE routes (to home)
+          // CRITICAL: Type 1 polyline for drivers with complete routes (to home) - ONLY CURRENT DATE
+          if (isViewingCurrentDate) {
             driversWithCompleteRoute.forEach(driverId => {
               const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
               if (!driverAppUser) return;
@@ -2878,18 +2834,19 @@ export default function DeliveryMap({
                     driverCurrentLocation,
                     [driverHomeMarker.latitude, driverHomeMarker.longitude]
                   ]}
-                pathOptions={{
-                  color: '#3B82F6',
-                  weight: 4,
-                  opacity: 0.7,
-                  dashArray: '2, 8',
-                  lineJoin: 'round',
-                  lineCap: 'round'
-                }}
-                pane="overlayPane"
-              />
-            );
+                  pathOptions={{
+                    color: '#3B82F6',
+                    weight: 4,
+                    opacity: 0.7,
+                    dashArray: '2, 8',
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                  }}
+                  pane="overlayPane"
+                />
+              );
             });
+          }
 
             return polylines.length > 0 ? polylines : null;
             })()}
