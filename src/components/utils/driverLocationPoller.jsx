@@ -132,14 +132,14 @@ class DriverLocationPoller {
     console.log(`✅ [Poller] After coordinate filter: ${users.length} users with valid coordinates`);
     
     // CRITICAL: Calculate staleness for each user (for visual indicators later)
-    const now = Date.now();
+    const currentTime = Date.now();
     users = users.map(user => {
       if (!user.location_updated_at) {
         return { ...user, _locationStale: true, _staleness: 'unknown' };
       }
       
       const lastUpdate = new Date(user.location_updated_at).getTime();
-      const ageMs = now - lastUpdate;
+      const ageMs = currentTime - lastUpdate;
       const ageMinutes = Math.floor(ageMs / 60000);
       
       let staleness = 'fresh'; // 0-5 min
