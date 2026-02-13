@@ -445,7 +445,10 @@ export default function PatientForm({
       let savedPatientId;
       let backendPatient;
 
-      if (patient && !duplicateMode) {
+      // Determine if we're updating or creating
+      const isUpdating = patient && !duplicateMode;
+
+      if (isUpdating) {
         // STEP 1: Update existing patient via offline mutations
         await updatePatientLocal(patient.id, dataToSave);
         savedPatientId = patient.id;
