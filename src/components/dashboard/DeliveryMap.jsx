@@ -1756,6 +1756,38 @@ export default function DeliveryMap({
     };
   }, [currentDriverLocation, currentUser, isMobile, selectedDate]);
 
+  // CRITICAL: Calculate drivers with complete routes FIRST - used by both home markers AND polylines
+  const driversWithCompleteRoute = useMemo(() => {
+    const result = new Set();
+    
+    // Build map of all driver stops
+    const driverStopsMap = new Map();
+    [...deliveryMarkers, ...pickupMarkers].forEach(m => {
+      if (!m || !m.driver_id) return;
+      if (!driverStopsMap.has(m.driver_id)) {
+        driverStopsMap.set(m.driver_id, { incomplete: [], complete: [] });
+      }
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      if (finishedStatuses.includes(m.status)) {
+        driverStopsMap.get(m.driver_id).complete.push(m);
+      } else if (m.status !== 'pending') {
+        driverStopsMap.get(m.driver_id).incomplete.push(m);
+      }
+    });
+    
+    // Find drivers with complete routes
+    driverStopsMap.forEach((stops, driverId) => {
+      if (stops.incomplete.length === 0 && stops.complete.length > 0) {
+        result.add(driverId);
+      }
+    });
+    
+    return result;
+  }, [
+    deliveryMarkers.map(d => `${d?.id}:${d?.status}`).join(','),
+    pickupMarkers.map(p => `${p?.id}:${p?.status}`).join(',')
+  ]);
+
   // NEW: Calculate driver home locations for drivers with active stops - CURRENT DATE ONLY
   // Use ref to cache previous markers and only update when actual data changes
   const prevDriverHomeMarkersRef = useRef([]);
@@ -1782,7 +1814,6 @@ export default function DeliveryMap({
 
     const driversToShowHome = new Set();
     const driversToExcludeFromBounds = new Set(); // CRITICAL: Track home markers to exclude from centering
-    const driversWithCompleteRoute = new Set(); // NEW: Track drivers whose routes are complete
 
     // CRITICAL: Check all deliveries to determine which drivers have stops
     const deliveriesToCheck = (isCurrentUserAdmin && showOtherDriverDeliveries && otherDriverDeliveries.length > 0)
@@ -1821,15 +1852,6 @@ export default function DeliveryMap({
       // RULE 2: Show home marker if ALL stops are complete (heading home)
       if (incompleteStops.length === 0 && completedStops.length > 0) {
         driversToShowHome.add(driverId);
-        
-        // Check if ALL patient deliveries are complete for "Go Home" button
-        const patientDeliveriesForDriver = stops.deliveries.filter(d => d && d.patient_id);
-        const allPatientDeliveriesComplete = patientDeliveriesForDriver.length > 0 && 
-          patientDeliveriesForDriver.every(d => finishedStatuses.includes(d.status));
-        
-        if (allPatientDeliveriesComplete) {
-          driversWithCompleteRoute.add(driverId);
-        }
         return;
       }
       
@@ -1916,7 +1938,8 @@ export default function DeliveryMap({
     // Only track essential data with stable JSON stringify
     JSON.stringify(safeDeliveries.map(d => ({ id: d?.driver_id, status: d?.status }))),
     JSON.stringify(otherDriverDeliveries.map(d => ({ id: d?.driver_id, status: d?.status }))),
-    JSON.stringify(safeUsers.map(u => ({ id: u?.id, hLat: u?.home_latitude, hLon: u?.home_longitude })))
+    JSON.stringify(safeUsers.map(u => ({ id: u?.id, hLat: u?.home_latitude, hLon: u?.home_longitude }))),
+    driversWithCompleteRoute // CRITICAL: Include to update home markers when routes complete
   ]);
 
   // CRITICAL: Pass home markers, driver locations, AND delivery markers to Dashboard for FAB phase 1 bounds calculation
@@ -2999,14 +3022,6 @@ export default function DeliveryMap({
            driverStopsMap.forEach((stops, driverId) => {
              if (stops.incomplete.length > 0) {
                driversWithIncompleteStops.add(driverId);
-             }
-           });
-
-           // CRITICAL: Get drivers with COMPLETED routes who need home polyline
-           const driversWithCompleteRoute = new Set();
-           driverStopsMap.forEach((stops, driverId) => {
-             if (stops.incomplete.length === 0 && stops.complete.length > 0) {
-               driversWithCompleteRoute.add(driverId);
              }
            });
 
