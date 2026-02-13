@@ -8,17 +8,21 @@ import { getCurrentDevice } from '../utils/deviceManager';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 
 // Create driver icon with thin white border ring
-const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocation = false) => {
+const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'fresh') => {
   const size = 15;
   
   // Determine fill color based on status and staleness
   let fillColor;
-  if (isStaleLocation) {
-    fillColor = '#EA580C'; // Orange for stale location
+  if (staleness === 'very_stale') {
+    fillColor = '#DC2626'; // Red for very stale (30+ min)
+  } else if (staleness === 'stale') {
+    fillColor = '#F59E0B'; // Amber for stale (15-30 min)
+  } else if (staleness === 'aging') {
+    fillColor = '#FB923C'; // Orange for aging (5-15 min)
   } else if (driverStatus === 'on_break') {
     fillColor = '#3b82f6'; // Blue for on break
   } else {
-    fillColor = '#10B981'; // Green for on duty
+    fillColor = '#10B981'; // Green for fresh on duty
   }
   
   // Thin white border ring
@@ -445,16 +449,15 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
         markersRef.current[user.id] = true;
         
-        // Calculate staleness for icon
-        const locationAge = user.location_updated_at ? 
-          Date.now() - new Date(user.location_updated_at).getTime() : Infinity;
-        const isStaleLocation = locationAge > 5 * 60 * 1000;
+        // Get staleness info from poller
+        const staleness = user._staleness || 'fresh';
+        const ageMinutes = user._ageMinutes || 0;
 
         return (
           <Marker
             key={stableKey}
             position={position}
-            icon={createDriverIcon(user.driver_status, displayName.charAt(0).toUpperCase(), isStaleLocation)}
+            icon={createDriverIcon(user.driver_status, displayName.charAt(0).toUpperCase(), staleness)}
             zIndexOffset={isActive ? 2000 : 1000}
           >
             <Popup>
@@ -463,6 +466,16 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                 {isSharedLocation && (
                   <p className="text-xs text-slate-500 mt-1 italic">
                     📍 Shared location from primary device
+                  </p>
+                )}
+                {staleness !== 'fresh' && staleness !== 'unknown' && (
+                  <p className="text-xs text-orange-600 mt-1 font-medium">
+                    ⚠️ Location {ageMinutes}min old {!user.location_tracking_enabled && '(tracking stopped)'}
+                  </p>
+                )}
+                {staleness === 'unknown' && !user.location_updated_at && (
+                  <p className="text-xs text-slate-500 mt-1 italic">
+                    📍 Last known location (no timestamp)
                   </p>
                 )}
                 {!isActive && !isSharedLocation && (
