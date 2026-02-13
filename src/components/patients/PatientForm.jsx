@@ -815,8 +815,8 @@ export default function PatientForm({
                 }
                 </div>
 
-              {/* Container 2: Name/Phone and Address/Unit */}
-              <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)' }}>
+              {/* Container 3: Name/Phone and Address/Unit */}
+              <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id ? '0.5' : '1', pointerEvents: !formData.store_id ? 'none' : 'auto' }}>
                 <div className="grid grid-cols-10 gap-2">
                   <div className="px-1 col-span-4 space-y-1">
                     <Label htmlFor="full_name" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Full Name *</Label>
