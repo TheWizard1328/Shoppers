@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
           radiusMeters: 75000 // 75km radius for service area
         }
       };
-      console.log('[googlePlacesAutocomplete] ✅ Added location restriction (15km radius):');
+      console.log('[googlePlacesAutocomplete] ✅ Added location restriction (75km radius):');
       console.log('[googlePlacesAutocomplete]    Center:', latitude, longitude);
       console.log('[googlePlacesAutocomplete]    Full requestBody:', JSON.stringify(requestBody, null, 2));
     } else {
