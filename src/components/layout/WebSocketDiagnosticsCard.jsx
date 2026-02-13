@@ -51,20 +51,46 @@ export default function WebSocketDiagnosticsCard() {
     if (isPrimaryDevice) return; // Only show on non-primary devices
 
     const handleWebSocketEvent = (e) => {
-      const { data } = e.detail || {};
+      const { data, entityName, updatedBy, changedFields } = e.detail || {};
       if (!data) return;
       
-      setEvent({
+      // Determine what to display based on entity type
+      let displayInfo = {
         source: 'WebSocket',
-        patientName: data.patient_name || data.name || 'Update',
-        status: data.status,
+        entityType: entityName || 'Unknown',
+        updatedBy: updatedBy || 'System',
         timestamp: Date.now()
-      });
+      };
 
-      // Auto-dismiss after 3 seconds
+      // Handle AppUser updates
+      if (entityName === 'AppUser') {
+        displayInfo.title = data.user_name || data.full_name || 'User Update';
+        displayInfo.details = changedFields?.length > 0 
+          ? changedFields.join(', ') 
+          : 'Status updated';
+      } 
+      // Handle Delivery updates
+      else if (entityName === 'Delivery') {
+        displayInfo.title = data.patient_name || data.patient?.full_name || 'Delivery Update';
+        displayInfo.details = data.status ? `→ ${data.status}` : 'Updated';
+      }
+      // Handle Patient updates
+      else if (entityName === 'Patient') {
+        displayInfo.title = data.full_name || 'Patient Update';
+        displayInfo.details = 'Patient information updated';
+      }
+      // Generic fallback
+      else {
+        displayInfo.title = data.name || data.patient_name || 'Update';
+        displayInfo.details = data.status || 'Updated';
+      }
+      
+      setEvent(displayInfo);
+
+      // Auto-dismiss after 5 seconds
       const timeout = setTimeout(() => {
         setEvent(null);
-      }, 3000);
+      }, 5000);
 
       return () => clearTimeout(timeout);
     };
@@ -82,16 +108,22 @@ export default function WebSocketDiagnosticsCard() {
 
   return (
     <Card 
-      className="fixed right-4 w-72 p-3 bg-blue-50 border-blue-200 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2"
+      className="fixed right-4 w-80 p-3 bg-blue-50 border-blue-200 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2"
       style={{ top: `${topOffset}px` }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
-          <div className="text-xs font-semibold text-blue-900">WebSocket Event</div>
-          <div className="text-xs text-blue-700 mt-1">
-            <div><span className="font-mono">{event.type}</span></div>
-            <div className="text-xs text-blue-600 mt-1">{event.patientName}</div>
-            <div className="text-xs text-blue-600">→ {event.status}</div>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="text-xs font-semibold text-blue-900">
+              {event.entityType}
+            </div>
+            <div className="text-[10px] text-blue-500 bg-blue-100 px-1.5 py-0.5 rounded">
+              {event.updatedBy}
+            </div>
+          </div>
+          <div className="text-xs text-blue-700">
+            <div className="font-medium">{event.title}</div>
+            <div className="text-xs text-blue-600 mt-1">{event.details}</div>
           </div>
         </div>
         <button
