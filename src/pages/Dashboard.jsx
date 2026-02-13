@@ -392,13 +392,13 @@ function Dashboard() {
       if (immediate && freshDeliveries && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
         console.log(`⚡ [Dashboard] IMMEDIATE update - ${freshDeliveries.length} deliveries from Done button`);
         
-        // Update offline DB
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-        
-        // Update UI immediately
+        // Update UI immediately using flushSync for synchronous render
         if (updateDeliveriesLocally) {
-          const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== deliveryDate);
-          updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+          flushSync(() => {
+            const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== deliveryDate);
+            updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+          });
+          console.log('✅ [Dashboard] UI updated synchronously');
         }
         
         // Force refresh driver locations and markers
@@ -409,7 +409,34 @@ function Dashboard() {
           detail: { appUsers: latestAppUsers, forceAll: true }
         }));
         
-        console.log('✅ [Dashboard] Immediate update complete');
+        // CRITICAL: Trigger map re-render with Phase 1 for 500ms
+        console.log('🗺️ [Done Button] Activating Phase 1 for 500ms to show new markers');
+        
+        setMapViewPhase(1);
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+        
+        // Auto-unlock after 500ms
+        const lockDuration = 500;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+        
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+        }
+        
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+            console.log('⏰ [Done Button] Phase 1 auto-unlocked after 500ms');
+          }
+        }, lockDuration);
+        
+        console.log('✅ [Dashboard] Immediate update complete - map will refresh');
       }
     };
     
