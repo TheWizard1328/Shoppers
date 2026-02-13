@@ -638,6 +638,40 @@ class LightweightRefreshManager {
   }
 
   /**
+   * Check if user's heartbeat is older than 1 minute and trigger pull-to-sync if needed
+   */
+  async checkHeartbeatAndSync() {
+    try {
+      // CRITICAL: Check if user activity monitor shows staleness
+      const { userActivityMonitor } = await import('./userActivityMonitor');
+      const idleDuration = userActivityMonitor.getIdleDuration();
+      const oneMinute = 60 * 1000;
+      
+      if (idleDuration > oneMinute) {
+        console.log(`⏱️ [HeartbeatCheck] User idle for ${Math.floor(idleDuration / 1000)}s - triggering pull-to-sync`);
+        
+        // Dispatch event to trigger pull-to-sync
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('triggerPullToSync', {
+            detail: { 
+              reason: 'heartbeat_stale',
+              idleDuration: Math.floor(idleDuration / 1000)
+            }
+          }));
+        }
+        
+        return true;
+      } else {
+        console.log(`✅ [HeartbeatCheck] User active within last ${Math.floor(idleDuration / 1000)}s - no sync needed`);
+        return false;
+      }
+    } catch (error) {
+      console.warn('⚠️ [HeartbeatCheck] Failed:', error.message);
+      return false;
+    }
+  }
+
+  /**
    * Get manager status
    */
   getStatus() {
