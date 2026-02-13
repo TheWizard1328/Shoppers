@@ -131,6 +131,25 @@ class DriverLocationPoller {
     
     console.log(`✅ [Poller] After coordinate filter: ${users.length} users with valid coordinates`);
     
+    // CRITICAL: Calculate staleness for each user (for visual indicators later)
+    const now = Date.now();
+    users = users.map(user => {
+      if (!user.location_updated_at) {
+        return { ...user, _locationStale: true, _staleness: 'unknown' };
+      }
+      
+      const lastUpdate = new Date(user.location_updated_at).getTime();
+      const ageMs = now - lastUpdate;
+      const ageMinutes = Math.floor(ageMs / 60000);
+      
+      let staleness = 'fresh'; // 0-5 min
+      if (ageMinutes > 30) staleness = 'very_stale'; // 30+ min
+      else if (ageMinutes > 15) staleness = 'stale'; // 15-30 min
+      else if (ageMinutes > 5) staleness = 'aging'; // 5-15 min
+      
+      return { ...user, _locationStale: ageMinutes > 5, _staleness: staleness, _ageMinutes: ageMinutes };
+    });
+    
     if (users.length === 0) {
       // CRITICAL: Still notify subscribers with empty array to clear markers
       this.notifySubscribers([]);
@@ -214,9 +233,9 @@ class DriverLocationPoller {
        // RULE 2: Admins (AppOwners) - can see all drivers in city if On Duty OR On Break
        // ========================================
        if (isAdmin) {
-         // Admin sees drivers if they are On Duty OR On Break (regardless of location_tracking_enabled)
+         // Admin sees drivers if they are On Duty OR On Break (even with stale locations)
          if (user.driver_status === 'on_duty' || user.driver_status === 'on_break') {
-           console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - status: ${user.driver_status}`);
+           console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - status: ${user.driver_status}, staleness: ${user._staleness}`);
            return true;
          }
 
@@ -242,9 +261,9 @@ class DriverLocationPoller {
            return false;
          }
 
-         // Dispatchers see assigned drivers if On Duty OR On Break (even after completing route)
+         // Dispatchers see assigned drivers if On Duty OR On Break (even with stale locations)
          if (user.driver_status === 'on_duty' || user.driver_status === 'on_break') {
-           console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - status: ${user.driver_status}`);
+           console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - status: ${user.driver_status}, staleness: ${user._staleness}`);
            return true;
          }
 
@@ -265,12 +284,10 @@ class DriverLocationPoller {
            return false;
          }
 
-         // Other driver must have location sharing enabled
-         if (user.location_tracking_enabled !== true) {
-           return false;
-         }
+         // CRITICAL: Show drivers even with stale locations as long as they have coordinates and are on_duty/on_break
+         // location_tracking_enabled check removed - we show last known location even if tracking stopped
 
-         console.log(`✅ [Poller] Driver seeing other driver ${user.user_name}`);
+         console.log(`✅ [Poller] Driver seeing other driver ${user.user_name}, staleness: ${user._staleness}`);
          return true;
        }
 
@@ -318,7 +335,9 @@ class DriverLocationPoller {
         driver_status: user.driver_status,
         location_tracking_enabled: user.location_tracking_enabled,
         _isSelf: isSelf,
-        _isOnBreak: isOnBreak && isSelf
+        _isOnBreak: isOnBreak && isSelf,
+        _staleness: user._staleness || 'fresh',
+        _ageMinutes: user._ageMinutes || 0
       };
     });
 

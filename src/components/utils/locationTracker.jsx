@@ -409,11 +409,10 @@ class LocationTracker {
 
         try {
           if (this.appUserId) {
+            // CRITICAL: PRESERVE last known coordinates - only disable tracking flag
             const updateData = {
-              location_tracking_enabled: false,
-              current_latitude: null,
-              current_longitude: null,
-              location_updated_at: null
+              location_tracking_enabled: false
+              // Keep current_latitude, current_longitude, and location_updated_at intact
             };
             await base44.entities.AppUser.update(this.appUserId, updateData);
 
@@ -434,7 +433,7 @@ class LocationTracker {
 
         window.dispatchEvent(new CustomEvent('locationTrackingError', {
           detail: {
-            message: 'Location updates failed multiple times. Tracking has been stopped.',
+            message: 'Location updates failed multiple times. Tracking has been stopped but last location preserved.',
             error: error.message
           }
         }));
@@ -716,15 +715,15 @@ class LocationTracker {
         }
         
         if (navigator.onLine && appUserId) {
-          console.log('🔴 [LocationTracker] Turning OFF location sharing');
+          console.log('🔴 [LocationTracker] Turning OFF location sharing - preserving last known coordinates');
           await base44.entities.AppUser.update(appUserId, {
-            location_tracking_enabled: false,
-            location_updated_at: null
+            location_tracking_enabled: false
+            // Keep coordinates and location_updated_at intact for stale marker display
           });
           
           if (this.currentUser) {
             this.currentUser.location_tracking_enabled = false;
-            this.currentUser.location_updated_at = null;
+            // Keep coordinates and timestamp for stale marker
           }
         } else {
           console.warn('⚠️ Device offline or no AppUser ID, tracking stopped locally only');
