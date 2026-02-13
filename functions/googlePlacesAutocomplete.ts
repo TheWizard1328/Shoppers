@@ -171,18 +171,8 @@ Deno.serve(async (req) => {
       return a.distance - b.distance;
     });
 
-    // CRITICAL: Filter to only 75km range from assigned store
-    const MAX_DISTANCE_KM = 150;
-    const filteredPredictions = predictions.filter(p => {
-      // Include predictions with no distance (couldn't calculate - show them)
-      if (p.distance === null) return true;
-      // Filter out those CONFIRMED to be beyond 75km
-      const withinRange = p.distance <= MAX_DISTANCE_KM;
-      if (!withinRange) {
-        console.log(`[googlePlacesAutocomplete] Filtering out "${p.description}" - ${p.distance.toFixed(1)}km (exceeds ${MAX_DISTANCE_KM}km limit)`);
-      }
-      return withinRange;
-    });
+    // Results should already be within 15km radius due to locationRestriction
+    const filteredPredictions = predictions;
 
     console.log(`[googlePlacesAutocomplete] Returning ${filteredPredictions.length}/${predictions.length} predictions (within ${MAX_DISTANCE_KM}km)`);
     return Response.json({ predictions: filteredPredictions });
