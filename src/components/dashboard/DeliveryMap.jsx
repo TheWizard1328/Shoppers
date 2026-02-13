@@ -2901,8 +2901,14 @@ export default function DeliveryMap({
               const driverName = getDriverNameComplete(driverId);
               console.log(`🔵 [Type1Poly-Complete] Processing driver: ${driverName}`);
 
-              // CRITICAL: Use driverLookupMap first, then fallback to denormalized driver_name from deliveries
-              let driverAppUser = driverLookupMap.get(driverId) || safeUsers.find(u => u && u.id === driverId);
+              // CRITICAL: Priority order for driver location lookup:
+              // 1. realtimeAppUsers (freshest from WebSocket updates)
+              // 2. driverLookupMap (stable sorted drivers)
+              // 3. safeUsers (cached fallback)
+              // 4. Synthetic from delivery data (last resort)
+              let driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId) || 
+                                  driverLookupMap.get(driverId) || 
+                                  safeUsers.find(u => u && u.id === driverId);
 
               if (!driverAppUser) {
                 // Fallback: Create synthetic driver from any delivery with this driver_id
@@ -2924,6 +2930,12 @@ export default function DeliveryMap({
                   return;
                 }
               }
+
+              console.log(`🔵 [Type1Poly-Complete] ✅ Driver location:`, {
+                lat: driverAppUser.current_latitude?.toFixed(6),
+                lng: driverAppUser.current_longitude?.toFixed(6),
+                timestamp: driverAppUser.location_updated_at
+              });
 
               console.log(`🔵 [Type1Poly-Complete] driverAppUser found for ${driverName}:`, {
                 driver_status: driverAppUser.driver_status,
@@ -3191,8 +3203,14 @@ return polylines.length > 0 ? polylines : null;
             const driverName = getDriverName(driverId);
             console.log(`🔵 [Type1Poly-Incomplete] Processing driver: ${driverName}`);
 
-            // CRITICAL: Use driverLookupMap first, then fallback to denormalized driver_name from deliveries
-            let driverAppUser = driverLookupMap.get(driverId) || safeUsers.find(u => u && u.id === driverId);
+            // CRITICAL: Priority order for driver location lookup:
+            // 1. realtimeAppUsers (freshest from WebSocket updates)
+            // 2. driverLookupMap (stable sorted drivers)
+            // 3. safeUsers (cached fallback)
+            // 4. Synthetic from delivery data (last resort)
+            let driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId) || 
+                                driverLookupMap.get(driverId) || 
+                                safeUsers.find(u => u && u.id === driverId);
             
             if (!driverAppUser) {
               // Fallback: Create synthetic driver from any delivery with this driver_id
@@ -3214,6 +3232,12 @@ return polylines.length > 0 ? polylines : null;
                 return;
               }
             }
+            
+            console.log(`🔵 [Type1Poly-Incomplete] ✅ Driver location:`, {
+              lat: driverAppUser.current_latitude?.toFixed(6),
+              lng: driverAppUser.current_longitude?.toFixed(6),
+              timestamp: driverAppUser.location_updated_at
+            });
 
             console.log(`🔵 [Type1Poly-Incomplete] driverAppUser found for ${driverName}:`, {
               driver_status: driverAppUser.driver_status,
