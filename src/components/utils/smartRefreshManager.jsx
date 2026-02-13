@@ -685,3 +685,8 @@ class LightweightRefreshManager {
 }
 
 export const smartRefreshManager = new LightweightRefreshManager();
+
+// Export helper to make global instance accessible
+if (typeof window !== 'undefined') {
+  window.smartRefreshManager = smartRefreshManager;
+}
