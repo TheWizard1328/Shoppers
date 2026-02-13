@@ -86,10 +86,12 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
   const statusColor = statusColors[status] || '#94A3B8';
   const driverColor = isNextDelivery ? '#FDE047' : borderColor; // Bright yellow ring for next delivery
   
-  // CRITICAL: For other drivers - store color fill with status-based perimeter
-  // For current driver - driver color fill with status-based perimeter
+  // CRITICAL: For other drivers - yellow fill if isNextDelivery, otherwise store color fill
+  // Perimeter: white for in_transit, status color for completed/failed/returned
   const outerRingColor = isOtherDriver ? '#FFFFFF' : statusColor;
-  const innerCircleColor = isOtherDriver ? borderColor : driverColor; // borderColor contains store color for other drivers
+  const innerCircleColor = isOtherDriver 
+    ? (isNextDelivery && !FINISHED_STATUSES.includes(status) ? '#FDE047' : borderColor) // Yellow fill for next delivery, store color otherwise
+    : driverColor; // Current driver uses driver color
 
   // CRITICAL: Match exact sizing from regular markers
   let baseSize = 24 * 0.75;
@@ -120,9 +122,9 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
   // driverColor is the background color of the circle
   const textColor = isNextDelivery ? 'black' : getDriverTextColor(driverColor);
 
-  // CRITICAL: For other drivers with finished status - use status color for border
-  const finalBorderColor = isOtherDriver && (status === 'completed' || status === 'delivered' || status === 'failed' || status === 'cancelled' || status === 'returned')
-    ? statusColor // Green for completed, red for failed, orange for returned
+  // CRITICAL: For other drivers - use status color border for finished deliveries, white for in_transit
+  const finalBorderColor = isOtherDriver && FINISHED_STATUSES.includes(status)
+    ? statusColor // Green for completed, red for failed/cancelled, orange for returned
     : outerRingColor; // White ring for in_transit, or normal status color for current driver
 
   const icon = L.divIcon({
