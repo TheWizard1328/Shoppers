@@ -14,8 +14,16 @@ const DriverLocationBadge = ({ users = [] }) => {
       const newStatus = {};
       
       appUsers.forEach(user => {
-        // CRITICAL: Show all drivers with location timestamps for App Owners (regardless of duty status)
+        // Only show drivers who are online OR have updated location within last 30 minutes
         if (!user || !user.location_updated_at) {
+          return;
+        }
+        
+        const isOnline = ['on_duty', 'on_break'].includes(user.driver_status);
+        const locationAgeMinutes = (Date.now() - new Date(user.location_updated_at).getTime()) / (1000 * 60);
+        
+        // Filter out offline drivers with stale locations (older than 30 minutes)
+        if (!isOnline && locationAgeMinutes > 30) {
           return;
         }
 
