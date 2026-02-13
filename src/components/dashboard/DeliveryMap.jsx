@@ -1673,6 +1673,7 @@ export default function DeliveryMap({
       
       // CRITICAL: Must have valid coordinates
       if (!user.current_latitude || !user.current_longitude) {
+        console.warn(`⚠️ [DeliveryMap] ${user.user_name || driverId} missing coordinates - lat: ${user.current_latitude}, lng: ${user.current_longitude}`);
         return null;
       }
       
