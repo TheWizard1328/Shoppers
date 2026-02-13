@@ -2029,20 +2029,49 @@ export default function Layout({ children, currentPageName }) {
     };
   }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen, stores]);
 
-  // Trigger smart refresh when navigating to Dashboard
+  // CRITICAL: Rapid reload from offline DB when page changes
   useEffect(() => {
     if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
-    if (currentPageName !== 'Dashboard') return;
+
+    const reloadPageData = async () => {
+      console.log(`🔄 [Layout] Page changed to ${currentPageName} - reloading data from offline DB...`);
+      
+      const { pageDataReloader } = await import('./components/utils/pageDataReloader');
+      
+      const filters = {
+        selectedDate: globalFilters.getSelectedDate(),
+        selectedCityId: globalFilters.getSelectedCityId(),
+        selectedDriverId: globalFilters.getSelectedDriverId(),
+        currentUser: currentUser
+      };
+      
+      const reloadedData = await pageDataReloader.reloadPageData(currentPageName, filters);
+      
+      if (reloadedData) {
+        // Update state with reloaded data
+        if (reloadedData.deliveries) setDeliveries(reloadedData.deliveries);
+        if (reloadedData.patients) setPatients(reloadedData.patients);
+        if (reloadedData.appUsers) setAppUsers(reloadedData.appUsers);
+        if (reloadedData.stores) setStores(reloadedData.stores);
+        if (reloadedData.cities) setCities(reloadedData.cities);
+        
+        console.log(`✅ [Layout] Page data reloaded for ${currentPageName}`);
+      }
+    };
+
+    reloadPageData();
 
     // Force immediate refresh when navigating to Dashboard
-    smartRefreshManager.lastRefreshTimes = {
-      driverLocation: 0,
-      activeDeliveries: 0,
-      todayDeliveries: 0,
-      appUsers: 0,
-      patients: 0,
-      stores: 0
-    };
+    if (currentPageName === 'Dashboard') {
+      smartRefreshManager.lastRefreshTimes = {
+        driverLocation: 0,
+        activeDeliveries: 0,
+        todayDeliveries: 0,
+        appUsers: 0,
+        patients: 0,
+        stores: 0
+      };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPageName]);
 
