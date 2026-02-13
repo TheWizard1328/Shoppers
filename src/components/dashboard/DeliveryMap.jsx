@@ -721,9 +721,14 @@ export default function DeliveryMap({
 
   // CRITICAL: ALWAYS use users prop directly (contains fresh AppUser data from context)
   // Update immediately when users change - no complex comparison needed
+  // CRITICAL FIX: Don't clear realtimeAppUsers when users becomes temporarily empty during refresh
   useEffect(() => {
     if (users && users.length > 0) {
+      console.log(`✅ [DeliveryMap] Updating realtimeAppUsers with ${users.length} users`);
       setRealtimeAppUsers(users);
+    } else if (users && users.length === 0 && realtimeAppUsers.length > 0) {
+      // Don't clear - preserve existing data during temporary empty state
+      console.warn(`⚠️ [DeliveryMap] users array is empty but realtimeAppUsers has ${realtimeAppUsers.length} - preserving existing data`);
     }
   }, [users]);
 
