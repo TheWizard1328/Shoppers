@@ -90,7 +90,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
   // Perimeter: white for in_transit, status color for completed/failed/returned
   const outerRingColor = isOtherDriver ? '#FFFFFF' : statusColor;
   const innerCircleColor = isOtherDriver 
-    ? (isNextDelivery && !FINISHED_STATUSES.includes(status) ? '#FDE047' : borderColor) // Yellow fill for next delivery, store color otherwise
+    ? (isNextDelivery && !FINISHED_STATUSES.includes(status) ? '#FFEA00' : borderColor) // Bright yellow fill for next delivery, store color otherwise
     : driverColor; // Current driver uses driver color
 
   // CRITICAL: Match exact sizing from regular markers
@@ -268,7 +268,7 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextYellow = isNextDelivery && !isFinished && hasIncompleteStops;
   
-  const innerColor = shouldShowNextYellow ? '#EAB308' : getInnerSymbolColor(status, true); // Yellow-600 for better visibility
+  const innerColor = shouldShowNextYellow ? '#FFEA00' : getInnerSymbolColor(status, true); // Bright yellow for better visibility
   const showNumber = zoomLevel >= ZOOM_LEVELS.HIDE_NUMBERS && number;
   const hasDuplicates = duplicateCount > 1;
 
