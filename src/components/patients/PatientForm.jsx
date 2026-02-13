@@ -788,8 +788,34 @@ export default function PatientForm({
                 }
                 </div>
 
-              {/* Container 3: Name/Phone and Address/Unit */}
+              {/* Container 3: Address/Unit, Name/Phone, and Time Windows */}
               <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)', opacity: !formData.store_id ? '0.5' : '1', pointerEvents: !formData.store_id ? 'none' : 'auto' }}>
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-8 space-y-1">
+                    <Label htmlFor="address" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Address *</Label>
+                    <GoogleAddressAutocomplete
+                      ref={addressInputRef}
+                      value={formData.address}
+                      onChange={(value) => setFormData((prev) => ({ ...prev, address: value }))}
+                      onAddressSelect={handleAddressSelect}
+                      cityCenter={cityCenter}
+                      placeholder="Start typing address..."
+                      className="h-10 md:h-9 text-sm" />
+
+                  </div>
+
+                  <div className="col-span-4 space-y-1">
+                    <Label htmlFor="unit_number" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Unit/Apt #</Label>
+                    <Input
+                      ref={unitNumberRef}
+                      id="unit_number"
+                      value={formData.unit_number}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
+                      className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''}`}
+                      style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-10 gap-2">
                   <div className="px-1 col-span-4 space-y-1">
                     <Label htmlFor="full_name" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Full Name *</Label>
@@ -828,28 +854,28 @@ export default function PatientForm({
                 </div>
 
                 <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-8 space-y-1">
-                    <Label htmlFor="address" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Address *</Label>
-                    <GoogleAddressAutocomplete
-                      ref={addressInputRef}
-                      value={formData.address}
-                      onChange={(value) => setFormData((prev) => ({ ...prev, address: value }))}
-                      onAddressSelect={handleAddressSelect}
-                      cityCenter={cityCenter}
-                      placeholder="Start typing address..."
-                      className="h-10 md:h-9 text-sm" />
-
+                  <div className="col-span-6 space-y-1">
+                    <Label htmlFor="time_window_start" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Deliver After</Label>
+                    <Input
+                      id="time_window_start"
+                      type="time"
+                      value={formData.time_window_start}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
+                      disabled={!formData.store_id}
+                      className="h-10 md:h-9 text-sm"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
 
-                  <div className="col-span-4 space-y-1">
-                    <Label htmlFor="unit_number" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Unit/Apt #</Label>
+                  <div className="col-span-6 space-y-1">
+                    <Label htmlFor="time_window_end" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Deliver Before</Label>
                     <Input
-                      ref={unitNumberRef}
-                      id="unit_number"
-                      value={formData.unit_number}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
-                      className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''}`}
-                      style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      id="time_window_end"
+                      type="time"
+                      value={formData.time_window_end}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
+                      disabled={!formData.store_id}
+                      className="h-10 md:h-9 text-sm"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
                 </div>
               </div>
