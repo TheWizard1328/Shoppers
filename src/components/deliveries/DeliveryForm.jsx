@@ -3000,21 +3000,33 @@ export default function DeliveryForm({
         }
       })();
 
-      // Close form IMMEDIATELY to unblock UI
+      // Close form FIRST
+      console.log('[AddToRoute] 🚪 Closing form...');
       onCancel();
 
-      // CRITICAL: Force backend refresh and activate FAB AFTER form closes (non-blocking)
+      // CRITICAL: Wait for form to close, reload from offline DB, then update UI
       setTimeout(async () => {
         try {
-          if (formData.driver_id && formData.delivery_date) {
-            console.log('[AddToRoute] 🔄 Background: Forcing backend refresh...');
-            const { base44 } = await import('@/api/base44Client');
-            const freshDeliveries = await base44.entities.Delivery.filter({
-              driver_id: formData.driver_id,
-              delivery_date: formData.delivery_date
-            });
-            console.log(`✅ [AddToRoute] Background: ${freshDeliveries.length} deliveries refreshed`);
-          }
+          console.log('[AddToRoute] ⏳ Form closed - starting data reload...');
+          
+          // Load complete deliveries from offline DB
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const allDeliveriesOffline = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+          const completeDeliveries = allDeliveriesOffline.filter(d => d && d.delivery_date === formData.delivery_date);
+          console.log(`✅ [AddToRoute] Loaded ${completeDeliveries.length} deliveries from offline DB`);
+          
+          // Dispatch UI update with complete data
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { 
+              deliveryDate: formData.delivery_date, 
+              driverId: formData.driver_id,
+              triggeredBy: 'doneButtonCompleteLoad',
+              immediate: true,
+              freshDeliveries: completeDeliveries
+            }
+          }));
+          
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
           const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
           invalidate('Delivery');
@@ -3023,14 +3035,13 @@ export default function DeliveryForm({
           // Activate FAB
           const { fabControlEvents } = await import('../utils/fabControlEvents');
           fabControlEvents.notifyDataReady();
-          
-          // CRITICAL: Trigger done button event to activate FAB phase 1 for 500ms
           fabControlEvents.notifyDoneButtonClicked();
-          console.log('[AddToRoute] ✅ Background: FAB activated and done button event triggered');
+          
+          console.log('[AddToRoute] ✅ UI updated with offline data, FAB activated');
         } catch (error) {
-          console.error('[AddToRoute] ❌ Background refresh failed:', error);
+          console.error('[AddToRoute] ❌ Background reload failed:', error);
         }
-      }, 100);
+      }, 300);
     } catch (err) {
       console.error('[AddToRoute] ❌ Batch save error:', err);
       setError(`Failed to save: ${err.message || 'Unknown error'}`);
