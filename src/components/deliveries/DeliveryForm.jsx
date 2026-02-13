@@ -2054,9 +2054,9 @@ export default function DeliveryForm({
 
     setStagedDeliveries((prev) => [...prev, newStagedDelivery]);
 
-    // CRITICAL: Skip auto-pickup generation - driver's default stops are already created
-    // The "Auto Generated pickup" section is only for when there are already stops in the driver's route
-    if (false) {
+    // CRITICAL: Only auto-add default pickups when ADDING to an existing driver route
+    // Skip if this is the FIRST delivery (driver's default stops already created)
+    if (!isPickupMode && formData.driver_id && formData.delivery_date && stores) {
       const specialStores = ['WestPark', 'SouthPoint', 'Lakeland Ridge', 'Sherwood Pk Mall'];
       const isSpecialStore = specialStores.some(name => 
         (stores.find(s => s?.id === formData.store_id)?.name || '').includes(name)
@@ -2099,8 +2099,9 @@ export default function DeliveryForm({
           d.delivery_date === formData.delivery_date
         );
 
-        if (!hasExistingDeliveries) {
-          console.log(`📦 [AutoAddPickups] FIRST delivery detected - creating all default pickups`);
+        // CRITICAL: Only auto-add pickups if driver ALREADY HAS stops (not first delivery)
+        if (hasExistingDeliveries) {
+          console.log(`📦 [AutoAddPickups] EXISTING deliveries detected - creating additional pickups as needed`);
           
           // Create all default pickups in parallel using ensurePickupForDelivery
           setTimeout(async () => {
@@ -2161,7 +2162,7 @@ export default function DeliveryForm({
               console.log(`✅ [AutoAddPickups] Added ${newPickups.length} new pickups to staged list`);
             }
             
-            console.log(`✅ [AutoAddPickups] All default pickups created for driver`);
+            console.log(`✅ [AutoAddPickups] Pickup generation complete for driver's existing route`);
 
             // Trigger data refresh to show new pickups
             const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
