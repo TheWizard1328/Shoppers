@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const currentLat = driverAppUser.current_latitude;
     const currentLng = driverAppUser.current_longitude;
 
-    // Step 2: Find the OLD isNextDelivery (the one being changed FROM)
+    // Step 2: Find ALL OLD isNextDelivery flags and reset them
     const oldNextDeliveries = await base44.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate,
@@ -36,18 +36,23 @@ Deno.serve(async (req) => {
     let oldNextDeliveryId = null;
 
     if (oldNextDeliveries && oldNextDeliveries.length > 0) {
+      console.log(`🔄 [handleStartDelivery] Found ${oldNextDeliveries.length} deliveries with isNextDelivery=true, resetting all...`);
+      
+      // Transfer distance from first one only
       const oldNextDelivery = oldNextDeliveries[0];
       oldNextDeliveryId = oldNextDelivery.id;
-      
-      // Transfer its accumulated travel_dist to the NEW isNextDelivery
       distanceToTransfer = oldNextDelivery.travel_dist || 0;
-      console.log(`🔄 [handleStartDelivery] Transferring ${distanceToTransfer} km from old next delivery`);
+      console.log(`🔄 [handleStartDelivery] Transferring ${distanceToTransfer} km from ${oldNextDelivery.patient_name}`);
 
-      // Reset old next delivery's travel_dist to 0
-      await base44.entities.Delivery.update(oldNextDelivery.id, {
-        isNextDelivery: false,
-        travel_dist: 0
-      });
+      // CRITICAL: Reset ALL old next delivery flags in parallel
+      const resetPromises = oldNextDeliveries.map(delivery => 
+        base44.entities.Delivery.update(delivery.id, {
+          isNextDelivery: false,
+          travel_dist: 0
+        })
+      );
+      await Promise.all(resetPromises);
+      console.log(`✅ [handleStartDelivery] Reset ${oldNextDeliveries.length} isNextDelivery flags`);
     }
 
     // Step 3: Set new delivery as isNextDelivery and transfer accumulated distance
