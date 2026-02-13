@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
       includedRegionCodes: ['CA']
     };
 
-    // Add location restriction to search radius (15km around origin)
+    // Add location restriction to search radius (75km around store origin)
     if (latitude && longitude) {
       requestBody.locationRestriction = {
         circle: {
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
             latitude: latitude,
             longitude: longitude
           },
-          radiusMeters: 15000 // 15km radius
+          radiusMeters: 75000 // 75km radius for service area
         }
       };
       console.log('[googlePlacesAutocomplete] ✅ Added location restriction (15km radius):');
