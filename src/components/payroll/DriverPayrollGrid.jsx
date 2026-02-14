@@ -378,8 +378,60 @@ export default function DriverPayrollGrid({
             </div>
           )}
 
-          {/* Mobile/Tablet Single Column Layout */}
-          {headerLayout === 'single' && (
+          {/* Single Row Layout - All elements on one row */}
+          {headerLayout === 'single-row' && (
+            <div className="flex items-center justify-between gap-6">
+              {/* Left: Title + Spinner */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
+                  <Table className="w-5 h-5" />
+                  {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
+                </CardTitle>
+                <button onClick={handleManualRefresh} disabled={isRefreshing} className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50" title="Refresh data">
+                  <RefreshCw className={`w-4 h-4 transition-colors ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+                </button>
+              </div>
+
+              {/* Center: Period Navigation */}
+              <div className="flex items-center justify-center gap-3 flex-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onPrevPeriod}
+                  disabled={selectedPeriodIndex === 0}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="font-semibold text-sm" style={{ color: 'var(--text-slate-900)' }}>{currentPeriod.label}</div>
+                  <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{periodDateRange}</div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onNextPeriod}
+                  disabled={selectedPeriodIndex === allPeriods.length - 1}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </Button>
+              </div>
+
+              {/* Right: View Mode Toggle */}
+              <div className="flex gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'var(--bg-slate-100)' }}>
+                <Button size="sm" variant={viewMode === 'deliveries' ? 'default' : 'ghost'} onClick={() => setViewMode('deliveries')} className="text-xs h-6 px-2 gap-1">
+                  <Package className="w-3 h-3" />Deliveries
+                </Button>
+                <Button size="sm" variant={viewMode === 'extraKm' ? 'default' : 'ghost'} onClick={() => setViewMode('extraKm')} className="text-xs h-6 px-2 gap-1">
+                  <Ruler className="w-3 h-3" />Extra KM
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile/Tablet Single Column Layout - 3 Row Stacked */}
+          {headerLayout === 'mobile-stacked' && (
             <div className="flex flex-col items-center justify-center gap-3">
               <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
                 <Table className="w-5 h-5" />
