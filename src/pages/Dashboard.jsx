@@ -1879,19 +1879,19 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Measure stop cards height - whenever cards render or delivery list changes
+  // CRITICAL: Measure stop cards COLLAPSED height only - never when expanded
   useEffect(() => {
     const element = horizontalStopCardsRef.current;
     if (!element) return;
 
-    // Only measure when NO card is expanded (all cards collapsed/condensed)
+    // CRITICAL: Only measure when NO card is expanded (ensures we capture base/collapsed height)
     if (selectedCardId) return;
 
     // Wait for cards to render, then measure the actual HorizontalStopCards element
     const timer = setTimeout(() => {
       const height = element.offsetHeight;
       if (height > 0 && height !== stopCardsBaseHeight) {
-        console.log(`📏 [Stop Cards] Measured height: ${height}px (previous: ${stopCardsBaseHeight}px)`);
+        console.log(`📏 [Stop Cards Base Height] Measured: ${height}px (previous: ${stopCardsBaseHeight}px)`);
         setStopCardsBaseHeight(height);
       }
     }, 200);
@@ -1899,17 +1899,18 @@ function Dashboard() {
     return () => clearTimeout(timer);
   }, [selectedCardId, deliveriesWithStopOrder.length, deliveriesWithStopOrder.map(d => `${d?.id}:${d?.status}`).join(',')]);
   
-  // CRITICAL: Re-measure stop cards height after smart refresh or data updates
+  // CRITICAL: Re-measure stop cards height ONLY after data updates when cards are collapsed
   useEffect(() => {
     const handleHeightRemeasure = () => {
+      // CRITICAL: Skip if any card is expanded - only measure collapsed state
       if (!horizontalStopCardsRef.current || selectedCardId) return;
       
       setTimeout(() => {
         const element = horizontalStopCardsRef.current;
-        if (element) {
+        if (element && !selectedCardId) {
           const height = element.offsetHeight;
           if (height > 0 && height !== stopCardsBaseHeight) {
-            console.log(`📏 [Height Update] Stop cards height changed: ${stopCardsBaseHeight}px → ${height}px`);
+            console.log(`📏 [Height Update] Stop cards base height changed: ${stopCardsBaseHeight}px → ${height}px`);
             setStopCardsBaseHeight(height);
           }
         }
