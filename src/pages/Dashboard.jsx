@@ -812,13 +812,24 @@ function Dashboard() {
   // Fetch actual payroll stats when driver or date changes
   useEffect(() => {
     const fetchPayrollStats = async () => {
+      console.log('💰 [Payroll Stats] Checking conditions:', {
+        isDriver,
+        hasUserId: !!currentUser?.id,
+        selectedDriverId,
+        currentUserId: currentUser?.id,
+        match: selectedDriverId === currentUser?.id,
+        isAll: selectedDriverId === 'all'
+      });
+
       // Only fetch for drivers viewing their own route
-      if (!isDriver || !currentUser?.id || selectedDriverId !== currentUser.id || selectedDriverId === 'all') {
+      if (!isDriver || !currentUser?.id || selectedDriverId !== currentUser?.id || selectedDriverId === 'all') {
+        console.log('⏭️ [Payroll Stats] Skipping fetch - conditions not met');
         setPerformanceStats(null);
         setIsLoadingPayrollStats(false);
         return;
       }
 
+      console.log('📊 [Payroll Stats] Fetching for driver:', currentUser.id, 'date:', format(selectedDate, 'yyyy-MM-dd'));
       setIsLoadingPayrollStats(true);
 
       try {
@@ -828,16 +839,20 @@ function Dashboard() {
         });
 
         const data = response?.data || response;
+        console.log('📊 [Payroll Stats] Response:', data);
         
         if (data?.success) {
-          setPerformanceStats({
+          const stats = {
             totalPay: data.totalPay || 0,
             totalKm: data.totalKm || 0,
             totalExtraKm: data.totalExtraKm || 0,
             totalTimeOnDuty: data.totalTimeOnDuty || '00:00',
             extraKmLimit: data.extraKmLimit || 0
-          });
+          };
+          console.log('✅ [Payroll Stats] Setting stats:', stats);
+          setPerformanceStats(stats);
         } else {
+          console.warn('⚠️ [Payroll Stats] Success=false:', data?.error);
           setPerformanceStats(null);
         }
       } catch (error) {
