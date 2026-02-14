@@ -833,7 +833,9 @@ function Dashboard() {
           setPerformanceStats({
             totalPay: data.totalPay || 0,
             totalKm: data.totalKm || 0,
-            totalTimeOnDuty: data.totalTimeOnDuty || 0
+            totalExtraKm: data.totalExtraKm || 0,
+            totalTimeOnDuty: data.totalTimeOnDuty || '00:00',
+            extraKmLimit: data.extraKmLimit || 0
           });
         } else {
           setPerformanceStats(null);
