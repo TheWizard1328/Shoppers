@@ -642,15 +642,68 @@ export default function DriverPayroll() {
     initialPeriodSetRef.current = true;
   }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData]);
 
+  // Subscribe to real-time websocket updates
+  useEffect(() => {
+    if (!hasInitialized) return;
+
+    const unsubscribers = [];
+
+    // Subscribe to Delivery changes
+    try {
+      const unsubDeliv = base44.entities.Delivery.subscribe((event) => {
+        console.log(`📡 [DriverPayroll] Delivery ${event.type}:`, event.id);
+        // Refetch payroll on delivery changes
+        fetchPayroll(true, false);
+        refreshPayrollRecords();
+      });
+      unsubscribers.push(unsubDeliv);
+    } catch (e) {
+      console.warn('Failed to subscribe to Delivery updates:', e);
+    }
+
+    // Subscribe to AppUser changes
+    try {
+      const unsubAppUser = base44.entities.AppUser.subscribe((event) => {
+        console.log(`📡 [DriverPayroll] AppUser ${event.type}:`, event.id);
+        fetchPayroll(true, false);
+      });
+      unsubscribers.push(unsubAppUser);
+    } catch (e) {
+      console.warn('Failed to subscribe to AppUser updates:', e);
+    }
+
+    // Subscribe to Payroll changes
+    try {
+      const unsubPayroll = base44.entities.Payroll.subscribe((event) => {
+        console.log(`📡 [DriverPayroll] Payroll ${event.type}:`, event.id);
+        refreshPayrollRecords();
+      });
+      unsubscribers.push(unsubPayroll);
+    } catch (e) {
+      console.warn('Failed to subscribe to Payroll updates:', e);
+    }
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      unsubscribers.forEach(unsub => {
+        try {
+          unsub();
+        } catch (e) {
+          console.warn('Failed to unsubscribe:', e);
+        }
+      });
+    };
+  }, [hasInitialized, fetchPayroll, refreshPayrollRecords]);
+
   // Load payroll records when period changes (initial load and period navigation)
   useEffect(() => {
     if (!currentPeriod || !hasInitialized) return;
     console.log(`🔄 [DriverPayroll] Period changed, loading payroll records...`);
-    
+
     // Invalidate caches to force fresh fetch
     invalidate('Payroll');
     invalidate('Delivery');
-    
+
     refreshPayrollRecords();
   }, [currentPeriod, hasInitialized, refreshPayrollRecords]);
 
