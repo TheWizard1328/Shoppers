@@ -19,11 +19,29 @@ Deno.serve(async (req) => {
 
     const { batchSize = 100, dryRun = false } = await req.json().catch(() => ({}));
 
-    // Fetch all deliveries - use filter with empty query to get all records
-    const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({});
-    console.log('Fetched deliveries:', allDeliveries?.length || 0);
+    // Fetch all deliveries - use filter with limit to get records in batches
+    // CRITICAL: filter() with large datasets may timeout, so we fetch in chunks
+    let allDeliveries = [];
+    let skip = 0;
+    const limit = 1000;
     
-    const deliveriesWithTime = (allDeliveries || []).filter(d => d.actual_delivery_time);
+    while (true) {
+      const batch = await base44.asServiceRole.entities.Delivery.filter({}, { limit, skip });
+      if (!batch || batch.length === 0) break;
+      allDeliveries = allDeliveries.concat(batch);
+      skip += limit;
+      console.log(`Fetched ${allDeliveries.length} deliveries so far...`);
+      
+      // Safety limit to prevent infinite loops
+      if (skip > 50000) {
+        console.warn('Reached safety limit of 50k deliveries');
+        break;
+      }
+    }
+    
+    console.log(`Total deliveries fetched: ${allDeliveries.length}`);
+    
+    const deliveriesWithTime = allDeliveries.filter(d => d.actual_delivery_time);
 
     console.log(`Found ${deliveriesWithTime.length} deliveries with actual_delivery_time`);
 
