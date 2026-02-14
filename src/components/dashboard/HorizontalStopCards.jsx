@@ -47,6 +47,12 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   }, [ref]);
   const scrollTimeoutRef = React.useRef(null);
 
+  // Define finished statuses
+  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+
+  // CRITICAL FIX: Filter out invalid cards BEFORE sorting/mapping to prevent hook count mismatches
+  const validCards = pickupCards.filter((card) => card && card.id);
+
   // CRITICAL: Broadcast Stop Cards height changes to update FAB positions
   React.useEffect(() => {
     const broadcastHeight = () => {
@@ -82,12 +88,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       resizeObserver.disconnect();
     };
   }, [validCards.length, selectedCardId]); // Re-run when cards change or selection changes
-
-  // Define finished statuses
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-
-  // CRITICAL FIX: Filter out invalid cards BEFORE sorting/mapping to prevent hook count mismatches
-  const validCards = pickupCards.filter((card) => card && card.id);
 
   // Auto-scroll to selected card - always center when card is expanded
   const prevSelectedCardIdRef = React.useRef(null);
