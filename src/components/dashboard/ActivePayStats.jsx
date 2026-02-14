@@ -50,11 +50,11 @@ export default function ActivePayStats({
   isDriver,
   performanceStats, // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
   liveDistance = 0, // Live travel_dist from current next delivery
-  liveTimeOnDuty = null // Live time on duty (null = use backend value)
+  liveTimeOnDuty = null, // Live time on duty (null = use backend value)
+  isLoadingPayrollStats = false
 }) {
   // CRITICAL: Maintain previous values to prevent clearing during updates
   const [cachedLocalStats, setCachedLocalStats] = useState(null);
-  const [cachedPerformanceStats, setCachedPerformanceStats] = useState(null);
   
   // CRITICAL: Update cached values when new data arrives (never clear)
   useEffect(() => {
@@ -62,12 +62,6 @@ export default function ActivePayStats({
       setCachedLocalStats(localStats);
     }
   }, [localStats]);
-  
-  useEffect(() => {
-    if (performanceStats && (performanceStats.totalPay > 0 || performanceStats.totalKm > 0)) {
-      setCachedPerformanceStats(performanceStats);
-    }
-  }, [performanceStats]);
   
   // Use cached values if current values are empty/recalculating
   const stats = cachedLocalStats || localStats || {
@@ -84,23 +78,12 @@ export default function ActivePayStats({
     completedDrivers: 0
   };
   
-  const perfStats = cachedPerformanceStats || performanceStats || {
-    totalPay: 0,
-    totalKm: 0,
-    totalExtraKm: 0,
-    totalTimeOnDuty: '00:00',
-    extraKmLimit: 0
-  };
-  
-  // CRITICAL: Calculate performance stats from delivery counts when backend data is missing
-  // Link performance stats to delivery stats for instant loading
-  const linkedPerfStats = {
-    totalPay: perfStats.totalPay || (stats.completed * 5), // Estimate: $5 per delivery
-    totalKm: perfStats.totalKm || (liveDistance > 0 ? liveDistance : (stats.completed * 2)), // Estimate: 2km per delivery
-    totalExtraKm: perfStats.totalExtraKm || 0,
-    totalTimeOnDuty: perfStats.totalTimeOnDuty || liveTimeOnDuty || '00:00',
-    extraKmLimit: perfStats.extraKmLimit || 0
-  };
+  // Use actual performanceStats (no estimates)
+  const displayPay = performanceStats?.totalPay || 0;
+  const displayKm = liveDistance > 0 ? liveDistance : (performanceStats?.totalKm || 0);
+  const displayExtraKm = performanceStats?.totalExtraKm || 0;
+  const displayTime = liveTimeOnDuty ?? performanceStats?.totalTimeOnDuty ?? '00:00';
+  const extraKmLimit = performanceStats?.extraKmLimit || 0;
   
   // Build tooltips
   const tooltipValues = {
@@ -119,7 +102,11 @@ export default function ActivePayStats({
       : isDriver && stats.completedPickups > 0
         ? `Completed Deliveries: ${stats.completed}, Completed Pickups: ${stats.completedPickups}`
         : `Completed Stops: ${stats.completed}`,
-    failed: `Failed: ${stats.failed}, Returned: ${stats.returned}`
+    failed: `Failed: ${stats.failed}, Returned: ${stats.returned}`,
+    pay: isLoadingPayrollStats ? 'Loading...' : `Total Pay: $${displayPay.toFixed(2)}`,
+    distance: isLoadingPayrollStats ? 'Loading...' : (liveDistance > 0 ? `Total Distance (Live): ${displayKm.toFixed(2)} km` : `Total Distance: ${displayKm.toFixed(2)} km`),
+    extraKm: isLoadingPayrollStats ? 'Loading...' : `Extra Km (beyond ${extraKmLimit} km limit): ${displayExtraKm.toFixed(2)} km`,
+    time: isLoadingPayrollStats ? 'Loading...' : `Time on Duty: ${displayTime} (first stop to now, minus breaks)`
   };
   
   return (
@@ -163,34 +150,34 @@ export default function ActivePayStats({
         <div className="grid grid-cols-4 gap-1">
           <StatBadge
             icon={DollarSign}
-            value={`${linkedPerfStats.totalPay.toFixed(2)}`}
+            value={isLoadingPayrollStats ? '...' : `${displayPay.toFixed(2)}`}
             color="green"
             label="Pay"
-            tooltip={`Total Pay: $${linkedPerfStats.totalPay.toFixed(2)}`}
+            tooltip={tooltipValues.pay}
             small />
 
           <StatBadge
             icon={Route}
-            value={`${(liveDistance > 0 ? liveDistance : linkedPerfStats.totalKm).toFixed(2)}k`}
+            value={isLoadingPayrollStats ? '...' : `${displayKm.toFixed(2)}k`}
             color="blue"
             label="Km"
-            tooltip={liveDistance > 0 ? `Total Distance (Live): ${liveDistance.toFixed(2)} km` : `Total Distance: ${linkedPerfStats.totalKm.toFixed(2)} km`}
+            tooltip={tooltipValues.distance}
             small />
 
           <StatBadge
             icon={TrendingUp}
-            value={`${linkedPerfStats.totalExtraKm.toFixed(2)}k`}
+            value={isLoadingPayrollStats ? '...' : `${displayExtraKm.toFixed(2)}k`}
             color="amber"
             label="Extra"
-            tooltip={`Extra Km (beyond ${linkedPerfStats.extraKmLimit} km limit): ${linkedPerfStats.totalExtraKm.toFixed(2)} km`}
+            tooltip={tooltipValues.extraKm}
             small />
 
           <StatBadge
             icon={Clock}
-            value={liveTimeOnDuty ?? linkedPerfStats.totalTimeOnDuty}
+            value={isLoadingPayrollStats ? '...' : displayTime}
             color="purple"
             label="Duty"
-            tooltip={`Time on Duty: ${liveTimeOnDuty ?? linkedPerfStats.totalTimeOnDuty} (first stop to now, minus breaks)`}
+            tooltip={tooltipValues.time}
             small />
         </div>
       )}
