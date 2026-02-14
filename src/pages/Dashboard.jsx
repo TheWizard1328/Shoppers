@@ -379,6 +379,11 @@ function Dashboard() {
   // CRITICAL: Declare isPrimaryDevice early (before useEffects that need it)
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
 
+  // CRITICAL: Calculate isDriver and isAdmin early (before useEffects that need them)
+  const isMobile = useMemo(() => isMobileDevice(), []);
+  const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
+  const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
+
   // ==================== REAL-TIME SUBSCRIPTIONS ====================
   // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
   useEffect(() => {
@@ -827,10 +832,7 @@ function Dashboard() {
     setMapViewTrigger((prev) => prev + 1);
   }, []);
 
-  // CRITICAL: Calculate isDriver early (before useEffect that needs it)
-  const isMobile = useMemo(() => isMobileDevice(), []);
-  const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
-  const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
+
 
   // Check if current device is primary tracker (state declared at line 379)
   useEffect(() => {
