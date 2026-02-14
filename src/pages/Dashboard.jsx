@@ -868,7 +868,7 @@ function Dashboard() {
     };
 
     fetchPayrollStats();
-  }, [isDriver, currentUser?.id, selectedDriverId, selectedDate]);
+  }, [isDriver, isAdmin, currentUser?.id, selectedDriverId, selectedDate]);
 
   // Track dynamically measured heights for map padding
   // CRITICAL: Start at 0, will be measured once cards render
