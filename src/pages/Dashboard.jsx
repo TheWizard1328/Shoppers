@@ -683,46 +683,6 @@ function Dashboard() {
 
 
 
-  // Fetch actual payroll stats when driver or date changes
-  useEffect(() => {
-    const fetchPayrollStats = async () => {
-      // Only fetch for drivers viewing their own route
-      if (!isDriver || !currentUser?.id || selectedDriverId !== currentUser.id || selectedDriverId === 'all') {
-        setPerformanceStats(null);
-        setIsLoadingPayrollStats(false);
-        return;
-      }
-
-      setIsLoadingPayrollStats(true);
-
-      try {
-        const response = await base44.functions.invoke('getDriverPayrollStats', {
-          driverId: currentUser.id,
-          deliveryDate: format(selectedDate, 'yyyy-MM-dd')
-        });
-
-        const data = response?.data || response;
-        
-        if (data?.success) {
-          setPerformanceStats({
-            totalPay: data.totalPay || 0,
-            totalKm: data.totalKm || 0,
-            totalTimeOnDuty: data.totalTimeOnDuty || 0
-          });
-        } else {
-          setPerformanceStats(null);
-        }
-      } catch (error) {
-        console.warn('⚠️ [Payroll Stats] Failed to fetch:', error.message);
-        setPerformanceStats(null);
-      } finally {
-        setIsLoadingPayrollStats(false);
-      }
-    };
-
-    fetchPayrollStats();
-  }, [isDriver, currentUser?.id, selectedDriverId, selectedDate]);
-
   // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
     const handlePerformanceStatsUpdate = (event) => {
@@ -829,6 +789,46 @@ function Dashboard() {
   const isMobile = useMemo(() => isMobileDevice(), []);
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
+
+  // Fetch actual payroll stats when driver or date changes
+  useEffect(() => {
+    const fetchPayrollStats = async () => {
+      // Only fetch for drivers viewing their own route
+      if (!isDriver || !currentUser?.id || selectedDriverId !== currentUser.id || selectedDriverId === 'all') {
+        setPerformanceStats(null);
+        setIsLoadingPayrollStats(false);
+        return;
+      }
+
+      setIsLoadingPayrollStats(true);
+
+      try {
+        const response = await base44.functions.invoke('getDriverPayrollStats', {
+          driverId: currentUser.id,
+          deliveryDate: format(selectedDate, 'yyyy-MM-dd')
+        });
+
+        const data = response?.data || response;
+        
+        if (data?.success) {
+          setPerformanceStats({
+            totalPay: data.totalPay || 0,
+            totalKm: data.totalKm || 0,
+            totalTimeOnDuty: data.totalTimeOnDuty || 0
+          });
+        } else {
+          setPerformanceStats(null);
+        }
+      } catch (error) {
+        console.warn('⚠️ [Payroll Stats] Failed to fetch:', error.message);
+        setPerformanceStats(null);
+      } finally {
+        setIsLoadingPayrollStats(false);
+      }
+    };
+
+    fetchPayrollStats();
+  }, [isDriver, currentUser?.id, selectedDriverId, selectedDate]);
 
   // Check if current device is primary tracker (state declared at line 379)
   useEffect(() => {
