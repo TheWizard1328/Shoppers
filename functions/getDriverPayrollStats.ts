@@ -79,17 +79,25 @@ Deno.serve(async (req) => {
       .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
 
     if (completedWithTime.length > 0) {
-      const firstStopTime = new Date(completedWithTime[0].actual_delivery_time);
+      // CRITICAL: Parse timestamps as UTC (they have 'Z' suffix) and convert to local Edmonton time
+      // The timestamps are stored as ISO strings with Z (UTC), but represent local completion times
+      const parseLocalTime = (isoString) => {
+        // Remove 'Z' to treat as local time, not UTC
+        const withoutZ = isoString.replace(/Z$/, '');
+        return new Date(withoutZ);
+      };
+      
+      const firstStopTime = parseLocalTime(completedWithTime[0].actual_delivery_time);
       
       // Check if route is still in progress
       const hasActiveDeliveries = deliveries.some(d => 
         ['pending', 'in_transit', 'en_route'].includes(d.status)
       );
       
-      // Use current time if route in progress, otherwise last completed stop
+      // Use current local time if route in progress, otherwise last completed stop
       const endTime = hasActiveDeliveries 
         ? new Date() 
-        : new Date(completedWithTime[completedWithTime.length - 1].actual_delivery_time);
+        : parseLocalTime(completedWithTime[completedWithTime.length - 1].actual_delivery_time);
       
       // Calculate duration in minutes
       const durationMinutes = Math.floor((endTime - firstStopTime) / (1000 * 60));
