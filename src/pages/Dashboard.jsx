@@ -374,6 +374,7 @@ function Dashboard() {
   const [snapshotData, setSnapshotData] = useState(null);
   const [pullToSyncKey, setPullToSyncKey] = useState(0);
   const [cardsReadyForFAB, setCardsReadyForFAB] = useState(false);
+  const [isLoadingPayrollStats, setIsLoadingPayrollStats] = useState(false);
 
   // CRITICAL: Declare isPrimaryDevice early (before useEffects that need it)
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
@@ -681,6 +682,46 @@ function Dashboard() {
   }, [currentUser?.id, isDataLoaded, showAllDriverMarkers, selectedDriverId, updateDeliveriesLocally, updateAppUsersLocally, refreshUser, deliveries, appUsers, selectedDate, isPrimaryDevice, refreshData]);
 
 
+
+  // Fetch actual payroll stats when driver or date changes
+  useEffect(() => {
+    const fetchPayrollStats = async () => {
+      // Only fetch for drivers viewing their own route
+      if (!isDriver || !currentUser?.id || selectedDriverId !== currentUser.id || selectedDriverId === 'all') {
+        setPerformanceStats(null);
+        setIsLoadingPayrollStats(false);
+        return;
+      }
+
+      setIsLoadingPayrollStats(true);
+
+      try {
+        const response = await base44.functions.invoke('getDriverPayrollStats', {
+          driverId: currentUser.id,
+          deliveryDate: format(selectedDate, 'yyyy-MM-dd')
+        });
+
+        const data = response?.data || response;
+        
+        if (data?.success) {
+          setPerformanceStats({
+            totalPay: data.totalPay || 0,
+            totalKm: data.totalKm || 0,
+            totalTimeOnDuty: data.totalTimeOnDuty || 0
+          });
+        } else {
+          setPerformanceStats(null);
+        }
+      } catch (error) {
+        console.warn('⚠️ [Payroll Stats] Failed to fetch:', error.message);
+        setPerformanceStats(null);
+      } finally {
+        setIsLoadingPayrollStats(false);
+      }
+    };
+
+    fetchPayrollStats();
+  }, [isDriver, currentUser?.id, selectedDriverId, selectedDate]);
 
   // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
@@ -5991,6 +6032,28 @@ function Dashboard() {
 
       // CRITICAL: Force stats refresh after save
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      
+      // CRITICAL: Refresh payroll stats if viewing own route
+      if (isDriver && currentUser?.id && selectedDriverId === currentUser.id) {
+        setTimeout(async () => {
+          try {
+            const response = await base44.functions.invoke('getDriverPayrollStats', {
+              driverId: currentUser.id,
+              deliveryDate: format(selectedDate, 'yyyy-MM-dd')
+            });
+            const data = response?.data || response;
+            if (data?.success) {
+              setPerformanceStats({
+                totalPay: data.totalPay || 0,
+                totalKm: data.totalKm || 0,
+                totalTimeOnDuty: data.totalTimeOnDuty || 0
+              });
+            }
+          } catch (error) {
+            console.warn('⚠️ [Payroll Stats Refresh] Failed:', error.message);
+          }
+        }, 1000);
+      }
 
       hasAutoSelectedRef.current = false; // Reset to allow auto-selection after saving
 
@@ -7095,6 +7158,23 @@ function Dashboard() {
             deliveryDate: deliveryDate,
             currentLocalTime: localTimeString
           }).catch((error) => console.warn('⚠️ ETA update failed:', error));
+        }
+        
+        // CRITICAL: Refresh payroll stats after status change (only for current driver viewing own route)
+        if (isDriver && currentUser?.id && driverId === currentUser.id && selectedDriverId === currentUser.id) {
+          base44.functions.invoke('getDriverPayrollStats', {
+            driverId: currentUser.id,
+            deliveryDate: deliveryDate
+          }).then((response) => {
+            const data = response?.data || response;
+            if (data?.success) {
+              setPerformanceStats({
+                totalPay: data.totalPay || 0,
+                totalKm: data.totalKm || 0,
+                totalTimeOnDuty: data.totalTimeOnDuty || 0
+              });
+            }
+          }).catch((error) => console.warn('⚠️ Payroll stats refresh failed:', error));
         }
 
         console.log('✅ [STATUS] Background tasks started');
@@ -8400,7 +8480,8 @@ function Dashboard() {
                 isDriver={isDriver}
                 performanceStats={performanceStats}
                 liveDistance={liveDistance}
-                liveTimeOnDuty={liveTimeOnDuty} />
+                liveTimeOnDuty={liveTimeOnDuty}
+                isLoadingPayrollStats={isLoadingPayrollStats} />
 
 
               <Button
