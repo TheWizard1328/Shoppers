@@ -43,6 +43,16 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate
     });
 
+    console.log('📋 [Payroll Stats] Query params:', { driverId, deliveryDate });
+    console.log('📋 [Payroll Stats] Found deliveries:', deliveries.length);
+    console.log('📋 [Payroll Stats] Delivery dates:', deliveries.map(d => ({ 
+      id: d.id.substring(0, 8), 
+      delivery_date: d.delivery_date, 
+      actual_time: d.actual_delivery_time,
+      status: d.status,
+      patient: d.patient_name 
+    })));
+
     // Calculate stats
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
     
