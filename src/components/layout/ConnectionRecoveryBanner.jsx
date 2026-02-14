@@ -154,8 +154,8 @@ export default function ConnectionRecoveryBanner() {
     // Listen for browser online/offline events
     const handleOnline = () => {
       setIsOnline(true);
-      // Trigger manual recovery when browser comes back online
-      smartRefreshManager.triggerManualRecovery();
+      // Trigger full data refresh when browser comes back online
+      window.dispatchEvent(new CustomEvent('forceDataRefresh'));
     };
 
     const handleOffline = () => {
@@ -259,7 +259,7 @@ export default function ConnectionRecoveryBanner() {
 
   const handleRetry = () => {
     setStatus('recovering');
-    smartRefreshManager.triggerManualRecovery();
+    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
   };
 
   const handleDismiss = () => {
