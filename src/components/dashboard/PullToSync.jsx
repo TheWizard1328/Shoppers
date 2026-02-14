@@ -220,14 +220,6 @@ export default function PullToSync({
 
       console.log(`✅ [Pull to Sync] ${silent ? 'Silent sync' : 'Sync'} complete!`);
       
-      // CRITICAL: Refresh payroll stats after sync completes
-      try {
-        console.log('💰 [Pull to Sync] Refreshing payroll stats...');
-        window.dispatchEvent(new CustomEvent('refreshPayrollStats'));
-      } catch (error) {
-        console.warn('⚠️ [Pull to Sync] Failed to refresh payroll stats:', error);
-      }
-      
       // CRITICAL: Reactivate FAB
       const currentFABPhase = window.__currentFABPhase || 1;
       if (currentFABPhase !== 1) {
