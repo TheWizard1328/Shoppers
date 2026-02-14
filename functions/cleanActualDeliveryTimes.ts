@@ -19,13 +19,9 @@ Deno.serve(async (req) => {
 
     const { batchSize = 100, dryRun = false } = await req.json().catch(() => ({}));
 
-    // Fetch all deliveries with a high limit
-    const fetchedDeliveries = await base44.asServiceRole.entities.Delivery.list('-created_date', 50000);
-    console.log(`Fetch result type: ${typeof fetchedDeliveries}, isArray: ${Array.isArray(fetchedDeliveries)}`);
-    console.log(`Total deliveries fetched: ${fetchedDeliveries?.length || 0}`);
-    
-    // CRITICAL: SDK .list() might return the data wrapped - ensure we get the array
-    const allDeliveries = Array.isArray(fetchedDeliveries) ? fetchedDeliveries : [];
+    // Fetch all deliveries using filter with empty query
+    const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({});
+    console.log(`Total deliveries fetched: ${allDeliveries?.length || 0}`);
     
     const deliveriesWithTime = allDeliveries.filter(d => d.actual_delivery_time);
 
