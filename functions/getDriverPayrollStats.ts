@@ -84,21 +84,22 @@ Deno.serve(async (req) => {
     let totalExtraKm = 0;
 
     completedDeliveries.forEach(d => {
-      // CRITICAL: Use paid_km_override if set, otherwise use patient.distance_from_store
-      let distance = 0;
+      // Total km = actual distance traveled (travel_dist)
+      totalKm += (d.travel_dist || 0);
+
+      // Extra km = based on paid_km_override or patient.distance_from_store
+      let paidDistance = 0;
 
       if (d.paid_km_override !== null && d.paid_km_override !== undefined) {
-        distance = d.paid_km_override;
+        paidDistance = d.paid_km_override;
       } else if (d.patient_id) {
         const patient = patientMap.get(d.patient_id);
-        distance = patient?.distance_from_store || 0;
+        paidDistance = patient?.distance_from_store || 0;
       }
 
-      totalKm += distance;
-
-      // Extra km: if this delivery's distance > limit, add the excess
-      if (distance > extraKmLimit) {
-        totalExtraKm += (distance - extraKmLimit);
+      // Extra km: if paid distance > limit, add the excess
+      if (paidDistance > extraKmLimit) {
+        totalExtraKm += (paidDistance - extraKmLimit);
       }
     });
 
