@@ -59,11 +59,18 @@ Deno.serve(async (req) => {
     // Calculate stats
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
 
-    // Count completed deliveries (include pickups - they are paid stops)
-    // Patient deliveries have patient_id, pickups/ISP/ISD don't
-    const completedDeliveries = deliveries.filter(d => 
-      d.status === 'completed' // Only completed (includes both patient deliveries and pickups)
+    // Count completed deliveries
+    // CRITICAL: Patient deliveries count when completed
+    // Pickups count ONLY when they have after_hours_pickup = true AND (completed OR cancelled)
+    const completedPatientDeliveries = deliveries.filter(d => 
+      d.patient_id && d.status === 'completed'
     );
+
+    const completedAfterHoursPickups = deliveries.filter(d => 
+      !d.patient_id && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')
+    );
+
+    const completedDeliveries = [...completedPatientDeliveries, ...completedAfterHoursPickups];
 
     // Count oversized deliveries
     const oversizedCount = completedDeliveries.filter(d => d.oversized === true).length;
