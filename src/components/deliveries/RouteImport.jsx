@@ -1277,23 +1277,41 @@ export default function RouteImport({
 
       if (!skipMatching) {
        // CRITICAL: If this PID has duplicates in the import, ONLY match by exact SID
-       // This prevents stop 13 from overwriting stop 10's data
-       const pidHasDuplicatesInImport = patientPID && pidCountInImport.get(patientPID) > 1;
+        // This prevents stop 13 from overwriting stop 10's data
+        const pidHasDuplicatesInImport = patientPID && pidCountInImport.get(patientPID) > 1;
 
-       // CRITICAL: Always use selectedDriver.id to ensure consistent driver assignment
-       // This prevents creating deliveries with incorrect/duplicate driver_id values
-       const matchResult = pidHasDuplicatesInImport && stopId
-         ? { match: allDeliveriesData.find(d => d.stop_id === stopId && d.delivery_date === currentDate && d.driver_id === selectedDriver.id), reason: 'SID Match (PID has duplicates)' }
-         : matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
+        // CRITICAL: For pickups with duplicates, only match the first one, create rest as new
+        const pickupKey = !patientPID ? `${store.id}|${currentDate}|${selectedDriver.id}|${ampmValue || 'none'}` : null;
+        const pickupHasDuplicatesInImport = pickupKey && pickupStoreCountInImport.get(pickupKey) > 1;
+        const isFirstPickupForKey = pickupKey && !matchedPickupKeys.has(pickupKey);
 
-       existingDelivery = matchResult?.match || null;
-       matchReason = matchResult?.reason || 'Unknown';
+        // CRITICAL: Always use selectedDriver.id to ensure consistent driver assignment
+        // This prevents creating deliveries with incorrect/duplicate driver_id values
+        let matchResult;
 
-       // CRITICAL: If we already matched this existing delivery in this import pass, don't match it again
-       // This prevents duplicate imports from overwriting each other
-       if (existingDelivery && matchedExistingDeliveryIds.has(existingDelivery.id)) {
-         existingDelivery = null;
-       }
+        if (pidHasDuplicatesInImport && stopId) {
+          // Patient delivery with duplicates: ONLY match by exact SID
+          matchResult = { match: allDeliveriesData.find(d => d.stop_id === stopId && d.delivery_date === currentDate && d.driver_id === selectedDriver.id), reason: 'SID Match (PID has duplicates)' };
+        } else if (pickupHasDuplicatesInImport && !isFirstPickupForKey) {
+          // Pickup with duplicates: skip matching for non-first ones, create as new
+          matchResult = { match: null, reason: 'Pickup duplicate - creating new (not first pickup for this store/date/AMPM)' };
+        } else {
+          matchResult = matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
+        }
+
+        existingDelivery = matchResult?.match || null;
+        matchReason = matchResult?.reason || 'Unknown';
+
+        // CRITICAL: If we already matched this existing delivery in this import pass, don't match it again
+        // This prevents duplicate imports from overwriting each other
+        if (existingDelivery && matchedExistingDeliveryIds.has(existingDelivery.id)) {
+          existingDelivery = null;
+        }
+
+        // CRITICAL: Track first pickup match to prevent second pickup from matching too
+        if (pickupKey && isFirstPickupForKey && existingDelivery) {
+          matchedPickupKeys.add(pickupKey);
+        }
       }
 
       // CRITICAL: Import travel_dist ONLY if existing is 0
