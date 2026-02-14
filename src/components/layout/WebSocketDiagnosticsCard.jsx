@@ -120,7 +120,7 @@ export default function WebSocketDiagnosticsCard() {
 
   return (
     <Card 
-      className="fixed right-4 w-80 p-3 bg-blue-50 border-blue-200 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2"
+      className={`fixed ${isMobile ? 'left-1/2 -translate-x-1/2' : 'right-4'} w-80 p-3 bg-blue-50 border-blue-200 shadow-lg z-[9999] animate-in fade-in slide-in-from-top-2`}
       style={{ top: `${topOffset}px` }}
     >
       <div className="flex items-start justify-between gap-2">
