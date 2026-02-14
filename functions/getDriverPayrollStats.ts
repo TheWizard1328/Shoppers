@@ -93,12 +93,12 @@ Deno.serve(async (req) => {
       .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
 
     if (completedWithTime.length > 0) {
-      // CRITICAL: Parse timestamps as UTC (they have 'Z' suffix) and convert to local Edmonton time
-      // The timestamps are stored as ISO strings with Z (UTC), but represent local completion times
+      // CRITICAL: Parse timestamps - strip timezone offsets like -0700 or Z
+      // Timestamps should be stored without timezone info (local time only)
       const parseLocalTime = (isoString) => {
-        // Remove 'Z' to treat as local time, not UTC
-        const withoutZ = isoString.replace(/Z$/, '');
-        return new Date(withoutZ);
+        // Remove timezone suffix (Z or ±HHMM like -0700, +0530, etc.)
+        const withoutTz = isoString.replace(/[Z]$/, '').replace(/[+-]\d{4}$/, '');
+        return new Date(withoutTz);
       };
       
       const firstStopTime = parseLocalTime(completedWithTime[0].actual_delivery_time);
