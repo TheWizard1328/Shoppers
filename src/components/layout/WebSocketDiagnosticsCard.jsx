@@ -6,6 +6,7 @@ export default function WebSocketDiagnosticsCard() {
   const [event, setEvent] = useState(null);
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
   const [topOffset, setTopOffset] = useState(72);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     // Check if this is the primary device
