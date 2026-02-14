@@ -2703,7 +2703,24 @@ export default function DeliveryMap({
 
           {delivery.cod_total_amount_required > 0 && (
             <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ color: '#059669', background: 'rgba(5, 150, 105, 0.1)' }}>
-              <span>💵 COD: ${delivery.cod_total_amount_required.toFixed(2)}</span>
+              {(() => {
+                // Check if COD has been collected
+                const hasCODPayments = delivery.cod_payments && 
+                                      Array.isArray(delivery.cod_payments) && 
+                                      delivery.cod_payments.length > 0 &&
+                                      delivery.cod_payments.some(p => p?.amount > 0);
+                
+                if (hasCODPayments) {
+                  // Show collection type and amount for first payment (primary payment)
+                  const primaryPayment = delivery.cod_payments.find(p => p?.amount > 0);
+                  if (primaryPayment) {
+                    return <span>💵 {primaryPayment.type}: ${primaryPayment.amount.toFixed(2)}</span>;
+                  }
+                }
+                
+                // Not collected yet - show required amount
+                return <span>💵 COD: ${delivery.cod_total_amount_required.toFixed(2)}</span>;
+              })()}
             </div>
           )}
 
