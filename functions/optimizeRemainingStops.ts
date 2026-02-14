@@ -279,7 +279,7 @@ Deno.serve(async (req) => {
         await base44.asServiceRole.entities.GoogleAPILog.create({
           timestamp: new Date().toISOString(),
           api_type: 'Directions',
-          purpose: `Current stage optimization for driver ${driverAppUser.user_name || driverId}`,
+          purpose: `Current stage optimization for driver ${driverAppUser.user_name}`,
           function_name: 'optimizeRemainingStops',
           user_id: user.id,
           user_name: user.full_name,
