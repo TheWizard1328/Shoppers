@@ -932,23 +932,49 @@ export default function RouteImport({
     const existingDeliveryIds = new Set(allDeliveriesData.map((d) => d.delivery_id).filter(Boolean));
     const matchedExistingDeliveryIds = new Set(); // Track which existing deliveries we've already matched in THIS import
 
-    // CRITICAL: Pre-process to identify duplicate PIDs in THIS import
+    // CRITICAL: Pre-process to identify duplicate PIDs and pickup stores in THIS import
     const pidCountInImport = new Map(); // PID -> count of how many stops being imported for this PID
+    const pickupStoreCountInImport = new Map(); // store_id|date|driver|AMPM -> count for pickups
+    let currentDateForPickups = null;
+    
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!line.trim()) continue;
       
       const dateMetaMatch = line.match(/^#(\d{4}-\d{2}-\d{2})#,(\d+),/);
-      if (dateMetaMatch) continue; // Skip date metadata
+      if (dateMetaMatch) {
+        currentDateForPickups = dateMetaMatch[1];
+        continue; // Skip date metadata
+      }
       
       const values = parseCSVLine(line);
       if (values.length < 15) continue; // Skip invalid lines
       
       const patientPID = values[14]?.replace(/"/g, '').trim();
+      const storeAbbr = values[0]?.replace(/"/g, '').trim();
+      const ampmRawValue = values[1]?.replace(/"/g, '').trim();
+      let ampmValue = null;
+      if (ampmRawValue === '1') {
+        ampmValue = 'AM';
+      } else if (ampmRawValue === '2') {
+        ampmValue = 'PM';
+      } else if (ampmRawValue === 'AM' || ampmRawValue === 'PM') {
+        ampmValue = ampmRawValue;
+      }
+      
       if (patientPID) {
         pidCountInImport.set(patientPID, (pidCountInImport.get(patientPID) || 0) + 1);
       }
+      
+      // For pickups: track by store|date|driver|AMPM
+      if (!patientPID && storeAbbr && currentDateForPickups) {
+        const pickupKey = `${storeAbbr}|${currentDateForPickups}|${selectedDriver?.id}|${ampmValue || 'none'}`;
+        pickupStoreCountInImport.set(pickupKey, (pickupStoreCountInImport.get(pickupKey) || 0) + 1);
+      }
     }
+    
+    // Track which pickup keys we've already matched (to prevent double-matching)
+    const matchedPickupKeys = new Set();
 
 
     for (let i = 0; i < lines.length; i++) {
