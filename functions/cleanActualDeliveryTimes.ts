@@ -19,18 +19,11 @@ Deno.serve(async (req) => {
 
     const { batchSize = 100, dryRun = false } = await req.json().catch(() => ({}));
 
-    // Fetch all deliveries with actual_delivery_time set
-    const allDeliveries = await base44.asServiceRole.entities.Delivery.list();
-    console.log('Fetched deliveries:', typeof allDeliveries, Array.isArray(allDeliveries));
+    // Fetch all deliveries - use filter with empty query to get all records
+    const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({});
+    console.log('Fetched deliveries:', allDeliveries?.length || 0);
     
-    if (!Array.isArray(allDeliveries)) {
-      return Response.json({ 
-        error: 'Unexpected response from Delivery.list()', 
-        type: typeof allDeliveries 
-      }, { status: 500 });
-    }
-    
-    const deliveriesWithTime = allDeliveries.filter(d => d.actual_delivery_time);
+    const deliveriesWithTime = (allDeliveries || []).filter(d => d.actual_delivery_time);
 
     console.log(`Found ${deliveriesWithTime.length} deliveries with actual_delivery_time`);
 
