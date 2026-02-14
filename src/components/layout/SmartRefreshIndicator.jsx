@@ -281,8 +281,15 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       setHasError(true);
       setTimeout(() => setHasError(false), 3000);
     } finally {
-      // CRITICAL: Listen for pull-to-sync completion to stop spinner
-      const handleSyncComplete = () => {
+      // CRITICAL: Listen for pull-to-sync completion to stop spinner and refresh payroll stats
+      const handleSyncComplete = async () => {
+        try {
+          const { base44 } = await import('@/api/base44Client');
+          await base44.functions.invoke('getDriverPayrollStats', {});
+        } catch (error) {
+          console.warn('⚠️ [Manual Refresh] Failed to refresh payroll stats:', error.message);
+        }
+        
         setIsManualRefreshing(false);
         window.removeEventListener('pullToSyncComplete', handleSyncComplete);
       };
