@@ -19,6 +19,12 @@ Deno.serve(async (req) => {
     const appUserRecords = await base44.entities.AppUser.filter({ user_id: driverId });
     const appUser = appUserRecords?.[0];
 
+    console.log('👤 [Payroll Stats] Looking up driver:', { 
+      driverId, 
+      driverName: appUser?.user_name || 'NOT FOUND',
+      deliveryDate 
+    });
+
     if (!appUser) {
       return Response.json({ 
         success: false, 
