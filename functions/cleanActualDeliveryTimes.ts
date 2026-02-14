@@ -19,32 +19,27 @@ Deno.serve(async (req) => {
 
     const { batchSize = 100, dryRun = false } = await req.json().catch(() => ({}));
 
-    // Fetch all deliveries using filter with empty query
-    const response = await base44.asServiceRole.entities.Delivery.filter({});
-    console.log(`Response type: ${typeof response}, response:`, response);
-    
+    // Fetch deliveries from 2026-01-01 onwards
+    const response = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: '2026-01-01' } });
+
     // Handle different response structures
     const allDeliveries = Array.isArray(response) ? response : (response?.data || response?.records || []);
     console.log(`Total deliveries fetched: ${allDeliveries?.length || 0}`);
-    
-    const deliveriesWithTime = allDeliveries.filter(d => d.actual_delivery_time);
 
+    const deliveriesWithTime = allDeliveries.filter(d => d.actual_delivery_time);
     console.log(`Found ${deliveriesWithTime.length} deliveries with actual_delivery_time`);
 
-    // Sanitize actual_delivery_time - remove timezone offsets
-    const sanitizeTime = (timeString) => {
-      if (!timeString || typeof timeString !== 'string') return timeString;
-      return timeString.replace(/([+-]\d{2}:?\d{2}|Z)$/, '');
-    };
-
+    // Find deliveries with timezone offset (string length > 19)
+    // "2026-02-13T17:10:00" is 19 chars, anything longer has timezone info
     const deliveriesToUpdate = [];
     const alreadyClean = [];
 
     for (const delivery of deliveriesWithTime) {
       const original = delivery.actual_delivery_time;
-      const sanitized = sanitizeTime(original);
 
-      if (original !== sanitized) {
+      // Check if string is longer than 19 characters (has timezone offset)
+      if (original.length > 19) {
+        const sanitized = original.substring(0, 19);
         deliveriesToUpdate.push({
           id: delivery.id,
           original,
