@@ -50,8 +50,8 @@ export default function DriverPayrollGrid({
 
     const containerWidth = containerRef.current.offsetWidth;
 
-    // Single row layout if wide enough (~1000px+) to fit all elements horizontally
-    if (containerWidth >= 1000) {
+    // Single row layout if wide enough (~700px+) to fit all elements horizontally
+    if (containerWidth >= 700) {
       setHeaderLayout('single-row');
       isDesktopLayout.current = true;
       return;
