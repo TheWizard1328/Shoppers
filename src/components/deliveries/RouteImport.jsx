@@ -2382,16 +2382,18 @@ export default function RouteImport({
 
           
           // RESYNC: Fetch fresh deliveries from online DB for all drivers on this date
-          const freshDeliveries = await base44.entities.Delivery.filter({ 
-            driver_id: { $in: driverIds },
-            delivery_date: date 
-          });
-          
-          // Save to offline DB
-          if (freshDeliveries && freshDeliveries.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+              // CRITICAL: Skip purge when NOT in purge mode - offline DB was already updated during import
+              if (purgeBeforeImport) {
+                const freshDeliveries = await base44.entities.Delivery.filter({ 
+                  driver_id: { $in: driverIds },
+                  delivery_date: date 
+                });
 
-          }
+                // Save to offline DB
+                if (freshDeliveries && freshDeliveries.length > 0) {
+                  await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+                }
+              }
           
           // Collect unique patient IDs from this date's deliveries
           const patientIds = [...new Set(freshDeliveries.map(d => d.patient_id).filter(Boolean))];
