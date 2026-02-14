@@ -29,14 +29,17 @@ export default function WebSocketDiagnosticsCard() {
     const updateLayout = () => {
       const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       const isTabletPortrait = window.matchMedia('(max-width: 767px)').matches;
-      setIsMobile(isMobileDevice || isTabletPortrait);
+      const isMobileView = isMobileDevice || isTabletPortrait;
+      setIsMobile(isMobileView);
 
       const mobileHeader = document.querySelector('[data-mobile-header]');
       if (mobileHeader) {
         const headerHeight = mobileHeader.getBoundingClientRect().height;
-        setTopOffset(headerHeight + 8); // Add 8px buffer
+        // On mobile: position lower to align with stats card (headerHeight + 180px)
+        // On desktop: just below header
+        setTopOffset(isMobileView ? headerHeight + 180 : headerHeight + 8);
       } else {
-        setTopOffset(72); // Default fallback
+        setTopOffset(isMobileView ? 240 : 72); // Default fallback
       }
     };
 
