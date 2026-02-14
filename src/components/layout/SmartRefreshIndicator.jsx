@@ -321,6 +321,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     return (
       <div className="flex items-center gap-1">
         <button
+          data-offline-sync-button
           onClick={handleManualRefresh}
           disabled={isPaused}
           className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors duration-200 hover:scale-110 relative ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-lg' : ''}`}
