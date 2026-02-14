@@ -4082,8 +4082,8 @@ export default function Layout({ children, currentPageName }) {
                       </div>
                     </div>
 
-                    {/* Centered Controls - On narrow mobile OR tablet portrait */}
-                    {(isMobile || isTabletPortrait) && currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
+                    {/* Centered Controls - On narrow mobile OR tablet portrait (only when sidebar is NOT open) */}
+                    {(isMobile || isTabletPortrait) && currentUser && !sidebarOpen && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
                     <div className="flex-1 flex items-center justify-center gap-2">
                       {/* Menu - Left */}
                       <DropdownMenu>
@@ -4122,6 +4122,20 @@ export default function Layout({ children, currentPageName }) {
                           isMobile={true}
                         />
                       </DropdownMenu>
+
+                      {/* Location Tracking Toggle - drivers only */}
+                      {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
+                        <LocationTrackingToggle
+                          currentUser={currentUser}
+                          onUpdate={async () => {
+                            clearUserCache();
+                            const refreshedUser = await getEffectiveUser();
+                            if (refreshedUser) {
+                              setCurrentUser(refreshedUser);
+                            }
+                          }}
+                        />
+                      }
 
                       {/* Status Toggle - Center */}
                       <div style={{ width: userHasRole(currentUser, 'driver') ? 'auto' : '0px', overflow: 'hidden' }}>
