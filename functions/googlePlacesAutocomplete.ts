@@ -171,10 +171,10 @@ Deno.serve(async (req) => {
       return a.distance - b.distance;
     });
 
-    // Results should already be within 75km radius due to locationRestriction
+    // Results should already be within 15km radius due to locationRestriction
     const filteredPredictions = predictions;
 
-    console.log(`[googlePlacesAutocomplete] Returning ${filteredPredictions.length}/${predictions.length} predictions (within 75km)`);
+    console.log(`[googlePlacesAutocomplete] Returning ${filteredPredictions.length}/${predictions.length} predictions (within ${MAX_DISTANCE_KM}km)`);
     return Response.json({ predictions: filteredPredictions });
 
   } catch (error) {
