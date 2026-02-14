@@ -814,6 +814,7 @@ function Dashboard() {
     const fetchPayrollStats = async () => {
       console.log('💰 [Payroll Stats] Checking conditions:', {
         isDriver,
+        isAdmin,
         hasUserId: !!currentUser?.id,
         selectedDriverId,
         currentUserId: currentUser?.id,
@@ -821,8 +822,10 @@ function Dashboard() {
         isAll: selectedDriverId === 'all'
       });
 
-      // Only fetch for drivers viewing their own route
-      if (!isDriver || !currentUser?.id || selectedDriverId !== currentUser?.id || selectedDriverId === 'all') {
+      // Fetch if: (driver viewing own route) OR (admin viewing any driver)
+      const shouldFetch = (isDriver && selectedDriverId === currentUser?.id) || (isAdmin && selectedDriverId && selectedDriverId !== 'all');
+      
+      if (!shouldFetch) {
         console.log('⏭️ [Payroll Stats] Skipping fetch - conditions not met');
         setPerformanceStats(null);
         setIsLoadingPayrollStats(false);
