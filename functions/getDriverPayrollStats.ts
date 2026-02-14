@@ -69,11 +69,11 @@ Deno.serve(async (req) => {
     const oversizedPay = oversizedCount * oversizedRate;
     const totalPay = deliveryPay + extraKmPay + oversizedPay;
 
-    // Calculate time on duty (first stop to last stop, minus breaks)
+    // Calculate time on duty (first completed stop to last completed stop, minus breaks)
     let totalTimeOnDuty = '00:00';
     
     const completedWithTime = deliveries
-      .filter(d => finishedStatuses.includes(d.status) && d.actual_delivery_time)
+      .filter(d => d.status === 'completed' && d.actual_delivery_time)
       .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
 
     if (completedWithTime.length > 0) {
@@ -105,6 +105,16 @@ Deno.serve(async (req) => {
       const hours = Math.floor(workMinutes / 60);
       const minutes = workMinutes % 60;
       totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      
+      console.log('⏰ Time on duty calculation:', {
+        firstStop: firstStopTime.toISOString(),
+        lastStop: lastStopTime.toISOString(),
+        durationMinutes,
+        breakTimeMinutes,
+        workMinutes,
+        totalTimeOnDuty,
+        completedCount: completedWithTime.length
+      });
     }
 
     return Response.json({
