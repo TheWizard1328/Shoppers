@@ -75,13 +75,25 @@ Deno.serve(async (req) => {
     // Count oversized deliveries
     const oversizedCount = completedDeliveries.filter(d => d.oversized === true).length;
 
+    // CRITICAL: Fetch all patients to get distance_from_store
+    const allPatients = await base44.entities.Patient.list();
+    const patientMap = new Map(allPatients.map(p => [p.id, p]));
+
     // Calculate total kilometers and extra kilometers per delivery
     let totalKm = 0;
     let totalExtraKm = 0;
 
     completedDeliveries.forEach(d => {
-      // Use paid_km_override if set, otherwise use patient distance (both are travel_dist)
-      const distance = d.travel_dist || 0;
+      // CRITICAL: Use paid_km_override if set, otherwise use patient.distance_from_store
+      let distance = 0;
+
+      if (d.paid_km_override !== null && d.paid_km_override !== undefined) {
+        distance = d.paid_km_override;
+      } else if (d.patient_id) {
+        const patient = patientMap.get(d.patient_id);
+        distance = patient?.distance_from_store || 0;
+      }
+
       totalKm += distance;
 
       // Extra km: if this delivery's distance > limit, add the excess
