@@ -1689,14 +1689,18 @@ export default function Layout({ children, currentPageName }) {
           }));
 
           // CRITICAL: If location changed, also refresh delivery markers (for polyline origins)
+          // Skip toast notification for location updates
           if (update.data?.current_latitude || update.data?.current_longitude) {
-            console.log(`📍 [Layout] Driver ${update.data.user_id} location updated - forcing map refresh`);
+            console.log(`📍 [Layout] Driver ${update.data.user_id} location updated - forcing map refresh (no notification)`);
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
               detail: { 
                 triggeredBy: 'driver_location_update',
                 driverId: update.data.user_id 
               }
             }));
+          } else {
+            // Show notification for non-location updates (status, role changes, etc.)
+            toast.success(`${update.data.user_name || 'Driver'} updated`);
           }
         }
       }
