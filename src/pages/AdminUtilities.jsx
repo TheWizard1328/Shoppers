@@ -1229,9 +1229,16 @@ const DeliveryDataTable = ({
                         )}
                         {visibleColumns.includes('distance') && (
                           <td className="p-2">
-                            <span className="text-sm font-mono" style={{ color: 'var(--text-slate-900)' }}>
-                              {delivery.travel_dist ? `${delivery.travel_dist.toFixed(2)}k` : '-'}
-                            </span>
+                            <div className="flex flex-col text-sm font-mono" style={{ color: 'var(--text-slate-900)' }}>
+                              <span>{delivery.travel_dist ? `${delivery.travel_dist.toFixed(2)}k` : '-'}</span>
+                              {(() => {
+                                const patient = (patients || []).find(p => p.id === delivery.patient_id);
+                                const patientDist = patient?.distance_from_store;
+                                return patientDist ? (
+                                  <span className="text-xs text-slate-600">{patientDist.toFixed(2)}k</span>
+                                ) : null;
+                              })()}
+                            </div>
                           </td>
                         )}
                         {visibleColumns.includes('status') && (
