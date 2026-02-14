@@ -16,11 +16,15 @@ class LightweightRefreshManager {
     this._paused = false;
     this._currentUser = null;
 
+    // Track last WebSocket update timestamp for conditional polling
+    this.lastWebSocketAppUserUpdate = 0;
+    this.WEBSOCKET_FRESHNESS_THRESHOLD = 30000; // 30 seconds
+
     // Minimal intervals - only for non-WebSocket entities and offline sync
     this.intervals = {
       cities: 300000,        // 5min - Full Cities dataset
       stores: 300000,        // 5min - Full Stores dataset
-      appUsers: 0,           // DISABLED - rely on WebSocket subscriptions to update offline DB
+      appUsers: 15000,       // 15sec - Backup poll ONLY if no recent WebSocket update
       offlineSync: 0,        // DISABLED - offlineDB reads, not syncs
       cacheRefresh: 300000   // 5min - Cache consistency check
     };
@@ -32,6 +36,14 @@ class LightweightRefreshManager {
       offlineSync: 0,
       cacheRefresh: 0
     };
+
+    // Listen for WebSocket AppUser updates to track freshness
+    if (typeof window !== 'undefined') {
+      window.addEventListener('realtimeUpdate_AppUser', () => {
+        this.lastWebSocketAppUserUpdate = Date.now();
+        console.log('📡 [SmartRefresh] WebSocket AppUser update received - timestamp updated');
+      });
+    }
 
     // Rate limiting - relaxed for better perf
     this.lastApiCallTime = 0;
@@ -375,35 +387,60 @@ class LightweightRefreshManager {
         }
       }
 
-      // CRITICAL: Refresh AppUsers every 15 seconds as backup for WebSocket
-      // This catches status changes that WebSocket might miss
+      // CRITICAL: Smart AppUser refresh - only poll API if WebSocket hasn't updated recently
       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
         try {
-          console.log('👥 [LightweightRefresh] Syncing AppUsers (backup for WebSocket)');
-          await this.waitForRateLimit();
-          const allAppUsers = await queueEntityRequest(
-            () => base44.entities.AppUser.list(),
-            'AppUser list'
-          );
+          const timeSinceWebSocket = Date.now() - this.lastWebSocketAppUserUpdate;
+          const hasRecentWebSocketUpdate = timeSinceWebSocket < this.WEBSOCKET_FRESHNESS_THRESHOLD;
 
-          this.recordSuccess();
+          if (hasRecentWebSocketUpdate) {
+            // WebSocket is fresh - read from offline DB instead of API
+            console.log(`👥 [LightweightRefresh] WebSocket fresh (${Math.round(timeSinceWebSocket / 1000)}s ago) - reading AppUsers from offline DB`);
 
-          if (allAppUsers && allAppUsers.length > 0) {
-            const diff = diffEntityArrays(currentData.appUsers, allAppUsers);
-            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-              updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
-              console.log(`✅ [LightweightRefresh] AppUsers updated: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
-              
-              // CRITICAL: Save to offline DB immediately
-              const { offlineDB } = await import('./offlineDatabase');
-              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
-              
-              // Broadcast the updates
-              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
-              }));
+            const { offlineDB } = await import('./offlineDatabase');
+            const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+
+            if (offlineAppUsers && offlineAppUsers.length > 0) {
+              const diff = diffEntityArrays(currentData.appUsers, offlineAppUsers);
+              if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+                updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
+                console.log(`✅ [LightweightRefresh] AppUsers from offline DB: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
+
+                // Broadcast the updates
+                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                  detail: { appUsers: updates.appUsers, fromSmartRefresh: true, fromOfflineDB: true }
+                }));
+              }
+            }
+          } else {
+            // WebSocket stale or no updates - poll API as backup
+            console.log(`👥 [LightweightRefresh] WebSocket stale (${Math.round(timeSinceWebSocket / 1000)}s) - polling API for AppUsers`);
+            await this.waitForRateLimit();
+            const allAppUsers = await queueEntityRequest(
+              () => base44.entities.AppUser.list(),
+              'AppUser list'
+            );
+
+            this.recordSuccess();
+
+            if (allAppUsers && allAppUsers.length > 0) {
+              const diff = diffEntityArrays(currentData.appUsers, allAppUsers);
+              if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+                updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
+                console.log(`✅ [LightweightRefresh] AppUsers from API: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
+
+                // CRITICAL: Save to offline DB immediately
+                const { offlineDB } = await import('./offlineDatabase');
+                await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
+
+                // Broadcast the updates
+                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                  detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
+                }));
+              }
             }
           }
+
           this.markRefreshed('appUsers');
         } catch (e) {
           this.recordError();
