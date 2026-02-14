@@ -790,6 +790,25 @@ function Dashboard() {
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
 
+  // Check if current device is primary tracker (state declared at line 379)
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    
+    const checkPrimaryDevice = async () => {
+      try {
+        const { getCurrentDevice } = await import('@/components/utils/deviceManager');
+        const device = await getCurrentDevice(currentUser.id);
+        const isPrimary = device?.is_primary_tracker !== false;
+        setIsPrimaryDevice(isPrimary);
+      } catch (error) {
+        console.warn('⚠️ [Primary Device Check] Failed:', error.message);
+        setIsPrimaryDevice(false);
+      }
+    };
+    
+    checkPrimaryDevice();
+  }, [currentUser?.id]);
+
   // Fetch actual payroll stats when driver or date changes
   useEffect(() => {
     const fetchPayrollStats = async () => {
@@ -829,25 +848,6 @@ function Dashboard() {
 
     fetchPayrollStats();
   }, [isDriver, currentUser?.id, selectedDriverId, selectedDate]);
-
-  // Check if current device is primary tracker (state declared at line 379)
-  useEffect(() => {
-    if (!currentUser?.id) return;
-    
-    const checkPrimaryDevice = async () => {
-      try {
-        const { getCurrentDevice } = await import('@/components/utils/deviceManager');
-        const device = await getCurrentDevice(currentUser.id);
-        const isPrimary = device?.is_primary_tracker !== false;
-        setIsPrimaryDevice(isPrimary);
-      } catch (error) {
-        console.warn('⚠️ [Primary Device Check] Failed:', error.message);
-        setIsPrimaryDevice(false);
-      }
-    };
-    
-    checkPrimaryDevice();
-  }, [currentUser?.id]);
 
   // Track dynamically measured heights for map padding
   // CRITICAL: Start at 0, will be measured once cards render
