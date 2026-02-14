@@ -69,7 +69,9 @@ Deno.serve(async (req) => {
     const oversizedPay = oversizedCount * oversizedRate;
     const totalPay = deliveryPay + extraKmPay + oversizedPay;
 
-    // Calculate time on duty (first completed stop to last completed stop, minus breaks)
+    // Calculate time on duty
+    // If route complete: first stop to last stop, minus breaks
+    // If route in progress: first stop to now, minus breaks
     let totalTimeOnDuty = '00:00';
     
     const completedWithTime = deliveries
@@ -78,10 +80,19 @@ Deno.serve(async (req) => {
 
     if (completedWithTime.length > 0) {
       const firstStopTime = new Date(completedWithTime[0].actual_delivery_time);
-      const lastStopTime = new Date(completedWithTime[completedWithTime.length - 1].actual_delivery_time);
+      
+      // Check if route is still in progress
+      const hasActiveDeliveries = deliveries.some(d => 
+        ['pending', 'in_transit', 'en_route'].includes(d.status)
+      );
+      
+      // Use current time if route in progress, otherwise last completed stop
+      const endTime = hasActiveDeliveries 
+        ? new Date() 
+        : new Date(completedWithTime[completedWithTime.length - 1].actual_delivery_time);
       
       // Calculate duration in minutes
-      const durationMinutes = Math.floor((lastStopTime - firstStopTime) / (1000 * 60));
+      const durationMinutes = Math.floor((endTime - firstStopTime) / (1000 * 60));
       
       // Get break time from DriverDailyActivity
       let breakTimeMinutes = 0;
@@ -108,7 +119,8 @@ Deno.serve(async (req) => {
       
       console.log('⏰ Time on duty calculation:', {
         firstStop: firstStopTime.toISOString(),
-        lastStop: lastStopTime.toISOString(),
+        endTime: endTime.toISOString(),
+        hasActiveDeliveries,
         durationMinutes,
         breakTimeMinutes,
         workMinutes,
