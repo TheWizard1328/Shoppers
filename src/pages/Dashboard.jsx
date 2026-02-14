@@ -832,12 +832,13 @@ function Dashboard() {
         return;
       }
 
-      console.log('📊 [Payroll Stats] Fetching for driver:', currentUser.id, 'date:', format(selectedDate, 'yyyy-MM-dd'));
+      const targetDriverId = isAdmin ? selectedDriverId : currentUser.id;
+      console.log('📊 [Payroll Stats] Fetching for driver:', targetDriverId, 'date:', format(selectedDate, 'yyyy-MM-dd'));
       setIsLoadingPayrollStats(true);
 
       try {
         const response = await base44.functions.invoke('getDriverPayrollStats', {
-          driverId: currentUser.id,
+          driverId: targetDriverId,
           deliveryDate: format(selectedDate, 'yyyy-MM-dd')
         });
 
