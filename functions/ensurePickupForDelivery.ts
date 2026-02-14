@@ -77,6 +77,23 @@ Deno.serve(async (req) => {
 
         console.log(`🔍 Checking for incomplete pickup: store=${storeId}, date=${deliveryDate}, driver=${driverId}, ampm=${ampmDeliveries}`);
 
+        // CRITICAL: Preliminary check - does this specific store already have ANY deliveries for this driver on this date?
+        const allStoreDeliveries = await base44.entities.Delivery.filter({
+            store_id: storeId,
+            delivery_date: deliveryDate,
+            driver_id: driverId
+        });
+
+        if (allStoreDeliveries.length === 0) {
+            console.log(`⏭️ [ensurePickup] No existing deliveries for store ${storeId} - skipping auto-pickup creation (first delivery for this store)`);
+            return Response.json({ 
+                puid: null,
+                pickupId: null,
+                isNew: false,
+                skipAutoCreate: true
+            });
+        }
+
         // 1. Check for an existing incomplete pickup for this store, date, driver, and AM/PM slot
         const existingPickups = await base44.entities.Delivery.filter({
             store_id: storeId,
