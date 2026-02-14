@@ -24,9 +24,13 @@ export default function WebSocketDiagnosticsCard() {
     checkPrimaryDevice();
   }, []);
 
-  // Calculate top offset based on mobile header visibility
+  // Detect mobile device and calculate top offset
   useEffect(() => {
-    const updateTopOffset = () => {
+    const updateLayout = () => {
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isTabletPortrait = window.matchMedia('(max-width: 767px)').matches;
+      setIsMobile(isMobileDevice || isTabletPortrait);
+
       const mobileHeader = document.querySelector('[data-mobile-header]');
       if (mobileHeader) {
         const headerHeight = mobileHeader.getBoundingClientRect().height;
@@ -36,15 +40,15 @@ export default function WebSocketDiagnosticsCard() {
       }
     };
 
-    updateTopOffset();
+    updateLayout();
     
     // Update on resize/orientation change
-    window.addEventListener('resize', updateTopOffset);
-    window.addEventListener('orientationchange', updateTopOffset);
+    window.addEventListener('resize', updateLayout);
+    window.addEventListener('orientationchange', updateLayout);
     
     return () => {
-      window.removeEventListener('resize', updateTopOffset);
-      window.removeEventListener('orientationchange', updateTopOffset);
+      window.removeEventListener('resize', updateLayout);
+      window.removeEventListener('orientationchange', updateLayout);
     };
   }, []);
 
