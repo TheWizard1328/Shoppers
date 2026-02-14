@@ -2937,19 +2937,6 @@ export default function RouteImport({
                       )}
                     </SelectContent>
                   </Select>
-                  
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="purge-before-import"
-                      checked={purgeBeforeImport}
-                      onChange={(e) => setPurgeBeforeImport(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300"
-                    />
-                    <Label htmlFor="purge-before-import" className="text-xs md:text-sm cursor-pointer whitespace-nowrap">
-                      Purge
-                    </Label>
-                  </div>
                 </div>
               </div>
 
