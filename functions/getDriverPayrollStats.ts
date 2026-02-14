@@ -60,10 +60,10 @@ Deno.serve(async (req) => {
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
 
     // Count completed deliveries
-    // CRITICAL: Patient deliveries count when completed
+    // CRITICAL: Patient deliveries count when completed OR failed
     // Pickups count ONLY when they have after_hours_pickup = true AND (completed OR cancelled)
     const completedPatientDeliveries = deliveries.filter(d => 
-      d.patient_id && d.status === 'completed'
+      d.patient_id && (d.status === 'completed' || d.status === 'failed')
     );
 
     const completedAfterHoursPickups = deliveries.filter(d => 
