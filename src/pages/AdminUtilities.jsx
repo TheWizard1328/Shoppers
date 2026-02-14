@@ -922,6 +922,24 @@ const DeliveryDataTable = ({
                  >
                    Find Duplicates
                  </Button>
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   onClick={async () => {
+                     if (!window.confirm('Clean all delivery timestamps by removing timezone offsets like -0700? This will update ALL deliveries with actual_delivery_time set.')) return;
+                     try {
+                       const { cleanActualDeliveryTimes } = await import('@/functions/cleanActualDeliveryTimes');
+                       const result = await cleanActualDeliveryTimes({ dryRun: false, batchSize: 100 });
+                       alert(`Cleanup completed!\n\nUpdated: ${result.data.updated}\nErrors: ${result.data.errors}\nAlready clean: ${result.data.alreadyClean}`);
+                     } catch (error) {
+                       alert('Failed to clean timestamps: ' + error.message);
+                     }
+                   }}
+                   disabled={isLoadingData}
+                   className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                 >
+                   Clean Timestamps
+                 </Button>
                  {duplicateFilterMode && (
                    <Button
                      variant="outline"
