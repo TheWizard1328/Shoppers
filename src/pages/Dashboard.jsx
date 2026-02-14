@@ -1289,6 +1289,7 @@ function Dashboard() {
     });
 
     // CRITICAL: After Hours Pickups count as completed (completed OR cancelled status)
+    // Regular pickups (no patient_id, no after_hours_pickup) do NOT count as paid deliveries
     const afterHoursPickupsCompleted = relevantDeliveries.filter((d) =>
     d && !d.patient_id && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')
     ).length;
