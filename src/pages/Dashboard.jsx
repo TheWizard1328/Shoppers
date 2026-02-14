@@ -692,6 +692,46 @@ function Dashboard() {
     const handleDeliveryStatsUpdate = (event) => {
       setDeliveryStats(event.detail);
     };
+    
+    // CRITICAL: Listen for manual refresh payroll stats trigger from SmartRefreshIndicator
+    const handleRefreshPayrollStatsAfterSync = async () => {
+      // Only fetch if: (driver viewing own route) OR (admin viewing any driver)
+      const shouldFetch = (isDriver && selectedDriverId === currentUser?.id) || (isAdmin && selectedDriverId && selectedDriverId !== 'all');
+      
+      if (!shouldFetch) {
+        console.log('⏭️ [Payroll Stats Refresh] Skipping - conditions not met');
+        return;
+      }
+
+      const targetDriverId = isAdmin ? selectedDriverId : currentUser.id;
+      console.log('📊 [Payroll Stats Refresh] Fetching after sync for driver:', targetDriverId, 'date:', format(selectedDate, 'yyyy-MM-dd'));
+
+      try {
+        const response = await base44.functions.invoke('getDriverPayrollStats', {
+          driverId: targetDriverId,
+          deliveryDate: format(selectedDate, 'yyyy-MM-dd')
+        });
+
+        const data = response?.data || response;
+        console.log('📊 [Payroll Stats Refresh] Response:', data);
+        
+        if (data?.success) {
+          const stats = {
+            totalPay: data.totalPay || 0,
+            totalKm: data.totalKm || 0,
+            totalExtraKm: data.totalExtraKm || 0,
+            totalTimeOnDuty: data.totalTimeOnDuty || '00:00',
+            extraKmLimit: data.extraKmLimit || 0
+          };
+          console.log('✅ [Payroll Stats Refresh] Updated stats:', stats);
+          setPerformanceStats(stats);
+        } else {
+          console.warn('⚠️ [Payroll Stats Refresh] Success=false:', data?.error);
+        }
+      } catch (error) {
+        console.warn('⚠️ [Payroll Stats Refresh] Failed:', error.message);
+      }
+    };
 
     // CRITICAL: Listen for live travel_dist updates
     const handleTravelDistUpdate = (event) => {
@@ -723,13 +763,15 @@ function Dashboard() {
     window.addEventListener('deliveryStatsUpdated', handleDeliveryStatsUpdate);
     window.addEventListener('travelDistUpdated', handleTravelDistUpdate);
     window.addEventListener('timeOnDutyUpdated', handleTimeOnDutyUpdate);
+    window.addEventListener('refreshPayrollStatsAfterSync', handleRefreshPayrollStatsAfterSync);
     return () => {
       window.removeEventListener('performanceStatsUpdated', handlePerformanceStatsUpdate);
       window.removeEventListener('deliveryStatsUpdated', handleDeliveryStatsUpdate);
       window.removeEventListener('travelDistUpdated', handleTravelDistUpdate);
       window.removeEventListener('timeOnDutyUpdated', handleTimeOnDutyUpdate);
+      window.removeEventListener('refreshPayrollStatsAfterSync', handleRefreshPayrollStatsAfterSync);
     };
-  }, [deliveries, updateDeliveriesLocally, performanceStats]);
+  }, [deliveries, updateDeliveriesLocally, performanceStats, isDriver, isAdmin, currentUser?.id, selectedDriverId, selectedDate]);
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);

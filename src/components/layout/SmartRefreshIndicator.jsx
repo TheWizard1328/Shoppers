@@ -284,10 +284,11 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       // CRITICAL: Listen for pull-to-sync completion to stop spinner and refresh payroll stats
       const handleSyncComplete = async () => {
         try {
-          const { base44 } = await import('@/api/base44Client');
-          await base44.functions.invoke('getDriverPayrollStats', {});
+          // CRITICAL: Dispatch event to Dashboard to trigger payroll stats refresh
+          // The event will be caught by Dashboard's useEffect which has access to selectedDriverId and selectedDate
+          window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
         } catch (error) {
-          console.warn('⚠️ [Manual Refresh] Failed to refresh payroll stats:', error.message);
+          console.warn('⚠️ [Manual Refresh] Failed to trigger payroll stats refresh:', error.message);
         }
         
         setIsManualRefreshing(false);
