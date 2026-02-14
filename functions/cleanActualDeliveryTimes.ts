@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
 
     // Fetch all deliveries with actual_delivery_time set
     const allDeliveries = await base44.asServiceRole.entities.Delivery.list();
-    const deliveriesWithTime = allDeliveries.filter(d => d.actual_delivery_time);
+    const deliveriesWithTime = (allDeliveries || []).filter(d => d.actual_delivery_time);
 
     console.log(`Found ${deliveriesWithTime.length} deliveries with actual_delivery_time`);
 
