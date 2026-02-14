@@ -1280,11 +1280,6 @@ export default function RouteImport({
         // This prevents stop 13 from overwriting stop 10's data
         const pidHasDuplicatesInImport = patientPID && pidCountInImport.get(patientPID) > 1;
 
-        // CRITICAL: For pickups with duplicates, only match the first one, create rest as new
-        const pickupKey = !patientPID ? `${store.id}|${currentDate}|${selectedDriver.id}|${ampmValue || 'none'}` : null;
-        const pickupHasDuplicatesInImport = pickupKey && pickupStoreCountInImport.get(pickupKey) > 1;
-        const isFirstPickupForKey = pickupKey && !matchedPickupKeys.has(pickupKey);
-
         // CRITICAL: Always use selectedDriver.id to ensure consistent driver assignment
         // This prevents creating deliveries with incorrect/duplicate driver_id values
         let matchResult;
@@ -1292,10 +1287,8 @@ export default function RouteImport({
         if (pidHasDuplicatesInImport && stopId) {
           // Patient delivery with duplicates: ONLY match by exact SID
           matchResult = { match: allDeliveriesData.find(d => d.stop_id === stopId && d.delivery_date === currentDate && d.driver_id === selectedDriver.id), reason: 'SID Match (PID has duplicates)' };
-        } else if (pickupHasDuplicatesInImport && !isFirstPickupForKey) {
-          // Pickup with duplicates: skip matching for non-first ones, create as new
-          matchResult = { match: null, reason: 'Pickup duplicate - creating new (not first pickup for this store/date/AMPM)' };
         } else {
+          // For all other cases (including pickups with duplicates), try to find matches
           matchResult = matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
         }
 
@@ -1306,11 +1299,6 @@ export default function RouteImport({
         // This prevents duplicate imports from overwriting each other
         if (existingDelivery && matchedExistingDeliveryIds.has(existingDelivery.id)) {
           existingDelivery = null;
-        }
-
-        // CRITICAL: Track first pickup match to prevent second pickup from matching too
-        if (pickupKey && isFirstPickupForKey && existingDelivery) {
-          matchedPickupKeys.add(pickupKey);
         }
       }
 
