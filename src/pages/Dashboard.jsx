@@ -1887,14 +1887,14 @@ function Dashboard() {
     // CRITICAL: Only measure when NO card is expanded (ensures we capture base/collapsed height)
     if (selectedCardId) return;
 
-    // Wait for cards to render, then measure the actual HorizontalStopCards element
+    // CRITICAL: Wait 400ms for card collapse animation to fully complete before measuring
     const timer = setTimeout(() => {
       const height = element.offsetHeight;
       if (height > 0 && height !== stopCardsBaseHeight) {
-        console.log(`📏 [Stop Cards Base Height] Measured: ${height}px (previous: ${stopCardsBaseHeight}px)`);
+        console.log(`📏 [Stop Cards Base Height] Measured after collapse: ${height}px (previous: ${stopCardsBaseHeight}px)`);
         setStopCardsBaseHeight(height);
       }
-    }, 200);
+    }, 400);
 
     return () => clearTimeout(timer);
   }, [selectedCardId, deliveriesWithStopOrder.length, deliveriesWithStopOrder.map(d => `${d?.id}:${d?.status}`).join(',')]);
@@ -1905,6 +1905,7 @@ function Dashboard() {
       // CRITICAL: Skip if any card is expanded - only measure collapsed state
       if (!horizontalStopCardsRef.current || selectedCardId) return;
       
+      // CRITICAL: Wait 400ms for collapse animation to complete
       setTimeout(() => {
         const element = horizontalStopCardsRef.current;
         if (element && !selectedCardId) {
@@ -1914,7 +1915,7 @@ function Dashboard() {
             setStopCardsBaseHeight(height);
           }
         }
-      }, 300);
+      }, 400);
     };
     
     window.addEventListener('deliveriesUpdated', handleHeightRemeasure);
