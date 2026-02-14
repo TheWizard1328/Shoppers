@@ -65,29 +65,32 @@ Deno.serve(async (req) => {
 
     // Process in batches to avoid rate limits
     const results = { updated: 0, errors: 0 };
-    
+
     for (let i = 0; i < deliveriesToUpdate.length; i += batchSize) {
       const batch = deliveriesToUpdate.slice(i, i + batchSize);
-      
+
       console.log(`Processing batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(deliveriesToUpdate.length / batchSize)}`);
-      
-      const batchPromises = batch.map(async ({ id, sanitized }) => {
+
+      // Process each delivery sequentially within the batch to avoid rate limits
+      for (const { id, sanitized } of batch) {
         try {
           await base44.asServiceRole.entities.Delivery.update(id, {
             actual_delivery_time: sanitized
           });
           results.updated++;
+
+          // Small delay between each update
+          await new Promise(resolve => setTimeout(resolve, 100));
         } catch (error) {
           console.error(`Failed to update delivery ${id}:`, error.message);
           results.errors++;
         }
-      });
+      }
 
-      await Promise.all(batchPromises);
-      
-      // Small delay between batches to be gentle on the system
+      // Longer delay between batches
       if (i + batchSize < deliveriesToUpdate.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log('Waiting 2 seconds before next batch...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
 
