@@ -1931,25 +1931,35 @@ export default function RouteImport({
 
       setProgressPercent(8);
 
-      // STEP 2: CRITICAL - Use ALL preview deliveries (creates + updates) as CREATES via bulkCreate
-      // Since we purge everything first, ALL CSV data becomes fresh creates
-      // This prevents duplicates and ensures CSV is the sole source of truth
-      console.log(`📦 [RouteImport Confirm] Starting import with ${previewData.deliveriesToCreate.length} creates + ${previewData.deliveriesToUpdate.length} updates`);
+      // STEP 2: CRITICAL - Separate creates and updates based on purge checkbox
+      // If purging: ALL deliveries become creates (old data is deleted)
+      // If NOT purging: Keep the original create/update split from preview (merge mode)
+      console.log(`📦 [RouteImport Confirm] Starting import with ${previewData.deliveriesToCreate.length} creates + ${previewData.deliveriesToUpdate.length} updates (purge: ${purgeBeforeImport})`);
 
-      const allDeliveriesToImport = [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate];
+      let deliveriesToCreateFiltered = [];
+      let deliveriesToUpdateFiltered = [];
 
-      if (!allDeliveriesToImport || allDeliveriesToImport.length === 0) {
-        console.error('❌ [RouteImport Confirm] ERROR: No deliveries to import!');
-        throw new Error('No deliveries found in preview data to import');
+      if (purgeBeforeImport) {
+        // PURGE MODE: All deliveries become creates
+        const allDeliveriesToImport = [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate];
+        deliveriesToCreateFiltered = allDeliveriesToImport.map(d => {
+          const { id, _changes, action, _matchReason, ...cleanData } = d;
+          return cleanData;
+        });
+        deliveriesToUpdateFiltered = [];
+        console.log(`📦 [RouteImport Confirm] PURGE MODE: All ${deliveriesToCreateFiltered.length} deliveries treated as creates`);
+      } else {
+        // MERGE MODE: Keep original create/update split from preview
+        deliveriesToCreateFiltered = previewData.deliveriesToCreate.map(d => {
+          const { id, _changes, action, _matchReason, ...cleanData } = d;
+          return cleanData;
+        });
+        deliveriesToUpdateFiltered = previewData.deliveriesToUpdate.map(d => {
+          const { _changes, action, _matchReason, ...updatePayload } = d;
+          return updatePayload;
+        });
+        console.log(`📦 [RouteImport Confirm] MERGE MODE: ${deliveriesToCreateFiltered.length} creates + ${deliveriesToUpdateFiltered.length} updates`);
       }
-
-      const deliveriesToCreateFiltered = allDeliveriesToImport.map(d => {
-        const { id, _changes, action, _matchReason, ...cleanData } = d;
-        return cleanData;
-      });
-      const deliveriesToUpdateFiltered = []; // No updates - full purge means everything is a create
-
-      console.log(`📦 [RouteImport Confirm] Filtered to ${deliveriesToCreateFiltered.length} deliveries for creation`);
 
       // STEP 3: Get drivers being imported
       const importedDriverIds = [...new Set(
