@@ -75,13 +75,20 @@ Deno.serve(async (req) => {
     // Count oversized deliveries
     const oversizedCount = completedDeliveries.filter(d => d.oversized === true).length;
 
-    // Calculate total kilometers (sum of all travel_dist)
-    const totalKm = deliveries
-      .filter(d => finishedStatuses.includes(d.status))
-      .reduce((sum, d) => sum + (d.travel_dist || 0), 0);
+    // Calculate total kilometers and extra kilometers per delivery
+    let totalKm = 0;
+    let totalExtraKm = 0;
 
-    // Calculate extra kilometers (beyond the limit)
-    const totalExtraKm = Math.max(0, totalKm - extraKmLimit);
+    completedDeliveries.forEach(d => {
+      // Use paid_km_override if set, otherwise use patient distance (both are travel_dist)
+      const distance = d.travel_dist || 0;
+      totalKm += distance;
+
+      // Extra km: if this delivery's distance > limit, add the excess
+      if (distance > extraKmLimit) {
+        totalExtraKm += (distance - extraKmLimit);
+      }
+    });
 
     // Calculate total pay
     const deliveryPay = completedDeliveries.length * payRatePerDelivery;
