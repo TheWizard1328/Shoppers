@@ -20,7 +20,11 @@ Deno.serve(async (req) => {
     const { batchSize = 100, dryRun = false } = await req.json().catch(() => ({}));
 
     // Fetch all deliveries using filter with empty query
-    const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({});
+    const response = await base44.asServiceRole.entities.Delivery.filter({});
+    console.log(`Response type: ${typeof response}, response:`, response);
+    
+    // Handle different response structures
+    const allDeliveries = Array.isArray(response) ? response : (response?.data || response?.records || []);
     console.log(`Total deliveries fetched: ${allDeliveries?.length || 0}`);
     
     const deliveriesWithTime = allDeliveries.filter(d => d.actual_delivery_time);
