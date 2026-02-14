@@ -928,8 +928,7 @@ const DeliveryDataTable = ({
                    onClick={async () => {
                      if (!window.confirm('Clean all delivery timestamps by removing timezone offsets like -0700? This will update ALL deliveries with actual_delivery_time set.')) return;
                      try {
-                       const { cleanActualDeliveryTimes } = await import('@/functions/cleanActualDeliveryTimes');
-                       const result = await cleanActualDeliveryTimes({ dryRun: false, batchSize: 100 });
+                       const result = await base44.functions.invoke('cleanActualDeliveryTimes', { dryRun: false, batchSize: 100 });
                        alert(`Cleanup completed!\n\nUpdated: ${result.data.updated}\nErrors: ${result.data.errors}\nAlready clean: ${result.data.alreadyClean}`);
                      } catch (error) {
                        alert('Failed to clean timestamps: ' + error.message);
