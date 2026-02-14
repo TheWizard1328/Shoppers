@@ -5,7 +5,6 @@ import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 75 }) {
   const [isFlashing, setIsFlashing] = useState(false);
-  const [dynamicHeight, setDynamicHeight] = useState(stopCardsHeight);
 
   const flashUpdate = () => {
     if (currentPhase !== 1) return;
@@ -19,22 +18,8 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
     return () => delete window.__fabFlashUpdate;
   }, [currentPhase]);
 
-  // CRITICAL: Listen for Stop Cards height changes
-  useEffect(() => {
-    const handleHeightChange = (e) => {
-      const newHeight = e.detail?.height || stopCardsHeight;
-      setDynamicHeight(newHeight);
-    };
-
-    window.addEventListener('stopCardsHeightChanged', handleHeightChange);
-    
-    return () => {
-      window.removeEventListener('stopCardsHeightChanged', handleHeightChange);
-    };
-  }, [stopCardsHeight]);
-
-  // CRITICAL: Dynamic position based on actual Stop Cards height
-  const bottomPixels = (hasVisibleCards ? dynamicHeight : 0) + 15;
+  // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion
+  const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + 15;
 
   // Get icon based on current phase (always white icon)
   const getIcon = () => {

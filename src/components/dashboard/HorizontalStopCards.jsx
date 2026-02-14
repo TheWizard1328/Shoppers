@@ -34,7 +34,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   } = props;
   // CRITICAL: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const containerRef = React.useRef(null);
-  const lastHeightRef = React.useRef(0);
   
   // CRITICAL: Combine refs - both the forwarded ref and internal containerRef
   const setRefs = React.useCallback((node) => {
@@ -52,42 +51,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   // CRITICAL FIX: Filter out invalid cards BEFORE sorting/mapping to prevent hook count mismatches
   const validCards = pickupCards.filter((card) => card && card.id);
-
-  // CRITICAL: Broadcast Stop Cards height changes to update FAB positions
-  React.useEffect(() => {
-    const broadcastHeight = () => {
-      if (!containerRef.current) return;
-      
-      const currentHeight = containerRef.current.offsetHeight;
-      
-      // Only broadcast if height actually changed
-      if (currentHeight !== lastHeightRef.current) {
-        lastHeightRef.current = currentHeight;
-        
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('stopCardsHeightChanged', {
-            detail: { height: currentHeight }
-          }));
-        }
-      }
-    };
-
-    // Broadcast initial height
-    broadcastHeight();
-
-    // Use ResizeObserver to detect height changes
-    const resizeObserver = new ResizeObserver(() => {
-      broadcastHeight();
-    });
-
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [validCards.length, selectedCardId]); // Re-run when cards change or selection changes
 
   // Auto-scroll to selected card - always center when card is expanded
   const prevSelectedCardIdRef = React.useRef(null);
