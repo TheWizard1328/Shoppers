@@ -58,11 +58,11 @@ Deno.serve(async (req) => {
 
     // Calculate stats
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
-    
-    // Count completed deliveries (exclude pickups, failed, cancelled)
+
+    // Count completed deliveries (include pickups - they are paid stops)
+    // Patient deliveries have patient_id, pickups/ISP/ISD don't
     const completedDeliveries = deliveries.filter(d => 
-      d.patient_id && // Only patient deliveries
-      d.status === 'completed' // Only completed
+      d.status === 'completed' // Only completed (includes both patient deliveries and pickups)
     );
 
     // Count oversized deliveries
