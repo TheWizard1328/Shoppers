@@ -86,7 +86,8 @@ Deno.serve(async (req) => {
     // If route complete: first stop to last stop, minus breaks
     // If route in progress: first stop to now, minus breaks
     let totalTimeOnDuty = '00:00';
-    
+
+    // CRITICAL: Include ALL completed stops (patient deliveries AND pickups) for time calculation
     const completedWithTime = deliveries
       .filter(d => d.status === 'completed' && d.actual_delivery_time)
       .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
