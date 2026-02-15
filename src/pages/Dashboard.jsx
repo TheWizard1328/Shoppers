@@ -8374,22 +8374,25 @@ function Dashboard() {
                 
                 // CRITICAL: Process driver locations through poller to update ALL markers
                 console.log('📍 [Pull to Sync] Processing driver locations through poller for marker updates...');
-
-                // Ensure we have valid appUsers data
-                if (freshAppUsers && freshAppUsers.length > 0) {
+                
+                // Fallback to context appUsers if pull-to-sync didn't return any
+                const appUsersToProcess = (freshAppUsers && freshAppUsers.length > 0) ? freshAppUsers : appUsers;
+                
+                if (appUsersToProcess && appUsersToProcess.length > 0) {
                   driverLocationPoller.processLocationData(
                     currentUser, 
                     freshDeliveries, 
                     drivers, 
                     stores, 
-                    freshAppUsers, 
+                    appUsersToProcess, 
                     selectedDate, 
                     true, // forceNotify
                     'Dashboard', // currentPageName
                     showAllDriverMarkers
                   );
+                  console.log(`✅ [Pull to Sync] Location processing complete (${appUsersToProcess.length} users from ${freshAppUsers && freshAppUsers.length > 0 ? 'sync' : 'context'})`);
                 } else {
-                  console.warn('⚠️ [Pull to Sync] No appUsers from sync - skipping location processing');
+                  console.warn('⚠️ [Pull to Sync] No appUsers available from sync or context - cannot process locations');
                 }
                 
                 // CRITICAL: Dispatch location updates for ALL drivers
