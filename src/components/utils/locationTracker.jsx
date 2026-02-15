@@ -589,73 +589,28 @@ class LocationTracker {
         }
       );
 
-      // Poll GPS every 15 seconds - primary device tracks location
-      // PRIMARY DEVICES: Always update timestamp at every interval (regardless of movement)
-      // NON-PRIMARY: Uploads if moved > 200m OR event-driven OR timestamp needs refresh (every 2min)
+      // Poll GPS every 15 seconds
+      // ONLY PRIMARY DEVICES upload - non-primary devices don't track locations
       this.heartbeatInterval = setInterval(() => {
-        if (this.lastPosition && this.isTracking) {
-          const now = Date.now();
-          
-          // Check if timestamp needs refreshing (every 2 minutes to prevent stale mode)
-          const timeSinceLastTimestamp = now - this.lastTimestampUpdate;
-          const needsTimestampRefresh = timeSinceLastTimestamp >= this.timestampUpdateInterval;
-          
-          // Check for event-driven update within last 15 seconds
-          const isEventDriven = this._pendingEventUpdate && (now - this._eventUpdateTime) < 15000;
-
-          // CRITICAL: Primary devices ALWAYS update at every interval (15 seconds)
-          if (this.isPrimaryDevice) {
-            console.log('💓 [PRIMARY DEVICE] Poll: Updating location + timestamp (every 15s regardless of movement)');
-            this._pendingEventUpdate = false;
-            this.updateLocationInDatabase(
-              this.lastPosition.latitude,
-              this.lastPosition.longitude,
-              this.lastPosition.accuracy,
-              true, // forceUpdate - skip all checks
-              false, // full update with coordinates
-              true // isPrimaryDevice flag
-            );
-          } else if (isEventDriven) {
-            console.log('💓 [LocationTracker] Poll: Event-driven update pending - checking coordinates');
-            this._pendingEventUpdate = false;
-            this.updateLocationInDatabase(
-              this.lastPosition.latitude,
-              this.lastPosition.longitude,
-              this.lastPosition.accuracy,
-              true, // forceUpdate - skip distance check
-              false, // not timestamp-only
-              this.isPrimaryDevice
-            );
-          } else if (needsTimestampRefresh && this.driverStatus === 'on_duty') {
-            // HEARTBEAT: Update timestamp only to keep driver online (even when stationary)
-            console.log(`💓 [LocationTracker] Poll: ${(timeSinceLastTimestamp/1000).toFixed(0)}s since last timestamp - refreshing to prevent stale`);
-            this.updateLocationInDatabase(
-              this.lastPosition.latitude,
-              this.lastPosition.longitude,
-              this.lastPosition.accuracy,
-              false, // not force
-              true, // timestamp-only update
-              this.isPrimaryDevice
-            );
-          } else {
-            // Normal polling - check distance threshold
-            this.updateLocationInDatabase(
-              this.lastPosition.latitude,
-              this.lastPosition.longitude,
-              this.lastPosition.accuracy,
-              false, // Normal update - applies distance threshold
-              false, // not timestamp-only
-              this.isPrimaryDevice
-            );
-          }
+        if (this.lastPosition && this.isTracking && this.isPrimaryDevice) {
+          console.log('💓 [PRIMARY DEVICE] Poll: Updating location + timestamp (every 15s regardless of movement)');
+          this._pendingEventUpdate = false;
+          this.updateLocationInDatabase(
+            this.lastPosition.latitude,
+            this.lastPosition.longitude,
+            this.lastPosition.accuracy,
+            true, // forceUpdate - skip all checks
+            false, // full update with coordinates
+            true // isPrimaryDevice flag
+          );
         }
       }, this.updateInterval);
       
-      const deviceType = this.isPrimaryDevice ? 'PRIMARY' : 'NON-PRIMARY';
-      const updateLogic = this.isPrimaryDevice 
-        ? 'uploads coordinates + timestamp every 15s (regardless of movement)'
-        : `uploads if moved > ${this.minDistanceChange}m, event-driven, or timestamp refresh (2min)`;
-      console.log(`📍 [LocationTracker] Started ${this.updateInterval/1000}s GPS polling for ${deviceType} device - ${updateLogic}`);
+      if (this.isPrimaryDevice) {
+        console.log(`📍 [LocationTracker] Started as PRIMARY device - uploads coordinates + timestamp every 15s (regardless of movement)`);
+      } else {
+        console.log(`📍 [LocationTracker] Started as NON-PRIMARY device - GPS tracking DISABLED (primary device handles location)`);
+      }
     });
   }
 
