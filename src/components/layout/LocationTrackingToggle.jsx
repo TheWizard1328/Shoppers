@@ -42,21 +42,30 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     const handleAppUserUpdate = (event) => {
       const { entity, action, id, data } = event.detail || {};
       
-      // Check if this update is for the current user
-      if (entity === 'AppUser' && localUser && (id === localUser.appUserId || data?.user_id === localUser.id)) {
-        console.log('📡 [LocationSharing] Received AppUser update from WebSocket:', data);
-        
-        // Update local user state with new data
-        if (data && typeof data.location_tracking_enabled !== 'undefined') {
-          console.log(`🔄 [LocationSharing] Syncing location_tracking_enabled: ${data.location_tracking_enabled}`);
-          setLocalUser(prev => prev ? { ...prev, location_tracking_enabled: data.location_tracking_enabled } : prev);
-        }
+      if (entity !== 'AppUser' || !data) return;
+      
+      // CRITICAL: Check multiple ID fields to catch the update
+      // - id: AppUser record ID
+      // - data.id: AppUser record ID
+      // - data.user_id: Reference to User entity
+      const isCurrentUser = localUser && (
+        id === localUser.appUserId || 
+        id === localUser.id ||
+        data?.id === localUser.appUserId || 
+        data?.id === localUser.id ||
+        data?.user_id === localUser.id ||
+        data?.user_id === localUser.user_id
+      );
+      
+      if (isCurrentUser && typeof data.location_tracking_enabled !== 'undefined') {
+        console.log(`📡 [LocationSharing] WebSocket update - syncing toggle to: ${data.location_tracking_enabled}`);
+        setLocalUser(prev => prev ? { ...prev, location_tracking_enabled: data.location_tracking_enabled } : prev);
       }
     };
 
     window.addEventListener('entityMutationBroadcast', handleAppUserUpdate);
     return () => window.removeEventListener('entityMutationBroadcast', handleAppUserUpdate);
-  }, [localUser]);
+  }, [localUser?.id, localUser?.appUserId, localUser?.user_id]);
 
   // REMOVED: Auto-start tracking (Dashboard handles GPS tracking for mobile devices)
 
