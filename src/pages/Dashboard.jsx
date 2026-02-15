@@ -391,6 +391,11 @@ function Dashboard({ currentPageName }) {
   // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
   useEffect(() => {
     if (!currentUser || !isDataLoaded) return;
+    // CRITICAL: Skip subscriptions if not active page
+    if (!isActivePage) {
+      console.log(`⏸️ [Dashboard Subscriptions] Paused - not active page (${currentPageName})`);
+      return;
+    }
 
     console.log('🔌 [Real-time] Subscribing to Patient, Delivery, and AppUser changes...');
     
