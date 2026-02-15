@@ -53,18 +53,8 @@ export default function ActivePayStats({
   liveTimeOnDuty = null, // Live time on duty (null = use backend value)
   isLoadingPayrollStats = false
 }) {
-  // CRITICAL: Maintain previous values to prevent clearing during updates
-  const [cachedLocalStats, setCachedLocalStats] = useState(null);
-  
-  // CRITICAL: Update cached values when new data arrives (never clear)
-  useEffect(() => {
-    if (localStats && (localStats.total > 0 || localStats.completed > 0 || localStats.inTransit > 0)) {
-      setCachedLocalStats(localStats);
-    }
-  }, [localStats]);
-  
-  // Use cached values if current values are empty/recalculating
-  const stats = cachedLocalStats || localStats || {
+  // Use localStats directly - always reflect the current date's data
+  const stats = localStats || {
     total: 0,
     inTransit: 0,
     completed: 0,
