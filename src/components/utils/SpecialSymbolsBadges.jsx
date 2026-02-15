@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Phone, Bell, BellOff, Mailbox, StickyNote, Clock } from "lucide-react";
@@ -95,7 +96,9 @@ export default function SpecialSymbolsBadges({
   const hasAnyContent = hasCOD || isFirstDelivery || hasOversized || hasFridge || hasSignature ||
   hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
 
-  if (!hasAnyContent) return null;
+  if (!hasAnyContent) {
+    return null;
+  }
 
   // Use different base styles for card size vs others
   const isCardSize = size === 'card';
