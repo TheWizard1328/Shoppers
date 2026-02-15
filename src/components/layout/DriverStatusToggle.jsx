@@ -64,14 +64,35 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     initAppUserAndTracker();
   }, [currentUser?.id]);
 
-  // CRITICAL: Status polling DISABLED - prevents rate limits
-  // Status will only sync on component mount and after manual status changes
+  // Listen for AppUser entity updates from WebSocket to sync status across devices
   useEffect(() => {
-    if (currentUser?.driver_status && currentUser.driver_status !== status) {
+    const handleAppUserUpdate = (event) => {
+      const { entity, action, id, data } = event.detail || {};
+      
+      // Check if this update is for the current user
+      if (entity === 'AppUser' && appUserId && id === appUserId && data?.driver_status) {
+        console.log('📡 [DriverStatusToggle] Received AppUser update from WebSocket:', data);
+        
+        // Update status if it changed
+        if (data.driver_status !== status) {
+          console.log(`🔄 [DriverStatusToggle] Syncing driver_status: ${status} → ${data.driver_status}`);
+          setStatus(data.driver_status);
+          locationTracker.setDriverStatus(data.driver_status);
+        }
+      }
+    };
+
+    window.addEventListener('entityMutationBroadcast', handleAppUserUpdate);
+    return () => window.removeEventListener('entityMutationBroadcast', handleAppUserUpdate);
+  }, [appUserId, status]);
+
+  // Fallback: sync from currentUser prop changes
+  useEffect(() => {
+    if (currentUser?.driver_status && currentUser.driver_status !== status && !isUpdating) {
       setStatus(currentUser.driver_status);
       locationTracker.setDriverStatus(currentUser.driver_status);
     }
-  }, [currentUser?.driver_status]);
+  }, [currentUser?.driver_status, status, isUpdating]);
 
   const handleStatusChange = useCallback(async (newStatus) => {
     // Don't allow changes while updating OR if already pending

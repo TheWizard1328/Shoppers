@@ -20,19 +20,6 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const [gpsCapabilities, setGpsCapabilities] = useState(null);
   const autoStartedRef = useRef(false);
   const consecutiveErrorsRef = useRef(false);
-  // CRITICAL: Track toggle state independently to prevent reversion during data refresh
-  // Use a key in sessionStorage to persist user's choice across component remounts
-  const [isLocationSharingEnabled, setIsLocationSharingEnabled] = useState(() => {
-    try {
-      const stored = sessionStorage.getItem('locationSharingEnabled');
-      if (stored !== null) {
-        return stored === 'true';
-      }
-    } catch (e) {
-      // sessionStorage not available
-    }
-    return user?.location_tracking_enabled || false;
-  });
   const isTogglingRef = useRef(false); // Track toggle operation state in ref
 
   // CRITICAL: Check device/role conditions ONCE on mount with stable values
@@ -43,36 +30,33 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     return user ? isAppOwner(user) : false;
   }, [user]);
 
-  // Always sync localUser with user prop - but respect sessionStorage for toggle state
+  // Always sync localUser with user prop and update toggle state from real data
   useEffect(() => {
     if (user) {
       setLocalUser(user);
-      
-      // CRITICAL: Only update state if NO sessionStorage value exists (fresh session)
-      // This ensures user's toggle choice persists across component remounts
-      const stored = sessionStorage.getItem('locationSharingEnabled');
-      if (stored === null && !isTogglingRef.current) {
-        // No stored choice - use database value
-        const dbValue = user.location_tracking_enabled || false;
-        setIsLocationSharingEnabled(dbValue);
-        sessionStorage.setItem('locationSharingEnabled', String(dbValue));
-        console.log('🔄 [LocationSharing] Synced from DB (no stored choice):', dbValue);
-      }
     }
   }, [user]);
 
-  // Listen for location sharing disabled event from DriverStatusToggle
+  // Listen for AppUser entity updates from WebSocket
   useEffect(() => {
-    const handleSharingDisabled = async () => {
-      console.log('📍 [LocationSharing] Received locationSharingDisabled event - updating UI');
-      setLocalUser(prev => prev ? { ...prev, location_tracking_enabled: false } : prev);
-      setIsLocationSharingEnabled(false);
-      sessionStorage.setItem('locationSharingEnabled', 'false');
+    const handleAppUserUpdate = (event) => {
+      const { entity, action, id, data } = event.detail || {};
+      
+      // Check if this update is for the current user
+      if (entity === 'AppUser' && localUser && (id === localUser.appUserId || data?.user_id === localUser.id)) {
+        console.log('📡 [LocationSharing] Received AppUser update from WebSocket:', data);
+        
+        // Update local user state with new data
+        if (data && typeof data.location_tracking_enabled !== 'undefined') {
+          console.log(`🔄 [LocationSharing] Syncing location_tracking_enabled: ${data.location_tracking_enabled}`);
+          setLocalUser(prev => prev ? { ...prev, location_tracking_enabled: data.location_tracking_enabled } : prev);
+        }
+      }
     };
 
-    window.addEventListener('locationSharingDisabled', handleSharingDisabled);
-    return () => window.removeEventListener('locationSharingDisabled', handleSharingDisabled);
-  }, []);
+    window.addEventListener('entityMutationBroadcast', handleAppUserUpdate);
+    return () => window.removeEventListener('entityMutationBroadcast', handleAppUserUpdate);
+  }, [localUser]);
 
   // REMOVED: Auto-start tracking (Dashboard handles GPS tracking for mobile devices)
 
@@ -115,12 +99,14 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       if (checked) {
         // TURNING ON: Make location visible to other drivers
         setPermissionStatus('Enabling location sharing...');
-        setIsLocationSharingEnabled(true);
-        sessionStorage.setItem('locationSharingEnabled', 'true');
         
-        await base44.entities.AppUser.update(appUserId, {
+        const updatedAppUser = await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
+
+        // CRITICAL: Broadcast to other devices via WebSocket
+        const { broadcastMutation } = await import('../utils/realtimeSync');
+        broadcastMutation('AppUser', 'update', appUserId, updatedAppUser);
 
         // Signal for immediate GPS upload
         if (locationTracker.signalLocationSharingToggle) {
@@ -140,12 +126,14 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       } else {
         // TURNING OFF: Hide location from other drivers
         setPermissionStatus('Disabling location sharing...');
-        setIsLocationSharingEnabled(false);
-        sessionStorage.setItem('locationSharingEnabled', 'false');
         
-        await base44.entities.AppUser.update(appUserId, {
+        const updatedAppUser = await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: false
         });
+
+        // CRITICAL: Broadcast to other devices via WebSocket
+        const { broadcastMutation } = await import('../utils/realtimeSync');
+        broadcastMutation('AppUser', 'update', appUserId, updatedAppUser);
 
         // Signal toggle event
         if (locationTracker.signalLocationSharingToggle) {
@@ -167,9 +155,6 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     } catch (error) {
       console.error('❌ [LocationSharing] Failed to toggle:', error);
       setPermissionStatus(`Error: ${error.message}`);
-
-      setIsLocationSharingEnabled(!checked);
-      sessionStorage.setItem('locationSharingEnabled', String(!checked));
       
       setTimeout(() => setPermissionStatus(''), 4000);
     } finally {
@@ -194,8 +179,8 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     return null;
   }
 
-  // CRITICAL: Use independent state to prevent reversion during data refresh
-  const isSharingEnabled = isLocationSharingEnabled;
+  // CRITICAL: Always derive state from localUser to reflect real-time updates
+  const isSharingEnabled = localUser?.location_tracking_enabled || false;
 
   return (
     <div className="flex items-center gap-2">
