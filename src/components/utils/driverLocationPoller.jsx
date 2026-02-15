@@ -231,15 +231,16 @@ class DriverLocationPoller {
        if (currentUserCityId && user.city_id !== currentUserCityId) return false;
 
        // ========================================
-       // RULE 2: Admins (AppOwners) - can see all drivers in city if On Duty OR On Break
+       // RULE 2: Admins (AppOwners) - can see ALL drivers with location sharing enabled
        // ========================================
        if (isAdmin) {
-         // Admin sees drivers if they are On Duty OR On Break (even with stale locations)
-         if (user.driver_status === 'on_duty' || user.driver_status === 'on_break') {
-           console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - status: ${user.driver_status}, staleness: ${user._staleness}`);
+         // Admin sees ALL drivers with location_tracking_enabled=true (regardless of driver_status)
+         if (user.location_tracking_enabled === true) {
+           console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - location_tracking_enabled: true, status: ${user.driver_status}, staleness: ${user._staleness}`);
            return true;
          }
 
+         console.log(`🚫 [Poller] Admin NOT seeing driver ${user.user_name} - location_tracking_enabled: ${user.location_tracking_enabled}`);
          return false;
        }
 
