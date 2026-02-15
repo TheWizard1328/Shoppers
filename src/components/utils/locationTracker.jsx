@@ -511,8 +511,17 @@ class LocationTracker {
     this.currentUser = user;
     
     // CRITICAL: Check if this is the primary device
-    const currentDevice = await getCurrentDevice(user.id);
-    this.isPrimaryDevice = currentDevice?.is_primary_tracker !== false;
+    try {
+      const currentDevice = await getCurrentDevice(user.id);
+      this.isPrimaryDevice = currentDevice?.is_primary_tracker !== false;
+      console.log(`📱 [LocationTracker] Device check: ${this.isPrimaryDevice ? 'PRIMARY' : 'NON-PRIMARY'}`, {
+        deviceId: currentDevice?.device_identifier,
+        is_primary_tracker: currentDevice?.is_primary_tracker
+      });
+    } catch (error) {
+      console.warn('⚠️ [LocationTracker] Device check failed - defaulting to PRIMARY:', error.message);
+      this.isPrimaryDevice = true; // SAFE DEFAULT: treat as primary if check fails
+    }
     
     // Get or find AppUser ID
     if (user.appUserId) {

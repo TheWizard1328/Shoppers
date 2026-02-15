@@ -101,6 +101,17 @@ class DriverLocationPoller {
    const driversWithCoords = appUsers.filter(u => u && u.current_latitude && u.current_longitude).length;
    console.log(`📊 [DriverLocationPoller] Input: ${driversWithCoords}/${appUsers.length} drivers have coordinates`);
 
+   // DEBUG: Log the drivers with coordinates and their settings
+   appUsers.filter(u => u && u.current_latitude && u.current_longitude).forEach(u => {
+     console.log(`🔍 [Driver Debug] ${u.user_name}:`, {
+       driver_status: u.driver_status,
+       location_tracking_enabled: u.location_tracking_enabled,
+       location_updated_at: u.location_updated_at,
+       lat: u.current_latitude?.toFixed(6),
+       lng: u.current_longitude?.toFixed(6)
+     });
+   });
+
    // Update internal current user reference
    this.currentUser = currentUser;
 
