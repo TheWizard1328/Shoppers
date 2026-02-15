@@ -239,7 +239,15 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       console.log('✅ [DriverStatusToggle] AppUser updated successfully');
       
       // CRITICAL: Broadcast status change to other devices via WebSocket
-      broadcastMutation('AppUser', 'update', appUserId, updatedAppUser);
+      // Ensure we broadcast ALL the fields we just updated
+      const broadcastData = {
+        id: appUserId,
+        user_id: currentUser.id,
+        ...updatedAppUser,
+        ...updatePayload // Include our update payload to guarantee all fields are present
+      };
+      broadcastMutation('AppUser', 'update', appUserId, broadcastData);
+      console.log('📡 [DriverStatusToggle] Broadcasted update:', broadcastData);
       
       // CRITICAL: Dispatch event to update self marker color immediately
       window.dispatchEvent(new CustomEvent('driverStatusChanged', {
