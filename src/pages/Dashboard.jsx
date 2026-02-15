@@ -8274,24 +8274,25 @@ function Dashboard() {
           console.log(`✅ [Dashboard Mount - STEP 2] UI updated with ${freshDeliveries.length} deliveries`);
         }
         
-        // Process updated location data
-        if (freshAppUsers && freshAppUsers.length > 0) {
-          driverLocationPoller.processLocationData(
-            currentUser, 
-            freshDeliveries || [], 
-            drivers, 
-            stores, 
-            freshAppUsers, 
-            selectedDate, 
-            true,
-            'Dashboard',
-            showAllDriverMarkers
-          );
-          
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: freshAppUsers, forceAll: true }
-          }));
-        }
+        // CRITICAL: ALWAYS process location data (even with empty array to clear markers)
+        const appUsersToProcess = freshAppUsers || [];
+        console.log(`📍 [Background Sync] Processing ${appUsersToProcess.length} appUsers through location poller...`);
+        
+        driverLocationPoller.processLocationData(
+          currentUser, 
+          freshDeliveries || [], 
+          drivers, 
+          stores, 
+          appUsersToProcess, // Always valid array
+          selectedDate, 
+          true,
+          'Dashboard',
+          showAllDriverMarkers
+        );
+        
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: appUsersToProcess, forceAll: true }
+        }));
         
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' }
