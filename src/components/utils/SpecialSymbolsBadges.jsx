@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Phone, Bell, BellOff, Mailbox, StickyNote, Clock } from "lucide-react";
@@ -140,7 +139,11 @@ export default function SpecialSymbolsBadges({
  * Useful for conditional rendering of containers
  */
 export function hasSpecialSymbols(delivery, patient, isPickup = false) {
-  if (!delivery || isPickup) return false;
+  if (!delivery) return false;
+
+  // After hours pickups always show a symbol
+  if (isPickup && delivery.after_hours_pickup) return true;
+  if (isPickup) return false;
 
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;
   const isFirstDelivery = delivery.first_delivery === true ||
