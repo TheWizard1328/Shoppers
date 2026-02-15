@@ -971,8 +971,9 @@ function Dashboard() {
   }, [currentUser?.id, refreshUser]);
 
   // CRITICAL: Auto-start location tracking for mobile drivers (independent of toggle visibility)
+  // CONDITION: isMobile && isDriver && isPrimaryDevice
   useEffect(() => {
-    if (!isMobile || !isDriver || !currentUser?.id) return;
+    if (!isMobile || !isDriver || !currentUser?.id || !isPrimaryDevice) return;
 
     const initTracking = async () => {
       // Set driver status in tracker
@@ -980,15 +981,14 @@ function Dashboard() {
       locationTracker.setDriverStatus(driverStatus);
       console.log(`📍 [Dashboard] Set locationTracker status to: ${driverStatus}`);
 
-      // CRITICAL: Always start tracking on mobile (even when off_duty/on_break)
-      // Tracker will handle when to update location_updated_at based on status
+      // CRITICAL: Only start if this is a PRIMARY device
       if (!locationTracker.isTracking) {
         try {
           const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
           const appUser = appUsers?.[0];
 
           if (appUser) {
-            console.log('🚀 [Dashboard] Auto-starting location tracking for mobile driver');
+            console.log('🚀 [Dashboard] Auto-starting location tracking for mobile driver (PRIMARY DEVICE)');
             await locationTracker.startTracking({
               ...currentUser,
               appUserId: appUser.id
@@ -1020,7 +1020,7 @@ function Dashboard() {
         liveDistanceTracker.stop();
       }
     };
-  }, [currentUser?.id, isMobile, isDriver]);
+  }, [currentUser?.id, isMobile, isDriver, isPrimaryDevice]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST
   useEffect(() => {
