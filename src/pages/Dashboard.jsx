@@ -3079,17 +3079,21 @@ function Dashboard() {
         if (shouldIncludeBlueDot) {
           allCoordinates.push([driverLocation.latitude, driverLocation.longitude]);
           hasDriverMarkers = true;
+          console.log(`📍 [Phase 1 - Blue Dot] Including live location: ${driverLocation.latitude.toFixed(6)}, ${driverLocation.longitude.toFixed(6)}`);
+        } else {
+          console.log(`🚫 [Phase 1 - Blue Dot] Excluded - isMobile: ${isMobile}, isDriver: ${isDriver}, isViewingToday: ${isViewingToday}, hasLocation: ${!!(driverLocation?.latitude && driverLocation?.longitude)}, driverId match: ${selectedDriverId === currentUser?.id || selectedDriverId === 'all'}`);
         }
 
         // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked OR when desktop OR dispatcher
-        // CRITICAL: Always include shared locations for desktop OR "show all" mode OR dispatchers
-        const shouldIncludeSharedLocations = !isMobile || shouldShowAllMarkersForBounds || isDispatcher;
+        // CRITICAL: Always include shared locations for desktop OR "show all" mode OR dispatchers OR admins
+        const shouldIncludeSharedLocations = !isMobile || shouldShowAllMarkersForBounds || isDispatcher || isAdmin;
         
         // CRITICAL: Also load from window.__mapDriverLocationMarkers (rendered on map)
         const mapDriverLocationMarkers = window.__mapDriverLocationMarkers || [];
 
         if (isViewingToday && shouldIncludeSharedLocations) {
           let addedCount = 0;
+          console.log(`📍 [Phase 1 - Shared Markers] Processing ${allDriverLocations.length} from poller + ${mapDriverLocationMarkers.length} from map (shouldInclude: ${shouldIncludeSharedLocations})`);
           
           // CRITICAL: For dispatchers viewing a single driver, prioritize AppUser data directly
           if (isDispatcher && selectedDriverId && selectedDriverId !== 'all') {
@@ -3171,7 +3175,10 @@ function Dashboard() {
             hasDriverMarkers = true;
             addedCount++;
           });
+          
+          console.log(`✅ [Phase 1 - Shared Markers] Added ${addedCount} shared driver locations to bounds`);
         } else {
+          console.log(`🚫 [Phase 1 - Shared Markers] Skipped - isViewingToday: ${isViewingToday}, shouldIncludeSharedLocations: ${shouldIncludeSharedLocations}`);
         }
 
         // 3. HOME LOCATIONS: Use markers from DeliveryMap (already filtered and validated)
