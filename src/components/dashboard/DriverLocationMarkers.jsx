@@ -88,6 +88,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const prevVisibleIdsRef = useRef(new Set());
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
 
+  const isAdmin = currentUser && userHasRole(currentUser, 'admin');
+  const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
+  const isDriver = currentUser && userHasRole(currentUser, 'driver');
+
   // Check if current device is primary tracker
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -160,40 +164,63 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           const userId = user.id || user.user_id;
           const isSelf = userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
 
+          // CRITICAL: NEVER show self marker on primary device (live GPS dot shows instead)
           if (isSelf && isPrimaryDevice) {
             return false;
           }
 
-          // CRITICAL: Self marker on non-primary device - show if: on_duty/on_break OR (off_duty with recent heartbeat < 5min)
-          const isSelfOnNonPrimary = isSelf && !isPrimaryDevice;
-          if (isSelfOnNonPrimary) {
-            // Check heartbeat age for off_duty status
-            if (user.driver_status === 'off_duty') {
-              if (user.location_updated_at) {
-                const ageMs = Date.now() - new Date(user.location_updated_at).getTime();
-                const ageMinutes = ageMs / (1000 * 60);
-                if (ageMinutes >= 5) {
-                  console.log(`⏭️ [DriverMarkers] Self off_duty for ${ageMinutes.toFixed(1)}min - clearing marker`);
-                  return false;
-                }
-                console.log(`✅ [DriverMarkers] Self off_duty but recent heartbeat (${ageMinutes.toFixed(1)}min) - showing marker`);
-                return true;
-              }
-              console.log(`⏭️ [DriverMarkers] Self off_duty with no timestamp - clearing marker`);
-              return false;
-            }
-            console.log(`✅ [DriverMarkers] Self marker on non-primary device (status: ${user.driver_status})`);
-            return true;
+          // VISIBILITY RULES:
+          // 1) Admin: See ALL drivers as long as online (not off_duty)
+          // 2) Self on non-primary: Show as long as online (not off_duty)
+          // 3) Dispatcher: See assigned drivers only when on_duty
+          // 4) Driver: See other drivers in same city only if location_tracking_enabled === true
+
+          const isOnline = user.driver_status !== 'off_duty';
+
+          if (isAdmin) {
+            // Admin sees all online drivers
+            return isOnline;
           }
 
-          // CRITICAL: Other drivers - only clear if off_duty (ignore staleness)
-          if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
-            console.log(`⏭️ [DriverMarkers] ${user.user_name} is off_duty - clearing marker`);
-            return false;
+          if (isSelf) {
+            // Self on non-primary device - show as long as online
+            return isOnline;
           }
 
-          console.log(`✅ [DriverMarkers] Including ${user.user_name} - coords: ${user.current_latitude.toFixed(6)}, ${user.current_longitude.toFixed(6)}, time: ${user.location_updated_at}`);
-          return true;
+          if (isDispatcher) {
+            // Dispatcher sees assigned drivers when on_duty
+            if (user.driver_status !== 'on_duty') return false;
+            
+            // Check if driver is assigned to any dispatcher stores
+            const dispatcherStoreIds = currentUser?.store_ids || [];
+            if (dispatcherStoreIds.length === 0) return false;
+            
+            // Check if this driver has deliveries for dispatcher's stores on selected date
+            const selectedDateStr = selectedDate instanceof Date 
+              ? selectedDate.toISOString().split('T')[0]
+              : selectedDate;
+            const hasDispatcherStoreDeliveries = deliveries?.some(d => 
+              d && 
+              d.driver_id === userId && 
+              d.delivery_date === selectedDateStr &&
+              dispatcherStoreIds.includes(d.store_id)
+            );
+            
+            return hasDispatcherStoreDeliveries;
+          }
+
+          if (isDriver) {
+            // Driver sees other drivers in same city only if they have location sharing enabled
+            const currentUserCityId = currentUser?.city_id;
+            const currentUserCityIds = currentUser?.city_ids || (currentUserCityId ? [currentUserCityId] : []);
+            const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
+            
+            const isSameCity = userCityIds.some(cityId => currentUserCityIds.includes(cityId));
+            
+            return isSameCity && user.location_tracking_enabled === true;
+          }
+
+          return false;
         });
 
         console.log(`📍 [DriverMarkers] Setting ${validDrivers.length} visible drivers`);
@@ -203,7 +230,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
     window.addEventListener('driverLocationsUpdated', handleLocationUpdates);
     return () => window.removeEventListener('driverLocationsUpdated', handleLocationUpdates);
-  }, [currentUser, isPrimaryDevice, selectedDate]);
+  }, [currentUser, isPrimaryDevice, selectedDate, isAdmin, isDispatcher, isDriver, deliveries]);
 
   useEffect(() => {
     // CRITICAL: The `users` prop comes pre-filtered from driverLocationPoller
@@ -231,32 +258,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                      user.user_id === currentUserId;
 
       // CRITICAL: NEVER show self marker on primary device (live location is separate)
-      // CRITICAL: Self marker on non-primary device - show if: on_duty/on_break OR (off_duty with recent heartbeat < 5min)
-      if (isSelf) {
-        const shouldShow = !isPrimaryDevice;
-        if (!shouldShow) {
-          console.log(`🚫 [DriverMarkers - users prop] Self marker on primary - blocked`);
-          return false;
-        }
-        
-        // Check heartbeat age for off_duty status
-        if (user.driver_status === 'off_duty') {
-          if (user.location_updated_at) {
-            const ageMs = Date.now() - new Date(user.location_updated_at).getTime();
-            const ageMinutes = ageMs / (1000 * 60);
-            if (ageMinutes >= 5) {
-              console.log(`⏭️ [DriverMarkers - users prop] Self off_duty for ${ageMinutes.toFixed(1)}min - clearing`);
-              return false;
-            }
-            console.log(`✅ [DriverMarkers - users prop] Self off_duty but recent heartbeat (${ageMinutes.toFixed(1)}min)`);
-            return true;
-          }
-          console.log(`⏭️ [DriverMarkers - users prop] Self off_duty with no timestamp - clearing`);
-          return false;
-        }
-        
-        console.log(`✅ [DriverMarkers - users prop] Self marker on non-primary (status: ${user.driver_status})`);
-        return true;
+      if (isSelf && isPrimaryDevice) {
+        console.log(`🚫 [DriverMarkers - users prop] Self marker on primary - blocked`);
+        return false;
       }
 
       // CRITICAL: Don't show OTHER markers for past dates
@@ -270,10 +274,62 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         }
       }
 
-      // CRITICAL: Other drivers - only clear if off_duty (ignore staleness/heartbeat age)
-      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
-        console.log(`⏭️ [DriverMarkers - users prop] ${user.user_name} is off_duty - clearing marker`);
-        return false;
+      // VISIBILITY RULES:
+      const isOnline = user.driver_status !== 'off_duty';
+
+      if (isAdmin) {
+        // Admin sees all online drivers
+        return isOnline;
+      }
+
+      if (isSelf) {
+        // Self on non-primary device - show as long as online
+        return isOnline;
+      }
+
+      if (isDispatcher) {
+        // Dispatcher sees assigned drivers when on_duty only
+        if (user.driver_status !== 'on_duty') {
+          console.log(`⏭️ [DriverMarkers - users prop] ${user.user_name} not on_duty - dispatcher can't see`);
+          return false;
+        }
+        
+        // Check if driver is assigned to any dispatcher stores (via deliveries)
+        const dispatcherStoreIds = currentUser?.store_ids || [];
+        if (dispatcherStoreIds.length === 0) return false;
+        
+        const selectedDateStr = selectedDate instanceof Date 
+          ? selectedDate.toISOString().split('T')[0]
+          : selectedDate;
+        const hasDispatcherStoreDeliveries = deliveries?.some(d => 
+          d && 
+          d.driver_id === userId && 
+          d.delivery_date === selectedDateStr &&
+          dispatcherStoreIds.includes(d.store_id)
+        );
+        
+        return hasDispatcherStoreDeliveries;
+      }
+
+      if (isDriver) {
+        // Driver sees other drivers in same city only if location sharing enabled
+        if (!user.location_tracking_enabled) {
+          console.log(`⏭️ [DriverMarkers - users prop] ${user.user_name} has sharing disabled - driver can't see`);
+          return false;
+        }
+        
+        const currentUserCityId = currentUser?.city_id;
+        const currentUserCityIds = currentUser?.city_ids || (currentUserCityId ? [currentUserCityId] : []);
+        const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
+        
+        const isSameCity = userCityIds.some(cityId => currentUserCityIds.includes(cityId));
+        
+        if (!isSameCity) {
+          console.log(`⏭️ [DriverMarkers - users prop] ${user.user_name} in different city - driver can't see`);
+          return false;
+        }
+        
+        return true;
       }
       
       console.log(`✅ [DriverMarkers - users prop] Including ${user.user_name} - coords: ${user.current_latitude.toFixed(6)}, ${user.current_longitude.toFixed(6)}`);
@@ -322,7 +378,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       }
     });
     
-  }, [users, currentUser, isMobile, deliveries, isPrimaryDevice, selectedDate]);
+  }, [users, currentUser, isMobile, deliveries, isPrimaryDevice, selectedDate, isAdmin, isDispatcher, isDriver]);
 
   // Listen for driver status changes to update self marker immediately
   useEffect(() => {
@@ -375,11 +431,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return;
       }
       
-      // Check permissions before adding/updating
-      const isAdmin = currentUser && userHasRole(currentUser, 'admin');
-      const currentUserCityId = currentUser?.city_id;
-      const canView = isAdmin || (currentUserCityId && user.city_id === currentUserCityId);
-      
       // CRITICAL: Check if this is the current user on a non-primary device
       const isCurrentUserMarker = userId === currentUser?.id || userId === currentUser?.user_id;
       const isCurrentUserOnNonPrimaryDevice = isCurrentUserMarker && !isPrimaryDevice;
@@ -387,33 +438,50 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       // CRITICAL: Determine if we should block the self marker based on primary device status
       const shouldBlockSelfMarker = isCurrentUserMarker && isPrimaryDevice;
       
-      // CRITICAL: Don't show off-duty drivers or past date markers
+      // CRITICAL: Don't show past date markers
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const isViewingPastDate = selectedDate && selectedDate < todayStr;
       
-      // For self on non-primary: check 5min heartbeat rule if off_duty
-      // For others: only clear if off_duty
-      let isOffDuty = false;
-      if (isCurrentUserOnNonPrimaryDevice) {
-        if (user.driver_status === 'off_duty') {
-          if (user.location_updated_at) {
-            const ageMs = Date.now() - new Date(user.location_updated_at).getTime();
-            const ageMinutes = ageMs / (1000 * 60);
-            isOffDuty = ageMinutes >= 5;
-          } else {
-            isOffDuty = true;
-          }
+      // Apply visibility rules
+      const isOnline = user.driver_status !== 'off_duty';
+      let shouldShowMarker = false;
+
+      if (isAdmin) {
+        // Admin sees all online drivers
+        shouldShowMarker = isOnline && user.status !== 'inactive' && !shouldBlockSelfMarker && !isViewingPastDate;
+      } else if (isCurrentUserOnNonPrimaryDevice) {
+        // Self on non-primary - show as long as online
+        shouldShowMarker = isOnline && user.status !== 'inactive' && !isViewingPastDate;
+      } else if (isDispatcher) {
+        // Dispatcher sees assigned drivers when on_duty
+        if (user.driver_status !== 'on_duty') {
+          shouldShowMarker = false;
+        } else {
+          const dispatcherStoreIds = currentUser?.store_ids || [];
+          const selectedDateStr = selectedDate instanceof Date 
+            ? selectedDate.toISOString().split('T')[0]
+            : selectedDate;
+          const hasDispatcherStoreDeliveries = deliveries?.some(d => 
+            d && 
+            d.driver_id === userId && 
+            d.delivery_date === selectedDateStr &&
+            dispatcherStoreIds.includes(d.store_id)
+          );
+          shouldShowMarker = hasDispatcherStoreDeliveries && user.status !== 'inactive' && !isViewingPastDate;
         }
-      } else {
-        isOffDuty = user.driver_status !== 'on_duty' && user.driver_status !== 'on_break';
+      } else if (isDriver) {
+        // Driver sees others in same city only if location_tracking_enabled
+        const currentUserCityId = currentUser?.city_id;
+        const currentUserCityIds = currentUser?.city_ids || (currentUserCityId ? [currentUserCityId] : []);
+        const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
+        const isSameCity = userCityIds.some(cityId => currentUserCityIds.includes(cityId));
+        
+        shouldShowMarker = isSameCity && 
+                          user.location_tracking_enabled === true && 
+                          user.status !== 'inactive' && 
+                          !shouldBlockSelfMarker &&
+                          !isViewingPastDate;
       }
-      
-      const shouldShowMarker = (user.location_tracking_enabled === true || isCurrentUserOnNonPrimaryDevice) && 
-                               user.status !== 'inactive' && 
-                               canView && 
-                               !shouldBlockSelfMarker &&
-                               !isOffDuty &&
-                               !isViewingPastDate;
       
       if (shouldShowMarker) {
         setVisibleDrivers(prev => {
@@ -439,7 +507,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
     window.addEventListener('driverLocationUpdated', handleLocationUpdate);
     return () => window.removeEventListener('driverLocationUpdated', handleLocationUpdate);
-  }, [users, currentUser, isMobile]);
+  }, [users, currentUser, isMobile, isAdmin, isDispatcher, isDriver, deliveries, selectedDate, isPrimaryDevice]);
 
   const getLocationAge = (locationUpdatedAt) => {
     if (!locationUpdatedAt) return 'Unknown';
@@ -518,7 +586,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                 )}
                 {staleness !== 'fresh' && staleness !== 'unknown' && (
                   <p className="text-xs text-orange-600 mt-1 font-medium">
-                    ⚠️ Location {ageMinutes}min old {!user.location_tracking_enabled && '(tracking stopped)'}
+                    ⚠️ Location {ageMinutes}min old
                   </p>
                 )}
                 {staleness === 'unknown' && !user.location_updated_at && (
