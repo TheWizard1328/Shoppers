@@ -265,9 +265,14 @@ class DriverLocationPoller {
            return false;
          }
 
-         // Dispatchers see assigned drivers if On Duty OR On Break AND location_tracking_enabled
-         if ((user.driver_status === 'on_duty' || user.driver_status === 'on_break') && user.location_tracking_enabled) {
-           console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - status: ${user.driver_status}, staleness: ${user._staleness}`);
+         // Dispatchers see assigned drivers if they have recent location updates (within last 30 minutes)
+         // regardless of shared location toggle - dispatchers need visibility for dispatch management
+         const lastUpdate = new Date(user.location_updated_at).getTime();
+         const ageMs = currentTime - lastUpdate;
+         const thirtyMinutesMs = 30 * 60 * 1000;
+
+         if (ageMs <= thirtyMinutesMs) {
+           console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - recent location (${user._ageMinutes}min old), staleness: ${user._staleness}`);
            return true;
          }
 
