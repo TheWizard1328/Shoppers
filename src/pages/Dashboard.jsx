@@ -2560,7 +2560,7 @@ function Dashboard() {
           patients,
           stores,
           cities,
-          appUsers: appUsers || [], // CRITICAL: Always pass valid array
+          appUsers,
           drivers
         },
         filters,
@@ -2578,21 +2578,20 @@ function Dashboard() {
             updateDeliveriesLocally(updates.deliveries, true);
           }
           
-          // CRITICAL: Always process location data, use updated appUsers OR current appUsers from context
-          const appUsersToProcess = updates.appUsers || appUsers || [];
-          console.log(`📍 [Periodic Refresh] Processing ${appUsersToProcess.length} appUsers through location poller...`);
-          
-          driverLocationPoller.processLocationData(
-            currentUser, 
-            updates.deliveries || deliveries, 
-            drivers, 
-            stores, 
-            appUsersToProcess, // Always pass valid array
-            selectedDate, 
-            true,
-            'Dashboard',
-            showAllDriverMarkers
-          );
+          if (updates.appUsers) {
+            // Process through poller
+            driverLocationPoller.processLocationData(
+              currentUser, 
+              updates.deliveries || deliveries, 
+              drivers, 
+              stores, 
+              updates.appUsers, 
+              selectedDate, 
+              true,
+              'Dashboard',
+              showAllDriverMarkers
+            );
+          }
         }
       } catch (error) {
         // CRITICAL: Handle rate limits gracefully
@@ -4375,59 +4374,43 @@ function Dashboard() {
 
       // STEP 4: CRITICAL - Load fresh appUsers and process through poller
       console.log('📍 [Date Change] Loading fresh appUsers and processing locations...');
-      let freshAppUsers = appUsers || []; // CRITICAL: Default to empty array if null/undefined
+      let freshAppUsers = appUsers;
       
-      // CRITICAL: Always fetch from API to ensure we have latest location data
+      // Try to load from offline DB first, fallback to current appUsers if empty
       try {
-        console.log('📥 [Date Change] Fetching fresh appUsers from API...');
-        const apiAppUsers = await base44.entities.AppUser.list();
-        if (apiAppUsers && apiAppUsers.length > 0) {
-          freshAppUsers = apiAppUsers;
-          console.log(`✅ [Date Change] Fetched ${freshAppUsers.length} appUsers from API`);
-          
-          // Update offline DB immediately
-          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-          console.log('💾 [Date Change] Saved appUsers to offline DB');
+        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        if (offlineAppUsers && offlineAppUsers.length > 0) {
+          freshAppUsers = offlineAppUsers;
+          console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from offline DB`);
         } else {
-          console.warn('⚠️ [Date Change] API returned no appUsers - falling back to offline DB');
-          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-          if (offlineAppUsers && offlineAppUsers.length > 0) {
-            freshAppUsers = offlineAppUsers;
-            console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from offline DB`);
-          }
+          console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from context (offline DB empty)`);
         }
-      } catch (apiError) {
-        console.warn('⚠️ [Date Change] API fetch failed, trying offline DB:', apiError.message);
-        try {
-          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-          if (offlineAppUsers && offlineAppUsers.length > 0) {
-            freshAppUsers = offlineAppUsers;
-            console.log(`📦 [Date Change] Using ${freshAppUsers.length} appUsers from offline DB (API fallback)`);
-          }
-        } catch (dbError) {
-          console.error('❌ [Date Change] Both API and offline DB failed for appUsers:', dbError.message);
-        }
+      } catch (dbError) {
+        console.warn('⚠️ [Date Change] Failed to load appUsers from offline DB, using context:', dbError.message);
       }
       
-      // CRITICAL: Always process through location poller even if array is empty (clears stale markers)
-      console.log(`📍 [Date Change] Processing ${freshAppUsers.length} appUsers through location poller...`);
-      driverLocationPoller.processLocationData(
-        currentUser, 
-        priorityDeliveries, 
-        drivers, 
-        stores, 
-        freshAppUsers, // Always pass valid array (even if empty)
-        new Date(dateStr + 'T00:00:00'), 
-        true,
-        'Dashboard',
-        showAllDriverMarkers
-      );
-      
-      // Dispatch location update event
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: { appUsers: freshAppUsers, forceAll: true }
-      }));
-      console.log('✅ [Date Change] Driver locations processed');
+      // Process through location poller with fresh appUsers
+      if (freshAppUsers && freshAppUsers.length > 0) {
+        driverLocationPoller.processLocationData(
+          currentUser, 
+          priorityDeliveries, 
+          drivers, 
+          stores, 
+          freshAppUsers, 
+          new Date(dateStr + 'T00:00:00'), 
+          true,
+          'Dashboard',
+          showAllDriverMarkers
+        );
+        
+        // Dispatch location update event
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: freshAppUsers, forceAll: true }
+        }));
+        console.log('✅ [Date Change] Driver locations processed');
+      } else {
+        console.warn('⚠️ [Date Change] No appUsers available - skipping location processing');
+      }
 
       // STEP 5: Dispatch event to force map and stop cards to re-render
       // CRITICAL: NO route optimization on date change
@@ -7984,21 +7967,20 @@ function Dashboard() {
         // Force complete UI re-render
         setForceRender((prev) => prev + 1);
         
-        // CRITICAL: ALWAYS process AppUsers through location poller (even if empty)
-        const appUsersToProcess = freshAppUsers || [];
-        console.log(`📍 [Pull to Sync] Processing ${appUsersToProcess.length} appUsers through location poller...`);
-        
-        driverLocationPoller.processLocationData(
-          currentUser,
-          freshDeliveries || [],
-          drivers,
-          stores,
-          appUsersToProcess, // Always valid array
-          selectedDate,
-          true,
-          'Dashboard',
-          showAllDriverMarkers
-        );
+        // CRITICAL: Process AppUsers through location poller for marker generation
+        if (freshAppUsers && freshAppUsers.length > 0) {
+          driverLocationPoller.processLocationData(
+            currentUser,
+            freshDeliveries || [],
+            drivers,
+            stores,
+            freshAppUsers,
+            selectedDate,
+            true,
+            'Dashboard',
+            showAllDriverMarkers
+          );
+        }
         
         // Force map update
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -8114,54 +8096,48 @@ function Dashboard() {
     hasPreRenderSyncRef.current = true;
     
     const preRenderSync = async () => {
-      console.log('🔄 [Dashboard Mount - STEP 0] Ensuring AppUser data is loaded...');
+      console.log('🔄 [Dashboard Mount - STEP 0] Checking AppUser freshness...');
       
       try {
-        // CRITICAL: ALWAYS fetch fresh AppUser data from API on mount
-        // This ensures we have the latest location data for all drivers
-        console.log('📥 [AppUser Sync] Fetching fresh data from API...');
-        const freshAppUsers = await base44.entities.AppUser.list();
+        // CRITICAL: Check AppUser sync metadata - 1 minute threshold
+        const appUserMeta = await offlineDB.getSyncMetadata('AppUser');
+        const now = Date.now();
+        const oneMinuteInMs = 60 * 1000; // 1 minute threshold
         
-        if (!freshAppUsers || freshAppUsers.length === 0) {
-          console.error('❌ [AppUser Sync] API returned no appUsers - this may indicate a data problem');
+        let needsAppUserSync = false;
+        
+        if (!appUserMeta || !appUserMeta.last_sync_time) {
+          console.log('📊 [AppUser Check] No sync metadata - fetching from API');
+          needsAppUserSync = true;
         } else {
-          console.log(`✅ [AppUser Sync] Fetched ${freshAppUsers.length} users from API`);
+          const lastSyncTime = new Date(appUserMeta.last_sync_time).getTime();
+          const ageMs = now - lastSyncTime;
           
-          // Save to offline DB
+          if (ageMs > oneMinuteInMs) {
+            console.log(`📊 [AppUser Check] Stale (${Math.floor(ageMs / 1000)}s old) - fetching from API`);
+            needsAppUserSync = true;
+          } else {
+            console.log(`✅ [AppUser Check] Fresh (${Math.floor(ageMs / 1000)}s old) - using offline DB`);
+          }
+        }
+        
+        // CRITICAL: Only sync AppUser from API if stale
+        if (needsAppUserSync) {
+          console.log('📥 [AppUser Sync] Fetching from API...');
+          const freshAppUsers = await base44.entities.AppUser.list();
           await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
           await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString());
-          console.log(`💾 [AppUser Sync] Saved to offline DB with timestamp`);
-          
-          // CRITICAL: Also update AppDataContext immediately
-          if (updateAppUsersLocally) {
-            updateAppUsersLocally(freshAppUsers, true);
-            console.log('✅ [AppUser Sync] Updated AppDataContext');
-          }
+          console.log(`✅ [AppUser Sync] ${freshAppUsers.length} users synced to offline DB`);
         }
         
         console.log(`✅ [Dashboard Mount - STEP 0] Pre-render sync complete`);
       } catch (error) {
         console.error('❌ [Dashboard Mount - STEP 0] Pre-render sync failed:', error);
-        
-        // CRITICAL: Even if API fails, try to ensure offline DB has data
-        try {
-          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-          if (offlineAppUsers && offlineAppUsers.length > 0) {
-            console.log(`📦 [AppUser Sync Fallback] Using ${offlineAppUsers.length} users from offline DB`);
-            if (updateAppUsersLocally) {
-              updateAppUsersLocally(offlineAppUsers, true);
-            }
-          } else {
-            console.error('❌ [AppUser Sync Fallback] Offline DB is also empty - no appUsers available');
-          }
-        } catch (fallbackError) {
-          console.error('❌ [AppUser Sync Fallback] Failed:', fallbackError.message);
-        }
       }
     };
     
     preRenderSync();
-  }, [currentUser?.id, isFiltersReady, updateAppUsersLocally]);
+  }, [currentUser?.id, isFiltersReady]);
   
   // CRITICAL: STEP 1 - Load everything from offline DB FIRST for instant UI
   const hasLoadedOfflineDataRef = useRef(false);
@@ -8179,29 +8155,10 @@ function Dashboard() {
       try {
         // CRITICAL: Load everything from offline DB - no API calls
         const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        let mountAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        const mountAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
         const mountPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
         
         console.log(`📦 [Dashboard Mount - STEP 1] Loaded from offline DB: ${mountDeliveries?.length || 0} deliveries, ${mountAppUsers?.length || 0} appUsers, ${mountPatients?.length || 0} patients`);
-        
-        // CRITICAL: If offline DB has no appUsers, fetch from API immediately
-        if (!mountAppUsers || mountAppUsers.length === 0) {
-          console.log('⚠️ [Dashboard Mount - STEP 1] No appUsers in offline DB - fetching from API...');
-          try {
-            const apiAppUsers = await base44.entities.AppUser.list();
-            if (apiAppUsers && apiAppUsers.length > 0) {
-              mountAppUsers = apiAppUsers;
-              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, apiAppUsers);
-              console.log(`✅ [Dashboard Mount - STEP 1] Fetched ${mountAppUsers.length} appUsers from API`);
-            } else {
-              console.warn('⚠️ [Dashboard Mount - STEP 1] API also returned no appUsers');
-              mountAppUsers = []; // Ensure valid empty array
-            }
-          } catch (apiError) {
-            console.error('❌ [Dashboard Mount - STEP 1] Failed to fetch appUsers from API:', apiError.message);
-            mountAppUsers = []; // Ensure valid empty array
-          }
-        }
         
         // Update deliveries UI immediately
         if (mountDeliveries && mountDeliveries.length > 0 && updateDeliveriesLocally) {
@@ -8210,26 +8167,27 @@ function Dashboard() {
           console.log(`✅ [Dashboard Mount - STEP 1] Deliveries UI updated`);
         }
         
-        // CRITICAL: ALWAYS process AppUsers through location poller (even if empty array)
-        console.log(`📍 [Dashboard Mount - STEP 1] Processing ${mountAppUsers.length} appUsers through location poller...`);
-        driverLocationPoller.processLocationData(
-          currentUser, 
-          mountDeliveries || [], 
-          drivers, 
-          stores, 
-          mountAppUsers, // Always valid array now
-          selectedDate, 
-          true,
-          'Dashboard',
-          showAllDriverMarkers
-        );
-        
-        // Dispatch location update event
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: mountAppUsers, forceAll: true }
-        }));
-        
-        console.log(`✅ [Dashboard Mount - STEP 1] AppUsers processed - location markers ready`);
+        // CRITICAL: Process AppUsers through location poller to generate markers
+        if (mountAppUsers && mountAppUsers.length > 0) {
+          driverLocationPoller.processLocationData(
+            currentUser, 
+            mountDeliveries || [], 
+            drivers, 
+            stores, 
+            mountAppUsers, 
+            selectedDate, 
+            true,
+            'Dashboard',
+            showAllDriverMarkers
+          );
+          
+          // Dispatch location update event
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: mountAppUsers, forceAll: true }
+          }));
+          
+          console.log(`✅ [Dashboard Mount - STEP 1] AppUsers processed - location markers ready`);
+        }
         
         setForceRender((prev) => prev + 1);
         console.log(`✅ [Dashboard Mount - STEP 1] Initial UI ready from offline DB`);
@@ -8274,25 +8232,24 @@ function Dashboard() {
           console.log(`✅ [Dashboard Mount - STEP 2] UI updated with ${freshDeliveries.length} deliveries`);
         }
         
-        // CRITICAL: ALWAYS process location data (even with empty array to clear markers)
-        const appUsersToProcess = freshAppUsers || [];
-        console.log(`📍 [Background Sync] Processing ${appUsersToProcess.length} appUsers through location poller...`);
-        
-        driverLocationPoller.processLocationData(
-          currentUser, 
-          freshDeliveries || [], 
-          drivers, 
-          stores, 
-          appUsersToProcess, // Always valid array
-          selectedDate, 
-          true,
-          'Dashboard',
-          showAllDriverMarkers
-        );
-        
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: appUsersToProcess, forceAll: true }
-        }));
+        // Process updated location data
+        if (freshAppUsers && freshAppUsers.length > 0) {
+          driverLocationPoller.processLocationData(
+            currentUser, 
+            freshDeliveries || [], 
+            drivers, 
+            stores, 
+            freshAppUsers, 
+            selectedDate, 
+            true,
+            'Dashboard',
+            showAllDriverMarkers
+          );
+          
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: freshAppUsers, forceAll: true }
+          }));
+        }
         
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
           detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' }
