@@ -221,29 +221,14 @@ class DriverLocationPoller {
        // Already filtered by coordinates above, no additional timestamp checks needed
 
        // ========================================
-       // RULE 1: Own location marker - VISIBLE ONLY ON NON-PRIMARY DEVICES
+       // RULE 1: Own location marker - ALWAYS VISIBLE
        // ========================================
        if (isSelf) {
-         // CRITICAL: Non-primary device shows self marker ONLY when "Show All" is OFF
-         // Primary device NEVER shows self marker
-         // When "Show All" is ON, self marker is suppressed (user sees it via live location layer)
-         const isPrimaryDevice = localStorage.getItem(`device_is_primary_${currentUserId}`) === 'true';
-
-         if (isPrimaryDevice) {
-           console.log(`🚫 [Poller] SELF marker BLOCKED on PRIMARY device (always hidden)`);
-           return false;
-         }
-
-         if (!showAllDrivers) {
-           console.log(`✅ [Poller] Including SELF marker on NON-PRIMARY device (Show All OFF)`, {
-             userId: user.user_name,
-             driver_status: user.driver_status
-           });
-           return true;
-         }
-
-         console.log(`🚫 [Poller] SELF marker BLOCKED on NON-PRIMARY device (Show All ON)`);
-         return false;
+         console.log(`✅ [Poller] Including SELF marker (always visible on all devices)`, {
+           userId: user.user_name,
+           driver_status: user.driver_status
+         });
+         return true;
        }
 
        // Skip inactive users for other drivers
