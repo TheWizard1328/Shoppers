@@ -387,43 +387,65 @@ class LightweightRefreshManager {
         }
       }
 
-      // CRITICAL: Smart AppUser refresh - only poll API if WebSocket hasn't updated recently
+      // CRITICAL: Aggressive AppUser refresh - ALWAYS poll to ensure UI toggles stay synced
+      // WebSocket updates may not be propagating properly to UI, so we need regular API polling
       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
         try {
-          const timeSinceWebSocket = Date.now() - this.lastWebSocketAppUserUpdate;
-          const hasRecentWebSocketUpdate = timeSinceWebSocket < this.WEBSOCKET_FRESHNESS_THRESHOLD;
+          console.log(`👥 [LightweightRefresh] Polling AppUsers for UI toggle sync...`);
+          await this.waitForRateLimit();
+          const allAppUsers = await queueEntityRequest(
+            () => base44.entities.AppUser.list(),
+            'AppUser list'
+          );
 
-          if (hasRecentWebSocketUpdate) {
-            // WebSocket is fresh - skip AppUser refresh to avoid clearing recent WebSocket updates from offline DB
-            console.log(`👥 [LightweightRefresh] WebSocket fresh (${Math.round(timeSinceWebSocket / 1000)}s ago) - skipping AppUser refresh to preserve WebSocket updates`);
-          }
-          } else {
-            // WebSocket stale or no updates - poll API as backup
-            console.log(`👥 [LightweightRefresh] WebSocket stale (${Math.round(timeSinceWebSocket / 1000)}s) - polling API for AppUsers`);
-            await this.waitForRateLimit();
-            const allAppUsers = await queueEntityRequest(
-              () => base44.entities.AppUser.list(),
-              'AppUser list'
-            );
+          this.recordSuccess();
 
-            this.recordSuccess();
+          if (allAppUsers && allAppUsers.length > 0) {
+            const diff = diffEntityArrays(currentData.appUsers, allAppUsers);
+            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+              updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
+              console.log(`✅ [LightweightRefresh] AppUsers synced: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
 
-            if (allAppUsers && allAppUsers.length > 0) {
-              const diff = diffEntityArrays(currentData.appUsers, allAppUsers);
-              if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-                updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
-                console.log(`✅ [LightweightRefresh] AppUsers from API: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
+              // CRITICAL: Save to offline DB immediately
+              const { offlineDB } = await import('./offlineDatabase');
+              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
 
-                // CRITICAL: Save to offline DB immediately
-                const { offlineDB } = await import('./offlineDatabase');
-                await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
+              // CRITICAL: Broadcast updates to force UI re-renders for toggles and settings
+              if (updates.appUsers && updates.appUsers.length > 0) {
+                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                  detail: { appUsers: updates.appUsers, fromSmartRefresh: true, forceUIUpdate: true }
+                }));
 
-                // CRITICAL: Only broadcast if we have actual appUsers data
-                if (updates.appUsers && updates.appUsers.length > 0) {
-                  window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                    detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
-                  }));
-                }
+                // CRITICAL: Dispatch events for each changed field to trigger specific UI updates
+                diff.toUpdate.forEach(changedId => {
+                  const newUser = allAppUsers.find(u => u.id === changedId);
+                  const oldUser = currentData.appUsers.find(u => u.id === changedId);
+
+                  if (newUser && oldUser) {
+                    // Notify about driver status changes
+                    if (newUser.driver_status !== oldUser.driver_status) {
+                      window.dispatchEvent(new CustomEvent('driverStatusChanged', {
+                        detail: { userId: newUser.id, newStatus: newUser.driver_status, oldStatus: oldUser.driver_status }
+                      }));
+                      console.log(`📡 [LightweightRefresh] Driver ${newUser.user_name} status: ${oldUser.driver_status} → ${newUser.driver_status}`);
+                    }
+
+                    // Notify about location tracking toggle changes
+                    if (newUser.location_tracking_enabled !== oldUser.location_tracking_enabled) {
+                      window.dispatchEvent(new CustomEvent('locationTrackingToggled', {
+                        detail: { userId: newUser.id, enabled: newUser.location_tracking_enabled }
+                      }));
+                      console.log(`📡 [LightweightRefresh] User ${newUser.user_name} location sharing: ${oldUser.location_tracking_enabled} → ${newUser.location_tracking_enabled}`);
+                    }
+
+                    // Notify about location updates (for marker refresh)
+                    if ((newUser.current_latitude !== oldUser.current_latitude || newUser.current_longitude !== oldUser.current_longitude) && newUser.current_latitude && newUser.current_longitude) {
+                      window.dispatchEvent(new CustomEvent('driverLocationUpdated', {
+                        detail: { userId: newUser.id, latitude: newUser.current_latitude, longitude: newUser.current_longitude, timestamp: Date.now() }
+                      }));
+                    }
+                  }
+                });
               }
             }
           }
