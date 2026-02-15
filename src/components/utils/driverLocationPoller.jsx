@@ -96,6 +96,17 @@ class DriverLocationPoller {
    }
 
    console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} driver locations (forceNotify: ${forceNotify}, currentPage: ${currentPageName})`);
+   console.log(`🔍 [DriverLocationPoller] appUsers input:`, appUsers?.map(u => ({
+     id: u?.id,
+     user_id: u?.user_id,
+     user_name: u?.user_name,
+     has_coords: !!(u?.current_latitude && u?.current_longitude),
+     lat: u?.current_latitude?.toFixed(6),
+     lng: u?.current_longitude?.toFixed(6),
+     timestamp: u?.location_updated_at,
+     driver_status: u?.driver_status,
+     location_tracking_enabled: u?.location_tracking_enabled
+   })));
 
    // Count drivers with coordinates
    const driversWithCoords = appUsers.filter(u => u && u.current_latitude && u.current_longitude).length;
