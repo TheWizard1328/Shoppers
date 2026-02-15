@@ -586,26 +586,7 @@ export default function DriverPayroll() {
     const today = new Date();
     let selectedIdx = null;
     
-    // STEP 1: Find the most recent unfinalized payroll cycle
-    let mostRecentUnfinalizedIdx = -1;
-    for (let i = allPeriods.length - 1; i >= 0; i--) {
-      const period = allPeriods[i];
-      const startStr = period.start.toISOString().split('T')[0];
-      const endStr = period.end.toISOString().split('T')[0];
-      
-      const isFinal = payrollRecords.some(r =>
-        r.pay_period_start === startStr &&
-        r.pay_period_end === endStr &&
-        (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
-      );
-      
-      if (!isFinal) {
-        mostRecentUnfinalizedIdx = i;
-        break;
-      }
-    }
-    
-    // STEP 2: Find period that contains today's date
+    // STEP 1: Find period that contains today's date
     let todayPeriodIdx = -1;
     for (let i = 0; i < allPeriods.length; i++) {
       const period = allPeriods[i];
@@ -614,21 +595,60 @@ export default function DriverPayroll() {
         break;
       }
     }
-    
-    // STEP 3: Select the most recent unfinalized period if it exists
-    if (mostRecentUnfinalizedIdx !== -1) {
-      selectedIdx = mostRecentUnfinalizedIdx;
-      console.log(`✅ [DriverPayroll] Selected most recent unfinalized period: index ${selectedIdx}`);
+
+    // STEP 2: Check if today's period is unfinalized
+    let isTodayPeriodFinalized = false;
+    if (todayPeriodIdx !== -1) {
+      const todayPeriod = allPeriods[todayPeriodIdx];
+      const startStr = todayPeriod.start.toISOString().split('T')[0];
+      const endStr = todayPeriod.end.toISOString().split('T')[0];
+
+      isTodayPeriodFinalized = payrollRecords.some(r =>
+        r.pay_period_start === startStr &&
+        r.pay_period_end === endStr &&
+        (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
+      );
     }
-    // STEP 4: Fall back to period containing today's date if no unfinalized exists
-    else if (todayPeriodIdx !== -1) {
+
+    // STEP 3: Select today's period if it's unfinalized
+    if (todayPeriodIdx !== -1 && !isTodayPeriodFinalized) {
       selectedIdx = todayPeriodIdx;
-      console.log(`✅ [DriverPayroll] Selected period containing today's date: index ${selectedIdx}`);
+      console.log(`✅ [DriverPayroll] Selected today's period (unfinalized): index ${selectedIdx} (${allPeriods[selectedIdx].label})`);
     }
-    // STEP 5: Default to last period as final fallback
+    // STEP 4: Otherwise, find the most recent unfinalized period
     else {
-      selectedIdx = allPeriods.length - 1;
-      console.log(`✅ [DriverPayroll] No unfinalized or today's period found, selecting last period: index ${selectedIdx}`);
+      let mostRecentUnfinalizedIdx = -1;
+      for (let i = allPeriods.length - 1; i >= 0; i--) {
+        const period = allPeriods[i];
+        const startStr = period.start.toISOString().split('T')[0];
+        const endStr = period.end.toISOString().split('T')[0];
+
+        const isFinal = payrollRecords.some(r =>
+          r.pay_period_start === startStr &&
+          r.pay_period_end === endStr &&
+          (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
+        );
+
+        if (!isFinal) {
+          mostRecentUnfinalizedIdx = i;
+          break;
+        }
+      }
+
+      if (mostRecentUnfinalizedIdx !== -1) {
+        selectedIdx = mostRecentUnfinalizedIdx;
+        console.log(`✅ [DriverPayroll] Selected most recent unfinalized period: index ${selectedIdx} (${allPeriods[selectedIdx].label})`);
+      }
+      // STEP 5: Fall back to period containing today's date if no unfinalized exists
+      else if (todayPeriodIdx !== -1) {
+        selectedIdx = todayPeriodIdx;
+        console.log(`✅ [DriverPayroll] All periods finalized - selected today's period: index ${selectedIdx} (${allPeriods[selectedIdx].label})`);
+      }
+      // STEP 6: Default to last period as final fallback
+      else {
+        selectedIdx = allPeriods.length - 1;
+        console.log(`✅ [DriverPayroll] No match found, selecting last period: index ${selectedIdx}`);
+      }
     }
     
     setSelectedPeriodIndex(selectedIdx);
