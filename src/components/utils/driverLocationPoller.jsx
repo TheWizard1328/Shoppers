@@ -253,17 +253,12 @@ class DriverLocationPoller {
        if (currentUserCityId && user.city_id !== currentUserCityId) return false;
 
        // ========================================
-       // RULE 2: Admins (AppOwners) - can see ALL drivers with location sharing enabled
+       // RULE 2: Admins (AppOwners) - can see ALL drivers regardless of settings
        // ========================================
        if (isAdmin) {
-         // Admin sees ALL drivers with location_tracking_enabled=true (regardless of driver_status)
-         if (user.location_tracking_enabled === true) {
-           console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - location_tracking_enabled: true, status: ${user.driver_status}, staleness: ${user._staleness}`);
-           return true;
-         }
-
-         console.log(`🚫 [Poller] Admin NOT seeing driver ${user.user_name} - location_tracking_enabled: ${user.location_tracking_enabled}`);
-         return false;
+         // Admins see ALL drivers with coordinates, no filtering by location_tracking_enabled or driver_status
+         console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - status: ${user.driver_status}, location_tracking: ${user.location_tracking_enabled}, staleness: ${user._staleness}`);
+         return true;
        }
 
        // ========================================
