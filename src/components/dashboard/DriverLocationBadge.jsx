@@ -7,64 +7,74 @@ const DriverLocationBadge = ({ users = [] }) => {
 
   useEffect(() => {
     const handleLocationUpdate = (event) => {
-      const { appUsers } = event.detail || {};
+      const { appUsers, singleUpdate } = event.detail || {};
       
       if (!appUsers || appUsers.length === 0) return;
 
-      const newStatus = {};
-      
-      appUsers.forEach(user => {
-        // Only show drivers who are online OR have updated location within last 30 minutes
-        if (!user || !user.location_updated_at) {
-          return;
-        }
-        
-        const isOnline = ['on_duty', 'on_break'].includes(user.driver_status);
-        const locationAgeMinutes = (Date.now() - new Date(user.location_updated_at).getTime()) / (1000 * 60);
-        
-        // Filter out offline drivers with stale locations (older than 30 minutes)
-        if (!isOnline && locationAgeMinutes > 30) {
-          return;
-        }
+      console.log(`🔍 [DriverLocationBadge] Received ${appUsers.length} appUsers, singleUpdate: ${singleUpdate}`);
 
-        const userId = user.id;
-        const prevState = prevStateRef.current[userId];
+      // CRITICAL: Merge updates instead of replacing entire state
+      setDriverStatus(prevStatus => {
+        const newStatus = singleUpdate ? { ...prevStatus } : {};
         
-        const latChanged = !prevState || prevState.lat !== user.current_latitude;
-        const lngChanged = !prevState || prevState.lng !== user.current_longitude;
-        const timestampChanged = !prevState || prevState.timestamp !== user.location_updated_at;
-        
-        const coordsChanged = latChanged || lngChanged;
-        
-        let bulletColor = 'red'; // Both unchanged
-        if (coordsChanged && timestampChanged) {
-          bulletColor = 'green'; // Both changed
-        } else if (timestampChanged) {
-          bulletColor = 'yellow'; // Only timestamp changed
-        }
-        
-        newStatus[userId] = {
-          name: user.user_name || user.full_name || 'Unknown',
-          lat: user.current_latitude,
-          lng: user.current_longitude,
-          timestamp: user.location_updated_at,
-          bulletColor,
-          status: user.driver_status,
-          latChanged,
-          lngChanged,
-          timestampChanged,
-          sortOrder: user.sort_order ?? Infinity
-        };
+        appUsers.forEach(user => {
+          // Only show drivers who are online OR have updated location within last 30 minutes
+          if (!user || !user.location_updated_at) {
+            return;
+          }
+          
+          const isOnline = ['on_duty', 'on_break'].includes(user.driver_status);
+          const locationAgeMinutes = (Date.now() - new Date(user.location_updated_at).getTime()) / (1000 * 60);
+          
+          // Filter out offline drivers with stale locations (older than 30 minutes)
+          if (!isOnline && locationAgeMinutes > 30) {
+            // Remove from status if present
+            if (newStatus[user.id]) {
+              delete newStatus[user.id];
+            }
+            return;
+          }
 
-        // Update previous state tracking
-        prevStateRef.current[userId] = {
-          lat: user.current_latitude,
-          lng: user.current_longitude,
-          timestamp: user.location_updated_at
-        };
+          const userId = user.id;
+          const prevState = prevStateRef.current[userId];
+          
+          const latChanged = !prevState || prevState.lat !== user.current_latitude;
+          const lngChanged = !prevState || prevState.lng !== user.current_longitude;
+          const timestampChanged = !prevState || prevState.timestamp !== user.location_updated_at;
+          
+          const coordsChanged = latChanged || lngChanged;
+          
+          let bulletColor = 'red'; // Both unchanged
+          if (coordsChanged && timestampChanged) {
+            bulletColor = 'green'; // Both changed
+          } else if (timestampChanged) {
+            bulletColor = 'yellow'; // Only timestamp changed
+          }
+          
+          newStatus[userId] = {
+            name: user.user_name || user.full_name || 'Unknown',
+            lat: user.current_latitude,
+            lng: user.current_longitude,
+            timestamp: user.location_updated_at,
+            bulletColor,
+            status: user.driver_status,
+            latChanged,
+            lngChanged,
+            timestampChanged,
+            sortOrder: user.sort_order ?? Infinity
+          };
+
+          // Update previous state tracking
+          prevStateRef.current[userId] = {
+            lat: user.current_latitude,
+            lng: user.current_longitude,
+            timestamp: user.location_updated_at
+          };
+        });
+
+        console.log(`✅ [DriverLocationBadge] Updated status - now tracking ${Object.keys(newStatus).length} drivers`);
+        return newStatus;
       });
-
-      setDriverStatus(newStatus);
     };
 
     window.addEventListener('driverLocationsUpdated', handleLocationUpdate);
