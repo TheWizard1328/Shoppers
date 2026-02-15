@@ -8828,7 +8828,7 @@ function Dashboard() {
                     </Button>
                   </div>
 
-                  {/* Location Toggle - Primary devices only */}
+                  {/* Location Toggle - All driver devices */}
                   {shouldShowLocationToggle &&
                 <>
                       <div className="border-t border-slate-200 mt-2 pt-2"></div>
