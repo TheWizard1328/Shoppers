@@ -507,7 +507,7 @@ class LocationTracker {
     const userName = user.user_name || user.full_name || 'Unknown';
     const userIdLast4 = user.id ? user.id.slice(-4) : '????';
 
-    console.log(`🚀 [LocationTracker] Starting location tracking for ${userName} (...${userIdLast4}) - PRIMARY device always tracks while app is open`);
+    console.log(`🚀 [LocationTracker] Starting location tracking for ${userName} (...${userIdLast4})`);
 
     if (!navigator.geolocation) {
       throw new Error('Geolocation is not supported by this browser');
@@ -518,18 +518,25 @@ class LocationTracker {
     }
 
     this.currentUser = user;
-    
-    // CRITICAL: Check if this is the primary device
+
+    // CRITICAL: Check if this is the primary device BEFORE starting GPS
     try {
       const currentDevice = await getCurrentDevice(user.id);
       this.isPrimaryDevice = currentDevice?.is_primary_tracker !== false;
-      console.log(`📱 [LocationTracker] Device check: ${this.isPrimaryDevice ? 'PRIMARY' : 'NON-PRIMARY'}`, {
+
+      if (!this.isPrimaryDevice) {
+        console.log(`⏭️ [NON-PRIMARY DEVICE] GPS tracking DISABLED - only primary device uploads locations`);
+        // Don't start GPS tracking at all for non-primary devices
+        return;
+      }
+
+      console.log(`✅ [PRIMARY DEVICE] Confirmed - will upload locations`, {
         deviceId: currentDevice?.device_identifier,
-        is_primary_tracker: currentDevice?.is_primary_tracker
+        userId: user.id
       });
     } catch (error) {
-      console.warn('⚠️ [LocationTracker] Device check failed - defaulting to PRIMARY:', error.message);
-      this.isPrimaryDevice = true; // SAFE DEFAULT: treat as primary if check fails
+      console.error('❌ [LocationTracker] Device check FAILED - aborting GPS start:', error.message);
+      throw new Error('Failed to verify device status. Please try again.');
     }
     
     // Get or find AppUser ID
@@ -566,36 +573,35 @@ class LocationTracker {
       console.warn('⚠️ GPS accuracy may be limited on this device');
     }
 
+    // CRITICAL: At this point isPrimaryDevice is confirmed true, proceed with GPS
     return new Promise((resolve, reject) => {
-      console.log('📍 [LocationTracker] Starting watchPosition with high accuracy GPS...');
+      console.log('📍 [PRIMARY DEVICE] Starting watchPosition with high accuracy GPS...');
       this.watchId = navigator.geolocation.watchPosition(
         async (position) => {
           this.handleLocationSuccess(position);
-          
+
           if (!this.isTracking) {
             this.isTracking = true;
-            console.log('✅ [LocationTracker] GPS watch established successfully');
-            
-            // CRITICAL: Primary devices upload initial location immediately on refresh/load
-            if (this.isPrimaryDevice) {
-              console.log('🚀 [PRIMARY DEVICE] Initial load - uploading location immediately', {
-                lat: position.coords.latitude.toFixed(6),
-                lng: position.coords.longitude.toFixed(6),
-                accuracy: position.coords.accuracy?.toFixed(0) + 'm',
-                timestamp: new Date(position.timestamp).toISOString()
-              });
-              await this.updateLocationInDatabase(
-                position.coords.latitude,
-                position.coords.longitude,
-                position.coords.accuracy,
-                true, // forceUpdate
-                false, // full update
-                true // isPrimaryDevice
-              );
-            } else {
-              console.log('⏭️ [NON-PRIMARY DEVICE] Initial GPS position received - NOT uploading (only primary uploads)');
-            }
-            
+            console.log('✅ [PRIMARY DEVICE] GPS watch established - uploading initial location now');
+
+            // CRITICAL: Upload initial location immediately on refresh/load
+            console.log('🚀 [PRIMARY DEVICE] Initial location upload:', {
+              lat: position.coords.latitude.toFixed(6),
+              lng: position.coords.longitude.toFixed(6),
+              accuracy: position.coords.accuracy?.toFixed(0) + 'm',
+              timestamp: new Date(position.timestamp).toISOString(),
+              appUserId: this.appUserId
+            });
+
+            await this.updateLocationInDatabase(
+              position.coords.latitude,
+              position.coords.longitude,
+              position.coords.accuracy,
+              true, // forceUpdate
+              false, // full update
+              true // isPrimaryDevice
+            );
+
             resolve();
           }
         },
@@ -614,15 +620,16 @@ class LocationTracker {
         }
       );
 
-      // Poll GPS every 15 seconds
-      // ONLY PRIMARY DEVICES upload - non-primary devices don't track locations
+      // Poll GPS every 15 seconds - guaranteed primary device at this point
       this.heartbeatInterval = setInterval(() => {
-        if (this.lastPosition && this.isTracking && this.isPrimaryDevice) {
-          console.log('💓 [PRIMARY DEVICE] Poll: Updating location + timestamp (every 15s regardless of movement)', {
+        if (this.lastPosition && this.isTracking) {
+          console.log('💓 [PRIMARY DEVICE] Poll interval - uploading location', {
             lat: this.lastPosition.latitude.toFixed(6),
             lng: this.lastPosition.longitude.toFixed(6),
-            isPrimary: this.isPrimaryDevice
+            accuracy: this.lastPosition.accuracy?.toFixed(0) + 'm',
+            appUserId: this.appUserId
           });
+
           this._pendingEventUpdate = false;
           this.updateLocationInDatabase(
             this.lastPosition.latitude,
@@ -632,16 +639,12 @@ class LocationTracker {
             false, // full update with coordinates
             true // isPrimaryDevice flag
           );
-        } else if (!this.isPrimaryDevice) {
-          console.log('⏭️ [NON-PRIMARY DEVICE] Poll: Skipping upload (only primary uploads)');
+        } else if (!this.lastPosition) {
+          console.log('⏭️ [PRIMARY DEVICE] Poll: No GPS position yet - waiting...');
         }
       }, this.updateInterval);
-      
-      if (this.isPrimaryDevice) {
-        console.log(`📍 [LocationTracker] Started as PRIMARY device - uploads coordinates + timestamp every 15s (regardless of movement)`);
-      } else {
-        console.log(`📍 [LocationTracker] Started as NON-PRIMARY device - GPS tracking DISABLED (primary device handles location)`);
-      }
+
+      console.log(`✅ [PRIMARY DEVICE] Location tracking started - uploads every ${this.updateInterval/1000}s`);
     });
   }
 
@@ -656,6 +659,7 @@ class LocationTracker {
       console.log('💓 [LocationTracker] Stopped heartbeat interval');
     }
     this.isTracking = false;
+    this.isPrimaryDevice = false; // Reset flag
     this.lastPosition = null;
     this.lastUpdate = 0;
     this.lastCoordinateUpdate = 0;
