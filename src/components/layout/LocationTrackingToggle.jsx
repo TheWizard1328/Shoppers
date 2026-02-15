@@ -318,11 +318,23 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     setHasError(false);
 
     try {
-      await locationTracker.restartTracking(localUser);
-      setPermissionStatus('Location refreshed!');
+      // CRITICAL: Get fresh user data first
+      const freshUser = await refreshUserState();
+      
+      if (freshUser) {
+        await locationTracker.restartTracking(freshUser);
+        setPermissionStatus('Location refreshed!');
+        
+        // Clear any "Starting..." state by forcing a status update
+        const status = locationTracker.getStatus();
+        setTrackingStatus(status);
+      } else {
+        throw new Error('Could not refresh user data');
+      }
     } catch (error) {
       console.error('Failed to refresh location:', error);
-      setPermissionStatus('Refresh failed');
+      setPermissionStatus(`Refresh failed: ${error.message}`);
+      setHasError(true);
     } finally {
       setIsToggling(false);
       setTimeout(() => setPermissionStatus(''), 3000);
