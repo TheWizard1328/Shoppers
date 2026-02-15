@@ -406,10 +406,12 @@ class LightweightRefreshManager {
                 updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
                 console.log(`✅ [LightweightRefresh] AppUsers from offline DB: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
 
-                // Broadcast the updates
-                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                  detail: { appUsers: updates.appUsers, fromSmartRefresh: true, fromOfflineDB: true }
-                }));
+                // CRITICAL: Only broadcast if we have actual appUsers data
+                if (updates.appUsers && updates.appUsers.length > 0) {
+                  window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                    detail: { appUsers: updates.appUsers, fromSmartRefresh: true, fromOfflineDB: true }
+                  }));
+                }
               }
             }
           } else {
@@ -433,10 +435,12 @@ class LightweightRefreshManager {
                 const { offlineDB } = await import('./offlineDatabase');
                 await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
 
-                // Broadcast the updates
-                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                  detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
-                }));
+                // CRITICAL: Only broadcast if we have actual appUsers data
+                if (updates.appUsers && updates.appUsers.length > 0) {
+                  window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                    detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
+                  }));
+                }
               }
             }
           }
