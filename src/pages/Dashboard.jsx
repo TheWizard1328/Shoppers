@@ -8594,11 +8594,12 @@ function Dashboard() {
 
                     {/* Show All and Breadcrumbs Buttons - Only for drivers in single driver mode */}
                     {isDriver && !isAllDriversMode && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={async () => {
+                      <div className="flex items-center flex-shrink-0">
+                        <div className="flex flex-col items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={async () => {
                             const checked = !showAllDriverMarkers;
                         setShowAllDriverMarkers(checked);
                         if (currentUser?.id) {
@@ -8708,7 +8709,9 @@ function Dashboard() {
                         >
                           <Binoculars className="w-4 h-4" />
                         </Button>
+                        </div>
 
+                        <div className="flex flex-col items-center gap-1">
                         <Button
                           variant="outline"
                           size="icon"
@@ -8789,28 +8792,7 @@ function Dashboard() {
                             <path d="M 12 9 Q 10 11, 8 13" stroke="currentColor" strokeWidth="1" fill="none" />
                           </svg>
                         </Button>
-                        
-                        {/* Quick Route Adjustments */}
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => setShowQuickAdjustments(true)}
-                          className="h-9 w-9 p-0"
-                          title="Quick route adjustments"
-                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                          <Settings className="w-3.5 h-3.5" />
-                        </Button>
-                        
-                        {/* AI Smart Prioritization */}
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => setShowSmartPrioritization(true)}
-                          className="h-9 w-9 p-0"
-                          title="AI delivery prioritization"
-                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                          <Sparkles className="w-3.5 h-3.5" />
-                        </Button>
+                        </div>
                       </div>
                     )}
 
@@ -8850,6 +8832,37 @@ function Dashboard() {
                       </div>
                     </>
                 }
+                  
+                  {/* Route Management Buttons - All drivers viewing their own route */}
+                  {isDriver && selectedDriverId === currentUser?.id && (
+                    <>
+                      {!shouldShowLocationToggle && <div className="border-t border-slate-200 mt-2 pt-2"></div>}
+                      <div className="flex items-center gap-2">
+                        {/* Quick Route Adjustments */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowQuickAdjustments(true)}
+                          className="h-8 gap-1.5 px-2 flex-shrink-0"
+                          title="Quick route adjustments"
+                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                          <span className="text-xs">Adjust</span>
+                        </Button>
+                        
+                        {/* AI Smart Prioritization */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowSmartPrioritization(true)}
+                          className="h-8 gap-1.5 px-2 flex-shrink-0"
+                          title="AI delivery prioritization"
+                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                          <Sparkles className="w-3 h-3" />
+                          <span className="text-xs">AI</span>
+                        </Button>
+                      </div>
+                    </>
+                  )}
 
                   {/* Offline Sync Indicator - embedded when stats card is centered */}
                   {isStatsCardCentered &&
