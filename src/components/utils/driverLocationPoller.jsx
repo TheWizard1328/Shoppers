@@ -377,6 +377,7 @@ class DriverLocationPoller {
         detail: { 
           appUsers: activeDriversWithLocation,
           forceAll: forceNotify,
+          singleUpdate: activeDriversWithLocation.length === 1 && !forceNotify, // CRITICAL: Single driver update
           fromPoller: true // CRITICAL: Flag to prevent infinite recursion
         }
       }));
