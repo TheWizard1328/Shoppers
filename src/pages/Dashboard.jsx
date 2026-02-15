@@ -240,7 +240,10 @@ const populateTemporaryStartTimes = (deliveries, stores) => {
   return deliveriesCopy;
 };
 
-function Dashboard() {
+function Dashboard({ currentPageName }) {
+  // CRITICAL: Pause all subscriptions and polling when not on Dashboard
+  const isActivePage = currentPageName === 'Dashboard';
+  
   const { currentUser, isLoadingUser, refreshUser } = useUser();
   const {
     deliveries,
