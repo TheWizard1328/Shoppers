@@ -104,8 +104,24 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                    userId === currentUserUserId ||
                    user.user_id === currentUserId;
 
+    // DEBUG: Log self marker check
+    if (isSelf) {
+      console.log(`🔍 [shouldShowMarker] SELF marker check:`, {
+        userId: user.user_name || user.id,
+        isPrimaryDevice,
+        driver_status: user.driver_status,
+        location_tracking_enabled: user.location_tracking_enabled,
+        hasCoords: !!(user.current_latitude && user.current_longitude),
+        lat: user.current_latitude?.toFixed(6),
+        lng: user.current_longitude?.toFixed(6),
+        timestamp: user.location_updated_at,
+        willShow: !(isSelf && isPrimaryDevice)
+      });
+    }
+
     // RULE 0: NEVER show self marker on primary device
     if (isSelf && isPrimaryDevice) {
+      console.log(`❌ [shouldShowMarker] BLOCKED self on primary device`);
       return false;
     }
 
