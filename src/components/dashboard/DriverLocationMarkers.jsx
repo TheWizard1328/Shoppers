@@ -144,7 +144,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     }
 
     // RULE 4: Driver sees other drivers ONLY if location_tracking_enabled === true
-    if (isDriver) {
+    if (isDriver && !isSelf) {
       if (!user.location_tracking_enabled) return false;
       
       const currentUserCityId = currentUser?.city_id;
