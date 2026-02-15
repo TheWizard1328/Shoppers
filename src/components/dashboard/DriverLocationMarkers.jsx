@@ -238,26 +238,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) {
-        console.log(`❌ [DriverMarkers - users prop] ${user.user_name || user.id} - no coordinates`);
         return false;
       }
 
-      // CRITICAL: Check if this is the current user viewing the map
-      const currentUserId = currentUser?.id;
-      const currentUserUserId = currentUser?.user_id;
-      const userId = user.id || user.user_id;
-      const isSelf = user._isSelf === true || 
-                     userId === currentUserId || 
-                     userId === currentUserUserId ||
-                     user.user_id === currentUserId;
-
-      // CRITICAL: NEVER show self marker on primary device (live location is separate)
-      if (isSelf && isPrimaryDevice) {
-        console.log(`🚫 [DriverMarkers - users prop] Self marker on primary - blocked`);
-        return false;
-      }
-
-      // CRITICAL: Don't show OTHER markers for past dates
+      // Don't show markers for past dates
       if (selectedDate) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const selectedDateStr = selectedDate instanceof Date 
@@ -268,66 +252,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         }
       }
 
-      // VISIBILITY RULES:
-      const isOnline = user.driver_status !== 'off_duty';
-
-      if (isAdmin) {
-        // Admin sees all online drivers
-        return isOnline;
-      }
-
-      if (isSelf) {
-        // Self on non-primary device - show as long as online
-        return isOnline;
-      }
-
-      if (isDispatcher) {
-        // Dispatcher sees assigned drivers when on_duty only
-        if (user.driver_status !== 'on_duty') {
-          console.log(`⏭️ [DriverMarkers - users prop] ${user.user_name} not on_duty - dispatcher can't see`);
-          return false;
-        }
-        
-        // Check if driver is assigned to any dispatcher stores (via deliveries)
-        const dispatcherStoreIds = currentUser?.store_ids || [];
-        if (dispatcherStoreIds.length === 0) return false;
-        
-        const selectedDateStr = selectedDate instanceof Date 
-          ? selectedDate.toISOString().split('T')[0]
-          : selectedDate;
-        const hasDispatcherStoreDeliveries = deliveries?.some(d => 
-          d && 
-          d.driver_id === userId && 
-          d.delivery_date === selectedDateStr &&
-          dispatcherStoreIds.includes(d.store_id)
-        );
-        
-        return hasDispatcherStoreDeliveries;
-      }
-
-      if (isDriver) {
-        // Driver sees other drivers in same city only if location sharing enabled
-        if (!user.location_tracking_enabled) {
-          console.log(`⏭️ [DriverMarkers - users prop] ${user.user_name} has sharing disabled - driver can't see`);
-          return false;
-        }
-        
-        const currentUserCityId = currentUser?.city_id;
-        const currentUserCityIds = currentUser?.city_ids || (currentUserCityId ? [currentUserCityId] : []);
-        const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
-        
-        const isSameCity = userCityIds.some(cityId => currentUserCityIds.includes(cityId));
-        
-        if (!isSameCity) {
-          console.log(`⏭️ [DriverMarkers - users prop] ${user.user_name} in different city - driver can't see`);
-          return false;
-        }
-        
-        return true;
-      }
-      
-      console.log(`✅ [DriverMarkers - users prop] Including ${user.user_name} - coords: ${user.current_latitude.toFixed(6)}, ${user.current_longitude.toFixed(6)}`);
-      return true;
+      return shouldShowMarker(user);
     });
     
     console.log(`📍 [DriverMarkers - users prop] Validated ${validDrivers.length}/${users?.length || 0} drivers`);
