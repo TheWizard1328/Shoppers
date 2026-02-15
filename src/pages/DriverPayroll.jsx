@@ -570,7 +570,7 @@ export default function DriverPayroll() {
   
   useEffect(() => {
     // CRITICAL: Wait for all data to be loaded BEFORE setting initial period
-    if (!hasInitialized || !payrollData || allPeriods.length === 0 || payrollRecords.length === 0) {
+    if (!hasInitialized || !payrollData || allPeriods.length === 0) {
       return;
     }
     
@@ -584,59 +584,54 @@ export default function DriverPayroll() {
     invalidate('Delivery');
     
     const today = new Date();
-    
-    // Find the most recent period that has ended or is current
-    let mostRecentPastPeriodIdx = -1;
-    for (let i = allPeriods.length - 1; i >= 0; i--) {
-      if (allPeriods[i].end <= today) {
-        mostRecentPastPeriodIdx = i;
-        break;
-      }
-    }
-    
-    // First, find period containing today's date
     let selectedIdx = null;
-    for (let i = 0; i < allPeriods.length; i++) {
-      const period = allPeriods[i];
-      if (today >= period.start && today <= period.end) {
-        selectedIdx = i;
-        break;
-      }
-    }
     
-    // If today's period is finalized, find first unfinalized period
-    if (selectedIdx !== null) {
-      const todayPeriod = allPeriods[selectedIdx];
-      const periodStartStr = todayPeriod.start.toISOString().split('T')[0];
-      const periodEndStr = todayPeriod.end.toISOString().split('T')[0];
-      const isTodayFinalized = payrollRecords.some(r =>
-        r.pay_period_start === periodStartStr &&
-        r.pay_period_end === periodEndStr &&
+    // STEP 1: Find the most recent unfinalized payroll cycle
+    let mostRecentUnfinalizedIdx = -1;
+    for (let i = allPeriods.length - 1; i >= 0; i--) {
+      const period = allPeriods[i];
+      const startStr = period.start.toISOString().split('T')[0];
+      const endStr = period.end.toISOString().split('T')[0];
+      
+      const isFinal = payrollRecords.some(r =>
+        r.pay_period_start === startStr &&
+        r.pay_period_end === endStr &&
         (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
       );
       
-      if (isTodayFinalized) {
-        // Find first unfinalized period
-        for (let i = 0; i < allPeriods.length; i++) {
-          const period = allPeriods[i];
-          const startStr = period.start.toISOString().split('T')[0];
-          const endStr = period.end.toISOString().split('T')[0];
-          const isFinal = payrollRecords.some(r =>
-            r.pay_period_start === startStr &&
-            r.pay_period_end === endStr &&
-            (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
-          );
-          if (!isFinal) {
-            selectedIdx = i;
-            break;
-          }
-        }
+      if (!isFinal) {
+        mostRecentUnfinalizedIdx = i;
+        break;
       }
     }
     
-    if (selectedIdx !== null) {
-      setSelectedPeriodIndex(selectedIdx);
+    // STEP 2: Find period that contains today's date
+    let todayPeriodIdx = -1;
+    for (let i = 0; i < allPeriods.length; i++) {
+      const period = allPeriods[i];
+      if (today >= period.start && today <= period.end) {
+        todayPeriodIdx = i;
+        break;
+      }
     }
+    
+    // STEP 3: Select the most recent unfinalized period if it exists
+    if (mostRecentUnfinalizedIdx !== -1) {
+      selectedIdx = mostRecentUnfinalizedIdx;
+      console.log(`✅ [DriverPayroll] Selected most recent unfinalized period: index ${selectedIdx}`);
+    }
+    // STEP 4: Fall back to period containing today's date if no unfinalized exists
+    else if (todayPeriodIdx !== -1) {
+      selectedIdx = todayPeriodIdx;
+      console.log(`✅ [DriverPayroll] Selected period containing today's date: index ${selectedIdx}`);
+    }
+    // STEP 5: Default to last period as final fallback
+    else {
+      selectedIdx = allPeriods.length - 1;
+      console.log(`✅ [DriverPayroll] No unfinalized or today's period found, selecting last period: index ${selectedIdx}`);
+    }
+    
+    setSelectedPeriodIndex(selectedIdx);
     
     // Mark that initial period has been set
     initialPeriodSetRef.current = true;
