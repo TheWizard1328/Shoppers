@@ -3624,7 +3624,7 @@ function Dashboard() {
       default:
         break;
     }
-  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, mapViewTrigger, isDispatcher, currentUser, getMapPadding]);
+  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, mapViewTrigger, isDispatcher, currentUser, getMapPadding, allDriverLocations, showAllDriverMarkers, appUsers, selectedDriverId, selectedDate, cities, deliveries]);
 
   // RENDER SEQUENCE EFFECT 1: Track StatsCard & StopCards ready
   useEffect(() => {
