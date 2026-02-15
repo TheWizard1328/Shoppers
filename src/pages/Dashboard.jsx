@@ -2524,6 +2524,12 @@ function Dashboard() {
     console.log('🔄 [Dashboard] Smart refresh manager initialized - starting 15sec interval');
 
     const runPeriodicSmartRefresh = async () => {
+      // CRITICAL: Skip when paused
+      if (smartRefreshManager.isPaused()) {
+        console.log('⏭️ [Periodic Refresh] Smart refresh paused - skipping this cycle');
+        return;
+      }
+      
       // CRITICAL: Skip when ANY form/overlay is open
       const isAnyFormOpen = showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant;
       if (isAnyFormOpen) {
@@ -2533,7 +2539,7 @@ function Dashboard() {
       
       // CRITICAL: Skip if mount syncs just ran (prevent rate limits)
       if (!hasTriggeredPrioritySyncRef.current) {
-        console.log('⏭️ [Periodic Refresh] Mount sync still running - skipping this cycle');
+        console.log('⏭️ [Periodic Refresh] Mount sync still running - skipping this cycle (will retry in 15s)');
         return;
       }
       
