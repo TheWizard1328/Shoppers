@@ -1533,9 +1533,9 @@ function Dashboard() {
     if (isAppOwner(currentUser)) {
       return true;
     }
-    // Show when mobile AND driver (all devices, not just primary)
-    return isMobile && isDriver && !userHasRole(currentUser, 'dispatcher');
-  }, [isMobile, isDriver, currentUser]);
+    // CRITICAL: Show for all drivers on ALL devices and screen sizes (removed isMobile check)
+    return isDriver && !userHasRole(currentUser, 'dispatcher');
+  }, [isDriver, currentUser]);
 
   const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), []);
 
