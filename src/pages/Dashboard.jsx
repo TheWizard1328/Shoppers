@@ -2500,6 +2500,11 @@ function Dashboard({ currentPageName }) {
     if (!isDataLoaded || !currentUser || !isFiltersReady) {
       return;
     }
+    // CRITICAL: Skip polling when not on active page
+    if (!isActivePage) {
+      console.log(`⏸️ [Dashboard Periodic Refresh] Paused - not active page (${currentPageName})`);
+      return;
+    }
 
     // CRITICAL: Set current user in smart refresh manager for location polling
     smartRefreshManager.setCurrentUser(currentUser);
