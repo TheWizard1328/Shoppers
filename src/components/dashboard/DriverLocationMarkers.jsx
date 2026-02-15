@@ -350,59 +350,11 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return;
       }
       
-      // CRITICAL: Check if this is the current user on a non-primary device
-      const isCurrentUserMarker = userId === currentUser?.id || userId === currentUser?.user_id;
-      const isCurrentUserOnNonPrimaryDevice = isCurrentUserMarker && !isPrimaryDevice;
-      
-      // CRITICAL: Determine if we should block the self marker based on primary device status
-      const shouldBlockSelfMarker = isCurrentUserMarker && isPrimaryDevice;
-      
-      // CRITICAL: Don't show past date markers
+      // Don't show past date markers
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const isViewingPastDate = selectedDate && selectedDate < todayStr;
       
-      // Apply visibility rules
-      const isOnline = user.driver_status !== 'off_duty';
-      let shouldShowMarker = false;
-
-      if (isAdmin) {
-        // Admin sees all online drivers
-        shouldShowMarker = isOnline && user.status !== 'inactive' && !shouldBlockSelfMarker && !isViewingPastDate;
-      } else if (isCurrentUserOnNonPrimaryDevice) {
-        // Self on non-primary - show as long as online
-        shouldShowMarker = isOnline && user.status !== 'inactive' && !isViewingPastDate;
-      } else if (isDispatcher) {
-        // Dispatcher sees assigned drivers when on_duty
-        if (user.driver_status !== 'on_duty') {
-          shouldShowMarker = false;
-        } else {
-          const dispatcherStoreIds = currentUser?.store_ids || [];
-          const selectedDateStr = selectedDate instanceof Date 
-            ? selectedDate.toISOString().split('T')[0]
-            : selectedDate;
-          const hasDispatcherStoreDeliveries = deliveries?.some(d => 
-            d && 
-            d.driver_id === userId && 
-            d.delivery_date === selectedDateStr &&
-            dispatcherStoreIds.includes(d.store_id)
-          );
-          shouldShowMarker = hasDispatcherStoreDeliveries && user.status !== 'inactive' && !isViewingPastDate;
-        }
-      } else if (isDriver) {
-        // Driver sees others in same city only if location_tracking_enabled
-        const currentUserCityId = currentUser?.city_id;
-        const currentUserCityIds = currentUser?.city_ids || (currentUserCityId ? [currentUserCityId] : []);
-        const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
-        const isSameCity = userCityIds.some(cityId => currentUserCityIds.includes(cityId));
-        
-        shouldShowMarker = isSameCity && 
-                          user.location_tracking_enabled === true && 
-                          user.status !== 'inactive' && 
-                          !shouldBlockSelfMarker &&
-                          !isViewingPastDate;
-      }
-      
-      if (shouldShowMarker) {
+      if (!isViewingPastDate && shouldShowMarker(user)) {
         setVisibleDrivers(prev => {
           const exists = prev.find(d => d && d.id === userId);
           if (exists) {
