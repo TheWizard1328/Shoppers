@@ -132,7 +132,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
     // RULE 2: Self marker on non-primary device - show while online
     if (isSelf) {
-      return user.driver_status !== 'off_duty' && user.status !== 'inactive';
+      const willShow = user.driver_status !== 'off_duty' && user.status !== 'inactive';
+      console.log(`✅ [shouldShowMarker] SELF on NON-PRIMARY device - willShow: ${willShow} (status: ${user.driver_status}, active: ${user.status !== 'inactive'})`);
+      return willShow;
     }
 
     // RULE 3: Dispatcher sees assigned drivers when on_duty with location sharing enabled
