@@ -226,11 +226,10 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   // NOW we can do the safety check and early return
   if (!pickupCards || !Array.isArray(pickupCards) || pickupCards.length === 0) {
-    return (
-      <div className="text-center py-1 text-slate-500 z-[100]">
-        No pickups scheduled
-      </div>);
-
+    return //(
+      //<div className="text-center py-1 text-slate-500 z-[100]">
+      //  No pickups scheduled
+      //</div> ); 
   }
 
   // Sort pickup cards: completed deliveries first (by actual_delivery_time), then incomplete (by ETA/stop_order)
