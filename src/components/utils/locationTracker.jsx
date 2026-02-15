@@ -643,103 +643,65 @@ class LocationTracker {
     }
   }
 
-  async toggleTracking(user) {
+  /**
+   * Toggle location sharing visibility
+   * CRITICAL: This ONLY toggles location_tracking_enabled flag (visibility control)
+   * It does NOT start/stop GPS tracking - that's handled by Dashboard auto-start
+   * Primary mobile devices always track GPS, this just controls if others can see it
+   */
+  async toggleLocationSharing(user) {
     const newStatus = !user?.location_tracking_enabled;
-    
+
     try {
+      if (!navigator.onLine) {
+        throw new Error('Device is offline. Please check your internet connection.');
+      }
+
+      // Get or find AppUser ID
+      let appUserId = user.appUserId;
+      if (!appUserId) {
+        const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
+        if (appUsers && appUsers.length > 0) {
+          appUserId = appUsers[0].id;
+        } else {
+          throw new Error('User profile not found. Please contact support.');
+        }
+      }
+
       if (newStatus) {
-        // Turning ON
-        if (!navigator.onLine) {
-          throw new Error('Device is offline. Please check your internet connection.');
-        }
-        
-        // Get or find AppUser ID first
-        let appUserId = user.appUserId;
-        if (!appUserId) {
-          const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
-          if (appUsers && appUsers.length > 0) {
-            appUserId = appUsers[0].id;
-          } else {
-            throw new Error('User profile not found. Please contact support.');
-          }
-        }
-        
-        // Update AppUser entity to set location_tracking_enabled = true
+        // TURNING ON: Make location visible to other drivers
+        console.log('🟢 [Location Sharing] Enabling - others can now see my location');
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
-        
-        // Try to start tracking
-        try {
-          await this.startTracking(user);
-        } catch (trackingError) {
-          console.error('❌ Failed to start tracking:', trackingError);
-          
-          if (trackingError.code === 1) {
-            console.warn('⚠️ Location permission denied by user. Reverting database change...');
-            await base44.entities.AppUser.update(appUserId, {
-              location_tracking_enabled: false
-            });
-            window.dispatchEvent(new CustomEvent('locationPermissionDenied', { 
-              detail: { message: this.handleLocationError(trackingError).message } 
-            }));
-            return false;
-          }
-          
-          if (trackingError.message?.includes('only available on mobile devices') || 
-              trackingError.message?.includes('GPS is not available')) {
-            console.warn('⚠️ Device does not support location tracking:', trackingError.message);
-            await base44.entities.AppUser.update(appUserId, {
-              location_tracking_enabled: false
-            });
-            window.dispatchEvent(new CustomEvent('locationPermissionDenied', { 
-              detail: { message: trackingError.message } 
-            }));
-            return false;
-          }
-          
-          throw trackingError;
-        }
-        
+
+        // Signal location tracker for immediate GPS upload
+        this.signalLocationSharingToggle(true);
+
         return true;
       } else {
-        // Turning OFF
-        this.stopTracking();
-        
-        let appUserId = user.appUserId;
-        if (!appUserId) {
-          const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
-          if (appUsers && appUsers.length > 0) {
-            appUserId = appUsers[0].id;
-          }
+        // TURNING OFF: Hide location from other drivers
+        console.log('🔴 [Location Sharing] Disabling - hiding location from others (preserving coordinates)');
+        await base44.entities.AppUser.update(appUserId, {
+          location_tracking_enabled: false
+          // Keep coordinates and location_updated_at intact for stale marker display
+        });
+
+        // Signal location tracker
+        this.signalLocationSharingToggle(false);
+
+        if (this.currentUser) {
+          this.currentUser.location_tracking_enabled = false;
         }
-        
-        if (navigator.onLine && appUserId) {
-          console.log('🔴 [LocationTracker] Turning OFF location sharing - preserving last known coordinates');
-          await base44.entities.AppUser.update(appUserId, {
-            location_tracking_enabled: false
-            // Keep coordinates and location_updated_at intact for stale marker display
-          });
-          
-          if (this.currentUser) {
-            this.currentUser.location_tracking_enabled = false;
-            // Keep coordinates and timestamp for stale marker
-          }
-        } else {
-          console.warn('⚠️ Device offline or no AppUser ID, tracking stopped locally only');
-        }
-        
-        window.dispatchEvent(new CustomEvent('driverLocationCleared', {
-          detail: { userId: user.id }
+
+        window.dispatchEvent(new CustomEvent('driverLocationVisibilityChanged', {
+          detail: { userId: user.id, visible: false }
         }));
-        
+
         return false;
       }
     } catch (error) {
-      console.error('❌ Failed to toggle location tracking:', error);
-      if (newStatus) {
-        this.stopTracking();
-      }
+      console.error('❌ Failed to toggle location sharing:', error);
       throw error;
     }
   }
