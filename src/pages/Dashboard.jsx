@@ -8835,6 +8835,7 @@ function Dashboard() {
                       <div className="flex items-center gap-2">
                         <LocationTrackingToggle
                       user={currentUser}
+                      useLocationSharing={true}
                       onToggle={async () => {
                         await refreshUser();
                       }} />
