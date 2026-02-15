@@ -215,75 +215,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       if (updatedAppUsers && updatedAppUsers.length > 0) {
         console.log(`📦 [DriverMarkers] Bulk update - processing ${updatedAppUsers.length} drivers`);
 
-        const validDrivers = updatedAppUsers.filter(user => {
-          if (!user) return false;
-          if (!user.current_latitude || !user.current_longitude) {
-            return false;
-          }
-
-          const currentUserId = currentUser?.id;
-          const currentUserUserId = currentUser?.user_id;
-          const userId = user.id || user.user_id;
-          const isSelf = userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
-
-          // CRITICAL: NEVER show self marker on primary device (live GPS dot shows instead)
-          if (isSelf && isPrimaryDevice) {
-            return false;
-          }
-
-          // VISIBILITY RULES:
-          // 1) Admin: See ALL drivers as long as online (not off_duty)
-          // 2) Self on non-primary: Show as long as online (not off_duty)
-          // 3) Dispatcher: See assigned drivers only when on_duty
-          // 4) Driver: See other drivers in same city only if location_tracking_enabled === true
-
-          const isOnline = user.driver_status !== 'off_duty';
-
-          if (isAdmin) {
-            // Admin sees all online drivers
-            return isOnline;
-          }
-
-          if (isSelf) {
-            // Self on non-primary device - show as long as online
-            return isOnline;
-          }
-
-          if (isDispatcher) {
-            // Dispatcher sees assigned drivers when on_duty
-            if (user.driver_status !== 'on_duty') return false;
-            
-            // Check if driver is assigned to any dispatcher stores
-            const dispatcherStoreIds = currentUser?.store_ids || [];
-            if (dispatcherStoreIds.length === 0) return false;
-            
-            // Check if this driver has deliveries for dispatcher's stores on selected date
-            const selectedDateStr = selectedDate instanceof Date 
-              ? selectedDate.toISOString().split('T')[0]
-              : selectedDate;
-            const hasDispatcherStoreDeliveries = deliveries?.some(d => 
-              d && 
-              d.driver_id === userId && 
-              d.delivery_date === selectedDateStr &&
-              dispatcherStoreIds.includes(d.store_id)
-            );
-            
-            return hasDispatcherStoreDeliveries;
-          }
-
-          if (isDriver) {
-            // Driver sees other drivers in same city only if they have location sharing enabled
-            const currentUserCityId = currentUser?.city_id;
-            const currentUserCityIds = currentUser?.city_ids || (currentUserCityId ? [currentUserCityId] : []);
-            const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
-            
-            const isSameCity = userCityIds.some(cityId => currentUserCityIds.includes(cityId));
-            
-            return isSameCity && user.location_tracking_enabled === true;
-          }
-
-          return false;
-        });
+        const validDrivers = updatedAppUsers.filter(shouldShowMarker);
 
         console.log(`📍 [DriverMarkers] Setting ${validDrivers.length} visible drivers`);
         setVisibleDrivers(validDrivers);
