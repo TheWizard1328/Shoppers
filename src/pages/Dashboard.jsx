@@ -2662,6 +2662,11 @@ function Dashboard({ currentPageName }) {
     if (!isDataLoaded || !currentUser) {
       return;
     }
+    // CRITICAL: Skip poller when not on active page
+    if (!isActivePage) {
+      console.log(`⏸️ [Dashboard Location Poller] Paused - not active page (${currentPageName})`);
+      return;
+    }
 
     driverLocationPoller.start(() => {
 
