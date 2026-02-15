@@ -2578,14 +2578,15 @@ function Dashboard() {
             updateDeliveriesLocally(updates.deliveries, true);
           }
           
-          if (updates.appUsers) {
-            // Process through poller
+          // CRITICAL: Always process location data if we have appUsers (from updates OR context)
+          const appUsersToProcess = updates.appUsers && updates.appUsers.length > 0 ? updates.appUsers : appUsers;
+          if (appUsersToProcess && appUsersToProcess.length > 0) {
             driverLocationPoller.processLocationData(
               currentUser, 
               updates.deliveries || deliveries, 
               drivers, 
               stores, 
-              updates.appUsers, 
+              appUsersToProcess, 
               selectedDate, 
               true,
               'Dashboard',
@@ -2638,7 +2639,10 @@ function Dashboard() {
         return;
       }
       
-      if (!updatedAppUsers || !Array.isArray(updatedAppUsers)) return;
+      if (!updatedAppUsers || !Array.isArray(updatedAppUsers) || updatedAppUsers.length === 0) {
+        console.log('⏭️ [Dashboard] Real-time location update - empty appUsers, skipping');
+        return;
+      }
       
       console.log(`📡 [Dashboard] Real-time location update - ${updatedAppUsers.length} drivers, fromRealtime: ${fromRealtime}, forceAll: ${forceAll}`);
       
@@ -4389,14 +4393,16 @@ function Dashboard() {
         console.warn('⚠️ [Date Change] Failed to load appUsers from offline DB, using context:', dbError.message);
       }
       
-      // Process through location poller with fresh appUsers
-      if (freshAppUsers && freshAppUsers.length > 0) {
+      // CRITICAL: Use fresh appUsers from offline DB, fallback to context, but ALWAYS pass valid data
+      const appUsersToProcess = (freshAppUsers && freshAppUsers.length > 0) ? freshAppUsers : appUsers;
+      
+      if (appUsersToProcess && appUsersToProcess.length > 0) {
         driverLocationPoller.processLocationData(
           currentUser, 
           priorityDeliveries, 
           drivers, 
           stores, 
-          freshAppUsers, 
+          appUsersToProcess, 
           new Date(dateStr + 'T00:00:00'), 
           true,
           'Dashboard',
@@ -4405,11 +4411,11 @@ function Dashboard() {
         
         // Dispatch location update event
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: freshAppUsers, forceAll: true }
+          detail: { appUsers: appUsersToProcess, forceAll: true }
         }));
-        console.log('✅ [Date Change] Driver locations processed');
+        console.log(`✅ [Date Change] Driver locations processed (${appUsersToProcess.length} users from ${freshAppUsers && freshAppUsers.length > 0 ? 'offline DB' : 'context'})`);
       } else {
-        console.warn('⚠️ [Date Change] No appUsers available - skipping location processing');
+        console.warn('⚠️ [Date Change] No appUsers available from offline DB or context - skipping location processing');
       }
 
       // STEP 5: Dispatch event to force map and stop cards to re-render
@@ -8168,13 +8174,16 @@ function Dashboard() {
         }
         
         // CRITICAL: Process AppUsers through location poller to generate markers
-        if (mountAppUsers && mountAppUsers.length > 0) {
+        // Fallback to context appUsers if offline DB is empty
+        const appUsersToProcess = (mountAppUsers && mountAppUsers.length > 0) ? mountAppUsers : appUsers;
+        
+        if (appUsersToProcess && appUsersToProcess.length > 0) {
           driverLocationPoller.processLocationData(
             currentUser, 
             mountDeliveries || [], 
             drivers, 
             stores, 
-            mountAppUsers, 
+            appUsersToProcess, 
             selectedDate, 
             true,
             'Dashboard',
@@ -8183,10 +8192,12 @@ function Dashboard() {
           
           // Dispatch location update event
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: mountAppUsers, forceAll: true }
+            detail: { appUsers: appUsersToProcess, forceAll: true }
           }));
           
-          console.log(`✅ [Dashboard Mount - STEP 1] AppUsers processed - location markers ready`);
+          console.log(`✅ [Dashboard Mount - STEP 1] AppUsers processed - location markers ready (${appUsersToProcess.length} from ${mountAppUsers && mountAppUsers.length > 0 ? 'offline DB' : 'context'})`);
+        } else {
+          console.warn('⚠️ [Dashboard Mount - STEP 1] No appUsers available from offline DB or context');
         }
         
         setForceRender((prev) => prev + 1);
@@ -8232,14 +8243,16 @@ function Dashboard() {
           console.log(`✅ [Dashboard Mount - STEP 2] UI updated with ${freshDeliveries.length} deliveries`);
         }
         
-        // Process updated location data
-        if (freshAppUsers && freshAppUsers.length > 0) {
+        // Process updated location data - fallback to context if sync didn't return appUsers
+        const appUsersToProcess = (freshAppUsers && freshAppUsers.length > 0) ? freshAppUsers : appUsers;
+        
+        if (appUsersToProcess && appUsersToProcess.length > 0) {
           driverLocationPoller.processLocationData(
             currentUser, 
             freshDeliveries || [], 
             drivers, 
             stores, 
-            freshAppUsers, 
+            appUsersToProcess, 
             selectedDate, 
             true,
             'Dashboard',
@@ -8247,8 +8260,10 @@ function Dashboard() {
           );
           
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: freshAppUsers, forceAll: true }
+            detail: { appUsers: appUsersToProcess, forceAll: true }
           }));
+        } else {
+          console.warn('⚠️ [Background Sync - STEP 2] No appUsers available from sync or context');
         }
         
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -8359,16 +8374,23 @@ function Dashboard() {
                 
                 // CRITICAL: Process driver locations through poller to update ALL markers
                 console.log('📍 [Pull to Sync] Processing driver locations through poller for marker updates...');
-                driverLocationPoller.processLocationData(
-                  currentUser, 
-                  freshDeliveries, 
-                  drivers, 
-                  stores, 
-                  freshAppUsers, 
-                  selectedDate, 
-                  true, // forceNotify
-                  'Dashboard' // currentPageName
-                );
+
+                // Ensure we have valid appUsers data
+                if (freshAppUsers && freshAppUsers.length > 0) {
+                  driverLocationPoller.processLocationData(
+                    currentUser, 
+                    freshDeliveries, 
+                    drivers, 
+                    stores, 
+                    freshAppUsers, 
+                    selectedDate, 
+                    true, // forceNotify
+                    'Dashboard', // currentPageName
+                    showAllDriverMarkers
+                  );
+                } else {
+                  console.warn('⚠️ [Pull to Sync] No appUsers from sync - skipping location processing');
+                }
                 
                 // CRITICAL: Dispatch location updates for ALL drivers
                 window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
