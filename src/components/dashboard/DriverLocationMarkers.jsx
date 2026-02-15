@@ -92,6 +92,68 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
   const isDriver = currentUser && userHasRole(currentUser, 'driver');
 
+  // CONSOLIDATED VISIBILITY LOGIC - Single source of truth for marker filtering
+  const shouldShowMarker = (user) => {
+    if (!user || !user.current_latitude || !user.current_longitude) return false;
+
+    const currentUserId = currentUser?.id;
+    const currentUserUserId = currentUser?.user_id;
+    const userId = user.id || user.user_id;
+    const isSelf = user._isSelf === true || 
+                   userId === currentUserId || 
+                   userId === currentUserUserId ||
+                   user.user_id === currentUserId;
+
+    // RULE 0: NEVER show self marker on primary device
+    if (isSelf && isPrimaryDevice) {
+      return false;
+    }
+
+    // RULE 1: Admin/AppOwner sees ALL online drivers (no location_tracking_enabled check)
+    if (isAdmin) {
+      return user.driver_status !== 'off_duty' && user.status !== 'inactive';
+    }
+
+    // RULE 2: Self marker on non-primary device - show while online
+    if (isSelf) {
+      return user.driver_status !== 'off_duty' && user.status !== 'inactive';
+    }
+
+    // RULE 3: Dispatcher sees assigned drivers when on_duty with location sharing enabled
+    if (isDispatcher) {
+      if (user.driver_status !== 'on_duty' || !user.location_tracking_enabled) return false;
+      
+      const dispatcherStoreIds = currentUser?.store_ids || [];
+      if (dispatcherStoreIds.length === 0) return false;
+      
+      const selectedDateStr = selectedDate instanceof Date 
+        ? selectedDate.toISOString().split('T')[0]
+        : selectedDate;
+      const hasDispatcherStoreDeliveries = deliveries?.some(d => 
+        d && 
+        d.driver_id === userId && 
+        d.delivery_date === selectedDateStr &&
+        dispatcherStoreIds.includes(d.store_id)
+      );
+      
+      return hasDispatcherStoreDeliveries && user.status !== 'inactive';
+    }
+
+    // RULE 4: Driver sees other drivers ONLY if location_tracking_enabled === true
+    if (isDriver) {
+      if (!user.location_tracking_enabled) return false;
+      
+      const currentUserCityId = currentUser?.city_id;
+      const currentUserCityIds = currentUser?.city_ids || (currentUserCityId ? [currentUserCityId] : []);
+      const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
+      const isSameCity = userCityIds.some(cityId => currentUserCityIds.includes(cityId));
+      
+      return isSameCity && user.status !== 'inactive';
+    }
+
+    return false;
+  };
+
   // Check if current device is primary tracker
   useEffect(() => {
     if (!currentUser?.id) return;
