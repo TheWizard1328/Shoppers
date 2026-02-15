@@ -3214,6 +3214,26 @@ export default function Layout({ children, currentPageName }) {
           --ring: 5 150 105;
         }
 
+        /* Toast notifications positioning - moved below mobile header */
+        [role="status"][data-sonner-toast],
+        [role="status"][data-sonner-toast] {
+          --toast-offset: 100px;
+        }
+
+        @media (max-width: 767px) {
+          /* Mobile: adjust toast position for header */
+          [role="status"] {
+            bottom: auto !important;
+            top: 100px !important;
+          }
+          
+          /* Sonner toast container */
+          [data-sonner-toaster] {
+            top: 100px !important;
+            bottom: auto !important;
+          }
+        }
+
         .border-yellow-400,
         .border-yellow-500,
         .border-yellow-600,
