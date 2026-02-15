@@ -394,26 +394,9 @@ class LightweightRefreshManager {
           const hasRecentWebSocketUpdate = timeSinceWebSocket < this.WEBSOCKET_FRESHNESS_THRESHOLD;
 
           if (hasRecentWebSocketUpdate) {
-            // WebSocket is fresh - read from offline DB instead of API
-            console.log(`👥 [LightweightRefresh] WebSocket fresh (${Math.round(timeSinceWebSocket / 1000)}s ago) - reading AppUsers from offline DB`);
-
-            const { offlineDB } = await import('./offlineDatabase');
-            const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-
-            if (offlineAppUsers && offlineAppUsers.length > 0) {
-              const diff = diffEntityArrays(currentData.appUsers, offlineAppUsers);
-              if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-                updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
-                console.log(`✅ [LightweightRefresh] AppUsers from offline DB: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
-
-                // CRITICAL: Only broadcast if we have actual appUsers data
-                if (updates.appUsers && updates.appUsers.length > 0) {
-                  window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                    detail: { appUsers: updates.appUsers, fromSmartRefresh: true, fromOfflineDB: true }
-                  }));
-                }
-              }
-            }
+            // WebSocket is fresh - skip AppUser refresh to avoid clearing recent WebSocket updates from offline DB
+            console.log(`👥 [LightweightRefresh] WebSocket fresh (${Math.round(timeSinceWebSocket / 1000)}s ago) - skipping AppUser refresh to preserve WebSocket updates`);
+          }
           } else {
             // WebSocket stale or no updates - poll API as backup
             console.log(`👥 [LightweightRefresh] WebSocket stale (${Math.round(timeSinceWebSocket / 1000)}s) - polling API for AppUsers`);
