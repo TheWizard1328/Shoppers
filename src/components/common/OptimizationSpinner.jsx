@@ -31,7 +31,7 @@ export default function OptimizationSpinner() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 pointer-events-none"
-          style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', left: 0, right: 0, paddingTop: '140px' }}
+          style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', left: 0, right: 0 }}
         >
           <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-3">
             <div className="relative">
