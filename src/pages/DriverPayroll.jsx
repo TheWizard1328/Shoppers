@@ -657,15 +657,25 @@ export default function DriverPayroll() {
     initialPeriodSetRef.current = true;
   }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData]);
 
-  // Subscribe to real-time websocket updates
+  // Subscribe to real-time websocket updates - ONLY when page is active
   useEffect(() => {
-    if (!hasInitialized) return;
+    // CRITICAL: Skip subscriptions if page is not active
+    // This prevents logs and data refreshes when user is on other pages
+    if (typeof window === 'undefined') return;
+    
+    const checkIfActive = () => {
+      const dashboardElement = document.querySelector('[data-page="DriverPayroll"]');
+      return dashboardElement !== null;
+    };
+    
+    if (!hasInitialized || !checkIfActive()) return;
 
     const unsubscribers = [];
 
     // Subscribe to Delivery changes
     try {
       const unsubDeliv = base44.entities.Delivery.subscribe((event) => {
+        if (!checkIfActive()) return;
         console.log(`📡 [DriverPayroll] Delivery ${event.type}:`, event.id);
         // Refetch payroll on delivery changes
         fetchPayroll(true, false);
@@ -679,6 +689,7 @@ export default function DriverPayroll() {
     // Subscribe to AppUser changes
     try {
       const unsubAppUser = base44.entities.AppUser.subscribe((event) => {
+        if (!checkIfActive()) return;
         console.log(`📡 [DriverPayroll] AppUser ${event.type}:`, event.id);
         fetchPayroll(true, false);
       });
@@ -690,6 +701,7 @@ export default function DriverPayroll() {
     // Subscribe to Payroll changes
     try {
       const unsubPayroll = base44.entities.Payroll.subscribe((event) => {
+        if (!checkIfActive()) return;
         console.log(`📡 [DriverPayroll] Payroll ${event.type}:`, event.id);
         refreshPayrollRecords();
       });
