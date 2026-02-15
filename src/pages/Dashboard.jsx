@@ -8857,8 +8857,8 @@ function Dashboard() {
                         await refreshUser();
                       }} />
                       
-                        {/* Route Management Buttons - Drivers viewing their own route */}
-                        {isDriver && selectedDriverId === currentUser?.id && (
+                        {/* Route Management Buttons - All drivers on any device */}
+                        {isDriver && (
                           <>
                             {/* Quick Route Adjustments */}
                             <Button
