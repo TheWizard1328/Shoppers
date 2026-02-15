@@ -69,13 +69,19 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     const handleAppUserUpdate = (event) => {
       const { entity, action, id, data } = event.detail || {};
       
-      // Check if this update is for the current user
-      if (entity === 'AppUser' && appUserId && id === appUserId && data?.driver_status) {
-        console.log('📡 [DriverStatusToggle] Received AppUser update from WebSocket:', data);
+      if (entity !== 'AppUser' || !data || !currentUser) return;
+      
+      // CRITICAL: Check multiple ID fields to catch the update
+      const isCurrentUser = (
+        (appUserId && id === appUserId) ||
+        (appUserId && data?.id === appUserId) ||
+        (data?.user_id === currentUser.id)
+      );
+      
+      if (isCurrentUser && typeof data.driver_status !== 'undefined') {
+        console.log(`📡 [DriverStatusToggle] WebSocket update - syncing status to: ${data.driver_status}`);
         
-        // Update status if it changed
         if (data.driver_status !== status) {
-          console.log(`🔄 [DriverStatusToggle] Syncing driver_status: ${status} → ${data.driver_status}`);
           setStatus(data.driver_status);
           locationTracker.setDriverStatus(data.driver_status);
         }
@@ -84,7 +90,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
 
     window.addEventListener('entityMutationBroadcast', handleAppUserUpdate);
     return () => window.removeEventListener('entityMutationBroadcast', handleAppUserUpdate);
-  }, [appUserId, status]);
+  }, [appUserId, currentUser?.id, status]);
 
   // Fallback: sync from currentUser prop changes
   useEffect(() => {
