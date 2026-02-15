@@ -1030,30 +1030,9 @@ function Dashboard() {
       try {
         const settings = await loadUserSettings(currentUser.id);
 
-        // CRITICAL: On initial page load, select most recent date with deliveries
-        // On refresh, use saved date
-        if (isInitialPageLoadRef.current) {
-          console.log('📅 [Dashboard Init] Initial page load detected - selecting most recent date');
-          
-          // Find most recent date with deliveries
-          const allDeliveryDates = [...new Set(
-            (deliveries || [])
-              .filter(d => d?.delivery_date)
-              .map(d => d.delivery_date)
-          )].sort().reverse();
-          
-          if (allDeliveryDates.length > 0) {
-            const mostRecentDate = new Date(allDeliveryDates[0] + 'T00:00:00');
-            console.log(`📅 [Dashboard Init] Most recent date with deliveries: ${allDeliveryDates[0]}`);
-            setSelectedDate(mostRecentDate);
-            globalFilters.setSelectedDate(mostRecentDate);
-            setCalendarMonth(mostRecentDate);
-          }
-          
-          isInitialPageLoadRef.current = false; // Mark as no longer initial load
-        } else if (settings.selected_date) {
-          // On refresh, use saved date
-          console.log('🔄 [Dashboard Init] Refresh detected - using saved date');
+        // Load saved date from settings
+        if (settings.selected_date) {
+          console.log('📅 [Dashboard Init] Using saved date from settings:', settings.selected_date);
           const savedDate = new Date(settings.selected_date + 'T00:00:00');
           setSelectedDate(savedDate);
           globalFilters.setSelectedDate(savedDate);
