@@ -204,7 +204,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     console.log('🎯 [LocationSharing] Sharing toggle clicked:', checked);
 
     setIsToggling(true);
-    isTogglingRef.current = true; // Set ref immediately
+    isTogglingRef.current = true;
     setPermissionStatus('');
     consecutiveErrorsRef.current = 0;
     setHasError(false);
@@ -224,34 +224,20 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       }
 
       if (checked) {
-        // Enable sharing
+        // TURNING ON: Make location visible to other drivers
         setPermissionStatus('Enabling location sharing...');
-        // CRITICAL: Update UI state FIRST (optimistic update)
         setIsLocationSharingEnabled(true);
         sessionStorage.setItem('locationSharingEnabled', 'true');
-        
-        // CRITICAL: Signal toggle event for immediate GPS upload
-        locationTracker.signalLocationSharingToggle(true);
-
-        // CRITICAL: Start tracking if not already running
-        if (!locationTracker.isTracking) {
-          try {
-            await locationTracker.startTracking({
-              ...localUser,
-              appUserId: appUserId,
-              location_tracking_enabled: true
-            });
-            console.log('✅ [LocationSharing] Location tracking started');
-          } catch (trackError) {
-            console.warn('⚠️ [LocationSharing] Could not start tracking:', trackError.message);
-          }
-        }
         
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
 
-        // CRITICAL: Update localUser immediately so UI reflects new state
+        // Signal for immediate GPS upload
+        if (locationTracker.signalLocationSharingToggle) {
+          locationTracker.signalLocationSharingToggle(true);
+        }
+
         const updatedUser = {
           ...localUser,
           location_tracking_enabled: true
@@ -259,25 +245,24 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         setLocalUser(updatedUser);
 
         setPermissionStatus('Location sharing enabled!');
-        console.log('✅ [LocationSharing] Sharing enabled');
+        console.log('✅ [LocationSharing] Others can now see my location');
         
         setTimeout(() => setPermissionStatus(''), 3000);
       } else {
-        // Disable sharing (but keep tracking coordinates)
+        // TURNING OFF: Hide location from other drivers
         setPermissionStatus('Disabling location sharing...');
-        // CRITICAL: Update UI state FIRST (optimistic update)
         setIsLocationSharingEnabled(false);
         sessionStorage.setItem('locationSharingEnabled', 'false');
-
-        // CRITICAL: Signal toggle event for immediate GPS upload
-        locationTracker.signalLocationSharingToggle(false);
         
         await base44.entities.AppUser.update(appUserId, {
-          location_tracking_enabled: false,
-          location_updated_at: null
+          location_tracking_enabled: false
         });
 
-        // CRITICAL: Update localUser immediately so UI reflects new state
+        // Signal toggle event
+        if (locationTracker.signalLocationSharingToggle) {
+          locationTracker.signalLocationSharingToggle(false);
+        }
+
         const updatedUser = {
           ...localUser,
           location_tracking_enabled: false
@@ -285,7 +270,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         setLocalUser(updatedUser);
 
         setPermissionStatus('Location sharing disabled');
-        console.log('✅ [LocationSharing] Sharing disabled (tracking continues)');
+        console.log('✅ [LocationSharing] Location hidden from others (GPS still active)');
         
         setTimeout(() => setPermissionStatus(''), 3000);
       }
@@ -294,15 +279,12 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       console.error('❌ [LocationSharing] Failed to toggle:', error);
       setPermissionStatus(`Error: ${error.message}`);
 
-      // CRITICAL: Revert optimistic update on error
       setIsLocationSharingEnabled(!checked);
       sessionStorage.setItem('locationSharingEnabled', String(!checked));
       
-      // Refresh user state to sync with backend
       setTimeout(() => setPermissionStatus(''), 4000);
     } finally {
       setIsToggling(false);
-      // CRITICAL: Clear ref after a delay to ensure backend update has propagated
       setTimeout(() => {
         isTogglingRef.current = false;
       }, 2000);
