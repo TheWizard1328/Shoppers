@@ -17,7 +17,7 @@ const broadcastMutation = async (entity, action, id, data) => {
 class LocationTracker {
     constructor() {
       this.watchId = null;
-      this.heartbeatInterval = null; // Poll GPS every 5 seconds
+      this.heartbeatInterval = null; // Poll GPS every 15 seconds
       this.isTracking = false;
       this.lastPosition = null;
       this.lastUpdate = 0;
@@ -25,8 +25,8 @@ class LocationTracker {
       this.currentUser = null;
       this.appUserId = null;
       this.driverStatus = 'off_duty';
-      this.updateInterval = 5000; // 5 seconds GPS polling
-      this.coordinateUpdateInterval = 5000; // 5 seconds between coordinate updates
+      this.updateInterval = 15000; // 15 seconds GPS polling
+      this.coordinateUpdateInterval = 15000; // 15 seconds between coordinate updates
 
       // Distance threshold - only upload if moved > 200m
       this.minDistanceChange = 200; // 200 meters minimum movement to trigger upload
@@ -59,8 +59,8 @@ class LocationTracker {
   loadSettings() {
     try {
       const settings = getRouteOptimizationSettings();
-      // Interval locked to 5 seconds for primary device polling
-      this.updateInterval = 5000; // 5 seconds GPS polling
+      // Interval locked to 15 seconds for primary device polling
+      this.updateInterval = 15000; // 15 seconds GPS polling
 
       // 200m minimum movement threshold
       this.minDistanceChange = 200;
@@ -68,7 +68,7 @@ class LocationTracker {
       console.log(`📍 [LocationTracker] Interval: ${this.updateInterval / 1000}s, distance threshold: ${this.minDistanceChange}m`);
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
-      this.updateInterval = 5000; // Default 5 seconds
+      this.updateInterval = 15000; // Default 15 seconds
       this.minDistanceChange = 200; // Default 200m
     }
   }
@@ -589,7 +589,7 @@ class LocationTracker {
         }
       );
 
-      // Poll GPS every 5 seconds - primary device tracks location
+      // Poll GPS every 15 seconds - primary device tracks location
       // PRIMARY DEVICES: Always update timestamp at every interval (regardless of movement)
       // NON-PRIMARY: Uploads if moved > 200m OR event-driven OR timestamp needs refresh (every 2min)
       this.heartbeatInterval = setInterval(() => {
@@ -600,12 +600,12 @@ class LocationTracker {
           const timeSinceLastTimestamp = now - this.lastTimestampUpdate;
           const needsTimestampRefresh = timeSinceLastTimestamp >= this.timestampUpdateInterval;
           
-          // Check for event-driven update within last 5 seconds
-          const isEventDriven = this._pendingEventUpdate && (now - this._eventUpdateTime) < 5000;
+          // Check for event-driven update within last 15 seconds
+          const isEventDriven = this._pendingEventUpdate && (now - this._eventUpdateTime) < 15000;
 
-          // CRITICAL: Primary devices ALWAYS update at every interval (5 seconds)
+          // CRITICAL: Primary devices ALWAYS update at every interval (15 seconds)
           if (this.isPrimaryDevice) {
-            console.log('💓 [PRIMARY DEVICE] Poll: Updating location + timestamp (every 5s regardless of movement)');
+            console.log('💓 [PRIMARY DEVICE] Poll: Updating location + timestamp (every 15s regardless of movement)');
             this._pendingEventUpdate = false;
             this.updateLocationInDatabase(
               this.lastPosition.latitude,
@@ -653,7 +653,7 @@ class LocationTracker {
       
       const deviceType = this.isPrimaryDevice ? 'PRIMARY' : 'NON-PRIMARY';
       const updateLogic = this.isPrimaryDevice 
-        ? 'uploads coordinates + timestamp every 5s (regardless of movement)'
+        ? 'uploads coordinates + timestamp every 15s (regardless of movement)'
         : `uploads if moved > ${this.minDistanceChange}m, event-driven, or timestamp refresh (2min)`;
       console.log(`📍 [LocationTracker] Started ${this.updateInterval/1000}s GPS polling for ${deviceType} device - ${updateLogic}`);
     });
