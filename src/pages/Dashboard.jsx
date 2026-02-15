@@ -1529,11 +1529,7 @@ function Dashboard() {
   }, [appUsers, currentUser, stores, selectedDate, deliveries]);
 
   const shouldShowLocationToggle = useMemo(() => {
-    // CRITICAL: Always show for app owner (regardless of device/role)
-    if (isAppOwner(currentUser)) {
-      return true;
-    }
-    // CRITICAL: Show for all drivers on ALL devices and screen sizes (removed isMobile check)
+    // Show for all drivers on ALL devices and screen sizes
     return isDriver && !userHasRole(currentUser, 'dispatcher');
   }, [isDriver, currentUser]);
 
