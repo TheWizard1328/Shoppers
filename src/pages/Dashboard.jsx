@@ -2521,7 +2521,7 @@ function Dashboard() {
     // CRITICAL: Set current user in smart refresh manager for location polling
     smartRefreshManager.setCurrentUser(currentUser);
     
-    console.log('🔄 [Dashboard] Smart refresh manager initialized');
+    console.log('🔄 [Dashboard] Smart refresh manager initialized - starting 15sec interval');
 
     const runPeriodicSmartRefresh = async () => {
       // CRITICAL: Skip when ANY form/overlay is open
@@ -2617,11 +2617,14 @@ function Dashboard() {
       }
     }, 15000);
 
+    console.log('✅ [Dashboard] Periodic refresh interval set - will run every 15 seconds');
+
     return () => {
+      console.log('🛑 [Dashboard] Clearing periodic refresh interval');
       clearTimeout(initialDelay);
       clearInterval(interval);
     };
-  }, [isDataLoaded, currentUser?.id, isFiltersReady, showAllDriverMarkers, selectedDriverId, selectedDate, showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant, deliveries, patients, stores, cities, appUsers, drivers]);
+  }, [isDataLoaded, currentUser?.id, isFiltersReady]);
 
   // CRITICAL: Listen for real-time AppUser location updates from other drivers
   useEffect(() => {
