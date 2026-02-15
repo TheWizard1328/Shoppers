@@ -1,18 +1,18 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Bell, BellOff, Mailbox, StickyNote, Clock } from "lucide-react";
+import { Phone, Bell, BellOff, Mailbox, StickyNote } from "lucide-react";
 import HelpTooltip, { HELP_CONTENT } from "../common/HelpTooltip";
 
 /**
  * SpecialSymbolsBadges - Centralized single badge for all special delivery symbols
  * 
- * Displays characters ($ N O F S) and icons (Phone, Bell, BellOff, Mailbox, StickyNote, Clock) in ONE badge
- * Only shown for patient deliveries (not pickups) OR after hours pickups
+ * Displays characters ($ N O F S) and icons (Phone, Bell, BellOff, Mailbox, StickyNote) in ONE badge
+ * Only shown for patient deliveries (not pickups)
  * 
  * @param {Object} props
  * @param {Object} props.delivery - The delivery object
  * @param {Object} props.patient - The patient object (optional)
- * @param {boolean} props.isPickup - Whether this is a pickup (if true, badge only shows for after hours pickups)
+ * @param {boolean} props.isPickup - Whether this is a pickup (if true, badge is hidden)
  * @param {string} props.size - Size variant: 'sm' (default), 'md', 'lg'
  * @param {string} props.className - Additional CSS classes
  * @param {boolean} props.showHelp - Whether to show the help tooltip icon
@@ -25,23 +25,8 @@ export default function SpecialSymbolsBadges({
   className = '',
   showHelp = false
 }) {
-  if (!delivery) return null;
-
-  // After hours pickups show a clock icon badge
-  if (isPickup && delivery.after_hours_pickup) {
-    const badgeBaseClass = `bg-indigo-400 text-slate-900 mt-1 px-1.5 py-0 text-[10px] font-bold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-indigo-500/80 h-4 inline-flex items-center gap-0.5 shadow-sm border border-indigo-500/30`;
-    
-    return (
-      <div className="inline-flex items-center gap-1">
-        <Badge className={badgeBaseClass}>
-          <Clock className="w-2.5 h-2.5 text-indigo-700" />
-        </Badge>
-      </div>
-    );
-  }
-
-  // Don't show badge for regular pickups
-  if (isPickup) return null;
+  // Don't show badge for pickups
+  if (!delivery || isPickup) return null;
 
   // Size configurations - consistent and accessible
   const sizeConfig = {
@@ -95,9 +80,7 @@ export default function SpecialSymbolsBadges({
   const hasAnyContent = hasCOD || isFirstDelivery || hasOversized || hasFridge || hasSignature ||
   hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
 
-  if (!hasAnyContent) {
-    return null;
-  }
+  if (!hasAnyContent) return null;
 
   // Use different base styles for card size vs others
   const isCardSize = size === 'card';
@@ -139,11 +122,7 @@ export default function SpecialSymbolsBadges({
  * Useful for conditional rendering of containers
  */
 export function hasSpecialSymbols(delivery, patient, isPickup = false) {
-  if (!delivery) return false;
-
-  // After hours pickups always show a symbol
-  if (isPickup && delivery.after_hours_pickup) return true;
-  if (isPickup) return false;
+  if (!delivery || isPickup) return false;
 
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;
   const isFirstDelivery = delivery.first_delivery === true ||
