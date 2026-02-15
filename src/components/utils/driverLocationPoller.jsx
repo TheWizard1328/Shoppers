@@ -89,7 +89,8 @@ class DriverLocationPoller {
        : selectedDate;
 
      if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) {
-       console.log(`⏭️ [DriverLocationPoller] Skipping location processing - not on Dashboard today (page: ${currentPageName}, date: ${selectedDateStr})`);
+       console.log(`⏭️ [DriverLocationPoller] Not on Dashboard today - clearing driver markers (page: ${currentPageName}, date: ${selectedDateStr})`);
+       this.notifySubscribers([]);
        return;
      }
    }
