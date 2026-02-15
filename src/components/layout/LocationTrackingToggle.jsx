@@ -363,7 +363,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       if (timeSinceUpdate < 300000) return 'Stale';
       return 'Old Data';
     }
-    return 'Starting...';
+    // CRITICAL: Only show "Starting..." if location sharing is actually enabled
+    if (isLocationSharingEnabled) return 'Starting...';
+    return 'Off';
   };
 
   // Conditional return AFTER all hooks
