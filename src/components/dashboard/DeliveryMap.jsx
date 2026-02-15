@@ -855,9 +855,9 @@ export default function DeliveryMap({
         setPolylineRenderKey(prev => prev + 1);
         // CRITICAL: Force delivery marker refresh to update status colors
         setRouteRenderKey(prev => prev + 1);
-      } else if (appUsers && appUsers.length === 0) {
-        // CRITICAL: Don't clear realtimeAppUsers on empty bulk update - preserve existing data
-        console.warn(`⚠️ [DeliveryMap] Received empty appUsers array - preserving existing ${realtimeAppUsers.length} users`);
+      } else if (appUsers && Array.isArray(appUsers) && appUsers.length === 0) {
+        // CRITICAL: Only log warning if this is actually an empty array, not undefined
+        console.log(`⚠️ [DeliveryMap] Received empty appUsers array - preserving existing ${realtimeAppUsers.length} users`);
       }
     };
 
