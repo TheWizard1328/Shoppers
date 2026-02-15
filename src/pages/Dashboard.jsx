@@ -3067,21 +3067,31 @@ function Dashboard() {
         // CRITICAL: Treat "Show All" mode same as "All Drivers" mode for map bounds
         const shouldShowAllMarkersForBounds = selectedDriverId === 'all' || showAllDriverMarkers;
 
+        console.log(`🗺️ [Phase 1 FAB Click] Starting bounds calculation...`);
+        console.log(`   - Viewing today: ${isViewingToday}`);
+        console.log(`   - Is mobile: ${isMobile}`);
+        console.log(`   - Is driver: ${isDriver}`);
+        console.log(`   - Selected driver: ${selectedDriverId}`);
+        console.log(`   - Current user ID: ${currentUser?.id}`);
+        console.log(`   - Has live location: ${!!(driverLocation?.latitude && driverLocation?.longitude)}`);
+        console.log(`   - Show all mode: ${shouldShowAllMarkersForBounds}`);
+
         // 1. BLUE DOT: Include driver's live location when visible on mobile
+        // CRITICAL: For admins viewing any driver OR drivers viewing themselves
         const shouldIncludeBlueDot =
-        isMobile &&
-        isDriver &&
-        isViewingToday &&
-        driverLocation?.latitude &&
-        driverLocation?.longitude && (
-        selectedDriverId === currentUser?.id || selectedDriverId === 'all');
+          isMobile &&
+          isDriver &&
+          isViewingToday &&
+          driverLocation?.latitude &&
+          driverLocation?.longitude &&
+          (selectedDriverId === currentUser?.id || selectedDriverId === 'all');
 
         if (shouldIncludeBlueDot) {
           allCoordinates.push([driverLocation.latitude, driverLocation.longitude]);
           hasDriverMarkers = true;
-          console.log(`📍 [Phase 1 - Blue Dot] Including live location: ${driverLocation.latitude.toFixed(6)}, ${driverLocation.longitude.toFixed(6)}`);
+          console.log(`✅ [Phase 1 - Blue Dot] INCLUDING live location: ${driverLocation.latitude.toFixed(6)}, ${driverLocation.longitude.toFixed(6)}`);
         } else {
-          console.log(`🚫 [Phase 1 - Blue Dot] Excluded - isMobile: ${isMobile}, isDriver: ${isDriver}, isViewingToday: ${isViewingToday}, hasLocation: ${!!(driverLocation?.latitude && driverLocation?.longitude)}, driverId match: ${selectedDriverId === currentUser?.id || selectedDriverId === 'all'}`);
+          console.log(`🚫 [Phase 1 - Blue Dot] EXCLUDED - isMobile: ${isMobile}, isDriver: ${isDriver}, isViewingToday: ${isViewingToday}, hasLocation: ${!!(driverLocation?.latitude && driverLocation?.longitude)}, selectedDriverId: ${selectedDriverId}, currentUserId: ${currentUser?.id}`);
         }
 
         // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked OR when desktop OR dispatcher

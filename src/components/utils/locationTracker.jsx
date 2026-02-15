@@ -271,12 +271,21 @@ class LocationTracker {
 
       const userName = this.currentUser?.user_name || this.currentUser?.full_name || 'Unknown';
       const userIdLast4 = this.currentUser?.id ? this.currentUser.id.slice(-4) : '????';
-      
+
+      // CRITICAL: Debug timestamp to detect future timestamps
+      const now = new Date();
+      const timestampDate = new Date(nowISO);
+      const timeDiffMs = timestampDate.getTime() - now.getTime();
+      const timeDiffSec = Math.round(timeDiffMs / 1000);
+
       console.log(`📤 [LocationTracker] Uploading location for ${userName} (...${userIdLast4}):`, {
         lat: latitude.toFixed(6),
         lng: longitude.toFixed(6),
         timestamp: nowISO,
-        timestampOnly
+        timestampOnly,
+        timeDiffFromNow: `${timeDiffSec >= 0 ? '+' : ''}${timeDiffSec}s`,
+        isFuture: timeDiffMs > 1000,
+        localTime: now.toISOString()
       });
 
       // CRITICAL: Timestamp-only updates just refresh location_updated_at (keep coordinates)
@@ -569,7 +578,12 @@ class LocationTracker {
             
             // CRITICAL: Primary devices upload initial location immediately on refresh/load
             if (this.isPrimaryDevice) {
-              console.log('🚀 [PRIMARY DEVICE] Initial load - uploading location immediately');
+              console.log('🚀 [PRIMARY DEVICE] Initial load - uploading location immediately', {
+                lat: position.coords.latitude.toFixed(6),
+                lng: position.coords.longitude.toFixed(6),
+                accuracy: position.coords.accuracy?.toFixed(0) + 'm',
+                timestamp: new Date(position.timestamp).toISOString()
+              });
               await this.updateLocationInDatabase(
                 position.coords.latitude,
                 position.coords.longitude,
@@ -578,6 +592,8 @@ class LocationTracker {
                 false, // full update
                 true // isPrimaryDevice
               );
+            } else {
+              console.log('⏭️ [NON-PRIMARY DEVICE] Initial GPS position received - NOT uploading (only primary uploads)');
             }
             
             resolve();
@@ -602,7 +618,11 @@ class LocationTracker {
       // ONLY PRIMARY DEVICES upload - non-primary devices don't track locations
       this.heartbeatInterval = setInterval(() => {
         if (this.lastPosition && this.isTracking && this.isPrimaryDevice) {
-          console.log('💓 [PRIMARY DEVICE] Poll: Updating location + timestamp (every 15s regardless of movement)');
+          console.log('💓 [PRIMARY DEVICE] Poll: Updating location + timestamp (every 15s regardless of movement)', {
+            lat: this.lastPosition.latitude.toFixed(6),
+            lng: this.lastPosition.longitude.toFixed(6),
+            isPrimary: this.isPrimaryDevice
+          });
           this._pendingEventUpdate = false;
           this.updateLocationInDatabase(
             this.lastPosition.latitude,
@@ -612,6 +632,8 @@ class LocationTracker {
             false, // full update with coordinates
             true // isPrimaryDevice flag
           );
+        } else if (!this.isPrimaryDevice) {
+          console.log('⏭️ [NON-PRIMARY DEVICE] Poll: Skipping upload (only primary uploads)');
         }
       }, this.updateInterval);
       
