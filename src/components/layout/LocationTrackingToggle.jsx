@@ -111,14 +111,21 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       if (checked) {
         // TURNING ON: Make location visible to other drivers
         setPermissionStatus('Enabling location sharing...');
-        
+
         const updatedAppUser = await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
 
-        // CRITICAL: Broadcast to other devices via WebSocket
+        // CRITICAL: Broadcast to other devices via WebSocket with ALL fields
         const { broadcastMutation } = await import('../utils/realtimeSync');
-        broadcastMutation('AppUser', 'update', appUserId, updatedAppUser);
+        const broadcastData = {
+          id: appUserId,
+          user_id: localUser.id,
+          ...updatedAppUser,
+          location_tracking_enabled: true // Ensure this field is definitely present
+        };
+        broadcastMutation('AppUser', 'update', appUserId, broadcastData);
+        console.log('📡 [LocationSharing] Broadcasted ON update:', broadcastData);
 
         // Signal for immediate GPS upload
         if (locationTracker.signalLocationSharingToggle) {
