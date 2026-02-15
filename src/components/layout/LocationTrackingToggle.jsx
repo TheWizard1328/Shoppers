@@ -145,14 +145,21 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       } else {
         // TURNING OFF: Hide location from other drivers
         setPermissionStatus('Disabling location sharing...');
-        
+
         const updatedAppUser = await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: false
         });
 
-        // CRITICAL: Broadcast to other devices via WebSocket
+        // CRITICAL: Broadcast to other devices via WebSocket with ALL fields
         const { broadcastMutation } = await import('../utils/realtimeSync');
-        broadcastMutation('AppUser', 'update', appUserId, updatedAppUser);
+        const broadcastData = {
+          id: appUserId,
+          user_id: localUser.id,
+          ...updatedAppUser,
+          location_tracking_enabled: false // Ensure this field is definitely present
+        };
+        broadcastMutation('AppUser', 'update', appUserId, broadcastData);
+        console.log('📡 [LocationSharing] Broadcasted OFF update:', broadcastData);
 
         // Signal toggle event
         if (locationTracker.signalLocationSharingToggle) {
