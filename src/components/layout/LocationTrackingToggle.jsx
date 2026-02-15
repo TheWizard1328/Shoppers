@@ -22,8 +22,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const consecutiveErrorsRef = useRef(false);
   const isTogglingRef = useRef(false); // Track toggle operation state in ref
 
-  // CRITICAL: Check device/role conditions ONCE on mount with stable values
-  const isMobile = useMemo(() => checkIsMobileDevice(), []);
+  // CRITICAL: Check role conditions ONCE on mount with stable values
   const isDriver = useMemo(() => user ? userHasRole(user, 'driver') : false, [user]);
   const isAdmin = useMemo(() => user ? userHasRole(user, 'admin') : false, [user]);
   const isOwner = useMemo(() => {
@@ -179,8 +178,8 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   // REMOVED: Status display functions (simplified to just on/off)
 
   // Conditional return AFTER all hooks
-  // CRITICAL: Always show for app owner (regardless of device type or role)
-  if (!isOwner && (!isMobile || (!isDriver && !isAdmin))) {
+  // CRITICAL: Show for drivers and admins on ALL devices (no device type restriction)
+  if (!isDriver && !isAdmin && !isOwner) {
     return null;
   }
 
