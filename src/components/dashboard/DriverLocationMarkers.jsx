@@ -104,37 +104,23 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                    userId === currentUserUserId ||
                    user.user_id === currentUserId;
 
-    // DEBUG: Log self marker check
-    if (isSelf) {
-      console.log(`🔍 [shouldShowMarker] SELF marker check:`, {
-        userId: user.user_name || user.id,
-        isPrimaryDevice,
-        driver_status: user.driver_status,
-        location_tracking_enabled: user.location_tracking_enabled,
-        hasCoords: !!(user.current_latitude && user.current_longitude),
-        lat: user.current_latitude?.toFixed(6),
-        lng: user.current_longitude?.toFixed(6),
-        timestamp: user.location_updated_at,
-        willShow: !(isSelf && isPrimaryDevice)
-      });
-    }
-
-    // RULE 0: NEVER show self marker on primary device
+    // RULE 0: Self marker - ALWAYS show on primary device (live location tracking)
+    // Ignores all toggles, dates, and selections - this is my actual location
     if (isSelf && isPrimaryDevice) {
-      console.log(`❌ [shouldShowMarker] BLOCKED self on primary device`);
-      return false;
+      console.log(`✅ [shouldShowMarker] SELF on PRIMARY device - ALWAYS show (live tracking)`);
+      return true;
     }
 
-    // RULE 1: Admin/AppOwner sees ALL online drivers (no location_tracking_enabled check)
-    if (isAdmin) {
-      return user.driver_status !== 'off_duty' && user.status !== 'inactive';
-    }
-
-    // RULE 2: Self marker on non-primary device - show while online
-    if (isSelf) {
+    // RULE 1: Self marker on non-primary device - show only while online
+    if (isSelf && !isPrimaryDevice) {
       const willShow = user.driver_status !== 'off_duty' && user.status !== 'inactive';
       console.log(`✅ [shouldShowMarker] SELF on NON-PRIMARY device - willShow: ${willShow} (status: ${user.driver_status}, active: ${user.status !== 'inactive'})`);
       return willShow;
+    }
+
+    // RULE 2: Admin/AppOwner sees ALL online drivers (no location_tracking_enabled check)
+    if (isAdmin) {
+      return user.driver_status !== 'off_duty' && user.status !== 'inactive';
     }
 
     // RULE 3: Dispatcher sees assigned drivers when on_duty with location sharing enabled
