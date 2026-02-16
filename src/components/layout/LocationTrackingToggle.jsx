@@ -34,23 +34,29 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     return user ? isAppOwner(user) : false;
   }, [user]);
 
-  // Always sync localUser with user prop - but preserve location_tracking_enabled state during toggle
+  // CRITICAL: Only sync location_tracking_enabled when it actually changes (NOT entire user object)
   useEffect(() => {
     if (!user) return;
     
-    // CRITICAL: Don't override if we recently toggled and the prop value doesn't match
+    // CRITICAL: Skip syncing while toggle is in progress
     if (isTogglingRef.current) {
       return;
     }
     
-    // CRITICAL: If we have a recently toggled value and it doesn't match the prop, keep our value
-    if (lastToggledValueRef.current !== null && user.location_tracking_enabled !== lastToggledValueRef.current) {
-      console.log(`🔒 [LocationSharing] Ignoring stale user prop (prop: ${user.location_tracking_enabled}, toggled: ${lastToggledValueRef.current})`);
-      return;
-    }
-    
-    setLocalUser(user);
-  }, [user]);
+    // Only update if location_tracking_enabled actually changed
+    setLocalUser(prev => {
+      if (!prev) return user;
+      
+      // CRITICAL: If the field changed in the database, update it (WebSocket victory)
+      if (prev.location_tracking_enabled !== user.location_tracking_enabled) {
+        console.log(`✅ [LocationSharing] Syncing location_tracking_enabled: ${user.location_tracking_enabled}`);
+        return { ...prev, location_tracking_enabled: user.location_tracking_enabled };
+      }
+      
+      // Otherwise keep our state (prevent rewrites from parent re-renders)
+      return prev;
+    });
+  }, [user?.location_tracking_enabled]);
 
   // Listen for AppUser entity updates from WebSocket
   useEffect(() => {
