@@ -48,14 +48,10 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           const fetchedAppUser = appUsers[0];
           setAppUserId(fetchedAppUser.id);
           
-          // Initialize locationTracker with current driver status
+          // Initialize locationTracker and sync status locally
           locationTracker.setDriverStatus(fetchedAppUser.driver_status || 'off_duty');
-          console.log(`📍 [DriverStatusToggle] Initialized locationTracker status to: ${fetchedAppUser.driver_status || 'off_duty'}`);
-          
-          // Sync status locally
-          if (fetchedAppUser.driver_status && fetchedAppUser.driver_status !== status) {
-            setStatus(fetchedAppUser.driver_status);
-          }
+          setStatus(fetchedAppUser.driver_status || 'off_duty');
+          console.log(`📍 [DriverStatusToggle] Initialized status to: ${fetchedAppUser.driver_status || 'off_duty'}`);
         }
       } catch (error) {
         console.error('Failed to find AppUser ID or initialize tracker:', error);
