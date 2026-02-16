@@ -50,11 +50,21 @@ export const AppDataProvider = ({ children, value }) => {
             value.updateAppUsersLocally([data], false);
           }
           
-          // CRITICAL: Dispatch location update event IMMEDIATELY for map markers and badges
+          // CRITICAL: Merge this update with existing appUsers before dispatching
+          const updatedAppUsers = (value.appUsers || []).map(au => 
+            au?.id === data.id ? data : au
+          );
+          
+          // If this user wasn't in the list, add them
+          if (!(value.appUsers || []).some(au => au?.id === data.id)) {
+            updatedAppUsers.push(data);
+          }
+          
+          // CRITICAL: Dispatch location update event with FULL list IMMEDIATELY for map markers and badges
           if (typeof window !== 'undefined') {
-            console.log(`📡 [AppDataContext] Dispatching driverLocationsUpdated for ${data.user_name} with coords ${coords}`);
+            console.log(`📡 [AppDataContext] Dispatching driverLocationsUpdated with ${updatedAppUsers.length} total users (1 changed: ${data.user_name})`);
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-              detail: { appUsers: [data], singleUpdate: true, fromRealtime: true }
+              detail: { appUsers: updatedAppUsers, singleUpdate: true, fromRealtime: true }
             }));
             
             // CRITICAL: Also dispatch generic AppUser update for location badges
