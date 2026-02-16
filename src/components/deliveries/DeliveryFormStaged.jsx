@@ -267,77 +267,85 @@ export default function DeliveryFormStaged({
             </div>
 
             <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 flex-shrink-0 rounded ml-1"
-                              style={{ backgroundColor: '#059669', color: '#ffffff' }}
-                              disabled={savingProjectedId === projected.patient_id}
-                              onClick={async () => {
-                                setSavingProjectedId(projected.patient_id);
-                                try {
-                                  const stagedItem = await confirmAddProjectedToStaged(projected);
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 flex-shrink-0 rounded ml-1"
+              style={{ backgroundColor: '#059669', color: '#ffffff' }}
+              disabled={savingProjectedId === projected.patient_id}
+              onClick={async () => {
+                setSavingProjectedId(projected.patient_id);
+                try {
+                  const stagedItem = await confirmAddProjectedToStaged(projected);
 
-                                  if (stagedItem) {
-                                    // Generate stop_id for the delivery
-                                    const { generateStopId, formatId } = await import('../utils/idGenerator');
-                                    const { getData } = await import('../utils/dataManager');
-                                    const allCurrentDeliveries = await getData('Delivery');
-                                    const deliveriesArray = Array.isArray(allCurrentDeliveries) ? allCurrentDeliveries : [];
-                                    const stop_id = await generateStopId(stagedItem.delivery_date, deliveriesArray);
+                  if (stagedItem) {
+                    // Generate stop_id for the delivery
+                    const { generateStopId } = await import('../utils/idGenerator');
+                    const { getData, invalidate } = await import('../utils/dataManager');
+                    const allCurrentDeliveries = await getData('Delivery');
+                    const deliveriesArray = Array.isArray(allCurrentDeliveries) ? allCurrentDeliveries : [];
+                    const stop_id = await generateStopId(stagedItem.delivery_date, deliveriesArray);
 
-                                    // Save with stop_id assigned
-                                    const savedDelivery = await createDeliveryLocal({
-                                      ...stagedItem,
-                                      stop_id: stop_id,
-                                      tracking_number: 'temp',
-                                      stop_order: 9999
-                                    });
+                    console.log('[ProjectedAdd] 💾 Creating delivery with SID:', stop_id);
 
-                                    setStagedDeliveries(prev => prev.map(s => 
-                                      s._tempId === stagedItem._tempId ? { ...s, id: savedDelivery.id, stop_id: stop_id } : s
-                                    ));
+                    // Save with stop_id assigned
+                    const savedDelivery = await createDeliveryLocal({
+                      ...stagedItem,
+                      stop_id: stop_id,
+                      tracking_number: 'temp',
+                      stop_order: 9999
+                    });
 
-                                    // CRITICAL: Fetch fresh deliveries AFTER creation to ensure new delivery is included
-                                    if (stagedItem.driver_id && stagedItem.delivery_date) {
-                                      const { reorderStops } = await import('../utils/stopReorderer');
-                                      const { getData } = await import('../utils/dataManager');
+                    console.log('[ProjectedAdd] ✅ Delivery created:', savedDelivery.id);
 
-                                      // Invalidate cache to force fresh fetch
-                                      const { invalidate } = await import('../utils/dataManager');
-                                      invalidate('Delivery');
+                    // CRITICAL: Wait for backend sync to complete before calling reorderStops
+                    await new Promise(resolve => setTimeout(resolve, 200));
 
-                                      // Fetch fresh deliveries including the newly created one
-                                      const freshDeliveries = await getData('Delivery', null, null, true);
-                                      await reorderStops(stagedItem.driver_id, stagedItem.delivery_date, freshDeliveries);
-                                    }
+                    // Invalidate cache to force fresh fetch
+                    invalidate('Delivery');
 
-                                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                      detail: { 
-                                        deliveryDate: stagedItem.delivery_date, 
-                                        driverId: stagedItem.driver_id,
-                                        triggeredBy: 'projectedAddButtonSave'
-                                      }
-                                    }));
-                                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                                  }
+                    // CRITICAL: Fetch fresh deliveries AFTER save completes to ensure it's included
+                    const freshDeliveries = await getData('Delivery', null, null, true);
+                    console.log('[ProjectedAdd] 📊 Fresh deliveries fetched:', freshDeliveries.length);
 
-                                  if (!isMobileDevice) {
-                                    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-                                  }
-                                } catch (error) {
-                                  console.error('Failed to save projected delivery:', error);
-                                } finally {
-                                  setSavingProjectedId(null);
-                                }
-                              }}
-                              title="Add to route">
-                              {savingProjectedId === projected.patient_id ? (
-                                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                              ) : (
-                                <Plus className="w-5 h-5" />
-                              )}
-                            </Button>
+                    // Update staged list with saved delivery info
+                    setStagedDeliveries(prev => prev.map(s => 
+                      s._tempId === stagedItem._tempId ? { ...s, id: savedDelivery.id, stop_id: stop_id } : s
+                    ));
+
+                    // Call reorderStops with fresh data to assign proper TR# and stop_order
+                    if (stagedItem.driver_id && stagedItem.delivery_date) {
+                      const { reorderStops } = await import('../utils/stopReorderer');
+                      await reorderStops(stagedItem.driver_id, stagedItem.delivery_date, freshDeliveries);
+                      console.log('[ProjectedAdd] ✅ Reorder complete - TR# and stop_order assigned');
+                    }
+
+                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                      detail: { 
+                        deliveryDate: stagedItem.delivery_date, 
+                        driverId: stagedItem.driver_id,
+                        triggeredBy: 'projectedAddButtonSave'
+                      }
+                    }));
+                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                  }
+
+                  if (!isMobileDevice) {
+                    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+                  }
+                } catch (error) {
+                  console.error('Failed to save projected delivery:', error);
+                } finally {
+                  setSavingProjectedId(null);
+                }
+              }}
+              title="Add to route">
+              {savingProjectedId === projected.patient_id ? (
+                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+              ) : (
+                <Plus className="w-5 h-5" />
+              )}
+            </Button>
           </div>
         );
       })}
