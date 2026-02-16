@@ -267,49 +267,68 @@ export default function DeliveryFormStaged({
             </div>
 
             <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-7 w-7 p-0 flex-shrink-0 rounded ml-1"
-              style={{ backgroundColor: '#059669', color: '#ffffff' }}
-              disabled={savingProjectedId === projected.patient_id}
-              onClick={async () => {
-                setSavingProjectedId(projected.patient_id);
-                try {
-                  const stagedItem = await confirmAddProjectedToStaged(projected);
-                  
-                  if (stagedItem) {
-                    const savedDelivery = await createDeliveryLocal(stagedItem);
-                    setStagedDeliveries(prev => prev.map(s => 
-                      s._tempId === stagedItem._tempId ? { ...s, id: savedDelivery.id } : s
-                    ));
-                    
-                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                      detail: { 
-                        deliveryDate: stagedItem.delivery_date, 
-                        driverId: stagedItem.driver_id,
-                        triggeredBy: 'projectedAddButtonSave'
-                      }
-                    }));
-                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                  }
-                  
-                  if (!isMobileDevice) {
-                    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-                  }
-                } catch (error) {
-                  console.error('Failed to save projected delivery:', error);
-                } finally {
-                  setSavingProjectedId(null);
-                }
-              }}
-              title="Add to route">
-              {savingProjectedId === projected.patient_id ? (
-                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-              ) : (
-                <Plus className="w-5 h-5" />
-              )}
-            </Button>
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 flex-shrink-0 rounded ml-1"
+                              style={{ backgroundColor: '#059669', color: '#ffffff' }}
+                              disabled={savingProjectedId === projected.patient_id}
+                              onClick={async () => {
+                                setSavingProjectedId(projected.patient_id);
+                                try {
+                                  const stagedItem = await confirmAddProjectedToStaged(projected);
+
+                                  if (stagedItem) {
+                                    // Generate stop_id for the delivery
+                                    const { generateStopId, formatId } = await import('../utils/idGenerator');
+                                    const stop_id = await generateStopId(stagedItem.delivery_date);
+
+                                    // Save with stop_id assigned
+                                    const savedDelivery = await createDeliveryLocal({
+                                      ...stagedItem,
+                                      stop_id: stop_id,
+                                      tracking_number: 'temp',
+                                      stop_order: 9999
+                                    });
+
+                                    setStagedDeliveries(prev => prev.map(s => 
+                                      s._tempId === stagedItem._tempId ? { ...s, id: savedDelivery.id, stop_id: stop_id } : s
+                                    ));
+
+                                    // Call reorderStops to assign proper TR# and stop_order
+                                    if (stagedItem.driver_id && stagedItem.delivery_date) {
+                                      const { reorderStops } = await import('../utils/stopReorderer');
+                                      const { getData } = await import('../utils/dataManager');
+                                      const allCurrentDeliveries = await getData('Delivery');
+                                      await reorderStops(stagedItem.driver_id, stagedItem.delivery_date, allCurrentDeliveries);
+                                    }
+
+                                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                      detail: { 
+                                        deliveryDate: stagedItem.delivery_date, 
+                                        driverId: stagedItem.driver_id,
+                                        triggeredBy: 'projectedAddButtonSave'
+                                      }
+                                    }));
+                                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                                  }
+
+                                  if (!isMobileDevice) {
+                                    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+                                  }
+                                } catch (error) {
+                                  console.error('Failed to save projected delivery:', error);
+                                } finally {
+                                  setSavingProjectedId(null);
+                                }
+                              }}
+                              title="Add to route">
+                              {savingProjectedId === projected.patient_id ? (
+                                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                              ) : (
+                                <Plus className="w-5 h-5" />
+                              )}
+                            </Button>
           </div>
         );
       })}
