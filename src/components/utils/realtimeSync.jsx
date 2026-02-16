@@ -120,7 +120,7 @@ const subscribeToEntity = (entityName) => {
     // Keep track of entity data to detect changes
     const entityDataCache = new Map();
 
-    const unsubscribe = base44.entities[entityName].subscribe((event) => {
+    const unsubscribe = base44.entities[entityName].subscribe(async (event) => {
       const { type, id, data } = event;
       
       // Get current user name for "updatedBy"
@@ -148,6 +148,37 @@ const subscribeToEntity = (entityName) => {
       }
       
       console.log(`📡 [RealtimeSync] ${entityName} ${type}: ${id}`, changedFields.length > 0 ? `changed: ${changedFields.join(', ')}` : '');
+      
+      // CRITICAL: Save to offline DB immediately on WebSocket update
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        
+        if (type === 'create' || type === 'update') {
+          const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
+                           entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
+                           entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
+                           entityName === 'City' ? offlineDB.STORES.CITIES :
+                           entityName === 'Store' ? offlineDB.STORES.STORES :
+                           entityName === 'Message' ? null : null;
+          
+          if (storeName) {
+            await offlineDB.save(storeName, data);
+            console.log(`💾 [RealtimeSync] Saved ${entityName} to offline DB - changed: ${changedFields.join(', ')}`);
+          }
+        } else if (type === 'delete') {
+          const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
+                           entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
+                           entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
+                           null;
+          
+          if (storeName) {
+            await offlineDB.deleteRecord(storeName, id);
+            console.log(`💾 [RealtimeSync] Deleted ${entityName} from offline DB: ${id}`);
+          }
+        }
+      } catch (offlineError) {
+        console.warn(`⚠️ [RealtimeSync] Failed to update offline DB for ${entityName}:`, offlineError.message);
+      }
       
       // Show broadcast notification with metadata
       showBroadcastNotification(entityName, type, data);
