@@ -2052,14 +2052,29 @@ export default function DeliveryForm({
       first_delivery: isNewPatient || !patient?.last_delivery_date // Mark as first delivery if new patient or no last delivery date
     };
 
-    // CRITICAL: Save to database immediately
+    // CRITICAL: Save to database immediately with stop_id assigned
     setIsSaving(true);
     try {
-      const savedDelivery = await createDeliveryLocal(newStagedDelivery);
-      console.log('✅ [handleAddToStaging] Delivery saved to database:', savedDelivery.id);
+      // Generate stop_id for the delivery
+      const stop_id = await generateStopId(formData.delivery_date);
       
-      // Add saved delivery to staged list with ID for display
-      setStagedDeliveries((prev) => [...prev, { ...newStagedDelivery, id: savedDelivery.id }]);
+      const savedDelivery = await createDeliveryLocal({
+        ...newStagedDelivery,
+        stop_id: stop_id,
+        tracking_number: 'temp',
+        stop_order: 9999
+      });
+      console.log('✅ [handleAddToStaging] Delivery saved to database with SID:', savedDelivery.id, stop_id);
+      
+      // Add saved delivery to staged list with ID and stop_id for display
+      setStagedDeliveries((prev) => [...prev, { ...newStagedDelivery, id: savedDelivery.id, stop_id: stop_id }]);
+      
+      // Call reorderStops to assign proper TR# and stop_order
+      if (formData.driver_id && formData.delivery_date) {
+        const { getData } = await import('../utils/dataManager');
+        const allCurrentDeliveries = await getData('Delivery');
+        await reorderStops(formData.driver_id, formData.delivery_date, allCurrentDeliveries);
+      }
       
       // Trigger UI refresh
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
