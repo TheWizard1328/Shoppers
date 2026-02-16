@@ -36,23 +36,18 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     return user ? isAppOwner(user) : false;
   }, [user]);
 
-  // CRITICAL: Sync from user prop changes (when component re-mounts or parent updates)
+  // CRITICAL: Always sync from user prop (source of truth)
+  // This ensures we reflect the correct state even after component re-mounts
   useEffect(() => {
     if (!user || typeof user.location_tracking_enabled === 'undefined') return;
     
-    // CRITICAL: Skip syncing while toggle is in progress
-    if (isTogglingRef.current) {
-      console.log('⏸️ [LocationSharing] Toggle in progress - skipping prop sync');
-      return;
-    }
-    
-    // CRITICAL: Only update internal state if the value actually changed
+    // CRITICAL: Always update to match prop - it's the source of truth
     setLocationSharingEnabled(prev => {
       if (prev === user.location_tracking_enabled) {
         return prev; // No change - keep current state
       }
       
-      console.log(`✅ [LocationSharing] Syncing from user prop: ${user.location_tracking_enabled}`);
+      console.log(`✅ [LocationSharing] Syncing from user prop: ${prev} → ${user.location_tracking_enabled}`);
       return user.location_tracking_enabled;
     });
   }, [user?.location_tracking_enabled]);
@@ -206,9 +201,11 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       setTimeout(() => setPermissionStatus(''), 4000);
     } finally {
       setIsToggling(false);
+      // CRITICAL: Clear flag immediately - prop sync will keep us updated
       setTimeout(() => {
         isTogglingRef.current = false;
-      }, 500); // Reduced delay
+        console.log('🔓 [LocationSharing] Toggle flag cleared - ready for next toggle');
+      }, 200); // Shorter delay
     }
   };
 
