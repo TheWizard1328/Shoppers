@@ -126,6 +126,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         throw new Error('User profile not found');
       }
 
+      // CRITICAL: Update internal state FIRST (optimistic update)
+      setLocationSharingEnabled(checked);
+      
       if (checked) {
         // TURNING ON: Make location visible to other drivers
         setPermissionStatus('Enabling location sharing...');
@@ -138,7 +141,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         const { broadcastMutation } = await import('../utils/realtimeSync');
         const broadcastData = {
           id: appUserId,
-          user_id: localUser.id,
+          user_id: user.id,
           ...updatedAppUser,
           location_tracking_enabled: true // Ensure this field is definitely present
         };
@@ -149,13 +152,6 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         if (locationTracker.signalLocationSharingToggle) {
           locationTracker.signalLocationSharingToggle(true);
         }
-
-        const updatedUser = {
-          ...localUser,
-          location_tracking_enabled: true
-        };
-        setLocalUser(updatedUser);
-        lastToggledValueRef.current = true; // Remember what we toggled to
 
         setPermissionStatus('Location sharing enabled!');
         console.log('✅ [LocationSharing] Others can now see my location');
@@ -173,7 +169,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         const { broadcastMutation } = await import('../utils/realtimeSync');
         const broadcastData = {
           id: appUserId,
-          user_id: localUser.id,
+          user_id: user.id,
           ...updatedAppUser,
           location_tracking_enabled: false // Ensure this field is definitely present
         };
@@ -184,13 +180,6 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         if (locationTracker.signalLocationSharingToggle) {
           locationTracker.signalLocationSharingToggle(false);
         }
-
-        const updatedUser = {
-          ...localUser,
-          location_tracking_enabled: false
-        };
-        setLocalUser(updatedUser);
-        lastToggledValueRef.current = false; // Remember what we toggled to
 
         setPermissionStatus('Location sharing disabled');
         console.log('✅ [LocationSharing] Location hidden from others (GPS still active)');
