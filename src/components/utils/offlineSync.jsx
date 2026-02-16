@@ -1368,7 +1368,7 @@ export const initializeOfflineDBBeforeRender = async (smartRefreshMgr = null, cu
   }
 };
 
-export const getSyncStats = async () => {
+export const getSyncStats = async (currentUser = null) => {
   const stats = await offlineDB.getStats();
   const pendingMutations = await offlineDB.getPendingMutations();
   const patientStatus = await offlineDB.getSyncStatus('Patient');
@@ -1378,8 +1378,35 @@ export const getSyncStats = async () => {
   const appUserStatus = await offlineDB.getSyncStatus('AppUser');
   const squareTxStatus = await offlineDB.getSyncStatus('SquareTransaction');
 
+  // CRITICAL: Filter patient count by user role
+  let patientCount = stats.patients?.count || 0;
+  
+  if (currentUser) {
+    const allPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    const { isAdmin, isDispatcher } = await import('./userRoles');
+    
+    if (isAdmin(currentUser)) {
+      // Admin sees ALL patients
+      patientCount = allPatients?.length || 0;
+    } else if (isDispatcher(currentUser)) {
+      // Dispatcher sees only patients from their assigned stores
+      const userStoreIds = currentUser.store_ids || [];
+      const filteredPatients = allPatients.filter(p => 
+        p && p.store_id && userStoreIds.includes(p.store_id)
+      );
+      patientCount = filteredPatients.length;
+    } else {
+      // Drivers don't see patients tab - return 0
+      patientCount = 0;
+    }
+  }
+
   return {
     ...stats,
+    patients: {
+      count: patientCount,
+      lastSync: stats.patients?.lastSync
+    },
     pendingMutations: pendingMutations.length,
     fullSyncStatus: {
       patients: {
