@@ -441,7 +441,7 @@ export default function DriverPayroll() {
     
     setIsRefreshing(false);
     toast.success('Payroll data refreshed and recalculated');
-  }, [fetchPayroll, refreshPayrollRecords]);
+  }, [selectedYear, selectedCityId, refreshPayrollRecords]);
 
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
     if (!currentUser) return;
