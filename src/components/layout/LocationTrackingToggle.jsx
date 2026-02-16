@@ -21,6 +21,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const autoStartedRef = useRef(false);
   const consecutiveErrorsRef = useRef(false);
   const isTogglingRef = useRef(false); // Track toggle operation state in ref
+  const lastToggledValueRef = useRef(null); // Track last toggled value to prevent stale prop overwrites
 
   // CRITICAL: Check role conditions ONCE on mount with stable values
   const hasDriverRole = useMemo(() => {
@@ -35,9 +36,20 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
   // Always sync localUser with user prop - but preserve location_tracking_enabled state during toggle
   useEffect(() => {
-    if (user && !isTogglingRef.current) {
-      setLocalUser(user);
+    if (!user) return;
+    
+    // CRITICAL: Don't override if we recently toggled and the prop value doesn't match
+    if (isTogglingRef.current) {
+      return;
     }
+    
+    // CRITICAL: If we have a recently toggled value and it doesn't match the prop, keep our value
+    if (lastToggledValueRef.current !== null && user.location_tracking_enabled !== lastToggledValueRef.current) {
+      console.log(`🔒 [LocationSharing] Ignoring stale user prop (prop: ${user.location_tracking_enabled}, toggled: ${lastToggledValueRef.current})`);
+      return;
+    }
+    
+    setLocalUser(user);
   }, [user]);
 
   // Listen for AppUser entity updates from WebSocket
@@ -137,6 +149,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
           location_tracking_enabled: true
         };
         setLocalUser(updatedUser);
+        lastToggledValueRef.current = true; // Remember what we toggled to
 
         setPermissionStatus('Location sharing enabled!');
         console.log('✅ [LocationSharing] Others can now see my location');
@@ -171,6 +184,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
           location_tracking_enabled: false
         };
         setLocalUser(updatedUser);
+        lastToggledValueRef.current = false; // Remember what we toggled to
 
         setPermissionStatus('Location sharing disabled');
         console.log('✅ [LocationSharing] Location hidden from others (GPS still active)');
