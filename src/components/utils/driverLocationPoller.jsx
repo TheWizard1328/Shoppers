@@ -112,6 +112,48 @@ class DriverLocationPoller {
    const driversWithCoords = appUsers.filter(u => u && u.current_latitude && u.current_longitude).length;
    console.log(`📊 [DriverLocationPoller] Input: ${driversWithCoords}/${appUsers.length} drivers have coordinates`);
 
+   // CRITICAL: Clean offline DB of stale location data
+   // Only drivers with valid location_tracking_enabled AND location_updated_at should have coordinates
+   try {
+     const { offlineDB } = await import('./offlineDatabase');
+     const allOfflineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+
+     if (allOfflineAppUsers && allOfflineAppUsers.length > 0) {
+       // Find AppUsers with stale coordinates (have coords but no recent timestamp or location_tracking_enabled is false)
+       const staleCoordsAppUsers = allOfflineAppUsers.filter(u => {
+         if (!u.current_latitude || !u.current_longitude) return false; // No coords = OK
+
+         // If they have coords, they must have:
+         // 1. A recent location_updated_at timestamp (within last 30 minutes)
+         // 2. location_tracking_enabled = true
+         const hasRecentTimestamp = u.location_updated_at && 
+           (Date.now() - new Date(u.location_updated_at).getTime()) < 30 * 60 * 1000;
+         const locationSharingEnabled = u.location_tracking_enabled === true;
+
+         // Stale if: has coords BUT no timestamp OR timestamp is old OR sharing disabled
+         return !hasRecentTimestamp || !locationSharingEnabled;
+       });
+
+       if (staleCoordsAppUsers.length > 0) {
+         console.log(`🧹 [Poller] Cleaning ${staleCoordsAppUsers.length} AppUsers with stale coordinates from offline DB`);
+
+         // Clear coordinates from stale records
+         for (const appUser of staleCoordsAppUsers) {
+           await offlineDB.save(offlineDB.STORES.APP_USERS, {
+             ...appUser,
+             current_latitude: null,
+             current_longitude: null,
+             location_updated_at: null
+           });
+         }
+
+         console.log(`✅ [Poller] Cleared stale coordinates from ${staleCoordsAppUsers.length} AppUsers`);
+       }
+     }
+   } catch (cleanupError) {
+     console.warn('⚠️ [Poller] Failed to clean stale coordinates from offline DB:', cleanupError.message);
+   }
+
    // DEBUG: Log the drivers with coordinates and their settings
    appUsers.filter(u => u && u.current_latitude && u.current_longitude).forEach(u => {
      console.log(`🔍 [Driver Debug] ${u.user_name}:`, {
