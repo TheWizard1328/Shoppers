@@ -92,29 +92,26 @@ class LightweightRefreshManager {
   
   /**
    * Initialize ALL AppUsers to offline DB on app startup
+   * CRITICAL: Always fetches fresh data from API, even if offline DB has data
    */
   async initializeAllAppUsersToOfflineDB() {
     try {
       const { offlineDB } = await import('./offlineDatabase');
-      
-      // Check if offline DB already has AppUsers
-      const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-      if (existingAppUsers && existingAppUsers.length > 0) {
-        console.log(`💾 [SmartRefresh] Offline DB already has ${existingAppUsers.length} AppUsers - skipping bulk load`);
-        return;
-      }
-      
-      console.log('📥 [SmartRefresh] Loading ALL AppUsers to offline DB on startup...');
+
+      // CRITICAL: ALWAYS fetch fresh AppUsers on app load
+      // This ensures offline DB is never stale or missing users
+      console.log('📥 [SmartRefresh] Loading ALL AppUsers to offline DB on startup (ALWAYS FRESH)...');
       await this.waitForRateLimit();
-      
+
       const allAppUsers = await queueEntityRequest(
         () => base44.entities.AppUser.list(),
         'Initial AppUser bulk load'
       );
-      
+
       if (allAppUsers && allAppUsers.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
-        console.log(`✅ [SmartRefresh] Initialized offline DB with ${allAppUsers.length} AppUsers`);
+        await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString());
+        console.log(`✅ [SmartRefresh] Synced offline DB with ${allAppUsers.length} fresh AppUsers`);
         this.recordSuccess();
       } else {
         console.warn('⚠️ [SmartRefresh] No AppUsers found during initialization');

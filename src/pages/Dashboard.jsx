@@ -8141,7 +8141,7 @@ function Dashboard() {
     return () => window.removeEventListener('dataSourceChanged', handleDataSourceChange);
   }, [selectedDate, updateDeliveriesLocally, deliveries, setForceRender]);
 
-  // CRITICAL: STEP 0 - Sync AppUser from online if stale (>1 minute)
+  // CRITICAL: STEP 0 - ALWAYS fetch fresh AppUser data on app load
   const hasPreRenderSyncRef = useRef(false);
   
   useEffect(() => {
@@ -8151,39 +8151,16 @@ function Dashboard() {
     hasPreRenderSyncRef.current = true;
     
     const preRenderSync = async () => {
-      console.log('🔄 [Dashboard Mount - STEP 0] Checking AppUser freshness...');
+      console.log('🔄 [Dashboard Mount - STEP 0] Syncing ALL AppUsers (ALWAYS FRESH on load)...');
       
       try {
-        // CRITICAL: Check AppUser sync metadata - 1 minute threshold
-        const appUserMeta = await offlineDB.getSyncMetadata('AppUser');
-        const now = Date.now();
-        const oneMinuteInMs = 60 * 1000; // 1 minute threshold
-        
-        let needsAppUserSync = false;
-        
-        if (!appUserMeta || !appUserMeta.last_sync_time) {
-          console.log('📊 [AppUser Check] No sync metadata - fetching from API');
-          needsAppUserSync = true;
-        } else {
-          const lastSyncTime = new Date(appUserMeta.last_sync_time).getTime();
-          const ageMs = now - lastSyncTime;
-          
-          if (ageMs > oneMinuteInMs) {
-            console.log(`📊 [AppUser Check] Stale (${Math.floor(ageMs / 1000)}s old) - fetching from API`);
-            needsAppUserSync = true;
-          } else {
-            console.log(`✅ [AppUser Check] Fresh (${Math.floor(ageMs / 1000)}s old) - using offline DB`);
-          }
-        }
-        
-        // CRITICAL: Only sync AppUser from API if stale
-        if (needsAppUserSync) {
-          console.log('📥 [AppUser Sync] Fetching from API...');
-          const freshAppUsers = await base44.entities.AppUser.list();
-          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-          await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString());
-          console.log(`✅ [AppUser Sync] ${freshAppUsers.length} users synced to offline DB`);
-        }
+        // CRITICAL: ALWAYS fetch fresh AppUsers from API on app load
+        // This ensures offline DB is never stale or missing users
+        console.log('📥 [AppUser Sync] Fetching ALL AppUsers from API...');
+        const freshAppUsers = await base44.entities.AppUser.list();
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+        await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString());
+        console.log(`✅ [AppUser Sync] ${freshAppUsers.length} users synced to offline DB`);
         
         console.log(`✅ [Dashboard Mount - STEP 0] Pre-render sync complete`);
       } catch (error) {
