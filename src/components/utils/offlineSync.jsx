@@ -412,11 +412,9 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
       await smartRefreshMgr.waitForRateLimit();
     }
     
-    // STEP 1: Clear AppUser cache to force fresh fetch
-    console.log('🗑️ [PreRenderSync] STEP 1: Clearing AppUser cache...');
+    // STEP 1: Invalidate AppUser cache (do NOT clear store - preserve offline DB)
+    console.log('🗑️ [PreRenderSync] STEP 1: Invalidating AppUser cache...');
     invalidateEntityCache('AppUser');
-    await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
-    console.log('✅ [PreRenderSync] AppUser cache and offline DB cleared');
     
     // CRITICAL STEP 2: Fetch fresh AppUsers from API with deduplication
     console.log('📍 [PreRenderSync] STEP 2: Fetching fresh AppUsers from API (deduplicated)...');
