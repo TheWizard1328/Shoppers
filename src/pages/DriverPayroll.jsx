@@ -179,6 +179,9 @@ export default function DriverPayroll() {
   const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
   const [payrollRecords, setPayrollRecords] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // CRITICAL: Combined refresh state - shows spinner for both manual and auto refresh
+  const isAnyRefreshing = isRefreshing || (smartRefreshActivity?.active && smartRefreshActivity?.updatedEntities?.some(e => ['Payroll', 'Delivery'].includes(e)));
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
@@ -430,15 +433,15 @@ export default function DriverPayroll() {
     invalidate('Patient');
     invalidate('Payroll');
     
-    // Force fresh fetch of all data
+    // Force fresh fetch of all data for selected year/city
     await fetchPayroll(false, true);
     
-    // Refresh payroll records to recalculate YTD totals
+    // Refresh payroll records for current period (triggers recalculation)
     await refreshPayrollRecords();
     
     setIsRefreshing(false);
-    toast.success('Payroll data refreshed');
-  }, [selectedYear, selectedCityId, refreshPayrollRecords]);
+    toast.success('Payroll data refreshed and recalculated');
+  }, [fetchPayroll, refreshPayrollRecords]);
 
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
     if (!currentUser) return;
@@ -815,14 +818,14 @@ export default function DriverPayroll() {
             <div className="flex lg:hidden items-center gap-1">
               <Button
                 onClick={handleManualRefresh}
-                disabled={isRefreshing || isLoadingPayroll}
+                disabled={isAnyRefreshing || isLoadingPayroll}
                 size="sm"
                 variant="ghost"
                 className="p-2 h-auto border border-slate-900 dark:border-white"
-                title="Refresh payroll data"
+                title="Refresh and recalculate payroll"
                 style={{ color: 'var(--text-slate-900)' }}
               >
-                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-5 h-5 ${isAnyRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Button
                 onClick={handleCaptureScreenshot}
@@ -920,14 +923,14 @@ export default function DriverPayroll() {
             <div id="payroll-controls" className="hidden lg:flex items-center gap-1 ml-auto">
               <Button
                 onClick={handleManualRefresh}
-                disabled={isRefreshing || isLoadingPayroll}
+                disabled={isAnyRefreshing || isLoadingPayroll}
                 size="sm"
                 variant="ghost"
                 className="p-2 h-auto"
-                title="Refresh payroll data"
+                title="Refresh and recalculate payroll"
                 style={{ color: 'var(--text-slate-900)' }}
               >
-                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-5 h-5 ${isAnyRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Button
                 onClick={handleCaptureScreenshot}
