@@ -708,7 +708,22 @@ export default function DriverPayroll() {
         }
       });
     };
-  }, [hasInitialized, fetchPayroll, refreshPayrollRecords]);
+    }, [hasInitialized, fetchPayroll, refreshPayrollRecords]);
+
+    // Listen for route import completion events
+    useEffect(() => {
+    const handleRouteImportComplete = () => {
+      const isActive = document.querySelector('[data-page="DriverPayroll"]') !== null;
+      if (isActive && hasInitialized) {
+        console.log('🔄 [DriverPayroll] Route import completed, refreshing data...');
+        fetchPayroll(true, true);
+        refreshPayrollRecords();
+      }
+    };
+
+    window.addEventListener('routeImportCompleted', handleRouteImportComplete);
+    return () => window.removeEventListener('routeImportCompleted', handleRouteImportComplete);
+    }, [hasInitialized, fetchPayroll, refreshPayrollRecords]);
 
   // Load payroll records IMMEDIATELY after data loads (before initial period selection)
   useEffect(() => {
