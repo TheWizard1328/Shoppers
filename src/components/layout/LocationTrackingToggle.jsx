@@ -13,7 +13,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const [isToggling, setIsToggling] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState('');
   const [trackingStatus, setTrackingStatus] = useState(null);
-  const [localUser, setLocalUser] = useState(user);
+  const [locationSharingEnabled, setLocationSharingEnabled] = useState(user?.location_tracking_enabled || false);
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
   const [nextUpdateIn, setNextUpdateIn] = useState(null);
   const [hasError, setHasError] = useState(false);
@@ -21,7 +21,6 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const autoStartedRef = useRef(false);
   const consecutiveErrorsRef = useRef(false);
   const isTogglingRef = useRef(false); // Track toggle operation state in ref
-  const lastToggledValueRef = useRef(null); // Track last toggled value to prevent stale prop overwrites
 
   // CRITICAL: Check role conditions ONCE on mount with stable values
   const hasDriverRole = useMemo(() => {
