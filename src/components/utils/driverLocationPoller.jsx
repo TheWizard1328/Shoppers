@@ -231,12 +231,6 @@ class DriverLocationPoller {
          return true;
        }
 
-       // Skip inactive users for other drivers
-       if (user.status === 'inactive') return false;
-
-       // Must be in same city (admin exempted via city checks in parent)
-       if (currentUserCityId && user.city_id !== currentUserCityId) return false;
-
        // ========================================
        // RULE 2: AppOwners - can see ALL drivers regardless of settings
        // ========================================
@@ -246,6 +240,12 @@ class DriverLocationPoller {
          console.log(`✅ [Poller] AppOwner seeing driver ${user.user_name} - status: ${user.driver_status}, location_tracking: ${user.location_tracking_enabled}, staleness: ${user._staleness}`);
          return true;
        }
+
+       // Skip inactive users for other drivers
+       if (user.status === 'inactive') return false;
+
+       // Must be in same city (non-AppOwners only)
+       if (currentUserCityId && user.city_id !== currentUserCityId) return false;
 
        // ========================================
        // RULE 3: Admins (non-AppOwners) - can only see drivers with location sharing ON
