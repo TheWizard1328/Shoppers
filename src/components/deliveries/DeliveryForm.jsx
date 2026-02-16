@@ -4197,10 +4197,22 @@ export default function DeliveryForm({
       return null;
     }
 
-    const patient = patients.find((p) => p && p.id === projected.patient_id);
+    // CRITICAL: Fetch fresh patient data to ensure it exists
+    let patient = patients.find((p) => p && p.id === projected.patient_id);
     if (!patient) {
-      console.error('Patient not found for projected delivery:', projected.patient_id);
-      return null;
+      console.warn('Patient not in local state, fetching fresh data:', projected.patient_id);
+      try {
+        const { getData } = await import('../utils/dataManager');
+        const freshPatients = await getData('Patient', null, null, true);
+        patient = freshPatients.find((p) => p && p.id === projected.patient_id);
+        if (!patient) {
+          console.error('Patient not found for projected delivery:', projected.patient_id);
+          return null;
+        }
+      } catch (error) {
+        console.error('Failed to fetch fresh patient data:', error);
+        return null;
+      }
     }
 
     // Use existing distance_from_store if available, otherwise calculate
