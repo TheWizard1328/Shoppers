@@ -2532,16 +2532,13 @@ function Dashboard() {
     };
   }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding, appUsers]);
 
-  // CRITICAL: Listen for driver location updates to trigger FAB reactivation
-  useEffect(() => {
-    const handleDriverLocationUpdate = (event) => {
-      // CRITICAL: Use unified FAB reactivation for all phases
-      reactivateFAB('Driver Location Update');
-    };
-    
-    window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
-    return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
-  }, [reactivateFAB]);
+  // REMOVED: Driver location updates should NOT trigger FAB reactivation
+  // FAB only reactivates on:
+  // 1. Manual FAB click
+  // 2. Driver/date change
+  // 3. Smart refresh complete (with actual data changes)
+  // 4. App load/page load
+  // GPS location updates are passive and should not trigger map repositioning
 
   // CRITICAL: Periodic smart refresh - ACTUALLY calls smartRefreshManager.performSmartRefresh()
   useEffect(() => {
