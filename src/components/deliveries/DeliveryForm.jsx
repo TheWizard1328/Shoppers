@@ -2056,7 +2056,7 @@ export default function DeliveryForm({
     setIsSaving(true);
     try {
       // Generate stop_id for the delivery
-      const stop_id = await generateStopId(formData.delivery_date);
+      const stop_id = await generateStopId(formData.delivery_date, allDeliveries);
       
       const savedDelivery = await createDeliveryLocal({
         ...newStagedDelivery,
