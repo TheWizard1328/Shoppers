@@ -712,17 +712,28 @@ export default function DriverPayroll() {
 
     // Listen for route import completion events
     useEffect(() => {
-    const handleRouteImportComplete = () => {
-      const isActive = document.querySelector('[data-page="DriverPayroll"]') !== null;
-      if (isActive && hasInitialized) {
-        console.log('🔄 [DriverPayroll] Route import completed, refreshing data...');
-        fetchPayroll(true, true);
-        refreshPayrollRecords();
-      }
-    };
+      const handleRouteImportComplete = async () => {
+        const isActive = document.querySelector('[data-page="DriverPayroll"]') !== null;
+        if (isActive && hasInitialized) {
+          console.log('🔄 [DriverPayroll] Route import completed, refreshing deliveries and recalculating payroll...');
 
-    window.addEventListener('routeImportCompleted', handleRouteImportComplete);
-    return () => window.removeEventListener('routeImportCompleted', handleRouteImportComplete);
+          // Step 1: Invalidate caches to force fresh data from DB
+          invalidate('Delivery');
+          invalidate('Patient');
+          invalidate('Payroll');
+
+          // Step 2: Fetch fresh deliveries and recalculate payroll
+          await fetchPayroll(true, true);
+
+          // Step 3: Refresh payroll records for UI update
+          await refreshPayrollRecords();
+
+          console.log('✅ [DriverPayroll] Payroll data refreshed after route import');
+        }
+      };
+
+      window.addEventListener('routeImportCompleted', handleRouteImportComplete);
+      return () => window.removeEventListener('routeImportCompleted', handleRouteImportComplete);
     }, [hasInitialized, fetchPayroll, refreshPayrollRecords]);
 
   // Load payroll records IMMEDIATELY after data loads (before initial period selection)
