@@ -2049,18 +2049,11 @@ export default function Layout({ children, currentPageName }) {
         currentUser: currentUser
       };
       
+      // Note: pageDataReloader returns page-filtered data, but we keep global state as full monthly dataset
+      // Individual pages filter data locally, so no need to update global state here
       const reloadedData = await pageDataReloader.reloadPageData(currentPageName, filters);
       
-      if (reloadedData) {
-        // Update state with reloaded data
-        if (reloadedData.deliveries) setDeliveries(reloadedData.deliveries);
-        if (reloadedData.patients) setPatients(reloadedData.patients);
-        if (reloadedData.appUsers) setAppUsers(reloadedData.appUsers);
-        if (reloadedData.stores) setStores(reloadedData.stores);
-        if (reloadedData.cities) setCities(reloadedData.cities);
-        
-        console.log(`✅ [Layout] Page data reloaded for ${currentPageName}`);
-      }
+      console.log(`✅ [Layout] Page data ready for ${currentPageName}`);
     };
 
     reloadPageData();
