@@ -47,7 +47,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       
       // CRITICAL: Refresh stats on sync complete
       if (status.status === 'complete' || status.status === 'synced') {
-        getSyncStats(currentUser).then(newStats => {
+        getSyncStats().then(newStats => {
           console.log('📊 [OfflineSyncIndicator] Sync complete - updated stats:', newStats);
           setStats(newStats);
           setRuntimeStats({}); // Clear runtime stats when sync completes
@@ -92,7 +92,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // If sync complete, refresh stats after short delay
       if (isComplete) {
         setTimeout(() => {
-          getSyncStats(currentUser).then(newStats => {
+          getSyncStats().then(newStats => {
             console.log('📊 [OfflineSyncIndicator] Periodic sync complete - stats:', newStats);
             setStats(newStats);
             setRuntimeStats({});
@@ -116,7 +116,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     // CRITICAL: Listen for Pull To Sync completion
     const handlePullToSyncComplete = async () => {
       console.log('✅ [OfflineSyncIndicator] Pull To Sync complete - refreshing stats');
-      const updatedStats = await getSyncStats(currentUser);
+      const updatedStats = await getSyncStats();
       setStats(updatedStats);
       setRuntimeStats({});
       setIsSyncing(false);
@@ -133,7 +133,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       window.removeEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
       window.removeEventListener('pullToSyncComplete', handlePullToSyncComplete);
     };
-  }, [isVisible, currentUser]);
+  }, [isVisible]);
 
   // Only show to app owners - MUST be after all hooks
   if (!isVisible) {
@@ -158,7 +158,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // Wait for DB to settle
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      const updatedStats = await getSyncStats(currentUser);
+      const updatedStats = await getSyncStats();
       console.log('📊 [OfflineSyncIndicator] Updated stats:', updatedStats);
       setStats(updatedStats);
       setRuntimeStats({}); // Clear runtime stats
