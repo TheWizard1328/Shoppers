@@ -4182,7 +4182,7 @@ export default function DeliveryForm({
       time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       puid: '', // Will be updated after async call
       ampm_deliveries: timeSlot,
-      status: 'Staged',
+      status: 'pending',
       driver_id: autoSelectedDriverId,
       driver_name: autoSelectedDriverName,
       prescription_number: projected.prescription_number || '',
