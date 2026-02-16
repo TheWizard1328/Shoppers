@@ -1511,6 +1511,7 @@ export default function DeliveriesPage() {
   }, []);
 
   const filteredAndSortedDeliveries = useMemo(() => {
+    // Start with actual deliveries for the selected date
     let filtered = selectedDateDeliveries;
 
     if (statusFilter && statusFilter !== 'all') {
@@ -1529,8 +1530,12 @@ export default function DeliveriesPage() {
           (d.driver_name || '').toLowerCase().includes(lowerSearch) ||
           (store?.name || '').toLowerCase().includes(lowerSearch) ||
           (d.prescription_number || '').toLowerCase().includes(lowerSearch));
-
       });
+    }
+
+    // CRITICAL: If no actual deliveries and we have projections, show the projected deliveries instead
+    if (filtered.length === 0 && projectedRoutes.deliveries.length > 0) {
+      filtered = projectedRoutes.deliveries;
     }
 
     const sorted = sortDeliveriesByTime(filtered);
@@ -1539,7 +1544,7 @@ export default function DeliveriesPage() {
       ...delivery,
       stopOrder: index + 1
     }));
-  }, [selectedDateDeliveries, effectivePatients, stores, statusFilter, searchTerm, sortDeliveriesByTime]);
+  }, [selectedDateDeliveries, effectivePatients, stores, statusFilter, searchTerm, sortDeliveriesByTime, projectedRoutes.deliveries]);
 
   // Filter date cards based on search term (search across all available dates)
   const filteredDatesBySearch = useMemo(() => {
