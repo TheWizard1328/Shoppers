@@ -1353,6 +1353,14 @@ export default function DeliveriesPage() {
       return;
     }
 
+    // CRITICAL: In Route Management, set activeDriver based on driverFilter
+    if (!isDriverOverviewMode && driverFilter && driverFilter !== 'all') {
+      const selectedDriver = effectiveDrivers.find(d => d.id === driverFilter);
+      setActiveDriver(selectedDriver || null);
+    } else {
+      setActiveDriver(null);
+    }
+
     // CRITICAL: When transitioning FROM Driver Overview TO Route Management, auto-select most recent date
     const transitionedToRouteManagement = prevModeRef.current === true && isDriverOverviewMode === false;
     prevModeRef.current = isDriverOverviewMode;
