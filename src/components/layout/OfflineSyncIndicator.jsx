@@ -133,7 +133,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       window.removeEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
       window.removeEventListener('pullToSyncComplete', handlePullToSyncComplete);
     };
-  }, [isVisible]);
+  }, [isVisible, currentUser]);
 
   // Only show to app owners - MUST be after all hooks
   if (!isVisible) {
