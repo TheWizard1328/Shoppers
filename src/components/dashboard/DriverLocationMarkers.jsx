@@ -271,7 +271,33 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       return shouldShowMarker(user);
     });
     
-    console.log(`📍 [DriverMarkers - users prop] Validated ${validDrivers.length}/${users?.length || 0} drivers`);
+    // CRITICAL: Deduplicate self markers on primary device - only keep ONE (the live one)
+    const deduplicatedDrivers = (() => {
+      const selfMarkers = validDrivers.filter(u => {
+        const userId = u.id || u.user_id;
+        return userId === currentUser?.id || u.user_id === currentUser?.id || userId === currentUser?.user_id;
+      });
+      
+      if (selfMarkers.length > 1 && isPrimaryDevice) {
+        console.warn(`⚠️ [DriverMarkers] Found ${selfMarkers.length} self markers on PRIMARY device - keeping only most recent`);
+        // Keep only the most recent self marker (by location_updated_at)
+        const mostRecent = selfMarkers.reduce((latest, current) => {
+          const latestTime = new Date(latest.location_updated_at || 0).getTime();
+          const currentTime = new Date(current.location_updated_at || 0).getTime();
+          return currentTime > latestTime ? current : latest;
+        });
+        
+        return validDrivers.filter(u => {
+          const userId = u.id || u.user_id;
+          const isSelf = userId === currentUser?.id || u.user_id === currentUser?.id || userId === currentUser?.user_id;
+          return !isSelf || u === mostRecent;
+        });
+      }
+      
+      return validDrivers;
+    })();
+    
+    console.log(`📍 [DriverMarkers - users prop] Validated ${deduplicatedDrivers.length}/${users?.length || 0} drivers`);
     
     // CRITICAL: Check if the set of visible driver IDs has actually changed
     // This prevents flickering caused by array reference changes during smart refresh
