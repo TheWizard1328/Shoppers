@@ -317,8 +317,10 @@ export default function DriverPayroll() {
       });
       console.log(`✅ [DriverPayroll] Found ${records?.length || 0} payroll records`);
       setPayrollRecords(records || []);
+      payrollRecordsLoadedRef.current = true;
     } catch (error) {
       console.error('Failed to refresh payroll records:', error);
+      payrollRecordsLoadedRef.current = true; // Mark as loaded even on error
     }
   }, [currentPeriod]);
 
