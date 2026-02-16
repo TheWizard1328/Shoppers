@@ -13,9 +13,9 @@ const DriverLocationBadge = ({ users = [] }) => {
 
       console.log(`🔍 [DriverLocationBadge] Received ${appUsers.length} appUsers, singleUpdate: ${singleUpdate}`);
 
-      // CRITICAL: Merge updates instead of replacing entire state
+      // CRITICAL: Only update drivers that actually changed
       setDriverStatus(prevStatus => {
-        const newStatus = singleUpdate ? { ...prevStatus } : {};
+        const newStatus = { ...prevStatus };
         
         appUsers.forEach(user => {
           // Only show drivers who are online OR have updated location within last 30 minutes
