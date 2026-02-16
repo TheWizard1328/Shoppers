@@ -210,12 +210,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     return null;
   }
 
-  if (!localUser) {
+  if (!user) {
     return null;
   }
-
-  // CRITICAL: Always derive state from localUser to reflect real-time updates
-  const isSharingEnabled = localUser?.location_tracking_enabled || false;
 
   return (
     <div className="flex items-center gap-2">
@@ -229,7 +226,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       </div>
       <Switch
         id="location-toggle"
-        checked={isSharingEnabled}
+        checked={locationSharingEnabled}
         onCheckedChange={handleToggle}
         disabled={isToggling}
         className="data-[state=checked]:bg-emerald-500" />
