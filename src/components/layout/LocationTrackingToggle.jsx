@@ -33,9 +33,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     return user ? isAppOwner(user) : false;
   }, [user]);
 
-  // Always sync localUser with user prop and update toggle state from real data
+  // Always sync localUser with user prop - but preserve location_tracking_enabled state during toggle
   useEffect(() => {
-    if (user) {
+    if (user && !isTogglingRef.current) {
       setLocalUser(user);
     }
   }, [user]);
