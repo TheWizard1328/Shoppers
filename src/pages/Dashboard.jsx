@@ -1907,6 +1907,7 @@ function Dashboard() {
             console.log('⏰ [FAB] Phase 1 auto-unlocked after 500ms (Done button)');
           }
         }, lockDuration);
+      }
       // REMOVED: DRIVER_LOCATION_CHANGE handler - Phase 1 should NOT react to GPS updates
     });
 
