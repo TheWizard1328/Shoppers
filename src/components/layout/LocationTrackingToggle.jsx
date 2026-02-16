@@ -62,27 +62,31 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       if (entity !== 'AppUser' || !data) return;
       
       // CRITICAL: Check multiple ID fields to catch the update
-      // - id: AppUser record ID
-      // - data.id: AppUser record ID
-      // - data.user_id: Reference to User entity
-      const isCurrentUser = localUser && (
-        id === localUser.appUserId || 
-        id === localUser.id ||
-        data?.id === localUser.appUserId || 
-        data?.id === localUser.id ||
-        data?.user_id === localUser.id ||
-        data?.user_id === localUser.user_id
+      const isCurrentUser = user && (
+        id === user.appUserId || 
+        id === user.id ||
+        data?.id === user.appUserId || 
+        data?.id === user.id ||
+        data?.user_id === user.id ||
+        data?.user_id === user.user_id
       );
       
       if (isCurrentUser && typeof data.location_tracking_enabled !== 'undefined') {
         console.log(`📡 [LocationSharing] WebSocket update - syncing toggle to: ${data.location_tracking_enabled}`);
-        setLocalUser(prev => prev ? { ...prev, location_tracking_enabled: data.location_tracking_enabled } : prev);
+        
+        // Skip if still toggling
+        if (isTogglingRef.current) {
+          console.log('⏸️ [LocationSharing] Still toggling - will sync after toggle completes');
+          return;
+        }
+        
+        setLocationSharingEnabled(data.location_tracking_enabled);
       }
     };
 
     window.addEventListener('entityMutationBroadcast', handleAppUserUpdate);
     return () => window.removeEventListener('entityMutationBroadcast', handleAppUserUpdate);
-  }, [localUser?.id, localUser?.appUserId, localUser?.user_id]);
+  }, [user?.id, user?.appUserId, user?.user_id]);
 
   // REMOVED: Auto-start tracking (Dashboard handles GPS tracking for mobile devices)
 
