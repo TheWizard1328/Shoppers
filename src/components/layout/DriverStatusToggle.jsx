@@ -434,6 +434,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         } catch (e) {
           console.warn('⚠️ [DriverStatusToggle] Failed to resume smart refresh:', e);
         }
+        
+        // CRITICAL: Clear toggling flag after delay
+        isTogglingRef.current = false;
         console.log('✅ [DRIVER STATUS] Driver status change cycle complete');
       }, 500); // Reduced to 500ms since UI is already unblocked
     }
