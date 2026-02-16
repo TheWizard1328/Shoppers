@@ -1897,6 +1897,40 @@ function Dashboard() {
             console.log('⏰ [FAB] Phase 1 auto-unlocked after 500ms (Done button)');
           }
         }, lockDuration);
+      } else if (event.type === 'DRIVER_LOCATION_CHANGE') {
+        // CRITICAL: Driver location changed - reactivate Phase 1 for 500ms if already in Phase 1
+        if (mapViewPhase !== 1) {
+          return;
+        }
+        
+        console.log('📍 [FAB] Driver location changed - reactivating Phase 1 for 500ms');
+
+        // Clear any existing timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+
+        // Re-lock Phase 1
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+
+        // Auto-unlock after 500ms
+        const lockDuration = 500;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+
+        mapLockTimeoutRef.current = window.setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+            console.log('⏰ [FAB] Phase 1 auto-unlocked after 500ms (Location change)');
+          }
+        }, lockDuration);
       }
     });
 
