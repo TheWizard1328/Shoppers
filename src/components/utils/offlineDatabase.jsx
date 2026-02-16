@@ -413,102 +413,52 @@ const needsInitialSync = async (entityName) => {
 /**
  * Get database statistics
  * CRITICAL: Always return valid stats object, never null
- * CRITICAL: Counts records directly from IndexedDB using count() for accuracy
  */
 const getStats = async () => {
   try {
-    const db = await openDatabase();
-    
-    // CRITICAL: Use count() instead of getAll() to avoid loading all records into memory
-    // This ensures we get accurate total counts regardless of page context
-    const countPromises = [
-      // Count records using IndexedDB count() method
-      new Promise((resolve) => {
-        const tx = db.transaction([STORES.PATIENTS], 'readonly');
-        const store = tx.objectStore(STORES.PATIENTS);
-        const request = store.count();
-        request.onsuccess = () => resolve(request.result || 0);
-        request.onerror = () => resolve(0);
-      }),
-      new Promise((resolve) => {
-        const tx = db.transaction([STORES.DELIVERIES], 'readonly');
-        const store = tx.objectStore(STORES.DELIVERIES);
-        const request = store.count();
-        request.onsuccess = () => resolve(request.result || 0);
-        request.onerror = () => resolve(0);
-      }),
-      new Promise((resolve) => {
-        const tx = db.transaction([STORES.APP_USERS], 'readonly');
-        const store = tx.objectStore(STORES.APP_USERS);
-        const request = store.count();
-        request.onsuccess = () => resolve(request.result || 0);
-        request.onerror = () => resolve(0);
-      }),
-      new Promise((resolve) => {
-        const tx = db.transaction([STORES.CITIES], 'readonly');
-        const store = tx.objectStore(STORES.CITIES);
-        const request = store.count();
-        request.onsuccess = () => resolve(request.result || 0);
-        request.onerror = () => resolve(0);
-      }),
-      new Promise((resolve) => {
-        const tx = db.transaction([STORES.STORES], 'readonly');
-        const store = tx.objectStore(STORES.STORES);
-        const request = store.count();
-        request.onsuccess = () => resolve(request.result || 0);
-        request.onerror = () => resolve(0);
-      }),
-      new Promise((resolve) => {
-        const tx = db.transaction([STORES.SQUARE_TRANSACTIONS], 'readonly');
-        const store = tx.objectStore(STORES.SQUARE_TRANSACTIONS);
-        const request = store.count();
-        request.onsuccess = () => resolve(request.result || 0);
-        request.onerror = () => resolve(0);
-      }),
-      new Promise((resolve) => {
-        const tx = db.transaction([STORES.DRIVER_OVERVIEW_STATS], 'readonly');
-        const store = tx.objectStore(STORES.DRIVER_OVERVIEW_STATS);
-        const request = store.count();
-        request.onsuccess = () => resolve(request.result || 0);
-        request.onerror = () => resolve(0);
-      }),
+    const [patients, deliveries, appUsers, cities, stores, squareTx, driverStats, patientSync, deliverySync, appUserSync, citySync, storeSync, squareTxSync] = await Promise.all([
+      getAll(STORES.PATIENTS),
+      getAll(STORES.DELIVERIES),
+      getAll(STORES.APP_USERS),
+      getAll(STORES.CITIES),
+      getAll(STORES.STORES),
+      getAll(STORES.SQUARE_TRANSACTIONS),
+      getAll(STORES.DRIVER_OVERVIEW_STATS),
       getSyncStatus('Patient'),
       getSyncStatus('Delivery'),
       getSyncStatus('AppUser'),
       getSyncStatus('City'),
       getSyncStatus('Store'),
       getSyncStatus('SquareTransaction')
-    ];
-
-    const [patientCount, deliveryCount, appUserCount, cityCount, storeCount, squareTxCount, driverStatsCount, patientSync, deliverySync, appUserSync, citySync, storeSync, squareTxSync] = await Promise.all(countPromises);
+    ]);
 
     return {
       patients: {
-        count: patientCount,
+        count: patients?.length || 0,
         lastSync: patientSync?.lastSync || patientSync?.lastSyncDate || 'Never'
       },
       deliveries: {
-        count: deliveryCount,
+        count: deliveries?.length || 0,
         lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never'
       },
       appUsers: {
-        count: appUserCount,
+        count: appUsers?.length || 0,
         lastSync: appUserSync?.lastSync || appUserSync?.lastSyncDate || 'Never'
       },
       cities: {
-        count: cityCount,
+        count: cities?.length || 0,
         lastSync: citySync?.lastSync || citySync?.lastSyncDate || 'Never'
       },
       stores: {
-        count: storeCount,
+        count: stores?.length || 0,
         lastSync: storeSync?.lastSync || storeSync?.lastSyncDate || 'Never'
       },
       squareTransactions: {
-        count: squareTxCount,
+        count: squareTx?.length || 0,
         lastSync: squareTxSync?.lastSync || squareTxSync?.lastSyncDate || 'Never'
       },
       driverOverviewStats: {
-        count: driverStatsCount,
+        count: driverStats?.length || 0,
         lastSync: deliverySync?.lastSync || deliverySync?.lastSyncDate || 'Never'
       }
     };
