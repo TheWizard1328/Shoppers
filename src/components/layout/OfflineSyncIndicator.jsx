@@ -167,16 +167,21 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       
       // Load fresh deliveries and trigger delivery update event
-      const selectedDateStr = sessionStorage.getItem('rxdeliver_selected_date') || 
-                             new Date().toISOString().split('T')[0];
-      
-      const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-      
-      if (freshDeliveries && freshDeliveries.length > 0) {
-        console.log(`📦 [OfflineSyncIndicator] Triggering deliveriesImported with ${freshDeliveries.length} deliveries`);
-        window.dispatchEvent(new CustomEvent('deliveriesImported', {
-          detail: { source: 'manual_sync', deliveries: freshDeliveries }
-        }));
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const selectedDateStr = sessionStorage.getItem('rxdeliver_selected_date') || 
+                               new Date().toISOString().split('T')[0];
+        
+        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        
+        if (freshDeliveries && freshDeliveries.length > 0) {
+          console.log(`📦 [OfflineSyncIndicator] Triggering deliveriesImported with ${freshDeliveries.length} deliveries`);
+          window.dispatchEvent(new CustomEvent('deliveriesImported', {
+            detail: { source: 'manual_sync', deliveries: freshDeliveries }
+          }));
+        }
+      } catch (dbError) {
+        console.warn('⚠️ [OfflineSyncIndicator] Could not fetch deliveries from offline DB:', dbError.message);
       }
       
       // Trigger driver locations update to refresh map markers
