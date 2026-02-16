@@ -608,15 +608,11 @@ export default function DeliveriesPage() {
           }
         }
       } else if (userHasRole(user, 'driver')) {
-        console.log('Driver - Fetching ALL patients (will filter in memory)');
+        console.log('Driver - Fetching ALL patients for projections');
         try {
-          const allPatientsRaw = await getData('Patient', 'full_name', null, forceRefresh);
-
-          const uniquePatientIds = new Set(
-            (deliveriesData || []).filter((d) => d.patient_id).map((d) => d.patient_id)
-          );
-          patientsData = (allPatientsRaw || []).filter((p) => uniquePatientIds.has(p.id));
-          console.log('Driver - Filtered to patients with deliveries:', patientsData.length);
+          // CRITICAL: Drivers need ALL patients (not just those with deliveries) for projected routes to work
+          patientsData = await getData('Patient', 'full_name', null, forceRefresh);
+          console.log('Driver - Fetched ALL patients for projections:', patientsData?.length || 0);
         } catch (error) {
           console.error('Failed to fetch patients for driver:', error.message);
           patientsData = [];
