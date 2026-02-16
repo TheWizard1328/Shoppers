@@ -2417,6 +2417,9 @@ export default function DeliveryForm({
         }
       }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      
+      // CRITICAL: Trigger offline sync to pull fresh data from server
+      window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
     } catch (error) {
       console.warn('⚠️ [Done] Failed to refresh route data:', error);
     }
@@ -3686,6 +3689,9 @@ export default function DeliveryForm({
             }
           }));
           window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+          
+          // CRITICAL: Trigger offline sync to pull fresh data from server
+          window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
         } catch (error) {
           console.warn('⚠️ [Cancel] Failed to refresh route data:', error);
         }
@@ -3729,6 +3735,9 @@ export default function DeliveryForm({
           }
         }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        
+        // CRITICAL: Trigger offline sync to pull fresh data from server
+        window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
       } catch (error) {
         console.warn('⚠️ [Cancel] Failed to refresh route data:', error);
       }
