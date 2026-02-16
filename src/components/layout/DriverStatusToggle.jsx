@@ -78,24 +78,26 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       if (isCurrentUser && typeof data.driver_status !== 'undefined') {
         console.log(`📡 [DriverStatusToggle] WebSocket update - syncing status to: ${data.driver_status}`);
         
-        if (data.driver_status !== status) {
-          setStatus(data.driver_status);
-          locationTracker.setDriverStatus(data.driver_status);
+        // Skip if still toggling
+        if (isTogglingRef.current) {
+          console.log('⏸️ [DriverStatusToggle] Still toggling - will sync after toggle completes');
+          return;
         }
+        
+        // CRITICAL: Only update if the value actually changed
+        setStatus(prev => {
+          if (prev === data.driver_status) {
+            return prev; // No change - keep current state
+          }
+          locationTracker.setDriverStatus(data.driver_status);
+          return data.driver_status;
+        });
       }
     };
 
     window.addEventListener('entityMutationBroadcast', handleAppUserUpdate);
     return () => window.removeEventListener('entityMutationBroadcast', handleAppUserUpdate);
-  }, [appUserId, currentUser?.id, status]);
-
-  // Fallback: sync from currentUser prop changes
-  useEffect(() => {
-    if (currentUser?.driver_status && currentUser.driver_status !== status && !isUpdating) {
-      setStatus(currentUser.driver_status);
-      locationTracker.setDriverStatus(currentUser.driver_status);
-    }
-  }, [currentUser?.driver_status, status, isUpdating]);
+  }, [appUserId, currentUser?.id]);
 
   const handleStatusChange = useCallback(async (newStatus) => {
     // Don't allow changes while updating OR if already pending
