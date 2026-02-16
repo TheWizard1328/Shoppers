@@ -309,40 +309,10 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     await new Promise(r => setTimeout(r, 500));
     notifySyncStatus({ status: 'priority_sync', phase: 'patients' });
     
-    // STEP 3: Extract unique patient IDs from these deliveries and sync them immediately
-    const patientIds = new Set(
-      (deliveries || [])
-        .filter(d => d && d.patient_id)
-        .map(d => d.patient_id)
-    );
-    
-    let patients = [];
-    if (patientIds.size > 0) {
-      const patientIdList = Array.from(patientIds);
-      const PATIENT_BATCH_SIZE = 50;
-      
-      for (let i = 0; i < patientIdList.length; i += PATIENT_BATCH_SIZE) {
-        // CRITICAL: Wait for rate limit before each patient batch
-        if (smartRefreshMgr) {
-          await smartRefreshMgr.waitForRateLimit();
-        }
-        
-        const batchIds = patientIdList.slice(i, i + PATIENT_BATCH_SIZE);
-        const batchPatients = await fetchPatientsDedup({ id: { $in: batchIds } });
-        
-        if (batchPatients && batchPatients.length > 0) {
-              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
-              invalidateEntityCache('Patient');
-              patients = [...patients, ...batchPatients];
-              if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
-            }
-        await new Promise(r => setTimeout(r, 200));
-      }
-    }
-    
-    // Clean patients
-    patients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
-    await offlineDB.updateSyncMetadata('Patient', new Date().toISOString(), new Date().toISOString());
+    // STEP 3: Load ALL cached patients (do NOT re-sync based on current date)
+    // This preserves the full patient list across page navigation
+    const patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    const cleanPatients = (patients || []).filter(p => p && p.id && !p.id.startsWith('temp_'));
 
     // Dispatch event for indicator
     if (typeof window !== 'undefined') {
