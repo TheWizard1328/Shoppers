@@ -659,8 +659,11 @@ const getNextDeliveryDateToSync = async () => {
 };
 
 /**
- * Background sync with timestamp-based incremental strategy for deliveries
- * Syncs one delivery date at a time over past 90 days
+ * Smart historical sync - only update recent deliveries (past 90 days) and check history periodically
+ * CRITICAL: This prevents re-syncing all historical data constantly
+ * Strategy:
+ * - Recent deliveries (past 90 days): Check & sync on every cycle
+ * - Historical (older): Only re-sync if never synced OR last synced > 7 days ago
  */
 export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
   if (syncInProgress || syncPaused) {
@@ -686,7 +689,6 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     await new Promise(r => setTimeout(r, 2000));
     
     // CRITICAL: Skip patient sync in background unless it's been 24+ hours since last full sync
-    // This prevents rate limit errors from frequent patient syncs
     const patientStatus = await offlineDB.getSyncStatus('Patient');
     const lastFullSync = patientStatus?.lastFullSync ? new Date(patientStatus.lastFullSync).getTime() : 0;
     const timeSinceLastSync = Date.now() - lastFullSync;
@@ -698,8 +700,8 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       await new Promise(r => setTimeout(r, 2000));
     }
     
-    // CRITICAL: Sync deliveries one date at a time over past 90 days
-    // Check for changes before syncing to minimize rate limits
+    // CRITICAL: Smart delivery sync - only sync recent dates by default
+    // Only check historical data periodically (every 7 days)
     const deliveryDateToSync = await getNextDeliveryDateToSync();
     const deliveryCheckFilter = { delivery_date: deliveryDateToSync };
     if (storeIds && storeIds.length > 0) {
@@ -711,40 +713,54 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
       deliveryFilter.store_id = { $in: storeIds };
     }
 
-    // Fetch deliveries first
-    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
-    if (deliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-      invalidateEntityCache('Delivery');
+    // Check if we should skip this date (recently synced with no changes)
+    const deliveryDateMeta = await offlineDB.getSyncMetadata(`Delivery_${deliveryDateToSync}`);
+    const lastSyncForDate = deliveryDateMeta?.last_sync_time ? new Date(deliveryDateMeta.last_sync_time).getTime() : 0;
+    const hoursSinceLastSync = (Date.now() - lastSyncForDate) / (1000 * 60 * 60);
+    
+    // CRITICAL: For recent dates (past 14 days), sync frequently. For older dates, only sync if > 7 days
+    const daysAgo = Math.floor((Date.now() - new Date(deliveryDateToSync).getTime()) / (1000 * 60 * 60 * 24));
+    const syncIntervalHours = daysAgo <= 14 ? 4 : 168; // 4 hours for recent, 7 days for historical
+    
+    if (hoursSinceLastSync > syncIntervalHours) {
+      console.log(`🔄 [BackgroundSync] Syncing deliveries for ${deliveryDateToSync} (${daysAgo} days ago)`);
+      
+      // Fetch deliveries with timestamp check
+      const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+      if (deliveries.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+        invalidateEntityCache('Delivery');
 
-      // CRITICAL: Extract unique patient IDs from these deliveries and sync them immediately
-      // This ensures all patients referenced in current deliveries are up-to-date across all devices
-      const patientIds = new Set(
-        deliveries
-          .filter(d => d && d.patient_id)
-          .map(d => d.patient_id)
-      );
+        // Extract and sync referenced patients
+        const patientIds = new Set(
+          deliveries
+            .filter(d => d && d.patient_id)
+            .map(d => d.patient_id)
+        );
 
-      if (patientIds.size > 0) {
-        const patientIdList = Array.from(patientIds);
-        const PATIENT_BATCH_SIZE = 50;
+        if (patientIds.size > 0) {
+          const patientIdList = Array.from(patientIds);
+          const PATIENT_BATCH_SIZE = 50;
 
-        for (let i = 0; i < patientIdList.length; i += PATIENT_BATCH_SIZE) {
-          const batchIds = patientIdList.slice(i, i + PATIENT_BATCH_SIZE);
-          const batchPatients = await Patient.filter({ id: { $in: batchIds } });
+          for (let i = 0; i < patientIdList.length; i += PATIENT_BATCH_SIZE) {
+            const batchIds = patientIdList.slice(i, i + PATIENT_BATCH_SIZE);
+            const batchPatients = await Patient.filter({ id: { $in: batchIds } });
 
-          if (batchPatients && batchPatients.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
-            invalidateEntityCache('Patient');
+            if (batchPatients && batchPatients.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+              invalidateEntityCache('Patient');
+            }
+
+            await new Promise(r => setTimeout(r, 500));
           }
-
-          await new Promise(r => setTimeout(r, 500));
         }
       }
+      
+      // Update sync metadata for this specific date
+      await offlineDB.updateSyncMetadata(`Delivery_${deliveryDateToSync}`, null, new Date().toISOString());
+    } else {
+      console.log(`⏭️ [BackgroundSync] Skipping ${deliveryDateToSync} - recently synced (${hoursSinceLastSync.toFixed(1)}h ago)`);
     }
-
-    // Update delivery metadata
-    await offlineDB.updateSyncMetadata('Delivery', null, new Date().toISOString());
 
     notifySyncStatus({ status: 'complete' });
     window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
