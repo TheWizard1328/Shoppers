@@ -3273,9 +3273,9 @@ export default function DeliveriesPage() {
             <div className={`${showSplitView ? 'w-[400px] flex-shrink-0' : 'w-full'} h-full overflow-hidden`}>
               <div className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center" style={{ maxHeight: 'calc(100vh - 280px)' }}>
                 {deliveriesToRender.map((delivery, index) => (
-                  <StopCard
-                    key={delivery.id}
-                    delivery={delivery}
+                 <StopCard
+                   key={delivery.id || `delivery-${index}`}
+                   delivery={delivery}
                     patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)}
                     store={(stores || []).find((s) => s && s.id === delivery.store_id)}
                     driver={
