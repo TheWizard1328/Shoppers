@@ -47,7 +47,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       
       // CRITICAL: Refresh stats on sync complete
       if (status.status === 'complete' || status.status === 'synced') {
-        getSyncStats().then(newStats => {
+        getSyncStats(currentUser).then(newStats => {
           console.log('📊 [OfflineSyncIndicator] Sync complete - updated stats:', newStats);
           setStats(newStats);
           setRuntimeStats({}); // Clear runtime stats when sync completes
