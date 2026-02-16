@@ -684,7 +684,7 @@ export default function DriverPayroll() {
 
     const unsubscribers = [];
 
-    // Subscribe to Delivery changes
+    // Subscribe to Delivery changes only
     try {
       const unsubDeliv = base44.entities.Delivery.subscribe((event) => {
         if (!checkIfActive()) return;
@@ -696,30 +696,6 @@ export default function DriverPayroll() {
       unsubscribers.push(unsubDeliv);
     } catch (e) {
       console.warn('Failed to subscribe to Delivery updates:', e);
-    }
-
-    // Subscribe to AppUser changes
-    try {
-      const unsubAppUser = base44.entities.AppUser.subscribe((event) => {
-        if (!checkIfActive()) return;
-        console.log(`📡 [DriverPayroll] AppUser ${event.type}:`, event.id);
-        fetchPayroll(true, false);
-      });
-      unsubscribers.push(unsubAppUser);
-    } catch (e) {
-      console.warn('Failed to subscribe to AppUser updates:', e);
-    }
-
-    // Subscribe to Payroll changes
-    try {
-      const unsubPayroll = base44.entities.Payroll.subscribe((event) => {
-        if (!checkIfActive()) return;
-        console.log(`📡 [DriverPayroll] Payroll ${event.type}:`, event.id);
-        refreshPayrollRecords();
-      });
-      unsubscribers.push(unsubPayroll);
-    } catch (e) {
-      console.warn('Failed to subscribe to Payroll updates:', e);
     }
 
     // Cleanup subscriptions on unmount
