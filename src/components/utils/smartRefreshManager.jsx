@@ -418,6 +418,11 @@ class LightweightRefreshManager {
                 const { offlineDB } = await import('./offlineDatabase');
                 await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
 
+                // CRITICAL: Trigger currentUser refresh for toggles
+                window.dispatchEvent(new CustomEvent('refreshCurrentUserFromSmartRefresh', {
+                  detail: { updatedAppUsers: updates.appUsers }
+                }));
+
                 // CRITICAL: Only broadcast if we have actual appUsers data
                 if (updates.appUsers && updates.appUsers.length > 0) {
                   window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
@@ -508,6 +513,11 @@ class LightweightRefreshManager {
         // Save to offline DB
         const { offlineDB } = await import('./offlineDatabase');
         await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+        
+        // CRITICAL: Trigger currentUser refresh for toggles
+        window.dispatchEvent(new CustomEvent('refreshCurrentUserFromSmartRefresh', {
+          detail: { updatedAppUsers: freshAppUsers }
+        }));
         
         console.log(`✅ [SmartRefresh] Refreshed ${freshAppUsers.length} driver locations`);
         

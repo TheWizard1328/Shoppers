@@ -710,6 +710,14 @@ function Dashboard() {
       setDeliveryStats(event.detail);
     };
     
+    // CRITICAL: Listen for smart refresh AppUser updates to refresh currentUser for toggles
+    const handleRefreshCurrentUser = () => {
+      if (refreshUser) {
+        console.log('🔄 [Dashboard] Smart refresh updated AppUsers - refreshing currentUser for toggles');
+        refreshUser();
+      }
+    };
+    
     // CRITICAL: Listen for manual refresh payroll stats trigger from SmartRefreshIndicator
     const handleRefreshPayrollStatsAfterSync = async () => {
       // Only fetch if: (driver viewing own route) OR (admin viewing any driver)
@@ -781,14 +789,16 @@ function Dashboard() {
     window.addEventListener('travelDistUpdated', handleTravelDistUpdate);
     window.addEventListener('timeOnDutyUpdated', handleTimeOnDutyUpdate);
     window.addEventListener('refreshPayrollStatsAfterSync', handleRefreshPayrollStatsAfterSync);
+    window.addEventListener('refreshCurrentUserFromSmartRefresh', handleRefreshCurrentUser);
     return () => {
       window.removeEventListener('performanceStatsUpdated', handlePerformanceStatsUpdate);
       window.removeEventListener('deliveryStatsUpdated', handleDeliveryStatsUpdate);
       window.removeEventListener('travelDistUpdated', handleTravelDistUpdate);
       window.removeEventListener('timeOnDutyUpdated', handleTimeOnDutyUpdate);
       window.removeEventListener('refreshPayrollStatsAfterSync', handleRefreshPayrollStatsAfterSync);
+      window.removeEventListener('refreshCurrentUserFromSmartRefresh', handleRefreshCurrentUser);
     };
-  }, [deliveries, updateDeliveriesLocally, performanceStats, isDriver, isAdmin, currentUser?.id, selectedDriverId, selectedDate]);
+  }, [deliveries, updateDeliveriesLocally, performanceStats, isDriver, isAdmin, currentUser?.id, selectedDriverId, selectedDate, refreshUser]);
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
