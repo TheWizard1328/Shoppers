@@ -2390,6 +2390,21 @@ export default function DeliveryForm({
     setHasChanges(false);
     hasLoadedPending.current = false;
 
+    // Refresh route data for all drivers on the selected date
+    try {
+      console.log('[Done] 🔄 Refreshing route data for all drivers...');
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { 
+          deliveryDate: formData.delivery_date,
+          refreshAllDrivers: true,
+          triggeredBy: 'doneButton'
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    } catch (error) {
+      console.warn('⚠️ [Done] Failed to refresh route data:', error);
+    }
+
     // Resume background operations
     (async () => {
       try {
@@ -2410,7 +2425,7 @@ export default function DeliveryForm({
     })();
     
     onCancel();
-  }, [onCancel]);
+  }, [onCancel, formData.delivery_date]);
 
   // REMOVE THIS: Old logic for pending deletes
   const REMOVED_handleBatchSave_OLD = useCallback(async () => {
