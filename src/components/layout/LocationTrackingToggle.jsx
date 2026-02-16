@@ -196,7 +196,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       setIsToggling(false);
       setTimeout(() => {
         isTogglingRef.current = false;
-      }, 2000);
+      }, 500); // Reduced delay
     }
   };
 
