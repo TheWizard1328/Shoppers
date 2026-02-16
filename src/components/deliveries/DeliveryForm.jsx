@@ -4133,13 +4133,13 @@ export default function DeliveryForm({
     const store = stores.find((s) => s && s.id === projected.store_id);
     if (!store) {
       console.error('Store not found for projected delivery:', projected.store_id);
-      return;
+      return null;
     }
 
     const patient = patients.find((p) => p && p.id === projected.patient_id);
     if (!patient) {
       console.error('Patient not found for projected delivery:', projected.patient_id);
-      return;
+      return null;
     }
 
     // Use existing distance_from_store if available, otherwise calculate
@@ -4273,6 +4273,9 @@ export default function DeliveryForm({
     setStagedDeliveries((prev) => [...prev, newStagedItem]);
     setHasChanges(true);
 
+    // Return the staged item so caller can save it
+    const stagedItemToReturn = { ...newStagedItem };
+
     // Now do async PUID lookup ONLY if not found in staged
     if (autoDriverId && !puid) {
       try {
@@ -4325,8 +4328,11 @@ export default function DeliveryForm({
         setStagedDeliveries((prev) => prev.map((item) => 
           item._tempId === newStagedItem._tempId ? { ...item, puid } : item
         ));
+        stagedItemToReturn.puid = puid;
       }
     }
+    
+    return stagedItemToReturn;
   }, [formData, stores, patients, drivers, allDeliveries, stagedDeliveries]);
 
   const sortedStagedDeliveries = useMemo(() => {

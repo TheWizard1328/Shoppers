@@ -276,39 +276,30 @@ export default function DeliveryFormStaged({
               onClick={async () => {
                 setSavingProjectedId(projected.patient_id);
                 try {
-                  await confirmAddProjectedToStaged(projected);
+                  const stagedItem = await confirmAddProjectedToStaged(projected);
                   
-                  // Wait for state to update, then save
-                  setTimeout(async () => {
-                    try {
-                      const currentStaged = stagedDeliveries.find(s => s.patient_id === projected.patient_id && !s.id);
-                      if (currentStaged) {
-                        const savedDelivery = await createDeliveryLocal(currentStaged);
-                        setStagedDeliveries(prev => prev.map(s => 
-                          s._tempId === currentStaged._tempId ? { ...s, id: savedDelivery.id } : s
-                        ));
-                        
-                        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                          detail: { 
-                            deliveryDate: currentStaged.delivery_date, 
-                            driverId: currentStaged.driver_id,
-                            triggeredBy: 'projectedAddButtonSave'
-                          }
-                        }));
-                        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                  if (stagedItem) {
+                    const savedDelivery = await createDeliveryLocal(stagedItem);
+                    setStagedDeliveries(prev => prev.map(s => 
+                      s._tempId === stagedItem._tempId ? { ...s, id: savedDelivery.id } : s
+                    ));
+                    
+                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                      detail: { 
+                        deliveryDate: stagedItem.delivery_date, 
+                        driverId: stagedItem.driver_id,
+                        triggeredBy: 'projectedAddButtonSave'
                       }
-                    } catch (saveError) {
-                      console.error('Failed to save projected delivery:', saveError);
-                    } finally {
-                      setSavingProjectedId(null);
-                    }
-                  }, 100);
+                    }));
+                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                  }
                   
                   if (!isMobileDevice) {
                     setTimeout(() => patientSearchInputRef.current?.focus(), 100);
                   }
                 } catch (error) {
-                  console.error('Failed to add projected delivery:', error);
+                  console.error('Failed to save projected delivery:', error);
+                } finally {
                   setSavingProjectedId(null);
                 }
               }}
