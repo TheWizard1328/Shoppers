@@ -512,7 +512,7 @@ function Dashboard() {
           // Update offline DB
           offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [event.data]).catch(console.error);
           
-          // Update UI immediately
+          // Update UI immediately - merge with existing appUsers
           if (updateAppUsersLocally) {
             updateAppUsersLocally([event.data], false);
           }
@@ -527,10 +527,22 @@ function Dashboard() {
             }
           }
           
-          // Update driver location markers
+          // CRITICAL: Merge this update with existing appUsers before dispatching
+          const updatedAppUsers = appUsers.map(au => 
+            au?.id === event.data.id ? event.data : au
+          );
+          
+          // If this user wasn't in the list, add them
+          if (!appUsers.some(au => au?.id === event.data.id)) {
+            updatedAppUsers.push(event.data);
+          }
+          
+          // Update driver location markers with FULL list
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: [event.data], singleUpdate: true, fromRealtime: true }
+            detail: { appUsers: updatedAppUsers, singleUpdate: true, fromRealtime: true }
           }));
+          
+          console.log(`📍 [Real-time AppUser] Dispatched location update with ${updatedAppUsers.length} total users (1 changed)`);
         }
       }
     });
