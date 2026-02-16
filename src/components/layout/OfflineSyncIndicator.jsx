@@ -158,7 +158,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // Wait for DB to settle
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      const updatedStats = await getSyncStats();
+      const updatedStats = await getSyncStats(currentUser);
       console.log('📊 [OfflineSyncIndicator] Updated stats:', updatedStats);
       setStats(updatedStats);
       setRuntimeStats({}); // Clear runtime stats
