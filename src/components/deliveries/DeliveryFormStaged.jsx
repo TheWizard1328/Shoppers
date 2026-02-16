@@ -28,11 +28,11 @@ export default function DeliveryFormStaged({
 }) {
   return (
     <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
-      {/* Staged Deliveries Section (new, not yet saved) */}
+      {/* New Deliveries Section (not yet saved) */}
       {sortedStagedDeliveries.filter(s => !s.id).length > 0 && (
         <>
-          <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-emerald-600">
-            Staged ({sortedStagedDeliveries.filter(s => !s.id).length})
+          <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-blue-600">
+            New ({sortedStagedDeliveries.filter(s => !s.id).length})
           </div>
           {sortedStagedDeliveries.filter(s => !s.id).map((staged) => {
             const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
@@ -42,7 +42,7 @@ export default function DeliveryFormStaged({
             return (
               <div
                 key={staged._tempId}
-                className={`flex p-2 rounded border-2 border-emerald-300 text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`}
+                className={`flex p-2 rounded border-2 border-blue-300 text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-500' : 'hover:bg-slate-50'}`}
                 style={{
                   backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
                 }}
@@ -119,7 +119,7 @@ export default function DeliveryFormStaged({
               </div>
             );
           })}
-          <div className="border-t-2 border-emerald-200 my-2" />
+          <div className="border-t-2 border-blue-200 my-2" />
         </>
       )}
 
@@ -291,7 +291,7 @@ export default function DeliveryFormStaged({
 
       {!isLoadingPredictions && sortedStagedDeliveries.length === 0 && sortedProjectedDeliveries.length === 0 && (
         <div className="p-4 text-center text-slate-400 text-xs">
-          No deliveries staged yet
+          No new deliveries yet
         </div>
       )}
     </div>
