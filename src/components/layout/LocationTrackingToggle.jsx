@@ -33,40 +33,24 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     return user ? isAppOwner(user) : false;
   }, [user]);
 
-  // CRITICAL: Only sync location_tracking_enabled when it actually changes (NOT entire user object)
+  // CRITICAL: Sync from database ONLY when it actually changes (ignore parent re-renders)
   useEffect(() => {
-    if (!user) return;
+    if (!user?.location_tracking_enabled === undefined) return;
     
     // CRITICAL: Skip syncing while toggle is in progress
     if (isTogglingRef.current) {
-      console.log('⏸️ [LocationSharing] Toggle in progress - skipping user sync');
+      console.log('⏸️ [LocationSharing] Toggle in progress - skipping sync');
       return;
     }
     
-    // CRITICAL: If we recently toggled, only sync if database value matches what we toggled to
-    if (lastToggledValueRef.current !== null) {
-      if (user.location_tracking_enabled === lastToggledValueRef.current) {
-        console.log(`✅ [LocationSharing] Database confirmed toggle to: ${lastToggledValueRef.current}`);
-        // Clear the ref since database now matches
-        lastToggledValueRef.current = null;
-      } else {
-        console.log(`🔒 [LocationSharing] Waiting for database to catch up (DB: ${user.location_tracking_enabled}, toggled: ${lastToggledValueRef.current})`);
-        return; // Don't sync until database catches up
-      }
-    }
-    
-    // Only update if location_tracking_enabled actually changed
-    setLocalUser(prev => {
-      if (!prev) return user;
-      
-      // CRITICAL: If the field changed in the database, update it (WebSocket victory)
-      if (prev.location_tracking_enabled !== user.location_tracking_enabled) {
-        console.log(`✅ [LocationSharing] Syncing location_tracking_enabled: ${user.location_tracking_enabled}`);
-        return { ...prev, location_tracking_enabled: user.location_tracking_enabled };
+    // CRITICAL: Only update internal state if the value actually changed
+    setLocationSharingEnabled(prev => {
+      if (prev === user.location_tracking_enabled) {
+        return prev; // No change - keep current state
       }
       
-      // Otherwise keep our state (prevent rewrites from parent re-renders)
-      return prev;
+      console.log(`✅ [LocationSharing] Syncing from database: ${user.location_tracking_enabled}`);
+      return user.location_tracking_enabled;
     });
   }, [user?.location_tracking_enabled]);
 
