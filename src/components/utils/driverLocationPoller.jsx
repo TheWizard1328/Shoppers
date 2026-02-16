@@ -245,10 +245,10 @@ class DriverLocationPoller {
          return true;
        }
 
-       // Skip inactive users for other drivers
+       // Skip inactive users
        if (user.status === 'inactive') return false;
 
-       // Must be in same city (non-AppOwners only)
+       // Must be in same city (applies to all roles)
        if (currentUserCityId && user.city_id !== currentUserCityId) return false;
 
        // ========================================
