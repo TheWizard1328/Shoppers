@@ -1589,6 +1589,17 @@ export default function Layout({ children, currentPageName }) {
             if (prev.some((d) => d?.id === update.id)) return prev;
             return [...prev, update.data];
           });
+          // CRITICAL: Trigger UI refresh events for Dashboard to show new delivery
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { 
+              deliveryId: update.id,
+              deliveryDate: update.data?.delivery_date,
+              driverId: update.data?.driver_id,
+              triggeredBy: 'realtimeCreate'
+            }
+          }));
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+          
           // Refresh catalog items if delivery has COD
           if (update.data?.cod_total_amount_required) {
             setTimeout(() => {
