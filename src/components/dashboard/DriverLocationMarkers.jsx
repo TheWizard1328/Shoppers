@@ -111,25 +111,36 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       return true;
     }
 
-    // RULE 1: Self marker on non-primary device - show only while online
+    // RULE 1: Self marker on non-primary device - ALWAYS show if coordinates exist
     if (isSelf && !isPrimaryDevice) {
-      const willShow = user.driver_status !== 'off_duty' && user.status !== 'inactive';
-      console.log(`✅ [shouldShowMarker] SELF on NON-PRIMARY device - willShow: ${willShow} (status: ${user.driver_status}, active: ${user.status !== 'inactive'})`);
-      return willShow;
+      console.log(`✅ [shouldShowMarker] SELF on NON-PRIMARY device - ALWAYS show (has coordinates)`);
+      return true;
     }
 
-    // RULE 2: Admin/AppOwner sees ALL online drivers (no location_tracking_enabled check)
-    if (isAdmin) {
-      return user.driver_status !== 'off_duty' && user.status !== 'inactive';
+    // RULE 2: AppOwner sees ALL drivers with coordinates (no filtering)
+    const isAppOwner = currentUser?.email && 
+                      (currentUser.email.endsWith('@rxdeliver.com') || 
+                       currentUser.email === 'dan@dcscripts.ca');
+
+    if (isAppOwner) {
+      console.log(`✅ [shouldShowMarker] AppOwner seeing ${user.user_name} - no filtering`);
+      return true;
     }
 
-    // RULE 3: Dispatcher sees assigned drivers when on_duty with location sharing enabled
+    // RULE 3: Admin (non-AppOwner) sees drivers with location sharing ON
+    if (isAdmin && !isAppOwner) {
+      if (!user.location_tracking_enabled) return false;
+      console.log(`✅ [shouldShowMarker] Admin seeing ${user.user_name} - location_tracking: enabled`);
+      return true;
+    }
+
+    // RULE 4: Dispatcher sees assigned drivers when on_duty (regardless of location_tracking_enabled)
     if (isDispatcher && !isSelf) {
-      if (user.driver_status !== 'on_duty' || !user.location_tracking_enabled) return false;
-      
+      if (user.driver_status !== 'on_duty') return false;
+
       const dispatcherStoreIds = currentUser?.store_ids || [];
       if (dispatcherStoreIds.length === 0) return false;
-      
+
       const selectedDateStr = selectedDate instanceof Date 
         ? selectedDate.toISOString().split('T')[0]
         : selectedDate;
@@ -139,19 +150,20 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         d.delivery_date === selectedDateStr &&
         dispatcherStoreIds.includes(d.store_id)
       );
-      
+
       return hasDispatcherStoreDeliveries && user.status !== 'inactive';
     }
 
-    // RULE 4: Driver sees other drivers ONLY if location_tracking_enabled === true
+    // RULE 5: Driver sees other drivers ONLY if location_tracking_enabled === true
     if (isDriver && !isSelf) {
       if (!user.location_tracking_enabled) return false;
-      
+
       const currentUserCityId = currentUser?.city_id;
       const currentUserCityIds = currentUser?.city_ids || (currentUserCityId ? [currentUserCityId] : []);
       const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
       const isSameCity = userCityIds.some(cityId => currentUserCityIds.includes(cityId));
-      
+
+      console.log(`✅ [shouldShowMarker] Driver seeing ${user.user_name} - location_tracking: enabled, same city: ${isSameCity}`);
       return isSameCity && user.status !== 'inactive';
     }
 

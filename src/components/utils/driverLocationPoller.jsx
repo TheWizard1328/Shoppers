@@ -238,16 +238,34 @@ class DriverLocationPoller {
        if (currentUserCityId && user.city_id !== currentUserCityId) return false;
 
        // ========================================
-       // RULE 2: Admins (AppOwners) - can see ALL drivers regardless of settings
+       // RULE 2: AppOwners - can see ALL drivers regardless of settings
        // ========================================
-       if (isAdmin) {
-         // Admins see ALL drivers with coordinates, no filtering by location_tracking_enabled or driver_status
-         console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - status: ${user.driver_status}, location_tracking: ${user.location_tracking_enabled}, staleness: ${user._staleness}`);
+       // Check if user is AppOwner (not just Admin)
+       const isAppOwner = this.currentUser && this.currentUser.app_roles && 
+                         Array.isArray(this.currentUser.app_roles) && 
+                         this.currentUser.app_roles.includes('admin') && 
+                         this.currentUser.email && 
+                         (this.currentUser.email.endsWith('@rxdeliver.com') || 
+                          this.currentUser.email === 'dan@dcscripts.ca');
+       
+       if (isAppOwner) {
+         // AppOwners see ALL drivers with coordinates, no filtering
+         console.log(`✅ [Poller] AppOwner seeing driver ${user.user_name} - status: ${user.driver_status}, location_tracking: ${user.location_tracking_enabled}, staleness: ${user._staleness}`);
+         return true;
+       }
+       
+       // ========================================
+       // RULE 3: Admins (non-AppOwners) - can only see drivers with location sharing ON
+       // ========================================
+       if (isAdmin && !isAppOwner) {
+         // Admins require location_tracking_enabled to be true
+         if (!user.location_tracking_enabled) return false;
+         console.log(`✅ [Poller] Admin seeing driver ${user.user_name} - location_tracking: enabled, staleness: ${user._staleness}`);
          return true;
        }
 
        // ========================================
-       // RULE 3: Dispatchers viewing assigned drivers
+       // RULE 4: Dispatchers viewing assigned drivers
        // ========================================
        if (isDispatcher && !isDriver) {
          const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
@@ -265,22 +283,17 @@ class DriverLocationPoller {
            return false;
          }
 
-         // Dispatchers see assigned drivers if they have recent location updates (within last 30 minutes)
-         // regardless of shared location toggle - dispatchers need visibility for dispatch management
-         const lastUpdate = new Date(user.location_updated_at).getTime();
-         const ageMs = currentTime - lastUpdate;
-         const thirtyMinutesMs = 30 * 60 * 1000;
-
-         if (ageMs <= thirtyMinutesMs) {
-           console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - recent location (${user._ageMinutes}min old), staleness: ${user._staleness}`);
-           return true;
+         // Dispatchers see assigned drivers if they are On Duty (regardless of location_tracking_enabled)
+         if (user.driver_status !== 'on_duty') {
+           return false;
          }
 
-         return false;
+         console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - on_duty with deliveries, staleness: ${user._staleness}`);
+         return true;
        }
 
        // ========================================
-       // RULE 4: Drivers viewing other drivers
+       // RULE 5: Drivers viewing other drivers
        // ========================================
        if (isDriver) {
          // Must be in "show all" or "all drivers" mode
@@ -288,14 +301,12 @@ class DriverLocationPoller {
            return false;
          }
 
-         // Other driver must be On Duty OR On Break AND location_tracking_enabled
-         if ((user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') || !user.location_tracking_enabled) {
+         // Other driver must have location_tracking_enabled = true
+         if (!user.location_tracking_enabled) {
            return false;
          }
 
-         // CRITICAL: Show drivers even with stale locations as long as they have coordinates and are on_duty/on_break with tracking enabled
-
-         console.log(`✅ [Poller] Driver seeing other driver ${user.user_name}, staleness: ${user._staleness}`);
+         console.log(`✅ [Poller] Driver seeing other driver ${user.user_name} - location_tracking: enabled, staleness: ${user._staleness}`);
          return true;
        }
 
