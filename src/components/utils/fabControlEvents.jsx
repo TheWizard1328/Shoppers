@@ -120,8 +120,8 @@ export const fabControlEvents = {
   },
 
   /**
-   * Resume FAB updates after form operations
-   */
+    * Resume FAB updates after form operations
+    */
   resumeFAB: () => {
     console.log('📢 [FAB Events] Broadcasting FAB resume');
     fabControlListeners.forEach(callback => {
@@ -131,5 +131,20 @@ export const fabControlEvents = {
         console.error('Error in FAB event listener:', error);
       }
     });
+  },
+
+  /**
+   * Notify when driver location changes - FAB phase 1 should flash for 500ms
+   * Called when a driver location marker moves or location sharing state changes
+   */
+  notifyDriverLocationChange: () => {
+    console.log('📢 [FAB Events] Broadcasting driver location change - reactivating phase 1 for 500ms');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'DRIVER_LOCATION_CHANGE' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
   }
-};
+  };
