@@ -113,13 +113,25 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       }
     };
 
+    // CRITICAL: Listen for Pull To Sync completion
+    const handlePullToSyncComplete = async () => {
+      console.log('✅ [OfflineSyncIndicator] Pull To Sync complete - refreshing stats');
+      const updatedStats = await getSyncStats();
+      setStats(updatedStats);
+      setRuntimeStats({});
+      setIsSyncing(false);
+      console.log('📊 [OfflineSyncIndicator] Stats refreshed after Pull To Sync:', updatedStats);
+    };
+
     window.addEventListener('periodicSyncProgress', handlePeriodicSync);
     window.addEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
+    window.addEventListener('pullToSyncComplete', handlePullToSyncComplete);
 
     return () => {
       unsubscribe();
       window.removeEventListener('periodicSyncProgress', handlePeriodicSync);
       window.removeEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
+      window.removeEventListener('pullToSyncComplete', handlePullToSyncComplete);
     };
   }, [isVisible]);
 
