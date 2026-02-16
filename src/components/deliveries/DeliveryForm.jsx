@@ -2052,7 +2052,32 @@ export default function DeliveryForm({
       first_delivery: isNewPatient || !patient?.last_delivery_date // Mark as first delivery if new patient or no last delivery date
     };
 
-    setStagedDeliveries((prev) => [...prev, newStagedDelivery]);
+    // CRITICAL: Save to database immediately
+    setIsSaving(true);
+    try {
+      const savedDelivery = await createDeliveryLocal(newStagedDelivery);
+      console.log('✅ [handleAddToStaging] Delivery saved to database:', savedDelivery.id);
+      
+      // Add saved delivery to staged list with ID for display
+      setStagedDeliveries((prev) => [...prev, { ...newStagedDelivery, id: savedDelivery.id }]);
+      
+      // Trigger UI refresh
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { 
+          deliveryDate: formData.delivery_date, 
+          driverId: formData.driver_id,
+          triggeredBy: 'addButtonSave'
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    } catch (saveError) {
+      console.error('Failed to save delivery:', saveError);
+      setError(`Failed to save: ${saveError.message}`);
+      setIsSaving(false);
+      return;
+    } finally {
+      setIsSaving(false);
+    }
 
     // CRITICAL: Only auto-add default pickups when ADDING to an existing driver route
     // Skip if this is the FIRST delivery (driver's default stops already created)
@@ -2353,32 +2378,42 @@ export default function DeliveryForm({
   }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice]);
 
   const handleBatchSave = useCallback(async () => {
-    console.log('='.repeat(50));
-    console.log('[AddToRoute] 🎯 DeliveryForm: handleBatchSave initiated');
-    console.log('[AddToRoute] 📦 Staged deliveries count:', stagedDeliveries.length);
-    console.log('[AddToRoute] 📦 Staged deliveries:', stagedDeliveries.map((s) => ({
-      id: s.id,
-      _tempId: s._tempId,
-      patient_name: s.patient_name,
-      status: s.status,
-      hasId: !!s.id
-    })));
+    console.log('[Done] 🚪 Closing form...');
+    // Stop predictions
+    predictionsStopped.current = true;
+    setIsLoadingPredictions(true);
+    setProjectedDeliveries([]);
+    
+    // Clear state
+    setStagedDeliveries([]);
+    setHasPendingDeletes(false);
+    setHasChanges(false);
+    hasLoadedPending.current = false;
 
-    // CRITICAL: Stop prediction manager COMPLETELY when Done button is clicked
-    console.log('⏸️ [DeliveryForm] Stopping delivery prediction manager PERMANENTLY...');
-    predictionsStopped.current = true; // Block predictions permanently
-    setIsLoadingPredictions(true); // Block predictions immediately
-    setProjectedDeliveries([]); // Clear projections
+    // Resume background operations
+    (async () => {
+      try {
+        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+        const { routePolylineManager } = await import('../utils/routePolylineManager');
+        const { fabControlEvents } = await import('../utils/fabControlEvents');
+        
+        smartRefreshManager.resume();
+        driverLocationPoller.resume();
+        routePolylineManager?.resume?.();
+        fabControlEvents.resumeFAB();
+        
+        console.log('▶️ [Done] Resumed background operations');
+      } catch (error) {
+        console.warn('⚠️ [Done] Failed to resume managers:', error);
+      }
+    })();
+    
+    onCancel();
+  }, [onCancel]);
 
-    if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
-      console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
-      hasLoadedPending.current = false; // Reset flag when closing without saves
-      predictionsStopped.current = false; // Reset for next open
-      onCancel(); // Close form immediately
-      return;
-    }
-
-    // CRITICAL: If only pending deletes (no staged items), close form FIRST then refresh
+  // REMOVE THIS: Old logic for pending deletes
+  const REMOVED_handleBatchSave_OLD = useCallback(async () => {
     if (stagedDeliveries.length === 0 && hasPendingDeletes) {
       console.log('[AddToRoute] 🗑️ Processing pending deletes (Done button clicked)...');
       
