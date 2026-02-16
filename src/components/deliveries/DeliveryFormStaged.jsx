@@ -281,7 +281,9 @@ export default function DeliveryFormStaged({
                                   if (stagedItem) {
                                     // Generate stop_id for the delivery
                                     const { generateStopId, formatId } = await import('../utils/idGenerator');
-                                    const stop_id = await generateStopId(stagedItem.delivery_date);
+                                    const { getData } = await import('../utils/dataManager');
+                                    const allCurrentDeliveries = await getData('Delivery');
+                                    const stop_id = await generateStopId(stagedItem.delivery_date, allCurrentDeliveries);
 
                                     // Save with stop_id assigned
                                     const savedDelivery = await createDeliveryLocal({
