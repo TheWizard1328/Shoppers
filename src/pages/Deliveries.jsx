@@ -2944,6 +2944,14 @@ export default function DeliveriesPage() {
       return false;
     });
     console.log(`👥 Total drivers with driver role: ${driversWithRoles.length}`);
+    
+    // CRITICAL: Log current user context for debugging filter logic
+    console.log(`🔍 [DriverCards] Current user context:`, {
+      userName: currentUser?.user_name || currentUser?.full_name,
+      roles: currentUser?.app_roles,
+      storeIds: currentUser?.store_ids,
+      cityId: currentUser?.city_id
+    });
 
     const deliveryDriverIds = [...new Set(deliveriesToUse.map((d) => d.driver_id).filter(Boolean))];
     console.log(`📊 [Debug] Unique driver_ids in deliveries:`, deliveryDriverIds);
@@ -2988,28 +2996,22 @@ export default function DeliveriesPage() {
       });
       console.log(`👔 Dispatcher - filtered to drivers with store deliveries: ${cityFilteredDrivers.length} drivers`);
     } else if (userHasRole(currentUser, 'driver')) {
+      // CRITICAL: Driver-only users should see all drivers in their city (not just themselves)
+      // The actual filtering to only show their own card happens later in driversToShow
       if (currentUser.city_id) {
         cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === currentUser.city_id);
         console.log(`📍 Filtered to user's city ${currentUser.city_id}: ${cityFilteredDrivers.length} drivers`);
+      } else {
+        // No city filter for drivers - show all drivers with role
+        cityFilteredDrivers = driversWithRoles;
+        console.log(`📍 Driver has no city_id - showing all ${cityFilteredDrivers.length} drivers`);
       }
     }
 
-    const driversWithDeliveries = cityFilteredDrivers.filter((u) => {
-      if (!u) return false;
-
-      const userFullNameLower = (u.full_name || '').toLowerCase().trim();
-      const userUserNameLower = (u.user_name || '').toLowerCase().trim();
-
-      const hasDeliveries = driverIdsInDeliveries.includes(u.id) ||
-      u.appUserId && driverIdsInDeliveries.includes(u.appUserId) ||
-      driverNamesInDeliveries.includes(userFullNameLower) ||
-      driverNamesInDeliveries.includes(userUserNameLower);
-
-      console.log(`   ✅ Including driver: ${u.user_name || u.full_name} (has deliveries: ${hasDeliveries}, status: ${u.status})`);
-      return true;
-    });
-
-    console.log(`✅ Found ${driversWithDeliveries.length} drivers to show (after city filter)`);
+    // CRITICAL: Don't filter by deliveries here - we want to show ALL drivers with the role
+    // Let the stats calculation determine if they have 0 stops (which will be filtered later)
+    const driversWithDeliveries = cityFilteredDrivers;
+    console.log(`✅ Drivers after role/city filtering: ${driversWithDeliveries.length}`);
 
     let driversToShow = [];
 
