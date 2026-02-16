@@ -1116,7 +1116,7 @@ export default function DeliveryForm({
       delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       puid: puid || '',
       ampm_deliveries: timeSlot,
-      status: 'Staged',
+      status: 'pending',
       _tempId: Date.now() + Math.random(),
       patient_name: updatedFormData.patient_name || patient.full_name || 'N/A',
       store_name: patientStore.name,
