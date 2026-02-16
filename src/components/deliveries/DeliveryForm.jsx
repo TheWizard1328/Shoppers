@@ -2056,7 +2056,9 @@ export default function DeliveryForm({
     setIsSaving(true);
     try {
       // Generate stop_id for the delivery
-      const stop_id = await generateStopId(formData.delivery_date, allDeliveries);
+      const { getData } = await import('../utils/dataManager');
+      const allCurrentDeliveries = await getData('Delivery');
+      const stop_id = await generateStopId(formData.delivery_date, allCurrentDeliveries);
       
       const savedDelivery = await createDeliveryLocal({
         ...newStagedDelivery,
@@ -2071,8 +2073,6 @@ export default function DeliveryForm({
       
       // Call reorderStops to assign proper TR# and stop_order
       if (formData.driver_id && formData.delivery_date) {
-        const { getData } = await import('../utils/dataManager');
-        const allCurrentDeliveries = await getData('Delivery');
         await reorderStops(formData.driver_id, formData.delivery_date, allCurrentDeliveries);
       }
       
