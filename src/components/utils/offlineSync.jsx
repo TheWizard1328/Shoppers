@@ -1346,28 +1346,9 @@ export const getSyncStats = async (currentUser = null) => {
   const appUserStatus = await offlineDB.getSyncStatus('AppUser');
   const squareTxStatus = await offlineDB.getSyncStatus('SquareTransaction');
 
-  // CRITICAL: Filter patient count by user role
-  let patientCount = stats.patients?.count || 0;
-  
-  if (currentUser) {
-    const allPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-    const { isAdmin, isDispatcher } = await import('./userRoles');
-    
-    if (isAdmin(currentUser)) {
-      // Admin sees ALL patients
-      patientCount = allPatients?.length || 0;
-    } else if (isDispatcher(currentUser)) {
-      // Dispatcher sees only patients from their assigned stores
-      const userStoreIds = currentUser.store_ids || [];
-      const filteredPatients = allPatients.filter(p => 
-        p && p.store_id && userStoreIds.includes(p.store_id)
-      );
-      patientCount = filteredPatients.length;
-    } else {
-      // Drivers don't see patients tab - return 0
-      patientCount = 0;
-    }
-  }
+  // CRITICAL: Use total patient count from offline DB (no filtering by role)
+  const allPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+  const patientCount = allPatients?.length || 0;
 
   return {
     ...stats,
