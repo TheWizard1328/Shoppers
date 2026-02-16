@@ -35,7 +35,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
   // CRITICAL: Sync from database ONLY when it actually changes (ignore parent re-renders)
   useEffect(() => {
-    if (!user?.location_tracking_enabled === undefined) return;
+    if (!user) return;
     
     // CRITICAL: Skip syncing while toggle is in progress
     if (isTogglingRef.current) {
