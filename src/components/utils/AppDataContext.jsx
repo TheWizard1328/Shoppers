@@ -21,26 +21,61 @@ export const AppDataProvider = ({ children, value }) => {
     // Subscribe to real-time updates
     const unsubscribe = cityFilteredRealtimeSync.subscribe(({ entityType, eventType, data }) => {
       if (entityType === 'Delivery') {
-        // CRITICAL: Refresh entire data context on any delivery change to ensure UI consistency
-        value.refreshData();
-        smartRefreshManager.notifyRealtimeUpdate('Delivery');
-      } else if (entityType === 'AppUser') {
-        // CRITICAL: Dispatch location update event IMMEDIATELY for map markers and badges
-        if (typeof window !== 'undefined') {
-          const coords = `${data.current_latitude?.toFixed(6)}, ${data.current_longitude?.toFixed(6)}`;
-          console.log(`📡 [AppDataContext] Dispatching driverLocationsUpdated for ${data.user_name} with coords ${coords}`);
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: [data], singleUpdate: true, fromRealtime: true }
-          }));
+        if (eventType === 'create' || eventType === 'update') {
+          // Update UI with the new/updated delivery
+          if (value.updateDeliveriesLocally) {
+            value.updateDeliveriesLocally([data], false);
+          }
           
-          window.dispatchEvent(new CustomEvent('appUserUpdated', {
-            detail: { appUser: data, fromRealtime: true }
-          }));
+          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
+          smartRefreshManager.notifyRealtimeUpdate('Delivery');
+        } else if (eventType === 'delete') {
+          // Remove from UI
+          if (value.updateDeliveriesLocally && value.deliveries) {
+            const filtered = value.deliveries.filter(d => d?.id !== data.id);
+            value.updateDeliveriesLocally(filtered, true);
+          }
+          
+          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
+          smartRefreshManager.notifyRealtimeUpdate('Delivery');
         }
-        
-        // CRITICAL: Refresh entire data context to ensure UI consistency
-        value.refreshData();
-        smartRefreshManager.notifyRealtimeUpdate('AppUser');
+      } else if (entityType === 'AppUser') {
+        if (eventType === 'create' || eventType === 'update') {
+          const coords = `${data.current_latitude?.toFixed(6)}, ${data.current_longitude?.toFixed(6)}`;
+          console.log(`🔔 [AppDataContext] AppUser ${eventType} via realtime - user: ${data.user_name}, coords: ${coords}, timestamp: ${data.location_updated_at}`);
+          
+          // CRITICAL: Update appUsers array in context for instant UI updates
+          if (value.updateAppUsersLocally) {
+            console.log(`📝 [AppDataContext] Calling updateAppUsersLocally for ${data.user_name}`);
+            value.updateAppUsersLocally([data], false);
+          }
+          
+          // CRITICAL: Dispatch location update event IMMEDIATELY for map markers and badges
+          if (typeof window !== 'undefined') {
+            console.log(`📡 [AppDataContext] Dispatching driverLocationsUpdated for ${data.user_name} with coords ${coords}`);
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: [data], singleUpdate: true, fromRealtime: true }
+            }));
+            
+            // CRITICAL: Also dispatch generic AppUser update for location badges
+            console.log(`📡 [AppDataContext] Dispatching appUserUpdated for ${data.user_name}`);
+            window.dispatchEvent(new CustomEvent('appUserUpdated', {
+              detail: { appUser: data, fromRealtime: true }
+            }));
+          }
+          
+          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
+          smartRefreshManager.notifyRealtimeUpdate('AppUser');
+        } else if (eventType === 'delete') {
+          // Remove from appUsers array
+          if (value.updateAppUsersLocally && value.appUsers) {
+            const filtered = value.appUsers.filter(au => au?.id !== data.id);
+            value.updateAppUsersLocally(filtered, true);
+          }
+          
+          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
+          smartRefreshManager.notifyRealtimeUpdate('AppUser');
+        }
       }
     });
 
