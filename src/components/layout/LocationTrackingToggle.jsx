@@ -114,9 +114,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
     try {
       // Get AppUser ID
-      let appUserId = localUser.appUserId;
+      let appUserId = user.appUserId;
       if (!appUserId) {
-        const appUsers = await base44.entities.AppUser.filter({ user_id: localUser.id });
+        const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
         if (appUsers && appUsers.length > 0) {
           appUserId = appUsers[0].id;
         }
