@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { getStoreColor, hexToRgba } from '../utils/colorGenerator';
 import { shouldShowStoreBadges } from '../utils/userRoles';
-import { createDelivery as createDeliveryLocal } from '../utils/entityMutations';
 
 export default function DeliveryFormStaged({
   sortedStagedDeliveries,
@@ -27,8 +26,6 @@ export default function DeliveryFormStaged({
   setDeleteConfirmation,
   isLoadingPredictions
 }) {
-  const [savingProjectedId, setSavingProjectedId] = useState(null);
-  
   return (
     <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
       {/* New Deliveries Section (not yet saved) */}
@@ -272,51 +269,14 @@ export default function DeliveryFormStaged({
               variant="ghost"
               className="h-7 w-7 p-0 flex-shrink-0 rounded ml-1"
               style={{ backgroundColor: '#059669', color: '#ffffff' }}
-              disabled={savingProjectedId === projected.patient_id}
-              onClick={async () => {
-                setSavingProjectedId(projected.patient_id);
-                try {
-                  // Call the confirmation function which adds to staged
-                  await confirmAddProjectedToStaged(projected);
-                  
-                  // Now immediately save to database
-                  const stagedItem = stagedDeliveries.find(s => s.patient_id === projected.patient_id && !s.id);
-                  if (stagedItem) {
-                    console.log('💾 [DeliveryFormStaged] Saving projected delivery to database:', projected.patient_name);
-                    const savedDelivery = await createDeliveryLocal(stagedItem);
-                    console.log('✅ [DeliveryFormStaged] Projected delivery saved:', savedDelivery.id);
-                    
-                    // Update the staged item with the ID
-                    setStagedDeliveries(prev => prev.map(s => 
-                      s._tempId === stagedItem._tempId ? { ...s, id: savedDelivery.id } : s
-                    ));
-                    
-                    // Trigger UI refresh
-                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                      detail: { 
-                        deliveryDate: stagedItem.delivery_date, 
-                        driverId: stagedItem.driver_id,
-                        triggeredBy: 'projectedAddButtonSave'
-                      }
-                    }));
-                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                  }
-                  
-                  if (!isMobileDevice) {
-                    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-                  }
-                } catch (error) {
-                  console.error('Failed to save projected delivery:', error);
-                } finally {
-                  setSavingProjectedId(null);
+              onClick={() => {
+                confirmAddProjectedToStaged(projected);
+                if (!isMobileDevice) {
+                  setTimeout(() => patientSearchInputRef.current?.focus(), 100);
                 }
               }}
               title="Add to route">
-              {savingProjectedId === projected.patient_id ? (
-                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-              ) : (
-                <Plus className="w-5 h-5" />
-              )}
+              <Plus className="w-5 h-5" />
             </Button>
           </div>
         );
