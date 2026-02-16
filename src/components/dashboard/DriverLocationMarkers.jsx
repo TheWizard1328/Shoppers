@@ -301,7 +301,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     
     // CRITICAL: Check if the set of visible driver IDs has actually changed
     // This prevents flickering caused by array reference changes during smart refresh
-    const newVisibleIds = new Set(validDrivers.map(d => d.id));
+    const newVisibleIds = new Set(deduplicatedDrivers.map(d => d.id));
     const prevIds = prevVisibleIdsRef.current;
     
     const idsChanged = newVisibleIds.size !== prevIds.size || 
@@ -309,7 +309,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       [...prevIds].some(id => !newVisibleIds.has(id));
     
     // Check if any driver's location OR timestamp has changed
-    const locationsChanged = validDrivers.some(driver => {
+    const locationsChanged = deduplicatedDrivers.some(driver => {
       const existing = visibleDrivers.find(d => d.id === driver.id);
       if (!existing) return true;
       // Check if coordinates changed at all
