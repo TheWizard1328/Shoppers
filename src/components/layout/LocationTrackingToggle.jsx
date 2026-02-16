@@ -13,7 +13,10 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const [isToggling, setIsToggling] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState('');
   const [trackingStatus, setTrackingStatus] = useState(null);
+  
+  // CRITICAL: Initialize from user prop to survive component re-mounts
   const [locationSharingEnabled, setLocationSharingEnabled] = useState(user?.location_tracking_enabled ?? false);
+  
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
   const [nextUpdateIn, setNextUpdateIn] = useState(null);
   const [hasError, setHasError] = useState(false);
@@ -33,13 +36,13 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     return user ? isAppOwner(user) : false;
   }, [user]);
 
-  // CRITICAL: Sync from database ONLY when it actually changes (ignore parent re-renders)
+  // CRITICAL: Sync from user prop changes (when component re-mounts or parent updates)
   useEffect(() => {
-    if (!user) return;
+    if (!user || typeof user.location_tracking_enabled === 'undefined') return;
     
     // CRITICAL: Skip syncing while toggle is in progress
     if (isTogglingRef.current) {
-      console.log('⏸️ [LocationSharing] Toggle in progress - skipping sync');
+      console.log('⏸️ [LocationSharing] Toggle in progress - skipping prop sync');
       return;
     }
     
@@ -49,7 +52,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         return prev; // No change - keep current state
       }
       
-      console.log(`✅ [LocationSharing] Syncing from database: ${user.location_tracking_enabled}`);
+      console.log(`✅ [LocationSharing] Syncing from user prop: ${user.location_tracking_enabled}`);
       return user.location_tracking_enabled;
     });
   }, [user?.location_tracking_enabled]);
@@ -80,6 +83,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
           return;
         }
         
+        // CRITICAL: Only update if value changed
         setLocationSharingEnabled(prev => {
           if (prev === data.location_tracking_enabled) {
             return prev; // No change - keep current state
@@ -195,6 +199,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     } catch (error) {
       console.error('❌ [LocationSharing] Failed to toggle:', error);
       setPermissionStatus(`Error: ${error.message}`);
+      
+      // CRITICAL: Revert internal state on error
+      setLocationSharingEnabled(!checked);
       
       setTimeout(() => setPermissionStatus(''), 4000);
     } finally {
