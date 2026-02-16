@@ -298,12 +298,18 @@ export default function DeliveryFormStaged({
                                       s._tempId === stagedItem._tempId ? { ...s, id: savedDelivery.id, stop_id: stop_id } : s
                                     ));
 
-                                    // Call reorderStops to assign proper TR# and stop_order
+                                    // CRITICAL: Fetch fresh deliveries AFTER creation to ensure new delivery is included
                                     if (stagedItem.driver_id && stagedItem.delivery_date) {
                                       const { reorderStops } = await import('../utils/stopReorderer');
                                       const { getData } = await import('../utils/dataManager');
-                                      const allCurrentDeliveries = await getData('Delivery');
-                                      await reorderStops(stagedItem.driver_id, stagedItem.delivery_date, allCurrentDeliveries);
+
+                                      // Invalidate cache to force fresh fetch
+                                      const { invalidate } = await import('../utils/dataManager');
+                                      invalidate('Delivery');
+
+                                      // Fetch fresh deliveries including the newly created one
+                                      const freshDeliveries = await getData('Delivery', null, null, true);
+                                      await reorderStops(stagedItem.driver_id, stagedItem.delivery_date, freshDeliveries);
                                     }
 
                                     window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
