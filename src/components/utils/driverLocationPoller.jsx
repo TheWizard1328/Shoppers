@@ -239,9 +239,9 @@ class DriverLocationPoller {
        // RULE 2: AppOwners - can see ALL drivers regardless of settings
        // ========================================
        // CRITICAL: Check AppOwner FIRST before any other checks
-       if (isAppOwner(this.currentUser)) {
-         // AppOwners see ALL drivers with coordinates, no filtering
-         console.log(`✅ [Poller] AppOwner seeing driver ${user.user_name} - status: ${user.driver_status}, location_tracking: ${user.location_tracking_enabled}, staleness: ${user._staleness}`);
+       if (isUserAppOwner) {
+         // AppOwners see ALL drivers with coordinates in their city, no filtering
+         console.log(`✅ [Poller] AppOwner seeing driver ${user.user_name} - city: ${user.city_id}, status: ${user.driver_status}, location_tracking: ${user.location_tracking_enabled}, staleness: ${user._staleness}`);
          return true;
        }
 
