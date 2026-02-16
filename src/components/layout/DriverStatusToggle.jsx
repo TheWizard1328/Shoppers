@@ -101,7 +101,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
 
   const handleStatusChange = useCallback(async (newStatus) => {
     // Don't allow changes while updating OR if already pending
-    if (isUpdating || pendingStatus) {
+    if (isUpdating || pendingStatus || isTogglingRef.current) {
       console.log('⏸️ [DriverStatusToggle] Change blocked - update in progress');
       return;
     }
@@ -116,6 +116,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       console.error('❌ [DriverStatusToggle] No AppUser ID available');
       return;
     }
+    
+    // CRITICAL: Set toggling flag to block sync until change completes
+    isTogglingRef.current = true;
     
     const today = format(new Date(), 'yyyy-MM-dd');
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
