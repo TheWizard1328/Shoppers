@@ -590,15 +590,19 @@ export default function DriverPayroll() {
     // Invalidate caches to force fresh calculations
     invalidate('Payroll');
     invalidate('Delivery');
-    
+
     const today = new Date();
+    // CRITICAL: Get today's date string in LOCAL timezone, not UTC
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     let selectedIdx = null;
-    
+
     // STEP 1: Find period that contains today's date
     let todayPeriodIdx = -1;
     for (let i = 0; i < allPeriods.length; i++) {
       const period = allPeriods[i];
-      if (today >= period.start && today <= period.end) {
+      const startStr = period.start.toISOString().split('T')[0];
+      const endStr = period.end.toISOString().split('T')[0];
+      if (todayStr >= startStr && todayStr <= endStr) {
         todayPeriodIdx = i;
         break;
       }
