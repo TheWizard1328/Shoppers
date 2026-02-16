@@ -577,6 +577,11 @@ export default function DriverPayroll() {
       return;
     }
     
+    // CRITICAL: Wait for payroll records to load before selecting initial period
+    if (!payrollRecordsLoadedRef.current) {
+      return;
+    }
+    
     // CRITICAL: Only auto-select on INITIAL load or when year/pay period changes
     if (initialPeriodSetRef.current && !isManualChangeRef.current) {
       return;
