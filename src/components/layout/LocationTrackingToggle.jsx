@@ -24,6 +24,28 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const autoStartedRef = useRef(false);
   const consecutiveErrorsRef = useRef(false);
   const isTogglingRef = useRef(false); // Track toggle operation state in ref
+  
+  // Load from offline DB on mount if available
+  useEffect(() => {
+    const initializeFromOfflineDB = async () => {
+      try {
+        if (!user?.id) return;
+        
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const appUsers = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', user.id);
+        
+        if (appUsers && appUsers.length > 0) {
+          const appUser = appUsers[0];
+          console.log(`💾 [LocationSharing] Loaded from offline DB - location_tracking_enabled: ${appUser.location_tracking_enabled}`);
+          setLocationSharingEnabled(appUser.location_tracking_enabled ?? false);
+        }
+      } catch (error) {
+        console.warn('[LocationSharing] Failed to load from offline DB:', error.message);
+      }
+    };
+    
+    initializeFromOfflineDB();
+  }, [user?.id]);
 
   // CRITICAL: Check role conditions ONCE on mount with stable values
   const hasDriverRole = useMemo(() => {
