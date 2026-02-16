@@ -1037,11 +1037,11 @@ export default function DeliveriesPage() {
     }
 
     if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
-      const uniquePatientIds = new Set(effectiveDeliveries.map((d) => d.patient_id).filter(Boolean));
-      return allPatients.filter((p) => uniquePatientIds.has(p.id));
+      // CRITICAL: Drivers need ALL patients (not just those with deliveries) for projections to work
+      return allPatients;
     }
     return [];
-  }, [currentUser, allPatients, effectiveDeliveries]);
+  }, [currentUser, allPatients]);
 
   const effectiveDrivers = useMemo(() => {
     if (!currentUser || !allUsers || !Array.isArray(allUsers)) {
