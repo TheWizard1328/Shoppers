@@ -43,24 +43,24 @@ export default function DriverSettings() {
     return [...cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
   }, [cities]);
 
-  // Fetch fresh AppUser data on mount and when navigating to this page
+  // Fetch fresh AppUser data AND all drivers on mount
   useEffect(() => {
-    const fetchFreshAppUsers = async () => {
+    const fetchFreshData = async () => {
       try {
-        console.log('🔄 [DriverSettings] Refreshing AppUser data...');
-        const freshData = await getData('AppUser', '-updated_date', null, true); // Force refresh
-        setFreshAppUsers(freshData || []);
-        console.log(`✅ [DriverSettings] Loaded ${freshData?.length || 0} AppUsers`);
+        console.log('🔄 [DriverSettings] Refreshing AppUser and Driver data...');
+        const freshAppData = await getData('AppUser', '-updated_date', null, true); // Force refresh
+        setFreshAppUsers(freshAppData || []);
+        console.log(`✅ [DriverSettings] Loaded ${freshAppData?.length || 0} AppUsers`);
       } catch (error) {
         console.warn('Failed to fetch fresh AppUser data:', error);
       }
     };
 
     // Fetch immediately on mount
-    fetchFreshAppUsers();
+    fetchFreshData();
     
     // Only refresh on manual action or long intervals to avoid rate limits
-    const interval = setInterval(fetchFreshAppUsers, 60000); // Refresh every 60 seconds max
+    const interval = setInterval(fetchFreshData, 60000); // Refresh every 60 seconds max
     return () => clearInterval(interval);
   }, []); // Run once on mount
 
