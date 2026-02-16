@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
+import { fabControlEvents } from '@/components/utils/fabControlEvents';
 
 const DriverLocationBadge = ({ users = [] }) => {
   const [driverStatus, setDriverStatus] = useState({});
@@ -23,10 +24,10 @@ const DriverLocationBadge = ({ users = [] }) => {
           if (!user || !user.location_updated_at) {
             return;
           }
-          
+
           const isOnline = ['on_duty', 'on_break'].includes(user.driver_status);
           const locationAgeMinutes = (Date.now() - new Date(user.location_updated_at).getTime()) / (1000 * 60);
-          
+
           // Filter out offline drivers with stale locations (older than 30 minutes)
           if (!isOnline && locationAgeMinutes > 30) {
             // Remove from status if present
@@ -39,18 +40,24 @@ const DriverLocationBadge = ({ users = [] }) => {
           const userId = user.id;
           const prevState = prevStateRef.current[userId];
           const isFirstLoad = !prevState;
-          
+
           const latChanged = isFirstLoad || prevState.lat !== user.current_latitude;
           const lngChanged = isFirstLoad || prevState.lng !== user.current_longitude;
           const timestampChanged = isFirstLoad || prevState.timestamp !== user.location_updated_at;
-          
+          const trackingChanged = isFirstLoad || prevState.tracking !== user.location_tracking_enabled;
+
           // Only update if this driver actually changed OR is first load
-          if (!isFirstLoad && !latChanged && !lngChanged && !timestampChanged) {
+          if (!isFirstLoad && !latChanged && !lngChanged && !timestampChanged && !trackingChanged) {
             return;
           }
-          
+
           hasChanges = true;
           const coordsChanged = latChanged || lngChanged;
+
+          // Notify FAB to reactivate phase 1 if coords or tracking changed (not on first load)
+          if (!isFirstLoad && (coordsChanged || trackingChanged)) {
+            fabControlEvents.notifyDriverLocationChange();
+          }
           
           let bulletColor = 'red'; // Both unchanged
           if (coordsChanged && timestampChanged) {
@@ -76,7 +83,8 @@ const DriverLocationBadge = ({ users = [] }) => {
           prevStateRef.current[userId] = {
             lat: user.current_latitude,
             lng: user.current_longitude,
-            timestamp: user.location_updated_at
+            timestamp: user.location_updated_at,
+            tracking: user.location_tracking_enabled
           };
         });
 
