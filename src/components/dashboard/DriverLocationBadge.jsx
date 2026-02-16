@@ -38,13 +38,14 @@ const DriverLocationBadge = ({ users = [] }) => {
 
           const userId = user.id;
           const prevState = prevStateRef.current[userId];
+          const isFirstLoad = !prevState;
           
-          const latChanged = prevState && prevState.lat !== user.current_latitude;
-          const lngChanged = prevState && prevState.lng !== user.current_longitude;
-          const timestampChanged = prevState && prevState.timestamp !== user.location_updated_at;
+          const latChanged = isFirstLoad || prevState.lat !== user.current_latitude;
+          const lngChanged = isFirstLoad || prevState.lng !== user.current_longitude;
+          const timestampChanged = isFirstLoad || prevState.timestamp !== user.location_updated_at;
           
-          // Only update if this driver actually changed
-          if (!latChanged && !lngChanged && !timestampChanged) {
+          // Only update if this driver actually changed OR is first load
+          if (!isFirstLoad && !latChanged && !lngChanged && !timestampChanged) {
             return;
           }
           
