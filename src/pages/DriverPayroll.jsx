@@ -730,10 +730,33 @@ export default function DriverPayroll() {
     };
   }, [hasInitialized, fetchPayroll, refreshPayrollRecords]);
 
-  // Load payroll records when period changes (initial load and period navigation)
+  // Load payroll records IMMEDIATELY after data loads (before initial period selection)
   useEffect(() => {
-    if (!currentPeriod || !hasInitialized) return;
-    console.log(`🔄 [DriverPayroll] Period changed, loading payroll records...`);
+    if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
+    if (payrollRecordsLoadedRef.current) return;
+    
+    console.log(`🔄 [DriverPayroll] Initial load - fetching payroll records for all periods...`);
+    
+    // Fetch all payroll records for the year ONCE at initialization
+    const yearStart = new Date(selectedYear, 0, 1).toISOString().split('T')[0];
+    const yearEnd = new Date(selectedYear, 11, 31).toISOString().split('T')[0];
+    
+    base44.entities.Payroll.filter({
+      pay_period_end: { $gte: yearStart, $lte: yearEnd }
+    }).then(records => {
+      console.log(`✅ [DriverPayroll] Loaded ${records?.length || 0} payroll records for ${selectedYear}`);
+      setPayrollRecords(records || []);
+      payrollRecordsLoadedRef.current = true;
+    }).catch(error => {
+      console.error('Failed to load initial payroll records:', error);
+      payrollRecordsLoadedRef.current = true;
+    });
+  }, [hasInitialized, payrollData, allPeriods, selectedYear]);
+  
+  // Load payroll records when period changes (for navigation updates)
+  useEffect(() => {
+    if (!currentPeriod || !hasInitialized || !payrollRecordsLoadedRef.current) return;
+    console.log(`🔄 [DriverPayroll] Period changed, refreshing payroll records...`);
 
     // Invalidate caches to force fresh fetch
     invalidate('Payroll');
