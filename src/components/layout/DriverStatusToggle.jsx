@@ -37,20 +37,36 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
   const setIsEntityUpdating = appDataContext?.setIsEntityUpdating || (() => {});
   const isTogglingRef = useRef(false);
 
-  // Find AppUser ID on mount
+  // Find AppUser ID on mount and load from offline DB
   useEffect(() => {
     const initAppUser = async () => {
       if (!currentUser?.id) return;
       
       try {
+        // CRITICAL: Try offline DB first
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const offlineAppUsers = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', currentUser.id);
+        
+        if (offlineAppUsers && offlineAppUsers.length > 0) {
+          const offlineAppUser = offlineAppUsers[0];
+          setAppUserId(offlineAppUser.id);
+          setStatus(offlineAppUser.driver_status || 'off_duty');
+          locationTracker.setDriverStatus(offlineAppUser.driver_status || 'off_duty');
+          console.log(`💾 [DriverStatusToggle] Loaded from offline DB - status: ${offlineAppUser.driver_status || 'off_duty'}`);
+          return;
+        }
+        
+        // Fallback to API if offline DB empty
         const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
         if (appUsers && appUsers.length > 0) {
           const fetchedAppUser = appUsers[0];
           setAppUserId(fetchedAppUser.id);
-          // Initialize status from AppUser entity
           setStatus(fetchedAppUser.driver_status || 'off_duty');
           locationTracker.setDriverStatus(fetchedAppUser.driver_status || 'off_duty');
-          console.log(`📍 [DriverStatusToggle] Initialized status to: ${fetchedAppUser.driver_status || 'off_duty'}`);
+          
+          // Save to offline DB immediately
+          await offlineDB.save(offlineDB.STORES.APP_USERS, fetchedAppUser);
+          console.log(`📍 [DriverStatusToggle] Initialized from API - status: ${fetchedAppUser.driver_status || 'off_duty'}`);
         }
       } catch (error) {
         console.error('Failed to find AppUser ID:', error);
