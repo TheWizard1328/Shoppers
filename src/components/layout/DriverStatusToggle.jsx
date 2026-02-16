@@ -28,7 +28,7 @@ const broadcastMutation = async (entity, action, id, data) => {
  */
 export default function DriverStatusToggle({ currentUser, onStatusChange, onBreakStart, onBreakEnd, vertical = false }) {
   // CRITICAL: Move all hooks to top before any conditions - prevents hook mismatch errors
-  const [status, setStatus] = useState('off_duty');
+  const [status, setStatus] = useState(null); // Will sync from currentUser prop
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState(null);
   const [appUserId, setAppUserId] = useState(null);
@@ -37,9 +37,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
   const setIsEntityUpdating = appDataContext?.setIsEntityUpdating || (() => {});
   const isTogglingRef = useRef(false);
 
-  // Find AppUser ID and initialize locationTracker's status on mount
+  // Find AppUser ID on mount
   useEffect(() => {
-    const initAppUserAndTracker = async () => {
+    const initAppUser = async () => {
       if (!currentUser?.id) return;
       
       try {
@@ -47,19 +47,27 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         if (appUsers && appUsers.length > 0) {
           const fetchedAppUser = appUsers[0];
           setAppUserId(fetchedAppUser.id);
-          
-          // Initialize locationTracker and sync status locally
-          locationTracker.setDriverStatus(fetchedAppUser.driver_status || 'off_duty');
+          // Initialize status from AppUser entity
           setStatus(fetchedAppUser.driver_status || 'off_duty');
+          locationTracker.setDriverStatus(fetchedAppUser.driver_status || 'off_duty');
           console.log(`📍 [DriverStatusToggle] Initialized status to: ${fetchedAppUser.driver_status || 'off_duty'}`);
         }
       } catch (error) {
-        console.error('Failed to find AppUser ID or initialize tracker:', error);
+        console.error('Failed to find AppUser ID:', error);
       }
     };
     
-    initAppUserAndTracker();
+    initAppUser();
   }, [currentUser?.id]);
+
+  // Sync from currentUser prop changes when not toggling
+  useEffect(() => {
+    if (!isTogglingRef.current && currentUser?.driver_status && status !== currentUser.driver_status) {
+      setStatus(currentUser.driver_status);
+      locationTracker.setDriverStatus(currentUser.driver_status);
+      console.log(`✅ [DriverStatusToggle] Syncing from currentUser prop: ${currentUser.driver_status}`);
+    }
+  }, [currentUser?.driver_status, status]);
 
   // Listen for AppUser entity updates from WebSocket to sync status across devices
   useEffect(() => {

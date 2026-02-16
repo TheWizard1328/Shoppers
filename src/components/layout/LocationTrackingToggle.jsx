@@ -13,7 +13,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const [isToggling, setIsToggling] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState('');
   const [trackingStatus, setTrackingStatus] = useState(null);
-  const [locationSharingEnabled, setLocationSharingEnabled] = useState(false);
+  const [locationSharingEnabled, setLocationSharingEnabled] = useState(user?.location_tracking_enabled ?? false);
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
   const [nextUpdateIn, setNextUpdateIn] = useState(null);
   const [hasError, setHasError] = useState(false);
@@ -80,7 +80,12 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
           return;
         }
         
-        setLocationSharingEnabled(data.location_tracking_enabled);
+        setLocationSharingEnabled(prev => {
+          if (prev === data.location_tracking_enabled) {
+            return prev; // No change - keep current state
+          }
+          return data.location_tracking_enabled;
+        });
       }
     };
 
