@@ -1589,6 +1589,9 @@ export default function Layout({ children, currentPageName }) {
             if (prev.some((d) => d?.id === update.id)) return prev;
             return [...prev, update.data];
           });
+          // CRITICAL: Save to offline DB immediately
+          offlineDB.save(offlineDB.STORES.DELIVERIES, update.data).catch(() => {});
+          
           // CRITICAL: Trigger UI refresh events for Dashboard to show new delivery
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
             detail: { 
@@ -1614,11 +1617,9 @@ export default function Layout({ children, currentPageName }) {
           setDeliveries((prev) => prev.map((d) =>
           d?.id === update.id ? { ...d, ...update.data } : d
           ));
-          console.log(`📥 [Layout] Real-time delivery update: ${update.id}, status: ${update.data?.status}`);
-          // CRITICAL: Force polyline update when delivery status changes
-          if (update.data?.driver_id && update.data?.delivery_date) {
-            updatePolylineOnRefresh(update.data.driver_id, update.data.delivery_date);
-          }
+          // CRITICAL: Update offline DB immediately
+          offlineDB.save(offlineDB.STORES.DELIVERIES, update.data).catch(() => {});
+          
           console.log(`📥 [Layout] Real-time delivery update: ${update.id}, status: ${update.data?.status}`);
           // CRITICAL: Force polyline update when delivery status changes
           if (update.data?.driver_id && update.data?.delivery_date) {
