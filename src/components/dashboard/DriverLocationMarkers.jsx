@@ -328,13 +328,13 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     // Only update state if there's an actual meaningful change
     if (idsChanged || locationsChanged) {
       console.log(`🔄 [DriverMarkers - users prop] Updating markers - idsChanged: ${idsChanged}, locationsChanged: ${locationsChanged}`);
-      setVisibleDrivers(validDrivers);
+      setVisibleDrivers(deduplicatedDrivers);
       prevVisibleIdsRef.current = newVisibleIds;
     }
     
     // Clean up markers for drivers that are no longer visible
     Object.keys(markersRef.current).forEach(userId => {
-      if (!validDrivers.find(d => d.id === userId)) {
+      if (!deduplicatedDrivers.find(d => d.id === userId)) {
         delete markersRef.current[userId];
       }
     });
