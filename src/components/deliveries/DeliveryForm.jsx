@@ -2481,10 +2481,11 @@ export default function DeliveryForm({
           console.error('[AddToRoute] ❌ Background refresh failed:', error);
         }
       }, 100);
-      
-      return;
     }
+    // END OF REMOVED OLD CODE
+  }, []);
 
+  const REMOVED_OLD_BATCH_SAVE_2 = useCallback(async () => {
     // CRITICAL: Filter out any deliveries that no longer exist in the database
     // This prevents errors when a delivery was deleted but still in stagedDeliveries
     const validStagedDeliveries = stagedDeliveries.filter((staged) => {
@@ -3096,7 +3097,8 @@ export default function DeliveryForm({
     } finally {
       setIsSaving(false);
     }
-  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId]);
+  }, []);
+  // END OF REMOVED OLD BATCH SAVE CODE
 
   const handleSearchKeyDown = useCallback((e) => {
     // Handle Escape key - always trigger Clear button behavior
