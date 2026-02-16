@@ -3657,7 +3657,22 @@ export default function DeliveryForm({
       if (confirmed) {
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
-        hasLoadedPending.current = false; // Reset flag to allow reload
+        hasLoadedPending.current = false;
+        
+        // Refresh route data for all drivers on the selected date
+        try {
+          console.log('[Cancel] 🔄 Refreshing route data for all drivers...');
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { 
+              deliveryDate: formData.delivery_date,
+              refreshAllDrivers: true,
+              triggeredBy: 'cancelButton'
+            }
+          }));
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        } catch (error) {
+          console.warn('⚠️ [Cancel] Failed to refresh route data:', error);
+        }
         
         // CRITICAL: Resume background operations before closing
         (async () => {
@@ -3687,6 +3702,21 @@ export default function DeliveryForm({
         hasLoadedPending.current = false;
       }
       
+      // Refresh route data for all drivers on the selected date
+      try {
+        console.log('[Cancel] 🔄 Refreshing route data for all drivers...');
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { 
+            deliveryDate: formData.delivery_date,
+            refreshAllDrivers: true,
+            triggeredBy: 'cancelButton'
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      } catch (error) {
+        console.warn('⚠️ [Cancel] Failed to refresh route data:', error);
+      }
+      
       // CRITICAL: Resume background operations before closing
       (async () => {
         try {
@@ -3708,7 +3738,7 @@ export default function DeliveryForm({
       
       onCancel();
     }
-  }, [stagedDeliveries, onCancel, delivery]);
+  }, [stagedDeliveries, onCancel, delivery, formData.delivery_date]);
 
   useEffect(() => {
     const handleEnterKey = (event) => {
