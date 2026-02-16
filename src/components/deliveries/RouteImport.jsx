@@ -2528,6 +2528,17 @@ export default function RouteImport({
           smartRefreshManager.restart();
           driverLocationPoller.resume();
           console.log('✅ [RouteImport] Sync managers restarted after import');
+          
+          // CRITICAL: Notify other pages that route import is complete
+          window.dispatchEvent(new CustomEvent('routeImportCompleted', {
+            detail: {
+              driverIds: importedDriverIds,
+              dates: importedDates,
+              created: overallResults.created,
+              updated: overallResults.updated
+            }
+          }));
+          console.log('📡 [RouteImport] Dispatched routeImportCompleted event');
         } catch (e) {
           console.warn('⚠️ [RouteImport] Failed to restart sync managers:', e.message);
         }
