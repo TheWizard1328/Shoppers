@@ -16,6 +16,7 @@ const DriverLocationBadge = ({ users = [] }) => {
       // CRITICAL: Only update drivers that actually changed
       setDriverStatus(prevStatus => {
         const newStatus = { ...prevStatus };
+        let hasChanges = false;
         
         appUsers.forEach(user => {
           // Only show drivers who are online OR have updated location within last 30 minutes
@@ -38,10 +39,16 @@ const DriverLocationBadge = ({ users = [] }) => {
           const userId = user.id;
           const prevState = prevStateRef.current[userId];
           
-          const latChanged = !prevState || prevState.lat !== user.current_latitude;
-          const lngChanged = !prevState || prevState.lng !== user.current_longitude;
-          const timestampChanged = !prevState || prevState.timestamp !== user.location_updated_at;
+          const latChanged = prevState && prevState.lat !== user.current_latitude;
+          const lngChanged = prevState && prevState.lng !== user.current_longitude;
+          const timestampChanged = prevState && prevState.timestamp !== user.location_updated_at;
           
+          // Only update if this driver actually changed
+          if (!latChanged && !lngChanged && !timestampChanged) {
+            return;
+          }
+          
+          hasChanges = true;
           const coordsChanged = latChanged || lngChanged;
           
           let bulletColor = 'red'; // Both unchanged
@@ -72,8 +79,8 @@ const DriverLocationBadge = ({ users = [] }) => {
           };
         });
 
-        console.log(`✅ [DriverLocationBadge] Updated status - now tracking ${Object.keys(newStatus).length} drivers`);
-        return newStatus;
+        console.log(`✅ [DriverLocationBadge] Updated ${hasChanges ? 'drivers' : 'no drivers'} - tracking ${Object.keys(newStatus).length} total`);
+        return hasChanges ? newStatus : prevStatus;
       });
     };
 
