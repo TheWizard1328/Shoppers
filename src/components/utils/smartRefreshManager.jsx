@@ -66,7 +66,7 @@ class LightweightRefreshManager {
   }
 
   /**
-   * Initialize from settings
+   * Initialize from settings and load ALL AppUsers to offline DB on startup
    */
   async initializeFromSettings() {
     try {
@@ -76,6 +76,10 @@ class LightweightRefreshManager {
       } else {
         this._enabled = true;
       }
+      
+      // CRITICAL: Load ALL AppUsers to offline DB on app startup
+      await this.initializeAllAppUsersToOfflineDB();
+      
       this._initialized = true;
       return this._enabled;
     } catch (error) {
@@ -83,6 +87,41 @@ class LightweightRefreshManager {
       this._enabled = true;
       this._initialized = true;
       return true;
+    }
+  }
+  
+  /**
+   * Initialize ALL AppUsers to offline DB on app startup
+   */
+  async initializeAllAppUsersToOfflineDB() {
+    try {
+      const { offlineDB } = await import('./offlineDatabase');
+      
+      // Check if offline DB already has AppUsers
+      const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+      if (existingAppUsers && existingAppUsers.length > 0) {
+        console.log(`💾 [SmartRefresh] Offline DB already has ${existingAppUsers.length} AppUsers - skipping bulk load`);
+        return;
+      }
+      
+      console.log('📥 [SmartRefresh] Loading ALL AppUsers to offline DB on startup...');
+      await this.waitForRateLimit();
+      
+      const allAppUsers = await queueEntityRequest(
+        () => base44.entities.AppUser.list(),
+        'Initial AppUser bulk load'
+      );
+      
+      if (allAppUsers && allAppUsers.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+        console.log(`✅ [SmartRefresh] Initialized offline DB with ${allAppUsers.length} AppUsers`);
+        this.recordSuccess();
+      } else {
+        console.warn('⚠️ [SmartRefresh] No AppUsers found during initialization');
+      }
+    } catch (error) {
+      console.warn('⚠️ [SmartRefresh] Failed to initialize AppUsers:', error.message);
+      this.recordError();
     }
   }
 
