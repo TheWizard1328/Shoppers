@@ -40,7 +40,20 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     
     // CRITICAL: Skip syncing while toggle is in progress
     if (isTogglingRef.current) {
+      console.log('⏸️ [LocationSharing] Toggle in progress - skipping user sync');
       return;
+    }
+    
+    // CRITICAL: If we recently toggled, only sync if database value matches what we toggled to
+    if (lastToggledValueRef.current !== null) {
+      if (user.location_tracking_enabled === lastToggledValueRef.current) {
+        console.log(`✅ [LocationSharing] Database confirmed toggle to: ${lastToggledValueRef.current}`);
+        // Clear the ref since database now matches
+        lastToggledValueRef.current = null;
+      } else {
+        console.log(`🔒 [LocationSharing] Waiting for database to catch up (DB: ${user.location_tracking_enabled}, toggled: ${lastToggledValueRef.current})`);
+        return; // Don't sync until database catches up
+      }
     }
     
     // Only update if location_tracking_enabled actually changed
