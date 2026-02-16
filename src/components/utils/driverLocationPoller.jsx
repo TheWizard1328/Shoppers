@@ -187,7 +187,11 @@ class DriverLocationPoller {
     
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // CRITICAL: Filter drivers based on NEW visibility rules
+    // CRITICAL: Log if user is AppOwner for debugging
+     const isUserAppOwner = isAppOwner(this.currentUser);
+     console.log(`🔑 [Poller] Current user isAppOwner: ${isUserAppOwner}, role: ${this.currentUser?.role}, app_roles: ${this.currentUser?.app_roles?.join(', ')}`);
+
+     // CRITICAL: Filter drivers based on NEW visibility rules
      const activeDriversWithLocation = users.filter(user => {
        if (!user) return false;
 
