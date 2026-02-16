@@ -132,7 +132,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
       // CRITICAL: Update internal state FIRST (optimistic update)
       setLocationSharingEnabled(checked);
-      
+
       if (checked) {
         // TURNING ON: Make location visible to other drivers
         setPermissionStatus('Enabling location sharing...');
@@ -140,6 +140,11 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         const updatedAppUser = await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
+
+        // CRITICAL: Save to offline DB immediately
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
+        console.log('💾 [LocationSharing] Saved to offline DB:', updatedAppUser);
 
         // CRITICAL: Broadcast to other devices via WebSocket with ALL fields
         const { broadcastMutation } = await import('../utils/realtimeSync');
@@ -168,6 +173,11 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         const updatedAppUser = await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: false
         });
+
+        // CRITICAL: Save to offline DB immediately
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
+        console.log('💾 [LocationSharing] Saved to offline DB:', updatedAppUser);
 
         // CRITICAL: Broadcast to other devices via WebSocket with ALL fields
         const { broadcastMutation } = await import('../utils/realtimeSync');

@@ -247,7 +247,12 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       console.log('📝 [DriverStatusToggle] Updating AppUser with:', updatePayload);
       const updatedAppUser = await base44.entities.AppUser.update(appUserId, updatePayload);
       console.log('✅ [DriverStatusToggle] AppUser updated successfully');
-      
+
+      // CRITICAL: Save to offline DB immediately
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
+      console.log('💾 [DriverStatusToggle] Saved to offline DB:', updatedAppUser);
+
       // CRITICAL: Broadcast status change to other devices via WebSocket
       // Ensure we broadcast ALL the fields we just updated
       const broadcastData = {
