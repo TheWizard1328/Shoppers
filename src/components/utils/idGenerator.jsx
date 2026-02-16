@@ -70,13 +70,16 @@ export const generateDeliveryId = (existingIds = []) => {
  * @param {string} deliveryDate - The date for which to generate the stop ID
  * @returns {string} - A new unique stop ID
  */
-export const generateStopId = (allDeliveries = [], deliveryDate = '') => {
+export const generateStopId = (deliveryDate = '', allDeliveries = []) => {
   if (!deliveryDate) {
     deliveryDate = new Date().toISOString().split('T')[0];
   }
   
+  // Ensure allDeliveries is an array
+  const deliveriesArray = Array.isArray(allDeliveries) ? allDeliveries : [];
+  
   // Get existing stop IDs for this date
-  const existingStopIds = (allDeliveries || [])
+  const existingStopIds = deliveriesArray
     .filter(d => d && d.delivery_date === deliveryDate && d.delivery_stop_id)
     .map(d => d.delivery_stop_id);
   
