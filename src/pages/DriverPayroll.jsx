@@ -776,9 +776,11 @@ export default function DriverPayroll() {
     setSelectedPeriodIndex(selectedPeriodIndex - 1);
   }, [payrollRecords, hasInitialized, selectedPeriodIndex]);
 
-  // Reset the flag when period is manually changed
+  // Reset the flags when year or pay period changes
   useEffect(() => {
     triedPreviousPeriodRef.current = false;
+    payrollRecordsLoadedRef.current = false;
+    initialPeriodSetRef.current = false;
   }, [selectedYear, payPeriod]);
 
   // Conditional rendering without early return to maintain hook order
