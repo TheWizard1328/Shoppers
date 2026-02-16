@@ -240,20 +240,17 @@ class DriverLocationPoller {
        // ========================================
        // RULE 2: AppOwners - can see ALL drivers regardless of settings
        // ========================================
-       // Check if user is AppOwner (not just Admin)
-       const isAppOwner = this.currentUser && this.currentUser.app_roles && 
-                         Array.isArray(this.currentUser.app_roles) && 
-                         this.currentUser.app_roles.includes('admin') && 
-                         this.currentUser.email && 
+       // CRITICAL: Check AppOwner FIRST before any other checks
+       const isAppOwner = this.currentUser?.email && 
                          (this.currentUser.email.endsWith('@rxdeliver.com') || 
                           this.currentUser.email === 'dan@dcscripts.ca');
-       
+
        if (isAppOwner) {
          // AppOwners see ALL drivers with coordinates, no filtering
          console.log(`✅ [Poller] AppOwner seeing driver ${user.user_name} - status: ${user.driver_status}, location_tracking: ${user.location_tracking_enabled}, staleness: ${user._staleness}`);
          return true;
        }
-       
+
        // ========================================
        // RULE 3: Admins (non-AppOwners) - can only see drivers with location sharing ON
        // ========================================
