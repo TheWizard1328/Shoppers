@@ -608,11 +608,15 @@ export default function DeliveriesPage() {
           }
         }
       } else if (userHasRole(user, 'driver')) {
-        console.log('Driver - Fetching ALL patients for projections');
+        console.log('Driver - Fetching ALL patients (will filter in memory)');
         try {
-          // CRITICAL: Drivers need ALL patients (not just those with deliveries) for projected routes to work
-          patientsData = await getData('Patient', 'full_name', null, forceRefresh);
-          console.log('Driver - Fetched ALL patients for projections:', patientsData?.length || 0);
+          const allPatientsRaw = await getData('Patient', 'full_name', null, forceRefresh);
+
+          const uniquePatientIds = new Set(
+            (deliveriesData || []).filter((d) => d.patient_id).map((d) => d.patient_id)
+          );
+          patientsData = (allPatientsRaw || []).filter((p) => uniquePatientIds.has(p.id));
+          console.log('Driver - Filtered to patients with deliveries:', patientsData.length);
         } catch (error) {
           console.error('Failed to fetch patients for driver:', error.message);
           patientsData = [];
@@ -1037,11 +1041,11 @@ export default function DeliveriesPage() {
     }
 
     if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
-      // CRITICAL: Drivers need ALL patients (not just those with deliveries) for projections to work
-      return allPatients;
+      const uniquePatientIds = new Set(effectiveDeliveries.map((d) => d.patient_id).filter(Boolean));
+      return allPatients.filter((p) => uniquePatientIds.has(p.id));
     }
     return [];
-  }, [currentUser, allPatients]);
+  }, [currentUser, allPatients, effectiveDeliveries]);
 
   const effectiveDrivers = useMemo(() => {
     if (!currentUser || !allUsers || !Array.isArray(allUsers)) {
@@ -1511,7 +1515,6 @@ export default function DeliveriesPage() {
   }, []);
 
   const filteredAndSortedDeliveries = useMemo(() => {
-    // Start with actual deliveries for the selected date
     let filtered = selectedDateDeliveries;
 
     if (statusFilter && statusFilter !== 'all') {
@@ -1530,12 +1533,8 @@ export default function DeliveriesPage() {
           (d.driver_name || '').toLowerCase().includes(lowerSearch) ||
           (store?.name || '').toLowerCase().includes(lowerSearch) ||
           (d.prescription_number || '').toLowerCase().includes(lowerSearch));
-      });
-    }
 
-    // CRITICAL: If no actual deliveries and we have projections, show the projected deliveries instead
-    if (filtered.length === 0 && projectedRoutes.deliveries.length > 0) {
-      filtered = projectedRoutes.deliveries;
+      });
     }
 
     const sorted = sortDeliveriesByTime(filtered);
@@ -1544,7 +1543,7 @@ export default function DeliveriesPage() {
       ...delivery,
       stopOrder: index + 1
     }));
-  }, [selectedDateDeliveries, effectivePatients, stores, statusFilter, searchTerm, sortDeliveriesByTime, projectedRoutes.deliveries]);
+  }, [selectedDateDeliveries, effectivePatients, stores, statusFilter, searchTerm, sortDeliveriesByTime]);
 
   // Filter date cards based on search term (search across all available dates)
   const filteredDatesBySearch = useMemo(() => {
@@ -2945,14 +2944,6 @@ export default function DeliveriesPage() {
       return false;
     });
     console.log(`👥 Total drivers with driver role: ${driversWithRoles.length}`);
-    
-    // CRITICAL: Log current user context for debugging filter logic
-    console.log(`🔍 [DriverCards] Current user context:`, {
-      userName: currentUser?.user_name || currentUser?.full_name,
-      roles: currentUser?.app_roles,
-      storeIds: currentUser?.store_ids,
-      cityId: currentUser?.city_id
-    });
 
     const deliveryDriverIds = [...new Set(deliveriesToUse.map((d) => d.driver_id).filter(Boolean))];
     console.log(`📊 [Debug] Unique driver_ids in deliveries:`, deliveryDriverIds);
@@ -2997,22 +2988,28 @@ export default function DeliveriesPage() {
       });
       console.log(`👔 Dispatcher - filtered to drivers with store deliveries: ${cityFilteredDrivers.length} drivers`);
     } else if (userHasRole(currentUser, 'driver')) {
-      // CRITICAL: Driver-only users should see all drivers in their city (not just themselves)
-      // The actual filtering to only show their own card happens later in driversToShow
       if (currentUser.city_id) {
         cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === currentUser.city_id);
         console.log(`📍 Filtered to user's city ${currentUser.city_id}: ${cityFilteredDrivers.length} drivers`);
-      } else {
-        // No city filter for drivers - show all drivers with role
-        cityFilteredDrivers = driversWithRoles;
-        console.log(`📍 Driver has no city_id - showing all ${cityFilteredDrivers.length} drivers`);
       }
     }
 
-    // CRITICAL: Don't filter by deliveries here - we want to show ALL drivers with the role
-    // Let the stats calculation determine if they have 0 stops (which will be filtered later)
-    const driversWithDeliveries = cityFilteredDrivers;
-    console.log(`✅ Drivers after role/city filtering: ${driversWithDeliveries.length}`);
+    const driversWithDeliveries = cityFilteredDrivers.filter((u) => {
+      if (!u) return false;
+
+      const userFullNameLower = (u.full_name || '').toLowerCase().trim();
+      const userUserNameLower = (u.user_name || '').toLowerCase().trim();
+
+      const hasDeliveries = driverIdsInDeliveries.includes(u.id) ||
+      u.appUserId && driverIdsInDeliveries.includes(u.appUserId) ||
+      driverNamesInDeliveries.includes(userFullNameLower) ||
+      driverNamesInDeliveries.includes(userUserNameLower);
+
+      console.log(`   ✅ Including driver: ${u.user_name || u.full_name} (has deliveries: ${hasDeliveries}, status: ${u.status})`);
+      return true;
+    });
+
+    console.log(`✅ Found ${driversWithDeliveries.length} drivers to show (after city filter)`);
 
     let driversToShow = [];
 
@@ -3276,9 +3273,9 @@ export default function DeliveriesPage() {
             <div className={`${showSplitView ? 'w-[400px] flex-shrink-0' : 'w-full'} h-full overflow-hidden`}>
               <div className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center" style={{ maxHeight: 'calc(100vh - 280px)' }}>
                 {deliveriesToRender.map((delivery, index) => (
-                 <StopCard
-                   key={delivery.id || `delivery-${index}`}
-                   delivery={delivery}
+                  <StopCard
+                    key={delivery.id}
+                    delivery={delivery}
                     patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)}
                     store={(stores || []).find((s) => s && s.id === delivery.store_id)}
                     driver={
@@ -4269,7 +4266,6 @@ export default function DeliveriesPage() {
       <AnimatePresence>
         {showDeliveryForm &&
         <motion.div
-          key="delivery-form"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -4296,40 +4292,26 @@ export default function DeliveriesPage() {
           </motion.div>
         }
         {showImportModal &&
-        <motion.div
-          key="route-import"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}>
-          <RouteImport
-            onImportComplete={handleImportComplete}
-            onCancel={() => setShowImportModal(false)}
-            patients={allPatients || []}
-            stores={stores || []}
-            drivers={(allUsers || []).filter((u) => userHasRole(u, 'driver')) || []}
-            allUsers={allUsers}
-            currentUser={currentUser} />
-        </motion.div>
+        <RouteImport
+          onImportComplete={handleImportComplete}
+          onCancel={() => setShowImportModal(false)}
+          patients={allPatients || []}
+          stores={stores || []}
+          drivers={(allUsers || []).filter((u) => userHasRole(u, 'driver')) || []}
+          allUsers={allUsers}
+          currentUser={currentUser} />
+
         }
-        {showRouteMap &&
-        <motion.div
-          key="route-map"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}>
-          <RouteMapView
-            isOpen={showRouteMap}
-            onClose={() => setShowRouteMap(false)}
-            deliveries={filteredAndSortedDeliveries}
-            patients={effectivePatients || []}
-            stores={stores || []}
-            drivers={effectiveDrivers || []}
-            selectedDate={selectedDate}
-            currentUser={currentUser} />
-        </motion.div>
-        }
+        <RouteMapView
+          isOpen={showRouteMap}
+          onClose={() => setShowRouteMap(false)}
+          deliveries={filteredAndSortedDeliveries}
+          patients={effectivePatients || []}
+          stores={stores || []}
+          drivers={effectiveDrivers || []}
+          selectedDate={selectedDate}
+          currentUser={currentUser} />
+
       </AnimatePresence>
     </div>);
 

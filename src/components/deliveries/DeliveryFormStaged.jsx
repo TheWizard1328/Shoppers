@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { getStoreColor, hexToRgba } from '../utils/colorGenerator';
 import { shouldShowStoreBadges } from '../utils/userRoles';
-import { createDelivery as createDeliveryLocal } from '../utils/entityMutations';
 
 export default function DeliveryFormStaged({
   sortedStagedDeliveries,
@@ -27,15 +26,13 @@ export default function DeliveryFormStaged({
   setDeleteConfirmation,
   isLoadingPredictions
 }) {
-  const [savingProjectedId, setSavingProjectedId] = useState(null);
-
   return (
     <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
-      {/* New Deliveries Section (not yet saved) */}
+      {/* Staged Deliveries Section (new, not yet saved) */}
       {sortedStagedDeliveries.filter(s => !s.id).length > 0 && (
         <>
-          <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-blue-600">
-            New ({sortedStagedDeliveries.filter(s => !s.id).length})
+          <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-emerald-600">
+            Staged ({sortedStagedDeliveries.filter(s => !s.id).length})
           </div>
           {sortedStagedDeliveries.filter(s => !s.id).map((staged) => {
             const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
@@ -45,7 +42,7 @@ export default function DeliveryFormStaged({
             return (
               <div
                 key={staged._tempId}
-                className={`flex p-2 rounded border-2 border-blue-300 text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-500' : 'hover:bg-slate-50'}`}
+                className={`flex p-2 rounded border-2 border-emerald-300 text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`}
                 style={{
                   backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
                 }}
@@ -122,7 +119,7 @@ export default function DeliveryFormStaged({
               </div>
             );
           })}
-          <div className="border-t-2 border-blue-200 my-2" />
+          <div className="border-t-2 border-emerald-200 my-2" />
         </>
       )}
 
@@ -272,79 +269,14 @@ export default function DeliveryFormStaged({
               variant="ghost"
               className="h-7 w-7 p-0 flex-shrink-0 rounded ml-1"
               style={{ backgroundColor: '#059669', color: '#ffffff' }}
-              disabled={savingProjectedId === projected.patient_id}
-              onClick={async () => {
-                setSavingProjectedId(projected.patient_id);
-                try {
-                  const stagedItem = await confirmAddProjectedToStaged(projected);
-
-                  if (stagedItem) {
-                    // Generate stop_id for the delivery
-                    const { generateStopId } = await import('../utils/idGenerator');
-                    const { getData, invalidate } = await import('../utils/dataManager');
-                    const allCurrentDeliveries = await getData('Delivery');
-                    const deliveriesArray = Array.isArray(allCurrentDeliveries) ? allCurrentDeliveries : [];
-                    const stop_id = await generateStopId(stagedItem.delivery_date, deliveriesArray);
-
-                    console.log('[ProjectedAdd] 💾 Creating delivery with SID:', stop_id);
-
-                    // Save with stop_id assigned
-                    const savedDelivery = await createDeliveryLocal({
-                      ...stagedItem,
-                      stop_id: stop_id,
-                      tracking_number: 'temp',
-                      stop_order: 9999
-                    });
-
-                    console.log('[ProjectedAdd] ✅ Delivery created:', savedDelivery.id);
-
-                    // CRITICAL: Wait for backend sync to complete before calling reorderStops
-                    await new Promise(resolve => setTimeout(resolve, 200));
-
-                    // Invalidate cache to force fresh fetch
-                    invalidate('Delivery');
-
-                    // CRITICAL: Fetch fresh deliveries AFTER save completes to ensure it's included
-                    const freshDeliveries = await getData('Delivery', null, null, true);
-                    console.log('[ProjectedAdd] 📊 Fresh deliveries fetched:', freshDeliveries.length);
-
-                    // Update staged list with saved delivery info
-                    setStagedDeliveries(prev => prev.map(s => 
-                      s._tempId === stagedItem._tempId ? { ...s, id: savedDelivery.id, stop_id: stop_id } : s
-                    ));
-
-                    // Call reorderStops with fresh data to assign proper TR# and stop_order
-                    if (stagedItem.driver_id && stagedItem.delivery_date) {
-                      const { reorderStops } = await import('../utils/stopReorderer');
-                      await reorderStops(stagedItem.driver_id, stagedItem.delivery_date, freshDeliveries);
-                      console.log('[ProjectedAdd] ✅ Reorder complete - TR# and stop_order assigned');
-                    }
-
-                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                      detail: { 
-                        deliveryDate: stagedItem.delivery_date, 
-                        driverId: stagedItem.driver_id,
-                        triggeredBy: 'projectedAddButtonSave'
-                      }
-                    }));
-                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                  }
-
-                  if (!isMobileDevice) {
-                    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-                  }
-                } catch (error) {
-                  console.error('Failed to save projected delivery:', error);
-                } finally {
-                  setSavingProjectedId(null);
+              onClick={() => {
+                confirmAddProjectedToStaged(projected);
+                if (!isMobileDevice) {
+                  setTimeout(() => patientSearchInputRef.current?.focus(), 100);
                 }
               }}
               title="Add to route">
-              {savingProjectedId === projected.patient_id ? (
-                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-              ) : (
-                <Plus className="w-5 h-5" />
-              )}
+              <Plus className="w-5 h-5" />
             </Button>
           </div>
         );
@@ -359,7 +291,7 @@ export default function DeliveryFormStaged({
 
       {!isLoadingPredictions && sortedStagedDeliveries.length === 0 && sortedProjectedDeliveries.length === 0 && (
         <div className="p-4 text-center text-slate-400 text-xs">
-          No new deliveries yet
+          No deliveries staged yet
         </div>
       )}
     </div>

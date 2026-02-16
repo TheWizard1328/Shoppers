@@ -240,10 +240,7 @@ const populateTemporaryStartTimes = (deliveries, stores) => {
   return deliveriesCopy;
 };
 
-function Dashboard({ currentPageName }) {
-  // CRITICAL: Pause all subscriptions and polling when not on Dashboard
-  const isActivePage = currentPageName === 'Dashboard';
-  
+function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
   const {
     deliveries,
@@ -267,7 +264,7 @@ function Dashboard({ currentPageName }) {
     dataSource
   } = useAppData();
 
-
+  const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
 
   const [selectedDate, setSelectedDate] = useState(() => {
     // CRITICAL: Check URL params first, then globalFilters
@@ -382,21 +379,15 @@ function Dashboard({ currentPageName }) {
   // CRITICAL: Declare isPrimaryDevice early (before useEffects that need it)
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
 
-  // CRITICAL: Calculate isDriver and isAdmin early (before ANY code that uses them)
+  // CRITICAL: Calculate isDriver and isAdmin early (before useEffects that need them)
   const isMobile = useMemo(() => isMobileDevice(), []);
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
-  const isDispatcher = useMemo(() => currentUser ? userHasRole(currentUser, 'dispatcher') : false, [currentUser]);
 
   // ==================== REAL-TIME SUBSCRIPTIONS ====================
   // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
   useEffect(() => {
     if (!currentUser || !isDataLoaded) return;
-    // CRITICAL: Skip subscriptions if not active page
-    if (!isActivePage) {
-      console.log(`⏸️ [Dashboard Subscriptions] Paused - not active page (${currentPageName})`);
-      return;
-    }
 
     console.log('🔌 [Real-time] Subscribing to Patient, Delivery, and AppUser changes...');
     
@@ -2501,11 +2492,6 @@ function Dashboard({ currentPageName }) {
     if (!isDataLoaded || !currentUser || !isFiltersReady) {
       return;
     }
-    // CRITICAL: Skip polling when not on active page
-    if (!isActivePage) {
-      console.log(`⏸️ [Dashboard Periodic Refresh] Paused - not active page (${currentPageName})`);
-      return;
-    }
 
     // CRITICAL: Set current user in smart refresh manager for location polling
     smartRefreshManager.setCurrentUser(currentUser);
@@ -2661,11 +2647,6 @@ function Dashboard({ currentPageName }) {
   // CRITICAL: Initialize poller once on mount
   useEffect(() => {
     if (!isDataLoaded || !currentUser) {
-      return;
-    }
-    // CRITICAL: Skip poller when not on active page
-    if (!isActivePage) {
-      console.log(`⏸️ [Dashboard Location Poller] Paused - not active page (${currentPageName})`);
       return;
     }
 

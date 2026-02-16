@@ -179,9 +179,6 @@ export default function DriverPayroll() {
   const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
   const [payrollRecords, setPayrollRecords] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  // CRITICAL: Combined refresh state - shows spinner for both manual and auto refresh
-  const isAnyRefreshing = isRefreshing || (smartRefreshActivity?.active && smartRefreshActivity?.updatedEntities?.some(e => ['Payroll', 'Delivery'].includes(e)));
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
@@ -190,7 +187,6 @@ export default function DriverPayroll() {
   const isManualChangeRef = useRef(false);
   const hasLoadedInitialDataRef = useRef(false);
   const triedPreviousPeriodRef = useRef(false);
-  const payrollRecordsLoadedRef = useRef(false);
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
@@ -320,10 +316,8 @@ export default function DriverPayroll() {
       });
       console.log(`✅ [DriverPayroll] Found ${records?.length || 0} payroll records`);
       setPayrollRecords(records || []);
-      payrollRecordsLoadedRef.current = true;
     } catch (error) {
       console.error('Failed to refresh payroll records:', error);
-      payrollRecordsLoadedRef.current = true; // Mark as loaded even on error
     }
   }, [currentPeriod]);
 
@@ -433,14 +427,14 @@ export default function DriverPayroll() {
     invalidate('Patient');
     invalidate('Payroll');
     
-    // Force fresh fetch of all data for selected year/city
+    // Force fresh fetch of all data
     await fetchPayroll(false, true);
     
-    // Refresh payroll records for current period (triggers recalculation)
+    // Refresh payroll records to recalculate YTD totals
     await refreshPayrollRecords();
     
     setIsRefreshing(false);
-    toast.success('Payroll data refreshed and recalculated');
+    toast.success('Payroll data refreshed');
   }, [selectedYear, selectedCityId, refreshPayrollRecords]);
 
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
@@ -576,12 +570,7 @@ export default function DriverPayroll() {
   
   useEffect(() => {
     // CRITICAL: Wait for all data to be loaded BEFORE setting initial period
-    if (!hasInitialized || !payrollData || allPeriods.length === 0) {
-      return;
-    }
-    
-    // CRITICAL: Wait for payroll records to load before selecting initial period
-    if (!payrollRecordsLoadedRef.current) {
+    if (!hasInitialized || !payrollData || allPeriods.length === 0 || payrollRecords.length === 0) {
       return;
     }
     
@@ -593,104 +582,75 @@ export default function DriverPayroll() {
     // Invalidate caches to force fresh calculations
     invalidate('Payroll');
     invalidate('Delivery');
-
+    
     const today = new Date();
-    // CRITICAL: Get today's date string in LOCAL timezone, not UTC
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    let selectedIdx = null;
-
-    // STEP 1: Find period that contains today's date
-    let todayPeriodIdx = -1;
-    for (let i = 0; i < allPeriods.length; i++) {
-      const period = allPeriods[i];
-      const startStr = period.start.toISOString().split('T')[0];
-      const endStr = period.end.toISOString().split('T')[0];
-      if (todayStr >= startStr && todayStr <= endStr) {
-        todayPeriodIdx = i;
+    
+    // Find the most recent period that has ended or is current
+    let mostRecentPastPeriodIdx = -1;
+    for (let i = allPeriods.length - 1; i >= 0; i--) {
+      if (allPeriods[i].end <= today) {
+        mostRecentPastPeriodIdx = i;
         break;
       }
     }
-
-    // STEP 2: Check if today's period is unfinalized
-    let isTodayPeriodFinalized = false;
-    if (todayPeriodIdx !== -1) {
-      const todayPeriod = allPeriods[todayPeriodIdx];
-      const startStr = todayPeriod.start.toISOString().split('T')[0];
-      const endStr = todayPeriod.end.toISOString().split('T')[0];
-
-      isTodayPeriodFinalized = payrollRecords.some(r =>
-        r.pay_period_start === startStr &&
-        r.pay_period_end === endStr &&
-        (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
-      );
-    }
-
-    // STEP 3: Select today's period if it's unfinalized
-    if (todayPeriodIdx !== -1 && !isTodayPeriodFinalized) {
-      selectedIdx = todayPeriodIdx;
-      console.log(`✅ [DriverPayroll] Selected today's period (unfinalized): index ${selectedIdx} (${allPeriods[selectedIdx].label})`);
-    }
-    // STEP 4: Otherwise, find the most recent unfinalized period
-    else {
-      let mostRecentUnfinalizedIdx = -1;
-      for (let i = allPeriods.length - 1; i >= 0; i--) {
-        const period = allPeriods[i];
-        const startStr = period.start.toISOString().split('T')[0];
-        const endStr = period.end.toISOString().split('T')[0];
-
-        const isFinal = payrollRecords.some(r =>
-          r.pay_period_start === startStr &&
-          r.pay_period_end === endStr &&
-          (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
-        );
-
-        if (!isFinal) {
-          mostRecentUnfinalizedIdx = i;
-          break;
-        }
-      }
-
-      if (mostRecentUnfinalizedIdx !== -1) {
-        selectedIdx = mostRecentUnfinalizedIdx;
-        console.log(`✅ [DriverPayroll] Selected most recent unfinalized period: index ${selectedIdx} (${allPeriods[selectedIdx].label})`);
-      }
-      // STEP 5: Fall back to period containing today's date if no unfinalized exists
-      else if (todayPeriodIdx !== -1) {
-        selectedIdx = todayPeriodIdx;
-        console.log(`✅ [DriverPayroll] All periods finalized - selected today's period: index ${selectedIdx} (${allPeriods[selectedIdx].label})`);
-      }
-      // STEP 6: Default to last period as final fallback
-      else {
-        selectedIdx = allPeriods.length - 1;
-        console.log(`✅ [DriverPayroll] No match found, selecting last period: index ${selectedIdx}`);
+    
+    // First, find period containing today's date
+    let selectedIdx = null;
+    for (let i = 0; i < allPeriods.length; i++) {
+      const period = allPeriods[i];
+      if (today >= period.start && today <= period.end) {
+        selectedIdx = i;
+        break;
       }
     }
     
-    setSelectedPeriodIndex(selectedIdx);
+    // If today's period is finalized, find first unfinalized period
+    if (selectedIdx !== null) {
+      const todayPeriod = allPeriods[selectedIdx];
+      const periodStartStr = todayPeriod.start.toISOString().split('T')[0];
+      const periodEndStr = todayPeriod.end.toISOString().split('T')[0];
+      const isTodayFinalized = payrollRecords.some(r =>
+        r.pay_period_start === periodStartStr &&
+        r.pay_period_end === periodEndStr &&
+        (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
+      );
+      
+      if (isTodayFinalized) {
+        // Find first unfinalized period
+        for (let i = 0; i < allPeriods.length; i++) {
+          const period = allPeriods[i];
+          const startStr = period.start.toISOString().split('T')[0];
+          const endStr = period.end.toISOString().split('T')[0];
+          const isFinal = payrollRecords.some(r =>
+            r.pay_period_start === startStr &&
+            r.pay_period_end === endStr &&
+            (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
+          );
+          if (!isFinal) {
+            selectedIdx = i;
+            break;
+          }
+        }
+      }
+    }
+    
+    if (selectedIdx !== null) {
+      setSelectedPeriodIndex(selectedIdx);
+    }
     
     // Mark that initial period has been set
     initialPeriodSetRef.current = true;
   }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData]);
 
-  // Subscribe to real-time websocket updates - ONLY when page is active
+  // Subscribe to real-time websocket updates
   useEffect(() => {
-    // CRITICAL: Skip subscriptions if page is not active
-    // This prevents logs and data refreshes when user is on other pages
-    if (typeof window === 'undefined') return;
-    
-    const checkIfActive = () => {
-      const dashboardElement = document.querySelector('[data-page="DriverPayroll"]');
-      return dashboardElement !== null;
-    };
-    
-    if (!hasInitialized || !checkIfActive()) return;
+    if (!hasInitialized) return;
 
     const unsubscribers = [];
 
-    // Subscribe to Delivery changes only
+    // Subscribe to Delivery changes
     try {
       const unsubDeliv = base44.entities.Delivery.subscribe((event) => {
-        if (!checkIfActive()) return;
         console.log(`📡 [DriverPayroll] Delivery ${event.type}:`, event.id);
         // Refetch payroll on delivery changes
         fetchPayroll(true, false);
@@ -699,6 +659,28 @@ export default function DriverPayroll() {
       unsubscribers.push(unsubDeliv);
     } catch (e) {
       console.warn('Failed to subscribe to Delivery updates:', e);
+    }
+
+    // Subscribe to AppUser changes
+    try {
+      const unsubAppUser = base44.entities.AppUser.subscribe((event) => {
+        console.log(`📡 [DriverPayroll] AppUser ${event.type}:`, event.id);
+        fetchPayroll(true, false);
+      });
+      unsubscribers.push(unsubAppUser);
+    } catch (e) {
+      console.warn('Failed to subscribe to AppUser updates:', e);
+    }
+
+    // Subscribe to Payroll changes
+    try {
+      const unsubPayroll = base44.entities.Payroll.subscribe((event) => {
+        console.log(`📡 [DriverPayroll] Payroll ${event.type}:`, event.id);
+        refreshPayrollRecords();
+      });
+      unsubscribers.push(unsubPayroll);
+    } catch (e) {
+      console.warn('Failed to subscribe to Payroll updates:', e);
     }
 
     // Cleanup subscriptions on unmount
@@ -711,61 +693,12 @@ export default function DriverPayroll() {
         }
       });
     };
-    }, [hasInitialized, fetchPayroll, refreshPayrollRecords]);
+  }, [hasInitialized, fetchPayroll, refreshPayrollRecords]);
 
-    // Listen for route import completion events
-    useEffect(() => {
-      const handleRouteImportComplete = async () => {
-        const isActive = document.querySelector('[data-page="DriverPayroll"]') !== null;
-        if (isActive && hasInitialized) {
-          console.log('🔄 [DriverPayroll] Route import completed, refreshing deliveries and recalculating payroll...');
-
-          // Step 1: Invalidate caches to force fresh data from DB
-          invalidate('Delivery');
-          invalidate('Patient');
-          invalidate('Payroll');
-
-          // Step 2: Fetch fresh deliveries and recalculate payroll
-          await fetchPayroll(true, true);
-
-          // Step 3: Refresh payroll records for UI update
-          await refreshPayrollRecords();
-
-          console.log('✅ [DriverPayroll] Payroll data refreshed after route import');
-        }
-      };
-
-      window.addEventListener('routeImportCompleted', handleRouteImportComplete);
-      return () => window.removeEventListener('routeImportCompleted', handleRouteImportComplete);
-    }, [hasInitialized, fetchPayroll, refreshPayrollRecords]);
-
-  // Load payroll records IMMEDIATELY after data loads (before initial period selection)
+  // Load payroll records when period changes (initial load and period navigation)
   useEffect(() => {
-    if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
-    if (payrollRecordsLoadedRef.current) return;
-    
-    console.log(`🔄 [DriverPayroll] Initial load - fetching payroll records for all periods...`);
-    
-    // Fetch all payroll records for the year ONCE at initialization
-    const yearStart = new Date(selectedYear, 0, 1).toISOString().split('T')[0];
-    const yearEnd = new Date(selectedYear, 11, 31).toISOString().split('T')[0];
-    
-    base44.entities.Payroll.filter({
-      pay_period_end: { $gte: yearStart, $lte: yearEnd }
-    }).then(records => {
-      console.log(`✅ [DriverPayroll] Loaded ${records?.length || 0} payroll records for ${selectedYear}`);
-      setPayrollRecords(records || []);
-      payrollRecordsLoadedRef.current = true;
-    }).catch(error => {
-      console.error('Failed to load initial payroll records:', error);
-      payrollRecordsLoadedRef.current = true;
-    });
-  }, [hasInitialized, payrollData, allPeriods, selectedYear]);
-  
-  // Load payroll records when period changes (for navigation updates)
-  useEffect(() => {
-    if (!currentPeriod || !hasInitialized || !payrollRecordsLoadedRef.current) return;
-    console.log(`🔄 [DriverPayroll] Period changed, refreshing payroll records...`);
+    if (!currentPeriod || !hasInitialized) return;
+    console.log(`🔄 [DriverPayroll] Period changed, loading payroll records...`);
 
     // Invalidate caches to force fresh fetch
     invalidate('Payroll');
@@ -785,11 +718,9 @@ export default function DriverPayroll() {
     setSelectedPeriodIndex(selectedPeriodIndex - 1);
   }, [payrollRecords, hasInitialized, selectedPeriodIndex]);
 
-  // Reset the flags when year or pay period changes
+  // Reset the flag when period is manually changed
   useEffect(() => {
     triedPreviousPeriodRef.current = false;
-    payrollRecordsLoadedRef.current = false;
-    initialPeriodSetRef.current = false;
   }, [selectedYear, payPeriod]);
 
   // Conditional rendering without early return to maintain hook order
@@ -803,7 +734,7 @@ export default function DriverPayroll() {
       <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
     </div>
   ) : (
-    <div className="p-4 md:p-6" data-page="DriverPayroll" style={{ background: 'var(--bg-slate-50)' }}>
+    <div className="p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl mx-auto" ref={contentRef}>
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
@@ -818,14 +749,14 @@ export default function DriverPayroll() {
             <div className="flex lg:hidden items-center gap-1">
               <Button
                 onClick={handleManualRefresh}
-                disabled={isAnyRefreshing || isLoadingPayroll}
+                disabled={isRefreshing || isLoadingPayroll}
                 size="sm"
                 variant="ghost"
                 className="p-2 h-auto border border-slate-900 dark:border-white"
-                title="Refresh and recalculate payroll"
+                title="Refresh payroll data"
                 style={{ color: 'var(--text-slate-900)' }}
               >
-                <RefreshCw className={`w-5 h-5 ${isAnyRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Button
                 onClick={handleCaptureScreenshot}
@@ -923,14 +854,14 @@ export default function DriverPayroll() {
             <div id="payroll-controls" className="hidden lg:flex items-center gap-1 ml-auto">
               <Button
                 onClick={handleManualRefresh}
-                disabled={isAnyRefreshing || isLoadingPayroll}
+                disabled={isRefreshing || isLoadingPayroll}
                 size="sm"
                 variant="ghost"
                 className="p-2 h-auto"
-                title="Refresh and recalculate payroll"
+                title="Refresh payroll data"
                 style={{ color: 'var(--text-slate-900)' }}
               >
-                <RefreshCw className={`w-5 h-5 ${isAnyRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Button
                 onClick={handleCaptureScreenshot}

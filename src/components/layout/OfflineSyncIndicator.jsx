@@ -20,8 +20,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   useEffect(() => {
     if (!isVisible) return;
-    // Load initial stats with current user for role-based filtering
-    getSyncStats(currentUser).then(stats => {
+    // Load initial stats
+    getSyncStats().then(stats => {
       console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', stats);
       setStats(stats);
       // CRITICAL: Always mark as loaded - show counts even if 0
@@ -113,25 +113,13 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       }
     };
 
-    // CRITICAL: Listen for Pull To Sync completion
-    const handlePullToSyncComplete = async () => {
-      console.log('✅ [OfflineSyncIndicator] Pull To Sync complete - refreshing stats');
-      const updatedStats = await getSyncStats();
-      setStats(updatedStats);
-      setRuntimeStats({});
-      setIsSyncing(false);
-      console.log('📊 [OfflineSyncIndicator] Stats refreshed after Pull To Sync:', updatedStats);
-    };
-
     window.addEventListener('periodicSyncProgress', handlePeriodicSync);
     window.addEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
-    window.addEventListener('pullToSyncComplete', handlePullToSyncComplete);
 
     return () => {
       unsubscribe();
       window.removeEventListener('periodicSyncProgress', handlePeriodicSync);
       window.removeEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
-      window.removeEventListener('pullToSyncComplete', handlePullToSyncComplete);
     };
   }, [isVisible]);
 
@@ -143,9 +131,15 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const handleForceSync = async () => {
     try {
       setIsSyncing(true);
-      console.log('🔄 [OfflineSyncIndicator] Starting offline DB refresh...');
+      console.log('🔄 [OfflineSyncIndicator] Starting COMPLETE offline DB refresh...');
 
-      // Force fresh sync from server (updates data, doesn't clear it)
+      // CRITICAL: Clear ALL offline DB stores first to force fresh sync
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      console.log('🗑️ [OfflineSyncIndicator] Clearing offline DB...');
+      await offlineDB.clearAllData();
+      console.log('✅ [OfflineSyncIndicator] Offline DB cleared');
+
+      // Force fresh sync from server
       const syncResult = await forceSyncAll();
       console.log('✅ [OfflineSyncIndicator] forceSyncAll complete:', syncResult);
       
@@ -167,21 +161,16 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       
       // Load fresh deliveries and trigger delivery update event
-      try {
-        const { offlineDB } = await import('@/components/utils/offlineDatabase');
-        const selectedDateStr = sessionStorage.getItem('rxdeliver_selected_date') || 
-                               new Date().toISOString().split('T')[0];
-        
-        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        
-        if (freshDeliveries && freshDeliveries.length > 0) {
-          console.log(`📦 [OfflineSyncIndicator] Triggering deliveriesImported with ${freshDeliveries.length} deliveries`);
-          window.dispatchEvent(new CustomEvent('deliveriesImported', {
-            detail: { source: 'manual_sync', deliveries: freshDeliveries }
-          }));
-        }
-      } catch (dbError) {
-        console.warn('⚠️ [OfflineSyncIndicator] Could not fetch deliveries from offline DB:', dbError.message);
+      const selectedDateStr = sessionStorage.getItem('rxdeliver_selected_date') || 
+                             new Date().toISOString().split('T')[0];
+      
+      const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+      
+      if (freshDeliveries && freshDeliveries.length > 0) {
+        console.log(`📦 [OfflineSyncIndicator] Triggering deliveriesImported with ${freshDeliveries.length} deliveries`);
+        window.dispatchEvent(new CustomEvent('deliveriesImported', {
+          detail: { source: 'manual_sync', deliveries: freshDeliveries }
+        }));
       }
       
       // Trigger driver locations update to refresh map markers

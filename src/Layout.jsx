@@ -1589,20 +1589,6 @@ export default function Layout({ children, currentPageName }) {
             if (prev.some((d) => d?.id === update.id)) return prev;
             return [...prev, update.data];
           });
-          // CRITICAL: Save to offline DB immediately
-          offlineDB.save(offlineDB.STORES.DELIVERIES, update.data).catch(() => {});
-          
-          // CRITICAL: Trigger UI refresh events for Dashboard to show new delivery
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { 
-              deliveryId: update.id,
-              deliveryDate: update.data?.delivery_date,
-              driverId: update.data?.driver_id,
-              triggeredBy: 'realtimeCreate'
-            }
-          }));
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          
           // Refresh catalog items if delivery has COD
           if (update.data?.cod_total_amount_required) {
             setTimeout(() => {
@@ -1617,9 +1603,11 @@ export default function Layout({ children, currentPageName }) {
           setDeliveries((prev) => prev.map((d) =>
           d?.id === update.id ? { ...d, ...update.data } : d
           ));
-          // CRITICAL: Update offline DB immediately
-          offlineDB.save(offlineDB.STORES.DELIVERIES, update.data).catch(() => {});
-          
+          console.log(`📥 [Layout] Real-time delivery update: ${update.id}, status: ${update.data?.status}`);
+          // CRITICAL: Force polyline update when delivery status changes
+          if (update.data?.driver_id && update.data?.delivery_date) {
+            updatePolylineOnRefresh(update.data.driver_id, update.data.delivery_date);
+          }
           console.log(`📥 [Layout] Real-time delivery update: ${update.id}, status: ${update.data?.status}`);
           // CRITICAL: Force polyline update when delivery status changes
           if (update.data?.driver_id && update.data?.delivery_date) {
@@ -3224,21 +3212,6 @@ export default function Layout({ children, currentPageName }) {
           --border: 0 0 0;
           --input: 0 0 0;
           --ring: 5 150 105;
-        }
-
-        /* Toast notifications positioning - moved below mobile header */
-        @media (max-width: 767px) {
-          /* Mobile: adjust toast position for header - move much lower */
-          [data-sonner-toaster] {
-            top: 160px !important;
-            bottom: auto !important;
-          }
-          
-          /* Fallback for other toast implementations */
-          [role="status"] {
-            top: 160px !important;
-            bottom: auto !important;
-          }
         }
 
         .border-yellow-400,

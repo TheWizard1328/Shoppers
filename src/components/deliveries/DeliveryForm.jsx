@@ -141,7 +141,7 @@ export default function DeliveryForm({
       patient_id: "",
       delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
       delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
-      time_window_start: "", time_window_end: "", status: "pending",
+      time_window_start: "", time_window_end: "", status: "Staged",
       driver_name: "", driver_id: "", prescription_number: "",
       delivery_instructions: "", delivery_notes: "",
       cod_total_amount_required: 0, cod_payments: [],
@@ -1116,7 +1116,7 @@ export default function DeliveryForm({
       delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       puid: puid || '',
       ampm_deliveries: timeSlot,
-      status: 'pending',
+      status: 'Staged',
       _tempId: Date.now() + Math.random(),
       patient_name: updatedFormData.patient_name || patient.full_name || 'N/A',
       store_name: patientStore.name,
@@ -2041,7 +2041,7 @@ export default function DeliveryForm({
       cod_total_amount_required: codAmount,
       puid: puid || '',
       ampm_deliveries: timeSlot,
-      status: 'pending',
+      status: 'Staged',
       _tempId: Date.now() + Math.random(),
       patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
       store_name: store.name,
@@ -2052,48 +2052,7 @@ export default function DeliveryForm({
       first_delivery: isNewPatient || !patient?.last_delivery_date // Mark as first delivery if new patient or no last delivery date
     };
 
-    // CRITICAL: Save to database immediately with stop_id assigned
-    setIsSaving(true);
-    try {
-      // Generate stop_id for the delivery
-      const { getData } = await import('../utils/dataManager');
-      const allCurrentDeliveries = await getData('Delivery');
-      const deliveriesArray = Array.isArray(allCurrentDeliveries) ? allCurrentDeliveries : [];
-      const stop_id = await generateStopId(formData.delivery_date, deliveriesArray);
-      
-      const savedDelivery = await createDeliveryLocal({
-        ...newStagedDelivery,
-        stop_id: stop_id,
-        tracking_number: 'temp',
-        stop_order: 9999
-      });
-      console.log('✅ [handleAddToStaging] Delivery saved to database with SID:', savedDelivery.id, stop_id);
-      
-      // Add saved delivery to staged list with ID and stop_id for display
-      setStagedDeliveries((prev) => [...prev, { ...newStagedDelivery, id: savedDelivery.id, stop_id: stop_id }]);
-      
-      // Call reorderStops to assign proper TR# and stop_order
-      if (formData.driver_id && formData.delivery_date) {
-        await reorderStops(formData.driver_id, formData.delivery_date, allCurrentDeliveries);
-      }
-      
-      // Trigger UI refresh
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { 
-          deliveryDate: formData.delivery_date, 
-          driverId: formData.driver_id,
-          triggeredBy: 'addButtonSave'
-        }
-      }));
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-    } catch (saveError) {
-      console.error('Failed to save delivery:', saveError);
-      setError(`Failed to save: ${saveError.message}`);
-      setIsSaving(false);
-      return;
-    } finally {
-      setIsSaving(false);
-    }
+    setStagedDeliveries((prev) => [...prev, newStagedDelivery]);
 
     // CRITICAL: Only auto-add default pickups when ADDING to an existing driver route
     // Skip if this is the FIRST delivery (driver's default stops already created)
@@ -2394,60 +2353,32 @@ export default function DeliveryForm({
   }, [editingStagedId, formData, isFormValid, patients, stores, isPickupMode, isMobileDevice]);
 
   const handleBatchSave = useCallback(async () => {
-    console.log('[Done] 🚪 Closing form...');
-    // Stop predictions
-    predictionsStopped.current = true;
-    setIsLoadingPredictions(true);
-    setProjectedDeliveries([]);
-    
-    // Clear state
-    setStagedDeliveries([]);
-    setHasPendingDeletes(false);
-    setHasChanges(false);
-    hasLoadedPending.current = false;
+    console.log('='.repeat(50));
+    console.log('[AddToRoute] 🎯 DeliveryForm: handleBatchSave initiated');
+    console.log('[AddToRoute] 📦 Staged deliveries count:', stagedDeliveries.length);
+    console.log('[AddToRoute] 📦 Staged deliveries:', stagedDeliveries.map((s) => ({
+      id: s.id,
+      _tempId: s._tempId,
+      patient_name: s.patient_name,
+      status: s.status,
+      hasId: !!s.id
+    })));
 
-    // Refresh route data for all drivers on the selected date
-    try {
-      console.log('[Done] 🔄 Refreshing route data for all drivers...');
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { 
-          deliveryDate: formData.delivery_date,
-          refreshAllDrivers: true,
-          triggeredBy: 'doneButton'
-        }
-      }));
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-      
-      // CRITICAL: Trigger Pull To Sync to refresh data from server
-      window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true } }));
-    } catch (error) {
-      console.warn('⚠️ [Done] Failed to refresh route data:', error);
+    // CRITICAL: Stop prediction manager COMPLETELY when Done button is clicked
+    console.log('⏸️ [DeliveryForm] Stopping delivery prediction manager PERMANENTLY...');
+    predictionsStopped.current = true; // Block predictions permanently
+    setIsLoadingPredictions(true); // Block predictions immediately
+    setProjectedDeliveries([]); // Clear projections
+
+    if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
+      console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
+      hasLoadedPending.current = false; // Reset flag when closing without saves
+      predictionsStopped.current = false; // Reset for next open
+      onCancel(); // Close form immediately
+      return;
     }
 
-    // Resume background operations
-    (async () => {
-      try {
-        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-        const { driverLocationPoller } = await import('../utils/driverLocationPoller');
-        const { routePolylineManager } = await import('../utils/routePolylineManager');
-        const { fabControlEvents } = await import('../utils/fabControlEvents');
-        
-        smartRefreshManager.resume();
-        driverLocationPoller.resume();
-        routePolylineManager?.resume?.();
-        fabControlEvents.resumeFAB();
-        
-        console.log('▶️ [Done] Resumed background operations');
-      } catch (error) {
-        console.warn('⚠️ [Done] Failed to resume managers:', error);
-      }
-    })();
-    
-    onCancel();
-  }, [onCancel, formData.delivery_date]);
-
-  // REMOVE THIS: Old logic for pending deletes
-  const REMOVED_handleBatchSave_OLD = useCallback(async () => {
+    // CRITICAL: If only pending deletes (no staged items), close form FIRST then refresh
     if (stagedDeliveries.length === 0 && hasPendingDeletes) {
       console.log('[AddToRoute] 🗑️ Processing pending deletes (Done button clicked)...');
       
@@ -2515,11 +2446,10 @@ export default function DeliveryForm({
           console.error('[AddToRoute] ❌ Background refresh failed:', error);
         }
       }, 100);
+      
+      return;
     }
-    // END OF REMOVED OLD CODE
-  }, []);
 
-  const REMOVED_OLD_BATCH_SAVE_2 = useCallback(async () => {
     // CRITICAL: Filter out any deliveries that no longer exist in the database
     // This prevents errors when a delivery was deleted but still in stagedDeliveries
     const validStagedDeliveries = stagedDeliveries.filter((staged) => {
@@ -3131,8 +3061,7 @@ export default function DeliveryForm({
     } finally {
       setIsSaving(false);
     }
-  }, []);
-  // END OF REMOVED OLD BATCH SAVE CODE
+  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId]);
 
   const handleSearchKeyDown = useCallback((e) => {
     // Handle Escape key - always trigger Clear button behavior
@@ -3676,25 +3605,7 @@ export default function DeliveryForm({
       if (confirmed) {
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
-        hasLoadedPending.current = false;
-        
-        // Refresh route data for all drivers on the selected date
-        try {
-          console.log('[Cancel] 🔄 Refreshing route data for all drivers...');
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { 
-              deliveryDate: formData.delivery_date,
-              refreshAllDrivers: true,
-              triggeredBy: 'cancelButton'
-            }
-          }));
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          
-          // CRITICAL: Trigger offline sync to pull fresh data from server
-          window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
-        } catch (error) {
-          console.warn('⚠️ [Cancel] Failed to refresh route data:', error);
-        }
+        hasLoadedPending.current = false; // Reset flag to allow reload
         
         // CRITICAL: Resume background operations before closing
         (async () => {
@@ -3724,24 +3635,6 @@ export default function DeliveryForm({
         hasLoadedPending.current = false;
       }
       
-      // Refresh route data for all drivers on the selected date
-      try {
-        console.log('[Cancel] 🔄 Refreshing route data for all drivers...');
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { 
-            deliveryDate: formData.delivery_date,
-            refreshAllDrivers: true,
-            triggeredBy: 'cancelButton'
-          }
-        }));
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        
-        // CRITICAL: Trigger offline sync to pull fresh data from server
-        window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
-      } catch (error) {
-        console.warn('⚠️ [Cancel] Failed to refresh route data:', error);
-      }
-      
       // CRITICAL: Resume background operations before closing
       (async () => {
         try {
@@ -3763,7 +3656,7 @@ export default function DeliveryForm({
       
       onCancel();
     }
-  }, [stagedDeliveries, onCancel, delivery, formData.delivery_date]);
+  }, [stagedDeliveries, onCancel, delivery]);
 
   useEffect(() => {
     const handleEnterKey = (event) => {
@@ -4203,25 +4096,13 @@ export default function DeliveryForm({
     const store = stores.find((s) => s && s.id === projected.store_id);
     if (!store) {
       console.error('Store not found for projected delivery:', projected.store_id);
-      return null;
+      return;
     }
 
-    // CRITICAL: Fetch fresh patient data to ensure it exists
-    let patient = patients.find((p) => p && p.id === projected.patient_id);
+    const patient = patients.find((p) => p && p.id === projected.patient_id);
     if (!patient) {
-      console.warn('Patient not in local state, fetching fresh data:', projected.patient_id);
-      try {
-        const { getData } = await import('../utils/dataManager');
-        const freshPatients = await getData('Patient', null, null, true);
-        patient = freshPatients.find((p) => p && p.id === projected.patient_id);
-        if (!patient) {
-          console.error('Patient not found for projected delivery:', projected.patient_id);
-          return null;
-        }
-      } catch (error) {
-        console.error('Failed to fetch fresh patient data:', error);
-        return null;
-      }
+      console.error('Patient not found for projected delivery:', projected.patient_id);
+      return;
     }
 
     // Use existing distance_from_store if available, otherwise calculate
@@ -4301,7 +4182,7 @@ export default function DeliveryForm({
       time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       puid: '', // Will be updated after async call
       ampm_deliveries: timeSlot,
-      status: 'pending',
+      status: 'Staged',
       driver_id: autoSelectedDriverId,
       driver_name: autoSelectedDriverName,
       prescription_number: projected.prescription_number || '',
@@ -4355,9 +4236,6 @@ export default function DeliveryForm({
     setStagedDeliveries((prev) => [...prev, newStagedItem]);
     setHasChanges(true);
 
-    // Return the staged item so caller can save it
-    const stagedItemToReturn = { ...newStagedItem };
-
     // Now do async PUID lookup ONLY if not found in staged
     if (autoDriverId && !puid) {
       try {
@@ -4410,11 +4288,8 @@ export default function DeliveryForm({
         setStagedDeliveries((prev) => prev.map((item) => 
           item._tempId === newStagedItem._tempId ? { ...item, puid } : item
         ));
-        stagedItemToReturn.puid = puid;
       }
     }
-    
-    return stagedItemToReturn;
   }, [formData, stores, patients, drivers, allDeliveries, stagedDeliveries]);
 
   const sortedStagedDeliveries = useMemo(() => {
