@@ -20,8 +20,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   useEffect(() => {
     if (!isVisible) return;
-    // Load initial stats
-    getSyncStats().then(stats => {
+    // Load initial stats with current user for role-based filtering
+    getSyncStats(currentUser).then(stats => {
       console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', stats);
       setStats(stats);
       // CRITICAL: Always mark as loaded - show counts even if 0
