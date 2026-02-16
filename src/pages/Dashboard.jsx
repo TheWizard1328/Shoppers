@@ -382,10 +382,11 @@ function Dashboard({ currentPageName }) {
   // CRITICAL: Declare isPrimaryDevice early (before useEffects that need it)
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(false);
 
-  // CRITICAL: Calculate isDriver and isAdmin early (before useEffects that need them)
+  // CRITICAL: Calculate isDriver and isAdmin early (before ANY code that uses them)
   const isMobile = useMemo(() => isMobileDevice(), []);
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
+  const isDispatcher = useMemo(() => currentUser ? userHasRole(currentUser, 'dispatcher') : false, [currentUser]);
 
   // ==================== REAL-TIME SUBSCRIPTIONS ====================
   // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
