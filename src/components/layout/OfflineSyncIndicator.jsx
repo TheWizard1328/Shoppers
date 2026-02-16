@@ -116,7 +116,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     // CRITICAL: Listen for Pull To Sync completion
     const handlePullToSyncComplete = async () => {
       console.log('✅ [OfflineSyncIndicator] Pull To Sync complete - refreshing stats');
-      const updatedStats = await getSyncStats();
+      const updatedStats = await getSyncStats(currentUser);
       setStats(updatedStats);
       setRuntimeStats({});
       setIsSyncing(false);
