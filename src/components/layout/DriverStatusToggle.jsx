@@ -28,13 +28,14 @@ const broadcastMutation = async (entity, action, id, data) => {
  */
 export default function DriverStatusToggle({ currentUser, onStatusChange, onBreakStart, onBreakEnd, vertical = false }) {
   // CRITICAL: Move all hooks to top before any conditions - prevents hook mismatch errors
-  const [status, setStatus] = useState(currentUser?.driver_status || 'off_duty');
+  const [status, setStatus] = useState('off_duty');
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState(null);
   const [appUserId, setAppUserId] = useState(null);
   const [savedPhaseBeforeBreak, setSavedPhaseBeforeBreak] = useState(null);
   const appDataContext = useAppData();
   const setIsEntityUpdating = appDataContext?.setIsEntityUpdating || (() => {});
+  const isTogglingRef = useRef(false);
 
   // Find AppUser ID and initialize locationTracker's status on mount
   useEffect(() => {
