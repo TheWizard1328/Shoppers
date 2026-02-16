@@ -143,15 +143,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const handleForceSync = async () => {
     try {
       setIsSyncing(true);
-      console.log('🔄 [OfflineSyncIndicator] Starting COMPLETE offline DB refresh...');
+      console.log('🔄 [OfflineSyncIndicator] Starting offline DB refresh...');
 
-      // CRITICAL: Clear ALL offline DB stores first to force fresh sync
-      const { offlineDB } = await import('../utils/offlineDatabase');
-      console.log('🗑️ [OfflineSyncIndicator] Clearing offline DB...');
-      await offlineDB.clearAllData();
-      console.log('✅ [OfflineSyncIndicator] Offline DB cleared');
-
-      // Force fresh sync from server
+      // Force fresh sync from server (updates data, doesn't clear it)
       const syncResult = await forceSyncAll();
       console.log('✅ [OfflineSyncIndicator] forceSyncAll complete:', syncResult);
       
