@@ -4266,6 +4266,7 @@ export default function DeliveriesPage() {
       <AnimatePresence>
         {showDeliveryForm &&
         <motion.div
+          key="delivery-form"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -4292,26 +4293,40 @@ export default function DeliveriesPage() {
           </motion.div>
         }
         {showImportModal &&
-        <RouteImport
-          onImportComplete={handleImportComplete}
-          onCancel={() => setShowImportModal(false)}
-          patients={allPatients || []}
-          stores={stores || []}
-          drivers={(allUsers || []).filter((u) => userHasRole(u, 'driver')) || []}
-          allUsers={allUsers}
-          currentUser={currentUser} />
-
+        <motion.div
+          key="route-import"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}>
+          <RouteImport
+            onImportComplete={handleImportComplete}
+            onCancel={() => setShowImportModal(false)}
+            patients={allPatients || []}
+            stores={stores || []}
+            drivers={(allUsers || []).filter((u) => userHasRole(u, 'driver')) || []}
+            allUsers={allUsers}
+            currentUser={currentUser} />
+        </motion.div>
         }
-        <RouteMapView
-          isOpen={showRouteMap}
-          onClose={() => setShowRouteMap(false)}
-          deliveries={filteredAndSortedDeliveries}
-          patients={effectivePatients || []}
-          stores={stores || []}
-          drivers={effectiveDrivers || []}
-          selectedDate={selectedDate}
-          currentUser={currentUser} />
-
+        {showRouteMap &&
+        <motion.div
+          key="route-map"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}>
+          <RouteMapView
+            isOpen={showRouteMap}
+            onClose={() => setShowRouteMap(false)}
+            deliveries={filteredAndSortedDeliveries}
+            patients={effectivePatients || []}
+            stores={stores || []}
+            drivers={effectiveDrivers || []}
+            selectedDate={selectedDate}
+            currentUser={currentUser} />
+        </motion.div>
+        }
       </AnimatePresence>
     </div>);
 
