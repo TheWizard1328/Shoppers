@@ -92,7 +92,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       // If sync complete, refresh stats after short delay
       if (isComplete) {
         setTimeout(() => {
-          getSyncStats().then(newStats => {
+          getSyncStats(currentUser).then(newStats => {
             console.log('📊 [OfflineSyncIndicator] Periodic sync complete - stats:', newStats);
             setStats(newStats);
             setRuntimeStats({});
