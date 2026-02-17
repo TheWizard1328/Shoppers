@@ -316,55 +316,52 @@ Deno.serve(async (req) => {
             }
           }
         } else if (patient.recurring_weekly_x4) {
-          // Weekly x4 pattern: 4 times per week
-          // If recurring_weekly_x4_day is set, ONLY deliver on that specific day of the week
+          // Weekly x4 pattern: check back 4 weeks (and 8 weeks as backup) for matching deliveries
           if (patient.recurring_weekly_x4_day) {
             const dayMap = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
             const targetDay = dayMap[patient.recurring_weekly_x4_day];
             
-            // Check if today matches the configured day
+            // Only project if target date matches the configured day of week
             if (targetDayOfWeek === targetDay) {
-              if (patient.last_delivery_date) {
-                const lastDeliveryDate = new Date(patient.last_delivery_date);
-                const daysSinceLastDelivery = Math.round((targetDate - lastDeliveryDate) / (1000 * 60 * 60 * 24));
-                
-                // Check if no recent delivery near target date (within ±3 days)
-                const recentDeliveries = historicalDeliveries.filter(d => 
-                  d && d.patient_id === patient.id && d.status === 'completed'
-                );
-                const hasRecentDeliveryNearTarget = recentDeliveries.some(d => {
-                  const deliveryDate = new Date(d.delivery_date);
-                  const daysDiff = Math.abs(Math.round((targetDate - deliveryDate) / (1000 * 60 * 60 * 24)));
-                  return daysDiff <= 3 && daysDiff !== 0;
-                });
-                
-                if (!hasRecentDeliveryNearTarget && daysSinceLastDelivery >= 1 && daysSinceLastDelivery <= 3) {
-                  shouldInclude = true;
-                  confidence = 0.9;
-                  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                  reason = `Weekly x4 ${dayNames[targetDay]} pattern`;
-                }
+              // Get all completed deliveries for this patient
+              const patientDeliveries = historicalDeliveries.filter(d =>
+                d && d.patient_id === patient.id && d.status === 'completed'
+              );
+              
+              // Check 4 weeks back (±2 days window)
+              const fourWeeksAgo = new Date(targetDate);
+              fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+              const fourWeeksAgoStart = new Date(fourWeeksAgo);
+              fourWeeksAgoStart.setDate(fourWeeksAgoStart.getDate() - 2);
+              const fourWeeksAgoEnd = new Date(fourWeeksAgo);
+              fourWeeksAgoEnd.setDate(fourWeeksAgoEnd.getDate() + 2);
+              
+              const deliveryIn4WeekWindow = patientDeliveries.some(d => {
+                const deliveryDate = new Date(d.delivery_date);
+                return deliveryDate >= fourWeeksAgoStart && deliveryDate <= fourWeeksAgoEnd;
+              });
+              
+              // Check 8 weeks back (±2 days window) as backup
+              const eightWeeksAgo = new Date(targetDate);
+              eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
+              const eightWeeksAgoStart = new Date(eightWeeksAgo);
+              eightWeeksAgoStart.setDate(eightWeeksAgoStart.getDate() - 2);
+              const eightWeeksAgoEnd = new Date(eightWeeksAgo);
+              eightWeeksAgoEnd.setDate(eightWeeksAgoEnd.getDate() + 2);
+              
+              const deliveryIn8WeekWindow = patientDeliveries.some(d => {
+                const deliveryDate = new Date(d.delivery_date);
+                return deliveryDate >= eightWeeksAgoStart && deliveryDate <= eightWeeksAgoEnd;
+              });
+              
+              // Include if either 4-week or 8-week pattern matches
+              if (deliveryIn4WeekWindow || deliveryIn8WeekWindow) {
+                shouldInclude = true;
+                confidence = deliveryIn4WeekWindow ? 0.95 : 0.9;
+                const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const weekPattern = deliveryIn4WeekWindow ? '4-week' : '8-week';
+                reason = `Weekly x4 ${dayNames[targetDay]} pattern (${weekPattern} cycle)`;
               }
-            }
-          } else if (patient.last_delivery_date) {
-            // Fallback: no day configured, use time-based logic
-            const lastDeliveryDate = new Date(patient.last_delivery_date);
-            const daysSinceLastDelivery = Math.round((targetDate - lastDeliveryDate) / (1000 * 60 * 60 * 24));
-            
-            // Check recent deliveries
-            const recentDeliveries = historicalDeliveries.filter(d => 
-              d && d.patient_id === patient.id && d.status === 'completed'
-            );
-            const hasRecentDeliveryNearTarget = recentDeliveries.some(d => {
-              const deliveryDate = new Date(d.delivery_date);
-              const daysDiff = Math.abs(Math.round((targetDate - deliveryDate) / (1000 * 60 * 60 * 24)));
-              return daysDiff <= 3 && daysDiff !== 0;
-            });
-            
-            if (!hasRecentDeliveryNearTarget && daysSinceLastDelivery >= 1 && daysSinceLastDelivery <= 3) {
-              shouldInclude = true;
-              confidence = 0.9;
-              reason = 'Weekly x4 recurring pattern';
             }
           }
         } else if (patient.recurring_weekly_mon && targetDayOfWeek === 1) {
