@@ -3373,6 +3373,9 @@ return polylines.length > 0 ? polylines : null;
                currentDriverLocation_lng: currentDriverLocation?.longitude?.toFixed(5)
              });
 
+             // CRITICAL: Get latest driver data from realtimeAppUsers (freshest source)
+             const latestDriverData = realtimeAppUsers.find(u => u && u.id === driverId) || driverAppUser;
+
              let startPoint = null;
 
              if (isCurrentUserOnMobile) {
@@ -3385,8 +3388,6 @@ return polylines.length > 0 ? polylines : null;
                }
              } else {
                // Non-primary devices - ALWAYS use latest shared AppUser location from realtimeAppUsers
-               // CRITICAL: realtimeAppUsers is the freshest source (real-time from WebSocket)
-               const latestDriverData = realtimeAppUsers.find(u => u && u.id === driverId) || driverAppUser;
                if (latestDriverData?.current_latitude && latestDriverData?.current_longitude) {
                  startPoint = [latestDriverData.current_latitude, latestDriverData.current_longitude];
                  console.log(`🔵 [Type1Poly-Incomplete] ✅ Using SHARED location for ${driverName}:`, startPoint.map(c => c.toFixed(5)));
