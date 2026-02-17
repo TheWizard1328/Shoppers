@@ -3400,19 +3400,21 @@ return polylines.length > 0 ? polylines : null;
                return;
              }
 
-             // CRITICAL: Include location coordinates in key to force re-render on location update
+             // CRITICAL: Include BOTH location coordinates AND driver data state in key to force re-render
+             // This ensures the polyline updates every time the driver's shared location changes
+             const driverStateKey = `${latestDriverData?.current_latitude?.toFixed(6)}:${latestDriverData?.current_longitude?.toFixed(6)}`;
              const locationKey = `${startPoint[0].toFixed(6)}-${startPoint[1].toFixed(6)}`;
 
              console.log(`🔵 [Type1Poly-Incomplete] ✅ RENDERING Type 1 polyline for ${driverName}:`, {
                from: startPoint.map(c => c.toFixed(5)),
                to: [nextStop.latitude.toFixed(5), nextStop.longitude.toFixed(5)],
                nextStop: nextStop.patient?.full_name || nextStop.store?.name || 'Unknown',
-               polylineKey: `type1-${driverId}-${nextStop.id}-${locationKey}-${polylineRenderKey}`
+               polylineKey: `type1-${driverId}-${nextStop.id}-${driverStateKey}-${polylineRenderKey}`
              });
 
              polylines.push(
               <Polyline
-                key={`type1-${driverId}-${nextStop.id}-${locationKey}-${polylineRenderKey}`}
+                key={`type1-${driverId}-${nextStop.id}-${driverStateKey}-${polylineRenderKey}`}
                 positions={[startPoint, [nextStop.latitude, nextStop.longitude]]}
                 pathOptions={{
                   color: '#3B82F6',
