@@ -575,111 +575,168 @@ function Dashboard() {
     
     window.addEventListener('deliveryUpdated', handleDeliveryUpdated);
     
-    // Subscribe to Delivery entity changes (keep for debugging)
-    console.log('🔌 [Dashboard] Setting up Delivery subscription...');
-    const unsubscribeDeliveries = base44.entities.Delivery.subscribe((event) => {
-      console.log(`📡 [Real-time Delivery DIRECT] ${event.type} event:`, event.data?.patient_name || event.id, 'driver:', event.data?.driver_id);
-      console.log('📦 [Real-time Delivery DIRECT] Full event data:', JSON.stringify(event.data, null, 2));
-      
-      // CRITICAL: Check if this delivery is for the selected date
-      const deliveryDate = event.data?.delivery_date;
-      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-      const isForSelectedDate = deliveryDate === selectedDateStr;
-      
-      // CRITICAL: Determine if this is another driver's change
-      const isOwnChange = event.data?.driver_id === currentUser?.id;
-      const isOtherDriver = !isOwnChange;
-      
-      // CRITICAL: Check if this is a non-primary device
-      const isNonPrimaryDevice = !isPrimaryDevice;
-      
-      // DEBUG: Log who made the change
-      if (isOtherDriver) {
-        console.log(`🔔 [Real-time] OTHER DRIVER UPDATE - driver_id: ${event.data?.driver_id}, my id: ${currentUser?.id}`);
-      } else {
-        console.log(`📍 [Real-time] OWN UPDATE - same driver`);
+  // ==================== REAL-TIME SUBSCRIPTIONS ====================
+  // DEBOUNCE: Accumulate delivery updates and process them in batches
+  const pendingDeliveryUpdatesRef = useRef({ creates: [], updates: [], deletes: [] });
+  const deliveryDebounceTimerRef = useRef(null);
+  
+  const processBatchedDeliveryUpdates = useCallback(() => {
+    const { creates, updates, deletes } = pendingDeliveryUpdatesRef.current;
+    const totalChanges = creates.length + updates.length + deletes.length;
+    
+    if (totalChanges === 0) return;
+    
+    console.log(`📦 [Debounced Updates] Processing batch: ${creates.length} creates, ${updates.length} updates, ${deletes.length} deletes`);
+    
+    // Process all changes at once
+    if (creates.length > 0) {
+      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, creates).catch(console.error);
+      if (updateDeliveriesLocally) {
+        updateDeliveriesLocally(creates, false);
       }
+    }
+    
+    if (updates.length > 0) {
+      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updates).catch(console.error);
+      if (updateDeliveriesLocally) {
+        updateDeliveriesLocally(updates, false);
+      }
+    }
+    
+    if (deletes.length > 0) {
+      deletes.forEach(id => {
+        offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(console.error);
+      });
+      if (updateDeliveriesLocally && deliveries) {
+        const filtered = deliveries.filter(d => !deletes.includes(d?.id));
+        updateDeliveriesLocally(filtered, true);
+      }
+    }
+    
+    // Single map update for all changes
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: { triggeredBy: 'realtimeBatch', changeCount: totalChanges }
+    }));
+    
+    // Force stats refresh
+    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    
+    // Auto-center to next delivery card if updates included status changes
+    if (updates.length > 0) {
+      setTimeout(() => {
+        const nextDeliveryCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+        if (nextDeliveryCard) {
+          const cardElement = document.getElementById(`stop-card-${nextDeliveryCard.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log(`✅ [Debounced Updates] Auto-centered to next delivery card`);
+          }
+        }
+      }, 400);
+    }
+    
+    // Clear the batch
+    pendingDeliveryUpdatesRef.current = { creates: [], updates: [], deletes: [] };
+    
+    console.log(`✅ [Debounced Updates] Batch complete - map markers updated`);
+  }, [updateDeliveriesLocally, deliveries, deliveriesWithStopOrder]);
+  
+  const scheduleDeliveryUpdate = useCallback((type, data) => {
+    // Add to pending batch
+    if (type === 'create' && data) {
+      pendingDeliveryUpdatesRef.current.creates.push(data);
+    } else if (type === 'update' && data) {
+      pendingDeliveryUpdatesRef.current.updates.push(data);
+    } else if (type === 'delete' && data) {
+      pendingDeliveryUpdatesRef.current.deletes.push(data);
+    }
+    
+    // Clear existing timer and start new one
+    if (deliveryDebounceTimerRef.current) {
+      clearTimeout(deliveryDebounceTimerRef.current);
+    }
+    
+    // Process batch after 100ms of quiet time
+    deliveryDebounceTimerRef.current = setTimeout(() => {
+      processBatchedDeliveryUpdates();
+      deliveryDebounceTimerRef.current = null;
+    }, 100);
+  }, [processBatchedDeliveryUpdates]);
+  
+  // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
+  useEffect(() => {
+    if (!currentUser || !isDataLoaded) return;
+
+    console.log('🔌 [Real-time] Subscribing to Patient, Delivery, and AppUser changes...');
+    
+    // CRITICAL: Listen for immediate updates from Done button (includes fresh data)
+    const handleImmediateDeliveryUpdate = async (event) => {
+      const { immediate, freshDeliveries, deliveryDate, driverId } = event.detail || {};
       
-      if (event.type === 'create') {
-        // CRITICAL: Update offline DB and UI simultaneously
-        if (event.data) {
-          // Update offline DB
-          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
-          
-          // Update UI immediately
-          if (updateDeliveriesLocally) {
-            updateDeliveriesLocally([event.data], false);
-          }
-          
-          // Trigger map and legend update
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeCreate' }
-          }));
-          
-          console.log(`✅ [Real-time Create] Updated offline DB + UI simultaneously`);
-        }
-      } else if (event.type === 'update') {
-        // CRITICAL: Update offline DB and UI simultaneously
-        if (event.data) {
-          // Update offline DB
-          offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [event.data]).catch(console.error);
-          
-          // Update UI immediately
-          if (updateDeliveriesLocally) {
-            console.log(`🔄 [Real-time] Updating UI with delivery: ${event.data.patient_name}, status: ${event.data.status}`);
-            updateDeliveriesLocally([event.data], false);
-          }
-          
-          console.log(`✅ [Real-time Update] Updated offline DB + UI simultaneously`);
-          
-          // CRITICAL: After UI update, check if any delivery now has isNextDelivery=true and auto-center
-          setTimeout(() => {
-            // Collapse all expanded cards
-            setSelectedCardId(null);
-            setHighlightedCardId(null);
-            cardExpandedAtRef.current = null;
-            window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
-            
-            // Find and center the next delivery card
-            const nextDeliveryCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-            if (nextDeliveryCard) {
-              const cardElement = document.getElementById(`stop-card-${nextDeliveryCard.id}`);
-              if (cardElement) {
-                cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                console.log(`✅ [Real-time Broadcast] Auto-centered to next delivery card: ${nextDeliveryCard.patient_name}`);
-              }
-            }
-          }, 400);
-          
-          // Trigger map update
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { deliveryDate: event.data.delivery_date, triggeredBy: 'realtimeUpdate', fromOtherDriver: isOtherDriver, allDrivers: isOtherDriver }
-          }));
-          
-          // CRITICAL: Force stats card refresh
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        }
-      } else if (event.type === 'delete') {
-        // CRITICAL: Update offline DB and UI simultaneously
-        // Remove from offline DB
-        offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id).catch(console.error);
+      if (immediate && freshDeliveries && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
+        console.log(`⚡ [Dashboard] IMMEDIATE update - ${freshDeliveries.length} deliveries from Done button`);
         
-        // Update UI by filtering local state
-        if (updateDeliveriesLocally && deliveries) {
-          const filtered = deliveries.filter(d => d?.id !== event.id);
-          updateDeliveriesLocally(filtered, true);
+        // Update UI immediately using flushSync for synchronous render
+        if (updateDeliveriesLocally) {
+          flushSync(() => {
+            const otherDateDeliveries = deliveries.filter(d => d?.delivery_date !== deliveryDate);
+            updateDeliveriesLocally([...otherDateDeliveries, ...freshDeliveries], true);
+          });
+          console.log('✅ [Dashboard] UI updated synchronously');
         }
         
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { triggeredBy: 'realtimeDelete' }
+        // Force refresh driver locations and markers
+        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
+        const latestAppUsers = locationUpdates?.appUsers || appUsers;
+        
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: latestAppUsers, forceAll: true }
         }));
         
-        console.log(`✅ [Real-time Delete] Updated offline DB + UI simultaneously`);
+        // CRITICAL: Trigger map re-render with Phase 1 for 500ms
+        console.log('🗺️ [Done Button] Activating Phase 1 for 500ms to show new markers');
+        
+        setMapViewPhase(1);
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+        
+        // Auto-unlock after 500ms
+        const lockDuration = 500;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+        
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+            console.log('⏰ [Done Button] Phase 1 auto-unlocked after 500ms');
+          }
+        }, lockDuration);
+        
+        console.log('✅ [Dashboard] Immediate update complete - map will refresh');
       }
-    });
+    };
 
     return () => {
       console.log('🔌 [Real-time] Unsubscribing from Patient, Delivery, and AppUser changes');
+      
+      // Clear debounce timer
+      if (deliveryDebounceTimerRef.current) {
+        clearTimeout(deliveryDebounceTimerRef.current);
+        deliveryDebounceTimerRef.current = null;
+      }
+      
+      // Process any remaining batched updates before cleanup
+      processBatchedDeliveryUpdates();
+      
       window.removeEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
       window.removeEventListener('deliveryUpdated', handleDeliveryUpdated);
@@ -696,7 +753,7 @@ function Dashboard() {
         console.log('✅ [Real-time] Unsubscribed from AppUser');
       }
     };
-  }, [currentUser?.id, isDataLoaded, showAllDriverMarkers, selectedDriverId, updateDeliveriesLocally, updateAppUsersLocally, refreshUser, deliveries, appUsers, selectedDate, isPrimaryDevice, refreshData]);
+  }, [currentUser?.id, isDataLoaded, showAllDriverMarkers, selectedDriverId, updateDeliveriesLocally, updateAppUsersLocally, refreshUser, deliveries, appUsers, selectedDate, isPrimaryDevice, refreshData, scheduleDeliveryUpdate, processBatchedDeliveryUpdates]);
 
 
 
