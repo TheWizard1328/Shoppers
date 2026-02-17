@@ -451,11 +451,11 @@ function Dashboard() {
       clearTimeout(deliveryDebounceTimerRef.current);
     }
     
-    // Process batch after 100ms of quiet time
+    // Process batch after 500ms of quiet time
     deliveryDebounceTimerRef.current = setTimeout(() => {
       processBatchedDeliveryUpdates();
       deliveryDebounceTimerRef.current = null;
-    }, 100);
+    }, 500);
   }, [processBatchedDeliveryUpdates]);
   
   // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
@@ -2598,21 +2598,21 @@ function Dashboard() {
       }
     };
 
-    // CRITICAL: Delay first run by 30 seconds after mount to avoid overlap with mount syncs
+    // CRITICAL: Delay first run by 90 seconds after mount to avoid overlap with mount syncs
     const initialDelay = setTimeout(() => {
       runPeriodicSmartRefresh();
       if (smartRefreshManager?.checkHeartbeatAndSync) {
         smartRefreshManager.checkHeartbeatAndSync();
       }
-    }, 30000);
+    }, 90000);
     
-    // Then run on interval every 15 seconds
+    // Then run on interval every 60 seconds
     const interval = setInterval(() => {
       runPeriodicSmartRefresh();
       if (smartRefreshManager?.checkHeartbeatAndSync) {
         smartRefreshManager.checkHeartbeatAndSync();
       }
-    }, 15000);
+    }, 60000);
 
     console.log('✅ [Dashboard] Periodic refresh interval set - will run every 15 seconds');
 
