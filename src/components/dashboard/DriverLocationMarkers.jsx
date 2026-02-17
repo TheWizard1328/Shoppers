@@ -134,11 +134,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       return true;
     }
 
-    // RULE 4: Dispatcher sees assigned drivers when they have location sharing enabled
+    // RULE 4: Dispatcher sees drivers who are On Duty with active deliveries from dispatcher's stores
     if (isDispatcher && !isSelf) {
-      // CRITICAL: Check location sharing enabled FIRST (like drivers/admins)
-      if (!user.location_tracking_enabled) return false;
+      // 1. Driver must be On Duty (location sharing does NOT apply)
+      if (user.driver_status !== 'on_duty') return false;
 
+      // 2. Dispatcher must have assigned stores
       const dispatcherStoreIds = currentUser?.store_ids || [];
       if (dispatcherStoreIds.length === 0) return false;
 
@@ -146,16 +147,17 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         ? selectedDate.toISOString().split('T')[0]
         : selectedDate;
       
-      // Match deliveries by either AppUser.id or AppUser.user_id to handle both storage formats
+      // 3. Driver must have at least 1 in_transit delivery OR en_route pickup from dispatcher's stores
       const userIdForDeliveryMatch = user.id || user.user_id;
-      const hasDispatcherStoreDeliveries = deliveries?.some(d => 
+      const hasActiveDispatcherStoreDelivery = deliveries?.some(d => 
         d && 
         (d.driver_id === userIdForDeliveryMatch || d.driver_id === userId) &&
         d.delivery_date === selectedDateStr &&
-        dispatcherStoreIds.includes(d.store_id)
+        dispatcherStoreIds.includes(d.store_id) &&
+        (d.status === 'in_transit' || d.status === 'en_route')
       );
 
-      return hasDispatcherStoreDeliveries && user.status !== 'inactive';
+      return hasActiveDispatcherStoreDelivery && user.status !== 'inactive';
     }
 
     // RULE 5: Driver sees other drivers ONLY if location_tracking_enabled === true
