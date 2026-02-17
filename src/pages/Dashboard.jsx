@@ -385,6 +385,93 @@ function Dashboard() {
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
 
   // ==================== REAL-TIME SUBSCRIPTIONS ====================
+  // DEBOUNCE: Accumulate delivery updates and process them in batches
+  const pendingDeliveryUpdatesRef = useRef({ creates: [], updates: [], deletes: [] });
+  const deliveryDebounceTimerRef = useRef(null);
+  
+  const processBatchedDeliveryUpdates = useCallback(() => {
+    const { creates, updates, deletes } = pendingDeliveryUpdatesRef.current;
+    const totalChanges = creates.length + updates.length + deletes.length;
+    
+    if (totalChanges === 0) return;
+    
+    console.log(`📦 [Debounced Updates] Processing batch: ${creates.length} creates, ${updates.length} updates, ${deletes.length} deletes`);
+    
+    // Process all changes at once
+    if (creates.length > 0) {
+      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, creates).catch(console.error);
+      if (updateDeliveriesLocally) {
+        updateDeliveriesLocally(creates, false);
+      }
+    }
+    
+    if (updates.length > 0) {
+      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updates).catch(console.error);
+      if (updateDeliveriesLocally) {
+        updateDeliveriesLocally(updates, false);
+      }
+    }
+    
+    if (deletes.length > 0) {
+      deletes.forEach(id => {
+        offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(console.error);
+      });
+      if (updateDeliveriesLocally && deliveries) {
+        const filtered = deliveries.filter(d => !deletes.includes(d?.id));
+        updateDeliveriesLocally(filtered, true);
+      }
+    }
+    
+    // Single map update for all changes
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: { triggeredBy: 'realtimeBatch', changeCount: totalChanges }
+    }));
+    
+    // Force stats refresh
+    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+    
+    // Auto-center to next delivery card if updates included status changes
+    if (updates.length > 0) {
+      setTimeout(() => {
+        const nextDeliveryCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+        if (nextDeliveryCard) {
+          const cardElement = document.getElementById(`stop-card-${nextDeliveryCard.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log(`✅ [Debounced Updates] Auto-centered to next delivery card`);
+          }
+        }
+      }, 400);
+    }
+    
+    // Clear the batch
+    pendingDeliveryUpdatesRef.current = { creates: [], updates: [], deletes: [] };
+    
+    console.log(`✅ [Debounced Updates] Batch complete - map markers updated`);
+  }, [updateDeliveriesLocally, deliveries, deliveriesWithStopOrder]);
+  
+  const scheduleDeliveryUpdate = useCallback((type, data) => {
+    // Add to pending batch
+    if (type === 'create' && data) {
+      pendingDeliveryUpdatesRef.current.creates.push(data);
+    } else if (type === 'update' && data) {
+      pendingDeliveryUpdatesRef.current.updates.push(data);
+    } else if (type === 'delete' && data) {
+      pendingDeliveryUpdatesRef.current.deletes.push(data);
+    }
+    
+    // Clear existing timer and start new one
+    if (deliveryDebounceTimerRef.current) {
+      clearTimeout(deliveryDebounceTimerRef.current);
+    }
+    
+    // Process batch after 100ms of quiet time
+    deliveryDebounceTimerRef.current = setTimeout(() => {
+      processBatchedDeliveryUpdates();
+      deliveryDebounceTimerRef.current = null;
+    }, 100);
+  }, [processBatchedDeliveryUpdates]);
+  
   // Subscribe to Patient, Delivery, and AppUser entity changes via WebSockets
   useEffect(() => {
     if (!currentUser || !isDataLoaded) return;
