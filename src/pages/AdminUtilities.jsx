@@ -4124,7 +4124,6 @@ export default function AdminUtilities() {
   const handleFindDuplicates = useCallback(async (deliveriesToProcess, onAutoSelect) => {
     console.log(`🔍 Finding duplicates in ${deliveriesToProcess?.length || 0} deliveries...`);
     console.log('📊 Data source:', dataViewMode.deliveries === 'offline' ? 'OFFLINE' : 'ONLINE');
-    console.log('📊 Sample deliveries:', deliveriesToProcess?.slice(0, 3).map(d => ({ sid: d.stop_id, date: d.delivery_date, driver_id: d.driver_id })));
     
     if (!deliveriesToProcess || deliveriesToProcess.length === 0) {
       console.warn('⚠️ No deliveries to process');
@@ -4141,10 +4140,22 @@ export default function AdminUtilities() {
     
     const duplicateGroups = new Map();
     let skippedCount = 0;
+    let processedCount = 0;
     
-    deliveriesToProcess.forEach(d => {
+    // DETAILED LOGGING: First 10 deliveries to debug
+    console.log('📊 First 10 deliveries being checked:', 
+      deliveriesToProcess.slice(0, 10).map(d => ({
+        id: d.id?.substring(0, 8),
+        sid: d.stop_id,
+        date: d.delivery_date,
+        driver_id: d.driver_id?.substring(0, 8),
+        patient: d.patient_name
+      }))
+    );
+    
+    deliveriesToProcess.forEach((d, idx) => {
       if (!d) {
-        console.warn('⚠️ Null delivery');
+        console.warn('⚠️ Null delivery at index', idx);
         return;
       }
       
@@ -4155,18 +4166,35 @@ export default function AdminUtilities() {
       // CRITICAL: Skip if no SID, no date, or no driver_id
       if (!sid || !date || !driverId) {
         skippedCount++;
+        if (skippedCount <= 5) {
+          console.log(`⚠️ Skipped delivery ${idx}: sid="${sid}", date="${date}", driver_id="${driverId}"`);
+        }
         return;
       }
       
+      processedCount++;
       const key = `${sid}|${date}|${driverId}`;
       if (!duplicateGroups.has(key)) {
         duplicateGroups.set(key, []);
       }
       duplicateGroups.get(key).push(d);
+      
+      // Log first few keys being created
+      if (processedCount <= 5) {
+        console.log(`📊 Created key for delivery ${idx}: "${key}"`);
+      }
     });
     
-    console.log(`📊 Skipped ${skippedCount} deliveries without SID/Date/Driver`);
+    console.log(`📊 Processed ${processedCount} deliveries, Skipped ${skippedCount}`);
     console.log(`📊 Found ${duplicateGroups.size} unique SID+Date+Driver combinations`);
+    
+    // Log groups with their sizes
+    const groupSizes = Array.from(duplicateGroups.entries()).map(([key, group]) => ({
+      key,
+      count: group.length
+    })).sort((a, b) => b.count - a.count);
+    
+    console.log(`📊 Top 10 groups by size:`, groupSizes.slice(0, 10));
     
     const duplicateIds = [];
     let duplicateGroupCount = 0;
@@ -4174,7 +4202,7 @@ export default function AdminUtilities() {
     duplicateGroups.forEach((group, key) => {
       if (group.length > 1) {
         duplicateGroupCount++;
-        console.log(`📊 DUPLICATE Group "${key}": ${group.length} deliveries`);
+        console.log(`📊 DUPLICATE Group "${key}": ${group.length} deliveries - IDs:`, group.map(d => d.id?.substring(0, 8)));
         // Keep the oldest (first after sorting by created_date), mark all others as duplicates
         const sorted = [...group].sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
         sorted.slice(1).forEach(d => duplicateIds.push(d.id));
@@ -4187,7 +4215,7 @@ export default function AdminUtilities() {
       setConfirmDialog({
         open: true,
         title: '✅ No Duplicates Found',
-        description: `No duplicates found in the current filtered list.\n\nSearched: ${deliveriesToProcess.length} deliveries\nSkipped (no SID/Date/Driver): ${skippedCount}\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n• Driver ID`,
+        description: `No duplicates found in the current filtered list.\n\nSearched: ${deliveriesToProcess.length} deliveries\nProcessed: ${processedCount}\nSkipped (no SID/Date/Driver): ${skippedCount}\nUnique combinations: ${duplicateGroups.size}\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n• Driver ID\n\nCheck browser console for detailed logs.`,
         confirmText: 'OK',
         variant: 'default',
         onConfirm: () => {}
