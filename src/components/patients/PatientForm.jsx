@@ -342,7 +342,7 @@ export default function PatientForm({
       return;
     }
 
-    if (frequency !== 'weekly' && frequency !== 'bi-weekly') {
+    if (frequency !== 'weekly' && frequency !== 'bi-weekly' && frequency !== 'weekly-x4') {
       setShowWeeklyDays(false);
       setWeeklyDays([]);
     }
