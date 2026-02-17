@@ -2783,7 +2783,8 @@ export default function DeliveryForm({
         console.log('[AddToRoute] ✅ All existing deliveries updated');
       }
 
-      // CRITICAL: Before saving new deliveries, ensure auto-created pickups exist for first deliveries
+      // CRITICAL: Before saving new deliveries, ensure auto-created pickups exist
+      // BUT ONLY if driver ALREADY HAS existing deliveries for this date
       if (newDeliveries.length > 0) {
         // Group new deliveries by store_id and driver_id
         const deliveryGroups = {};
@@ -2802,21 +2803,20 @@ export default function DeliveryForm({
           deliveryGroups[groupKey].deliveries.push(del);
         });
         
-        // For each group, check if this is the FIRST delivery for that store/driver/date
+        // For each group, check if driver HAS existing deliveries for ANY store on this date
         for (const groupKey of Object.keys(deliveryGroups)) {
           const group = deliveryGroups[groupKey];
           
-          // Check if there are ANY existing deliveries for this store/driver/date
-          const hasExistingDeliveries = allDeliveries?.some(d =>
+          // CRITICAL: Check if driver has ANY existing deliveries on this date (any store)
+          const driverHasExistingDeliveries = allDeliveries?.some(d =>
             d && d.patient_id &&
-            d.store_id === group.storeId &&
             d.driver_id === group.driverId &&
             d.delivery_date === group.deliveryDate
           );
           
-          // If first delivery for this store/driver/date, ensure pickup exists
-          if (!hasExistingDeliveries) {
-            console.log(`📦 [DoneButton] FIRST delivery detected for store/driver/date ${groupKey} - ensuring pickup exists`);
+          // CRITICAL: Only create pickup if driver ALREADY HAS deliveries on this date
+          if (driverHasExistingDeliveries) {
+            console.log(`📦 [DoneButton] Driver has existing deliveries on ${group.deliveryDate} - ensuring pickup for ${groupKey}`);
             
             try {
               const firstDelivery = group.deliveries[0];
@@ -2831,6 +2831,8 @@ export default function DeliveryForm({
             } catch (error) {
               console.warn(`⚠️ [DoneButton] Failed to ensure pickup for ${groupKey}:`, error.message);
             }
+          } else {
+            console.log(`⏭️ [DoneButton] Driver has NO existing deliveries on ${group.deliveryDate} - SKIPPING auto-pickup for ${groupKey}`);
           }
         }
       }
