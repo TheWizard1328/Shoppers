@@ -237,18 +237,29 @@ class LightweightRefreshManager {
   }
 
   /**
-   * Wait for rate limit
+   * Wait for rate limit - non-blocking with dynamic check
    */
   async waitForRateLimit() {
     const now = Date.now();
+    let waitTime = 0;
+
+    // Check error cooldown
     if (now < this.errorCooldownUntil) {
-      const waitTime = this.errorCooldownUntil - now;
-      await new Promise(resolve => setTimeout(resolve, waitTime));
+      waitTime = Math.max(waitTime, this.errorCooldownUntil - now);
     }
+
+    // Check API call spacing
     const timeSinceLastCall = now - this.lastApiCallTime;
     if (timeSinceLastCall < this.minTimeBetweenCalls) {
-      await new Promise(resolve => setTimeout(resolve, this.minTimeBetweenCalls - timeSinceLastCall));
+      waitTime = Math.max(waitTime, this.minTimeBetweenCalls - timeSinceLastCall);
     }
+
+    // Non-blocking wait with small timeout chunks (100ms max)
+    if (waitTime > 0) {
+      const chunkSize = Math.min(100, waitTime);
+      await new Promise(resolve => setTimeout(resolve, chunkSize));
+    }
+
     this.lastApiCallTime = Date.now();
   }
 
