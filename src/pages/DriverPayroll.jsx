@@ -585,12 +585,11 @@ export default function DriverPayroll() {
     
     const today = new Date();
     
-    // PRIORITY 1: Find FIRST (earliest) non-admin-finalized payroll cycle
-    console.log(`🔍 [DriverPayroll] Looking for first non-admin-finalized cycle - Total periods: ${allPeriods.length}, Payroll records: ${payrollRecords.length}, Selected driver: ${selectedDriverId}`);
+    // PRIORITY 1: Find cycle where finalize button would be active (has data but not admin-finalized)
+    console.log(`🔍 [DriverPayroll] Looking for cycle with active finalize button - Total periods: ${allPeriods.length}, Payroll records: ${payrollRecords.length}, Selected driver: ${selectedDriverId}`);
     
-    let firstNonFinalizedIdx = -1;
+    let finalizableCycleIdx = -1;
     
-    // CRITICAL: Loop FORWARDS from earliest to latest to find FIRST non-admin-finalized
     for (let i = 0; i < allPeriods.length; i++) {
       const period = allPeriods[i];
       const startStr = period.start.toISOString().split('T')[0];
@@ -609,27 +608,26 @@ export default function DriverPayroll() {
         }))
       });
       
-      // Check if this period is admin-finalized
+      // Check if this period has data but is NOT admin-finalized (finalize button would be active)
+      let hasData = false;
       let isAdminFinalized = false;
       
       if (selectedDriverId === 'all') {
-        // For 'all' - period is finalized if ANY record has admin_finalized or paid status
-        isAdminFinalized = recordsForPeriod.some(r => 
+        hasData = recordsForPeriod.length > 0;
+        isAdminFinalized = recordsForPeriod.every(r => 
           r.status === 'admin_finalized' || r.status === 'paid'
         );
-        console.log(`  'all' mode: isAdminFinalized=${isAdminFinalized}`);
+        console.log(`  'all' mode: hasData=${hasData}, isAdminFinalized=${isAdminFinalized}`);
       } else {
-        // For specific driver - period is finalized if THAT driver's record is admin_finalized or paid
-        isAdminFinalized = recordsForPeriod.some(r => 
-          r.driver_id === selectedDriverId && 
-          (r.status === 'admin_finalized' || r.status === 'paid')
-        );
-        console.log(`  Specific driver mode: isAdminFinalized=${isAdminFinalized} (driver ${selectedDriverId.slice(-4)})`);
+        const driverRecord = recordsForPeriod.find(r => r.driver_id === selectedDriverId);
+        hasData = !!driverRecord;
+        isAdminFinalized = driverRecord && (driverRecord.status === 'admin_finalized' || driverRecord.status === 'paid');
+        console.log(`  Specific driver mode: hasData=${hasData}, isAdminFinalized=${isAdminFinalized}`);
       }
       
-      if (!isAdminFinalized) {
-        firstNonFinalizedIdx = i;
-        console.log(`✅ [DriverPayroll] Found first non-admin-finalized cycle: ${period.label} (index ${i})`);
+      if (hasData && !isAdminFinalized) {
+        finalizableCycleIdx = i;
+        console.log(`✅ [DriverPayroll] Found finalizable cycle: ${period.label} (index ${i})`);
         break;
       }
     }
