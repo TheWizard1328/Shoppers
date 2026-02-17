@@ -585,9 +585,9 @@ export default function DriverPayroll() {
     
     const today = new Date();
     
-    // PRIORITY 1: Find most recent non-finalized payroll
-    let mostRecentNonFinalizedIdx = -1;
-    for (let i = allPeriods.length - 1; i >= 0; i--) {
+    // PRIORITY 1: Find FIRST (earliest) non-finalized payroll cycle
+    let firstNonFinalizedIdx = -1;
+    for (let i = 0; i < allPeriods.length; i++) {
       const period = allPeriods[i];
       const startStr = period.start.toISOString().split('T')[0];
       const endStr = period.end.toISOString().split('T')[0];
@@ -597,7 +597,8 @@ export default function DriverPayroll() {
         (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
       );
       if (!isFinal) {
-        mostRecentNonFinalizedIdx = i;
+        firstNonFinalizedIdx = i;
+        console.log(`🔍 [DriverPayroll] Found first non-finalized cycle: ${period.label} (index ${i})`);
         break;
       }
     }
@@ -608,16 +609,19 @@ export default function DriverPayroll() {
       const period = allPeriods[i];
       if (today >= period.start && today <= period.end) {
         todayPeriodIdx = i;
+        console.log(`🔍 [DriverPayroll] Found today's cycle: ${period.label} (index ${i})`);
         break;
       }
     }
     
-    // Select most recent non-finalized, or today's period as fallback
-    const selectedIdx = mostRecentNonFinalizedIdx !== -1 ? mostRecentNonFinalizedIdx : todayPeriodIdx;
+    // Select first non-finalized cycle, or today's period as fallback
+    const selectedIdx = firstNonFinalizedIdx !== -1 ? firstNonFinalizedIdx : todayPeriodIdx;
     
     if (selectedIdx !== null && selectedIdx !== -1) {
-      console.log(`✅ [DriverPayroll] Initial period selected: ${allPeriods[selectedIdx].label} (index ${selectedIdx})`);
+      console.log(`✅ [DriverPayroll] Initial period selected: ${allPeriods[selectedIdx].label} (index ${selectedIdx}) - ${firstNonFinalizedIdx !== -1 ? 'First non-finalized' : 'Today\'s period'}`);
       setSelectedPeriodIndex(selectedIdx);
+    } else {
+      console.warn(`⚠️ [DriverPayroll] No valid period found - firstNonFinalizedIdx: ${firstNonFinalizedIdx}, todayPeriodIdx: ${todayPeriodIdx}`);
     }
     
     // Mark that initial period has been set
