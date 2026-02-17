@@ -4161,19 +4161,19 @@ export default function AdminUtilities() {
       
       const sid = d.stop_id?.toString().trim() || '';
       const date = d.delivery_date?.trim() || '';
-      const driverId = d.driver_id?.trim() || '';
       
-      // CRITICAL: Skip if no SID, no date, or no driver_id
-      if (!sid || !date || !driverId) {
+      // CRITICAL: Match by SID + Date ONLY (not driver_id)
+      // Same stop appearing on same date for different drivers IS a duplicate
+      if (!sid || !date) {
         skippedCount++;
         if (skippedCount <= 5) {
-          console.log(`⚠️ Skipped delivery ${idx}: sid="${sid}", date="${date}", driver_id="${driverId}"`);
+          console.log(`⚠️ Skipped delivery ${idx}: sid="${sid}", date="${date}"`);
         }
         return;
       }
       
       processedCount++;
-      const key = `${sid}|${date}|${driverId}`;
+      const key = `${sid}|${date}`;
       if (!duplicateGroups.has(key)) {
         duplicateGroups.set(key, []);
       }
@@ -4181,12 +4181,12 @@ export default function AdminUtilities() {
       
       // Log first few keys being created
       if (processedCount <= 5) {
-        console.log(`📊 Created key for delivery ${idx}: "${key}"`);
+        console.log(`📊 Created key for delivery ${idx}: "${key}" (driver: ${d.driver_id?.substring(0, 8)})`);
       }
     });
     
     console.log(`📊 Processed ${processedCount} deliveries, Skipped ${skippedCount}`);
-    console.log(`📊 Found ${duplicateGroups.size} unique SID+Date+Driver combinations`);
+    console.log(`📊 Found ${duplicateGroups.size} unique SID+Date combinations`);
     
     // Log groups with their sizes
     const groupSizes = Array.from(duplicateGroups.entries()).map(([key, group]) => ({
