@@ -779,6 +779,21 @@ export default function DeliveryForm({
     return 'Bi-Weekly';
   }, [currentFrequency, hasAnyDaySelected, formData]);
 
+  const weeklyX4Label = useMemo(() => {
+    if (currentFrequency === 'weekly-x4' && hasAnyDaySelected) {
+      const days = [];
+      if (formData.recurring_weekly_mon) days.push('Mon');
+      if (formData.recurring_weekly_tue) days.push('Tue');
+      if (formData.recurring_weekly_wed) days.push('Wed');
+      if (formData.recurring_weekly_thu) days.push('Thu');
+      if (formData.recurring_weekly_fri) days.push('Fri');
+      if (formData.recurring_weekly_sat) days.push('Sat');
+      if (formData.recurring_weekly_sun) days.push('Sun');
+      return `Weekly x4 (${days.join(', ')})`;
+    }
+    return 'Weekly x4';
+  }, [currentFrequency, hasAnyDaySelected, formData]);
+
   // CRITICAL: Track if predictions should be stopped (when Done button is clicked or form is closing)
   const predictionsStopped = useRef(false);
   // CRITICAL: Store full prediction list from backend (never refetch unless date/user changes)
