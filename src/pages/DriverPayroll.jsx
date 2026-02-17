@@ -635,16 +635,7 @@ export default function DriverPayroll() {
       }
     }
     
-    // PRIORITY 2 (Fallback): Use today's period if all past cycles are complete
-    let todayPeriodIdx = -1;
-    for (let i = 0; i < allPeriods.length; i++) {
-      const period = allPeriods[i];
-      if (today >= period.start && today <= period.end) {
-        todayPeriodIdx = i;
-        console.log(`🔍 [DriverPayroll] Found today's cycle: ${period.label} (index ${i})`);
-        break;
-      }
-    }
+    console.log(`🔍 [DriverPayroll] Today's cycle: ${todayPeriodIdx !== -1 ? allPeriods[todayPeriodIdx].label : 'Not found'} (index ${todayPeriodIdx})`);
     
     // Select earliest incomplete cycle, or today's period as fallback
     const selectedIdx = earliestIncompleteCycleIdx !== -1 ? earliestIncompleteCycleIdx : todayPeriodIdx;
