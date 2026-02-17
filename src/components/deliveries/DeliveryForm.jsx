@@ -247,6 +247,7 @@ export default function DeliveryForm({
   const [hasChanges, setHasChanges] = useState(false);
   const [isPayrollLocked, setIsPayrollLocked] = useState(false);
   const [payrollLockMessage, setPayrollLockMessage] = useState(null);
+  const [isNewRouteWithZeroStops, setIsNewRouteWithZeroStops] = useState(false);
 
   // Camera state
   const videoRef = useRef(null);
@@ -2055,8 +2056,8 @@ export default function DeliveryForm({
     setStagedDeliveries((prev) => [...prev, newStagedDelivery]);
 
     // CRITICAL: Only auto-add default pickups when ADDING to an existing driver route
-    // Skip if this is the FIRST delivery (driver's default stops already created)
-    if (!isPickupMode && formData.driver_id && formData.delivery_date && stores) {
+    // SKIP if this is a NEW route with zero stops (isNewRouteWithZeroStops flag)
+    if (!isPickupMode && formData.driver_id && formData.delivery_date && stores && !isNewRouteWithZeroStops) {
       const specialStores = ['WestPark', 'SouthPoint', 'Lakeland Ridge', 'Sherwood Pk Mall'];
       const isSpecialStore = specialStores.some(name => 
         (stores.find(s => s?.id === formData.store_id)?.name || '').includes(name)
@@ -2064,12 +2065,7 @@ export default function DeliveryForm({
 
       // Only auto-add pickups for non-special stores
       if (!isSpecialStore) {
-        // Check if this is the first delivery for ANY non-special store for this driver/date
-        const existingDeliveries = stagedDeliveries.filter(d => 
-          d.driver_id === formData.driver_id && 
-          d.delivery_date === formData.delivery_date &&
-          d.patient_id // Only count patient deliveries
-        );
+        console.log(`📦 [AutoAddPickups] Route has existing stops - creating additional pickups as needed`);
         
         // Get the stores this driver is assigned to for the delivery date
         const selectedDate = new Date(formData.delivery_date + 'T00:00:00');
@@ -2091,20 +2087,8 @@ export default function DeliveryForm({
         });
 
         console.log(`📦 [AutoAddPickups] Driver ${formData.driver_id} assigned to ${driverAssignedStores.length} stores for ${formData.delivery_date}`);
-
-        // Check if this is the FIRST delivery for this driver/date (no existing deliveries)
-        const hasExistingDeliveries = existingDeliveries.length > 0 || allDeliveries?.some(d =>
-          d && d.patient_id &&
-          d.driver_id === formData.driver_id &&
-          d.delivery_date === formData.delivery_date
-        );
-
-        // CRITICAL: Only auto-add pickups if driver ALREADY HAS stops (not first delivery)
-        if (hasExistingDeliveries) {
-          console.log(`📦 [AutoAddPickups] EXISTING deliveries detected - creating additional pickups as needed`);
-          
-          // Create all default pickups in parallel using ensurePickupForDelivery
-          setTimeout(async () => {
+        // Create all default pickups in parallel using ensurePickupForDelivery
+        setTimeout(async () => {
             const pickupPromises = driverAssignedStores
               .filter(assignedStore => assignedStore && assignedStore.id !== formData.store_id)
               .map(async (assignedStore) => {
@@ -2176,9 +2160,10 @@ export default function DeliveryForm({
                 triggeredBy: 'autoPickupCreation'
               }
             }));
-          }, 100);
-        }
+        }, 100);
       }
+    } else if (isNewRouteWithZeroStops) {
+      console.log(`⏭️ [AutoAddPickups] SKIPPING auto-pickup creation - new route with 0 stops (isNewRouteWithZeroStops = true)`);
     }
 
     setHasChanges(true);
@@ -2784,8 +2769,10 @@ export default function DeliveryForm({
       }
 
       // CRITICAL: Before saving new deliveries, ensure auto-created pickups exist
-      // BUT ONLY if driver ALREADY HAS existing deliveries for this date
-      if (newDeliveries.length > 0) {
+      // BUT ONLY if driver ALREADY HAS existing deliveries (NOT a new route with 0 stops)
+      if (newDeliveries.length > 0 && !isNewRouteWithZeroStops) {
+        console.log('📦 [DoneButton] isNewRouteWithZeroStops = false - creating auto-pickups');
+        
         // Group new deliveries by store_id and driver_id
         const deliveryGroups = {};
         newDeliveries.forEach(del => {
@@ -2803,38 +2790,26 @@ export default function DeliveryForm({
           deliveryGroups[groupKey].deliveries.push(del);
         });
         
-        // For each group, check if driver HAS existing deliveries for ANY store on this date
+        // Create pickups for all groups
         for (const groupKey of Object.keys(deliveryGroups)) {
           const group = deliveryGroups[groupKey];
           
-          // CRITICAL: Check if driver has ANY existing deliveries on this date (any store)
-          const driverHasExistingDeliveries = allDeliveries?.some(d =>
-            d && d.patient_id &&
-            d.driver_id === group.driverId &&
-            d.delivery_date === group.deliveryDate
-          );
-          
-          // CRITICAL: Only create pickup if driver ALREADY HAS deliveries on this date
-          if (driverHasExistingDeliveries) {
-            console.log(`📦 [DoneButton] Driver has existing deliveries on ${group.deliveryDate} - ensuring pickup for ${groupKey}`);
+          try {
+            const firstDelivery = group.deliveries[0];
+            const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
+              storeId: group.storeId,
+              deliveryDate: group.deliveryDate,
+              driverId: group.driverId,
+              ampmDeliveries: firstDelivery.ampm_deliveries || 'AM'
+            });
             
-            try {
-              const firstDelivery = group.deliveries[0];
-              const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
-                storeId: group.storeId,
-                deliveryDate: group.deliveryDate,
-                driverId: group.driverId,
-                ampmDeliveries: firstDelivery.ampm_deliveries || 'AM'
-              });
-              
-              console.log(`✅ [DoneButton] Pickup ensured for ${groupKey}: ${pickupResponse.data?.puid}`);
-            } catch (error) {
-              console.warn(`⚠️ [DoneButton] Failed to ensure pickup for ${groupKey}:`, error.message);
-            }
-          } else {
-            console.log(`⏭️ [DoneButton] Driver has NO existing deliveries on ${group.deliveryDate} - SKIPPING auto-pickup for ${groupKey}`);
+            console.log(`✅ [DoneButton] Pickup ensured for ${groupKey}: ${pickupResponse.data?.puid}`);
+          } catch (error) {
+            console.warn(`⚠️ [DoneButton] Failed to ensure pickup for ${groupKey}:`, error.message);
           }
         }
+      } else if (isNewRouteWithZeroStops) {
+        console.log(`⏭️ [DoneButton] isNewRouteWithZeroStops = true - SKIPPING auto-pickup creation (new route with 0 existing stops)`);
       }
       
       // Then save new deliveries OR trigger data refresh
@@ -3931,6 +3906,42 @@ export default function DeliveryForm({
       return { ...prev, recurring: newRecurringState };
     });
   }, []);
+
+  // CRITICAL: Check if driver has any existing stops for the selected date
+  // Sets isNewRouteWithZeroStops flag
+  useEffect(() => {
+    if (delivery || !allDeliveries || !formData.driver_id || !formData.delivery_date) {
+      return;
+    }
+
+    // Check if driver has ANY existing Pending/En Route/In Transit deliveries for this date
+    const existingActiveStops = allDeliveries.filter((d) =>
+      d &&
+      d.patient_id && // Only count patient deliveries, not pickups
+      d.driver_id === formData.driver_id &&
+      d.delivery_date === formData.delivery_date &&
+      ['pending', 'en_route', 'in_transit'].includes(d.status)
+    );
+
+    const hasExistingStops = existingActiveStops.length > 0;
+    setIsNewRouteWithZeroStops(!hasExistingStops);
+    
+    console.log(`🚦 [DeliveryForm] Route flag check for driver ${formData.driver_id} on ${formData.delivery_date}:`, {
+      existingActiveStops: existingActiveStops.length,
+      isNewRouteWithZeroStops: !hasExistingStops
+    });
+  }, [delivery, allDeliveries, formData.driver_id, formData.delivery_date]);
+
+  // Update flag when first patient is added to staged
+  useEffect(() => {
+    if (delivery || stagedDeliveries.length === 0) return;
+    
+    // If we're adding the first patient and flag is currently true, set it to false
+    if (isNewRouteWithZeroStops && stagedDeliveries.some(s => s.patient_id)) {
+      console.log('🚦 [DeliveryForm] First patient added - setting isNewRouteWithZeroStops to false');
+      setIsNewRouteWithZeroStops(false);
+    }
+  }, [delivery, stagedDeliveries.length, isNewRouteWithZeroStops]);
 
   // Monitor for deleted pending deliveries on other devices
   useEffect(() => {
