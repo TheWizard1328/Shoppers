@@ -585,12 +585,23 @@ export default function DriverPayroll() {
     
     const today = new Date();
     
-    // PRIORITY 1: Find earliest cycle where ANY driver has missing driver_finalized_at OR admin_finalized_at
-    console.log(`🔍 [DriverPayroll] Looking for earliest cycle with incomplete finalization - Total periods: ${allPeriods.length}, Payroll records: ${payrollRecords.length}`);
+    // PRIORITY 1: Find earliest PAST/CURRENT cycle with incomplete finalization (any driver missing driver_finalized_at OR admin_finalized_at)
+    console.log(`🔍 [DriverPayroll] Looking for earliest incomplete cycle - Total periods: ${allPeriods.length}, Payroll records: ${payrollRecords.length}`);
+    
+    // First find today's period index to limit search to past/current periods only
+    let todayPeriodIdx = -1;
+    for (let i = 0; i < allPeriods.length; i++) {
+      if (today >= allPeriods[i].start && today <= allPeriods[i].end) {
+        todayPeriodIdx = i;
+        break;
+      }
+    }
     
     let earliestIncompleteCycleIdx = -1;
+    const searchLimit = todayPeriodIdx !== -1 ? todayPeriodIdx : allPeriods.length - 1;
     
-    for (let i = 0; i < allPeriods.length; i++) {
+    // Search from earliest to current period only (don't check future periods)
+    for (let i = 0; i <= searchLimit; i++) {
       const period = allPeriods[i];
       const startStr = period.start.toISOString().split('T')[0];
       const endStr = period.end.toISOString().split('T')[0];
@@ -605,8 +616,8 @@ export default function DriverPayroll() {
         totalRecords: recordsForPeriod.length,
         records: recordsForPeriod.map(r => ({
           driver: r.driver_id?.slice(-4),
-          driver_finalized_at: r.driver_finalized_at || 'MISSING',
-          admin_finalized_at: r.admin_finalized_at || 'MISSING'
+          driver_finalized: r.driver_finalized_at || 'MISSING',
+          admin_finalized: r.admin_finalized_at || 'MISSING'
         }))
       });
       
@@ -615,7 +626,7 @@ export default function DriverPayroll() {
         !r.driver_finalized_at || !r.admin_finalized_at
       );
       
-      console.log(`  Has incomplete record: ${hasIncompleteRecord}`);
+      console.log(`  Has incomplete: ${hasIncompleteRecord}`);
       
       if (hasIncompleteRecord) {
         earliestIncompleteCycleIdx = i;
@@ -624,7 +635,7 @@ export default function DriverPayroll() {
       }
     }
     
-    // PRIORITY 2 (Fallback): Find period containing today's date
+    // PRIORITY 2 (Fallback): Use today's period if all past cycles are complete
     let todayPeriodIdx = -1;
     for (let i = 0; i < allPeriods.length; i++) {
       const period = allPeriods[i];
