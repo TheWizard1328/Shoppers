@@ -4604,6 +4604,35 @@ export default function DeliveryForm({
                           const dispatcherStoreIds = isDispatcher ? (currentUser.store_ids || []) : [];
                           const defaultStoreId = dispatcherStoreIds.length === 1 ? dispatcherStoreIds[0] : '';
                           
+                          // CRITICAL: Generate unique PID immediately
+                          const generateUniquePID = async () => {
+                            try {
+                              // Get all existing patient IDs
+                              const allPatients = await base44.entities.Patient.list();
+                              const existingPIDs = allPatients
+                                .map(p => p.patient_id)
+                                .filter(pid => pid && /^PID-\d{5}$/.test(pid))
+                                .map(pid => parseInt(pid.replace('PID-', ''), 10))
+                                .filter(num => !isNaN(num));
+                              
+                              // Find highest number and increment
+                              const maxPID = existingPIDs.length > 0 ? Math.max(...existingPIDs) : 0;
+                              const newPIDNumber = maxPID + 1;
+                              const newPID = `PID-${String(newPIDNumber).padStart(5, '0')}`;
+                              
+                              console.log(`✅ [DeliveryForm] Generated new PID: ${newPID}`);
+                              return newPID;
+                            } catch (error) {
+                              console.error('❌ [DeliveryForm] Failed to generate PID:', error);
+                              // Fallback to timestamp-based PID
+                              const fallbackPID = `PID-${String(Date.now()).slice(-5)}`;
+                              console.log(`⚠️ [DeliveryForm] Using fallback PID: ${fallbackPID}`);
+                              return fallbackPID;
+                            }
+                          };
+                          
+                          const newPID = await generateUniquePID();
+                          
                           setIsPatientFormOpen(true);
                           onCreatePatient((newPatient) => {
                             setIsPatientFormOpen(false);
@@ -4611,7 +4640,7 @@ export default function DeliveryForm({
                             // CRITICAL: Auto-add new patient to staged (true parameter)
                             handlePatientSelect(newPatient, true);
                           }, {
-                            patient_id: '', // CRITICAL: Empty patient_id to trigger new PID generation
+                            patient_id: newPID, // CRITICAL: Pre-generated PID
                             full_name: '',
                             phone: '',
                             store_id: defaultStoreId,
