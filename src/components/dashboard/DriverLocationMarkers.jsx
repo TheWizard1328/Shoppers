@@ -104,18 +104,24 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                    userId === currentUserUserId ||
                    user.user_id === currentUserId;
 
-    // RULE 0: Self marker - ALWAYS show on primary device (live location tracking)
-    // Ignores all toggles, dates, and selections - this is my actual location
-    if (isSelf && isPrimaryDevice) {
-      console.log(`✅ [shouldShowMarker] SELF on PRIMARY device - ALWAYS show (live tracking)`);
-      return true;
-    }
+    // RULE 0: Drivers on primary device should NOT see their own shared location marker
+      // (Primary device has live blue location marker from GPS tracking)
+      if (isSelf && isPrimaryDevice && isDriver) {
+        console.log(`⏭️ [shouldShowMarker] SELF driver on PRIMARY device - hide shared location (using live GPS marker)`);
+        return false;
+      }
 
-    // RULE 1: Self marker on non-primary device - ALWAYS show if coordinates exist
-    if (isSelf && !isPrimaryDevice) {
-      console.log(`✅ [shouldShowMarker] SELF on NON-PRIMARY device - ALWAYS show (has coordinates)`);
-      return true;
-    }
+      // RULE 1: Self marker on non-primary device - ALWAYS show if coordinates exist (shared from primary)
+      if (isSelf && !isPrimaryDevice) {
+        console.log(`✅ [shouldShowMarker] SELF on NON-PRIMARY device - ALWAYS show (shared from primary)`);
+        return true;
+      }
+
+      // RULE 2: Non-driver self markers (dispatchers, admins) on primary device
+      if (isSelf && isPrimaryDevice && !isDriver) {
+        console.log(`✅ [shouldShowMarker] SELF on PRIMARY device (non-driver) - show`);
+        return true;
+      }
 
     // RULE 2: AppOwner sees ALL drivers with coordinates (no filtering)
     const isAppOwner = currentUser?.email && 
