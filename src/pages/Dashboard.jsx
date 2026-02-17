@@ -397,18 +397,26 @@ function Dashboard() {
     
     console.log(`📦 [Debounced Updates] Processing batch: ${creates.length} creates, ${updates.length} updates, ${deletes.length} deletes`);
     
-    // Process all changes at once
-    if (creates.length > 0) {
-      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, creates).catch(console.error);
-      if (updateDeliveriesLocally) {
-        updateDeliveriesLocally(creates, false);
-      }
-    }
+    // CRITICAL: Process all changes together with a single full replacement
+    const allChanges = [...creates, ...updates];
     
-    if (updates.length > 0) {
-      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updates).catch(console.error);
-      if (updateDeliveriesLocally) {
-        updateDeliveriesLocally(updates, false);
+    if (allChanges.length > 0) {
+      // Save to offline DB
+      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allChanges).catch(console.error);
+      
+      // CRITICAL: Merge with existing deliveries for full replacement
+      if (updateDeliveriesLocally && deliveries) {
+        // Remove old versions of updated/created deliveries
+        const changedIds = new Set(allChanges.map(d => d?.id).filter(Boolean));
+        const otherDeliveries = deliveries.filter(d => !changedIds.has(d?.id));
+        
+        // Merge changes with existing
+        const mergedDeliveries = [...otherDeliveries, ...allChanges];
+        
+        console.log(`🔄 [Debounced Updates] Merging ${allChanges.length} changes with ${otherDeliveries.length} existing = ${mergedDeliveries.length} total`);
+        
+        // Full replacement to ensure UI updates
+        updateDeliveriesLocally(mergedDeliveries, true);
       }
     }
     
@@ -433,7 +441,7 @@ function Dashboard() {
     // Clear the batch
     pendingDeliveryUpdatesRef.current = { creates: [], updates: [], deletes: [] };
     
-    console.log(`✅ [Debounced Updates] Batch complete - map markers updated`);
+    console.log(`✅ [Debounced Updates] Batch complete - ${totalChanges} deliveries synced across devices`);
   }, [updateDeliveriesLocally, deliveries]);
   
   const scheduleDeliveryUpdate = useCallback((type, data) => {
