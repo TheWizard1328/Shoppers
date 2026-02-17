@@ -585,18 +585,13 @@ export default function DriverPayroll() {
     
     const today = new Date();
     
-    // PRIORITY 1: Find FIRST (earliest) non-finalized payroll cycle
-    console.log(`🔍 [DriverPayroll] Looking for first non-finalized cycle - Total periods: ${allPeriods.length}, Payroll records: ${payrollRecords.length}, Selected driver: ${selectedDriverId}`);
+    // PRIORITY 1: Find MOST RECENT (latest) non-finalized payroll cycle by checking backwards
+    console.log(`🔍 [DriverPayroll] Looking for most recent non-finalized cycle - Total periods: ${allPeriods.length}, Payroll records: ${payrollRecords.length}, Selected driver: ${selectedDriverId}`);
     
-    // Get list of drivers that should have payroll for this pay cycle
-    const driversInCycle = payrollData?.appUsers?.filter(au => 
-      au.pay_cycle_type === payPeriod && au.status === 'active'
-    ).map(au => au.user_id) || [];
+    let mostRecentNonFinalizedIdx = -1;
     
-    console.log(`👥 [DriverPayroll] Drivers in ${payPeriod} cycle:`, driversInCycle.length);
-    
-    let firstNonFinalizedIdx = -1;
-    for (let i = 0; i < allPeriods.length; i++) {
+    // CRITICAL: Loop BACKWARDS from most recent period to oldest
+    for (let i = allPeriods.length - 1; i >= 0; i--) {
       const period = allPeriods[i];
       const startStr = period.start.toISOString().split('T')[0];
       const endStr = period.end.toISOString().split('T')[0];
@@ -618,35 +613,24 @@ export default function DriverPayroll() {
       let isFinal = false;
       
       if (selectedDriverId === 'all') {
-        // For 'all' - period is final only if ALL active drivers in this cycle have finalized
-        if (recordsForPeriod.length === 0) {
-          // No records at all - not finalized
-          isFinal = false;
-          console.log(`  'all' mode: isFinal=false (no records)`);
-        } else {
-          // Check if all drivers in this cycle have finalized records for this period
-          const finalizedDriverIds = new Set(
-            recordsForPeriod
-              .filter(r => r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
-              .map(r => r.driver_id)
-          );
-          
-          // Period is final only if ALL drivers have finalized
-          isFinal = driversInCycle.every(dId => finalizedDriverIds.has(dId));
-          console.log(`  'all' mode: isFinal=${isFinal} (${finalizedDriverIds.size}/${driversInCycle.length} drivers finalized)`);
-        }
+        // For 'all' - check if ANY driver has admin_finalized or paid status
+        // (driver_finalized alone doesn't count - admin must finalize)
+        isFinal = recordsForPeriod.some(r => 
+          r.status === 'admin_finalized' || r.status === 'paid'
+        );
+        console.log(`  'all' mode: isFinal=${isFinal} (admin finalized)`);
       } else {
-        // For specific driver - period is final if THAT driver has finalized it
+        // For specific driver - period is final if admin finalized it (not just driver confirmed)
         isFinal = recordsForPeriod.some(r => 
           r.driver_id === selectedDriverId && 
-          (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
+          (r.status === 'admin_finalized' || r.status === 'paid')
         );
-        console.log(`  Specific driver mode: isFinal=${isFinal} (driver ${selectedDriverId.slice(-4)} finalized)`);
+        console.log(`  Specific driver mode: isFinal=${isFinal} (admin finalized for driver ${selectedDriverId.slice(-4)})`);
       }
       
       if (!isFinal) {
-        firstNonFinalizedIdx = i;
-        console.log(`✅ [DriverPayroll] Found first non-finalized cycle: ${period.label} (index ${i})`);
+        mostRecentNonFinalizedIdx = i;
+        console.log(`✅ [DriverPayroll] Found most recent non-finalized cycle: ${period.label} (index ${i})`);
         break;
       }
     }
