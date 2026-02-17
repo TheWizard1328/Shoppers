@@ -2028,8 +2028,6 @@ export default function RouteImport({
       let totalOfflineDeleted = 0;
       
       if (purgeBeforeImport) {
-        setProgressMessage(`Purging existing deliveries...`);
-
         // Group driver/date pairs by date, then by driver
         const dateToDrivers = new Map();
         for (const { driverId, date } of driverDatePairs) {
@@ -2041,13 +2039,19 @@ export default function RouteImport({
 
         // INTERLEAVED PURGE: For each date, delete online then offline (natural cooldown between)
         const sortedDates = Array.from(dateToDrivers.keys()).sort();
+        const totalDatesToProcess = sortedDates.length;
 
-        for (const date of sortedDates) {
+        for (let dateIdx = 0; dateIdx < sortedDates.length; dateIdx++) {
+          const date = sortedDates[dateIdx];
           const driverIds = dateToDrivers.get(date);
 
           // STEP 1a: Delete from ONLINE DB for this date, driver by driver
           for (const driverId of driverIds) {
             try {
+              const driverName = allDriverUsers.find(u => u.id === driverId)?.user_name || driverId;
+              setProgressMessage(`Purging ${date} for ${driverName}...`);
+              setProgressPercent(Math.round((dateIdx / totalDatesToProcess) * 10) + 5);
+              
               const toDelete = await base44.entities.Delivery.filter({
                 driver_id: driverId,
                 delivery_date: date
@@ -2791,6 +2795,18 @@ export default function RouteImport({
 
         {showProgress &&
           <div className="space-y-3 p-6 rounded-lg border-b flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+            {/* Date information - show purging and importing dates */}
+            {importProgress.phase && (
+              <div className="flex flex-col gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                {importedDates.length > 0 && (
+                  <div>
+                    <span className="font-semibold">Importing dates:</span>{' '}
+                    <span className="font-mono">{importedDates.join(', ')}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
                 {isParsing ? progressMessage :
