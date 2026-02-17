@@ -6377,7 +6377,7 @@ function Dashboard() {
     try {
       let savedPatient;
 
-      if (editingPatient) {
+      if (editingPatient && editingPatient.id) {
         await base44.entities.Patient.update(editingPatient.id, patientData);
         savedPatient = { ...editingPatient, ...patientData };
       } else {
