@@ -3545,20 +3545,6 @@ export default function Layout({ children, currentPageName }) {
                       {/* Show controls in navigation panel when tablet landscape OR desktop admin */}
                       {((deviceType === 'Tablet' && !isTabletPortrait) || (!isMobile && !isTabletPortrait && userHasRole(currentUser, 'admin') && cities && cities.length > 0)) ?
                         <>
-                          {/* Location Tracking Toggle - mobile devices (including tablets) in landscape, drivers only */}
-                          {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
-                            <LocationTrackingToggle
-                              user={currentUser}
-                              onUserUpdate={async () => {
-                                clearUserCache();
-                                const refreshedUser = await getEffectiveUser();
-                                if (refreshedUser) {
-                                  setCurrentUser(refreshedUser);
-                                }
-                              }}
-                            />
-                          }
-
                           {/* Settings Menu */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -4115,20 +4101,6 @@ export default function Layout({ children, currentPageName }) {
                           isMobile={true}
                         />
                       </DropdownMenu>
-
-                      {/* Location Tracking Toggle - drivers only */}
-                      {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
-                        <LocationTrackingToggle
-                          user={currentUser}
-                          onUserUpdate={async () => {
-                            clearUserCache();
-                            const refreshedUser = await getEffectiveUser();
-                            if (refreshedUser) {
-                              setCurrentUser(refreshedUser);
-                            }
-                          }}
-                        />
-                      }
 
                       {/* Status Toggle - Center */}
                       <div style={{ width: userHasRole(currentUser, 'driver') ? 'auto' : '0px', overflow: 'hidden' }}>
