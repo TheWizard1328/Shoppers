@@ -147,6 +147,10 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       // Set flag to prevent search after selection
       justSelected.current = true;
       
+      // CRITICAL: Close dropdown immediately
+      setOpen(false);
+      setSuggestions([]);
+      
       console.log('[GoogleAddressAutocomplete] Fetching details for:', prediction.place_id);
       
       // Get detailed place information
