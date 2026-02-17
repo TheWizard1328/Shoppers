@@ -4604,28 +4604,31 @@ export default function DeliveryForm({
                           const dispatcherStoreIds = isDispatcher ? (currentUser.store_ids || []) : [];
                           const defaultStoreId = dispatcherStoreIds.length === 1 ? dispatcherStoreIds[0] : '';
                           
-                          // CRITICAL: Generate unique PID immediately
+                          // CRITICAL: Generate unique 5-character alphanumeric PID
                           const generateUniquePID = async () => {
                             try {
-                              // Get all existing patient IDs
                               const allPatients = await base44.entities.Patient.list();
-                              const existingPIDs = allPatients
-                                .map(p => p.patient_id)
-                                .filter(pid => pid && /^PID-\d{5}$/.test(pid))
-                                .map(pid => parseInt(pid.replace('PID-', ''), 10))
-                                .filter(num => !isNaN(num));
+                              const existingPIDs = new Set(allPatients.map(p => p.patient_id).filter(Boolean));
                               
-                              // Find highest number and increment
-                              const maxPID = existingPIDs.length > 0 ? Math.max(...existingPIDs) : 0;
-                              const newPIDNumber = maxPID + 1;
-                              const newPID = `PID-${String(newPIDNumber).padStart(5, '0')}`;
+                              const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                              let newPID = '';
+                              let attempts = 0;
                               
-                              console.log(`✅ [DeliveryForm] Generated new PID: ${newPID}`);
+                              // Generate unique 5-character alphanumeric ID
+                              do {
+                                newPID = '';
+                                for (let i = 0; i < 5; i++) {
+                                  newPID += chars.charAt(Math.floor(Math.random() * chars.length));
+                                }
+                                attempts++;
+                              } while (existingPIDs.has(newPID) && attempts < 100);
+                              
+                              console.log(`✅ [DeliveryForm] Generated new PID: ${newPID} (attempts: ${attempts})`);
                               return newPID;
                             } catch (error) {
                               console.error('❌ [DeliveryForm] Failed to generate PID:', error);
-                              // Fallback to timestamp-based PID
-                              const fallbackPID = `PID-${String(Date.now()).slice(-5)}`;
+                              // Fallback to timestamp-based 5-char ID
+                              const fallbackPID = Date.now().toString(36).slice(-5).toUpperCase();
                               console.log(`⚠️ [DeliveryForm] Using fallback PID: ${fallbackPID}`);
                               return fallbackPID;
                             }
