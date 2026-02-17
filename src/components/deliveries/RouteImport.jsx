@@ -2001,11 +2001,14 @@ export default function RouteImport({
           .map(d => d.driver_id)
           .filter(Boolean)
       )];
-      const importedDates = [...new Set(
+      const importedDatesArray = [...new Set(
         [...deliveriesToCreateFiltered, ...deliveriesToUpdateFiltered]
           .map(d => d.delivery_date)
           .filter(Boolean)
       )];
+      
+      // CRITICAL: Update state for progress display
+      setImportedDates(importedDatesArray);
 
 
       setProgressMessage('Loading latest patient and store data from cache...');
