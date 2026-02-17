@@ -635,10 +635,9 @@ export default function DriverPayroll() {
       }
     }
     
-    console.log(`🔍 [DriverPayroll] Today's cycle: ${todayPeriodIdx !== -1 ? allPeriods[todayPeriodIdx].label : 'Not found'} (index ${todayPeriodIdx})`);
-    
     // Select earliest incomplete cycle, or today's period as fallback
     const selectedIdx = earliestIncompleteCycleIdx !== -1 ? earliestIncompleteCycleIdx : todayPeriodIdx;
+    console.log(`🔍 [DriverPayroll] Today's cycle: ${todayPeriodIdx !== -1 ? allPeriods[todayPeriodIdx].label : 'Not found'} (index ${todayPeriodIdx})`);
     
     if (selectedIdx !== null && selectedIdx !== -1) {
       console.log(`✅ [DriverPayroll] Initial period selected: ${allPeriods[selectedIdx].label} (index ${selectedIdx}) - ${earliestIncompleteCycleIdx !== -1 ? 'Earliest incomplete cycle' : 'Today\'s period'}`);
