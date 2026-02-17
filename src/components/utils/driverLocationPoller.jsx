@@ -267,10 +267,15 @@ class DriverLocationPoller {
        // Already filtered by coordinates above, no additional timestamp checks needed
 
        // ========================================
-       // RULE 1: Own location marker - ALWAYS VISIBLE
+       // RULE 1: Own location marker - drivers on primary device DON'T see their own shared location
        // ========================================
        if (isSelf) {
-         console.log(`✅ [Poller] Including SELF marker (always visible on all devices)`, {
+         // Drivers on primary device have live location tracking - don't show shared location marker
+         if (isDriver && !isDispatcher && !isAdmin) {
+           console.log(`⏭️ [Poller] SELF marker BLOCKED - driver on primary device doesn't see own shared location`);
+           return false;
+         }
+         console.log(`✅ [Poller] Including SELF marker (non-driver role)`, {
            userId: user.user_name,
            driver_status: user.driver_status
          });
