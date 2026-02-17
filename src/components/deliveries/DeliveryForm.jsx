@@ -5626,8 +5626,8 @@ export default function DeliveryForm({
                             </div>
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="weekly-x4" id="weekly-x4" disabled={!formData.recurring || isSaving} />
-                              <Label htmlFor="weekly-x4" className={`text-sm ${!formData.recurring ? 'text-slate-400' : ''}`}>
-                                Weekly x4
+                              <Label htmlFor="weekly-x4" className={`text-sm cursor-pointer ${!formData.recurring ? 'text-slate-400' : ''}`}>
+                                {weeklyX4Label}
                               </Label>
                             </div>
                             <div className="flex items-center space-x-2">
