@@ -846,9 +846,69 @@ const deduplicateDeliveries = async () => {
      }
 
      return { success: true, removed: 0 };
-   } catch (error) {
-     return { success: false, error: error.message };
-   }
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+};
+
+/**
+ * Prune historical deliveries - keeps max 60 days per user
+ * CRITICAL: Reduces mobile database size by removing old routes
+ */
+const pruneDeliveriesOlderThan60Days = async () => {
+  try {
+    const allDeliveries = await getAll(STORES.DELIVERIES);
+
+    if (!allDeliveries || allDeliveries.length === 0) {
+      return { success: true, removed: 0 };
+    }
+
+    const now = new Date();
+    const cutoffDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000); // 60 days ago
+    const cutoffDateStr = cutoffDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+
+    // Group deliveries by driver_id
+    const deliveriesByDriver = new Map();
+    allDeliveries.forEach(delivery => {
+      if (!delivery?.driver_id) return;
+      if (!deliveriesByDriver.has(delivery.driver_id)) {
+        deliveriesByDriver.set(delivery.driver_id, []);
+      }
+      deliveriesByDriver.get(delivery.driver_id).push(delivery);
+    });
+
+    let removedCount = 0;
+    const deliveriesToKeep = [];
+
+    // For each driver, remove deliveries older than 60 days
+    deliveriesByDriver.forEach((driverDeliveries, driverId) => {
+      driverDeliveries.forEach(delivery => {
+        if (delivery.delivery_date && delivery.delivery_date >= cutoffDateStr) {
+          deliveriesToKeep.push(delivery);
+        } else {
+          removedCount++;
+        }
+      });
+    });
+
+    // Also keep deliveries without driver_id (shouldn't happen, but safety)
+    allDeliveries.forEach(delivery => {
+      if (!delivery?.driver_id) {
+        deliveriesToKeep.push(delivery);
+      }
+    });
+
+    if (removedCount > 0) {
+      await clearStore(STORES.DELIVERIES);
+      await bulkSave(STORES.DELIVERIES, deliveriesToKeep);
+      console.log(`✅ [OfflineDB] Pruned ${removedCount} deliveries older than 60 days`);
+      return { success: true, removed: removedCount };
+    }
+
+    return { success: true, removed: 0 };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 };
 
 export const offlineDB = {
