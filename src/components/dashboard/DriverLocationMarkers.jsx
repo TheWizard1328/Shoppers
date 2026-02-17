@@ -134,9 +134,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       return true;
     }
 
-    // RULE 4: Dispatcher sees assigned drivers when on_duty (regardless of location_tracking_enabled)
+    // RULE 4: Dispatcher sees assigned drivers when they have location sharing enabled
     if (isDispatcher && !isSelf) {
-      if (user.driver_status !== 'on_duty') return false;
+      // CRITICAL: Check location sharing enabled FIRST (like drivers/admins)
+      if (!user.location_tracking_enabled) return false;
 
       const dispatcherStoreIds = currentUser?.store_ids || [];
       if (dispatcherStoreIds.length === 0) return false;
