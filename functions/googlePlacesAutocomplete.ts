@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
             latitude: latitude,
             longitude: longitude
           },
-          radius: 50000 // 50km radius (API maximum)
+          radius: 75000 // 75km radius (API maximum)
         }
       };
     }
