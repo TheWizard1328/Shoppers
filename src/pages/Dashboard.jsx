@@ -6377,11 +6377,24 @@ function Dashboard() {
     try {
       let savedPatient;
 
-      if (editingPatient && editingPatient.id) {
+      // CRITICAL: Check if PatientForm already created the patient (patientData.id exists)
+      if (patientData.id) {
+        // Patient was already created in PatientForm - just use that data
+        console.log('✅ [Dashboard] Patient already created in PatientForm:', patientData.id);
+        savedPatient = patientData;
+      } else if (editingPatient && editingPatient.id) {
+        // Updating existing patient
         await base44.entities.Patient.update(editingPatient.id, patientData);
         savedPatient = { ...editingPatient, ...patientData };
       } else {
+        // Creating new patient (fallback if PatientForm didn't create it)
         savedPatient = await base44.entities.Patient.create(patientData);
+      }
+
+      // CRITICAL: Ensure patient is in offline DB
+      if (savedPatient.id) {
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [savedPatient]);
+        console.log('✅ [Dashboard] Patient synced to offline DB');
       }
 
       invalidate('Patient');
@@ -6389,21 +6402,15 @@ function Dashboard() {
 
       setShowPatientForm(false);
 
-      if (patientFormCallback && savedPatient && !editingPatient) {
-        // CRITICAL: Merge patientData (which has location fields from PatientForm) with savedPatient (which has the ID)
-        // This ensures latitude, longitude, and distance_from_store are passed back to DeliveryForm
-        const completePatient = {
-          ...patientData,
-          ...savedPatient,
-          id: savedPatient.id
-        };
+      // CRITICAL: Always call callback if it exists, regardless of edit mode
+      if (patientFormCallback && savedPatient) {
         console.log('📤 [Dashboard] Returning complete patient with location to DeliveryForm:', {
-          id: completePatient.id,
-          latitude: completePatient.latitude,
-          longitude: completePatient.longitude,
-          distance_from_store: completePatient.distance_from_store
+          id: savedPatient.id,
+          latitude: savedPatient.latitude,
+          longitude: savedPatient.longitude,
+          distance_from_store: savedPatient.distance_from_store
         });
-        patientFormCallback(completePatient);
+        patientFormCallback(savedPatient);
       }
 
       setEditingPatient(null);
