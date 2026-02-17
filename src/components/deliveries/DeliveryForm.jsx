@@ -3883,7 +3883,7 @@ export default function DeliveryForm({
   }, []);
 
   const handleFrequencyChange = useCallback((newFrequency) => {
-    if (newFrequency === 'weekly' || newFrequency === 'bi-weekly') {
+    if (newFrequency === 'weekly' || newFrequency === 'bi-weekly' || newFrequency === 'weekly-x4') {
       setActiveRecurringType(newFrequency);
       setShowDayPopup(true);
     } else {
@@ -3901,7 +3901,7 @@ export default function DeliveryForm({
         recurring_bimonthly: newFrequency === 'bi-monthly'
       };
 
-      if (newFrequency !== 'weekly' && newFrequency !== 'bi-weekly') {
+      if (newFrequency !== 'weekly' && newFrequency !== 'bi-weekly' && newFrequency !== 'weekly-x4') {
         newState.recurring_weekly_mon = false;
         newState.recurring_weekly_tue = false;
         newState.recurring_weekly_wed = false;
