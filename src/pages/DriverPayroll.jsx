@@ -585,8 +585,38 @@ export default function DriverPayroll() {
     
     const today = new Date();
     
-    // PRIORITY 1: Find cycle where finalize button would be active (has data but not admin-finalized)
+    // PRIORITY 1: Find cycle where finalize button would be active (has data, not admin-finalized, AND canFinalize time check)
     console.log(`🔍 [DriverPayroll] Looking for cycle with active finalize button - Total periods: ${allPeriods.length}, Payroll records: ${payrollRecords.length}, Selected driver: ${selectedDriverId}`);
+    
+    // Helper to check if finalization is allowed based on time (from PayrollSummaryCard logic)
+    const canFinalizePeriod = (period) => {
+      if (!period?.end || !payrollData?.cities) return false;
+      
+      const userCityId = currentUser?.city_id || selectedCityId;
+      const userCity = payrollData.cities.find(c => c?.id === userCityId);
+      
+      const PROVINCE_TIMEZONES = {
+        'AB': 'America/Edmonton', 'BC': 'America/Vancouver', 'SK': 'America/Regina',
+        'MB': 'America/Winnipeg', 'ON': 'America/Toronto', 'QC': 'America/Montreal',
+        'NB': 'America/Moncton', 'NS': 'America/Halifax', 'PE': 'America/Halifax',
+        'NL': 'America/St_Johns', 'YT': 'America/Whitehorse', 'NT': 'America/Yellowknife',
+        'NU': 'America/Iqaluit'
+      };
+      
+      const provinceCode = userCity?.province_state?.toUpperCase()?.substring(0, 2);
+      const timezone = provinceCode && PROVINCE_TIMEZONES[provinceCode] || 'America/Edmonton';
+      const nowInCityTime = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+      const todayInCityTime = new Date(nowInCityTime);
+      todayInCityTime.setHours(0, 0, 0, 0);
+      const periodEnd = new Date(period.end);
+      periodEnd.setHours(0, 0, 0, 0);
+      
+      if (todayInCityTime > periodEnd) return true;
+      if (todayInCityTime.getTime() === periodEnd.getTime()) {
+        return nowInCityTime.getHours() >= 18;
+      }
+      return false;
+    };
     
     let finalizableCycleIdx = -1;
     
@@ -595,7 +625,6 @@ export default function DriverPayroll() {
       const startStr = period.start.toISOString().split('T')[0];
       const endStr = period.end.toISOString().split('T')[0];
       
-      // Find all records for this period
       const recordsForPeriod = payrollRecords.filter(r => 
         r.pay_period_start === startStr && r.pay_period_end === endStr
       );
@@ -608,24 +637,24 @@ export default function DriverPayroll() {
         }))
       });
       
-      // Check if this period has data but is NOT admin-finalized (finalize button would be active)
       let hasData = false;
       let isAdminFinalized = false;
+      const canFinalize = canFinalizePeriod(period);
       
       if (selectedDriverId === 'all') {
         hasData = recordsForPeriod.length > 0;
         isAdminFinalized = recordsForPeriod.every(r => 
           r.status === 'admin_finalized' || r.status === 'paid'
         );
-        console.log(`  'all' mode: hasData=${hasData}, isAdminFinalized=${isAdminFinalized}`);
+        console.log(`  'all' mode: hasData=${hasData}, isAdminFinalized=${isAdminFinalized}, canFinalize=${canFinalize}`);
       } else {
         const driverRecord = recordsForPeriod.find(r => r.driver_id === selectedDriverId);
         hasData = !!driverRecord;
         isAdminFinalized = driverRecord && (driverRecord.status === 'admin_finalized' || driverRecord.status === 'paid');
-        console.log(`  Specific driver mode: hasData=${hasData}, isAdminFinalized=${isAdminFinalized}`);
+        console.log(`  Specific driver mode: hasData=${hasData}, isAdminFinalized=${isAdminFinalized}, canFinalize=${canFinalize}`);
       }
       
-      if (hasData && !isAdminFinalized) {
+      if (hasData && !isAdminFinalized && canFinalize) {
         finalizableCycleIdx = i;
         console.log(`✅ [DriverPayroll] Found finalizable cycle: ${period.label} (index ${i})`);
         break;
