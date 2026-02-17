@@ -4215,7 +4215,7 @@ export default function AdminUtilities() {
       setConfirmDialog({
         open: true,
         title: '✅ No Duplicates Found',
-        description: `No duplicates found in the current filtered list.\n\nSearched: ${deliveriesToProcess.length} deliveries\nProcessed: ${processedCount}\nSkipped (no SID/Date/Driver): ${skippedCount}\nUnique combinations: ${duplicateGroups.size}\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n• Driver ID\n\nCheck browser console for detailed logs.`,
+        description: `No duplicates found in the current filtered list.\n\nSearched: ${deliveriesToProcess.length} deliveries\nProcessed: ${processedCount}\nSkipped (no SID/Date): ${skippedCount}\nUnique combinations: ${duplicateGroups.size}\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n\nCheck browser console for detailed logs.`,
         confirmText: 'OK',
         variant: 'default',
         onConfirm: () => {}
