@@ -612,21 +612,21 @@ export default function DriverPayroll() {
       
       if (recordsForPeriod.length === 0) continue;
       
-      console.log(`🔍 [Period ${i}] ${period.label} (${startStr} to ${endStr}):`, {
-        totalRecords: recordsForPeriod.length,
-        records: recordsForPeriod.map(r => ({
-          driver: r.driver_id?.slice(-4),
-          driver_finalized: r.driver_finalized_at || 'MISSING',
-          admin_finalized: r.admin_finalized_at || 'MISSING'
-        }))
-      });
-      
       // Check if ANY record has missing driver_finalized_at OR admin_finalized_at
       const hasIncompleteRecord = recordsForPeriod.some(r => 
         !r.driver_finalized_at || !r.admin_finalized_at
       );
       
-      console.log(`  Has incomplete: ${hasIncompleteRecord}`);
+      console.log(`🔍 [Period ${i}] ${period.label} (${startStr} to ${endStr}):`, {
+        totalRecords: recordsForPeriod.length,
+        hasIncomplete: hasIncompleteRecord,
+        details: recordsForPeriod.map(r => ({
+          driver: r.driver_id?.slice(-4),
+          driver_finalized_at: r.driver_finalized_at ? '✓' : '✗ MISSING',
+          admin_finalized_at: r.admin_finalized_at ? '✓' : '✗ MISSING',
+          status: r.status
+        }))
+      });
       
       if (hasIncompleteRecord) {
         earliestIncompleteCycleIdx = i;
