@@ -698,7 +698,7 @@ export default function PatientForm({
                     <Label className="text-xs font-semibold uppercase" style={{ color: 'var(--text-slate-700)' }}>App Owner Controls</Label>
                   </div>
                   <div className="grid grid-cols-12 gap-2">
-                    <div className="col-span-2 space-y-1">
+                    <div className="col-span-2 space-y-1" style={{ width: 'calc((100% / 12 * 2) + 6px)' }}>
                         <Label htmlFor="patient_id_appowner" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>PID</Label>
                       <Input
                       id="patient_id_appowner"
@@ -709,7 +709,7 @@ export default function PatientForm({
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
                       maxLength={5} />
                     </div>
-                    <div className="col-span-4 space-y-1">
+                    <div className="col-span-4 space-y-1" style={{ width: 'calc((100% / 12 * 4) - 6px)' }}>
                       <Label htmlFor="latitude" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Latitude</Label>
                       <Input
                       id="latitude"
@@ -721,7 +721,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
-                    <div className="col-span-4 space-y-1">
+                    <div className="col-span-4 space-y-1" style={{ width: 'calc((100% / 12 * 4) - 6px)' }}>
                       <Label htmlFor="longitude" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Longitude</Label>
                       <Input
                       id="longitude"
@@ -733,7 +733,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
-                    <div className="col-span-2 space-y-1">
+                    <div className="col-span-2 space-y-1" style={{ width: 'calc((100% / 12 * 2) + 6px)' }}>
                       <Label htmlFor="distance" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Dist (km)</Label>
                       <Input
                       id="distance"
