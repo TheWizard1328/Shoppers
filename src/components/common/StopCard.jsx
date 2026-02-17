@@ -2103,8 +2103,32 @@ export default function StopCard({
                                 if (patient.recurring_daily) return 'Daily';
                                 if (patient.recurring_monthly) return 'Monthly';
                                 if (patient.recurring_bimonthly) return 'Bi-Monthly';
-                                if (patient.recurring_biweekly) return 'Bi-Weekly';
-                                if (patient.recurring_weekly_x4) return '4x Weekly';
+                                if (patient.recurring_biweekly) {
+                                  // Check for specific days
+                                  const days = [];
+                                  if (patient.recurring_weekly_mon) days.push('Mon');
+                                  if (patient.recurring_weekly_tue) days.push('Tue');
+                                  if (patient.recurring_weekly_wed) days.push('Wed');
+                                  if (patient.recurring_weekly_thu) days.push('Thu');
+                                  if (patient.recurring_weekly_fri) days.push('Fri');
+                                  if (patient.recurring_weekly_sat) days.push('Sat');
+                                  if (patient.recurring_weekly_sun) days.push('Sun');
+                                  
+                                  if (days.length > 0) return `Bi-Weekly (${days.join(', ')})`;
+                                  return 'Bi-Weekly';
+                                }
+                                if (patient.recurring_weekly_x4) {
+                                  // Show weekly x4 day if available
+                                  if (patient.recurring_weekly_x4_day) {
+                                    const dayAbbrevs = {
+                                      mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu',
+                                      fri: 'Fri', sat: 'Sat', sun: 'Sun'
+                                    };
+                                    const day = dayAbbrevs[patient.recurring_weekly_x4_day] || patient.recurring_weekly_x4_day;
+                                    return `4x Weekly (${day})`;
+                                  }
+                                  return '4x Weekly';
+                                }
 
                                 // Weekly with specific days
                                 const days = [];
@@ -2116,7 +2140,7 @@ export default function StopCard({
                                 if (patient.recurring_weekly_sat) days.push('Sat');
                                 if (patient.recurring_weekly_sun) days.push('Sun');
 
-                                if (days.length > 0) return `Weekly(${days.join(', ')})`;
+                                if (days.length > 0) return `Weekly (${days.join(', ')})`;
                                 return 'Recurring';
                               })()}
                             </Badge>
