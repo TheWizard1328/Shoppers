@@ -316,28 +316,52 @@ Deno.serve(async (req) => {
             }
           }
         } else if (patient.recurring_weekly_x4) {
-          // Weekly x4 pattern: 4 times per week, check last delivery
-          if (patient.last_delivery_date) {
+          // Weekly x4 pattern: 4 times per week
+          // If recurring_weekly_x4_day is set, ONLY deliver on that specific day of the week
+          if (patient.recurring_weekly_x4_day) {
+            const dayMap = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+            const targetDay = dayMap[patient.recurring_weekly_x4_day];
+            
+            // Check if today matches the configured day
+            if (targetDayOfWeek === targetDay) {
+              if (patient.last_delivery_date) {
+                const lastDeliveryDate = new Date(patient.last_delivery_date);
+                const daysSinceLastDelivery = Math.round((targetDate - lastDeliveryDate) / (1000 * 60 * 60 * 24));
+                
+                // Check if no recent delivery near target date (within ±3 days)
+                const recentDeliveries = historicalDeliveries.filter(d => 
+                  d && d.patient_id === patient.id && d.status === 'completed'
+                );
+                const hasRecentDeliveryNearTarget = recentDeliveries.some(d => {
+                  const deliveryDate = new Date(d.delivery_date);
+                  const daysDiff = Math.abs(Math.round((targetDate - deliveryDate) / (1000 * 60 * 60 * 24)));
+                  return daysDiff <= 3 && daysDiff !== 0;
+                });
+                
+                if (!hasRecentDeliveryNearTarget && daysSinceLastDelivery >= 1 && daysSinceLastDelivery <= 3) {
+                  shouldInclude = true;
+                  confidence = 0.9;
+                  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                  reason = `Weekly x4 ${dayNames[targetDay]} pattern`;
+                }
+              }
+            }
+          } else if (patient.last_delivery_date) {
+            // Fallback: no day configured, use time-based logic
             const lastDeliveryDate = new Date(patient.last_delivery_date);
             const daysSinceLastDelivery = Math.round((targetDate - lastDeliveryDate) / (1000 * 60 * 60 * 24));
             
-            // CRITICAL: Skip if patient has had a delivery within ±3 days of target date
-            // Check recent deliveries for this patient around the target date
+            // Check recent deliveries
             const recentDeliveries = historicalDeliveries.filter(d => 
               d && d.patient_id === patient.id && d.status === 'completed'
             );
             const hasRecentDeliveryNearTarget = recentDeliveries.some(d => {
               const deliveryDate = new Date(d.delivery_date);
               const daysDiff = Math.abs(Math.round((targetDate - deliveryDate) / (1000 * 60 * 60 * 24)));
-              return daysDiff <= 3 && daysDiff !== 0; // Within ±3 days but not the same day
+              return daysDiff <= 3 && daysDiff !== 0;
             });
             
-            if (hasRecentDeliveryNearTarget) {
-              // Skip this patient - already had a delivery within the recurring window
-              continue;
-            }
-            
-            if (daysSinceLastDelivery >= 1 && daysSinceLastDelivery <= 3) {
+            if (!hasRecentDeliveryNearTarget && daysSinceLastDelivery >= 1 && daysSinceLastDelivery <= 3) {
               shouldInclude = true;
               confidence = 0.9;
               reason = 'Weekly x4 recurring pattern';
