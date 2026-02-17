@@ -298,37 +298,43 @@ class LocationTracker {
       };
 
       // Step 1: Upload this driver's location to API
-      const updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
+      await base44.entities.AppUser.update(this.appUserId, updateData);
       console.log(`✅ [LocationTracker] UPLOADED TO API - ${userName} (...${userIdLast4}):`, {
         lat: latitude.toFixed(6),
         lon: longitude.toFixed(6),
         timestamp: nowISO,
         appUserId: this.appUserId,
-        response: updatedAppUser ? 'SUCCESS' : 'FAILED',
         uploadedData: updateData
       });
 
+      // Step 2: Fetch FULL AppUser data (to ensure coordinates are complete)
+      const fullAppUser = await base44.entities.AppUser.filter({ id: this.appUserId });
+      const updatedAppUser = fullAppUser && fullAppUser.length > 0 ? fullAppUser[0] : null;
+      
       if (!updatedAppUser) {
-        console.error('❌ [LocationTracker] API upload returned falsy response!');
+        console.error(`❌ [LocationTracker] Failed to fetch updated AppUser after upload!`);
+        return;
       }
 
-      // Step 2: Save ONLY the updated AppUser to offline DB (not all users)
-      // CRITICAL: WebSocket subscription will broadcast to other devices - no need to refetch all users
+      console.log(`✅ [LocationTracker] Fetched full AppUser data:`, {
+        lat: updatedAppUser.current_latitude?.toFixed(6),
+        lon: updatedAppUser.current_longitude?.toFixed(6),
+        timestamp: updatedAppUser.location_updated_at,
+        location_tracking_enabled: updatedAppUser.location_tracking_enabled
+      });
+
+      // Step 3: Save to offline DB
       try {
         const { offlineDB } = await import('./offlineDatabase');
         await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
-        console.log(`💾 [LocationTracker] Saved own AppUser to offline DB:`, {
-          lat: updatedAppUser.current_latitude?.toFixed(6),
-          lon: updatedAppUser.current_longitude?.toFixed(6),
-          timestamp: updatedAppUser.location_updated_at
-        });
+        console.log(`💾 [LocationTracker] Saved AppUser to offline DB`);
       } catch (offlineError) {
         console.error('❌ [LocationTracker] FAILED TO SYNC to offline DB:', offlineError.message);
       }
 
-      // Step 3: Broadcast single-driver update event (WebSocket handles cross-device sync)
+      // Step 4: Dispatch event to update other devices via WebSocket
       if (typeof window !== 'undefined') {
-        console.log(`📡 [LocationTracker] Dispatching single driver update for ${userName}`);
+        console.log(`📡 [LocationTracker] Dispatching driverLocationsUpdated for ${userName}`);
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
           detail: { 
             appUsers: [updatedAppUser], 
