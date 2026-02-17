@@ -32,15 +32,15 @@ Deno.serve(async (req) => {
       includedRegionCodes: ['CA']
     };
 
-    // Add location restriction to search radius (75km around store origin)
+    // Add location bias for better results (50km max allowed by API)
     if (latitude && longitude) {
-      requestBody.locationRestriction = {
+      requestBody.locationBias = {
         circle: {
           center: {
             latitude: latitude,
             longitude: longitude
           },
-          radius: 75000 // 75km radius for service area (in meters)
+          radius: 50000 // 50km radius (API maximum)
         }
       };
     }
