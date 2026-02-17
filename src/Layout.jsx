@@ -3548,8 +3548,8 @@ export default function Layout({ children, currentPageName }) {
                           {/* Location Tracking Toggle - mobile devices (including tablets) in landscape, drivers only */}
                           {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
                             <LocationTrackingToggle
-                              user={currentUser}
-                              onUserUpdate={async () => {
+                              currentUser={currentUser}
+                              onUpdate={async () => {
                                 clearUserCache();
                                 const refreshedUser = await getEffectiveUser();
                                 if (refreshedUser) {
@@ -4079,11 +4079,48 @@ export default function Layout({ children, currentPageName }) {
                     {(isMobile || isTabletPortrait) && currentUser && !sidebarOpen && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
                     <div className="flex-1 flex items-center justify-center gap-2">
                       {/* Menu - Left */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                            <MoreVertical className="w-5 h-5 text-slate-500" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <SettingsMenu
+                          currentUser={currentUser}
+                          realUser={realUser}
+                          isAppOwner={isAppOwner(currentUser)}
+                          adminImportEnabled={adminImportEnabled}
+                          onAdminImportToggle={async (checked) => {
+                            if (currentUser?._isImpersonating) return;
+                            setAdminImportEnabled(checked);
+                            try {
+                              const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                              if (settings && settings.length > 0) {
+                                await base44.entities.AppSettings.update(settings[0].id, {
+                                  setting_value: {
+                                    ...settings[0].setting_value,
+                                    adminImportEnabled: checked
+                                  }
+                                });
+                              }
+                            } catch (error) {
+                              console.error('Failed to save admin import setting:', error);
+                            }
+                          }}
+                          themePreference={themePreference}
+                          onThemeChange={handleThemeChange}
+                          cities={cities}
+                          onPatientImportClick={() => setShowPatientImport(true)}
+                          onDeliveryImportClick={() => setShowDeliveryImport(true)}
+                          isMobile={true}
+                        />
+                      </DropdownMenu>
+
                       {/* Location Tracking Toggle - drivers only */}
                       {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
                         <LocationTrackingToggle
-                          user={currentUser}
-                          onUserUpdate={async () => {
+                          currentUser={currentUser}
+                          onUpdate={async () => {
                             clearUserCache();
                             const refreshedUser = await getEffectiveUser();
                             if (refreshedUser) {

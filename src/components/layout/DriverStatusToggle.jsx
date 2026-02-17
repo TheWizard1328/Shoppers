@@ -85,21 +85,22 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     }
   }, [currentUser?.driver_status, status]);
 
-  // Listen for AppUser entity updates to sync status across devices
+  // Listen for AppUser entity updates from WebSocket to sync status across devices
   useEffect(() => {
-    const handleAppUserUpdatedEvent = (event) => {
-      const { appUser } = event.detail || {};
+    const handleAppUserUpdate = (event) => {
+      const { entity, action, id, data } = event.detail || {};
       
-      if (!appUser || !currentUser) return;
+      if (entity !== 'AppUser' || !data || !currentUser) return;
       
-      // Check if this update is for the current user
+      // CRITICAL: Check multiple ID fields to catch the update
       const isCurrentUser = (
-        (appUserId && appUser.id === appUserId) ||
-        (appUser.user_id === currentUser.id)
+        (appUserId && id === appUserId) ||
+        (appUserId && data?.id === appUserId) ||
+        (data?.user_id === currentUser.id)
       );
       
-      if (isCurrentUser && typeof appUser.driver_status !== 'undefined') {
-        console.log(`📡 [DriverStatusToggle] appUserUpdated event - syncing status to: ${appUser.driver_status}`);
+      if (isCurrentUser && typeof data.driver_status !== 'undefined') {
+        console.log(`📡 [DriverStatusToggle] WebSocket update - syncing status to: ${data.driver_status}`);
         
         // Skip if still toggling
         if (isTogglingRef.current) {
@@ -109,38 +110,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         
         // CRITICAL: Only update if the value actually changed
         setStatus(prev => {
-          if (prev === appUser.driver_status) {
-            return prev; // No change - keep current state
-          }
-          locationTracker.setDriverStatus(appUser.driver_status);
-          return appUser.driver_status;
-        });
-      }
-    };
-    
-    // FALLBACK: Also listen to entityMutationBroadcast for backwards compatibility
-    const handleEntityMutation = (event) => {
-      const { entity, action, id, data } = event.detail || {};
-      
-      if (entity !== 'AppUser' || !data || !currentUser) return;
-      
-      const isCurrentUser = (
-        (appUserId && id === appUserId) ||
-        (appUserId && data?.id === appUserId) ||
-        (data?.user_id === currentUser.id)
-      );
-      
-      if (isCurrentUser && typeof data.driver_status !== 'undefined') {
-        console.log(`📡 [DriverStatusToggle] entityMutationBroadcast - syncing status to: ${data.driver_status}`);
-        
-        if (isTogglingRef.current) {
-          console.log('⏸️ [DriverStatusToggle] Still toggling - will sync after toggle completes');
-          return;
-        }
-        
-        setStatus(prev => {
           if (prev === data.driver_status) {
-            return prev;
+            return prev; // No change - keep current state
           }
           locationTracker.setDriverStatus(data.driver_status);
           return data.driver_status;
@@ -148,12 +119,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       }
     };
 
-    window.addEventListener('appUserUpdated', handleAppUserUpdatedEvent);
-    window.addEventListener('entityMutationBroadcast', handleEntityMutation);
-    return () => {
-      window.removeEventListener('appUserUpdated', handleAppUserUpdatedEvent);
-      window.removeEventListener('entityMutationBroadcast', handleEntityMutation);
-    };
+    window.addEventListener('entityMutationBroadcast', handleAppUserUpdate);
+    return () => window.removeEventListener('entityMutationBroadcast', handleAppUserUpdate);
   }, [appUserId, currentUser?.id]);
 
   const handleStatusChange = useCallback(async (newStatus) => {
