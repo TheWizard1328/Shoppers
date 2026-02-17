@@ -478,16 +478,19 @@ export default function PatientForm({
         
         if (returnPatientOnSave) {
           // CRITICAL: Merge backend patient with dataToSave to ensure ALL fields are passed back
+          // Backend patient might not have latitude/longitude, so prioritize dataToSave values
           const completePatient = {
-            ...dataToSave,
             ...backendPatient,
+            ...dataToSave,
             id: backendPatient.id
           };
           console.log('  📤 Returning complete patient data with location:', {
             id: completePatient.id,
+            full_name: completePatient.full_name,
             latitude: completePatient.latitude,
             longitude: completePatient.longitude,
-            distance_from_store: completePatient.distance_from_store
+            distance_from_store: completePatient.distance_from_store,
+            store_id: completePatient.store_id
           });
           onSave(completePatient, true);
           return;
