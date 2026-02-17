@@ -591,14 +591,20 @@ export default function DriverPayroll() {
       const period = allPeriods[i];
       const startStr = period.start.toISOString().split('T')[0];
       const endStr = period.end.toISOString().split('T')[0];
-      const isFinal = payrollRecords.some(r =>
-        r.pay_period_start === startStr &&
-        r.pay_period_end === endStr &&
-        (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
-      );
+      
+      // Check if this period is finalized for the selected driver (or any driver if 'all')
+      const isFinal = payrollRecords.some(r => {
+        const periodMatches = r.pay_period_start === startStr && r.pay_period_end === endStr;
+        const statusFinalized = r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid';
+        const driverMatches = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
+        return periodMatches && statusFinalized && driverMatches;
+      });
+      
+      console.log(`🔍 [DriverPayroll] Checking period ${i} (${period.label}): isFinal=${isFinal}`);
+      
       if (!isFinal) {
         firstNonFinalizedIdx = i;
-        console.log(`🔍 [DriverPayroll] Found first non-finalized cycle: ${period.label} (index ${i})`);
+        console.log(`✅ [DriverPayroll] Found first non-finalized cycle: ${period.label} (index ${i})`);
         break;
       }
     }
