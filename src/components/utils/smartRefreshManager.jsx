@@ -91,33 +91,33 @@ class LightweightRefreshManager {
   }
   
   /**
-   * Initialize ALL AppUsers to offline DB on app startup
-   * CRITICAL: Always fetches fresh data from API, even if offline DB has data
+   * Initialize current user to offline DB on app startup
+   * CRITICAL: AppUser.list() has RLS filtering - WebSocket subscriptions will sync all other users
    */
   async initializeAllAppUsersToOfflineDB() {
     try {
       const { offlineDB } = await import('./offlineDatabase');
 
-      // CRITICAL: ALWAYS fetch fresh AppUsers on app load
-      // This ensures offline DB is never stale or missing users
-      console.log('📥 [SmartRefresh] Loading ALL AppUsers to offline DB on startup (ALWAYS FRESH)...');
+      // Fetch current user and save to offline DB
+      // AppUser.list() uses RLS so will only return current user on startup
+      console.log('📥 [SmartRefresh] Loading current user to offline DB on startup...');
       await this.waitForRateLimit();
 
-      const allAppUsers = await queueEntityRequest(
+      const currentAppUsers = await queueEntityRequest(
         () => base44.entities.AppUser.list(),
-        'Initial AppUser bulk load'
+        'Current user load'
       );
 
-      if (allAppUsers && allAppUsers.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+      if (currentAppUsers && currentAppUsers.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, currentAppUsers);
         await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString());
-        console.log(`✅ [SmartRefresh] Synced offline DB with ${allAppUsers.length} fresh AppUsers`);
+        console.log(`✅ [SmartRefresh] Synced offline DB with current user. WebSocket will sync other users.`);
         this.recordSuccess();
       } else {
-        console.warn('⚠️ [SmartRefresh] No AppUsers found during initialization');
+        console.warn('⚠️ [SmartRefresh] No current user AppUser record found');
       }
     } catch (error) {
-      console.warn('⚠️ [SmartRefresh] Failed to initialize AppUsers:', error.message);
+      console.warn('⚠️ [SmartRefresh] Failed to initialize current user:', error.message);
       this.recordError();
     }
   }
