@@ -434,61 +434,11 @@ class LightweightRefreshManager {
         }
       }
 
-      // CRITICAL: Smart AppUser refresh - only poll API if WebSocket hasn't updated recently
-      if (this.shouldRefresh('appUsers') && currentData.appUsers) {
-        try {
-          const timeSinceWebSocket = Date.now() - this.lastWebSocketAppUserUpdate;
-          const hasRecentWebSocketUpdate = timeSinceWebSocket < this.WEBSOCKET_FRESHNESS_THRESHOLD;
-
-          if (hasRecentWebSocketUpdate) {
-            // WebSocket is fresh - skip AppUser refresh to avoid clearing recent WebSocket updates from offline DB
-            console.log(`👥 [LightweightRefresh] WebSocket fresh (${Math.round(timeSinceWebSocket / 1000)}s ago) - skipping AppUser refresh to preserve WebSocket updates`);
-            this.markRefreshed('appUsers');
-          } else {
-            // WebSocket stale or no updates - poll API as backup
-            console.log(`👥 [LightweightRefresh] WebSocket stale (${Math.round(timeSinceWebSocket / 1000)}s) - polling API for AppUsers`);
-            await this.waitForRateLimit();
-            const allAppUsers = await queueEntityRequest(
-              () => base44.entities.AppUser.list(),
-              'AppUser list'
-            );
-
-            this.recordSuccess();
-
-            if (allAppUsers && allAppUsers.length > 0) {
-              // CRITICAL: Replace offline DB immediately with fresh API data (debouncing fix)
-              const { offlineDB } = await import('./offlineDatabase');
-              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
-              
-              const diff = diffEntityArrays(currentData.appUsers, allAppUsers);
-              if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-                updates.appUsers = allAppUsers;
-                console.log(`✅ [LightweightRefresh] AppUsers from API: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
-
-                // CRITICAL: Trigger currentUser refresh for toggles
-                window.dispatchEvent(new CustomEvent('refreshCurrentUserFromSmartRefresh', {
-                  detail: { updatedAppUsers: updates.appUsers }
-                }));
-
-                // CRITICAL: Broadcast with fresh API data (fixes cross-device sync)
-                if (updates.appUsers && updates.appUsers.length > 0) {
-                  window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                    detail: { 
-                      appUsers: updates.appUsers, 
-                      fromSmartRefresh: true,
-                      isFullUpdate: true
-                    }
-                  }));
-                }
-              }
-            }
-            
-            this.markRefreshed('appUsers');
-          }
-        } catch (e) {
-          this.recordError();
-          console.warn('⚠️ [LightweightRefresh] AppUsers refresh failed:', e.message);
-        }
+      // CRITICAL: Skip AppUser polling entirely - AppUser.list() has RLS rules and returns only current user
+      // ONLY rely on WebSocket real-time subscriptions for cross-device AppUser syncing
+      if (this.shouldRefresh('appUsers')) {
+        console.log(`👥 [LightweightRefresh] Skipping AppUser API poll - WebSocket subscriptions handle all cross-device sync`);
+        this.markRefreshed('appUsers');
       }
 
       // Offline sync reconciliation every 1 minute
