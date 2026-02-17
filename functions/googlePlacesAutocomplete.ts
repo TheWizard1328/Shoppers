@@ -2,40 +2,25 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 Deno.serve(async (req) => {
   try {
-    console.log('[googlePlacesAutocomplete] Request received');
-    
     const base44 = createClientFromRequest(req);
     
     // Verify user is authenticated
     const user = await base44.auth.me();
     if (!user) {
-      console.error('[googlePlacesAutocomplete] Unauthorized - no user');
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    console.log('[googlePlacesAutocomplete] User authenticated:', user.email);
 
     const body = await req.json();
-    console.log('[googlePlacesAutocomplete] ===== REQUEST DETAILS =====');
-    console.log('[googlePlacesAutocomplete] Request body:', JSON.stringify(body));
-    console.log('[googlePlacesAutocomplete] Input:', body.input);
-    console.log('[googlePlacesAutocomplete] Latitude:', body.latitude);
-    console.log('[googlePlacesAutocomplete] Longitude:', body.longitude);
-
     const { input, latitude, longitude } = body;
     
     if (!input || input.trim().length < 3) {
-      console.log('[googlePlacesAutocomplete] Input too short, returning empty');
       return Response.json({ predictions: [] });
     }
 
     const apiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
     if (!apiKey) {
-      console.error('[googlePlacesAutocomplete] API key not configured');
       return Response.json({ error: 'API key not configured' }, { status: 500 });
     }
-    
-    console.log('[googlePlacesAutocomplete] API key exists, length:', apiKey.length);
 
     // Use the NEW Google Places API
     const url = 'https://places.googleapis.com/v1/places:autocomplete';
@@ -55,15 +40,9 @@ Deno.serve(async (req) => {
             latitude: latitude,
             longitude: longitude
           },
-          radiusMeters: 75000 // 75km radius for service area
+          radius: 75000 // 75km radius for service area (in meters)
         }
       };
-      console.log('[googlePlacesAutocomplete] ✅ Added location restriction (75km radius):');
-      console.log('[googlePlacesAutocomplete]    Center:', latitude, longitude);
-      console.log('[googlePlacesAutocomplete]    Full requestBody:', JSON.stringify(requestBody, null, 2));
-    } else {
-      console.warn('[googlePlacesAutocomplete] ⚠️ NO COORDINATES PROVIDED - using Canada-wide search');
-      console.log('[googlePlacesAutocomplete]    Full requestBody:', JSON.stringify(requestBody, null, 2));
     }
     
     // Get user's AppUser record for user_name
@@ -84,7 +63,6 @@ Deno.serve(async (req) => {
       }
     });
 
-    console.log('[googlePlacesAutocomplete] Calling Google API (NEW)...');
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -94,15 +72,11 @@ Deno.serve(async (req) => {
       body: JSON.stringify(requestBody)
     });
     
-    console.log('[googlePlacesAutocomplete] Google API HTTP status:', response.status);
-    
     const data = await response.json();
-    console.log('[googlePlacesAutocomplete] Google API full response:', JSON.stringify(data));
 
     // New API returns suggestions array instead of predictions
     if (!response.ok) {
       const errorMsg = data.error?.message || 'Places API error';
-      console.error('[googlePlacesAutocomplete] Google Places API error:', errorMsg);
       return Response.json({ 
         error: errorMsg,
         details: data 
@@ -150,7 +124,7 @@ Deno.serve(async (req) => {
               }
             }
           } catch (error) {
-            console.warn('[googlePlacesAutocomplete] Failed to get driving distance for:', description, error.message);
+            // Silently fail distance calculation
           }
         }
 
@@ -172,17 +146,12 @@ Deno.serve(async (req) => {
     });
 
     // Results should already be within 75km radius due to locationRestriction
-    const filteredPredictions = predictions;
-
-    console.log(`[googlePlacesAutocomplete] Returning ${filteredPredictions.length}/${predictions.length} predictions`);
-    return Response.json({ predictions: filteredPredictions });
+    return Response.json({ predictions });
 
   } catch (error) {
-    console.error('[googlePlacesAutocomplete] Caught error:', error);
-    console.error('[googlePlacesAutocomplete] Error stack:', error.stack);
+    console.error('[googlePlacesAutocomplete] Error:', error.message);
     return Response.json({ 
-      error: error.message,
-      stack: error.stack 
+      error: error.message
     }, { status: 500 });
   }
 });
