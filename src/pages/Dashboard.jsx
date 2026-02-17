@@ -430,25 +430,11 @@ function Dashboard() {
     // Force stats refresh
     window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
     
-    // Auto-center to next delivery card if updates included status changes
-    if (updates.length > 0) {
-      setTimeout(() => {
-        const nextDeliveryCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-        if (nextDeliveryCard) {
-          const cardElement = document.getElementById(`stop-card-${nextDeliveryCard.id}`);
-          if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log(`✅ [Debounced Updates] Auto-centered to next delivery card`);
-          }
-        }
-      }, 400);
-    }
-    
     // Clear the batch
     pendingDeliveryUpdatesRef.current = { creates: [], updates: [], deletes: [] };
     
     console.log(`✅ [Debounced Updates] Batch complete - map markers updated`);
-  }, [updateDeliveriesLocally, deliveries, deliveriesWithStopOrder]);
+  }, [updateDeliveriesLocally, deliveries]);
   
   const scheduleDeliveryUpdate = useCallback((type, data) => {
     // Add to pending batch
