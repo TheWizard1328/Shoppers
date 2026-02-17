@@ -254,6 +254,10 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         for (const entityName of entitiesToSync) {
           try {
             console.log(`   🔄 Syncing ${entityName}...`);
+            
+            // CRITICAL: Wait 2 seconds between each entity to avoid rate limits
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
             const data = await base44.entities[entityName].list();
             await offlineDB.bulkSave(offlineDB.STORES[entityName.toUpperCase() + 'S'] || entityName.toLowerCase() + 's', data);
             console.log(`   ✅ Synced ${data.length} ${entityName} records to offline DB`);
