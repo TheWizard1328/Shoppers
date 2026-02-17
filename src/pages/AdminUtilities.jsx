@@ -4140,6 +4140,7 @@ export default function AdminUtilities() {
     }
     
     const duplicateGroups = new Map();
+    let skippedCount = 0;
     
     deliveriesToProcess.forEach(d => {
       if (!d) {
@@ -4147,12 +4148,13 @@ export default function AdminUtilities() {
         return;
       }
       
-      const sid = d.stop_id?.toString() || '';
-      const date = d.delivery_date || '';
-      const driverId = d.driver_id || '';
+      const sid = d.stop_id?.toString().trim() || '';
+      const date = d.delivery_date?.trim() || '';
+      const driverId = d.driver_id?.trim() || '';
       
-      // Skip if no SID
-      if (!sid || !date) {
+      // CRITICAL: Skip if no SID, no date, or no driver_id
+      if (!sid || !date || !driverId) {
+        skippedCount++;
         return;
       }
       
@@ -4163,39 +4165,51 @@ export default function AdminUtilities() {
       duplicateGroups.get(key).push(d);
     });
     
+    console.log(`📊 Skipped ${skippedCount} deliveries without SID/Date/Driver`);
     console.log(`📊 Found ${duplicateGroups.size} unique SID+Date+Driver combinations`);
     
     const duplicateIds = [];
+    let duplicateGroupCount = 0;
     
     duplicateGroups.forEach((group, key) => {
-      console.log(`📊 Group "${key}": ${group.length} deliveries`);
       if (group.length > 1) {
-        // Keep all duplicates EXCEPT the oldest (which is first after sorting)
+        duplicateGroupCount++;
+        console.log(`📊 DUPLICATE Group "${key}": ${group.length} deliveries`);
+        // Keep the oldest (first after sorting by created_date), mark all others as duplicates
         const sorted = [...group].sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
         sorted.slice(1).forEach(d => duplicateIds.push(d.id));
       }
     });
     
-    console.log(`✅ Found ${duplicateIds.length} duplicates to mark`);
+    console.log(`✅ Found ${duplicateGroupCount} duplicate groups with ${duplicateIds.length} duplicates to mark`);
     
     if (duplicateIds.length === 0) {
       setConfirmDialog({
         open: true,
-        title: '⚠️ No Duplicates Found',
-        description: 'No duplicates found in the current filtered list.\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n• Driver',
+        title: '✅ No Duplicates Found',
+        description: `No duplicates found in the current filtered list.\n\nSearched: ${deliveriesToProcess.length} deliveries\nSkipped (no SID/Date/Driver): ${skippedCount}\n\nDuplicates are identified by matching:\n• Stop ID (SID)\n• Delivery Date\n• Driver ID`,
         confirmText: 'OK',
-        variant: 'destructive',
+        variant: 'default',
         onConfirm: () => {}
       });
       return;
     }
     
     // Auto-select the duplicate checkboxes and activate duplicate filter mode
-    console.log(`✅ Auto-selecting ${duplicateIds.length} duplicate deliveries`);
+    console.log(`✅ Auto-selecting ${duplicateIds.length} duplicate deliveries from ${duplicateGroupCount} groups`);
     setDuplicateFilterMode(true);
     if (onAutoSelect) {
       onAutoSelect(duplicateIds);
     }
+    
+    setConfirmDialog({
+      open: true,
+      title: `✅ Found ${duplicateIds.length} Duplicates`,
+      description: `Found ${duplicateGroupCount} duplicate groups with ${duplicateIds.length} duplicates.\n\nDuplicates have been auto-selected. Review and click "Delete Selected" to remove them.`,
+      confirmText: 'OK',
+      variant: 'default',
+      onConfirm: () => {}
+    });
     
   }, [dataViewMode.deliveries]);
 
