@@ -842,8 +842,8 @@ const DeliveryDataTable = ({
       // Get all delivery IDs that are part of duplicate groups (includes the ones we auto-selected AND the ones we kept)
       const duplicateGroups = new Map();
       deliveries.forEach(d => {
-        if (!d || !d.stop_id || !d.delivery_date || !d.driver_id) return;
-        const key = `${d.stop_id}|${d.delivery_date}|${d.driver_id}`;
+        if (!d || !d.stop_id || !d.delivery_date) return;
+        const key = `${d.stop_id}|${d.delivery_date}`;
         if (!duplicateGroups.has(key)) {
           duplicateGroups.set(key, []);
         }
