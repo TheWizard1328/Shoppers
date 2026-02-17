@@ -639,6 +639,8 @@ function Dashboard() {
       // Schedule for debounced batch processing
       if (type === 'create' || type === 'update') {
         scheduleDeliveryUpdate(type === 'create' ? 'create' : 'update', delivery);
+      } else if (type === 'delete') {
+        scheduleDeliveryUpdate('delete', delivery.id);
       }
       
       console.log('✅ [Dashboard] deliveryUpdated scheduled for batch processing');
