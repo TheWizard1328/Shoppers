@@ -854,9 +854,16 @@ const deduplicateDeliveries = async () => {
 /**
  * Prune historical deliveries - keeps max 60 days per user
  * CRITICAL: Reduces mobile database size by removing old routes
+ * CRITICAL: Only runs on mobile devices
  */
 const pruneDeliveriesOlderThan60Days = async () => {
   try {
+    // CRITICAL: Mobile devices only
+    const { isMobileDevice } = await import('./deviceUtils');
+    if (!isMobileDevice()) {
+      return { success: true, removed: 0, skipped: true };
+    }
+
     const allDeliveries = await getAll(STORES.DELIVERIES);
 
     if (!allDeliveries || allDeliveries.length === 0) {
