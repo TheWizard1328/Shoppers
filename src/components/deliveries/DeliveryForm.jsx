@@ -1054,6 +1054,18 @@ export default function DeliveryForm({
 
     if (!patient._isNew) {
       try {
+        // Calculate recurring_weekly_x4_day from weekly days
+        let weeklyX4Day = undefined;
+        if (updatedFormData.recurring_weekly_x4) {
+          if (updatedFormData.recurring_weekly_mon) weeklyX4Day = 'mon';
+          else if (updatedFormData.recurring_weekly_tue) weeklyX4Day = 'tue';
+          else if (updatedFormData.recurring_weekly_wed) weeklyX4Day = 'wed';
+          else if (updatedFormData.recurring_weekly_thu) weeklyX4Day = 'thu';
+          else if (updatedFormData.recurring_weekly_fri) weeklyX4Day = 'fri';
+          else if (updatedFormData.recurring_weekly_sat) weeklyX4Day = 'sat';
+          else if (updatedFormData.recurring_weekly_sun) weeklyX4Day = 'sun';
+        }
+
         await updatePatientLocal(patient.id, {
           full_name: updatedFormData.patient_name,
           phone: updatedFormData.patient_phone,
@@ -1076,6 +1088,7 @@ export default function DeliveryForm({
           recurring_weekly_sun: updatedFormData.recurring_weekly_sun,
           recurring_biweekly: updatedFormData.recurring_biweekly,
           recurring_weekly_x4: updatedFormData.recurring_weekly_x4,
+          recurring_weekly_x4_day: weeklyX4Day,
           recurring_monthly: updatedFormData.recurring_monthly,
           recurring_bimonthly: updatedFormData.recurring_bimonthly
         });
@@ -1934,6 +1947,18 @@ export default function DeliveryForm({
 
     if (formData.patient_id && !isNewPatient) {
       try {
+        // Calculate recurring_weekly_x4_day from weekly days
+        let weeklyX4Day = undefined;
+        if (formData.recurring_weekly_x4) {
+          if (formData.recurring_weekly_mon) weeklyX4Day = 'mon';
+          else if (formData.recurring_weekly_tue) weeklyX4Day = 'tue';
+          else if (formData.recurring_weekly_wed) weeklyX4Day = 'wed';
+          else if (formData.recurring_weekly_thu) weeklyX4Day = 'thu';
+          else if (formData.recurring_weekly_fri) weeklyX4Day = 'fri';
+          else if (formData.recurring_weekly_sat) weeklyX4Day = 'sat';
+          else if (formData.recurring_weekly_sun) weeklyX4Day = 'sun';
+        }
+
         await updatePatientLocal(formData.patient_id, {
           full_name: formData.patient_name,
           phone: formData.patient_phone,
@@ -1956,6 +1981,7 @@ export default function DeliveryForm({
           recurring_weekly_sun: formData.recurring_weekly_sun,
           recurring_biweekly: formData.recurring_biweekly,
           recurring_weekly_x4: formData.recurring_weekly_x4,
+          recurring_weekly_x4_day: weeklyX4Day,
           recurring_monthly: formData.recurring_monthly,
           recurring_bimonthly: formData.recurring_bimonthly
         });
@@ -2214,6 +2240,18 @@ export default function DeliveryForm({
 
     if (formData.patient_id) {
       try {
+        // Calculate recurring_weekly_x4_day from weekly days
+        let weeklyX4Day = undefined;
+        if (formData.recurring_weekly_x4) {
+          if (formData.recurring_weekly_mon) weeklyX4Day = 'mon';
+          else if (formData.recurring_weekly_tue) weeklyX4Day = 'tue';
+          else if (formData.recurring_weekly_wed) weeklyX4Day = 'wed';
+          else if (formData.recurring_weekly_thu) weeklyX4Day = 'thu';
+          else if (formData.recurring_weekly_fri) weeklyX4Day = 'fri';
+          else if (formData.recurring_weekly_sat) weeklyX4Day = 'sat';
+          else if (formData.recurring_weekly_sun) weeklyX4Day = 'sun';
+        }
+
         await updatePatientLocal(formData.patient_id, {
           full_name: formData.patient_name,
           phone: formData.patient_phone,
@@ -2236,6 +2274,7 @@ export default function DeliveryForm({
           recurring_weekly_sun: formData.recurring_weekly_sun,
           recurring_biweekly: formData.recurring_biweekly,
           recurring_weekly_x4: formData.recurring_weekly_x4,
+          recurring_weekly_x4_day: weeklyX4Day,
           recurring_monthly: formData.recurring_monthly,
           recurring_bimonthly: formData.recurring_bimonthly
         });
@@ -3269,6 +3308,19 @@ export default function DeliveryForm({
         if (patientChanged) {
           try {
             console.log('🔄 [DeliveryForm] Syncing patient-specific changes to Patient entity:', formData.patient_id);
+            
+            // Calculate recurring_weekly_x4_day from weekly days
+            let weeklyX4Day = undefined;
+            if (formData.recurring_weekly_x4) {
+              if (formData.recurring_weekly_mon) weeklyX4Day = 'mon';
+              else if (formData.recurring_weekly_tue) weeklyX4Day = 'tue';
+              else if (formData.recurring_weekly_wed) weeklyX4Day = 'wed';
+              else if (formData.recurring_weekly_thu) weeklyX4Day = 'thu';
+              else if (formData.recurring_weekly_fri) weeklyX4Day = 'fri';
+              else if (formData.recurring_weekly_sat) weeklyX4Day = 'sat';
+              else if (formData.recurring_weekly_sun) weeklyX4Day = 'sun';
+            }
+
             await updatePatientLocal(formData.patient_id, {
               full_name: formData.patient_name,
               phone: formData.patient_phone,
@@ -3291,6 +3343,7 @@ export default function DeliveryForm({
               recurring_weekly_sun: formData.recurring_weekly_sun,
               recurring_biweekly: formData.recurring_biweekly,
               recurring_weekly_x4: formData.recurring_weekly_x4,
+              recurring_weekly_x4_day: weeklyX4Day,
               recurring_monthly: formData.recurring_monthly,
               recurring_bimonthly: formData.recurring_bimonthly
             });
