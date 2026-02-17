@@ -206,6 +206,10 @@ export default function PatientForm({
         initialFrequency = 'bi-weekly';
       } else if (patient.recurring_weekly_x4) {
         initialFrequency = 'weekly-x4';
+        // CRITICAL: Load the weekly x4 day if it exists
+        if (patient.recurring_weekly_x4_day) {
+          initialWeeklyDays = [patient.recurring_weekly_x4_day];
+        }
       } else if (patient.recurring_bimonthly) {
         initialFrequency = 'bi-monthly';
       } else if (patient.recurring_monthly) {
