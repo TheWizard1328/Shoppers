@@ -646,14 +646,14 @@ export default function DriverPayroll() {
       }
     }
     
-    // Select first non-finalized cycle, or today's period as fallback
-    const selectedIdx = firstNonFinalizedIdx !== -1 ? firstNonFinalizedIdx : todayPeriodIdx;
+    // Select most recent non-finalized cycle, or today's period as fallback
+    const selectedIdx = mostRecentNonFinalizedIdx !== -1 ? mostRecentNonFinalizedIdx : todayPeriodIdx;
     
     if (selectedIdx !== null && selectedIdx !== -1) {
-      console.log(`✅ [DriverPayroll] Initial period selected: ${allPeriods[selectedIdx].label} (index ${selectedIdx}) - ${firstNonFinalizedIdx !== -1 ? 'First non-finalized' : 'Today\'s period'}`);
+      console.log(`✅ [DriverPayroll] Initial period selected: ${allPeriods[selectedIdx].label} (index ${selectedIdx}) - ${mostRecentNonFinalizedIdx !== -1 ? 'Most recent non-finalized' : 'Today\'s period'}`);
       setSelectedPeriodIndex(selectedIdx);
     } else {
-      console.warn(`⚠️ [DriverPayroll] No valid period found - firstNonFinalizedIdx: ${firstNonFinalizedIdx}, todayPeriodIdx: ${todayPeriodIdx}`);
+      console.warn(`⚠️ [DriverPayroll] No valid period found - mostRecentNonFinalizedIdx: ${mostRecentNonFinalizedIdx}, todayPeriodIdx: ${todayPeriodIdx}`);
     }
     
     // Mark that initial period has been set
