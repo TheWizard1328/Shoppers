@@ -622,28 +622,18 @@ function Dashboard() {
 
     // CRITICAL: Listen for deliveryUpdated events from cityFilteredRealtimeSync
     const handleDeliveryUpdated = (event) => {
-      const { delivery, type } = event.detail || {};
+      const { delivery, type, fromRealtime } = event.detail || {};
       
-      if (!delivery) return;
+      if (!delivery || !fromRealtime) return; // Only process real-time events from cityFilteredRealtimeSync
       
-      console.log(`📡 [Dashboard] Received deliveryUpdated event - ${type}:`, delivery.patient_name || delivery.id);
-      console.log('📦 [Dashboard] Delivery data:', JSON.stringify({ id: delivery.id, status: delivery.status, isNextDelivery: delivery.isNextDelivery }, null, 2));
+      console.log(`📡 [Dashboard] Received real-time deliveryUpdated - ${type}:`, delivery.patient_name || delivery.id);
       
-      // Update UI immediately
-      if (updateDeliveriesLocally) {
-        console.log(`🔄 [Dashboard] Updating UI with delivery: ${delivery.patient_name}, status: ${delivery.status}`);
-        updateDeliveriesLocally([delivery], false);
+      // Schedule for debounced batch processing
+      if (type === 'create' || type === 'update') {
+        scheduleDeliveryUpdate(type === 'create' ? 'create' : 'update', delivery);
       }
       
-      // Trigger map update
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { deliveryDate: delivery.delivery_date, triggeredBy: 'realtimeDeliveryEvent' }
-      }));
-      
-      // Force stats refresh
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-      
-      console.log('✅ [Dashboard] deliveryUpdated processed');
+      console.log('✅ [Dashboard] deliveryUpdated scheduled for batch processing');
     };
     
     window.addEventListener('deliveryUpdated', handleDeliveryUpdated);
@@ -673,6 +663,13 @@ function Dashboard() {
       }
       
       // Process any remaining batched updates before cleanup
+      processBatchedDeliveryUpdates();
+      
+      // Clear any pending debounced updates
+      if (deliveryDebounceTimerRef.current) {
+        clearTimeout(deliveryDebounceTimerRef.current);
+        deliveryDebounceTimerRef.current = null;
+      }
       processBatchedDeliveryUpdates();
       
       window.removeEventListener('deliveriesUpdated', handleImmediateDeliveryUpdate);
