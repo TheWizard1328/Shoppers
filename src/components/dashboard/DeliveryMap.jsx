@@ -2390,7 +2390,13 @@ export default function DeliveryMap({
     }
 
     // SAFETY: Ensure map is fully loaded before attempting operations
-    if (!map.getCenter) {
+    if (!map.getCenter || !map._loaded) {
+      return;
+    }
+
+    // CRITICAL: Verify map panes exist before operations
+    if (!map._panes || !map._mapPane) {
+      console.warn('[DeliveryMap] Map panes not initialized, skipping bounds fit');
       return;
     }
 
@@ -2430,7 +2436,9 @@ export default function DeliveryMap({
       if (onBoundsFitted && typeof onBoundsFitted === 'function') {
         onBoundsFitted();
       }
-    } catch (error) {}
+    } catch (error) {
+      console.warn('[DeliveryMap] Error during bounds fit:', error);
+    }
   }, [map, shouldFitBounds, stopCardsHeight, onBoundsFitted]);
 
   // Handle marker drag end
