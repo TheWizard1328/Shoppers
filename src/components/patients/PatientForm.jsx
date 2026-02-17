@@ -1081,7 +1081,7 @@ export default function PatientForm({
                         </div>
                       </RadioGroup>
 
-                  {showWeeklyDays && isRecurring && (frequency === 'weekly' || frequency === 'bi-weekly') &&
+                  {showWeeklyDays && isRecurring && (frequency === 'weekly' || frequency === 'bi-weekly' || frequency === 'weekly-x4') &&
                   <div className="absolute left-0 top-[-120px] w-full border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
                       <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-slate-900)' }}>Select Days:</p>
                       <div className="space-y-2">
