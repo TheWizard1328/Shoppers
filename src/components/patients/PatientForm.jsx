@@ -698,7 +698,7 @@ export default function PatientForm({
                     <Label className="text-xs font-semibold uppercase" style={{ color: 'var(--text-slate-700)' }}>App Owner Controls</Label>
                   </div>
                   <div className="flex gap-2">
-                    <div className="flex-none w-[70px] space-y-1">
+                    <div className="flex-none w-[65px] space-y-1">
                         <Label htmlFor="patient_id_appowner" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>PID</Label>
                       <Input
                       id="patient_id_appowner"
@@ -733,7 +733,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
-                    <div className="flex-none w-[70px] space-y-1">
+                    <div className="flex-none w-[65px] space-y-1">
                       <Label htmlFor="distance" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Dist</Label>
                       <Input
                       id="distance"
