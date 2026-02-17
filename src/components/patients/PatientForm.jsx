@@ -333,6 +333,11 @@ export default function PatientForm({
     setShowWeeklyDays(true);
   };
 
+  const handleWeeklyX4Click = () => {
+    setFrequency('weekly-x4');
+    setShowWeeklyDays(true);
+  };
+
   const handleWeeklyDaysDone = () => {
     setShowWeeklyDays(false);
   };
