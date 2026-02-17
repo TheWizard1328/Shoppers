@@ -74,14 +74,47 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     });
   }, [user?.location_tracking_enabled]);
 
-  // Listen for AppUser entity updates from WebSocket
+  // Listen for AppUser entity updates to sync toggle across devices
   useEffect(() => {
-    const handleAppUserUpdate = (event) => {
+    // PRIMARY: Listen for appUserUpdated CustomEvent (from AppDataContext/cityFilteredRealtimeSync)
+    const handleAppUserUpdated = (event) => {
+      const { appUser } = event.detail || {};
+      
+      if (!appUser || !user) return;
+      
+      // Check if this update is for the current user
+      const isCurrentUser = (
+        appUser.id === user.appUserId || 
+        appUser.id === user.id ||
+        appUser.user_id === user.id ||
+        appUser.user_id === user.user_id
+      );
+      
+      if (isCurrentUser && typeof appUser.location_tracking_enabled !== 'undefined') {
+        console.log(`📡 [LocationSharing] appUserUpdated event - syncing toggle to: ${appUser.location_tracking_enabled}`);
+        
+        // Skip if still toggling
+        if (isTogglingRef.current) {
+          console.log('⏸️ [LocationSharing] Still toggling - will sync after toggle completes');
+          return;
+        }
+        
+        // CRITICAL: Only update if value changed
+        setLocationSharingEnabled(prev => {
+          if (prev === appUser.location_tracking_enabled) {
+            return prev; // No change - keep current state
+          }
+          return appUser.location_tracking_enabled;
+        });
+      }
+    };
+    
+    // FALLBACK: Keep entityMutationBroadcast as optional fallback
+    const handleEntityMutationBroadcast = (event) => {
       const { entity, action, id, data } = event.detail || {};
       
       if (entity !== 'AppUser' || !data) return;
       
-      // CRITICAL: Check multiple ID fields to catch the update
       const isCurrentUser = user && (
         id === user.appUserId || 
         id === user.id ||
@@ -92,26 +125,27 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       );
       
       if (isCurrentUser && typeof data.location_tracking_enabled !== 'undefined') {
-        console.log(`📡 [LocationSharing] WebSocket update - syncing toggle to: ${data.location_tracking_enabled}`);
+        console.log(`📡 [LocationSharing] entityMutationBroadcast fallback - syncing toggle to: ${data.location_tracking_enabled}`);
         
-        // Skip if still toggling
         if (isTogglingRef.current) {
-          console.log('⏸️ [LocationSharing] Still toggling - will sync after toggle completes');
           return;
         }
         
-        // CRITICAL: Only update if value changed
         setLocationSharingEnabled(prev => {
           if (prev === data.location_tracking_enabled) {
-            return prev; // No change - keep current state
+            return prev;
           }
           return data.location_tracking_enabled;
         });
       }
     };
 
-    window.addEventListener('entityMutationBroadcast', handleAppUserUpdate);
-    return () => window.removeEventListener('entityMutationBroadcast', handleAppUserUpdate);
+    window.addEventListener('appUserUpdated', handleAppUserUpdated);
+    window.addEventListener('entityMutationBroadcast', handleEntityMutationBroadcast);
+    return () => {
+      window.removeEventListener('appUserUpdated', handleAppUserUpdated);
+      window.removeEventListener('entityMutationBroadcast', handleEntityMutationBroadcast);
+    };
   }, [user?.id, user?.appUserId, user?.user_id]);
 
   // REMOVED: Auto-start tracking (Dashboard handles GPS tracking for mobile devices)

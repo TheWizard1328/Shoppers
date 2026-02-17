@@ -3548,8 +3548,8 @@ export default function Layout({ children, currentPageName }) {
                           {/* Location Tracking Toggle - mobile devices (including tablets) in landscape, drivers only */}
                           {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
                             <LocationTrackingToggle
-                              currentUser={currentUser}
-                              onUpdate={async () => {
+                              user={currentUser}
+                              onUserUpdate={async () => {
                                 clearUserCache();
                                 const refreshedUser = await getEffectiveUser();
                                 if (refreshedUser) {
@@ -4119,8 +4119,8 @@ export default function Layout({ children, currentPageName }) {
                       {/* Location Tracking Toggle - drivers only */}
                       {isMobileDeviceForTheme() && currentUser && userHasRole(currentUser, 'driver') &&
                         <LocationTrackingToggle
-                          currentUser={currentUser}
-                          onUpdate={async () => {
+                          user={currentUser}
+                          onUserUpdate={async () => {
                             clearUserCache();
                             const refreshedUser = await getEffectiveUser();
                             if (refreshedUser) {
