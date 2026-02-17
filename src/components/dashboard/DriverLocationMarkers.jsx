@@ -144,9 +144,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       const selectedDateStr = selectedDate instanceof Date 
         ? selectedDate.toISOString().split('T')[0]
         : selectedDate;
+      
+      // Match deliveries by either AppUser.id or AppUser.user_id to handle both storage formats
+      const userIdForDeliveryMatch = user.id || user.user_id;
       const hasDispatcherStoreDeliveries = deliveries?.some(d => 
         d && 
-        d.driver_id === userId && 
+        (d.driver_id === userIdForDeliveryMatch || d.driver_id === userId) &&
         d.delivery_date === selectedDateStr &&
         dispatcherStoreIds.includes(d.store_id)
       );
