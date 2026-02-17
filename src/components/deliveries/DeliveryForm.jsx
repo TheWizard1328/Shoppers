@@ -4592,7 +4592,7 @@ export default function DeliveryForm({
                         variant="outline"
                         size="sm"
                         className="w-full mt-3 gap-2"
-                        onClick={() => {
+                        onClick={async () => {
                           // Clear form for totally new patient entry (same behavior as Duplicate/New buttons)
                           setNewPatientMode('new');
                           setSelectedPatient(null);
