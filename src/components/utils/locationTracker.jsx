@@ -312,47 +312,29 @@ class LocationTracker {
         console.error('❌ [LocationTracker] API upload returned falsy response!');
       }
 
-      // Step 2: Fetch ALL AppUsers from API to ensure cross-device sync
-      // CRITICAL: All devices need the same fresh data, not just their own offline DB
-      const allAppUsers = await base44.entities.AppUser.list();
-      console.log(`📥 [LocationTracker] Fetched ${allAppUsers.length} AppUsers from API after upload`);
-      
-      // Verify current driver is in the list with updated coordinates
-      const currentDriverInList = allAppUsers.find(au => au.id === this.appUserId);
-      if (currentDriverInList) {
-        console.log(`✅ [LocationTracker] Current driver found in API response:`, {
-          lat: currentDriverInList.current_latitude?.toFixed(6),
-          lon: currentDriverInList.current_longitude?.toFixed(6),
-          timestamp: currentDriverInList.location_updated_at
-        });
-      } else {
-        console.error(`❌ [LocationTracker] Current driver ${this.appUserId} NOT found in API response!`);
-      }
-
-      // Step 3: Save ALL AppUsers to offline DB (ensures all devices have same fresh data)
+      // Step 2: Save ONLY the updated AppUser to offline DB (not all users)
+      // CRITICAL: WebSocket subscription will broadcast to other devices - no need to refetch all users
       try {
         const { offlineDB } = await import('./offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
-        console.log(`💾 [LocationTracker] Saved ${allAppUsers.length} AppUsers to offline DB`);
-        
-        // Verify offline DB was updated
-        const offlineCurrentDriver = allAppUsers.find(au => au.id === this.appUserId);
-        if (offlineCurrentDriver) {
-          console.log(`✅ [LocationTracker] Verified in offline DB:`, {
-            lat: offlineCurrentDriver.current_latitude?.toFixed(6),
-            lon: offlineCurrentDriver.current_longitude?.toFixed(6),
-            timestamp: offlineCurrentDriver.location_updated_at
-          });
-        }
+        await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
+        console.log(`💾 [LocationTracker] Saved own AppUser to offline DB:`, {
+          lat: updatedAppUser.current_latitude?.toFixed(6),
+          lon: updatedAppUser.current_longitude?.toFixed(6),
+          timestamp: updatedAppUser.location_updated_at
+        });
       } catch (offlineError) {
         console.error('❌ [LocationTracker] FAILED TO SYNC to offline DB:', offlineError.message);
       }
 
-      // Dispatch event with ALL fresh AppUsers from API
+      // Step 3: Broadcast single-driver update event (WebSocket handles cross-device sync)
       if (typeof window !== 'undefined') {
-        console.log(`📡 [LocationTracker] Dispatching driverLocationsUpdated with ${allAppUsers.length} drivers from API`);
+        console.log(`📡 [LocationTracker] Dispatching single driver update for ${userName}`);
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: allAppUsers, fromLocationTracker: true }
+          detail: { 
+            appUsers: [updatedAppUser], 
+            singleUpdate: true,
+            fromLocationTracker: true
+          }
         }));
       }
 
