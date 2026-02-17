@@ -1044,9 +1044,27 @@ export default function PatientForm({
                           </Label>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="weekly-x4" id="weekly-x4" disabled={!isRecurring} />
-                          <Label htmlFor="weekly-x4" className="text-sm" style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}>
-                            Weekly x4
+                          <RadioGroupItem
+                            value="weekly-x4"
+                            id="weekly-x4"
+                            disabled={!isRecurring}
+                            onClick={(e) => {
+                              if (isRecurring) {
+                                e.preventDefault();
+                                handleWeeklyX4Click();
+                              }
+                            }} />
+                          <Label
+                            htmlFor="weekly-x4"
+                            className="text-sm cursor-pointer"
+                            style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
+                            onClick={(e) => {
+                              if (isRecurring) {
+                                e.preventDefault();
+                                handleWeeklyX4Click();
+                              }
+                            }}>
+                            {getWeeklyX4Label()}
                           </Label>
                         </div>
                         <div className="flex items-center space-x-2">
