@@ -185,6 +185,8 @@ export default function RouteImport({
     filesCompleted: 0,
     totalFiles: 0
   });
+  
+  const [importedDates, setImportedDates] = useState([]);
 
   const userHasRole = useCallback((user, role) => {
     return user && user.app_roles && user.app_roles.includes(role);
