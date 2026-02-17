@@ -2169,7 +2169,7 @@ export default function DeliveryForm({
     if (!isMobileDevice) {
       setTimeout(() => patientSearchInputRef.current?.focus(), 100);
     }
-  }, [formData, isFormValid, patients, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice]);
+  }, [formData, isFormValid, patients, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice, isNewRouteWithZeroStops, allDeliveries]);
 
   const handleUpdateStaged = useCallback(async () => {
     if (!editingStagedId) return;
@@ -2735,9 +2735,9 @@ export default function DeliveryForm({
         console.log('[AddToRoute] ✅ All existing deliveries updated');
       }
 
-      // CRITICAL: Create ALL default pickups for each driver BEFORE saving deliveries
-      if (newDeliveries.length > 0) {
-        console.log('📦 [DoneButton] Creating all default pickups for assigned drivers...');
+      // CRITICAL: Create ALL default pickups ONLY for new routes (isNewRouteWithZeroStops = true)
+      if (newDeliveries.length > 0 && isNewRouteWithZeroStops) {
+        console.log('📦 [DoneButton] NEW ROUTE - Creating all default pickups for assigned drivers...');
         
         // Group deliveries by driver_id
         const driverGroups = {};
@@ -2820,7 +2820,9 @@ export default function DeliveryForm({
           }
         }
         
-        console.log('✅ [DoneButton] All default pickups created for assigned drivers');
+        console.log('✅ [DoneButton] All default pickups created for new route');
+      } else if (newDeliveries.length > 0 && !isNewRouteWithZeroStops) {
+        console.log('⏭️ [DoneButton] EXISTING ROUTE - Skipping default pickup creation (pickups already exist)');
       }
       
       // Then save new deliveries OR trigger data refresh
@@ -3101,7 +3103,7 @@ export default function DeliveryForm({
     } finally {
       setIsSaving(false);
     }
-  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId]);
+  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId, isNewRouteWithZeroStops, stores]);
 
   const handleSearchKeyDown = useCallback((e) => {
     // Handle Escape key - always trigger Clear button behavior
