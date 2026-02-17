@@ -1791,25 +1791,27 @@ export default function RouteImport({
       // Get all unique driver IDs from the file mapping
       const allDriverIds = [...new Set(activeFiles.map(f => activeDriverMap[f.name]?.driver?.id).filter(Boolean))];
       
-      // CRITICAL: Clear offline DB for these drivers+dates FIRST to prevent stale data
+      // CRITICAL: Clear offline deliveries for date range ONLY - NEVER clear AppUsers
       try {
-        const { offlineDB } = await import('../utils/offlineDatabase');
         for (const driverId of allDriverIds) {
-          // Get all deliveries in date range from offline DB
+          // CRITICAL: Delete only for the specific date range to avoid losing other data
           const allOfflineInRange = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
           const toDelete = allOfflineInRange.filter(d => 
             d.driver_id === driverId && 
             d.delivery_date >= minDate && 
             d.delivery_date <= maxDate
           );
-          
-          for (const d of toDelete) {
-            await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
+
+          // Batch delete to avoid individual slow operations
+          const BATCH_SIZE = 50;
+          for (let i = 0; i < toDelete.length; i += BATCH_SIZE) {
+            const batch = toDelete.slice(i, i + BATCH_SIZE);
+            await Promise.all(batch.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id)));
           }
           console.log(`🗑️ [RouteImport] Cleared ${toDelete.length} offline deliveries for driver ${driverId} in date range`);
         }
       } catch (offlineError) {
-        console.warn('⚠️ [RouteImport] Failed to clear offline DB:', offlineError);
+        console.warn('⚠️ [RouteImport] Failed to clear offline deliveries:', offlineError);
       }
       
       // CRITICAL: Fetch fresh deliveries from BACKEND for accurate matching during preview
