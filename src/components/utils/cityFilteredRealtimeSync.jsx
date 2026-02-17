@@ -95,6 +95,11 @@ class CityFilteredRealtimeSync {
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [freshDelivery]);
               console.log(`✅ [Realtime Delivery] Saved to offline DB: ${freshDelivery.patient_name || freshDelivery.id}`);
 
+              // CRITICAL: Notify subscribers FIRST (AppDataContext listens for this)
+              console.log(`📡 [Realtime Delivery] Notifying ${this.updateCallbacks.size} subscribers about ${event.type}`);
+              this.notifySubscribers('Delivery', event.type, freshDelivery);
+              this.lastDeliveryUpdate = Date.now();
+
               // CRITICAL: Dispatch MULTIPLE events to ensure all components update
               console.log(`📡 [Realtime Delivery] Broadcasting update to ALL UI components`);
               
@@ -120,11 +125,7 @@ class CityFilteredRealtimeSync {
               // Event 3: Force stats refresh
               window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-              // Notify subscribers
-              this.notifySubscribers('Delivery', event.type, freshDelivery);
-              this.lastDeliveryUpdate = Date.now();
-
-              console.log(`✅ [Realtime Delivery] Complete - multiple UI update events dispatched`);
+              console.log(`✅ [Realtime Delivery] Complete - ${event.type} processed and broadcast to ${this.updateCallbacks.size} subscribers`);
            } else if (event.type === 'delete') {
              console.log(`🗑️ [Realtime Delivery] PROCESSING delete for ${event.id}`);
 
@@ -135,6 +136,16 @@ class CityFilteredRealtimeSync {
              // Notify subscribers
              this.notifySubscribers('Delivery', event.type, { id: event.id });
              this.lastDeliveryUpdate = Date.now();
+             
+             // Dispatch delete event for Dashboard
+             window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+               detail: { 
+                 delivery: { id: event.id },
+                 type: 'delete',
+                 source: 'realtime',
+                 fromRealtime: true
+               }
+             }));
            }
        } catch (error) {
          console.error('❌ [Realtime Delivery] Error processing event:', error);
