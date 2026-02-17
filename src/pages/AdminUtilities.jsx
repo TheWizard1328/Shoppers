@@ -3964,9 +3964,9 @@ export default function AdminUtilities() {
       description: `This will permanently delete ${count} selected deliveries. This action cannot be undone.`,
       confirmText: 'Delete Selected',
       variant: 'destructive',
-      onConfirm: () => performBulkDeleteDeliveries(deliveriesToDelete)
+      onConfirm: () => performBulkDeleteDeliveriesBatch(deliveriesToDelete)
     });
-  }, [performBulkDeleteDeliveries]);
+  }, [performBulkDeleteDeliveriesBatch]);
 
   const _confirmDeleteAllPatients = useCallback((patientsToDelete) => {
     const count = patientsToDelete.length;
