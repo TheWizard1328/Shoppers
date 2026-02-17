@@ -443,7 +443,7 @@ class LightweightRefreshManager {
           if (hasRecentWebSocketUpdate) {
             // WebSocket is fresh - skip AppUser refresh to avoid clearing recent WebSocket updates from offline DB
             console.log(`👥 [LightweightRefresh] WebSocket fresh (${Math.round(timeSinceWebSocket / 1000)}s ago) - skipping AppUser refresh to preserve WebSocket updates`);
-          }
+            this.markRefreshed('appUsers');
           } else {
             // WebSocket stale or no updates - poll API as backup
             console.log(`👥 [LightweightRefresh] WebSocket stale (${Math.round(timeSinceWebSocket / 1000)}s) - polling API for AppUsers`);
@@ -456,31 +456,35 @@ class LightweightRefreshManager {
             this.recordSuccess();
 
             if (allAppUsers && allAppUsers.length > 0) {
+              // CRITICAL: Replace offline DB immediately with fresh API data (debouncing fix)
+              const { offlineDB } = await import('./offlineDatabase');
+              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, allAppUsers);
+              
               const diff = diffEntityArrays(currentData.appUsers, allAppUsers);
               if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-                updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
+                updates.appUsers = allAppUsers;
                 console.log(`✅ [LightweightRefresh] AppUsers from API: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
-
-                // CRITICAL: Save to offline DB immediately
-                const { offlineDB } = await import('./offlineDatabase');
-                await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
 
                 // CRITICAL: Trigger currentUser refresh for toggles
                 window.dispatchEvent(new CustomEvent('refreshCurrentUserFromSmartRefresh', {
                   detail: { updatedAppUsers: updates.appUsers }
                 }));
 
-                // CRITICAL: Only broadcast if we have actual appUsers data
+                // CRITICAL: Broadcast with fresh API data (fixes cross-device sync)
                 if (updates.appUsers && updates.appUsers.length > 0) {
                   window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                    detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
+                    detail: { 
+                      appUsers: updates.appUsers, 
+                      fromSmartRefresh: true,
+                      isFullUpdate: true
+                    }
                   }));
                 }
               }
             }
+            
+            this.markRefreshed('appUsers');
           }
-
-          this.markRefreshed('appUsers');
         } catch (e) {
           this.recordError();
           console.warn('⚠️ [LightweightRefresh] AppUsers refresh failed:', e.message);
