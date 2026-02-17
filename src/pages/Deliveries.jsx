@@ -480,10 +480,10 @@ export default function DeliveriesPage() {
            setTimeout(async () => {
              try {
                const currentYear = new Date().getFullYear();
-               const startYear = 2020;
+               const startYear = currentYear - 1; // CRITICAL: Only fetch last 2 years to prevent rate limits
                const allYearData = [];
 
-               // Fetch each year with throttling to avoid rate limits
+               // Fetch each year with LONG delays to avoid rate limits
                for (let year = currentYear; year >= startYear; year--) {
                  console.log(`📅 [Deliveries Background] Fetching year ${year}...`);
                  const quarters = [
@@ -498,13 +498,13 @@ export default function DeliveriesPage() {
                      const quarterData = await base44.entities.Delivery.filter({
                        delivery_date: { $gte: quarter.start, $lte: quarter.end }
                      }, '-delivery_date');
-                     
+
                      if (quarterData && quarterData.length > 0) {
                        allYearData.push(...quarterData);
                      }
-                     
-                     // Throttle: wait 500ms between quarter requests to avoid rate limits
-                     await new Promise(resolve => setTimeout(resolve, 500));
+
+                     // CRITICAL: 5 second delay between quarter requests to prevent rate limits
+                     await new Promise(resolve => setTimeout(resolve, 5000));
                    } catch (quarterError) {
                      console.warn(`⚠️ [Deliveries Background] Failed to fetch ${year} ${quarter.label}:`, quarterError.message);
                      // Continue with other quarters even if one fails
