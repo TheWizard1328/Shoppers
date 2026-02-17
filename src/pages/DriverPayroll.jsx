@@ -586,21 +586,44 @@ export default function DriverPayroll() {
     const today = new Date();
     
     // PRIORITY 1: Find FIRST (earliest) non-finalized payroll cycle
+    console.log(`🔍 [DriverPayroll] Looking for first non-finalized cycle - Total periods: ${allPeriods.length}, Payroll records: ${payrollRecords.length}, Selected driver: ${selectedDriverId}`);
+    
     let firstNonFinalizedIdx = -1;
     for (let i = 0; i < allPeriods.length; i++) {
       const period = allPeriods[i];
       const startStr = period.start.toISOString().split('T')[0];
       const endStr = period.end.toISOString().split('T')[0];
       
-      // Check if this period is finalized for the selected driver (or any driver if 'all')
-      const isFinal = payrollRecords.some(r => {
-        const periodMatches = r.pay_period_start === startStr && r.pay_period_end === endStr;
-        const statusFinalized = r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid';
-        const driverMatches = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
-        return periodMatches && statusFinalized && driverMatches;
+      // Find all records for this period
+      const recordsForPeriod = payrollRecords.filter(r => 
+        r.pay_period_start === startStr && r.pay_period_end === endStr
+      );
+      
+      console.log(`🔍 [Period ${i}] ${period.label} (${startStr} to ${endStr}):`, {
+        totalRecords: recordsForPeriod.length,
+        records: recordsForPeriod.map(r => ({
+          driver: r.driver_id?.slice(-4),
+          status: r.status
+        }))
       });
       
-      console.log(`🔍 [DriverPayroll] Checking period ${i} (${period.label}): isFinal=${isFinal}`);
+      // Check if this period is finalized for the selected driver (or any driver if 'all')
+      let isFinal = false;
+      
+      if (selectedDriverId === 'all') {
+        // For 'all' - period is final if ANY driver has finalized it
+        isFinal = recordsForPeriod.some(r => 
+          r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid'
+        );
+        console.log(`  'all' mode: isFinal=${isFinal} (any driver finalized)`);
+      } else {
+        // For specific driver - period is final if THAT driver has finalized it
+        isFinal = recordsForPeriod.some(r => 
+          r.driver_id === selectedDriverId && 
+          (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
+        );
+        console.log(`  Specific driver mode: isFinal=${isFinal} (driver ${selectedDriverId.slice(-4)} finalized)`);
+      }
       
       if (!isFinal) {
         firstNonFinalizedIdx = i;
