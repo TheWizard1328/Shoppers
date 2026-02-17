@@ -666,6 +666,14 @@ export default function PatientForm({
     return 'Bi-Weekly';
   };
 
+  const getWeeklyX4Label = () => {
+    if (frequency === 'weekly-x4' && weeklyDays.length > 0) {
+      const daysStr = weeklyDays.map((d) => dayAbbrevs[d] || d.charAt(0).toUpperCase() + d.slice(1)).join(', ');
+      return `Weekly x4 (${daysStr})`;
+    }
+    return 'Weekly x4';
+  };
+
   const isPIDValid = formData.patient_id ? validateId(formData.patient_id, 5) : null;
   const pidBackgroundColor = isPIDValid === null ? '' : isPIDValid ? 'bg-emerald-50' : 'bg-red-50';
 
