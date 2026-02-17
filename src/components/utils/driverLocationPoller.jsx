@@ -307,27 +307,29 @@ class DriverLocationPoller {
        // RULE 4: Dispatchers viewing assigned drivers
        // ========================================
        if (isDispatcher && !isDriver) {
-         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
-
-         // Check if driver has ANY deliveries for dispatcher's stores (today)
-         const hasDeliveriesFromDispatcherStores = (deliveries || []).some(delivery => {
-           if (!delivery) return false;
-           if (delivery.driver_id !== driverId) return false;
-           if (delivery.delivery_date !== todayStr) return false;
-           if (!dispatcherStoreIds.has(delivery.store_id)) return false;
-           return true;
-         });
-
-         if (!hasDeliveriesFromDispatcherStores) {
-           return false;
-         }
-
-         // Dispatchers see assigned drivers if they are On Duty (regardless of location_tracking_enabled)
+         // 1. Driver must be On Duty
          if (user.driver_status !== 'on_duty') {
            return false;
          }
 
-         console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - on_duty with deliveries, staleness: ${user._staleness}`);
+         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
+
+         // 2. Driver must have at least 1 in_transit OR en_route delivery from dispatcher's stores (today)
+         const userIdForDeliveryMatch = user.id || user.user_id;
+         const hasActiveDispatcherStoreDelivery = (deliveries || []).some(delivery => {
+           if (!delivery) return false;
+           if (delivery.driver_id !== userIdForDeliveryMatch && delivery.driver_id !== driverId) return false;
+           if (delivery.delivery_date !== todayStr) return false;
+           if (!dispatcherStoreIds.has(delivery.store_id)) return false;
+           if (!(delivery.status === 'in_transit' || delivery.status === 'en_route')) return false;
+           return true;
+         });
+
+         if (!hasActiveDispatcherStoreDelivery) {
+           return false;
+         }
+
+         console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - on_duty with active deliveries, staleness: ${user._staleness}`);
          return true;
        }
 
