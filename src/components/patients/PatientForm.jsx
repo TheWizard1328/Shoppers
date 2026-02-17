@@ -426,6 +426,11 @@ export default function PatientForm({
           break;
         case 'weekly-x4':
           dataToSave.recurring_weekly_x4 = true;
+          // CRITICAL: Also save the selected day for weekly x4
+          if (weeklyDays.length > 0) {
+            const day = weeklyDays[0]; // Use the first selected day
+            dataToSave.recurring_weekly_x4_day = day;
+          }
           break;
         case 'bi-monthly':
           dataToSave.recurring_bimonthly = true;
