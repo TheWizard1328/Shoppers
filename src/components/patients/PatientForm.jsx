@@ -455,7 +455,7 @@ export default function PatientForm({
       let backendPatient;
 
       // Determine if we're updating or creating
-      const isUpdating = patient && !duplicateMode;
+      const isUpdating = patient && patient.id && !duplicateMode;
 
       if (isUpdating) {
         // STEP 1: Update existing patient via offline mutations
