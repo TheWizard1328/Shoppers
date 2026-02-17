@@ -585,56 +585,38 @@ export default function DriverPayroll() {
     
     const today = new Date();
     
-    // Find the most recent period that has ended or is current
-    let mostRecentPastPeriodIdx = -1;
+    // PRIORITY 1: Find most recent non-finalized payroll
+    let mostRecentNonFinalizedIdx = -1;
     for (let i = allPeriods.length - 1; i >= 0; i--) {
-      if (allPeriods[i].end <= today) {
-        mostRecentPastPeriodIdx = i;
+      const period = allPeriods[i];
+      const startStr = period.start.toISOString().split('T')[0];
+      const endStr = period.end.toISOString().split('T')[0];
+      const isFinal = payrollRecords.some(r =>
+        r.pay_period_start === startStr &&
+        r.pay_period_end === endStr &&
+        (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
+      );
+      if (!isFinal) {
+        mostRecentNonFinalizedIdx = i;
         break;
       }
     }
     
-    // First, find period containing today's date
-    let selectedIdx = null;
+    // PRIORITY 2 (Fallback): Find period containing today's date
+    let todayPeriodIdx = -1;
     for (let i = 0; i < allPeriods.length; i++) {
       const period = allPeriods[i];
       if (today >= period.start && today <= period.end) {
-        selectedIdx = i;
+        todayPeriodIdx = i;
         break;
       }
     }
     
-    // If today's period is finalized, find first unfinalized period
-    if (selectedIdx !== null) {
-      const todayPeriod = allPeriods[selectedIdx];
-      const periodStartStr = todayPeriod.start.toISOString().split('T')[0];
-      const periodEndStr = todayPeriod.end.toISOString().split('T')[0];
-      const isTodayFinalized = payrollRecords.some(r =>
-        r.pay_period_start === periodStartStr &&
-        r.pay_period_end === periodEndStr &&
-        (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
-      );
-      
-      if (isTodayFinalized) {
-        // Find first unfinalized period
-        for (let i = 0; i < allPeriods.length; i++) {
-          const period = allPeriods[i];
-          const startStr = period.start.toISOString().split('T')[0];
-          const endStr = period.end.toISOString().split('T')[0];
-          const isFinal = payrollRecords.some(r =>
-            r.pay_period_start === startStr &&
-            r.pay_period_end === endStr &&
-            (r.status === 'driver_finalized' || r.status === 'admin_finalized' || r.status === 'paid')
-          );
-          if (!isFinal) {
-            selectedIdx = i;
-            break;
-          }
-        }
-      }
-    }
+    // Select most recent non-finalized, or today's period as fallback
+    const selectedIdx = mostRecentNonFinalizedIdx !== -1 ? mostRecentNonFinalizedIdx : todayPeriodIdx;
     
-    if (selectedIdx !== null) {
+    if (selectedIdx !== null && selectedIdx !== -1) {
+      console.log(`✅ [DriverPayroll] Initial period selected: ${allPeriods[selectedIdx].label} (index ${selectedIdx})`);
       setSelectedPeriodIndex(selectedIdx);
     }
     
