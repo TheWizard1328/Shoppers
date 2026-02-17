@@ -3360,7 +3360,7 @@ return polylines.length > 0 ? polylines : null;
 
              // CRITICAL: Determine current location based on device type
              // Primary device: use live GPS location from currentDriverLocation
-             // Other devices: use shared AppUser location
+             // Non-primary devices: use shared AppUser location (always updates via realtimeAppUsers)
              const isCurrentUserOnMobile = currentUser && driverId === currentUser.id && isMobile;
 
              console.log(`🔵 [Type1Poly-Incomplete] isCurrentUserOnMobile for ${driverName}:`, isCurrentUserOnMobile, {
@@ -3384,9 +3384,11 @@ return polylines.length > 0 ? polylines : null;
                  console.warn(`🔵 [Type1Poly-Incomplete] ⚠️ isCurrentUserOnMobile=true but no currentDriverLocation for ${driverName}!`);
                }
              } else {
-               // Other devices - use shared AppUser location
-               if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
-                 startPoint = [driverAppUser.current_latitude, driverAppUser.current_longitude];
+               // Non-primary devices - ALWAYS use latest shared AppUser location from realtimeAppUsers
+               // CRITICAL: realtimeAppUsers is the freshest source (real-time from WebSocket)
+               const latestDriverData = realtimeAppUsers.find(u => u && u.id === driverId) || driverAppUser;
+               if (latestDriverData?.current_latitude && latestDriverData?.current_longitude) {
+                 startPoint = [latestDriverData.current_latitude, latestDriverData.current_longitude];
                  console.log(`🔵 [Type1Poly-Incomplete] ✅ Using SHARED location for ${driverName}:`, startPoint.map(c => c.toFixed(5)));
                } else {
                  console.warn(`🔵 [Type1Poly-Incomplete] ⚠️ No AppUser location for ${driverName}`);
