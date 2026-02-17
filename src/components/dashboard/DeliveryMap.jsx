@@ -2906,6 +2906,11 @@ export default function DeliveryMap({
                 const isAM = stop2.ampm_deliveries === 'AM';
                 const dashArray = isAM ? '10, 5' : '2, 8';
                 
+                // CRITICAL: Type 2 polylines should NOT be blue - use non-blue color
+                const type2Color = driverPolylineColor === '#1E90FF' || driverPolylineColor === '#00CED1' || driverPolylineColor === '#3B82F6'
+                  ? '#8A2BE2' // Blue Violet instead of blue
+                  : driverPolylineColor;
+                
                 polylines.push(
                   <Polyline
                     key={`type2-${route.driverId}-${i}-${polylineRenderKey}`}
@@ -2914,7 +2919,7 @@ export default function DeliveryMap({
                       [stop2.latitude, stop2.longitude]
                     ]}
                     pathOptions={{
-                      color: driverPolylineColor,
+                      color: type2Color,
                       weight: 4,
                       opacity: 0.7,
                       dashArray: dashArray,
