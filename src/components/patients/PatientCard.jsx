@@ -62,9 +62,15 @@ const getRecurringDisplay = (patient) => {
 
   // Check for weekly x4
   if (patient.recurring_weekly_x4) {
-    // Find which days are scheduled
+    // Use recurring_weekly_x4_day if available
+    if (patient.recurring_weekly_x4_day) {
+      const day = dayMap[patient.recurring_weekly_x4_day] || patient.recurring_weekly_x4_day;
+      return `Weekly x4 (${day})`;
+    }
+    
+    // Fallback: Find which days are scheduled from boolean fields
     const weeklyDays = [];
-    dayOrder.forEach((day) => {// Use ordered dayOrder for consistent sorting
+    dayOrder.forEach((day) => {
       if (patient[`recurring_weekly_${day}`]) {
         weeklyDays.push(dayMap[day]);
       }
@@ -73,7 +79,7 @@ const getRecurringDisplay = (patient) => {
     if (weeklyDays.length > 0) {
       return `Weekly x4 (${weeklyDays.join(', ')})`;
     }
-    return 'Weekly x4'; // If recurring_weekly_x4 is true, but no specific days are checked
+    return 'Weekly x4';
   }
 
   // Now check for general weekly patterns (only if NOT bi-weekly or weekly x4 and there are weekly days)
