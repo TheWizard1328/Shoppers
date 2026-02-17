@@ -734,7 +734,7 @@ export default function PatientForm({
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
                     <div className="col-span-2 space-y-1">
-                      <Label htmlFor="distance" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Dist (km)</Label>
+                      <Label htmlFor="distance" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Dist</Label>
                       <Input
                       id="distance"
                       type="number"
