@@ -697,19 +697,19 @@ export default function PatientForm({
                   <div className="flex items-center gap-2 mb-1">
                     <Label className="text-xs font-semibold uppercase" style={{ color: 'var(--text-slate-700)' }}>App Owner Controls</Label>
                   </div>
-                  <div className="grid grid-cols-12 gap-2">
-                    <div className="col-span-2 space-y-1">
+                  <div className="flex gap-2">
+                    <div className="flex-none w-[70px] space-y-1">
                         <Label htmlFor="patient_id_appowner" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>PID</Label>
                       <Input
                       id="patient_id_appowner"
                       value={formData.patient_id}
                       onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
-                      placeholder="5-char"
+                      placeholder="5-chr"
                       className="h-10 md:h-9 text-sm"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
                       maxLength={5} />
                     </div>
-                    <div className="col-span-3 space-y-1">
+                    <div className="flex-1 min-w-0 space-y-1">
                       <Label htmlFor="latitude" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Latitude</Label>
                       <Input
                       id="latitude"
@@ -721,7 +721,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
-                    <div className="col-span-3 space-y-1">
+                    <div className="flex-1 min-w-0 space-y-1">
                       <Label htmlFor="longitude" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Longitude</Label>
                       <Input
                       id="longitude"
@@ -733,7 +733,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
-                    <div className="col-span-2 space-y-1">
+                    <div className="flex-none w-[70px] space-y-1">
                       <Label htmlFor="distance" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Dist</Label>
                       <Input
                       id="distance"
