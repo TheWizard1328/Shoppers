@@ -936,6 +936,7 @@ export const offlineDB = {
   deduplicateAppUsers,
   deduplicateDeliveries,
   deleteDeliveriesByDate,
+  pruneDeliveriesOlderThan60Days,
   getSyncMetadata,
   updateSyncMetadata
 };
