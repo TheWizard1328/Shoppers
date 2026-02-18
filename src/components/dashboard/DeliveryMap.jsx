@@ -2243,15 +2243,26 @@ export default function DeliveryMap({
           if (routeHasActuallyStarted && firstStopCoordinates && route.driver && showLivePolylines) {
           let startPoint = null;
 
-          if (currentUser && route.driver.id === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
+          // CRITICAL: For the current user's primary mobile device, use live GPS
+          if (currentUser && route.driver.id === currentUser.id && isMobile && currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
             startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
           }
-          else if (route.driver.current_latitude && route.driver.current_longitude && route.driver.location_updated_at) {
-            const locationAge = Date.now() - new Date(route.driver.location_updated_at).getTime();
-            const fiveMinutesInMs = 5 * 60 * 1000;
+          else {
+            // CRITICAL: For ALL other cases (other drivers, self on non-primary device, desktop),
+            // look up from realtimeAppUsers - the live source of truth for shared locations.
+            // DO NOT use route.driver.current_latitude — it comes from the frozen stableSortedDrivers map.
+            const liveDriverData = realtimeAppUsers.find(u => u && u.id === route.driver.id);
+            const lat = liveDriverData?.current_latitude;
+            const lng = liveDriverData?.current_longitude;
+            const updatedAt = liveDriverData?.location_updated_at;
 
-            if (locationAge < fiveMinutesInMs) {
-              startPoint = [route.driver.current_latitude, route.driver.current_longitude];
+            if (lat && lng && updatedAt) {
+              const locationAge = Date.now() - new Date(updatedAt).getTime();
+              const fiveMinutesInMs = 5 * 60 * 1000;
+
+              if (locationAge < fiveMinutesInMs) {
+                startPoint = [lat, lng];
+              }
             }
           }
 
