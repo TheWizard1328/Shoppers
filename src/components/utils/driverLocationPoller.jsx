@@ -332,11 +332,15 @@ class DriverLocationPoller {
          // Once all stops are complete/failed/cancelled, marker disappears
          const userIdForDeliveryMatch = user.id || user.user_id;
 
-         // DEBUG: Log all deliveries to see what we're working with
-         console.log(`📋 [Poller] Total deliveries: ${deliveries.length}`);
-         deliveries.forEach((d, idx) => {
-           console.log(`  [${idx}] ID: ${d?.id}, driver: ${d?.driver_id}, store: ${d?.store_id}, date: ${d?.delivery_date}, status: ${d?.status}`);
+         // DEBUG: Log first 5 deliveries to see what we're working with
+         console.log(`📋 [Poller] Total deliveries: ${deliveries.length}, todayStr: ${todayStr}`);
+         const firstFive = deliveries.slice(0, 5);
+         firstFive.forEach((d, idx) => {
+           console.log(`  [${idx}] driver: ${d?.driver_id}, store: ${d?.store_id}, date: ${d?.delivery_date}, status: ${d?.status}`);
          });
+         if (deliveries.length > 5) {
+           console.log(`  ... and ${deliveries.length - 5} more`);
+         }
 
          const matchingDeliveries = (deliveries || []).filter(delivery => {
            if (!delivery) return false;
