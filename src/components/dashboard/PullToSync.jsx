@@ -151,20 +151,21 @@ export default function PullToSync({
           return [];
         }),
         
-        // Fetch AppUsers
-        base44.entities.AppUser.list().then(async (freshAppUsers) => {
-          console.log('🗑️ [Pull to Sync] Clearing all AppUsers...');
-          await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
-          
-          if (freshAppUsers && freshAppUsers.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-            console.log(`✅ [Pull to Sync] Saved ${freshAppUsers.length} AppUsers to offline DB`);
-          }
-          return freshAppUsers || [];
-        }).catch((error) => {
-          console.warn('⚠️ [Pull to Sync] AppUsers sync failed:', error.message);
-          return [];
-        }),
+        // Fetch AppUsers from offline DB only (do NOT call API - AppUser.list() returns only current user due to RLS)
+         (async () => {
+           console.log('👥 [Pull to Sync] Loading AppUsers from offline DB (skipping API to preserve city data)...');
+           const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+           if (existingAppUsers && existingAppUsers.length > 0) {
+             console.log(`✅ [Pull to Sync] Loaded ${existingAppUsers.length} AppUsers from offline DB`);
+             return existingAppUsers;
+           } else {
+             console.warn('⚠️ [Pull to Sync] No AppUsers in offline DB');
+             return [];
+           }
+         })().catch((error) => {
+           console.warn('⚠️ [Pull to Sync] AppUsers load failed:', error.message);
+           return [];
+         }),
         
         // Fetch Cities
         base44.entities.City.list().then(async (freshCities) => {
