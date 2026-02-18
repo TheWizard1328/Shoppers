@@ -4006,13 +4006,20 @@ return polylines.length > 0 ? polylines : null;
           const isFanned = fannedLocationKey === locationKey;
           const isHighlighted = highlightedDeliveryId === delivery.id;
           
-          // FADE: finished markers fade to 25%, highlighted finished markers go to 85%
-          // CRITICAL: Don't fade the selected driver's markers when their route is complete
+          // FADE RULES:
+          // 1. Selected driver markers = always 100% (no fade)
+          // 2. Other driver incomplete markers = 75%
+          // 3. In-progress route finished markers = 50%
+          // 4. Completed route finished markers for selected driver = 100% (no fade)
+          // 5. Hover/click on faded marker = 85%
           const isFinishedForFade = FINISHED_STATUSES.includes(delivery.status);
           const isSelectedDriverMarker = !delivery.isOtherDriver;
           const isSelectedRouteComplete = isSelectedDriverMarker && driversWithCompleteRoute.has(delivery.driver_id);
-          const isDeliveryFaded = isFinishedForFade && !isHighlighted && !isSelectedRouteComplete;
-          const isDeliveryHighlightedFinished = isFinishedForFade && isHighlighted && !isSelectedRouteComplete;
+          const isRouteInProgress = !driversWithCompleteRoute.has(delivery.driver_id) && hasIncompleteStops;
+          const isUserHoveringFaded = fadedMarkerHighlights.has(delivery.id);
+          const isDeliveryFaded = isFinishedForFade && !isHighlighted && !isSelectedRouteComplete && !isSelectedDriverMarker;
+          const isDeliveryInProgressFade = isFinishedForFade && isSelectedDriverMarker && !isSelectedRouteComplete && isRouteInProgress;
+          const isDeliveryHighlightedFinished = (isDeliveryFaded || isDeliveryInProgressFade) && (isHighlighted || isUserHoveringFaded);
           
           // Calculate position based on fanning state
           let markerPosition = [delivery.latitude, delivery.longitude];
