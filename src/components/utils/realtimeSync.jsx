@@ -204,6 +204,15 @@ const subscribeToEntity = (entityName) => {
         window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, {
           detail: { type, id, data, updatedBy, changedFields }
         }));
+
+        // CRITICAL: For AppUser updates, also dispatch 'appUserUpdated' so that
+        // DriverStatusToggle and LocationTrackingToggle (mounted in Layout, outside the
+        // Dashboard's cityFilteredRealtimeSync pipeline) always receive their own status changes.
+        if (entityName === 'AppUser' && (type === 'create' || type === 'update') && data) {
+          window.dispatchEvent(new CustomEvent('appUserUpdated', {
+            detail: { appUser: data, fromRealtime: true }
+          }));
+        }
       }
     });
 
