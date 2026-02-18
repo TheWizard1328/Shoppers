@@ -397,8 +397,13 @@ function Dashboard() {
     
     console.log(`📦 [Debounced Updates] Processing batch: ${creates.length} creates, ${updates.length} updates, ${deletes.length} deletes`);
     
-    // CRITICAL: Process all changes together with a single full replacement
-    const allChanges = [...creates, ...updates];
+    // CRITICAL: Deduplicate allChanges by ID - keep last (most recent) occurrence per delivery
+    // This prevents duplicates when the same event arrives via multiple subscription paths
+    const changesMap = new Map();
+    [...creates, ...updates].forEach(d => {
+      if (d?.id) changesMap.set(d.id, d);
+    });
+    const allChanges = Array.from(changesMap.values());
     
     if (allChanges.length > 0) {
       // Save to offline DB
@@ -410,10 +415,10 @@ function Dashboard() {
         const changedIds = new Set(allChanges.map(d => d?.id).filter(Boolean));
         const otherDeliveries = deliveries.filter(d => !changedIds.has(d?.id));
         
-        // Merge changes with existing
+        // Merge changes with existing (no duplicates guaranteed by changesMap above)
         const mergedDeliveries = [...otherDeliveries, ...allChanges];
         
-        console.log(`🔄 [Debounced Updates] Merging ${allChanges.length} changes with ${otherDeliveries.length} existing = ${mergedDeliveries.length} total`);
+        console.log(`🔄 [Debounced Updates] Merging ${allChanges.length} deduped changes with ${otherDeliveries.length} existing = ${mergedDeliveries.length} total`);
         
         // Full replacement to ensure UI updates
         updateDeliveriesLocally(mergedDeliveries, true);
