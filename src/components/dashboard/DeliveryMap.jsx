@@ -3997,9 +3997,12 @@ return polylines.length > 0 ? polylines : null;
           const isHighlighted = highlightedDeliveryId === delivery.id;
           
           // FADE: finished markers fade to 25%, highlighted finished markers go to 85%
+          // CRITICAL: Don't fade the selected driver's markers when their route is complete
           const isFinishedForFade = FINISHED_STATUSES.includes(delivery.status);
-          const isDeliveryFaded = isFinishedForFade && !isHighlighted;
-          const isDeliveryHighlightedFinished = isFinishedForFade && isHighlighted;
+          const isSelectedDriverMarker = !delivery.isOtherDriver;
+          const isSelectedRouteComplete = isSelectedDriverMarker && driversWithCompleteRoute.has(delivery.driver_id);
+          const isDeliveryFaded = isFinishedForFade && !isHighlighted && !isSelectedRouteComplete;
+          const isDeliveryHighlightedFinished = isFinishedForFade && isHighlighted && !isSelectedRouteComplete;
           
           // Calculate position based on fanning state
           let markerPosition = [delivery.latitude, delivery.longitude];
