@@ -36,6 +36,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
   const appDataContext = useAppData();
   const setIsEntityUpdating = appDataContext?.setIsEntityUpdating || (() => {});
   const isTogglingRef = useRef(false);
+  // Track when we last received a WebSocket update so the prop sync doesn't overwrite it
+  const lastWebSocketUpdateRef = useRef(0);
 
   // Find AppUser ID on mount and load from offline DB
   useEffect(() => {
