@@ -3574,9 +3574,12 @@ return polylines.length > 0 ? polylines : null;
           const isFanned = fannedLocationKey === locationKey;
           const isHighlighted = highlightedDeliveryId === pickup.id;
           
-          // FADE: finished markers fade to 25%, highlighted finished markers go to 85%
+          // FADE: finished markers fade to 25% ONLY when route still has incomplete stops
+          // When route is fully complete, show all markers at full opacity
           const isFinishedForFade = FINISHED_STATUSES.includes(pickup.status);
-          const isPickupFaded = isFinishedForFade && !isHighlighted;
+          const isActiveUserMarker = !pickup.isOtherDriver;
+          const routeIsComplete = isActiveUserMarker && !hasIncompleteStops;
+          const isPickupFaded = isFinishedForFade && !isHighlighted && !routeIsComplete;
           const isPickupHighlightedFinished = isFinishedForFade && isHighlighted;
           
           // Calculate position based on fanning state
