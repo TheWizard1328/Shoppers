@@ -94,7 +94,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
     try {
       const response = await base44.functions.invoke('generateInviteQRCode', {
         role: selectedRole,
-        store_ids: selectedStores
+        store_ids: getStoreIds(selectedStores)
       });
 
       if (response.data?.success || response.success) {
@@ -174,10 +174,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
                   </div>
                 ) : (
                   <MultiSelect
-                    options={stores.map((store) => ({
-                      value: store.id,
-                      label: store.name
-                    }))}
+                    options={buildStoreOptions(selectedRole)}
                     value={selectedStores}
                     onChange={setSelectedStores}
                     placeholder="Select stores"
