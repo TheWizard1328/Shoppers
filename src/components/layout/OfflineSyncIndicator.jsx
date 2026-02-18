@@ -113,13 +113,41 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       }
     };
 
+    // CRITICAL: Refresh stats whenever offline DB is updated by WebSocket events
+    let refreshDebounceTimer = null;
+    const handleRealtimeDBUpdate = () => {
+      // Debounce to avoid hammering IndexedDB on rapid updates
+      clearTimeout(refreshDebounceTimer);
+      refreshDebounceTimer = setTimeout(() => {
+        getSyncStats().then(newStats => {
+          setStats(newStats);
+        }).catch(() => {});
+      }, 500);
+    };
+
     window.addEventListener('periodicSyncProgress', handlePeriodicSync);
     window.addEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
+    // Listen for all entity WebSocket updates
+    window.addEventListener('realtimeUpdate_AppUser', handleRealtimeDBUpdate);
+    window.addEventListener('realtimeUpdate_Delivery', handleRealtimeDBUpdate);
+    window.addEventListener('realtimeUpdate_Patient', handleRealtimeDBUpdate);
+    window.addEventListener('offlineSyncComplete', handleRealtimeDBUpdate);
+    window.addEventListener('deliveriesUpdated', handleRealtimeDBUpdate);
+
+    // Poll every 30 seconds as a safety net
+    const pollInterval = setInterval(handleRealtimeDBUpdate, 30000);
 
     return () => {
       unsubscribe();
+      clearTimeout(refreshDebounceTimer);
+      clearInterval(pollInterval);
       window.removeEventListener('periodicSyncProgress', handlePeriodicSync);
       window.removeEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
+      window.removeEventListener('realtimeUpdate_AppUser', handleRealtimeDBUpdate);
+      window.removeEventListener('realtimeUpdate_Delivery', handleRealtimeDBUpdate);
+      window.removeEventListener('realtimeUpdate_Patient', handleRealtimeDBUpdate);
+      window.removeEventListener('offlineSyncComplete', handleRealtimeDBUpdate);
+      window.removeEventListener('deliveriesUpdated', handleRealtimeDBUpdate);
     };
   }, [isVisible]);
 
