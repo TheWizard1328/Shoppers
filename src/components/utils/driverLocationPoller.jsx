@@ -333,14 +333,10 @@ class DriverLocationPoller {
          const userIdForDeliveryMatch = user.id || user.user_id;
 
          // DEBUG: Log all deliveries to see what we're working with
-         console.log(`📋 [Poller] All deliveries:`, deliveries.map(d => ({
-           id: d?.id,
-           driver_id: d?.driver_id,
-           store_id: d?.store_id,
-           delivery_date: d?.delivery_date,
-           status: d?.status,
-           patient_name: d?.patient_name
-         })));
+         console.log(`📋 [Poller] Total deliveries: ${deliveries.length}`);
+         deliveries.forEach((d, idx) => {
+           console.log(`  [${idx}] ID: ${d?.id}, driver: ${d?.driver_id}, store: ${d?.store_id}, date: ${d?.delivery_date}, status: ${d?.status}`);
+         });
 
          const matchingDeliveries = (deliveries || []).filter(delivery => {
            if (!delivery) return false;
