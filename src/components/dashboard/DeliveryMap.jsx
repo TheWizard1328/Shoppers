@@ -300,6 +300,8 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
   
   const numberColor = (status === 'failed' || status === 'cancelled') ? 'white' : (FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(storeColor));
 
+  const storeOpacity = isFaded ? 0.25 : isOtherDriver ? 0.75 : 1;
+
   return L.divIcon({
     html: `
       <div class="store-marker ${isHighlighted ? 'highlighted' : ''}" style="
@@ -307,7 +309,8 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
         height: ${size * 1.4}px;
         position: relative;
         cursor: pointer;
-        opacity: ${isOtherDriver ? 0.75 : 1};
+        opacity: ${storeOpacity};
+        transition: opacity 0.2s ease-in-out;
       ">
         <svg width="${size}" height="${size * 1.4}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg">
           <!-- Pin shape - rounder, more compact -->
