@@ -157,13 +157,22 @@ class CityFilteredRealtimeSync {
       const coords = event.data ? `${event.data.current_latitude?.toFixed(6)}, ${event.data.current_longitude?.toFixed(6)}` : 'N/A';
       console.log(`📡 [Realtime AppUser] ${event.type} for ${event.data?.user_name || event.id} - coords: ${coords}, timestamp: ${event.data?.location_updated_at}`);
 
-      // Filter by the currently selected city (not user's cities)
+      // CRITICAL: ALWAYS dispatch appUserUpdated for ALL users so UI components
+      // (DriverStatusToggle, LocationTrackingToggle) can react to their own status changes.
+      // City filtering only applies to location broadcast and internal subscribers.
+      if ((event.type === 'create' || event.type === 'update') && event.data) {
+        window.dispatchEvent(new CustomEvent('appUserUpdated', {
+          detail: { appUser: event.data, fromRealtime: true }
+        }));
+      }
+
+      // Filter by the currently selected city (not user's cities) for location/dashboard updates
       if (event.type !== 'delete' && event.data) {
         const appUserCityIds = event.data.city_ids || (event.data.city_id ? [event.data.city_id] : []);
         const hasMatchingCity = appUserCityIds.includes(cityId);
         
         if (!hasMatchingCity) {
-          console.log(`⏭️ [Realtime AppUser] Skipping - different city (user cities: ${appUserCityIds.join(',')}, current city: ${cityId})`);
+          console.log(`⏭️ [Realtime AppUser] Skipping city-filtered updates - different city (user cities: ${appUserCityIds.join(',')}, current city: ${cityId})`);
           return;
         }
       }
@@ -181,11 +190,6 @@ class CityFilteredRealtimeSync {
           // Dispatch event for Dashboard to pick up immediately
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
             detail: { appUsers: [event.data], fromRealtime: true, singleUpdate: true }
-          }));
-          
-          // CRITICAL: Also dispatch generic AppUser update for UI components
-          window.dispatchEvent(new CustomEvent('appUserUpdated', {
-            detail: { appUser: event.data, fromRealtime: true }
           }));
           
           // Notify all internal subscribers (e.g. AppDataContext)
