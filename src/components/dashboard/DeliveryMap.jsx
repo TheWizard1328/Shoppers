@@ -127,8 +127,6 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
     ? statusColor // Green for completed, red for failed/cancelled, orange for returned
     : outerRingColor; // White ring for in_transit, or normal status color for current driver
 
-  // isFaded = other driver's marker (75%), but we pass combined isFaded for both cases
-  // The caller distinguishes which level to use by passing the right boolean
   const markerOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : isOtherDriver ? 0.75 : 1;
 
   const icon = L.divIcon({
