@@ -37,6 +37,41 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
     }
   }, [isOpen]);
 
+  // Build store options - for drivers, expand stores with AM/PM slots
+  const buildStoreOptions = (role) => {
+    if (role !== 'driver') {
+      // Dispatchers and others: simple store list
+      return stores.map((store) => ({
+        value: store.id,
+        label: store.name
+      }));
+    }
+
+    // Drivers: expand stores that have multiple time slots into AM/PM entries
+    const options = [];
+    stores.forEach((store) => {
+      const hasAM = store.weekday_am_enabled || store.saturday_am_enabled || store.sunday_am_enabled;
+      const hasPM = store.weekday_pm_enabled || store.saturday_pm_enabled || store.sunday_pm_enabled;
+
+      if (hasAM && hasPM) {
+        options.push({ value: `${store.id}__AM`, label: `${store.name} [AM]` });
+        options.push({ value: `${store.id}__PM`, label: `${store.name} [PM]` });
+      } else if (hasAM) {
+        options.push({ value: store.id, label: `${store.name} [AM]` });
+      } else if (hasPM) {
+        options.push({ value: store.id, label: `${store.name} [PM]` });
+      } else {
+        options.push({ value: store.id, label: store.name });
+      }
+    });
+    return options;
+  };
+
+  // Strip the __AM/__PM suffix to get actual store IDs for submission
+  const getStoreIds = (selectedValues) => {
+    return [...new Set(selectedValues.map((v) => v.replace(/__AM$|__PM$/, '')))];
+  };
+
   const availableRoles = isAdmin ? 
     ['admin', 'dispatcher', 'driver', 'patient'] : 
     isDispatcher ? 
