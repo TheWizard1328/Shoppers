@@ -111,7 +111,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
                 <SelectTrigger>
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[10010]">
                   {availableRoles.map((role) => (
                     <SelectItem key={role} value={role}>
                       {role.charAt(0).toUpperCase() + role.slice(1)}
