@@ -3620,10 +3620,8 @@ return polylines.length > 0 ? polylines : null;
               radius={2500}
               pathOptions={{
                 color: pickup.pinColor,
-                fillColor: pickup.pinColor,
-                fillOpacity: document.documentElement.classList.contains('dark-theme') || 
-                            (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
-                            ? 0.15 : 0.05,
+                fillColor: 'transparent',
+                fillOpacity: 0,
                 weight: 2,
                 opacity: document.documentElement.classList.contains('dark-theme') || 
                          (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
