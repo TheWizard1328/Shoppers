@@ -116,6 +116,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           return;
         }
         
+        // CRITICAL: Record WS update time so prop sync doesn't immediately overwrite
+        lastWebSocketUpdateRef.current = Date.now();
+        
         // CRITICAL: Only update if the value actually changed
         setStatus(prev => {
           if (prev === appUser.driver_status) {
