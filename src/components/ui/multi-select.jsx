@@ -72,7 +72,6 @@ export const MultiSelect = React.forwardRef(({ options = [], value: propValue = 
             </PopoverTrigger>
             <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[10003]">
                 <Command>
-                    <CommandInput placeholder="Search..." />
                     <CommandList>
                         <CommandEmpty>No results found.</CommandEmpty>
                         <CommandGroup>
