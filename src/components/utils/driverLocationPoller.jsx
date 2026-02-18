@@ -72,6 +72,12 @@ class DriverLocationPoller {
      return;
    }
 
+   // CRITICAL: Debug - log deliveries being passed
+   console.log(`📦 [Poller] Deliveries received:`, {
+     count: deliveries?.length || 0,
+     sample: deliveries?.slice(0, 3).map(d => ({ id: d?.id, driver_id: d?.driver_id, store_id: d?.store_id, status: d?.status, delivery_date: d?.delivery_date }))
+   });
+
    // CRITICAL: Validate appUsers FIRST before any other checks
    if (!appUsers || !Array.isArray(appUsers) || appUsers.length === 0) {
      console.warn('⚠️ [DriverLocationPoller] No appUsers data provided - skipping location processing');
