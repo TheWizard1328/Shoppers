@@ -128,6 +128,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
     : outerRingColor; // White ring for in_transit, or normal status color for current driver
 
   const markerOpacity = isFaded ? 0.25 : isOtherDriver ? 0.75 : 1;
+  // Note: isFaded=false + isOtherDriver=false = full opacity (1) — highlighted finished markers pass isFaded=false
 
   const icon = L.divIcon({
     html: `
