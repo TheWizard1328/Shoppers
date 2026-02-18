@@ -2035,61 +2035,49 @@ export default function RouteImport({
       let totalOfflineDeleted = 0;
       
       if (purgeBeforeImport) {
-        // Group driver/date pairs by date, then by driver
+        // Group driver/date pairs by date
         const dateToDrivers = new Map();
         for (const { driverId, date } of driverDatePairs) {
-          if (!dateToDrivers.has(date)) {
-            dateToDrivers.set(date, new Set());
-          }
+          if (!dateToDrivers.has(date)) dateToDrivers.set(date, new Set());
           dateToDrivers.get(date).add(driverId);
         }
 
-        // INTERLEAVED PURGE: For each date, delete online then offline (natural cooldown between)
         const sortedDates = Array.from(dateToDrivers.keys()).sort();
         const totalDatesToProcess = sortedDates.length;
 
         for (let dateIdx = 0; dateIdx < sortedDates.length; dateIdx++) {
           const date = sortedDates[dateIdx];
-          const driverIds = dateToDrivers.get(date);
+          const driverIds = Array.from(dateToDrivers.get(date));
 
-          // STEP 1a: Delete from ONLINE DB for this date, driver by driver
-          for (const driverId of driverIds) {
-            try {
-              const driverName = allDriverUsers.find(u => u.id === driverId)?.user_name || driverId;
-              setProgressMessage(`Purging ${date} for ${driverName}...`);
-              setProgressPercent(Math.round((dateIdx / totalDatesToProcess) * 10) + 5);
-              
-              const toDelete = await base44.entities.Delivery.filter({
-                driver_id: driverId,
-                delivery_date: date
-              });
+          setProgressMessage(`Purging ${date} (${dateIdx + 1}/${totalDatesToProcess})...`);
+          setProgressPercent(Math.round((dateIdx / totalDatesToProcess) * 10) + 5);
 
-              if (toDelete && toDelete.length > 0) {
-                for (const delivery of toDelete) {
-                  await base44.entities.Delivery.delete(delivery.id);
-                }
-                totalOnlineDeleted += toDelete.length;
-                console.log(`🗑️ [RouteImport] Deleted ${toDelete.length} online deliveries for driver ${driverId} on ${date}`);
-              }
-            } catch (deleteError) {
-              console.error(`Failed to delete online deliveries for ${driverId}/${date}:`, deleteError);
-              throw deleteError;
+          // STEP 1a: BULK DELETE from ONLINE DB by date + driver IDs (single query per date)
+          try {
+            const toDelete = await base44.entities.Delivery.filter({
+              driver_id: { $in: driverIds },
+              delivery_date: date
+            });
+
+            if (toDelete && toDelete.length > 0) {
+              // Bulk delete all records for this date at once
+              await Promise.all(toDelete.map(d => base44.entities.Delivery.delete(d.id)));
+              totalOnlineDeleted += toDelete.length;
+              console.log(`🗑️ [RouteImport] Bulk deleted ${toDelete.length} online deliveries on ${date}`);
             }
+          } catch (deleteError) {
+            console.error(`Failed to bulk delete online deliveries for ${date}:`, deleteError);
+            throw deleteError;
           }
 
-          // STEP 1b: Delete from OFFLINE DB for this date, all drivers
+          // STEP 1b: BULK DELETE from OFFLINE DB for this date
           try {
             const allOfflineForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date);
-            const toDeleteOffline = allOfflineForDate.filter(d => driverIds.has(d.driver_id));
-
-            if (toDeleteOffline && toDeleteOffline.length > 0) {
-              const BATCH_SIZE = 20;
-              for (let i = 0; i < toDeleteOffline.length; i += BATCH_SIZE) {
-                const batch = toDeleteOffline.slice(i, i + BATCH_SIZE);
-                await Promise.all(batch.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id)));
-              }
+            const toDeleteOffline = allOfflineForDate.filter(d => driverIds.includes(d.driver_id));
+            if (toDeleteOffline.length > 0) {
+              await Promise.all(toDeleteOffline.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id)));
               totalOfflineDeleted += toDeleteOffline.length;
-              console.log(`🗑️ [RouteImport] Deleted ${toDeleteOffline.length} offline deliveries on ${date}`);
+              console.log(`🗑️ [RouteImport] Bulk deleted ${toDeleteOffline.length} offline deliveries on ${date}`);
             }
           } catch (offlineError) {
             console.warn(`⚠️ [RouteImport] Failed to delete offline for ${date}:`, offlineError);
