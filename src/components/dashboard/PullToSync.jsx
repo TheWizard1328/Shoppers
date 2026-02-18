@@ -151,19 +151,29 @@ export default function PullToSync({
           return [];
         }),
         
-        // Fetch AppUsers from offline DB only (do NOT call API - AppUser.list() returns only current user due to RLS)
+        // Fetch ALL AppUsers for selected city and replace offline DB
          (async () => {
-           console.log('👥 [Pull to Sync] Loading AppUsers from offline DB (skipping API to preserve city data)...');
-           const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-           if (existingAppUsers && existingAppUsers.length > 0) {
-             console.log(`✅ [Pull to Sync] Loaded ${existingAppUsers.length} AppUsers from offline DB`);
-             return existingAppUsers;
+           console.log(`👥 [Pull to Sync] Fetching ALL AppUsers assigned to city: ${selectedCityId}...`);
+           const allAppUsers = await base44.entities.AppUser.list();
+           
+           // Filter by selected city
+           const cityAppUsers = (allAppUsers || []).filter(au => {
+             const userCityIds = au.city_ids || (au.city_id ? [au.city_id] : []);
+             return userCityIds.includes(selectedCityId);
+           });
+           
+           console.log(`🗑️ [Pull to Sync] Clearing all AppUsers from offline DB...`);
+           await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+           
+           if (cityAppUsers && cityAppUsers.length > 0) {
+             await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, cityAppUsers);
+             console.log(`✅ [Pull to Sync] Saved ${cityAppUsers.length} AppUsers for city ${selectedCityId} to offline DB`);
            } else {
-             console.warn('⚠️ [Pull to Sync] No AppUsers in offline DB');
-             return [];
+             console.warn(`⚠️ [Pull to Sync] No AppUsers found for city ${selectedCityId}`);
            }
+           return cityAppUsers || [];
          })().catch((error) => {
-           console.warn('⚠️ [Pull to Sync] AppUsers load failed:', error.message);
+           console.warn('⚠️ [Pull to Sync] AppUsers sync failed:', error.message);
            return [];
          }),
         
