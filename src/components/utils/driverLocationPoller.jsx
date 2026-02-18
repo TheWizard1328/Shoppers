@@ -348,12 +348,16 @@ class DriverLocationPoller {
 
          const matchingDeliveries = (deliveries || []).filter(delivery => {
            if (!delivery) return false;
-           const driverMatch = delivery.driver_id === userIdForDeliveryMatch || delivery.driver_id === driverId;
+           // CRITICAL: Match delivery.driver_id against ALL driver ID formats
+           // Some deliveries use user_user_id (from store assignments), others use AppUser.id
+           const driverMatch = delivery.driver_id === userIdForDeliveryMatch || 
+                              delivery.driver_id === driverId ||
+                              delivery.driver_id === user.user_user_id; // Also check original user_user_id
            const dateMatch = delivery.delivery_date === todayStr;
            const storeMatch = dispatcherStoreIds.has(delivery.store_id);
            const statusMatch = delivery.status === 'in_transit' || delivery.status === 'en_route';
 
-           console.log(`  📦 Delivery ${delivery.id}: driver=${driverMatch} (${delivery.driver_id} vs ${userIdForDeliveryMatch}/${driverId}), date=${dateMatch} (${delivery.delivery_date} vs ${todayStr}), store=${storeMatch} (${delivery.store_id}), status=${statusMatch} (${delivery.status})`);
+           console.log(`  📦 Delivery ${delivery.id}: driver=${driverMatch} (${delivery.driver_id} vs ${userIdForDeliveryMatch}/${driverId}/${user.user_user_id}), date=${dateMatch}, store=${storeMatch}, status=${statusMatch}`);
 
            if (!driverMatch || !dateMatch || !storeMatch || !statusMatch) return false;
            return true;
