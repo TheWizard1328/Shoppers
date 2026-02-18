@@ -3552,6 +3552,10 @@ return polylines.length > 0 ? polylines : null;
           const isFanned = fannedLocationKey === locationKey;
           const isHighlighted = highlightedDeliveryId === pickup.id;
           
+          // FADE: finished markers fade out like stop cards, unless highlighted
+          const isFinishedForFade = FINISHED_STATUSES.includes(pickup.status);
+          const isPickupFaded = isFinishedForFade && !isHighlighted;
+          
           // Calculate position based on fanning state
           let markerPosition = [pickup.latitude, pickup.longitude];
           let dynamicZIndex;
