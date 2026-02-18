@@ -38,10 +38,10 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
   }, [isOpen]);
 
   const availableRoles = isAdmin ? 
-    ['admin', 'dispatcher', 'driver'] : 
+    ['admin', 'dispatcher', 'driver', 'patient'] : 
     isDispatcher ? 
-      ['dispatcher', 'driver'] : 
-      ['driver', 'dispatcher'];
+      ['dispatcher', 'driver', 'patient'] : 
+      ['driver', 'dispatcher', 'patient'];
 
   const handleGenerateQR = async () => {
     if (!selectedRole) {
