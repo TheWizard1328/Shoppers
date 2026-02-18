@@ -3696,15 +3696,29 @@ return polylines.length > 0 ? polylines : null;
               eventHandlers={pickup.isOtherDriver ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
+                  if (isPickupFaded) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id]));
                 },
-                mouseover: (e) => e.target.openPopup(),
-                mouseout: (e) => e.target.closePopup()
+                mouseover: (e) => {
+                  e.target.openPopup();
+                  if (isPickupFaded || isPickupInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id]));
+                },
+                mouseout: (e) => {
+                  e.target.closePopup();
+                  setFadedMarkerHighlights(prev => { const n = new Set(prev); n.delete(pickup.id); return n; });
+                }
               } : pickup.useSimpleCircle ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
+                  if (isPickupInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id]));
                 },
-                mouseover: (e) => e.target.openPopup(),
-                mouseout: (e) => e.target.closePopup()
+                mouseover: (e) => {
+                  e.target.openPopup();
+                  if (isPickupInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id]));
+                },
+                mouseout: (e) => {
+                  e.target.closePopup();
+                  setFadedMarkerHighlights(prev => { const n = new Set(prev); n.delete(pickup.id); return n; });
+                }
               } : {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
