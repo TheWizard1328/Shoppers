@@ -440,9 +440,10 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
       });
       const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
 
-      // SAFE REPLACE: only clear & save once we have confirmed fresh data
-      console.log(`💾 [PreRenderSync] STEP 2: Replacing offline AppUsers with ${deduplicatedAppUsers.length} fresh records...`);
-      await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+      // SAFE UPSERT: never clear the store — WebSocket subscriptions may have populated
+      // users that the API won't return (due to RLS on driver devices).
+      // bulkSave uses IndexedDB `put` (upsert by id), so existing users are preserved.
+      console.log(`💾 [PreRenderSync] STEP 2: Upserting ${deduplicatedAppUsers.length} fresh AppUsers (preserving any WS-added users)...`);
       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
       invalidateEntityCache('AppUser');
       await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
