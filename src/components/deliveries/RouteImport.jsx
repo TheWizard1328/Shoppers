@@ -1643,18 +1643,18 @@ export default function RouteImport({
       // STEP 0: Refresh driver data FIRST to ensure accurate driver_id matching
       setProgressMessage('Refreshing driver data...');
       setProgressPercent(3);
-      
+
       try {
-        // CRITICAL: Try offline DB first to avoid rate limits
-        let freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        
-        if (!freshAppUsers || freshAppUsers.length === 0) {
-          console.log('📥 [RouteImport Preview] Fetching AppUsers from API (offline DB empty)');
-          freshAppUsers = await base44.entities.AppUser.list();
-          if (freshAppUsers && freshAppUsers.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
-          }
-        }
+       // CRITICAL: Load AppUsers from offline DB ONLY
+       // AppUser.list() has RLS and returns only current user - never fetch fresh from API
+       // Offline DB is kept in sync by preRenderFreshSync and WebSocket subscriptions
+       let freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+
+       if (!freshAppUsers || freshAppUsers.length === 0) {
+         console.warn('⚠️ [RouteImport Preview] Offline DB has no AppUsers - this is unexpected as preRenderFreshSync should have populated it');
+         // Do NOT fetch from API as AppUser.list() returns only current user due to RLS
+         freshAppUsers = [];
+       }
 
         
         const isAdmin = userHasRole(currentUser, 'admin');
