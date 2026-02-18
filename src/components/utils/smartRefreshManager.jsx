@@ -594,8 +594,35 @@ class LightweightRefreshManager {
       if (lightweightUpdates) {
         Object.assign(updates, lightweightUpdates);
       }
+
+      // STEP 4: Quick reconciliation - compare online vs offline for Deliveries & AppUsers
+      // Runs at most every 2 minutes to avoid rate limits
+      const now = Date.now();
+      const timeSinceLastReconcile = now - (this._lastReconcileTime || 0);
+      if (timeSinceLastReconcile > 120000 && filters.deliveryFilter?.delivery_date) {
+        const selectedDate = filters.deliveryFilter.delivery_date;
+        console.log(`🔍 [SmartRefresh] Running quick reconcile for ${selectedDate}...`);
+        try {
+          const reconcileResult = await quickReconcile(selectedDate);
+          this._lastReconcileTime = Date.now();
+
+          if (reconcileResult.deliveriesUpdated && reconcileResult.freshDeliveries) {
+            updates.deliveries = reconcileResult.freshDeliveries;
+            updates.isFullReplacementDeliveries = true;
+            console.log(`📦 [SmartRefresh] Reconcile updated deliveries: ${reconcileResult.freshDeliveries.length}`);
+          }
+          if (reconcileResult.appUsersUpdated && reconcileResult.freshAppUsers) {
+            updates.appUsers = reconcileResult.freshAppUsers;
+            console.log(`👤 [SmartRefresh] Reconcile updated AppUsers: ${reconcileResult.freshAppUsers.length}`);
+          }
+          this.recordSuccess();
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Reconcile failed:', e.message);
+          this.recordError();
+        }
+      }
       
-      // STEP 4: Notify subscribers if we have updates
+      // STEP 5: Notify subscribers if we have updates
       if (Object.keys(updates).length > 0) {
         this.notifySubscribers(updates);
 
