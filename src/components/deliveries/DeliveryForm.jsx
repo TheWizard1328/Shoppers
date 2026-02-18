@@ -3232,7 +3232,7 @@ export default function DeliveryForm({
           setPatientSearch('');
           setHighlightedPatientIndex(-1);
         }
-      } else if (filteredPatients.length === 0 && onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher'))) {
+      } else if (filteredPatients.length === 0 && onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver'))) {
         // Auto-click the Add New Patient button
         if (addPatientButtonRef.current) {
           addPatientButtonRef.current.click();
