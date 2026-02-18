@@ -300,7 +300,7 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
   
   const numberColor = (status === 'failed' || status === 'cancelled') ? 'white' : (FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(storeColor));
 
-  const storeOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.25 : isOtherDriver ? 0.75 : 1;
+  const storeOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : isOtherDriver ? 0.75 : 1;
 
   return L.divIcon({
     html: `
