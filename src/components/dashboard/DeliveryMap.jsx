@@ -3676,7 +3676,7 @@ return polylines.length > 0 ? polylines : null;
             <Marker
               key={`pickup-${pickup.id}`}
               position={markerPosition}
-              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount, pickup.isNextDelivery, isPickupFaded, isPickupHighlightedFinished) : createStoreIcon(
+              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor, pickup.isOtherDriver, pickup.duplicateCount, pickup.isNextDelivery, isPickupFaded || isPickupInProgressFade, isPickupHighlightedFinished) : createStoreIcon(
                 pickup.status, 
                 pickup.pinColor, 
                 isFanned, 
@@ -3688,7 +3688,7 @@ return polylines.length > 0 ? polylines : null;
                 pickup.isNextDelivery,
                 hasIncompleteStops,
                 false,
-                isPickupFaded,
+                isPickupFaded || isPickupInProgressFade,
                 isPickupHighlightedFinished
               )}
               zIndexOffset={dynamicZIndex}
