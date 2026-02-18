@@ -4709,7 +4709,7 @@ export default function DeliveryForm({
                         {filteredPatients.length === 0 ?
                     <div className="p-4 text-center text-slate-500 text-sm">
                             No patients found
-                            {onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
+                            {onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                       <Button
                         ref={addPatientButtonRef}
                         type="button"
