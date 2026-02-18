@@ -79,8 +79,14 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
   }, [currentUser?.id]);
 
   // Sync from currentUser prop changes when not toggling
+  // CRITICAL: Skip if a WebSocket update arrived recently (within 5s) - prop may be stale
   useEffect(() => {
     if (!isTogglingRef.current && currentUser?.driver_status && status !== currentUser.driver_status) {
+      const timeSinceWsUpdate = Date.now() - lastWebSocketUpdateRef.current;
+      if (timeSinceWsUpdate < 5000) {
+        console.log(`⏸️ [DriverStatusToggle] Skipping stale prop sync (WS update ${timeSinceWsUpdate}ms ago) - keeping WS value: ${status}`);
+        return;
+      }
       setStatus(currentUser.driver_status);
       locationTracker.setDriverStatus(currentUser.driver_status);
       console.log(`✅ [DriverStatusToggle] Syncing from currentUser prop: ${currentUser.driver_status}`);
