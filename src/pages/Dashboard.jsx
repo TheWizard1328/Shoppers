@@ -9534,6 +9534,9 @@ function Dashboard() {
 
       }
 
+      {/* Reconcile Toast - shows when offline DB data is updated via reconciliation */}
+      <ReconcileToast />
+
       {/* Dispatcher Pickup Notification - alerts when driver is en route to their store */}
       <DispatcherPickupNotification
         deliveries={deliveries}
