@@ -314,15 +314,17 @@ class DriverLocationPoller {
        if (isDispatcher && !isDriver) {
          // 1. Driver must be On Duty
          if (user.driver_status !== 'on_duty') {
+           console.log(`❌ [Poller] Dispatcher - driver ${user.user_name} not on_duty (status: ${user.driver_status})`);
            return false;
          }
 
          const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
+         console.log(`🔍 [Poller] Dispatcher stores:`, Array.from(dispatcherStoreIds), `Driver: ${user.user_name}`);
 
          // 2. Driver must have at least 1 en_route OR in_transit delivery from dispatcher's stores (today)
          // Once all stops are complete/failed/cancelled, marker disappears
          const userIdForDeliveryMatch = user.id || user.user_id;
-         const hasActiveDispatcherStoreDelivery = (deliveries || []).some(delivery => {
+         const matchingDeliveries = (deliveries || []).filter(delivery => {
            if (!delivery) return false;
            if (delivery.driver_id !== userIdForDeliveryMatch && delivery.driver_id !== driverId) return false;
            if (delivery.delivery_date !== todayStr) return false;
@@ -331,11 +333,13 @@ class DriverLocationPoller {
            return true;
          });
 
-         if (!hasActiveDispatcherStoreDelivery) {
+         if (matchingDeliveries.length === 0) {
+           const allDriverDeliveries = (deliveries || []).filter(d => d && (d.driver_id === userIdForDeliveryMatch || d.driver_id === driverId) && d.delivery_date === todayStr);
+           console.log(`❌ [Poller] Dispatcher - driver ${user.user_name} has ${allDriverDeliveries.length} total deliveries today, 0 active (en_route/in_transit) from dispatcher stores`);
            return false;
          }
 
-         console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - on_duty with active en_route/in_transit deliveries, staleness: ${user._staleness}`);
+         console.log(`✅ [Poller] Dispatcher seeing driver ${user.user_name} - on_duty with ${matchingDeliveries.length} active deliveries, staleness: ${user._staleness}`);
          return true;
        }
 
