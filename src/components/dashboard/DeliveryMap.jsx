@@ -3977,9 +3977,10 @@ return polylines.length > 0 ? polylines : null;
           const isFanned = fannedLocationKey === locationKey;
           const isHighlighted = highlightedDeliveryId === delivery.id;
           
-          // FADE: finished markers fade out like stop cards, unless highlighted
+          // FADE: finished markers fade to 25%, highlighted finished markers go to 85%
           const isFinishedForFade = FINISHED_STATUSES.includes(delivery.status);
           const isDeliveryFaded = isFinishedForFade && !isHighlighted;
+          const isDeliveryHighlightedFinished = isFinishedForFade && isHighlighted;
           
           // Calculate position based on fanning state
           let markerPosition = [delivery.latitude, delivery.longitude];
