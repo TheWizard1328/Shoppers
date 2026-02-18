@@ -6,31 +6,41 @@ import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
 const AppDataContext = createContext(null);
 
 export const AppDataProvider = ({ children, value }) => {
-  // Track last WS delivery update time to prevent stale prop overwrites
+  // Track last WS delivery update time to prevent stale reconcile from overwriting
   const lastDeliveryWsUpdateRef = useRef(0);
+  // Keep a ref to updateDeliveriesLocally so the subscription closure always has the latest
+  const updateDeliveriesLocallyRef = useRef(value.updateDeliveriesLocally);
+  const deliveriesRef = useRef(value.deliveries);
+
+  // Keep refs in sync with latest values without re-running the subscription effect
+  useEffect(() => {
+    updateDeliveriesLocallyRef.current = value.updateDeliveriesLocally;
+  }, [value.updateDeliveriesLocally]);
+  useEffect(() => {
+    deliveriesRef.current = value.deliveries;
+  }, [value.deliveries]);
 
   // CRITICAL: Set up city-filtered real-time subscriptions
   useEffect(() => {
     if (!value.currentUser || !value.selectedCityId || !value.selectedDate) {
       return;
     }
-
-    // Get user's city IDs for filtering AppUser updates
-    const userCityIds = value.currentUser.city_ids || (value.currentUser.city_id ? [value.currentUser.city_id] : []);
     
     // Start real-time subscriptions
     cityFilteredRealtimeSync.start(value.selectedCityId, value.selectedDate);
 
     // Subscribe to real-time updates
+    // CRITICAL: Use refs instead of closure-captured values to always get the latest state
     const unsubscribe = cityFilteredRealtimeSync.subscribe(({ entityType, eventType, data }) => {
       if (entityType === 'Delivery') {
         if (eventType === 'create' || eventType === 'update') {
-          // CRITICAL: Record WS update time to prevent smart refresh from overwriting with stale data
+          // CRITICAL: Record WS update time to prevent reconcile from overwriting with stale data
           lastDeliveryWsUpdateRef.current = Date.now();
+          smartRefreshManager.notifyRealtimeDeliveryUpdate && smartRefreshManager.notifyRealtimeDeliveryUpdate();
 
-          // Update UI with the new/updated delivery
-          if (value.updateDeliveriesLocally) {
-            value.updateDeliveriesLocally([data], false);
+          // CRITICAL: Use ref to get latest function - avoids stale closure on rapid updates
+          if (updateDeliveriesLocallyRef.current) {
+            updateDeliveriesLocallyRef.current([data], false);
           }
           
           // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
@@ -39,10 +49,10 @@ export const AppDataProvider = ({ children, value }) => {
           // CRITICAL: Record WS update time
           lastDeliveryWsUpdateRef.current = Date.now();
 
-          // Remove from UI
-          if (value.updateDeliveriesLocally && value.deliveries) {
-            const filtered = value.deliveries.filter(d => d?.id !== data.id);
-            value.updateDeliveriesLocally(filtered, true);
+          // CRITICAL: Use ref to get latest deliveries list for filtering
+          if (updateDeliveriesLocallyRef.current && deliveriesRef.current) {
+            const filtered = deliveriesRef.current.filter(d => d?.id !== data.id);
+            updateDeliveriesLocallyRef.current(filtered, true);
           }
           
           // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
