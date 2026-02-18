@@ -6,6 +6,9 @@ import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
 const AppDataContext = createContext(null);
 
 export const AppDataProvider = ({ children, value }) => {
+  // Track last WS delivery update time to prevent stale prop overwrites
+  const lastDeliveryWsUpdateRef = useRef(0);
+
   // CRITICAL: Set up city-filtered real-time subscriptions
   useEffect(() => {
     if (!value.currentUser || !value.selectedCityId || !value.selectedDate) {
