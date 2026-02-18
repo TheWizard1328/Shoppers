@@ -3722,14 +3722,21 @@ return polylines.length > 0 ? polylines : null;
               } : {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
+                  if (isPickupInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id]));
                   if (isFanned && onMarkerClick) {
                     onMarkerClick(pickup);
                   } else {
                     handleMarkerClickForFanning(pickup, 'pickup');
                   }
                 },
-                mouseover: (e) => e.target.openPopup(),
-                mouseout: (e) => e.target.closePopup(),
+                mouseover: (e) => {
+                  e.target.openPopup();
+                  if (isPickupInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, pickup.id]));
+                },
+                mouseout: (e) => {
+                  e.target.closePopup();
+                  setFadedMarkerHighlights(prev => { const n = new Set(prev); n.delete(pickup.id); return n; });
+                },
                 dragend: (e) => handleMarkerDragEnd(pickup.id, e, 'pickup')
               }}
               ref={(ref) => {
