@@ -512,16 +512,15 @@ class LocationTracker {
       const currentDevice = await getCurrentDevice(user.id);
       this.isPrimaryDevice = currentDevice?.is_primary_tracker !== false;
 
-      if (!this.isPrimaryDevice) {
-        console.log(`⏭️ [NON-PRIMARY DEVICE] GPS tracking DISABLED - only primary device uploads locations`);
-        // Don't start GPS tracking at all for non-primary devices
-        return;
-      }
-
-      console.log(`✅ [PRIMARY DEVICE] Confirmed - will upload locations`, {
+      console.log(`✅ [LocationTracker] Device status:`, {
         deviceId: currentDevice?.device_identifier,
-        userId: user.id
+        isPrimaryTracker: this.isPrimaryDevice,
+        deviceName: currentDevice?.device_name
       });
+      
+      // CRITICAL: ALL devices with location tracking enabled can upload locations
+      // Primary device is used for tie-breaking if multiple devices update simultaneously
+      // This allows multi-device location sharing
     } catch (error) {
       console.error('❌ [LocationTracker] Device check FAILED - aborting GPS start:', error.message);
       throw new Error('Failed to verify device status. Please try again.');
