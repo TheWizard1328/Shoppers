@@ -2212,63 +2212,52 @@ export default function RouteImport({
       }
 
       // BATCH UPDATE - Only in merge mode (when NOT purging)
+      // CRITICAL: Only update deliveries that ACTUALLY have changes
       if (!purgeBeforeImport && deliveriesToUpdateFiltered.length > 0) {
-        setImportProgress((prev) => ({
-          ...prev,
-          phase: 'updating',
-          total: deliveriesToUpdateFiltered.length,
-          current: 0
-        }));
-        setProgressMessage(`Updating ${deliveriesToUpdateFiltered.length} existing deliveries...`);
+        // Filter to only deliveries with actual changes
+        const deliveriesWithChanges = deliveriesToUpdateFiltered.filter(d => {
+          // Find original in preview data to check _changes field
+          const original = previewData.deliveriesToUpdate.find(pd => pd.id === d.id);
+          return original?._changes?.[0] !== 'No changes - re-importing';
+        });
 
-        const sortedUpdateDates = [...new Set(deliveriesToUpdateFiltered.map(d => d.delivery_date))].sort();
-        let totalUpdated = 0;
+        // Skip update phase if no actual changes
+        if (deliveriesWithChanges.length === 0) {
+          console.log(`⏭️ [RouteImport] All updates are no-change re-imports - skipping update phase`);
+        } else {
+          setImportProgress((prev) => ({
+            ...prev,
+            phase: 'updating',
+            total: deliveriesWithChanges.length,
+            current: 0
+          }));
+          setProgressMessage(`Updating ${deliveriesWithChanges.length} changed deliveries...`);
 
-        for (let dateIndex = 0; dateIndex < sortedUpdateDates.length; dateIndex++) {
-          const date = sortedUpdateDates[dateIndex];
-          const deliveriesForDateToUpdate = deliveriesToUpdateFiltered.filter(d => d.delivery_date === date);
+          let totalUpdated = 0;
+          for (const deliveryToUpdate of deliveriesWithChanges) {
+            try {
+              const { id, ...updatePayload } = deliveryToUpdate;
+              const updatedDelivery = await retryWithBackoff(async () => {
+                return await base44.entities.Delivery.update(id, cleanDeliveryData(updatePayload));
+              }, 5, 3000, 2);
 
-          try {
-            console.log(`📦 [RouteImport] Date ${dateIndex + 1}/${sortedUpdateDates.length} (${date}): Updating ${deliveriesForDateToUpdate.length} deliveries`);
-            setProgressMessage(`Updating deliveries for ${date} (${dateIndex + 1}/${sortedUpdateDates.length})...`);
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
 
-            for (const deliveryToUpdate of deliveriesForDateToUpdate) {
-              try {
-                const { id, ...updatePayload } = deliveryToUpdate;
-                const updatedDelivery = await retryWithBackoff(async () => {
-                  return await base44.entities.Delivery.update(id, cleanDeliveryData(updatePayload));
-                }, 5, 3000, 2);
-
-                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
-
-                overallResults.updated++;
-                if (updatedDelivery.status === 'completed') {
-                  overallResults.completed++;
-                }
-                if (updatedDelivery.status === 'failed') {
-                  overallResults.failed++;
-                }
-                if (isReturnDelivery(updatedDelivery, freshPatients, freshStores)) {
-                  overallResults.returned++;
-                }
-                totalUpdated++;
-                setImportProgress((prev) => ({
-                  ...prev,
-                  updated: totalUpdated,
-                  current: totalUpdated
-                }));
-              } catch (updateError) {
-                console.error(`❌ [RouteImport] Individual update failed:`, deliveryToUpdate.delivery_id, updateError.message);
-                failedUpdates.push({ data: deliveryToUpdate, error: updateError.message });
-              }
+              overallResults.updated++;
+              if (updatedDelivery.status === 'completed') overallResults.completed++;
+              if (updatedDelivery.status === 'failed') overallResults.failed++;
+              if (isReturnDelivery(updatedDelivery, freshPatients, freshStores)) overallResults.returned++;
+              
+              totalUpdated++;
+              setImportProgress((prev) => ({
+                ...prev,
+                updated: totalUpdated,
+                current: totalUpdated
+              }));
+            } catch (updateError) {
+              console.error(`❌ [RouteImport] Update failed:`, deliveryToUpdate.delivery_id, updateError.message);
+              failedUpdates.push({ data: deliveryToUpdate, error: updateError.message });
             }
-
-            // Cooldown between dates
-            if (dateIndex < sortedUpdateDates.length - 1) {
-              await delay(1000);
-            }
-          } catch (dateError) {
-            console.error(`❌ [RouteImport] Date ${date} update failed:`, dateError.message);
           }
         }
       }
