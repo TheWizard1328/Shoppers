@@ -56,6 +56,18 @@ class CityFilteredRealtimeSync {
 
     // Subscribe to ALL Delivery changes (NO city filtering - process everything)
     console.log('🔌 [cityFilteredRealtimeSync] Setting up Delivery subscription - NO FILTERS');
+
+    // Lazy load reconciler to avoid circular dependencies
+    const getReconciler = async () => {
+      try {
+        const { deliveryWebSocketReconciler } = await import('./deliveryWebSocketReconciler');
+        return deliveryWebSocketReconciler;
+      } catch (e) {
+        console.warn('⚠️ [cityFilteredRealtimeSync] Failed to load reconciler:', e.message);
+        return null;
+      }
+    };
+
     this.deliveryUnsubscribe = base44.entities.Delivery.subscribe(async (event) => {
       // DIAGNOSTIC: Track all events in a batch to detect if WebSocket is sending them individually or together
       this.batchDeliveryEvents.push({
