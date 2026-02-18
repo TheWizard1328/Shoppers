@@ -412,46 +412,22 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
       await smartRefreshMgr.waitForRateLimit();
     }
     
-    // CRITICAL: Fetch FIRST, then replace — NEVER clear before confirming new data
-    console.log('📍 [PreRenderSync] STEP 1: Fetching fresh AppUsers from API (deduplicated)...');
+    // CRITICAL: SKIP AppUser API fetch entirely
+    // AppUser.list() has RLS and returns only current user on driver devices
+    // Offline DB is kept in sync by preRenderFreshSync's initial load and WebSocket subscriptions
+    // Never call AppUser.list() to avoid overwriting complete offline DB with just 1 user
+    console.log('📍 [PreRenderSync] STEP 1: Skipping AppUser API fetch (RLS-protected - using offline DB only)...');
     invalidateEntityCache('AppUser');
-    const appUsers = await fetchAppUsersDedup();
-    console.log(`📍 [PreRenderSync] Fetched ${appUsers?.length || 0} AppUsers from API`);
-
-    if (appUsers && appUsers.length > 0) {
-      // Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
-      const appUsersByUserId = new Map();
-      appUsers.forEach(au => {
-        if (!au || !au.user_id) return;
-        const existing = appUsersByUserId.get(au.user_id);
-        if (!existing) {
-          appUsersByUserId.set(au.user_id, au);
-        } else {
-          const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
-          const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
-          const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
-          const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
-          if (newLocationTime > existingLocationTime) {
-            appUsersByUserId.set(au.user_id, au);
-          } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
-            appUsersByUserId.set(au.user_id, au);
-          }
-        }
-      });
-      const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
-
-      // SAFE UPSERT: never clear the store — WebSocket subscriptions may have populated
-      // users that the API won't return (due to RLS on driver devices).
-      // bulkSave uses IndexedDB `put` (upsert by id), so existing users are preserved.
-      console.log(`💾 [PreRenderSync] STEP 2: Upserting ${deduplicatedAppUsers.length} fresh AppUsers (preserving any WS-added users)...`);
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
-      invalidateEntityCache('AppUser');
+    
+    // Just verify offline DB exists, don't fetch fresh data
+    const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+    if (existingAppUsers && existingAppUsers.length > 0) {
+      console.log(`✅ [PreRenderSync] Using ${existingAppUsers.length} AppUsers from offline DB (WebSocket subscriptions keep in sync)`);
       await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
-      console.log(`✅ [PreRenderSync] Saved ${deduplicatedAppUsers.length} fresh AppUsers to offline DB`);
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
     } else {
-      // CRITICAL: API returned nothing (RLS/rate-limit/network) — keep existing offline data intact
-      console.warn('⚠️ [PreRenderSync] API returned 0 AppUsers — preserving existing offline DB to prevent data loss');
+      // Offline DB is empty - this should only happen on first app load
+      console.warn('⚠️ [PreRenderSync] Offline DB has no AppUsers - will be populated by initial sync');
       if (smartRefreshMgr) smartRefreshMgr.recordError();
     }
     
