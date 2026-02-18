@@ -325,21 +325,25 @@ class DriverLocationPoller {
          }
 
          const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
-         console.log(`🔍 [Poller] Dispatcher stores:`, Array.from(dispatcherStoreIds), `Driver: ${user.user_name}`);
-         console.log(`🔍 [Poller] Driver IDs to match:`, { user_id: user.id, user_user_id: user.user_id, driverId: driverId });
+         console.log(`🔍 [Poller] Dispatcher stores: ${JSON.stringify(Array.from(dispatcherStoreIds))}, Driver: ${user.user_name}`);
+         console.log(`🔍 [Poller] Driver IDs to match: ${JSON.stringify({ user_id: user.id, user_user_id: user.user_id, driverId: driverId })}`);
 
          // 2. Driver must have at least 1 en_route OR in_transit delivery from dispatcher's stores (today)
          // Once all stops are complete/failed/cancelled, marker disappears
          const userIdForDeliveryMatch = user.id || user.user_id;
 
-         // DEBUG: Log first 5 deliveries to see what we're working with
-         console.log(`📋 [Poller] Total deliveries: ${deliveries.length}, todayStr: ${todayStr}`);
-         const firstFive = deliveries.slice(0, 5);
-         firstFive.forEach((d, idx) => {
-           console.log(`  [${idx}] driver: ${d?.driver_id}, store: ${d?.store_id}, date: ${d?.delivery_date}, status: ${d?.status}`);
-         });
-         if (deliveries.length > 5) {
-           console.log(`  ... and ${deliveries.length - 5} more`);
+         // DEBUG: Log first 10 deliveries to see what we're working with
+         console.log(`📋 [Poller] Total deliveries: ${deliveries?.length || 0}, todayStr: '${todayStr}'`);
+         if (deliveries && deliveries.length > 0) {
+           const firstTen = deliveries.slice(0, 10);
+           firstTen.forEach((d, idx) => {
+             console.log(`  [${idx}] driver_id: '${d?.driver_id}', store_id: '${d?.store_id}', delivery_date: '${d?.delivery_date}', status: '${d?.status}'`);
+           });
+           if (deliveries.length > 10) {
+             console.log(`  ... and ${deliveries.length - 10} more`);
+           }
+         } else {
+           console.log(`  ⚠️ No deliveries or deliveries is null/undefined`);
          }
 
          const matchingDeliveries = (deliveries || []).filter(delivery => {
