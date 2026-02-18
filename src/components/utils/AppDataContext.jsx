@@ -61,48 +61,35 @@ export const AppDataProvider = ({ children, value }) => {
       } else if (entityType === 'AppUser') {
         if (eventType === 'create' || eventType === 'update') {
           const coords = `${data.current_latitude?.toFixed(6)}, ${data.current_longitude?.toFixed(6)}`;
-          console.log(`🔔 [AppDataContext] AppUser ${eventType} via realtime - user: ${data.user_name}, coords: ${coords}, timestamp: ${data.location_updated_at}`);
+          console.log(`🔔 [AppDataContext] AppUser ${eventType} via realtime - user: ${data.user_name}, coords: ${coords}`);
           
           // CRITICAL: Update appUsers array in context for instant UI updates
-          if (value.updateAppUsersLocally) {
-            console.log(`📝 [AppDataContext] Calling updateAppUsersLocally for ${data.user_name}`);
-            value.updateAppUsersLocally([data], false);
+          if (updateAppUsersLocallyRef.current) {
+            updateAppUsersLocallyRef.current([data], false);
           }
           
           // CRITICAL: Merge this update with existing appUsers before dispatching
-          const updatedAppUsers = (value.appUsers || []).map(au => 
-            au?.id === data.id ? data : au
-          );
-          
-          // If this user wasn't in the list, add them
-          if (!(value.appUsers || []).some(au => au?.id === data.id)) {
+          const currentAppUsers = appUsersRef.current || [];
+          const updatedAppUsers = currentAppUsers.map(au => au?.id === data.id ? data : au);
+          if (!currentAppUsers.some(au => au?.id === data.id)) {
             updatedAppUsers.push(data);
           }
           
-          // CRITICAL: Dispatch location update event with FULL list IMMEDIATELY for map markers and badges
           if (typeof window !== 'undefined') {
-            console.log(`📡 [AppDataContext] Dispatching driverLocationsUpdated with ${updatedAppUsers.length} total users (1 changed: ${data.user_name})`);
             window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
               detail: { appUsers: updatedAppUsers, singleUpdate: true, fromRealtime: true }
             }));
-            
-            // CRITICAL: Also dispatch generic AppUser update for location badges
-            console.log(`📡 [AppDataContext] Dispatching appUserUpdated for ${data.user_name}`);
             window.dispatchEvent(new CustomEvent('appUserUpdated', {
               detail: { appUser: data, fromRealtime: true }
             }));
           }
           
-          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
           smartRefreshManager.notifyRealtimeUpdate('AppUser');
         } else if (eventType === 'delete') {
-          // Remove from appUsers array
-          if (value.updateAppUsersLocally && value.appUsers) {
-            const filtered = value.appUsers.filter(au => au?.id !== data.id);
-            value.updateAppUsersLocally(filtered, true);
+          if (updateAppUsersLocallyRef.current && appUsersRef.current) {
+            const filtered = appUsersRef.current.filter(au => au?.id !== data.id);
+            updateAppUsersLocallyRef.current(filtered, true);
           }
-          
-          // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
           smartRefreshManager.notifyRealtimeUpdate('AppUser');
         }
       }
@@ -112,7 +99,9 @@ export const AppDataProvider = ({ children, value }) => {
       unsubscribe();
       cityFilteredRealtimeSync.stop();
     };
-  }, [value.currentUser?.id, value.selectedCityId, value.selectedDate, value.updateDeliveriesLocally, value.updateAppUsersLocally, value.deliveries, value.appUsers]);
+  // CRITICAL: Only re-subscribe when user/city/date changes - NOT on every delivery/appUser update
+  // Using refs above ensures callbacks always see latest data without triggering re-subscriptions
+  }, [value.currentUser?.id, value.selectedCityId, value.selectedDate]);
   
   // Wrap updateDeliveriesLocally to register pending updates with driver/date context
   const wrappedUpdateDeliveriesLocally = (updates, isFullReplacement = false) => {
