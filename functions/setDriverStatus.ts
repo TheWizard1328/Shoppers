@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     
     // When coming back on_duty from break, find closest delivery and set it as isNextDelivery
     if (newStatus === 'on_duty') {
-      console.log(`🔄 [setDriverStatus] Driver back on duty - finding closest delivery`);
+      console.log(`🔄 [setDriverStatus] Driver back on duty - finding closest delivery (non-pending only, respecting time windows)`);
       
       const today = new Date().toISOString().split('T')[0];
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -91,9 +91,47 @@ Deno.serve(async (req) => {
       }, 'stop_order');
       
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      
+      // CRITICAL: Get current time for time window checking
+      const now = new Date();
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+      const currentTimeInMinutes = currentHours * 60 + currentMinutes;
+      
+      // Helper to check if delivery is within acceptable time window
+      const isWithinTimeWindow = (delivery) => {
+        // If no time window set, always eligible
+        if (!delivery.delivery_time_start && !delivery.delivery_time_end) {
+          return true;
+        }
+        
+        // Parse time window strings (HH:mm format)
+        let windowStartMinutes = 0;
+        let windowEndMinutes = 24 * 60; // End of day
+        
+        if (delivery.delivery_time_start) {
+          const [hours, mins] = delivery.delivery_time_start.split(':').map(Number);
+          windowStartMinutes = (hours || 0) * 60 + (mins || 0);
+        }
+        
+        if (delivery.delivery_time_end) {
+          const [hours, mins] = delivery.delivery_time_end.split(':').map(Number);
+          windowEndMinutes = (hours || 0) * 60 + (mins || 0);
+        }
+        
+        // Check if current time is before window or within window
+        // CRITICAL: Allow selection if current time is before window (not yet started)
+        // OR if current time is within window
+        return currentTimeInMinutes <= windowEndMinutes;
+      };
+      
       const incompleteDeliveries = allTodayDeliveries.filter(d => 
-        !finishedStatuses.includes(d.status) && d.status !== 'pending'
+        !finishedStatuses.includes(d.status) && 
+        d.status !== 'pending' &&  // CRITICAL: Skip pending status stops
+        isWithinTimeWindow(d)       // CRITICAL: Respect time windows
       );
+      
+      console.log(`📦 [setDriverStatus] Filtered to ${incompleteDeliveries.length} eligible deliveries (non-pending, within time windows)`);
       
       if (incompleteDeliveries.length > 0) {
         // Find closest stop to driver's current location
