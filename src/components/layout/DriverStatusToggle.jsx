@@ -102,14 +102,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       if (isCurrentUser && typeof appUser.driver_status !== 'undefined') {
         console.log(`📡 [DriverStatusToggle] appUserUpdated event - syncing status to: ${appUser.driver_status}`);
         
-        // CRITICAL: Only skip if still toggling AND the incoming status doesn't match what we set.
-        // If it matches, accept it — this confirms the backend applied our change.
+        // Skip if still toggling
         if (isTogglingRef.current) {
-          setStatus(prev => {
-            if (prev === appUser.driver_status) return prev;
-            // Incoming status differs from what we optimistically set — ignore during toggle
-            return prev;
-          });
+          console.log('⏸️ [DriverStatusToggle] Still toggling - will sync after toggle completes');
           return;
         }
         
