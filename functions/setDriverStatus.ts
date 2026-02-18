@@ -134,28 +134,28 @@ Deno.serve(async (req) => {
       console.log(`📦 [setDriverStatus] Filtered to ${incompleteDeliveries.length} eligible deliveries (non-pending, within time windows)`);
       
       if (incompleteDeliveries.length > 0) {
-        // Find closest stop to driver's current location
-        let closestDelivery = null;
-        let minDistance = Infinity;
-        
         const driverLat = appUser.current_latitude;
         const driverLng = appUser.current_longitude;
         
         if (driverLat && driverLng) {
-          // Calculate distance to each incomplete delivery
+          // CRITICAL: Find stop where driver's ETA is closest to the delivery time window start
+          // This prioritizes stops the driver will naturally arrive near their scheduled time
+          let bestDelivery = null;
+          let bestETADifference = Infinity;
+          
+          console.log(`🔍 [setDriverStatus] Evaluating ${incompleteDeliveries.length} stops for optimal time-window match...`);
+          
           for (const delivery of incompleteDeliveries) {
             let deliveryLat, deliveryLng;
             
             // Get coordinates based on delivery type
             if (delivery.patient_id) {
-              // Patient delivery - fetch patient coordinates
               const patients = await base44.asServiceRole.entities.Patient.filter({ id: delivery.patient_id });
               if (patients && patients.length > 0) {
                 deliveryLat = patients[0].latitude;
                 deliveryLng = patients[0].longitude;
               }
             } else {
-              // Store pickup - fetch store coordinates
               const stores = await base44.asServiceRole.entities.Store.filter({ id: delivery.store_id });
               if (stores && stores.length > 0) {
                 deliveryLat = stores[0].latitude;
@@ -163,39 +163,58 @@ Deno.serve(async (req) => {
               }
             }
             
-            if (deliveryLat && deliveryLng) {
-              // Simple distance calculation (Haversine formula)
-              const R = 6371; // Earth radius in km
-              const dLat = (deliveryLat - driverLat) * Math.PI / 180;
-              const dLng = (deliveryLng - driverLng) * Math.PI / 180;
-              const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                        Math.cos(driverLat * Math.PI / 180) * Math.cos(deliveryLat * Math.PI / 180) *
-                        Math.sin(dLng/2) * Math.sin(dLng/2);
-              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-              const distance = R * c;
-              
-              if (distance < minDistance) {
-                minDistance = distance;
-                closestDelivery = delivery;
-              }
+            if (!deliveryLat || !deliveryLng) continue;
+            
+            // Calculate distance (Haversine formula)
+            const R = 6371; // Earth radius in km
+            const dLat = (deliveryLat - driverLat) * Math.PI / 180;
+            const dLng = (deliveryLng - driverLng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(driverLat * Math.PI / 180) * Math.cos(deliveryLat * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distanceKm = R * c;
+            
+            // Estimate travel time: assume 25 km/h average (urban delivery speed)
+            const travelTimeMinutes = (distanceKm / 25) * 60;
+            
+            // Calculate driver's ETA
+            const driverETA = currentHours * 60 + currentMinutes + travelTimeMinutes;
+            
+            // Get delivery time window start (default to current time if not set)
+            let windowStartMinutes = currentHours * 60 + currentMinutes;
+            if (delivery.delivery_time_start) {
+              const [hours, mins] = delivery.delivery_time_start.split(':').map(Number);
+              windowStartMinutes = (hours || 0) * 60 + (mins || 0);
+            }
+            
+            // Calculate difference between ETA and time window start
+            // CRITICAL: Prefer stops where ETA matches time window (small difference)
+            const etaDifference = Math.abs(driverETA - windowStartMinutes);
+            
+            console.log(`  Stop: ${delivery.patient_name || 'Pickup'} | Distance: ${distanceKm.toFixed(1)}km | ETA: ${Math.floor(driverETA/60)}:${String(Math.floor(driverETA%60)).padStart(2,'0')} | TimeStart: ${delivery.delivery_time_start || 'none'} | Diff: ${etaDifference.toFixed(0)}min`);
+            
+            // Select stop with smallest ETA difference (closest to time window)
+            if (etaDifference < bestETADifference) {
+              bestETADifference = etaDifference;
+              bestDelivery = delivery;
             }
           }
-        }
-        
-        // If we found closest delivery, set it as next (but don't optimize yet - "Start" will handle that)
-        if (closestDelivery) {
-          console.log(`📍 [setDriverStatus] Closest delivery: ${closestDelivery.patient_name || 'Pickup'} (${minDistance.toFixed(2)} km away)`);
-          console.log(`🎯 [setDriverStatus] Setting isNextDelivery=true - waiting for driver to click "Start"`);
           
-          // ONLY set isNextDelivery flag - optimization happens when driver clicks "Start"
-          await base44.asServiceRole.entities.Delivery.update(closestDelivery.id, { isNextDelivery: true });
-          
-          console.log(`✅ [setDriverStatus] Closest delivery marked as next - ready for driver to start`);
+          if (bestDelivery) {
+            console.log(`🎯 [setDriverStatus] Selected: ${bestDelivery.patient_name || 'Pickup'} (ETA matches time window by ${bestETADifference.toFixed(0)} min)`);
+            await base44.asServiceRole.entities.Delivery.update(bestDelivery.id, { isNextDelivery: true });
+            console.log(`✅ [setDriverStatus] Delivery marked as next - ready for driver to start`);
+          } else {
+            console.log(`⚠️ [setDriverStatus] Could not evaluate stops with coordinates`);
+          }
         } else {
-          // Fallback to first stop by stop_order if distance calculation failed
+          // No location available - fallback to first stop by order
           const nextDelivery = incompleteDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
-          console.log(`📍 [setDriverStatus] Using first stop by order: ${nextDelivery.patient_name || 'Pickup'}`);
-          await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true });
+          if (nextDelivery) {
+            console.log(`📍 [setDriverStatus] No driver location - using first stop by order: ${nextDelivery.patient_name || 'Pickup'}`);
+            await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true });
+          }
         }
       } else {
         console.log(`ℹ️ [setDriverStatus] No incomplete deliveries to mark as next`);
