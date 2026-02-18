@@ -137,6 +137,16 @@ class CityFilteredRealtimeSync {
               // Event 3: Force stats refresh
               window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
+              // CRITICAL: Trigger WebSocket reconciler (5-sec delayed safety check)
+              try {
+                const reconciler = await getReconciler();
+                if (reconciler) {
+                  reconciler.onDeliveryWebSocketEvent(freshDelivery);
+                }
+              } catch (reconcilerError) {
+                console.warn('⚠️ [Realtime] Reconciler trigger failed:', reconcilerError.message);
+              }
+
               console.log(`✅ [Realtime Delivery] Complete - ${event.type} processed and broadcast to ${this.updateCallbacks.size} subscribers`);
            } else if (event.type === 'delete') {
              console.log(`🗑️ [Realtime Delivery] PROCESSING delete for ${event.id}`);
