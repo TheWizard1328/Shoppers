@@ -815,6 +815,106 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
   }
 };
 
+// ==================== QUICK RECONCILIATION ====================
+
+/**
+ * Quick check: compares server vs offline DB by timestamp for Deliveries (selected date) and AppUsers.
+ * If server has newer data, syncs offline DB and fires UI update events.
+ * Lightweight - only 1 API call per entity to check the latest updated_date.
+ *
+ * @param {string} selectedDateStr - Active date (YYYY-MM-DD)
+ * @returns {Promise<{deliveriesUpdated, freshDeliveries, appUsersUpdated, freshAppUsers}>}
+ */
+export const quickReconcile = async (selectedDateStr) => {
+  const result = { deliveriesUpdated: false, appUsersUpdated: false };
+
+  // --- Deliveries ---
+  try {
+    const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+    const offlineLatest = (offlineDeliveries || []).reduce((max, d) => {
+      const t = d.updated_date ? new Date(d.updated_date).getTime() : 0;
+      return t > max ? t : max;
+    }, 0);
+
+    const [serverSample] = await Delivery.filter({ delivery_date: selectedDateStr }, '-updated_date', 1);
+    if (serverSample) {
+      const serverLatest = new Date(serverSample.updated_date || 0).getTime();
+      if (serverLatest > offlineLatest) {
+        console.log(`🔄 [QuickReconcile] Deliveries for ${selectedDateStr}: newer server data. Syncing...`);
+        const freshDeliveries = await Delivery.filter({ delivery_date: selectedDateStr }, '-updated_date', 5000);
+        if (freshDeliveries && freshDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+          invalidateEntityCache('Delivery');
+          await offlineDB.updateSyncMetadata('Delivery', serverSample.updated_date, new Date().toISOString());
+          result.deliveriesUpdated = true;
+          result.freshDeliveries = freshDeliveries;
+          console.log(`✅ [QuickReconcile] Synced ${freshDeliveries.length} deliveries`);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('offlineDBReconciled', {
+              detail: { entity: 'Delivery', date: selectedDateStr, count: freshDeliveries.length }
+            }));
+          }
+        }
+      } else {
+        console.log(`✅ [QuickReconcile] Deliveries up-to-date for ${selectedDateStr}`);
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ [QuickReconcile] Delivery check failed:', e.message);
+  }
+
+  // --- AppUsers ---
+  try {
+    const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+    const offlineLatest = (offlineAppUsers || []).reduce((max, u) => {
+      const t = u.updated_date ? new Date(u.updated_date).getTime() : 0;
+      return t > max ? t : max;
+    }, 0);
+
+    const [serverSampleUser] = await AppUser.filter({}, '-updated_date', 1);
+    if (serverSampleUser) {
+      const serverLatest = new Date(serverSampleUser.updated_date || 0).getTime();
+      const isEmpty = !offlineAppUsers || offlineAppUsers.length === 0;
+      if (serverLatest > offlineLatest || isEmpty) {
+        console.log(`🔄 [QuickReconcile] AppUsers: server has newer data or offline empty. Syncing...`);
+        const freshAppUsers = await fetchAppUsersDedup();
+        if (freshAppUsers && freshAppUsers.length > 0) {
+          const userMap = new Map();
+          freshAppUsers.forEach(au => {
+            if (!au?.user_id) return;
+            const ex = userMap.get(au.user_id);
+            if (!ex) { userMap.set(au.user_id, au); return; }
+            const newLoc = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+            const exLoc = ex.location_updated_at ? new Date(ex.location_updated_at).getTime() : 0;
+            if (newLoc > exLoc) userMap.set(au.user_id, au);
+          });
+          const deduped = Array.from(userMap.values());
+          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduped);
+          invalidateEntityCache('AppUser');
+          await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
+          result.appUsersUpdated = true;
+          result.freshAppUsers = deduped;
+          console.log(`✅ [QuickReconcile] Synced ${deduped.length} AppUsers`);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('offlineDBReconciled', {
+              detail: { entity: 'AppUser', count: deduped.length }
+            }));
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: deduped }
+            }));
+          }
+        }
+      } else {
+        console.log(`✅ [QuickReconcile] AppUsers up-to-date (${offlineAppUsers?.length || 0})`);
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ [QuickReconcile] AppUser check failed:', e.message);
+  }
+
+  return result;
+};
+
 // ==================== INITIAL SYNC (ENTRY POINT) ====================
 
 /**
