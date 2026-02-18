@@ -382,7 +382,7 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
 };
 
 // Helper function to create delivery pin markers with circle/square based on PM status
-const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false) => {
+const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false, isReturn = false, isFaded = false, isHighlightedFinished = false) => {
   // CRITICAL: Returns take precedence over other statuses for color
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextYellow = isNextInLine && !isFinished && hasIncompleteStops;
