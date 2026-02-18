@@ -421,6 +421,8 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   
   const numberColor = shouldShowNextYellow ? '#000000' : ((status === 'failed' || status === 'cancelled') ? 'white' : (FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(statusColor)));
 
+  const deliveryOpacity = isFaded ? 0.25 : isOtherDriver ? 0.75 : 1;
+
   return L.divIcon({
     html: `
       <div class="delivery-marker ${isHighlighted ? 'highlighted' : ''}" style="
@@ -428,7 +430,8 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
         height: ${size * 1.4}px;
         position: relative;
         cursor: pointer;
-        opacity: ${isOtherDriver ? 0.75 : 1};
+        opacity: ${deliveryOpacity};
+        transition: opacity 0.2s ease-in-out;
       ">
         <svg width="${size}" height="${size * 1.4}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg">
           <!-- Pin shape with STORE COLOR - rounder, more compact -->
