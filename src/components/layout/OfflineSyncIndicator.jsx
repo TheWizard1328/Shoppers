@@ -159,13 +159,12 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const handleForceSync = async () => {
     try {
       setIsSyncing(true);
-      console.log('🔄 [OfflineSyncIndicator] Starting COMPLETE offline DB refresh...');
+      console.log('🔄 [OfflineSyncIndicator] Starting manual sync (merge-only, no clear)...');
 
-      // CRITICAL: Clear ALL offline DB stores first to force fresh sync
+      // CRITICAL: Do NOT clear delivery/patient data before syncing.
+      // forceSyncAll uses bulkSave (upsert) which preserves historical records
+      // across the full date range (90 days mobile / all time desktop).
       const { offlineDB } = await import('../utils/offlineDatabase');
-      console.log('🗑️ [OfflineSyncIndicator] Clearing offline DB...');
-      await offlineDB.clearAllData();
-      console.log('✅ [OfflineSyncIndicator] Offline DB cleared');
 
       // Force fresh sync from server
       const syncResult = await forceSyncAll();
