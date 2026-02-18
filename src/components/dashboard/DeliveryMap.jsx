@@ -2863,9 +2863,14 @@ export default function DeliveryMap({
                 const isAM = stop2.ampm_deliveries === 'AM';
                 const dashArray = isAM ? '10, 5' : '2, 8';
                 
+                // FADE: Segment is highlighted if either endpoint is the highlighted stop
+                const isSegmentHighlighted = highlightedDeliveryId &&
+                  (stop1.id === highlightedDeliveryId || stop2.id === highlightedDeliveryId);
+                const type3Opacity = isSegmentHighlighted ? 0.85 : 0.2;
+                
                 polylines.push(
                   <Polyline
-                    key={`type3-${route.driverId}-${i}-${polylineRenderKey}`}
+                    key={`type3-${route.driverId}-${i}-${polylineRenderKey}-${highlightedDeliveryId || 'none'}`}
                     positions={[
                       [stop1.latitude, stop1.longitude],
                       [stop2.latitude, stop2.longitude]
@@ -2873,7 +2878,7 @@ export default function DeliveryMap({
                     pathOptions={{
                       color: driverPolylineColor,
                       weight: 4,
-                      opacity: 0.7,
+                      opacity: type3Opacity,
                       dashArray: dashArray,
                       lineJoin: 'round',
                       lineCap: 'round'
