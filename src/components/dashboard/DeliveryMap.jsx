@@ -2359,8 +2359,11 @@ export default function DeliveryMap({
     stableSortedDrivers.map(d => `${d?.id}:${d?.sort_order}`).join('|'), // Stable driver order key
     currentZoom,
     currentUser?.id,
+    isMobile,
     currentDriverLocation?.latitude,
     currentDriverLocation?.longitude,
+    // CRITICAL: Track realtimeAppUsers location changes so startPoint updates for shared markers
+    realtimeAppUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}`).join('|'),
     isViewingCurrentDate,
     isDriverViewingSelfToday,
     routeRenderKey // CRITICAL: Force recalculation when deliveries update
