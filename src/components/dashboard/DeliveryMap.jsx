@@ -2283,7 +2283,10 @@ export default function DeliveryMap({
         } else if (!isRouteStarted && firstStopCoordinates && route.driver && !isDispatcherNonAdmin) {
           // CRITICAL: For unstarted routes, only show home-to-first-stop line if NO live location available
           // The blue dashed line from current location to next stop is drawn separately below
-          const hasLiveLocation = route.driver.id === currentUser?.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude;
+          const isPrimaryMobile = currentUser && route.driver.id === currentUser.id && isMobile && currentDriverLocation?.latitude && currentDriverLocation?.longitude;
+          const liveDriverData = realtimeAppUsers.find(u => u && u.id === route.driver.id);
+          const hasSharedLocation = liveDriverData?.current_latitude && liveDriverData?.current_longitude;
+          const hasLiveLocation = isPrimaryMobile || hasSharedLocation;
           
           // Only use home location if no live location is available
           if (!hasLiveLocation && route.driver.home_latitude && route.driver.home_longitude) {
