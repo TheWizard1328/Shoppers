@@ -2881,9 +2881,11 @@ export default function DeliveryMap({
                 const dashArray = isAM ? '10, 5' : '2, 8';
                 
                 // FADE: Segment is highlighted if either endpoint is the highlighted stop
+                // CRITICAL: Don't fade segments for the selected driver's complete route
                 const isSegmentHighlighted = highlightedDeliveryId &&
                   (stop1.id === highlightedDeliveryId || stop2.id === highlightedDeliveryId);
-                const type3Opacity = isSegmentHighlighted ? 0.85 : 0.2;
+                const isSelectedDriverRoute = selectedDriverId && selectedDriverId !== 'all' && route.driverId === selectedDriverId;
+                const type3Opacity = isSelectedDriverRoute ? 0.7 : isSegmentHighlighted ? 0.85 : 0.2;
                 
                 polylines.push(
                   <Polyline
