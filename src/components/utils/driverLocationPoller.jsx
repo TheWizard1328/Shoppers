@@ -326,16 +326,32 @@ class DriverLocationPoller {
 
          const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
          console.log(`🔍 [Poller] Dispatcher stores:`, Array.from(dispatcherStoreIds), `Driver: ${user.user_name}`);
+         console.log(`🔍 [Poller] Driver IDs to match:`, { user_id: user.id, user_user_id: user.user_id, driverId: driverId });
 
          // 2. Driver must have at least 1 en_route OR in_transit delivery from dispatcher's stores (today)
          // Once all stops are complete/failed/cancelled, marker disappears
          const userIdForDeliveryMatch = user.id || user.user_id;
+
+         // DEBUG: Log all deliveries to see what we're working with
+         console.log(`📋 [Poller] All deliveries:`, deliveries.map(d => ({
+           id: d?.id,
+           driver_id: d?.driver_id,
+           store_id: d?.store_id,
+           delivery_date: d?.delivery_date,
+           status: d?.status,
+           patient_name: d?.patient_name
+         })));
+
          const matchingDeliveries = (deliveries || []).filter(delivery => {
            if (!delivery) return false;
-           if (delivery.driver_id !== userIdForDeliveryMatch && delivery.driver_id !== driverId) return false;
-           if (delivery.delivery_date !== todayStr) return false;
-           if (!dispatcherStoreIds.has(delivery.store_id)) return false;
-           if (!(delivery.status === 'in_transit' || delivery.status === 'en_route')) return false;
+           const driverMatch = delivery.driver_id === userIdForDeliveryMatch || delivery.driver_id === driverId;
+           const dateMatch = delivery.delivery_date === todayStr;
+           const storeMatch = dispatcherStoreIds.has(delivery.store_id);
+           const statusMatch = delivery.status === 'in_transit' || delivery.status === 'en_route';
+
+           console.log(`  📦 Delivery ${delivery.id}: driver=${driverMatch} (${delivery.driver_id} vs ${userIdForDeliveryMatch}/${driverId}), date=${dateMatch} (${delivery.delivery_date} vs ${todayStr}), store=${storeMatch} (${delivery.store_id}), status=${statusMatch} (${delivery.status})`);
+
+           if (!driverMatch || !dateMatch || !storeMatch || !statusMatch) return false;
            return true;
          });
 
