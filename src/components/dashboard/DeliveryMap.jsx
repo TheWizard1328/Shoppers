@@ -4067,7 +4067,7 @@ return polylines.length > 0 ? polylines : null;
             <Marker
               key={`delivery-${delivery.id}`}
               position={markerPosition}
-              icon={delivery.useSimpleCircle ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver, delivery.duplicateCount, delivery.isNextInLine) : delivery.isOtherDriver ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, true, delivery.duplicateCount, delivery.isNextInLine) : createDeliveryIcon(
+              icon={delivery.useSimpleCircle ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded) : delivery.isOtherDriver ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, true, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded) : createDeliveryIcon(
                 delivery.status,
                 delivery.pinColor,
                 isFanned,
@@ -4081,7 +4081,8 @@ return polylines.length > 0 ? polylines : null;
                 hasIncompleteStops,
                 delivery.ampm_deliveries === 'PM', // CRITICAL: Pass PM flag
                 delivery.isOtherDriver, // NEW
-                delivery.isReturn // NEW: Return flag
+                delivery.isReturn, // NEW: Return flag
+                isDeliveryFaded // NEW: Fade finished markers
               )}
               zIndexOffset={dynamicZIndex}
               draggable={!delivery.useSimpleCircle && !delivery.isOtherDriver && isFanned}
