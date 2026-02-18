@@ -697,6 +697,7 @@ export default function DeliveryMap({
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
   const [hoveredMarkerId, setHoveredMarkerId] = useState(null);
+  const [fadedMarkerHighlights, setFadedMarkerHighlights] = useState(new Set()); // markers hovered/clicked while faded
   const markerRefs = useRef({});
   const [hasInitialFit, setHasInitialFit] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(zoom);
