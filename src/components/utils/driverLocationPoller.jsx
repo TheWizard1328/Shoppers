@@ -332,18 +332,13 @@ class DriverLocationPoller {
          // Once all stops are complete/failed/cancelled, marker disappears
          const userIdForDeliveryMatch = user.id || user.user_id;
 
-         // DEBUG: Log first 10 deliveries to see what we're working with
-         console.log(`📋 [Poller] Total deliveries: ${deliveries?.length || 0}, todayStr: '${todayStr}'`);
-         if (deliveries && deliveries.length > 0) {
-           const firstTen = deliveries.slice(0, 10);
-           firstTen.forEach((d, idx) => {
-             console.log(`  [${idx}] driver_id: '${d?.driver_id}', store_id: '${d?.store_id}', delivery_date: '${d?.delivery_date}', status: '${d?.status}'`);
-           });
-           if (deliveries.length > 10) {
-             console.log(`  ... and ${deliveries.length - 10} more`);
+         // DEBUG: Log first 5 deliveries explicitly
+         console.log(`📋 [Poller] Total deliveries: ${deliveries?.length || 0}, todayStr: '${todayStr}', for driver: ${user.user_name}`);
+         if (deliveries && Array.isArray(deliveries)) {
+           for (let i = 0; i < Math.min(5, deliveries.length); i++) {
+             const d = deliveries[i];
+             console.log(`  [${i}] driver_id: '${d?.driver_id}', store_id: '${d?.store_id}', delivery_date: '${d?.delivery_date}', status: '${d?.status}'`);
            }
-         } else {
-           console.log(`  ⚠️ No deliveries or deliveries is null/undefined`);
          }
 
          const matchingDeliveries = (deliveries || []).filter(delivery => {
