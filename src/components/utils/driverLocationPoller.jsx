@@ -312,33 +312,30 @@ class DriverLocationPoller {
        // RULE 4: Dispatchers viewing assigned drivers
        // ========================================
        if (isDispatcher && !isDriver) {
-         // 1. Driver must be On Duty or Online
-         if (user.driver_status !== 'on_duty' && user.driver_status !== 'online') {
-           return false;
-         }
-
-         // 2. Driver must have location tracking enabled
-         if (!user.location_tracking_enabled) {
+         // 1. Driver must be On Duty
+         if (user.driver_status !== 'on_duty') {
            return false;
          }
 
          const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
 
-         // 3. Driver must have at least 1 delivery from dispatcher's stores (today, any status)
+         // 2. Driver must have at least 1 en_route OR in_transit delivery from dispatcher's stores (today)
+         // Once all stops are complete/failed/cancelled, marker disappears
          const userIdForDeliveryMatch = user.id || user.user_id;
-         const hasDispatcherStoreDelivery = (deliveries || []).some(delivery => {
+         const hasActiveDispatcherStoreDelivery = (deliveries || []).some(delivery => {
            if (!delivery) return false;
            if (delivery.driver_id !== userIdForDeliveryMatch && delivery.driver_id !== driverId) return false;
            if (delivery.delivery_date !== todayStr) return false;
            if (!dispatcherStoreIds.has(delivery.store_id)) return false;
+           if (!(delivery.status === 'in_transit' || delivery.status === 'en_route')) return false;
            return true;
          });
 
-         if (!hasDispatcherStoreDelivery) {
+         if (!hasActiveDispatcherStoreDelivery) {
            return false;
          }
 
-         console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - ${user.driver_status} with deliveries, staleness: ${user._staleness}`);
+         console.log(`✅ [Poller] Dispatcher seeing assigned driver ${user.user_name} - on_duty with active en_route/in_transit deliveries, staleness: ${user._staleness}`);
          return true;
        }
 
