@@ -147,7 +147,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
             {/* Role Selection */}
             <div>
               <label className="text-sm font-medium mb-2 block">Role</label>
-              <Select value={selectedRole} onValueChange={setSelectedRole}>
+              <Select value={selectedRole} onValueChange={handleRoleChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
