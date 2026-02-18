@@ -421,7 +421,7 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   
   const numberColor = shouldShowNextYellow ? '#000000' : ((status === 'failed' || status === 'cancelled') ? 'white' : (FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(statusColor)));
 
-  const deliveryOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.25 : isOtherDriver ? 0.75 : 1;
+  const deliveryOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : isOtherDriver ? 0.75 : 1;
 
   return L.divIcon({
     html: `
