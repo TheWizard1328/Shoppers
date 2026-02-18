@@ -155,12 +155,15 @@ export default function PullToSync({
          (async () => {
            console.log(`👥 [Pull to Sync] Fetching ALL AppUsers assigned to city: ${selectedCityId}...`);
            const allAppUsers = await base44.entities.AppUser.list();
+           console.log(`📊 [Pull to Sync] Total AppUsers from API: ${allAppUsers?.length || 0}`, allAppUsers?.map(au => ({ name: au.user_name, city_ids: au.city_ids, city_id: au.city_id })));
            
            // Filter by selected city
            const cityAppUsers = (allAppUsers || []).filter(au => {
              const userCityIds = au.city_ids || (au.city_id ? [au.city_id] : []);
              return userCityIds.includes(selectedCityId);
            });
+           
+           console.log(`🔍 [Pull to Sync] After filtering by city ${selectedCityId}: ${cityAppUsers.length} AppUsers match`);
            
            console.log(`🗑️ [Pull to Sync] Clearing all AppUsers from offline DB...`);
            await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
