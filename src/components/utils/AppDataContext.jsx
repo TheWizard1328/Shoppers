@@ -25,6 +25,9 @@ export const AppDataProvider = ({ children, value }) => {
     const unsubscribe = cityFilteredRealtimeSync.subscribe(({ entityType, eventType, data }) => {
       if (entityType === 'Delivery') {
         if (eventType === 'create' || eventType === 'update') {
+          // CRITICAL: Record WS update time to prevent smart refresh from overwriting with stale data
+          lastDeliveryWsUpdateRef.current = Date.now();
+
           // Update UI with the new/updated delivery
           if (value.updateDeliveriesLocally) {
             value.updateDeliveriesLocally([data], false);
@@ -33,6 +36,9 @@ export const AppDataProvider = ({ children, value }) => {
           // CRITICAL: Notify smartRefreshManager to skip next scheduled refresh
           smartRefreshManager.notifyRealtimeUpdate('Delivery');
         } else if (eventType === 'delete') {
+          // CRITICAL: Record WS update time
+          lastDeliveryWsUpdateRef.current = Date.now();
+
           // Remove from UI
           if (value.updateDeliveriesLocally && value.deliveries) {
             const filtered = value.deliveries.filter(d => d?.id !== data.id);
