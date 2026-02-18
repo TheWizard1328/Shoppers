@@ -4149,7 +4149,7 @@ return polylines.length > 0 ? polylines : null;
                 delivery.ampm_deliveries === 'PM',
                 delivery.isOtherDriver,
                 delivery.isReturn,
-                isDeliveryFaded,
+                isDeliveryFaded || isDeliveryInProgressFade,
                 isDeliveryHighlightedFinished
               )}
               zIndexOffset={dynamicZIndex}
