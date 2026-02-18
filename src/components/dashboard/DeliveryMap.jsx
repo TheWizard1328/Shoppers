@@ -63,9 +63,9 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 // CRITICAL: Memoized icon cache to prevent re-creation on every render
 const simpleCircleIconCache = new Map();
 
-const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, borderColor = 'white', isOtherDriver = false, clusterCount = 0, isNextDelivery = false) => {
+const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, borderColor = 'white', isOtherDriver = false, clusterCount = 0, isNextDelivery = false, isFaded = false) => {
   // Use caching to prevent icon re-creation causing pulsation
-  const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}_${isNextDelivery}`;
+  const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}_${borderColor}_${isOtherDriver}_${clusterCount}_${isNextDelivery}_${isFaded}`;
   
   if (simpleCircleIconCache.has(cacheKey)) {
     return simpleCircleIconCache.get(cacheKey);
