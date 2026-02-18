@@ -8,17 +8,18 @@ const AppDataContext = createContext(null);
 export const AppDataProvider = ({ children, value }) => {
   // Track last WS delivery update time to prevent stale reconcile from overwriting
   const lastDeliveryWsUpdateRef = useRef(0);
-  // Keep a ref to updateDeliveriesLocally so the subscription closure always has the latest
+  // Keep refs to mutable values so the subscription closure always has the latest
+  // without needing to re-subscribe on every render
   const updateDeliveriesLocallyRef = useRef(value.updateDeliveriesLocally);
+  const updateAppUsersLocallyRef = useRef(value.updateAppUsersLocally);
   const deliveriesRef = useRef(value.deliveries);
+  const appUsersRef = useRef(value.appUsers);
 
-  // Keep refs in sync with latest values without re-running the subscription effect
-  useEffect(() => {
-    updateDeliveriesLocallyRef.current = value.updateDeliveriesLocally;
-  }, [value.updateDeliveriesLocally]);
-  useEffect(() => {
-    deliveriesRef.current = value.deliveries;
-  }, [value.deliveries]);
+  // Keep refs in sync with latest values
+  useEffect(() => { updateDeliveriesLocallyRef.current = value.updateDeliveriesLocally; }, [value.updateDeliveriesLocally]);
+  useEffect(() => { updateAppUsersLocallyRef.current = value.updateAppUsersLocally; }, [value.updateAppUsersLocally]);
+  useEffect(() => { deliveriesRef.current = value.deliveries; }, [value.deliveries]);
+  useEffect(() => { appUsersRef.current = value.appUsers; }, [value.appUsers]);
 
   // CRITICAL: Set up city-filtered real-time subscriptions
   useEffect(() => {
