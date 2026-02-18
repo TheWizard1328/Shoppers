@@ -4075,7 +4075,7 @@ return polylines.length > 0 ? polylines : null;
             <Marker
               key={`delivery-${delivery.id}`}
               position={markerPosition}
-              icon={delivery.useSimpleCircle ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded) : delivery.isOtherDriver ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, true, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded) : createDeliveryIcon(
+              icon={delivery.useSimpleCircle ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded, isDeliveryHighlightedFinished) : delivery.isOtherDriver ? createSimpleCircleIcon(delivery.isReturn ? 'returned' : delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, true, delivery.duplicateCount, delivery.isNextInLine, isDeliveryFaded, isDeliveryHighlightedFinished) : createDeliveryIcon(
                 delivery.status,
                 delivery.pinColor,
                 isFanned,
@@ -4087,10 +4087,11 @@ return polylines.length > 0 ? polylines : null;
                 delivery.isNextInLine,
                 isHighlighted,
                 hasIncompleteStops,
-                delivery.ampm_deliveries === 'PM', // CRITICAL: Pass PM flag
-                delivery.isOtherDriver, // NEW
-                delivery.isReturn, // NEW: Return flag
-                isDeliveryFaded // NEW: Fade finished markers
+                delivery.ampm_deliveries === 'PM',
+                delivery.isOtherDriver,
+                delivery.isReturn,
+                isDeliveryFaded,
+                isDeliveryHighlightedFinished
               )}
               zIndexOffset={dynamicZIndex}
               draggable={!delivery.useSimpleCircle && !delivery.isOtherDriver && isFanned}
