@@ -229,6 +229,12 @@ export default function PullToSync({
       // CRITICAL: Dispatch completion event for SmartRefreshIndicator
       window.dispatchEvent(new CustomEvent('pullToSyncComplete'));
 
+      // Update offline sync indicator with fresh sync metadata
+      const syncStats = await offlineDB.getSyncStats();
+      window.dispatchEvent(new CustomEvent('offlineSyncUpdated', {
+        detail: { syncStats }
+      }));
+
       console.log(`✅ [Pull to Sync] ${silent ? 'Silent sync' : 'Sync'} complete!`);
       
       // CRITICAL: Reactivate FAB
