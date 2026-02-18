@@ -412,24 +412,18 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
       await smartRefreshMgr.waitForRateLimit();
     }
     
-    // STEP 1: Clear AppUser cache to force fresh fetch
-    console.log('🗑️ [PreRenderSync] STEP 1: Clearing AppUser cache...');
+    // CRITICAL: Fetch FIRST, then replace — NEVER clear before confirming new data
+    console.log('📍 [PreRenderSync] STEP 1: Fetching fresh AppUsers from API (deduplicated)...');
     invalidateEntityCache('AppUser');
-    await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
-    console.log('✅ [PreRenderSync] AppUser cache and offline DB cleared');
-    
-    // CRITICAL STEP 2: Fetch fresh AppUsers from API with deduplication
-    console.log('📍 [PreRenderSync] STEP 2: Fetching fresh AppUsers from API (deduplicated)...');
     const appUsers = await fetchAppUsersDedup();
     console.log(`📍 [PreRenderSync] Fetched ${appUsers?.length || 0} AppUsers from API`);
 
     if (appUsers && appUsers.length > 0) {
-      // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
+      // Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
       const appUsersByUserId = new Map();
       appUsers.forEach(au => {
         if (!au || !au.user_id) return;
         const existing = appUsersByUserId.get(au.user_id);
-
         if (!existing) {
           appUsersByUserId.set(au.user_id, au);
         } else {
@@ -437,7 +431,6 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
           const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
           const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
           const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
-
           if (newLocationTime > existingLocationTime) {
             appUsersByUserId.set(au.user_id, au);
           } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
@@ -446,20 +439,19 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
         }
       });
       const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
-      const duplicatesRemoved = appUsers.length - deduplicatedAppUsers.length;
-      if (duplicatesRemoved > 0) {
-        console.warn(`⚠️ [PreRenderSync] Removed ${duplicatesRemoved} duplicate AppUsers`);
-      }
 
-      // CRITICAL STEP 3: Save fresh AppUsers to offline DB in ONE bulk operation
-        console.log('💾 [PreRenderSync] STEP 3: Saving fresh AppUsers to offline DB...');
-        const appUserSaveResult = await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
-        console.log(`✅ [PreRenderSync] Saved ${deduplicatedAppUsers.length} fresh AppUsers to offline DB`);
-        invalidateEntityCache('AppUser');
-        await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
+      // SAFE REPLACE: only clear & save once we have confirmed fresh data
+      console.log(`💾 [PreRenderSync] STEP 2: Replacing offline AppUsers with ${deduplicatedAppUsers.length} fresh records...`);
+      await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
+      invalidateEntityCache('AppUser');
+      await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
+      console.log(`✅ [PreRenderSync] Saved ${deduplicatedAppUsers.length} fresh AppUsers to offline DB`);
       if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
     } else {
-      console.warn('⚠️ [PreRenderSync] No AppUsers returned from API');
+      // CRITICAL: API returned nothing (RLS/rate-limit/network) — keep existing offline data intact
+      console.warn('⚠️ [PreRenderSync] API returned 0 AppUsers — preserving existing offline DB to prevent data loss');
+      if (smartRefreshMgr) smartRefreshMgr.recordError();
     }
     
     // Wait for rate limit
