@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { queueEntityRequest } from "./requestQueue";
 import { touchUserCache } from "./auth";
 import { globalFilters } from "./globalFilters";
+import { quickReconcile } from "./offlineSync";
 
 class LightweightRefreshManager {
   constructor() {
