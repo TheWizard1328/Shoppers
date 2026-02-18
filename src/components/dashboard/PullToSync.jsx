@@ -151,30 +151,14 @@ export default function PullToSync({
           return [];
         }),
         
-        // Fetch ALL AppUsers for selected city and replace offline DB
+        // CRITICAL: Preserve existing AppUsers from offline DB (kept in sync by WebSocket subscriptions)
+         // AppUser.list() has RLS restrictions and returns limited data
+         // Only refetch if WebSocket sync isn't working
          (async () => {
-           console.log(`👥 [Pull to Sync] Fetching ALL AppUsers assigned to city: ${selectedCityId}...`);
-           const allAppUsers = await base44.entities.AppUser.list();
-           console.log(`📊 [Pull to Sync] Total AppUsers from API: ${allAppUsers?.length || 0}`, allAppUsers?.map(au => ({ name: au.user_name, city_ids: au.city_ids, city_id: au.city_id })));
-           
-           // Filter by selected city
-           const cityAppUsers = (allAppUsers || []).filter(au => {
-             const userCityIds = au.city_ids || (au.city_id ? [au.city_id] : []);
-             return userCityIds.includes(selectedCityId);
-           });
-           
-           console.log(`🔍 [Pull to Sync] After filtering by city ${selectedCityId}: ${cityAppUsers.length} AppUsers match`);
-           
-           console.log(`🗑️ [Pull to Sync] Clearing all AppUsers from offline DB...`);
-           await offlineDB.clearStore(offlineDB.STORES.APP_USERS);
-           
-           if (cityAppUsers && cityAppUsers.length > 0) {
-             await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, cityAppUsers);
-             console.log(`✅ [Pull to Sync] Saved ${cityAppUsers.length} AppUsers for city ${selectedCityId} to offline DB`);
-           } else {
-             console.warn(`⚠️ [Pull to Sync] No AppUsers found for city ${selectedCityId}`);
-           }
-           return cityAppUsers || [];
+           console.log(`👥 [Pull to Sync] Preserving AppUsers from offline DB (RLS-protected API)...`);
+           const existingAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+           console.log(`✅ [Pull to Sync] Using ${existingAppUsers?.length || 0} existing AppUsers from offline DB`);
+           return existingAppUsers || [];
          })().catch((error) => {
            console.warn('⚠️ [Pull to Sync] AppUsers sync failed:', error.message);
            return [];
