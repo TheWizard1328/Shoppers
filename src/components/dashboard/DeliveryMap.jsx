@@ -4157,26 +4157,47 @@ return polylines.length > 0 ? polylines : null;
               eventHandlers={delivery.isOtherDriver ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
+                  if (isDeliveryFaded) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id]));
                 },
-                mouseover: (e) => e.target.openPopup(),
-                mouseout: (e) => e.target.closePopup()
+                mouseover: (e) => {
+                  e.target.openPopup();
+                  if (isDeliveryFaded || isDeliveryInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id]));
+                },
+                mouseout: (e) => {
+                  e.target.closePopup();
+                  setFadedMarkerHighlights(prev => { const n = new Set(prev); n.delete(delivery.id); return n; });
+                }
               } : delivery.useSimpleCircle ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
+                  if (isDeliveryInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id]));
                 },
-                mouseover: (e) => e.target.openPopup(),
-                mouseout: (e) => e.target.closePopup()
+                mouseover: (e) => {
+                  e.target.openPopup();
+                  if (isDeliveryInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id]));
+                },
+                mouseout: (e) => {
+                  e.target.closePopup();
+                  setFadedMarkerHighlights(prev => { const n = new Set(prev); n.delete(delivery.id); return n; });
+                }
               } : {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
+                  if (isDeliveryInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id]));
                   if (isFanned && onMarkerClick) {
                     onMarkerClick(delivery);
                   } else {
                     handleMarkerClickForFanning(delivery, 'delivery');
                   }
                 },
-                mouseover: (e) => e.target.openPopup(),
-                mouseout: (e) => e.target.closePopup(),
+                mouseover: (e) => {
+                  e.target.openPopup();
+                  if (isDeliveryInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id]));
+                },
+                mouseout: (e) => {
+                  e.target.closePopup();
+                  setFadedMarkerHighlights(prev => { const n = new Set(prev); n.delete(delivery.id); return n; });
+                },
                 dragend: (e) => handleMarkerDragEnd(delivery.id, e, 'delivery')
               }}
               ref={(ref) => {
