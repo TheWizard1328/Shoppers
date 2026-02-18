@@ -72,6 +72,11 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
     return [...new Set(selectedValues.map((v) => v.replace(/__AM$|__PM$/, '')))];
   };
 
+  const handleRoleChange = (role) => {
+    setSelectedRole(role);
+    setSelectedStores([]);
+  };
+
   const availableRoles = isAdmin ? 
     ['admin', 'dispatcher', 'driver', 'patient'] : 
     isDispatcher ? 
