@@ -5103,10 +5103,12 @@ export default function DeliveryForm({
                                 await updatePatientLocal(formData.patient_id, { patient_id: newPid });
                               }
                             }}
-                            className={`h-9 text-sm pr-6 ${
-                              pidLookupStatus === 'found' ? 'bg-emerald-50 border-emerald-400' :
-                              pidLookupStatus === 'not_found' ? 'bg-red-50 border-red-400' : ''
-                            }`}
+                            className="h-9 text-sm pr-6"
+                            style={{
+                              background: pidLookupStatus === 'found' ? '#ecfdf5' : pidLookupStatus === 'not_found' ? '#fef2f2' : undefined,
+                              borderColor: pidLookupStatus === 'found' ? '#34d399' : pidLookupStatus === 'not_found' ? '#f87171' : undefined,
+                              borderWidth: pidLookupStatus ? '2px' : undefined
+                            }}
                             disabled={isSaving} />
                           {pidInputValue !== originalPidRef.current && (
                             <button
