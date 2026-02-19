@@ -4732,14 +4732,14 @@ function Dashboard() {
         }, 100);
       }, 300);
 
-      // Scroll to card with isNextDelivery=true
+      // Scroll to card with isNextDelivery=true (use 'nearest' to avoid jarring shift)
       setTimeout(() => {
         const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
 
         if (nextCard) {
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
           if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
           }
         }
       }, 300);
