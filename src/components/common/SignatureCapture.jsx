@@ -234,9 +234,16 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
 
         {/* Footer */}
         <div
-          className="border-t px-4 py-3 flex gap-2 justify-end flex-shrink-0"
+          className="border-t px-4 py-3 flex gap-2 justify-between items-center flex-shrink-0"
           style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
         >
+          {autoSaved && !isSaving && (
+            <span className="text-sm font-medium text-emerald-600 flex items-center gap-1">
+              ✓ Saved — tap Close when done
+            </span>
+          )}
+          {!autoSaved && <span />}
+          <div className="flex gap-2">
           {showClear ? (
             <>
               <Button variant="outline" size="sm" onClick={clearSignature} disabled={isSaving}>
