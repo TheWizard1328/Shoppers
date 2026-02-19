@@ -246,21 +246,12 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
           <div className="flex gap-2">
           {showClear ? (
             <>
-              <Button variant="outline" size="sm" onClick={clearSignature} disabled={isSaving}>
+              <Button variant="outline" size="sm" onClick={() => { clearSignature(); setAutoSaved(false); }} disabled={isSaving}>
                 <RotateCcw className="w-4 h-4 mr-2" />
-                Clear & Redo
+                Redo
               </Button>
-              <Button
-                size="sm"
-                onClick={handleSave}
-                className="bg-emerald-600 hover:bg-emerald-700"
-                disabled={!hasSignature || isSaving}
-              >
-                {isSaving ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Updating...</>
-                ) : (
-                  <><Check className="w-4 h-4 mr-2" />Update</>
-                )}
+              <Button size="sm" onClick={onCancel} className="bg-emerald-600 hover:bg-emerald-700">
+                <Check className="w-4 h-4 mr-2" />Close
               </Button>
             </>
           ) : (
@@ -272,20 +263,14 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
               <Button variant="outline" size="sm" onClick={onCancel} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={!hasSignature || isSaving}
-                className="bg-emerald-600 hover:bg-emerald-700"
-              >
-                {isSaving ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
-                ) : (
-                  <><Check className="w-4 h-4 mr-2" />Save Signature</>
-                )}
-              </Button>
+              {isSaving && (
+                <Button size="sm" disabled className="bg-emerald-600 hover:bg-emerald-700">
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...
+                </Button>
+              )}
             </>
           )}
+          </div>
         </div>
       </div>
     </div>,
