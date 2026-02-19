@@ -101,11 +101,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Save and restore transform to clear the entire canvas correctly
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
 
     setHasSignature(false);
     setShowClear(false);
