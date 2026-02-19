@@ -4212,6 +4212,7 @@ export default function DeliveryForm({
         id: item.id
       })));
       setStagedDeliveries(newStagedItems);
+      setHasChanges(newStagedItems.length > 0); // CRITICAL: Enable Done button for auto-loaded pending items
       hasLoadedPending.current = true;
       console.log(`✅ [DeliveryForm] Auto-loaded ${newStagedItems.length} pending deliveries to staged list`);
     }, 100);
