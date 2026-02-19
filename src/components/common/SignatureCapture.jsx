@@ -121,7 +121,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   };
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[50000] bg-black flex items-center justify-center">
+    <div className="fixed inset-0 z-[50000] bg-black flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
       <div className="w-full h-full flex flex-col" style={{ background: 'var(--bg-white)' }}>
          <div className="border-b px-4 py-3 flex items-center justify-between" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
            <div className="flex items-center gap-3">
