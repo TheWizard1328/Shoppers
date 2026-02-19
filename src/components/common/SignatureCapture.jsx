@@ -5,9 +5,9 @@ import { X, RotateCcw, Check, Loader2 } from 'lucide-react';
 
 export default function SignatureCapture({ onSave, onCancel, customerName = '', isSaved = false }) {
   const canvasRef = useRef(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const contextRef = useRef(null); // Use ref, not state, to avoid stale closure bugs
+  const isDrawingRef = useRef(false);
   const [hasSignature, setHasSignature] = useState(false);
-  const [context, setContext] = useState(null);
   const [showClear, setShowClear] = useState(isSaved);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -15,57 +15,56 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    setContext(ctx);
-    console.log('📝 [SignatureCapture] Canvas ready');
-
-    const resizeCanvas = () => {
+    const setupCanvas = () => {
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width * 2;
       canvas.height = rect.height * 2;
+      const ctx = canvas.getContext('2d');
       ctx.scale(2, 2);
       ctx.strokeStyle = '#000000';
       ctx.lineWidth = 2;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
+      contextRef.current = ctx;
+      console.log('📝 [SignatureCapture] Canvas ready, size:', rect.width, 'x', rect.height);
     };
 
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
-    return () => window.removeEventListener('resize', resizeCanvas);
+    setupCanvas();
+    window.addEventListener('resize', setupCanvas);
+    return () => window.removeEventListener('resize', setupCanvas);
   }, []);
 
+  const getCoords = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    }
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+
   const startDrawing = (e) => {
-    if (!context) {
+    const ctx = contextRef.current;
+    if (!ctx) {
       console.warn('⚠️ [SignatureCapture] Context not ready');
       return;
     }
-    setIsDrawing(true);
+    isDrawingRef.current = true;
     setHasSignature(true);
-
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = (e.clientX || e.touches[0].clientX) - rect.left;
-    const y = (e.clientY || e.touches[0].clientY) - rect.top;
-
-    context.beginPath();
-    context.moveTo(x, y);
+    const { x, y } = getCoords(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
   };
 
   const draw = (e) => {
-    if (!isDrawing || !context) return;
+    if (!isDrawingRef.current || !contextRef.current) return;
     e.preventDefault();
-
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = (e.clientX || e.touches[0].clientX) - rect.left;
-    const y = (e.clientY || e.touches[0].clientY) - rect.top;
-
-    context.lineTo(x, y);
-    context.stroke();
+    const { x, y } = getCoords(e);
+    contextRef.current.lineTo(x, y);
+    contextRef.current.stroke();
   };
 
   const stopDrawing = () => {
-    setIsDrawing(false);
+    isDrawingRef.current = false;
   };
 
   const clearSignature = () => {
