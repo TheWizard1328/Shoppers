@@ -4189,6 +4189,7 @@ export default function DeliveryForm({
       return {
         ...delivery,
         _tempId: Date.now() + Math.random() + index,
+        _wasEdited: false, // Track if user explicitly edited this pending item
         patient_name: delivery.patient_name || patient?.full_name || 'Unknown',
         store_id: finalStoreId,
         store_name: store?.name || 'Unknown Store',
