@@ -7399,10 +7399,9 @@ function Dashboard() {
 
   const handleCreateReturn = async ({ originalDelivery, returnPatient, store }) => {
     try {
-      // Pause ALL update systems
-      console.log('⏸️ [RETURN] Pausing ALL update systems...');
+      // Pause smart refresh and offline sync (NOT mutations - we need to create a delivery)
+      console.log('⏸️ [RETURN] Pausing update systems...');
       setIsEntityUpdating(true);
-      pauseOfflineMutations();
       pauseOfflineSync();
       smartRefreshManager.pause();
       
