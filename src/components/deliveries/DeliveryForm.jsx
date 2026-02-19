@@ -2311,6 +2311,7 @@ export default function DeliveryForm({
         ...formData,
         cod_total_amount_required: codAmount,
         _tempId: editingStagedId,
+        _wasEdited: true, // Mark as explicitly edited by user
         id: staged.id, // PRESERVE ORIGINAL ID
         patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
         store_name: store.name,
