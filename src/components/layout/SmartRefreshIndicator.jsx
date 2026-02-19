@@ -222,6 +222,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     const handleSyncComplete = () => {
       setIsManualRefreshing(false);
       window.removeEventListener('pullToSyncComplete', handleSyncComplete);
+      window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
     };
 
     window.addEventListener('pullToSyncComplete', handleSyncComplete);
