@@ -541,6 +541,8 @@ export default function DeliveryForm({
   formData.cod_total_amount_required > 0 || formData.recurring),
   [formData]);
 
+  // CRITICAL: Done button only shows when there are staged items to process
+  // hasChanges tracks whether user has actually added/edited something (not just auto-loaded pending items)
   const buttonState = useMemo(() => {
     if (delivery) return 'update';
     if (editingStagedId) return 'updateStaged';
