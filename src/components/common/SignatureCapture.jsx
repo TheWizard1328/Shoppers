@@ -125,35 +125,31 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
     setIsSaving(true);
 
     try {
-      const blob = await new Promise((resolve, reject) => {
-        try {
-          canvas.toBlob(
-            (b) => {
-              if (!b) {
-                reject(new Error('canvas.toBlob returned null - canvas may be empty or tainted'));
-              } else {
-                console.log('📦 [SignatureCapture] Blob created:', b.size, 'bytes, type:', b.type);
-                resolve(b);
-              }
-            },
-            'image/png'
-          );
-        } catch (err) {
-          reject(err);
-        }
-      });
+      // Convert canvas to data URL first (more reliable than toBlob in some browsers)
+      const dataURL = canvas.toDataURL('image/png');
+      console.log('📦 [SignatureCapture] dataURL length:', dataURL.length, 'starts with:', dataURL.substring(0, 30));
 
-      if (blob.size < 100) {
-        throw new Error('Blob is suspiciously small (' + blob.size + ' bytes) - signature may not have been captured');
+      if (!dataURL || dataURL === 'data:,') {
+        throw new Error('Canvas produced empty dataURL');
       }
 
-      console.log('📤 [SignatureCapture] Uploading blob:', blob.size, 'bytes');
+      // Convert dataURL to Blob manually
+      const response = await fetch(dataURL);
+      const blob = await response.blob();
+      console.log('📦 [SignatureCapture] Blob size:', blob.size, 'bytes');
+
+      if (blob.size < 500) {
+        throw new Error('Signature blob too small (' + blob.size + ' bytes) - likely empty canvas');
+      }
+
+      console.log('📤 [SignatureCapture] Calling onSave with blob...');
       await onSave(blob);
 
       setShowClear(true);
-      console.log('✅ [SignatureCapture] Saved successfully');
+      console.log('✅ [SignatureCapture] onSave completed successfully');
     } catch (error) {
       console.error('❌ [SignatureCapture] Save error:', error);
+      // Re-throw so StopCard's catch block shows the toast error
       throw error;
     } finally {
       setIsSaving(false);
