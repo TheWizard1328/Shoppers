@@ -4212,7 +4212,7 @@ export default function DeliveryForm({
         id: item.id
       })));
       setStagedDeliveries(newStagedItems);
-      setHasChanges(newStagedItems.length > 0); // CRITICAL: Enable Done button for auto-loaded pending items
+      setHasChanges(false); // Done button stays disabled until user adds/edits something
       hasLoadedPending.current = true;
       console.log(`✅ [DeliveryForm] Auto-loaded ${newStagedItems.length} pending deliveries to staged list`);
     }, 100);
