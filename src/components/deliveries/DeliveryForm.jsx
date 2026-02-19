@@ -5036,6 +5036,25 @@ export default function DeliveryForm({
                       disabled={isSaving} />
 
                     </div>
+                    {!isPickupMode && formData.patient_id && (
+                    <div className="flex-1 space-y-1">
+                      <Label htmlFor="patient_pid" className="text-xs">PID</Label>
+                      <Input
+                      id="patient_pid"
+                      value={(() => {
+                        const patient = patients?.find(p => p && p.id === formData.patient_id);
+                        return patient?.patient_id || '';
+                      })()}
+                      onChange={async (e) => {
+                        const newPid = e.target.value;
+                        if (formData.patient_id) {
+                          await updatePatientLocal(formData.patient_id, { patient_id: newPid });
+                        }
+                      }}
+                      className="h-9 text-sm"
+                      disabled={isSaving} />
+                    </div>
+                    )}
                     <div className="flex-1 space-y-1">
                       <Label htmlFor="puid" className="text-xs">PUID</Label>
                       <Input
