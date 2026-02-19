@@ -33,8 +33,9 @@ Deno.serve(async (req) => {
       status: 'active'
     });
 
-    // Construct invite URL
-    const inviteUrl = `${new URL(req.url).origin}/register?inviteToken=${token}`;
+    // Construct invite URL - use app_origin if provided (backend URL differs from frontend URL)
+    const origin = app_origin || new URL(req.url).origin;
+    const inviteUrl = `${origin}/register?inviteToken=${token}`;
 
     return Response.json({
       success: true,
