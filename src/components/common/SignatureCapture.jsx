@@ -6,9 +6,11 @@ import { X, RotateCcw, Check, Loader2 } from 'lucide-react';
 export default function SignatureCapture({ onSave, onCancel, customerName = '', isSaved = false }) {
   const canvasRef = useRef(null);
   const isDrawingRef = useRef(false);
+  const autoSaveTimerRef = useRef(null);
   const [hasSignature, setHasSignature] = useState(false);
   const [showClear, setShowClear] = useState(isSaved);
   const [isSaving, setIsSaving] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
 
   // Setup canvas - NO DPR scaling to avoid coordinate mismatch issues
   const setupCanvas = useCallback(() => {
