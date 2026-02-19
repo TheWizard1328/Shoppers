@@ -99,7 +99,8 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
     try {
       const response = await base44.functions.invoke('generateInviteQRCode', {
         role: selectedRole,
-        store_ids: getStoreIds(selectedStores)
+        store_ids: getStoreIds(selectedStores),
+        app_origin: window.location.origin
       });
 
       if (response.data?.success || response.success) {
