@@ -4732,14 +4732,14 @@ function Dashboard() {
         }, 100);
       }, 300);
 
-      // Scroll to card with isNextDelivery=true (use 'nearest' to avoid jarring shift)
+      // Scroll to card with isNextDelivery=true
       setTimeout(() => {
         const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
 
         if (nextCard) {
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
           if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
           }
         }
       }, 300);
@@ -4865,11 +4865,11 @@ function Dashboard() {
 
       centerMarkerWithPadding();
 
-      // CRITICAL: Auto-center card in horizontal scroll - use 'nearest' to avoid jarring horizontal shift
+      // CRITICAL: Auto-center card in horizontal scroll - increased delay for reliability
       setTimeout(() => {
         const cardElement = document.getElementById(`stop-card-${delivery.id}`);
         if (cardElement) {
-          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
           console.log('📍 [Card Click] Auto-centered to expanded card');
         }
       }, 300);
