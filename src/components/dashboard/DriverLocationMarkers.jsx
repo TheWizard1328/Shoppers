@@ -188,7 +188,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
     const checkPrimary = async () => {
       const device = await getCurrentDevice(currentUser.id);
-      setIsPrimaryDevice(device?.is_primary_tracker || false);
+      // CRITICAL: Default to true if no device record exists (most common case)
+      setIsPrimaryDevice(device?.is_primary_tracker !== false);
     };
 
     checkPrimary();
