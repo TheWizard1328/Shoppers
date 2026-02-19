@@ -609,25 +609,48 @@ class LocationTracker {
 
       // Poll GPS every 15 seconds - guaranteed primary device at this point
       this.heartbeatInterval = setInterval(() => {
-        if (this.lastPosition && this.isTracking) {
-          console.log('💓 [PRIMARY DEVICE] Poll interval - uploading location', {
-            lat: this.lastPosition.latitude.toFixed(6),
-            lng: this.lastPosition.longitude.toFixed(6),
-            accuracy: this.lastPosition.accuracy?.toFixed(0) + 'm',
-            appUserId: this.appUserId
-          });
+        if (this.isTracking) {
+          if (this.lastPosition) {
+            console.log('💓 [PRIMARY DEVICE] Poll interval - uploading location', {
+              lat: this.lastPosition.latitude.toFixed(6),
+              lng: this.lastPosition.longitude.toFixed(6),
+              accuracy: this.lastPosition.accuracy?.toFixed(0) + 'm',
+              appUserId: this.appUserId
+            });
 
-          this._pendingEventUpdate = false;
-          this.updateLocationInDatabase(
-            this.lastPosition.latitude,
-            this.lastPosition.longitude,
-            this.lastPosition.accuracy,
-            true, // forceUpdate - skip all checks
-            false, // full update with coordinates
-            true // isPrimaryDevice flag
-          );
-        } else if (!this.lastPosition) {
-          console.log('⏭️ [PRIMARY DEVICE] Poll: No GPS position yet - waiting...');
+            this._pendingEventUpdate = false;
+            this.updateLocationInDatabase(
+              this.lastPosition.latitude,
+              this.lastPosition.longitude,
+              this.lastPosition.accuracy,
+              true, // forceUpdate - skip all checks
+              false, // full update with coordinates
+              true // isPrimaryDevice flag
+            );
+          } else {
+            // No GPS fix yet — try to get a fresh position directly
+            console.log('⏭️ [PRIMARY DEVICE] Poll: No cached GPS position - requesting fresh fix...');
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  this.lastPosition = {
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy
+                  };
+                  console.log('📍 [PRIMARY DEVICE] Got fresh GPS fix on demand:', this.lastPosition.latitude.toFixed(6), this.lastPosition.longitude.toFixed(6));
+                  this.updateLocationInDatabase(
+                    pos.coords.latitude,
+                    pos.coords.longitude,
+                    pos.coords.accuracy,
+                    true, false, true
+                  );
+                },
+                (err) => console.warn('⚠️ [PRIMARY DEVICE] On-demand GPS fix failed:', err.message),
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+              );
+            }
+          }
         }
       }, this.updateInterval);
 
