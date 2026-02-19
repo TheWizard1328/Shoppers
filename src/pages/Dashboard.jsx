@@ -4865,11 +4865,11 @@ function Dashboard() {
 
       centerMarkerWithPadding();
 
-      // CRITICAL: Auto-center card in horizontal scroll - increased delay for reliability
+      // CRITICAL: Auto-center card in horizontal scroll - use 'nearest' to avoid jarring horizontal shift
       setTimeout(() => {
         const cardElement = document.getElementById(`stop-card-${delivery.id}`);
         if (cardElement) {
-          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
           console.log('📍 [Card Click] Auto-centered to expanded card');
         }
       }, 300);
