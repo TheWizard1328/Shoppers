@@ -15,19 +15,33 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
   const startCamera = useCallback(async () => {
     console.log('📷 [PhotoCapture] Starting camera...');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
+      // Try rear camera first, fall back to any camera
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        // Wait for metadata to load before marking camera as active
+        await new Promise((resolve) => {
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current.play().then(resolve).catch(resolve);
+          };
+          // Fallback timeout in case onloadedmetadata doesn't fire
+          setTimeout(resolve, 1500);
+        });
         setIsCameraActive(true);
         setError('');
         console.log('✅ [PhotoCapture] Camera started successfully');
       }
     } catch (err) {
       console.error('❌ [PhotoCapture] Camera error:', err);
-      setError('Could not access camera. Please check permissions.');
+      setError('Could not access camera. Please check permissions and try again.');
     }
   }, []);
 
