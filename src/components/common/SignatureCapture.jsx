@@ -36,11 +36,14 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   }, []);
 
   useEffect(() => {
-    // Use a small delay to ensure the canvas has layout dimensions
-    const timer = setTimeout(setupCanvas, 50);
+    // Try immediately, then retry with delays to handle portal rendering
+    setupCanvas();
+    const t1 = setTimeout(setupCanvas, 100);
+    const t2 = setTimeout(setupCanvas, 300);
     window.addEventListener('resize', setupCanvas);
     return () => {
-      clearTimeout(timer);
+      clearTimeout(t1);
+      clearTimeout(t2);
       window.removeEventListener('resize', setupCanvas);
     };
   }, [setupCanvas]);
