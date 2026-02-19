@@ -37,7 +37,7 @@ class LocationTracker {
 
       // Heartbeat timestamp updates - keep location fresh even when stationary
       this.lastTimestampUpdate = 0;
-      this.timestampUpdateInterval = 120000; // 2 minutes - update timestamp to prevent stale mode
+      this.timestampUpdateInterval = 60000; // 1 minute - update timestamp to prevent stale mode
 
       this.failedUpdateCount = 0;
       this.maxFailedUpdates = 3;
