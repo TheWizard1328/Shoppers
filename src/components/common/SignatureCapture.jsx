@@ -10,29 +10,29 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   const [showClear, setShowClear] = useState(isSaved);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Setup canvas with correct pixel ratio - get a fresh context each time
+  // Setup canvas - NO DPR scaling to avoid coordinate mismatch issues
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return;
+    if (rect.width === 0 || rect.height === 0) {
+      console.warn('⚠️ [SignatureCapture] Canvas has zero dimensions, skipping setup');
+      return;
+    }
 
-    const dpr = window.devicePixelRatio || 1;
+    // Set canvas resolution exactly equal to CSS size (no DPR scaling)
+    // This ensures mouse/touch coordinates match canvas coordinates 1:1
+    canvas.width = Math.round(rect.width);
+    canvas.height = Math.round(rect.height);
 
-    // Set the canvas internal resolution to match display pixels
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-
-    // Get a FRESH context (avoids stale scale accumulation on resize)
     const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    console.log('📝 [SignatureCapture] Canvas setup:', rect.width, 'x', rect.height, 'dpr:', dpr);
+    console.log('📝 [SignatureCapture] Canvas setup:', canvas.width, 'x', canvas.height);
   }, []);
 
   useEffect(() => {
