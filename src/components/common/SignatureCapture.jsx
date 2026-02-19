@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { X, RotateCcw, Check, Loader2 } from 'lucide-react';
+// SignatureCapture v2
 
 export default function SignatureCapture({ onSave, onCancel, customerName = '', isSaved = false }) {
   const canvasRef = useRef(null);
