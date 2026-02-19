@@ -163,6 +163,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
       await onSave(blob);
 
       setShowClear(true);
+      setAutoSaved(true);
       console.log('✅ [SignatureCapture] onSave completed successfully');
     } catch (error) {
       console.error('❌ [SignatureCapture] Save error:', error);
