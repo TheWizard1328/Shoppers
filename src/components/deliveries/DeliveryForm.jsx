@@ -2483,9 +2483,24 @@ export default function DeliveryForm({
 
     // CRITICAL: Separate into 2 groups:
     // 1. New deliveries (no id) - create new
-    // 2. Existing deliveries (id) - update (includes both pending and status-changed)
+    // 2. Existing deliveries (id) - update, BUT only process:
+    //    - Items explicitly edited by user (_wasEdited = true), OR
+    //    - Items that are NOT in a completion status (i.e. pending/in_transit still need to be saved)
+    //    - SKIP unedited items with completed/cancelled/failed status
     const newDeliveries = validStagedDeliveries.filter((staged) => !staged.id);
-    const existingDeliveries = validStagedDeliveries.filter((staged) => staged.id);
+    const existingDeliveries = validStagedDeliveries.filter((staged) => {
+      if (!staged.id) return false;
+      // Always process explicitly edited items
+      if (staged._wasEdited) return true;
+      // Skip unedited completion-status items (completed, failed, cancelled)
+      const completionStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      if (completionStatuses.includes(staged.status)) {
+        console.log(`[AddToRoute] ⏭️ Skipping unedited ${staged.status} delivery: ${staged.patient_name}`);
+        return false;
+      }
+      // Process unedited pending/in_transit items (they need status transition to pending)
+      return true;
+    });
 
     console.log('[AddToRoute] 🔍 Total staged:', validStagedDeliveries.length, '| New:', newDeliveries.length, '| Existing:', existingDeliveries.length);
     console.log('[AddToRoute] 🔍 New deliveries to save:', newDeliveries.map((s) => ({
