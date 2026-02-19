@@ -248,6 +248,11 @@ export default function DeliveryForm({
   const [isPayrollLocked, setIsPayrollLocked] = useState(false);
   const [payrollLockMessage, setPayrollLockMessage] = useState(null);
   const [isNewRouteWithZeroStops, setIsNewRouteWithZeroStops] = useState(false);
+  
+  // PID lookup state (for the Delivery Identifiers panel)
+  const [pidInputValue, setPidInputValue] = useState('');
+  const [pidLookupStatus, setPidLookupStatus] = useState(null); // null | 'found' | 'not_found'
+  const originalPidRef = useRef('');
 
   // Camera state
   const videoRef = useRef(null);
