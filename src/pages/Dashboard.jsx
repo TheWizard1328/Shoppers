@@ -7506,8 +7506,7 @@ function Dashboard() {
       console.log('⏳ [RETURN] Waiting 1s before resuming...');
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      console.log('▶️ [RETURN] Resuming ALL update systems');
-      resumeOfflineMutations();
+      console.log('▶️ [RETURN] Resuming update systems');
       resumeOfflineSync();
       smartRefreshManager.resume();
       
