@@ -68,9 +68,10 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   };
 
   const clearSignature = () => {
-    if (!context) return;
+    const ctx = contextRef.current;
+    if (!ctx) return;
     const canvas = canvasRef.current;
-    context.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasSignature(false);
     setShowClear(false);
     console.log('🗑️ [SignatureCapture] Cleared');
