@@ -99,7 +99,13 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
     // Auto-save after a short debounce to allow multi-stroke signatures
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
-      if (hasSignature && !isSaving) {
+      // Read the canvas directly to check if there's a drawing
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const hasPixels = imageData.data.some((val, i) => i % 4 === 3 && val > 0);
+      if (hasPixels) {
         handleSave();
       }
     }, 1500);
