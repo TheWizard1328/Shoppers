@@ -2724,7 +2724,7 @@ export default function StopCard({
                         {!isPickup &&
                           <div className="flex items-center gap-2">
                             {/* Signature Button - show ONLY on next delivery OR completed with signature */}
-                            {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.signature_image_url ?
+                            {(isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.signature_image_url) ?
                               <Button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -2738,17 +2738,16 @@ export default function StopCard({
                                 className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
                                   delivery.signature_image_url ?
                                     'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
-                                    'border-white hover:bg-slate-100'}`
+                                    'bg-slate-100 border-slate-400 hover:bg-slate-200'}`
                                 }>
-
                                 <Pen className={`w-5 h-5 md:w-4 md:h-4 ${
-                                  delivery.signature_image_url ? 'text-emerald-700' : 'text-white'}`
+                                  delivery.signature_image_url ? 'text-emerald-700' : 'text-slate-600'}`
                                 } />
                               </Button> :
                               null}
 
                             {/* Photo Button - show ONLY on next delivery OR completed with photos */}
-                            {isNextDelivery && !isFinishedDelivery || delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
+                            {(isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0) ?
                               <Button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -2762,11 +2761,10 @@ export default function StopCard({
                                 className={`h-10 md:h-8 w-10 md:w-8 p-0 ${
                                   delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
                                     'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' :
-                                    'border-white hover:bg-slate-100'}`
+                                    'bg-slate-100 border-slate-400 hover:bg-slate-200'}`
                                 }>
-
                                 <Camera className={`w-5 h-5 md:w-4 md:h-4 ${
-                                  delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-white'}`
+                                  delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-slate-600'}`
                                 } />
                               </Button> :
                               null}
