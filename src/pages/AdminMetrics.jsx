@@ -480,15 +480,6 @@ export default function AdminMetrics() {
             {/* View Mode Toggle Buttons - Always visible, activated when month selected */}
             <div className="flex items-center gap-2">
               <Button
-                onClick={() => setShowDayByDay(false)}
-                disabled={!selectedMonth || selectedStoreMonth !== null}
-                variant={!showDayByDay ? "default" : "outline"}
-                size="sm"
-                className="whitespace-nowrap">
-
-                By Store
-              </Button>
-              <Button
                 onClick={() => setShowDayByDay(true)}
                 disabled={!selectedMonth || selectedStoreMonth !== null || metricsViewMode === 'fees'}
                 variant={showDayByDay ? "default" : "outline"}
@@ -496,6 +487,15 @@ export default function AdminMetrics() {
                 className="whitespace-nowrap">
 
                 Day by Day
+              </Button>
+              <Button
+                onClick={() => setShowDayByDay(false)}
+                disabled={!selectedMonth || selectedStoreMonth !== null}
+                variant={!showDayByDay ? "default" : "outline"}
+                size="sm"
+                className="whitespace-nowrap">
+
+                By Store
               </Button>
             </div>
           </CardHeader>
