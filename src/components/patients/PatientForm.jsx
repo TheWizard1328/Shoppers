@@ -407,6 +407,7 @@ export default function PatientForm({
       }
     }
 
+    dataToSave.recurring = isRecurring;
     dataToSave.recurring_daily = false;
     dataToSave.recurring_biweekly = false;
     dataToSave.recurring_weekly_x4 = false;
