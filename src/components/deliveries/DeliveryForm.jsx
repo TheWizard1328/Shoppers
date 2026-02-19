@@ -5046,26 +5046,82 @@ export default function DeliveryForm({
                       disabled={isSaving} />
 
                     </div>
-                    {!isPickupMode && formData.patient_id && (() => {
-                      const patient = patients?.find(p => p && p.id === formData.patient_id);
-                      if (!patient) return null;
-                      return (
-                        <div className="flex-1 space-y-1">
-                          <Label htmlFor="patient_pid" className="text-xs">PID</Label>
+                    {!isPickupMode && formData.patient_id && (
+                      <div className="flex-1 space-y-1">
+                        <Label htmlFor="patient_pid" className="text-xs">PID</Label>
+                        <div className="relative">
                           <Input
                             id="patient_pid"
-                            defaultValue={patient.patient_id || ''}
+                            value={pidInputValue}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setPidInputValue(val);
+                              setPidLookupStatus(null);
+                              // Auto-lookup when exactly 5 chars
+                              if (val.length === 5) {
+                                const match = patients?.find(p => p && p.patient_id === val);
+                                if (match) {
+                                  setPidLookupStatus('found');
+                                  // Populate patient fields
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    patient_id: match.id,
+                                    patient_name: match.full_name || prev.patient_name,
+                                    patient_phone: match.phone || prev.patient_phone,
+                                    unit_number: match.unit_number || prev.unit_number,
+                                    delivery_instructions: match.notes || prev.delivery_instructions,
+                                    mailbox_ok: match.mailbox_ok ?? prev.mailbox_ok,
+                                    call_upon_arrival: match.call_upon_arrival ?? prev.call_upon_arrival,
+                                    ring_bell: match.ring_bell ?? prev.ring_bell,
+                                    dont_ring_bell: match.dont_ring_bell ?? prev.dont_ring_bell,
+                                    back_door: match.back_door ?? prev.back_door,
+                                    signature_needed: match.signature_needed ?? prev.signature_needed,
+                                    recurring: match.recurring ?? prev.recurring,
+                                    recurring_daily: match.recurring_daily ?? prev.recurring_daily,
+                                    recurring_weekly_mon: match.recurring_weekly_mon ?? prev.recurring_weekly_mon,
+                                    recurring_weekly_tue: match.recurring_weekly_tue ?? prev.recurring_weekly_tue,
+                                    recurring_weekly_wed: match.recurring_weekly_wed ?? prev.recurring_weekly_wed,
+                                    recurring_weekly_thu: match.recurring_weekly_thu ?? prev.recurring_weekly_thu,
+                                    recurring_weekly_fri: match.recurring_weekly_fri ?? prev.recurring_weekly_fri,
+                                    recurring_weekly_sat: match.recurring_weekly_sat ?? prev.recurring_weekly_sat,
+                                    recurring_weekly_sun: match.recurring_weekly_sun ?? prev.recurring_weekly_sun,
+                                    recurring_biweekly: match.recurring_biweekly ?? prev.recurring_biweekly,
+                                    recurring_weekly_x4: match.recurring_weekly_x4 ?? prev.recurring_weekly_x4,
+                                    recurring_monthly: match.recurring_monthly ?? prev.recurring_monthly,
+                                    recurring_bimonthly: match.recurring_bimonthly ?? prev.recurring_bimonthly,
+                                  }));
+                                  setSelectedPatient(match);
+                                } else {
+                                  setPidLookupStatus('not_found');
+                                }
+                              }
+                            }}
                             onBlur={async (e) => {
                               const newPid = e.target.value;
-                              if (newPid !== patient.patient_id && formData.patient_id) {
+                              const currentPatient = patients?.find(p => p && p.id === formData.patient_id);
+                              if (newPid !== currentPatient?.patient_id && formData.patient_id && newPid.length > 0 && pidLookupStatus !== 'not_found') {
                                 await updatePatientLocal(formData.patient_id, { patient_id: newPid });
                               }
                             }}
-                            className="h-9 text-sm"
+                            className={`h-9 text-sm pr-6 ${
+                              pidLookupStatus === 'found' ? 'bg-emerald-50 border-emerald-400' :
+                              pidLookupStatus === 'not_found' ? 'bg-red-50 border-red-400' : ''
+                            }`}
                             disabled={isSaving} />
+                          {pidInputValue !== originalPidRef.current && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPidInputValue(originalPidRef.current);
+                                setPidLookupStatus(null);
+                              }}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
-                      );
-                    })()}
+                      </div>
+                    )}
                     <div className="flex-1 space-y-1">
                       <Label htmlFor="puid" className="text-xs">PUID</Label>
                       <Input
