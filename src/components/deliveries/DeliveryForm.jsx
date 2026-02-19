@@ -521,6 +521,11 @@ export default function DeliveryForm({
 
       if (patient) {
         setSelectedPatient(patient);
+        // Initialize PID state for the identifiers panel
+        const initialPid = patient?.patient_id || '';
+        setPidInputValue(initialPid);
+        originalPidRef.current = initialPid;
+        setPidLookupStatus(null);
       }
       
       // Reset flag after form is loaded
