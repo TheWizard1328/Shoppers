@@ -118,6 +118,13 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
     console.log('🗑️ [SignatureCapture] Cleared');
   };
 
+  // Cleanup auto-save timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, []);
+
   const handleSave = async () => {
     if (isSaving) return;
 
