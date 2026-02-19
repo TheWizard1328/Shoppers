@@ -121,9 +121,13 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
     startCamera();
     return () => {
       console.log('👋 [PhotoCapture] Unmounting');
-      stopCamera();
+      if (videoRef.current?.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
     };
-  }, [startCamera, stopCamera]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[99999] bg-black flex items-center justify-center">
