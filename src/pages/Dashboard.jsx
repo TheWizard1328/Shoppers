@@ -2588,11 +2588,11 @@ function Dashboard() {
           // CRITICAL: Always process location data if we have appUsers (from updates OR context)
           const appUsersToProcess = updates.appUsers && updates.appUsers.length > 0 ? updates.appUsers : appUsers;
           if (appUsersToProcess && appUsersToProcess.length > 0) {
-            // CRITICAL: Use FILTERED deliveries (filteredDeliveries) instead of all deliveries
-            // This ensures dispatchers only see markers for drivers with stops in their stores
+            // CRITICAL: Use updates.deliveries (fresh from smart refresh) or fallback to full deliveries array
+            // The poller needs ALL deliveries to determine which drivers have active stops
             driverLocationPoller.processLocationData(
               currentUser, 
-              filteredDeliveries, 
+              updates.deliveries || deliveries, 
               drivers, 
               stores, 
               appUsersToProcess, 
