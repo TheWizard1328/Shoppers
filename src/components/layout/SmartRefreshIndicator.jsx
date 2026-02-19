@@ -207,106 +207,25 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     }
   };
 
-  // Handle manual refresh click - Targeted refresh for Dashboard
+  // Handle manual refresh click - always triggers pull-to-sync
   const handleManualRefresh = async () => {
     if (isManualRefreshing || isPaused) return;
 
-    const currentPath = window.location.pathname;
-    console.log(`🔄 [SmartRefreshIndicator] Manual refresh triggered on ${currentPath}`);
     setIsManualRefreshing(true);
 
-    try {
-      // CRITICAL: Use targetedRefresh for Dashboard, fallback to page-specific for others
-      if (currentPath.includes('/dashboard') || currentPath === '/') {
-        console.log('🎯 [Manual Refresh] Using targeted refresh for Dashboard');
-        
-        // Trigger pull-to-sync programmatically (silent mode - no overlay)
-        window.dispatchEvent(new CustomEvent('triggerPullToSync', {
-          detail: { silent: true }
-        }));
-        
-        console.log('✅ [Manual Refresh] Triggered targeted refresh');
-      } else {
-        // Fallback: page-specific sync for non-Dashboard pages
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        const { base44 } = await import('@/api/base44Client');
-        
-        const entitiesToSync = [];
-        
-        if (currentPath.includes('/deliveries')) {
-          entitiesToSync.push('Delivery', 'Patient', 'Store', 'AppUser');
-        } else if (currentPath.includes('/patients')) {
-          entitiesToSync.push('Patient', 'Store');
-        } else if (currentPath.includes('/stores')) {
-          entitiesToSync.push('Store');
-        } else if (currentPath.includes('/users') || currentPath.includes('/app-users')) {
-          entitiesToSync.push('AppUser');
-        } else if (currentPath.includes('/payroll')) {
-          entitiesToSync.push('Delivery', 'AppUser', 'Payroll');
-        } else {
-          entitiesToSync.push('Delivery', 'Patient', 'AppUser', 'Store');
-        }
-        
-        console.log(`   📊 Syncing entities for current page: ${entitiesToSync.join(', ')}`);
-        
-        window.dispatchEvent(new CustomEvent('offlineSyncStarted'));
-        
-        for (const entityName of entitiesToSync) {
-          try {
-            console.log(`   🔄 Syncing ${entityName}...`);
-            
-            // CRITICAL: Wait 2 seconds between each entity to avoid rate limits
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            const data = await base44.entities[entityName].list();
-            await offlineDB.bulkSave(offlineDB.STORES[entityName.toUpperCase() + 'S'] || entityName.toLowerCase() + 's', data);
-            console.log(`   ✅ Synced ${data.length} ${entityName} records to offline DB`);
-            
-            window.dispatchEvent(new CustomEvent('offlineSyncProgress', {
-              detail: { entity: entityName, count: data.length }
-            }));
-          } catch (error) {
-            console.warn(`   ⚠️ Failed to sync ${entityName}:`, error.message);
-          }
-        }
-        
-        window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-        
-        if (onManualRefresh) {
-          await onManualRefresh();
-        } else if (refreshData) {
-          await refreshData(true);
-        }
-      }
-      
-      console.log('✅ [SmartRefreshIndicator] Manual refresh complete');
-    } catch (error) {
-      console.error('❌ [SmartRefreshIndicator] Manual refresh failed:', error);
-      setHasError(true);
-      setTimeout(() => setHasError(false), 3000);
-    } finally {
-      // CRITICAL: Listen for pull-to-sync completion to stop spinner and refresh payroll stats
-      const handleSyncComplete = async () => {
-        try {
-          // CRITICAL: Dispatch event to Dashboard to trigger payroll stats refresh
-          // The event will be caught by Dashboard's useEffect which has access to selectedDriverId and selectedDate
-          window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
-        } catch (error) {
-          console.warn('⚠️ [Manual Refresh] Failed to trigger payroll stats refresh:', error.message);
-        }
-        
-        setIsManualRefreshing(false);
-        window.removeEventListener('pullToSyncComplete', handleSyncComplete);
-      };
-      
-      // Add listener for completion
-      window.addEventListener('pullToSyncComplete', handleSyncComplete);
-      
-      // Fallback timeout in case event doesn't fire
-      setTimeout(() => {
-        handleSyncComplete();
-      }, 5000);
-    }
+    // Trigger pull-to-sync (silent mode - no overlay)
+    window.dispatchEvent(new CustomEvent('triggerPullToSync', {
+      detail: { silent: true }
+    }));
+
+    // Listen for completion, with fallback timeout
+    const handleSyncComplete = () => {
+      setIsManualRefreshing(false);
+      window.removeEventListener('pullToSyncComplete', handleSyncComplete);
+    };
+
+    window.addEventListener('pullToSyncComplete', handleSyncComplete);
+    setTimeout(handleSyncComplete, 10000);
   };
 
   // Entity labels
