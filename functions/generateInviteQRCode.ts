@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { role, store_ids } = await req.json();
+    const { role, store_ids, app_origin } = await req.json();
 
     if (!role) {
       return Response.json({ error: 'Role is required' }, { status: 400 });
