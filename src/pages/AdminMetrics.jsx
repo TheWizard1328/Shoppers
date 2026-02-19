@@ -444,13 +444,13 @@ export default function AdminMetrics() {
             metricsViewMode={metricsViewMode}
             showEnvelopeAdjustedTotals={showEnvelopeAdjustedTotals}
             onMonthClick={(month) => {
-              // If clicking same month that's already selected, just toggle month off (keep store cleared)
-              // If clicking different month, set it and clear store selection
               if (selectedMonth === month && !selectedStoreMonth) {
                 setSelectedMonth(null);
+                setShowDayByDay(false);
               } else {
                 setSelectedMonth(month);
                 setSelectedStoreMonth(null);
+                setShowDayByDay(true); // Default to Day by Day when a month is clicked
               }
             }}
             onStoreMonthClick={(month, storeId, storeAbbr, storeName) => {
