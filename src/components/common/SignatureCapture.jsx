@@ -92,7 +92,15 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   };
 
   const stopDrawing = () => {
+    if (!isDrawingRef.current) return;
     isDrawingRef.current = false;
+    // Auto-save after a short debounce to allow multi-stroke signatures
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (hasSignature && !isSaving) {
+        handleSave();
+      }
+    }, 1500);
   };
 
   const clearSignature = () => {
