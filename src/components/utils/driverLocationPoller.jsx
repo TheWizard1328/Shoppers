@@ -470,6 +470,11 @@ class DriverLocationPoller {
     };
   }
 
+  resetTimers() {
+    // No-op stub - poller doesn't have polling timers (data is pushed via processLocationData)
+    // This exists to prevent errors when called from status update handlers
+  }
+
   getStatus() {
     return {
       isPolling: this.isPolling,
