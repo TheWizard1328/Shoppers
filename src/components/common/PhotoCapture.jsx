@@ -31,6 +31,14 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
         console.log('✅ [PhotoCapture] Fallback camera stream acquired, tracks:', stream.getTracks().map(t => `${t.kind}:${t.label}`));
       }
 
+      // Wait for videoRef to be available (portal may not have mounted yet)
+      let attempts = 0;
+      while (!videoRef.current && attempts < 20) {
+        console.log(`📷 [PhotoCapture] Waiting for videoRef... attempt ${attempts + 1}`);
+        await new Promise(r => setTimeout(r, 100));
+        attempts++;
+      }
+
       if (videoRef.current) {
         console.log('📷 [PhotoCapture] Attaching stream to video element...');
         videoRef.current.srcObject = stream;
