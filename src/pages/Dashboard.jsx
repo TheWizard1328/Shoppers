@@ -3997,8 +3997,8 @@ function Dashboard() {
       // CRITICAL: Returning from another page - delay longer before unlocking
       const wasReturning = !!savedFabPhaseOnUnmount;
 
-      // CRITICAL: Always use 500ms for initial unlock (Phase 1 ONLY)
-      const lockDuration = 500;
+      // CRITICAL: Always use 100ms for initial unlock on page load (Phase 1 ONLY)
+      const lockDuration = 100;
 
       if (finalPhase === 1) {
         const expiresAt = Date.now() + lockDuration;
