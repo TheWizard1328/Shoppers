@@ -5473,7 +5473,7 @@ export default function DeliveryForm({
                        </div>
                      </div>
                    )}
-                   {false && /* placeholder to maintain structure */ <div>
+                   {false && <div>
 
                     <div className="space-y-2">
                       {/* Row 1: Store, Status, PUID */}
