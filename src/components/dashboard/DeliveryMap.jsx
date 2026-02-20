@@ -1951,8 +1951,14 @@ export default function DeliveryMap({
       }
     });
 
+    // CRITICAL: In single driver mode without "Show All" checked, only show the selected driver's home
+    // In all-drivers mode OR show-all mode, show all drivers' homes
+    const isShowAllMode = showOtherDriverDeliveries || isAllDriversMode;
+
     // For each driver, determine if home marker should show
     stopsByDriver.forEach((stops, driverId) => {
+      // CRITICAL: Hide other drivers' home markers when not in show-all or all-drivers mode
+      if (!isShowAllMode && driverId !== selectedDriverId) return;
       const allStops = [...stops.deliveries, ...stops.pickups];
       
       // Count incomplete stops (exclude pending)
