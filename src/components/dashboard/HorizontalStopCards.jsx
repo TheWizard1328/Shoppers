@@ -200,18 +200,20 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     // Use longer delay (350ms) to wait for card expand/collapse animations
     scrollTimeoutRef.current = setTimeout(() => {
       requestAnimationFrame(() => {
-        const container = containerRef.current;
-        const element = document.getElementById(`stop-card-${targetCardId}`);
+        requestAnimationFrame(() => {
+          const container = containerRef.current;
+          const element = document.getElementById(`stop-card-${targetCardId}`);
 
-        if (!container || !element) {
-          console.warn(`⚠️ [HorizontalStopCards] Cannot scroll - container: ${!!container}, element: ${!!element}`);
-          return;
-        }
+          if (!container || !element) {
+            console.warn(`⚠️ [HorizontalStopCards] Cannot scroll - container: ${!!container}, element: ${!!element}`);
+            return;
+          }
 
-        // Use scrollToCenterCard for consistent centering
-        scrollToCenterCard(element);
+          // Use scrollToCenterCard for consistent centering
+          scrollToCenterCard(element);
+        });
       });
-    }, 350); // Wait for card animations to complete
+    }, 400); // Wait for card animations to complete
 
     // Update ref for tracking
     prevSelectedCardIdRef.current = selectedCardId;
