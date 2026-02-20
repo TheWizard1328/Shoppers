@@ -34,6 +34,7 @@ import { formatPhoneNumber } from "../utils/phoneFormatter";
 import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
 import SignatureCapture from "../common/SignatureCapture";
 import PhotoCapture from "../common/PhotoCapture";
+import ImageViewer from "../common/ImageViewer";
 import { base44 } from "@/api/base44Client";
 
 const statusConfig = {
@@ -62,6 +63,7 @@ export default function StopDetailsPanel({
 }) {
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
+  const [viewingImage, setViewingImage] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
   if (!delivery) {
@@ -406,7 +408,11 @@ export default function StopDetailsPanel({
                      <p className="text-xs font-medium mb-2 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                        <FileSignature className="w-3 h-3" /> Signature
                      </p>
-                     <div className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+                     <div
+                       className="border rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                       style={{ borderColor: 'var(--border-slate-200)' }}
+                       onClick={() => setViewingImage({ url: delivery.signature_image_url, title: 'Customer Signature' })}
+                     >
                        <img 
                          src={delivery.signature_image_url} 
                          alt="Customer Signature" 
@@ -467,7 +473,7 @@ export default function StopDetailsPanel({
                              src={url} 
                              alt={`Proof photo ${index + 1}`} 
                              className="w-full h-24 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                             onClick={() => window.open(url, '_blank')}
+                             onClick={() => setViewingImage({ url, title: `Proof Photo ${index + 1}` })}
                            />
                            <button
                              onClick={(e) => { e.stopPropagation(); deletePhoto(index); }}
@@ -549,6 +555,14 @@ export default function StopDetailsPanel({
           onSave={handlePhotosSave}
           onCancel={() => setShowPhotoCapture(false)}
           maxPhotos={3}
+        />
+      )}
+
+      {viewingImage && (
+        <ImageViewer
+          imageUrl={viewingImage.url}
+          title={viewingImage.title}
+          onClose={() => setViewingImage(null)}
         />
       )}
       </div>
