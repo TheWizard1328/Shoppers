@@ -338,6 +338,11 @@ class DriverLocationPoller {
        // RULE 5: Drivers viewing other drivers
        // ========================================
        if (isDriver) {
+         // Must be in "show all" or "all drivers" mode
+         if (!showAllDrivers) {
+           return false;
+         }
+
          // Other driver must have location_tracking_enabled = true
          if (!user.location_tracking_enabled) {
            return false;
