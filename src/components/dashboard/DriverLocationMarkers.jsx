@@ -123,29 +123,33 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return true;
       }
 
-    // RULE 2: AppOwner sees ALL drivers with coordinates (no filtering)
+    // RULE 2: AppOwner sees drivers UNLESS they are off_duty AND timestamp > 5 min old
     const isAppOwner = currentUser?.email && 
                       (currentUser.email.endsWith('@rxdeliver.com') || 
                        currentUser.email === 'dan@dcscripts.ca');
 
     if (isAppOwner) {
-      console.log(`✅ [shouldShowMarker] AppOwner seeing ${user.user_name} - no filtering`);
+      if (user.driver_status === 'off_duty') {
+        const updatedAt = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+        const ageMs = Date.now() - updatedAt;
+        if (ageMs > 5 * 60 * 1000) {
+          return false; // Off duty + location older than 5 min
+        }
+      }
       return true;
     }
 
-    // RULE 3: Admin (non-AppOwner) sees drivers with location sharing ON
+    // RULE 3: Admin (non-AppOwner) - hide if driver is off_duty OR on_break
     if (isAdmin && !isAppOwner) {
-      if (!user.location_tracking_enabled) return false;
-      console.log(`✅ [shouldShowMarker] Admin seeing ${user.user_name} - location_tracking: enabled`);
+      if (user.driver_status === 'off_duty' || user.driver_status === 'on_break') return false;
       return true;
     }
 
-    // RULE 4: Dispatcher sees drivers who are On Duty with active deliveries from dispatcher's stores
+    // RULE 4: Dispatcher - hide if assigned driver is off_duty OR on_break
     if (isDispatcher && !isSelf) {
-      // 1. Driver must be On Duty (location sharing does NOT apply)
-      if (user.driver_status !== 'on_duty') return false;
+      if (user.driver_status === 'off_duty' || user.driver_status === 'on_break') return false;
 
-      // 2. Dispatcher must have assigned stores
+      // Dispatcher must have assigned stores
       const dispatcherStoreIds = currentUser?.store_ids || [];
       if (dispatcherStoreIds.length === 0) return false;
 
@@ -153,21 +157,21 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         ? selectedDate.toISOString().split('T')[0]
         : selectedDate;
       
-      // 3. Driver must have at least 1 in_transit delivery OR en_route pickup from dispatcher's stores
+      // Driver must have at least 1 delivery from dispatcher's stores on selected date
       const userIdForDeliveryMatch = user.id || user.user_id;
-      const hasActiveDispatcherStoreDelivery = deliveries?.some(d => 
+      const hasDispatcherStoreDelivery = deliveries?.some(d => 
         d && 
         (d.driver_id === userIdForDeliveryMatch || d.driver_id === userId) &&
         d.delivery_date === selectedDateStr &&
-        dispatcherStoreIds.includes(d.store_id) &&
-        (d.status === 'in_transit' || d.status === 'en_route')
+        dispatcherStoreIds.includes(d.store_id)
       );
 
-      return hasActiveDispatcherStoreDelivery && user.status !== 'inactive';
+      return hasDispatcherStoreDelivery && user.status !== 'inactive';
     }
 
-    // RULE 5: Driver sees other drivers ONLY if location_tracking_enabled === true
+    // RULE 5: Driver sees other drivers ONLY if they are on_duty AND location sharing is ON
     if (isDriver && !isSelf) {
+      if (user.driver_status === 'off_duty') return false;
       if (!user.location_tracking_enabled) return false;
 
       const currentUserCityId = currentUser?.city_id;
@@ -175,7 +179,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       const userCityIds = user.city_ids || (user.city_id ? [user.city_id] : []);
       const isSameCity = userCityIds.some(cityId => currentUserCityIds.includes(cityId));
 
-      console.log(`✅ [shouldShowMarker] Driver seeing ${user.user_name} - location_tracking: enabled, same city: ${isSameCity}`);
       return isSameCity && user.status !== 'inactive';
     }
 
