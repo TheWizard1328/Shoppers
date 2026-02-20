@@ -120,6 +120,20 @@ export default function StopDetailsPanel({
     }
   };
 
+  const deletePhoto = async (indexToDelete) => {
+    try {
+      setIsUpdating(true);
+      const updatedUrls = delivery.proof_photo_urls.filter((_, i) => i !== indexToDelete);
+      await base44.entities.Delivery.update(delivery.id, {
+        proof_photo_urls: updatedUrls
+      });
+    } catch (error) {
+      console.error('Failed to delete photo:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const clearSignature = async () => {
     try {
       setIsUpdating(true);
