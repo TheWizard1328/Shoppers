@@ -186,30 +186,29 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
             </div>
           )}
 
-          {isCameraActive && (
-            <div className="relative">
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                className="w-full rounded-lg"
-                style={{ background: 'var(--bg-black, #000000)' }}
-              />
-              <canvas ref={canvasRef} className="hidden" />
-              
-              <Button
-                onClick={capturePhoto}
-                disabled={capturedPhotos.length >= maxPhotos || isCapturing}
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-emerald-600 hover:bg-emerald-700 rounded-full w-16 h-16"
-              >
-                {isCapturing ? (
-                  <Loader2 className="w-8 h-8 animate-spin" />
-                ) : (
-                  <Camera className="w-8 h-8" />
-                )}
-              </Button>
-            </div>
-          )}
+          {/* Always render video/canvas so refs are always attached */}
+          <div className={`relative ${isCameraActive ? '' : 'hidden'}`}>
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              className="w-full rounded-lg"
+              style={{ background: 'var(--bg-black, #000000)' }}
+            />
+            <canvas ref={canvasRef} className="hidden" />
+            
+            <Button
+              onClick={capturePhoto}
+              disabled={capturedPhotos.length >= maxPhotos || isCapturing}
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-emerald-600 hover:bg-emerald-700 rounded-full w-16 h-16"
+            >
+              {isCapturing ? (
+                <Loader2 className="w-8 h-8 animate-spin" />
+              ) : (
+                <Camera className="w-8 h-8" />
+              )}
+            </Button>
+          </div>
 
           {capturedPhotos.length > 0 && (
             <div>
