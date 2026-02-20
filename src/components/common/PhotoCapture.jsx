@@ -41,6 +41,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
 
       if (videoRef.current) {
         console.log('📷 [PhotoCapture] Attaching stream to video element...');
+        streamRef.current = stream;
         videoRef.current.srcObject = stream;
         // Wait for metadata to load before marking camera as active
         await new Promise((resolve) => {
