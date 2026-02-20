@@ -3485,6 +3485,68 @@ function Dashboard() {
         const isShowAllOrAllDriversMode = showAllDriverMarkers || selectedDriverId === 'all';
         
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+
+        // CRITICAL: DISPATCHER PHASE 3 - pan/zoom to show only dispatcher's stores' completed stops
+        // plus any drivers' shared location markers for those stores
+        if (isDispatcher && !isAdmin) {
+          const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
+          const allDateDeliveriesDisp = deliveries.filter(d => d && d.delivery_date === selectedDateStrPhase3);
+          
+          // Completed stops from dispatcher's stores
+          const dispatcherCompletedStops = allDateDeliveriesDisp.filter(d =>
+            d && dispatcherStoreIds.has(d.store_id) && finishedStatuses.includes(d.status)
+          );
+          
+          dispatcherCompletedStops.forEach(delivery => {
+            if (delivery.patient_id) {
+              const patient = patients.find(p => p?.id === delivery.patient_id);
+              if (patient?.latitude && patient?.longitude) {
+                allCoordinatesPhase3.push([patient.latitude, patient.longitude]);
+              }
+            } else if (delivery.store_id) {
+              const store = stores.find(s => s?.id === delivery.store_id);
+              if (store?.latitude && store?.longitude) {
+                allCoordinatesPhase3.push([store.latitude, store.longitude]);
+              }
+            }
+          });
+          
+          // Driver shared location markers for drivers who have stops in dispatcher's stores
+          if (isViewingTodayPhase3) {
+            const driversInDispatcherStores = new Set(
+              allDateDeliveriesDisp.filter(d => d && dispatcherStoreIds.has(d.store_id)).map(d => d.driver_id).filter(Boolean)
+            );
+            driversInDispatcherStores.forEach(driverId => {
+              const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
+              if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+                allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
+              }
+            });
+          }
+          
+          if (allCoordinatesPhase3.length > 0) {
+            const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
+            const topPadding = isMobile ? statsCardCurrHeight + 25 : 25;
+            const hasVisibleCards = deliveriesWithStopOrder.some(d => d && d.status !== 'pending');
+            let bottomPadding = 25;
+            if (hasVisibleCards) {
+              const measuredHeight = stopCardsContainerRef.current?.offsetHeight || stopCardsBaseHeight;
+              if (measuredHeight > 0) bottomPadding = measuredHeight + 10;
+            }
+            const latSpanD = Math.max(...allCoordinatesPhase3.map(c => c[0])) - Math.min(...allCoordinatesPhase3.map(c => c[0]));
+            const lonSpanD = Math.max(...allCoordinatesPhase3.map(c => c[1])) - Math.min(...allCoordinatesPhase3.map(c => c[1]));
+            const spanKmD = Math.max(latSpanD, lonSpanD) * 111.0;
+            const maxZoomD = Math.max(12.0, Math.min(17, Math.round((16 - Math.log2(spanKmD + 1) * 1.2) * 10) / 10));
+            window._lastProgrammaticMapMove = Date.now();
+            setShouldFitBounds({
+              bounds: allCoordinatesPhase3,
+              options: { paddingTopLeft: [25, topPadding], paddingBottomRight: [25, bottomPadding], maxZoom: maxZoomD, animate: true }
+            });
+            setMapCenter(null);
+            setMapZoom(null);
+          }
+          break;
+        }
         
         if (isShowAllOrAllDriversMode) {
           // MODE 1: Show All / All Drivers - include ALL incomplete + pending stops from ALL drivers

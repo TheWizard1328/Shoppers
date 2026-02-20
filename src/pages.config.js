@@ -60,12 +60,12 @@ import DriverPayroll from './pages/DriverPayroll';
 import DriverSettings from './pages/DriverSettings';
 import Home from './pages/Home';
 import Patients from './pages/Patients';
+import Register from './pages/Register';
 import SquareLocationConfigs from './pages/SquareLocationConfigs';
 import SquareManagement from './pages/SquareManagement';
 import StoreInvoices from './pages/StoreInvoices';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
-import Register from './pages/Register';
 import __Layout from './Layout.jsx';
 
 
@@ -83,12 +83,12 @@ export const PAGES = {
     "DriverSettings": DriverSettings,
     "Home": Home,
     "Patients": Patients,
+    "Register": Register,
     "SquareLocationConfigs": SquareLocationConfigs,
     "SquareManagement": SquareManagement,
     "StoreInvoices": StoreInvoices,
     "Stores": Stores,
     "Users": Users,
-    "Register": Register,
 }
 
 export const pagesConfig = {
