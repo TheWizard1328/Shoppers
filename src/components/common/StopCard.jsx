@@ -1513,10 +1513,11 @@ export default function StopCard({
                 try {
                   console.log('📷 [Photos] Starting upload...', photoBlobs.length, 'photos');
 
-                  // Upload photos immediately
-                  const uploadPromises = photoBlobs.map((blob) =>
-                    base44.integrations.Core.UploadFile({ file: blob })
-                  );
+                  // Upload photos immediately - convert Blob to File for multipart/form-data
+                  const uploadPromises = photoBlobs.map((blob, i) => {
+                    const file = new File([blob], `photo_${i + 1}.jpg`, { type: 'image/jpeg' });
+                    return base44.integrations.Core.UploadFile({ file });
+                  });
                   const results = await Promise.all(uploadPromises);
                   const newPhotoUrls = results.map((r) => r.file_url);
 
