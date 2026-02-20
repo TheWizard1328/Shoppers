@@ -1051,7 +1051,7 @@ function Dashboard() {
         liveDistanceTracker.stop();
       }
     };
-  }, [currentUser?.id, isMobile, isDriver, isPrimaryDevice]);
+  }, [currentUser?.id, isMobile, isDriver, isPrimaryDevice, isDataLoaded]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST
   useEffect(() => {
