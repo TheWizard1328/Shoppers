@@ -5373,8 +5373,12 @@ export default function DeliveryForm({
                             <Select
                             value={formData.status}
                             onValueChange={(value) => {
+                              const prevStatus = formData.status;
                               setFormData((prev) => ({ ...prev, status: value }));
-                              if (delivery && ['completed', 'failed', 'cancelled', 'returned'].includes(value)) {
+                              // Only update completion time if transitioning FROM active status TO completion status
+                              const activeStatuses = ['in_transit', 'en_route', 'pending'];
+                              const completionStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                              if (delivery && completionStatuses.includes(value) && activeStatuses.includes(prevStatus)) {
                                 setCompletionTime(format(new Date(), 'HH:mm'));
                               }
                             }}
