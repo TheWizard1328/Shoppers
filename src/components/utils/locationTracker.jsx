@@ -510,12 +510,13 @@ class LocationTracker {
     // CRITICAL: Check if this is the primary device BEFORE starting GPS
     try {
       const currentDevice = await getCurrentDevice(user.id);
-      this.isPrimaryDevice = currentDevice?.is_primary_tracker !== false;
+      // If no device record found, treat as primary (default behavior)
+      this.isPrimaryDevice = currentDevice === null || currentDevice?.is_primary_tracker !== false;
 
       console.log(`✅ [LocationTracker] Device status:`, {
-        deviceId: currentDevice?.device_identifier,
+        deviceId: currentDevice?.device_identifier || 'NOT REGISTERED',
         isPrimaryTracker: this.isPrimaryDevice,
-        deviceName: currentDevice?.device_name
+        deviceName: currentDevice?.device_name || 'No device record - treating as PRIMARY'
       });
       
       // CRITICAL: ALL devices with location tracking enabled can upload locations
