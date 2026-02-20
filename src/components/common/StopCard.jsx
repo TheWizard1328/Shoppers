@@ -1468,18 +1468,25 @@ export default function StopCard({
           {/* Fullscreen Image Viewer */}
           {viewingImageUrl && ReactDOM.createPortal(
             <div
-              className="fixed inset-0 flex items-center justify-center"
-              style={{ background: 'rgba(0,0,0,0.85)', zIndex: 999999, pointerEvents: 'auto' }}
+              className="fixed inset-0 flex items-center justify-center p-4"
+              style={{ background: 'rgba(0,0,0,0.75)', zIndex: 999999, pointerEvents: 'auto' }}
               onClick={() => setViewingImageUrl(null)}>
-              <div className="relative max-w-[95vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-                <img src={viewingImageUrl} alt="Proof of delivery" className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl" />
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full w-8 h-8 p-0"
-                  onClick={() => setViewingImageUrl(null)}>
-                  <X className="w-4 h-4" />
-                </Button>
+              <div
+                className="relative bg-white rounded-xl shadow-2xl p-4 max-w-[95vw] max-h-[90vh] flex flex-col items-center"
+                onClick={(e) => e.stopPropagation()}>
+                {/* Close button - prominent, top right */}
+                <button
+                  onClick={() => setViewingImageUrl(null)}
+                  className="absolute -top-3 -right-3 bg-white border-2 border-slate-300 hover:bg-red-50 hover:border-red-400 text-slate-700 hover:text-red-600 rounded-full w-9 h-9 flex items-center justify-center shadow-lg transition-colors z-10">
+                  <X className="w-5 h-5" />
+                </button>
+                <img
+                  src={viewingImageUrl}
+                  alt="Proof of delivery"
+                  className="max-w-full max-h-[75vh] object-contain rounded-lg"
+                  style={{ background: 'white' }}
+                />
+                <p className="mt-3 text-sm text-slate-500 font-medium">Tap outside to close</p>
               </div>
             </div>,
             document.body
