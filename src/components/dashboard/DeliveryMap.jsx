@@ -837,17 +837,20 @@ export default function DeliveryMap({
     const handleDriverLocationUpdate = (event) => {
       const { appUsers, singleUpdate } = event.detail;
 
-      // CRITICAL: Handle single driver updates (from status toggle, etc.)
-      if (singleUpdate) {
-        console.log(`🔄 [DeliveryMap] Single AppUser update:`, singleUpdate.user_name || singleUpdate.full_name);
+      // CRITICAL: Handle single driver updates (from status toggle, locationTracker, etc.)
+      // singleUpdate is a boolean flag; the actual updated user is in appUsers[0]
+      if (singleUpdate && appUsers && appUsers.length === 1) {
+        const updatedUser = appUsers[0];
+        console.log(`🔄 [DeliveryMap] Single AppUser update:`, updatedUser?.user_name || updatedUser?.id);
         setRealtimeAppUsers(prev => {
           // CRITICAL: Don't update if prev is empty - preserve data
           if (!prev || prev.length === 0) {
             console.warn(`⚠️ [DeliveryMap] Skipping single update - realtimeAppUsers is empty`);
             return prev;
           }
+          // Match by id OR user_id (locationTracker uses AppUser.id, not User.id)
           return prev.map(u => 
-            u?.id === singleUpdate.user_id ? { ...u, ...singleUpdate } : u
+            (u?.id === updatedUser?.id || u?.id === updatedUser?.user_id) ? { ...u, ...updatedUser } : u
           );
         });
         // CRITICAL: Force polyline re-render when driver location changes
