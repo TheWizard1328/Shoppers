@@ -104,12 +104,13 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                    userId === currentUserUserId ||
                    user.user_id === currentUserId;
 
-    // RULE 0: Drivers on primary device should NOT see their own shared location marker
-      // (Primary device has live blue location marker from GPS tracking)
-      if (isSelf && isPrimaryDevice && isDriver) {
-        console.log(`⏭️ [shouldShowMarker] SELF driver on PRIMARY device - hide shared location (using live GPS marker)`);
-        return false;
-      }
+    // RULE 0: Drivers on primary device on MOBILE should NOT see their own shared location marker
+    // (Mobile primary device has live blue GPS dot instead)
+    // On DESKTOP, there is no blue GPS dot, so we MUST show the shared marker
+    if (isSelf && isPrimaryDevice && isDriver && isMobile) {
+      console.log(`⏭️ [shouldShowMarker] SELF driver on PRIMARY MOBILE device - hide shared location (using live GPS marker)`);
+      return false;
+    }
 
       // RULE 1: Self marker on non-primary device - ALWAYS show if coordinates exist (shared from primary)
       if (isSelf && !isPrimaryDevice) {
