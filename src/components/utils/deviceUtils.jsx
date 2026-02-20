@@ -54,17 +54,28 @@ export const shouldUseMobileLayout = () => {
 export const getUserAgentInfo = () => {
   const ua = navigator.userAgent;
 
-  // Detect device type from user agent
-  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
-  const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  // Detect OS first (needed for tablet classification)
+  const isAndroid = /Android/i.test(ua);
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+  // iPad is always a tablet
+  const isIPad = /iPad/i.test(ua) || (/Mac/i.test(ua) && navigator.maxTouchPoints > 1); // iPadOS 13+ reports as Mac
   
-  // CRITICAL: User agent is the source of truth for Mobile/Tablet classification.
-  // Screen width override was causing phones with wider screens (or in landscape) to be misclassified as Desktop.
-  // Only fall back to screen width for devices with NO mobile user agent at all.
+  // Android tablet: no "Mobile" in UA AND screen width > 600px (phones can omit "Mobile" too)
+  const isAndroidTablet = isAndroid && !/Mobile/i.test(ua) && window.innerWidth > 600;
+
+  const isTabletDevice = isIPad || isAndroidTablet;
+
+  // Mobile: any handheld device that isn't classified as tablet
+  const isMobileUserAgent = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  
+  // CRITICAL: Touch + small screen fallback for devices with ambiguous UAs
+  const isTouchSmallScreen = navigator.maxTouchPoints > 0 && window.innerWidth <= 768 && !isTabletDevice;
+
   let deviceType = 'Desktop';
   if (isTabletDevice) {
     deviceType = 'Tablet';
-  } else if (isMobileUserAgent) {
+  } else if (isMobileUserAgent || isTouchSmallScreen) {
     deviceType = 'Mobile';
   }
 
