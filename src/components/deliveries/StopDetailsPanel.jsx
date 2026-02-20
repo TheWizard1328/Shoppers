@@ -462,13 +462,20 @@ export default function StopDetailsPanel({
                      </p>
                      <div className="grid grid-cols-2 gap-2">
                        {delivery.proof_photo_urls.map((url, index) => (
-                         <div key={index} className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+                         <div key={index} className="relative border rounded-lg overflow-hidden group" style={{ borderColor: 'var(--border-slate-200)' }}>
                            <img 
                              src={url} 
                              alt={`Proof photo ${index + 1}`} 
                              className="w-full h-24 object-cover cursor-pointer hover:opacity-90 transition-opacity"
                              onClick={() => window.open(url, '_blank')}
                            />
+                           <button
+                             onClick={(e) => { e.stopPropagation(); deletePhoto(index); }}
+                             disabled={isUpdating}
+                             className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                           >
+                             <X className="w-3 h-3" />
+                           </button>
                          </div>
                        ))}
                      </div>
