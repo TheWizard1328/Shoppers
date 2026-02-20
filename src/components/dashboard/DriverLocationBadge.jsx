@@ -113,26 +113,26 @@ const DriverLocationBadge = ({ users = [] }) => {
   };
 
   return (
-    <div className="px-4 py-2 space-y-1 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
+    <div className="px-4 py-2 space-y-1 border-t" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       {drivers.map((driver) => (
         <div key={driver.name} className="flex items-center gap-2 text-xs">
           <div
             className="w-2 h-2 rounded-full flex-shrink-0"
             style={{ backgroundColor: bulletColorMap[driver.bulletColor] }}
           />
-          <span className="font-medium text-slate-700 dark:text-slate-300" style={{ minWidth: '80px' }}>
+          <span className="font-medium" style={{ color: 'var(--text-slate-700)', minWidth: '80px' }}>
             {driver.name}
           </span>
           <span>
-            <span className={`transition-colors duration-300 ${driver.latChanged || driver.lngChanged ? 'text-green-500 font-semibold' : 'text-slate-600 dark:text-slate-400'}`}>
+            <span className={`transition-colors duration-300 ${driver.latChanged || driver.lngChanged ? 'text-green-500 font-semibold' : ''}`} style={!(driver.latChanged || driver.lngChanged) ? { color: 'var(--text-slate-600)' } : {}}>
               {driver.lat?.toFixed(6) || '?'}
             </span>
             {', '}
-            <span className={`transition-colors duration-300 ${driver.latChanged || driver.lngChanged ? 'text-green-500 font-semibold' : 'text-slate-600 dark:text-slate-400'}`}>
+            <span className={`transition-colors duration-300 ${driver.latChanged || driver.lngChanged ? 'text-green-500 font-semibold' : ''}`} style={!(driver.latChanged || driver.lngChanged) ? { color: 'var(--text-slate-600)' } : {}}>
               {driver.lng?.toFixed(6) || '?'}
             </span>
           </span>
-          <span className={`transition-colors duration-300 ${driver.timestampChanged ? 'text-green-500 font-semibold' : 'text-slate-500 dark:text-slate-400'}`} style={{ marginLeft: 'auto' }}>
+          <span className={`transition-colors duration-300 ${driver.timestampChanged ? 'text-green-500 font-semibold' : ''}`} style={{ marginLeft: 'auto', ...(driver.timestampChanged ? {} : { color: 'var(--text-slate-500)' }) }}>
             {driver.timestamp ? format(new Date(driver.timestamp), 'HH:mm:ss') : '?'}
           </span>
         </div>
