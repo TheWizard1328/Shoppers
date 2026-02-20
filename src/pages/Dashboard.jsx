@@ -872,11 +872,14 @@ function Dashboard() {
       try {
         const { getCurrentDevice } = await import('@/components/utils/deviceManager');
         const device = await getCurrentDevice(currentUser.id);
-        const isPrimary = device?.is_primary_tracker !== false;
+        // If no device record found, treat as primary (default behavior)
+        // Only non-primary if record explicitly has is_primary_tracker === false
+        const isPrimary = device === null || device?.is_primary_tracker !== false;
+        console.log(`📱 [Primary Device Check] device=${device?.device_name || 'NOT FOUND'}, isPrimary=${isPrimary}`);
         setIsPrimaryDevice(isPrimary);
       } catch (error) {
-        console.warn('⚠️ [Primary Device Check] Failed:', error.message);
-        setIsPrimaryDevice(false);
+        console.warn('⚠️ [Primary Device Check] Failed - defaulting to primary:', error.message);
+        setIsPrimaryDevice(true); // Default to primary on error
       }
     };
     
