@@ -160,6 +160,9 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
     onCancel();
   };
 
+  // Stream ref to ensure cleanup even if videoRef changes
+  const streamRef = useRef(null);
+
   useEffect(() => {
     startCamera();
     return () => {
