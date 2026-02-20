@@ -26,7 +26,8 @@ import {
   ArrowLeft,
   Image,
   FileSignature,
-  Camera
+  Camera,
+  X
 } from "lucide-react";
 import { format } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
