@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,8 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
-} from
+  DialogTitle } from
 "@/components/ui/dialog";
 import { base44 } from '@/api/base44Client';
 import { useUser } from '../utils/UserContext';
@@ -94,8 +92,8 @@ export default function PayrollSummaryCard({
     // Get drivers to calculate for
     // Note: drivers come from payrollData.drivers which are AppUser records (user_id field)
     const driversToCalc = selectedDriverId === 'all' ?
-      drivers.filter((d) => d && d.status === 'active') :
-      drivers.filter((d) => d && (d.id === selectedDriverId || d.user_id === selectedDriverId));
+    drivers.filter((d) => d && d.status === 'active') :
+    drivers.filter((d) => d && (d.id === selectedDriverId || d.user_id === selectedDriverId));
 
     return driversToCalc.map((driver) => {
       // Get AppUser data for pay rates
@@ -120,7 +118,7 @@ export default function PayrollSummaryCard({
 
 
           // Valid - count these
-        } else if (d.status === 'cancelled') { // For cancelled: include after_hours_pickup OR store returns
+        } else if (d.status === 'cancelled') {// For cancelled: include after_hours_pickup OR store returns
           const isStoreReturn = /\[[\w\s]+\]/.test(d.patient_name || '') && (d.patient_name || '').toLowerCase().includes('return');
           if (!d.after_hours_pickup && !isStoreReturn) return false;
         } else {
@@ -385,8 +383,8 @@ export default function PayrollSummaryCard({
 
         // Get drivers with deliveries in this pay period
         const driversWithDeliveries = payrollData.
-          filter((data) => data.totalDeliveries > 0).
-          map((data) => data.driver.id);
+        filter((data) => data.totalDeliveries > 0).
+        map((data) => data.driver.id);
 
         if (driversWithDeliveries.length === 0) {
           console.log('ℹ️ [Payroll] No drivers with deliveries - skipping auto-create');
@@ -428,10 +426,10 @@ export default function PayrollSummaryCard({
               let paysAppFees = store.pays_app_fees || false;
               if (store.app_fee_history && store.app_fee_history.length > 0) {
                 const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                  new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
                 );
                 const applicableEntry = sortedHistory.find((entry) =>
-                  new Date(entry.effective_date) <= deliveryDate
+                new Date(entry.effective_date) <= deliveryDate
                 );
                 if (applicableEntry) {
                   paysAppFees = applicableEntry.pays_app_fees;
@@ -496,17 +494,17 @@ export default function PayrollSummaryCard({
   // CRITICAL: Only return records that match the current period's dates
   const getDriverPayrollRecord = (driverId) => {
     return payrollRecords.find((r) =>
-      r.driver_id === driverId &&
-      r.pay_period_start === periodStartStr &&
-      r.pay_period_end === periodEndStr
+    r.driver_id === driverId &&
+    r.pay_period_start === periodStartStr &&
+    r.pay_period_end === periodEndStr
     );
   };
 
   // Check if current driver has finalized (for driver view)
   const currentDriverRecord = isDriver && currentUser ? getDriverPayrollRecord(currentUser.id) : null;
   const isCurrentDriverFinalized = currentDriverRecord?.status === 'driver_finalized' ||
-    currentDriverRecord?.status === 'admin_finalized' ||
-    currentDriverRecord?.status === 'paid';
+  currentDriverRecord?.status === 'admin_finalized' ||
+  currentDriverRecord?.status === 'paid';
 
 
 
@@ -544,10 +542,10 @@ export default function PayrollSummaryCard({
           let paysAppFees = store.pays_app_fees || false;
           if (store.app_fee_history && store.app_fee_history.length > 0) {
             const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+            new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
             );
             const applicableEntry = sortedHistory.find((entry) =>
-              new Date(entry.effective_date) <= deliveryDate
+            new Date(entry.effective_date) <= deliveryDate
             );
             if (applicableEntry) {
               paysAppFees = applicableEntry.pays_app_fees;
@@ -674,10 +672,10 @@ export default function PayrollSummaryCard({
         let paysAppFees = store.pays_app_fees || false;
         if (store.app_fee_history && store.app_fee_history.length > 0) {
           const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-            new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+          new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
           );
           const applicableEntry = sortedHistory.find((entry) =>
-            new Date(entry.effective_date) <= deliveryDate
+          new Date(entry.effective_date) <= deliveryDate
           );
           if (applicableEntry) {
             paysAppFees = applicableEntry.pays_app_fees;
@@ -1024,7 +1022,7 @@ export default function PayrollSummaryCard({
       let gridY = tableTop + rowHeight + 5;
 
       const storeTotals = {};
-      displayStores.forEach((store) => { storeTotals[store.id] = 0; });
+      displayStores.forEach((store) => {storeTotals[store.id] = 0;});
       let grandTotal = 0;
 
       dates.forEach((date) => {
@@ -1288,10 +1286,10 @@ export default function PayrollSummaryCard({
           if (store.app_fee_history && store.app_fee_history.length > 0) {
             const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
             const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+            new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
             );
             const applicableEntry = sortedHistory.find((entry) =>
-              new Date(entry.effective_date) <= deliveryDate
+            new Date(entry.effective_date) <= deliveryDate
             );
             if (applicableEntry) {
               paysAppFees = applicableEntry.pays_app_fees;
@@ -1453,7 +1451,7 @@ export default function PayrollSummaryCard({
 
     // Store column totals
     const storeTotals = {};
-    displayStores.forEach((store) => { storeTotals[store.id] = 0; });
+    displayStores.forEach((store) => {storeTotals[store.id] = 0;});
     let grandTotal = 0;
 
     dates.forEach((date) => {
@@ -1654,8 +1652,8 @@ export default function PayrollSummaryCard({
   // Round currency values to 2 decimals before saving to Payroll entity
   const roundPayrollData = (data) => {
     const currencyFields = [
-      'gross_pay', 'net_pay', 'total_deductions', 'bonus_pay', 'app_fee_amount',
-      'tax_amount', 'pay_rate_per_delivery', 'extra_km_rate', 'extra_km_limit', 'oversized_item_rate'];
+    'gross_pay', 'net_pay', 'total_deductions', 'bonus_pay', 'app_fee_amount',
+    'tax_amount', 'pay_rate_per_delivery', 'extra_km_rate', 'extra_km_limit', 'oversized_item_rate'];
 
     const rounded = { ...data };
     currencyFields.forEach((field) => {
@@ -1686,8 +1684,8 @@ export default function PayrollSummaryCard({
     return driversWithDeliveriesIds.filter((driverId) => {
       const record = getDriverPayrollRecord(driverId);
       return record?.status === 'driver_finalized' ||
-        record?.status === 'admin_finalized' ||
-        record?.status === 'paid';
+      record?.status === 'admin_finalized' ||
+      record?.status === 'paid';
     }).length;
   }, [driversWithDeliveriesIds, payrollRecords]);
 
@@ -1875,11 +1873,11 @@ export default function PayrollSummaryCard({
       let paysAppFees = store.pays_app_fees || false;
       if (store.app_fee_history && store.app_fee_history.length > 0) {
         const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-          new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+        new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
         );
         // Find the history entry that applies to this delivery date
         const applicableEntry = sortedHistory.find((entry) =>
-          new Date(entry.effective_date) <= deliveryDate
+        new Date(entry.effective_date) <= deliveryDate
         );
         if (applicableEntry) {
           paysAppFees = applicableEntry.pays_app_fees;
@@ -1926,7 +1924,7 @@ export default function PayrollSummaryCard({
     return (
       <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
         <CardContent className="p-6 text-center" style={{ color: 'var(--text-slate-500)' }}>
-          No payroll data available for this period.
+          No payroll data available for this period. 
           {drivers?.length === 0 && ' No drivers found.'}
           {drivers?.length > 0 && appUsers?.length === 0 && ' No driver pay rates configured.'}
           {drivers?.length > 0 && appUsers?.length > 0 && deliveries?.length === 0 && ' No deliveries in selected period.'}
@@ -1946,192 +1944,192 @@ export default function PayrollSummaryCard({
           -moz-appearance: textfield;
         }
       `}</style>
-      <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-        <CardHeader className="pb-3">
-          {/* Mobile View: 2 rows */}
-          <div className="md:hidden flex flex-col gap-2">
-            {/* Row 1: Title and PDF Button */}
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
-                <Calculator className="w-5 h-5" />
-                Payroll
-              </CardTitle>
-              <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 h-8" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                <Download className="w-4 h-4" />
-                PDF
-              </Button>
-            </div>
-
-            {/* Row 2: Confirmed Drivers and Finalize Button */}
-            <div className="flex items-center justify-between">
-              {/* Admin View: Show finalization progress - multi-driver view only */}
-              {isAdmin && driversWithDeliveriesIds.length > 0 &&
-                selectedDriverId === 'all' &&
-                <>
-                  {!isAdminFinalized &&
-                    <>
-                      <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                        <Users className="w-3 h-3 inline mr-1" />
-                        {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={() => setShowConfirmDialog(true)}
-                        disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
-                        className={`gap-2 h-8 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                        title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
-
-                        {allDriversFinalized ?
-                          <>
-                            <CheckCircle className="w-4 h-4" />
-                            {isFinalizing ? 'Finalizing...' : 'Finalize All'}
-                          </> :
-
-                          <>
-                            <Clock className="w-4 h-4" />
-                            {isFinalizing ? 'Finalizing...' : 'Finalize All'}
-                          </>
-                        }
-                      </Button>
-                    </>
-                  }
-                  {isAdminFinalized &&
-                    <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Finalized
-                    </div>
-                  }
-                </>
-              }
-
-              {/* Driver View: Show Confirm/Confirmed status */}
-              {(isDriver && selectedDriverId === currentUser?.id ||
-                isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) &&
-                <>
-                  {!isCurrentDriverFinalized &&
-                    <Button
-                      size="sm"
-                      onClick={() => setShowConfirmDialog(true)}
-                      disabled={isFinalizing || isLoadingRecords || !canFinalize || isCurrentDriverFinalized}
-                      className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8 ml-auto"
-                      title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
-
-                      <CheckCircle className="w-4 h-4" />
-                      {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
-                    </Button>
-                  }
-                  {isCurrentDriverFinalized &&
-                    <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2 ml-auto">
-                      <CheckCircle className="w-4 h-4" />
-                      Confirmed
-                    </div>
-                  }
-                </>
-              }
-            </div>
-          </div>
-
-          {/* Desktop View: Original single row layout */}
-          <div className="hidden md:flex items-center justify-between">
+     <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+       <CardHeader className="pb-3">
+        {/* Mobile View: 2 rows */}
+        <div className="md:hidden flex flex-col gap-2">
+          {/* Row 1: Title and PDF Button */}
+          <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
               <Calculator className="w-5 h-5" />
-              Payroll Summary
+              Payroll
             </CardTitle>
-            <div className="flex gap-2 items-center" id="payroll-controls">
-              <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                <Download className="w-4 h-4" />
-                PDF
-              </Button>
+            <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 h-8" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              <Download className="w-4 h-4" />
+              PDF
+            </Button>
+          </div>
+          
+          {/* Row 2: Confirmed Drivers and Finalize Button */}
+          <div className="flex items-center justify-between">
+            {/* Admin View: Show finalization progress - multi-driver view only */}
+              {isAdmin && driversWithDeliveriesIds.length > 0 &&
+              selectedDriverId === 'all' &&
+              <>
+                {!isAdminFinalized &&
+                <>
+                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      <Users className="w-3 h-3 inline mr-1" />
+                      {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
+                    </span>
+                    <Button
+                    size="sm"
+                    onClick={() => setShowConfirmDialog(true)}
+                    disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
+                    className={`gap-2 h-8 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
 
-              {/* Driver Finalize Button - for drivers OR admin-drivers viewing their own payroll (single driver mode) */}
-              {(isDriver && selectedDriverId === currentUser?.id ||
-                isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) &&
-                !isCurrentDriverFinalized &&
+                      {allDriversFinalized ?
+                    <>
+                          <CheckCircle className="w-4 h-4" />
+                          {isFinalizing ? 'Finalizing...' : 'Finalize All'}
+                        </> :
+
+                    <>
+                          <Clock className="w-4 h-4" />
+                          {isFinalizing ? 'Finalizing...' : 'Finalize All'}
+                        </>
+                    }
+                    </Button>
+                  </>
+                }
+                {isAdminFinalized &&
+                <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
+                    <CheckCircle className="w-4 h-4" />
+                    Finalized
+                  </div>
+                }
+              </>
+              }
+            
+            {/* Driver View: Show Confirm/Confirmed status */}
+            {(isDriver && selectedDriverId === currentUser?.id ||
+              isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) &&
+              <>
+                {!isCurrentDriverFinalized &&
                 <Button
                   size="sm"
                   onClick={() => setShowConfirmDialog(true)}
                   disabled={isFinalizing || isLoadingRecords || !canFinalize || isCurrentDriverFinalized}
-                  className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                  className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8 ml-auto"
                   title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
 
-                  <CheckCircle className="w-4 h-4" />
-                  {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
-                </Button>
+                     <CheckCircle className="w-4 h-4" />
+                     {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
+                   </Button>
+                }
+                {isCurrentDriverFinalized &&
+                <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2 ml-auto">
+                    <CheckCircle className="w-4 h-4" />
+                    Confirmed
+                  </div>
+                }
+              </>
               }
-
-              {/* Driver Finalized Status - for drivers OR admin-drivers viewing their own payroll */}
-              {(isDriver && isCurrentDriverFinalized ||
-                isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id && isCurrentDriverFinalized) &&
-                <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
-                  <CheckCircle className="w-4 h-4" />
-                  Confirmed
-                </div>
-              }
-
-              {/* Admin View: Show finalization progress - but only in multi-driver view, NOT if viewing single driver */}
-              {isAdmin && driversWithDeliveriesIds.length > 0 &&
-                selectedDriverId === 'all' &&
-                <>
-                  {!isAdminFinalized &&
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                        <Users className="w-3 h-3 inline mr-1" />
-                        {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={() => setShowConfirmDialog(true)}
-                        disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
-                        className={`gap-2 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                        title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
-
-                        {allDriversFinalized ?
-                          <>
-                            <CheckCircle className="w-4 h-4" />
-                            {isFinalizing ? 'Finalizing...' : 'Finalize All'}
-                          </> :
-
-                          <>
-                            <Clock className="w-4 h-4" />
-                            {isFinalizing ? 'Finalizing...' : 'Finalize All'}
-                          </>
-                        }
-                      </Button>
-                    </div>
-                  }
-                  {isAdminFinalized &&
-                    <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Finalized
-                    </div>
-                  }
-                </>
-              }
-            </div>
           </div>
-        </CardHeader>
-
-        {/* Driver Confirmation Dialog - also for admin-drivers viewing their own payroll */}
-        <Dialog open={showConfirmDialog && (isDriver || isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
-          <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
-                <CheckCircle className="w-5 h-5 text-emerald-500" />
-                Confirm Your Payroll
-              </DialogTitle>
-              <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
-                You are confirming your payroll for <strong>{currentPeriod?.label}</strong>.
-                <br /><br />
-                <strong>Total Gross Pay:</strong> {formatCurrency(payrollData.find((d) => d.driver.id === currentUser?.id)?.grossPay || 0)}
-                <br /><br />
-                Please review your deliveries and pay above before confirming. Once confirmed, you will not be able to edit any stops for this pay period.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                Cancel
-              </Button>
+        </div>
+        
+        {/* Desktop View: Original single row layout */}
+        <div className="hidden md:flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
+            <Calculator className="w-5 h-5" />
+            Payroll Summary
+          </CardTitle>
+          <div className="flex gap-2 items-center" id="payroll-controls">
+            <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              <Download className="w-4 h-4" />
+              PDF
+            </Button>
+            
+            {/* Driver Finalize Button - for drivers OR admin-drivers viewing their own payroll (single driver mode) */}
+            {(isDriver && selectedDriverId === currentUser?.id ||
+              isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) &&
+              !isCurrentDriverFinalized &&
               <Button
+                size="sm"
+                onClick={() => setShowConfirmDialog(true)}
+                disabled={isFinalizing || isLoadingRecords || !canFinalize || isCurrentDriverFinalized}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
+
+                <CheckCircle className="w-4 h-4" />
+                {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
+              </Button>
+              }
+            
+            {/* Driver Finalized Status - for drivers OR admin-drivers viewing their own payroll */}
+            {(isDriver && isCurrentDriverFinalized ||
+              isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id && isCurrentDriverFinalized) &&
+              <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
+                <CheckCircle className="w-4 h-4" />
+                Confirmed
+              </div>
+              }
+
+            {/* Admin View: Show finalization progress - but only in multi-driver view, NOT if viewing single driver */}
+            {isAdmin && driversWithDeliveriesIds.length > 0 &&
+              selectedDriverId === 'all' &&
+              <>
+                {!isAdminFinalized &&
+                <div className="flex items-center gap-2">
+                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      <Users className="w-3 h-3 inline mr-1" />
+                      {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
+                    </span>
+                    <Button
+                    size="sm"
+                    onClick={() => setShowConfirmDialog(true)}
+                    disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
+                    className={`gap-2 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
+
+                      {allDriversFinalized ?
+                    <>
+                          <CheckCircle className="w-4 h-4" />
+                          {isFinalizing ? 'Finalizing...' : 'Finalize All'}
+                        </> :
+
+                    <>
+                          <Clock className="w-4 h-4" />
+                          {isFinalizing ? 'Finalizing...' : 'Finalize All'}
+                        </>
+                    }
+                    </Button>
+                  </div>
+                }
+                {isAdminFinalized &&
+                <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
+                    <CheckCircle className="w-4 h-4" />
+                    Finalized
+                  </div>
+                }
+              </>
+              }
+          </div>
+        </div>
+      </CardHeader>
+
+      {/* Driver Confirmation Dialog - also for admin-drivers viewing their own payroll */}
+      <Dialog open={showConfirmDialog && (isDriver || isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
+        <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
+              <CheckCircle className="w-5 h-5 text-emerald-500" />
+              Confirm Your Payroll
+            </DialogTitle>
+            <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
+              You are confirming your payroll for <strong>{currentPeriod?.label}</strong>.
+              <br /><br />
+              <strong>Total Gross Pay:</strong> {formatCurrency(payrollData.find((d) => d.driver.id === currentUser?.id)?.grossPay || 0)}
+              <br /><br />
+              Please review your deliveries and pay above before confirming. Once confirmed, you will not be able to edit any stops for this pay period.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              Cancel
+            </Button>
+            <Button
                 onClick={() => {
                   const myData = payrollData.find((d) => d.driver.id === currentUser?.id);
                   if (myData) handleDriverFinalize(myData);
@@ -2139,610 +2137,610 @@ export default function PayrollSummaryCard({
                 disabled={isFinalizing}
                 className="bg-emerald-600 hover:bg-emerald-700">
 
-                {isFinalizing ? 'Confirming...' : 'Confirm My Payroll'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              {isFinalizing ? 'Confirming...' : 'Confirm My Payroll'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {/* Deduction Manager Overlay Dialog */}
-        {deductionOverlayDriverId && driverEdits[deductionOverlayDriverId] &&
-          <Dialog open={true} onOpenChange={(open) => !open && setDeductionOverlayDriverId(null)}>
-            <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-              <DialogHeader>
-                <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage Deductions</DialogTitle>
-              </DialogHeader>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>Current Deductions:</label>
-                  <div className="mt-2 space-y-1">
-                    {driverEdits[deductionOverlayDriverId]?.deductions?.map((ded, idx) =>
-                      <div key={idx} className="flex items-center justify-between text-sm p-2 bg-slate-50 rounded">
-                        <span>{ded.name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">-${ded.amount.toFixed(2)}</span>
-                          <button
-                            onClick={async () => {
-                              const updatedDeductions = driverEdits[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx);
-                              setDriverEdits((prev) => ({
-                                ...prev,
-                                [deductionOverlayDriverId]: {
-                                  ...prev[deductionOverlayDriverId],
-                                  deductions: updatedDeductions
-                                }
-                              }));
-                              // Save immediately
-                              await savePayrollChanges(deductionOverlayDriverId, {
-                                deductions: updatedDeductions,
-                                total_deductions: updatedDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
-                              });
-                            }}
-                            className="p-1 hover:bg-red-100 rounded">
-
-                            <X className="w-4 h-4 text-red-600" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {!driverEdits[deductionOverlayDriverId]?.deductions?.length &&
-                      <p className="text-xs text-slate-500">No deductions</p>
-                    }
-                  </div>
-                </div>
-
-                <div className="border-t pt-3">
-                  <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Add New Deduction:</label>
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      placeholder="Deduction name"
-                      value={driverEdits[deductionOverlayDriverId]?.newDeductionName || ''}
-                      onChange={(e) => setDriverEdits((prev) => ({
-                        ...prev,
-                        [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionName: e.target.value }
-                      }))}
-                      className="w-full px-2 py-1 text-sm border rounded" />
-
-                    <div className="flex gap-2">
-                      <span className="flex items-center">$</span>
-                      <input
-                        type="number"
-                        placeholder="Amount"
-                        value={driverEdits[deductionOverlayDriverId]?.newDeductionAmount || ''}
-                        onChange={(e) => setDriverEdits((prev) => ({
-                          ...prev,
-                          [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionAmount: e.target.value }
-                        }))}
-                        className="flex-1 px-2 py-1 text-sm border rounded"
-                        step="0.01" />
-
-                      <button
+      {/* Deduction Manager Overlay Dialog */}
+      {deductionOverlayDriverId && driverEdits[deductionOverlayDriverId] &&
+        <Dialog open={true} onOpenChange={(open) => !open && setDeductionOverlayDriverId(null)}>
+          <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <DialogHeader>
+              <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage Deductions</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>Current Deductions:</label>
+                <div className="mt-2 space-y-1">
+                  {driverEdits[deductionOverlayDriverId]?.deductions?.map((ded, idx) =>
+                  <div key={idx} className="flex items-center justify-between text-sm p-2 bg-slate-50 rounded">
+                      <span>{ded.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">-${ded.amount.toFixed(2)}</span>
+                        <button
                         onClick={async () => {
-                          const name = driverEdits[deductionOverlayDriverId]?.newDeductionName;
-                          const amount = driverEdits[deductionOverlayDriverId]?.newDeductionAmount;
-                          if (name && amount) {
-                            const newDeductions = [...(driverEdits[deductionOverlayDriverId].deductions || []), { name, amount: parseFloat(amount) }];
-                            setDriverEdits((prev) => ({
-                              ...prev,
-                              [deductionOverlayDriverId]: {
-                                ...prev[deductionOverlayDriverId],
-                                deductions: newDeductions,
-                                newDeductionName: '',
-                                newDeductionAmount: ''
-                              }
-                            }));
-                            // Save immediately
-                            await savePayrollChanges(deductionOverlayDriverId, {
-                              deductions: newDeductions,
-                              total_deductions: newDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
-                            });
-                          }
+                          const updatedDeductions = driverEdits[deductionOverlayDriverId].deductions.filter((_, i) => i !== idx);
+                          setDriverEdits((prev) => ({
+                            ...prev,
+                            [deductionOverlayDriverId]: {
+                              ...prev[deductionOverlayDriverId],
+                              deductions: updatedDeductions
+                            }
+                          }));
+                          // Save immediately
+                          await savePayrollChanges(deductionOverlayDriverId, {
+                            deductions: updatedDeductions,
+                            total_deductions: updatedDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
+                          });
                         }}
-                        className="px-3 py-1 bg-emerald-600 text-white rounded text-sm font-medium hover:bg-emerald-700">
+                        className="p-1 hover:bg-red-100 rounded">
 
-                        Add
-                      </button>
+                           <X className="w-4 h-4 text-red-600" />
+                         </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                  {!driverEdits[deductionOverlayDriverId]?.deductions?.length &&
+                  <p className="text-xs text-slate-500">No deductions</p>
+                  }
                 </div>
               </div>
+              
+              <div className="border-t pt-3">
+                <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Add New Deduction:</label>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Deduction name"
+                    value={driverEdits[deductionOverlayDriverId]?.newDeductionName || ''}
+                    onChange={(e) => setDriverEdits((prev) => ({
+                      ...prev,
+                      [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionName: e.target.value }
+                    }))}
+                    className="w-full px-2 py-1 text-sm border rounded" />
 
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setDeductionOverlayDriverId(null)}
-                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
-
-                  Close
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        }
-
-        {/* Bonus Manager Overlay Dialog */}
-        {bonusOverlayDriverId && driverEdits[bonusOverlayDriverId] &&
-          <Dialog open={true} onOpenChange={(open) => !open && handleBonusClose()}>
-            <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-              <DialogHeader>
-                <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage Bonus Pay</DialogTitle>
-              </DialogHeader>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Bonus Pay for {payrollData.find((d) => d.driver.id === bonusOverlayDriverId)?.driver.user_name}:</label>
                   <div className="flex gap-2">
                     <span className="flex items-center">$</span>
                     <input
                       type="number"
-                      value={driverEdits[bonusOverlayDriverId]?.bonusPay || 0}
-                      onChange={(e) => {
-                        const newValue = parseFloat(e.target.value) || 0;
-                        setDriverEdits((prev) => ({
-                          ...prev,
-                          [bonusOverlayDriverId]: { ...prev[bonusOverlayDriverId], bonusPay: newValue }
-                        }));
-                        // Save immediately
-                        savePayrollChanges(bonusOverlayDriverId, { bonus_pay: newValue });
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const closeButton = document.querySelector('[data-dialog-close="bonus"]');
-                          if (closeButton) closeButton.click();
-                        }
-                      }}
-                      placeholder="0.00"
+                      placeholder="Amount"
+                      value={driverEdits[deductionOverlayDriverId]?.newDeductionAmount || ''}
+                      onChange={(e) => setDriverEdits((prev) => ({
+                        ...prev,
+                        [deductionOverlayDriverId]: { ...prev[deductionOverlayDriverId], newDeductionAmount: e.target.value }
+                      }))}
                       className="flex-1 px-2 py-1 text-sm border rounded"
                       step="0.01" />
 
-                  </div>
-                  <p className="text-xs text-slate-500 mt-2">Enter the bonus amount to add to this driver's payroll for {currentPeriod?.label}.</p>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  data-dialog-close="bonus"
-                  onClick={handleBonusClose}
-                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
-
-                  Close
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        }
-
-        {/* App Owner Fee Manager Overlay Dialog */}
-        {appFeeOverlayAllDriversId === 'all' && isAppOwner(currentUser) &&
-          <Dialog open={true} onOpenChange={(open) => !open && setAppFeeOverlayAllDriversId(null)}>
-            <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-              <DialogHeader>
-                <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Owner App Fee</DialogTitle>
-              </DialogHeader>
-
-              <div className="space-y-3">
-                <p className="text-xs text-slate-600">Configure app fees for operational costs.</p>
-
-                {/* Drivers Breakdown Table */}
-                <div className="mt-4">
-                  <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Driver App Fee Breakdown</h3>
-                  <div className="border rounded" style={{ borderColor: 'var(--border-slate-200)', maxHeight: '350px', overflowY: 'auto' }}>
-                    <table className="w-full text-xs border-collapse">
-                      <thead style={{ background: 'var(--bg-slate-100)', position: 'sticky', top: 0 }}>
-                        <tr style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
-                          <th className="text-left px-2 py-1.5 font-semibold">Driver</th>
-                          <th className="text-right px-2 py-1.5 font-semibold" style={{ width: '90px' }}>Fee %</th>
-                          <th className="text-right px-2 py-1.5 font-semibold" style={{ width: '80px' }}>Fee $</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {driversWithDeliveries.map((driver, idx) => {
-                          const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
-                          const driverAppFeeAmount = driverEdits[driver.driver.id]?.appFeeAmount !== undefined ? driverEdits[driver.driver.id].appFeeAmount : calculateAppFeeAmount(driver.driver.id, driverAppFeePercent);
-                          const isCurrentUser = driver.driver.id === currentUser?.id;
-                          const isAppOwnerRow = isCurrentUser && isAppOwner(currentUser);
-
-                          return (
-                            <tr key={driver.driver.id} style={{ borderBottom: '1px solid var(--border-slate-200)', background: isCurrentUser ? 'var(--bg-blue-50)' : idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
-                              <td className="px-2 py-1.5 truncate text-left">
-                                {driver.driver.user_name || driver.driver.full_name}
-                                {isAppOwnerRow && <span className="text-xs font-semibold text-blue-600 ml-1">(App Owner)</span>}
-                              </td>
-                              <td className="text-right px-1 py-1.5">
-                                <span className="text-[11px] font-medium">{driverAppFeePercent.toFixed(2)}%</span>
-                              </td>
-                              <td className="text-right px-1 py-1.5">
-                                <input
-                                  type="number"
-                                  value={driverAppFeeAmount}
-                                  onChange={(e) => {
-                                    const newAmount = parseFloat(e.target.value) || 0;
-                                    let totalBillableCount = 0;
-                                    const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                                    const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                                    deliveries.forEach((d) => {
-                                      if (!d || !d.store_id) return;
-                                      const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                                      if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                                      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                                      if (!validStatus) return;
-                                      if (!d.patient_id && !d.after_hours_pickup) return;
-                                      const store = stores.find((s) => s?.id === d.store_id);
-                                      if (!store) return;
-                                      let paysAppFees = store.pays_app_fees || false;
-                                      if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                        const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                          new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                        );
-                                        if (sortedHistory[0]) {
-                                          paysAppFees = sortedHistory[0].pays_app_fees;
-                                        }
-                                      }
-                                      if (paysAppFees) {
-                                        totalBillableCount++;
-                                      }
-                                    });
-                                    const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
-                                    const newPercent = totalMonthlyAppFees > 0 ? newAmount / totalMonthlyAppFees * 100 : 0;
-
-                                    setDriverEdits((prev) => ({
-                                      ...prev,
-                                      [driver.driver.id]: {
-                                        ...prev[driver.driver.id],
-                                        appFeePercent: newPercent,
-                                        appFeeAmount: newAmount
-                                      }
-                                    }));
-
-                                    // RULE 1 & 2: Recalculate based on who is being edited
-                                    if (isAppOwnerRow) {
-                                      // Editing App Owner → recalc Other App Fee
-                                      const sumAllDrivers = driversWithDeliveries.reduce((sum, d) => {
-                                        if (d.driver.id === driver.driver.id) return sum + newPercent;
-                                        return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
-                                      }, 0);
-                                      const newOtherPercent = Math.max(0, 100 - sumAllDrivers);
-                                      setOtherAppFeePercent(Math.round(newOtherPercent * 100) / 100);
-                                    } else {
-                                      // Editing regular driver → recalc App Owner fee
-                                      const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
-                                        if (d.driver.id === currentUser?.id) return sum; // Skip App Owner
-                                        if (d.driver.id === driver.driver.id) return sum + newPercent; // Use new value
-                                        return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
-                                      }, 0);
-                                      const newAppOwnerPercent = Math.max(0, 100 - sumNonAppOwnerDrivers - otherAppFeePercent);
-                                      setDriverEdits((prev) => ({
-                                        ...prev,
-                                        [currentUser.id]: {
-                                          ...prev[currentUser.id],
-                                          appFeePercent: newAppOwnerPercent,
-                                          appFeeAmount: calculateAppFeeAmount(currentUser.id, newAppOwnerPercent)
-                                        }
-                                      }));
-                                    }
-                                  }}
-                                  onBlur={(e) => {
-                                    const value = parseFloat(e.target.value) || 0;
-                                    setDriverEdits((prev) => ({
-                                      ...prev,
-                                      [driver.driver.id]: {
-                                        ...prev[driver.driver.id],
-                                        appFeeAmount: Math.round(value * 100) / 100
-                                      }
-                                    }));
-                                  }}
-                                  className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
-                                  step="any"
-                                  min="0" />
-                              </td>
-                            </tr>);
-
-                        })}
-                        {/* Other App Fee Row */}
-                        <tr style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
-                          <td className="px-2 py-1.5 text-left">Other App Fee</td>
-                          <td className="text-right px-1 py-1.5">
-                            <span className="text-[11px] font-medium">{otherAppFeePercent.toFixed(2)}%</span>
-                          </td>
-                          <td className="text-right px-1 py-1.5">
-                            <input
-                              type="number"
-                              value={calculateAppFeeAmount('other-app-fee', otherAppFeePercent).toFixed(2)}
-                              onChange={(e) => {
-                                const newAmount = parseFloat(e.target.value) || 0;
-                                let totalBillableCount = 0;
-                                const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                                const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                                deliveries.forEach((d) => {
-                                  if (!d || !d.store_id) return;
-                                  const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                                  if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                                  const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                                  if (!validStatus) return;
-                                  if (!d.patient_id && !d.after_hours_pickup) return;
-                                  const store = stores.find((s) => s?.id === d.store_id);
-                                  if (!store) return;
-                                  let paysAppFees = store.pays_app_fees || false;
-                                  if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                    const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                      new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                    );
-                                    if (sortedHistory[0]) {
-                                      paysAppFees = sortedHistory[0].pays_app_fees;
-                                    }
-                                  }
-                                  if (paysAppFees) {
-                                    totalBillableCount++;
-                                  }
-                                });
-                                const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
-                                const newPercent = totalMonthlyAppFees > 0 ? newAmount / totalMonthlyAppFees * 100 : 0;
-                                setOtherAppFeePercent(newPercent);
-
-                                // RULE 3: Editing Other App Fee → recalc App Owner fee
-                                const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
-                                  if (d.driver.id === currentUser?.id) return sum; // Skip App Owner
-                                  return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
-                                }, 0);
-                                const newAppOwnerPercent = Math.max(0, 100 - sumNonAppOwnerDrivers - newPercent);
-                                setDriverEdits((prev) => ({
-                                  ...prev,
-                                  [currentUser.id]: {
-                                    ...prev[currentUser.id],
-                                    appFeePercent: newAppOwnerPercent,
-                                    appFeeAmount: calculateAppFeeAmount(currentUser.id, newAppOwnerPercent)
-                                  }
-                                }));
-                              }}
-                              className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
-                              step="0.01"
-                              min="0" />
-                          </td>
-                        </tr>
-
-                        {/* App Owner Row - Shows current user's app fee since they ARE the app owner */}
-                        <tr style={{ background: 'var(--bg-slate-100)', borderTop: '2px solid var(--border-slate-300)' }}>
-                          <td className="px-2 py-1.5 font-semibold">App Owner (You)</td>
-                          <td className="text-right px-1 py-1.5">
-                            <span className="text-[11px] font-semibold">{(driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}%</span>
-                          </td>
-                          <td className="text-right px-1 py-1.5 font-semibold">${(driverEdits[currentUser?.id]?.appFeeAmount || calculateAppFeeAmount(currentUser?.id, driverEdits[currentUser?.id]?.appFeePercent || 0) || 0).toFixed(2)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Summary */}
-                <div className="text-xs p-2 bg-slate-50 rounded mt-3">
-                  <div>Sum of Other Drivers: <strong>{sumAllDriversAppFeePercent.toFixed(2)}%</strong></div>
-                  <div>App Owner (You): <strong>{(driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}%</strong></div>
-                  <div>Other App Fee: <strong>{otherAppFeePercent.toFixed(2)}%</strong></div>
-                  <div className="text-xs text-slate-500 mt-1 font-semibold">Total: {(sumAllDriversAppFeePercent + (driverEdits[currentUser?.id]?.appFeePercent || 0) + otherAppFeePercent).toFixed(2)}% / 100%</div>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      // Save each driver's app fee percentage and amount - direct update without recalculation
-                      for (const driver of driversWithDeliveries) {
-                        const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
-                        const driverAppFeeAmount = driverEdits[driver.driver.id]?.appFeeAmount || 0;
-                        const existingRecord = getDriverPayrollRecord(driver.driver.id);
-
-                        if (existingRecord) {
-                          await base44.entities.Payroll.update(existingRecord.id, {
-                            app_fee_percentage: driverAppFeePercent,
-                            app_fee_amount: driverAppFeeAmount
+                    <button
+                      onClick={async () => {
+                        const name = driverEdits[deductionOverlayDriverId]?.newDeductionName;
+                        const amount = driverEdits[deductionOverlayDriverId]?.newDeductionAmount;
+                        if (name && amount) {
+                          const newDeductions = [...(driverEdits[deductionOverlayDriverId].deductions || []), { name, amount: parseFloat(amount) }];
+                          setDriverEdits((prev) => ({
+                            ...prev,
+                            [deductionOverlayDriverId]: {
+                              ...prev[deductionOverlayDriverId],
+                              deductions: newDeductions,
+                              newDeductionName: '',
+                              newDeductionAmount: ''
+                            }
+                          }));
+                          // Save immediately
+                          await savePayrollChanges(deductionOverlayDriverId, {
+                            deductions: newDeductions,
+                            total_deductions: newDeductions.reduce((sum, d) => sum + (d?.amount || 0), 0)
                           });
                         }
-                      }
+                      }}
+                      className="px-3 py-1 bg-emerald-600 text-white rounded text-sm font-medium hover:bg-emerald-700">
 
-                      // Save Extra_App_Fee_Percentage and Other_App_Fee_Percentage to AppSettings
-                      const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                      if (settings?.[0]) {
-                        await base44.entities.AppSettings.update(settings[0].id, {
-                          setting_value: {
-                            ...settings[0].setting_value,
-                            Extra_App_Fee_Percentage: extraAppFeePercent,
-                            Other_App_Fee_Percentage: otherAppFeePercent
-                          }
-                        });
-                      }
-                      setAppFeeOverlayAllDriversId(null);
-                    } catch (error) {
-                      console.error('Failed to save App Fee changes:', error);
-                    }
-                  }}
-                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
-                  Save & Close
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        }
-
-        {/* App Fee Manager Overlay Dialog */}
-        {appFeeOverlayDriverId && driverEdits[appFeeOverlayDriverId] &&
-          <Dialog open={true} onOpenChange={(open) => !open && setAppFeeOverlayDriverId(null)}>
-            <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-              <DialogHeader>
-                <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Fee</DialogTitle>
-              </DialogHeader>
-
-              <div className="space-y-3">
-                <p className="text-xs text-slate-600">For {payrollData.find((d) => d.driver.id === appFeeOverlayDriverId)?.driver.user_name}:</p>
-
-                {/* Two fields side by side */}
-                <div className="grid grid-cols-2 gap-3">
-                  {/* App Fee % */}
-                  <div>
-                    <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee %</label>
-                    <div className="flex gap-1">
-                      <input
-                        type="number"
-                        value={driverEdits[appFeeOverlayDriverId]?.appFeePercent || 0}
-                        onChange={(e) => {
-                          const newPercent = parseFloat(e.target.value) || 0;
-                          const calculatedAmount = calculateAppFeeAmount(appFeeOverlayDriverId, newPercent);
-                          setDriverEdits((prev) => ({
-                            ...prev,
-                            [appFeeOverlayDriverId]: {
-                              ...prev[appFeeOverlayDriverId],
-                              appFeePercent: newPercent,
-                              appFeeAmount: calculatedAmount
-                            }
-                          }));
-                        }}
-                        placeholder="0"
-                        className="flex-1 px-2 py-1 text-sm border rounded"
-                        step="0.01"
-                        min="0"
-                        max="100" />
-                      <span className="flex items-center text-slate-500">%</span>
-                    </div>
-                  </div>
-
-                  {/* App Fee Amount */}
-                  <div>
-                    <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee Amount</label>
-                    <div className="flex gap-1">
-                      <span className="flex items-center text-slate-500">$</span>
-                      <input
-                        type="number"
-                        value={driverEdits[appFeeOverlayDriverId]?.appFeeAmount || 0}
-                        onChange={(e) => {
-                          const newAmount = parseFloat(e.target.value) || 0;
-                          // Recalculate percentage: (amount / total_monthly_app_fees) * 100
-                          // Need to get total monthly app fees for this calculation
-                          let totalBillableCount = 0;
-                          const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                          const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-
-                          deliveries.forEach((d) => {
-                            if (!d || !d.store_id) return;
-                            const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                            if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-
-                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                            if (!validStatus) return;
-                            if (!d.patient_id && !d.after_hours_pickup) return;
-
-                            const store = stores.find((s) => s?.id === d.store_id);
-                            if (!store) return;
-
-                            let paysAppFees = store.pays_app_fees || false;
-                            if (store.app_fee_history && store.app_fee_history.length > 0) {
-                              const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                              );
-                              if (sortedHistory[0]) {
-                                paysAppFees = sortedHistory[0].pays_app_fees;
-                              }
-                            }
-
-                            if (paysAppFees) {
-                              totalBillableCount++;
-                            }
-                          });
-
-                          const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
-                          const newPercent = totalMonthlyAppFees > 0 ? newAmount / totalMonthlyAppFees * 100 : 0;
-
-                          setDriverEdits((prev) => ({
-                            ...prev,
-                            [appFeeOverlayDriverId]: {
-                              ...prev[appFeeOverlayDriverId],
-                              appFeeAmount: newAmount,
-                              appFeePercent: newPercent
-                            }
-                          }));
-                        }}
-                        placeholder="0.00"
-                        className="flex-1 px-2 py-1 text-sm border rounded"
-                        step="0.01"
-                        min="0" />
-                    </div>
+                     Add
+                    </button>
                   </div>
                 </div>
               </div>
-
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  data-dialog-close="appfee"
-                  onClick={() => {
-                    // Save only the app fee percentage
-                    savePayrollChanges(appFeeOverlayDriverId, {
-                      app_fee_percentage: driverEdits[appFeeOverlayDriverId]?.appFeePercent || 0,
-                      app_fee_amount: driverEdits[appFeeOverlayDriverId]?.appFeeAmount || 0
-                    });
-                    setAppFeeOverlayDriverId(null);
-                  }}
-                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
-                  Close
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        }
-
-        {/* Admin Confirmation Dialog - but NOT for admin-drivers viewing their own payroll */}
-        <Dialog open={showConfirmDialog && isAdmin && !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
-          <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
-                <AlertCircle className="w-5 h-5 text-amber-500" />
-                Finalize All Driver Payrolls
-              </DialogTitle>
-              <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
-                You are about to finalize payroll for <strong>{currentPeriod?.label}</strong>.
-                <br /><br />
-                <strong>Total Gross Pay:</strong> {formatCurrency(grandTotalGross)}
-                <br />
-                <strong>Drivers Confirmed:</strong> {finalizedDriversCount}/{driversWithDeliveriesIds.length}
-                <br /><br />
-                This will lock all deliveries for this pay period. Drivers will no longer be able to edit stops.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                Cancel
-              </Button>
+            </div>
+            
+            <DialogFooter>
               <Button
-                onClick={handleAdminFinalize}
-                disabled={isFinalizing}
-                className="bg-emerald-600 hover:bg-emerald-700">
+                variant="outline"
+                onClick={() => setDeductionOverlayDriverId(null)}
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
 
-                {isFinalizing ? 'Finalizing...' : 'Finalize All Payrolls'}
+                Close
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        {/* Screenshot Share Modal */}
-        <ScreenshotShareModal
+        }
+
+      {/* Bonus Manager Overlay Dialog */}
+       {bonusOverlayDriverId && driverEdits[bonusOverlayDriverId] &&
+        <Dialog open={true} onOpenChange={(open) => !open && handleBonusClose()}>
+           <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+             <DialogHeader>
+               <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage Bonus Pay</DialogTitle>
+             </DialogHeader>
+
+             <div className="space-y-3">
+               <div>
+                 <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>Bonus Pay for {payrollData.find((d) => d.driver.id === bonusOverlayDriverId)?.driver.user_name}:</label>
+                 <div className="flex gap-2">
+                   <span className="flex items-center">$</span>
+                   <input
+                    type="number"
+                    value={driverEdits[bonusOverlayDriverId]?.bonusPay || 0}
+                    onChange={(e) => {
+                      const newValue = parseFloat(e.target.value) || 0;
+                      setDriverEdits((prev) => ({
+                        ...prev,
+                        [bonusOverlayDriverId]: { ...prev[bonusOverlayDriverId], bonusPay: newValue }
+                      }));
+                      // Save immediately
+                      savePayrollChanges(bonusOverlayDriverId, { bonus_pay: newValue });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const closeButton = document.querySelector('[data-dialog-close="bonus"]');
+                        if (closeButton) closeButton.click();
+                      }
+                    }}
+                    placeholder="0.00"
+                    className="flex-1 px-2 py-1 text-sm border rounded"
+                    step="0.01" />
+
+                 </div>
+                 <p className="text-xs text-slate-500 mt-2">Enter the bonus amount to add to this driver's payroll for {currentPeriod?.label}.</p>
+               </div>
+             </div>
+
+             <DialogFooter>
+                <Button
+                variant="outline"
+                data-dialog-close="bonus"
+                onClick={handleBonusClose}
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+
+                  Close
+                </Button>
+              </DialogFooter>
+           </DialogContent>
+        </Dialog>
+        }
+
+      {/* App Owner Fee Manager Overlay Dialog */}
+      {appFeeOverlayAllDriversId === 'all' && isAppOwner(currentUser) &&
+        <Dialog open={true} onOpenChange={(open) => !open && setAppFeeOverlayAllDriversId(null)}>
+       <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+         <DialogHeader>
+           <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Owner App Fee</DialogTitle>
+         </DialogHeader>
+
+         <div className="space-y-3">
+           <p className="text-xs text-slate-600">Configure app fees for operational costs.</p>
+
+           {/* Drivers Breakdown Table */}
+           <div className="mt-4">
+             <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Driver App Fee Breakdown</h3>
+             <div className="border rounded" style={{ borderColor: 'var(--border-slate-200)', maxHeight: '350px', overflowY: 'auto' }}>
+               <table className="w-full text-xs border-collapse">
+                 <thead style={{ background: 'var(--bg-slate-100)', position: 'sticky', top: 0 }}>
+                   <tr style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+                     <th className="text-left px-2 py-1.5 font-semibold">Driver</th>
+                     <th className="text-right px-2 py-1.5 font-semibold" style={{ width: '90px' }}>Fee %</th>
+                     <th className="text-right px-2 py-1.5 font-semibold" style={{ width: '80px' }}>Fee $</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {driversWithDeliveries.map((driver, idx) => {
+                        const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
+                        const driverAppFeeAmount = driverEdits[driver.driver.id]?.appFeeAmount !== undefined ? driverEdits[driver.driver.id].appFeeAmount : calculateAppFeeAmount(driver.driver.id, driverAppFeePercent);
+                        const isCurrentUser = driver.driver.id === currentUser?.id;
+                        const isAppOwnerRow = isCurrentUser && isAppOwner(currentUser);
+
+                        return (
+                          <tr key={driver.driver.id} style={{ borderBottom: '1px solid var(--border-slate-200)', background: isCurrentUser ? 'var(--bg-blue-50)' : idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
+                         <td className="px-2 py-1.5 truncate text-left">
+                           {driver.driver.user_name || driver.driver.full_name}
+                           {isAppOwnerRow && <span className="text-xs font-semibold text-blue-600 ml-1">(App Owner)</span>}
+                         </td>
+                         <td className="text-right px-1 py-1.5">
+                           <span className="text-[11px] font-medium">{driverAppFeePercent.toFixed(2)}%</span>
+                         </td>
+                         <td className="text-right px-1 py-1.5">
+                           <input
+                                type="number"
+                                value={driverAppFeeAmount}
+                                onChange={(e) => {
+                                  const newAmount = parseFloat(e.target.value) || 0;
+                                  let totalBillableCount = 0;
+                                  const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                                  const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                                  deliveries.forEach((d) => {
+                                    if (!d || !d.store_id) return;
+                                    const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                                    if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+                                    const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                                    if (!validStatus) return;
+                                    if (!d.patient_id && !d.after_hours_pickup) return;
+                                    const store = stores.find((s) => s?.id === d.store_id);
+                                    if (!store) return;
+                                    let paysAppFees = store.pays_app_fees || false;
+                                    if (store.app_fee_history && store.app_fee_history.length > 0) {
+                                      const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                                      new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                                      );
+                                      if (sortedHistory[0]) {
+                                        paysAppFees = sortedHistory[0].pays_app_fees;
+                                      }
+                                    }
+                                    if (paysAppFees) {
+                                      totalBillableCount++;
+                                    }
+                                  });
+                                  const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                                  const newPercent = totalMonthlyAppFees > 0 ? newAmount / totalMonthlyAppFees * 100 : 0;
+
+                                  setDriverEdits((prev) => ({
+                                    ...prev,
+                                    [driver.driver.id]: {
+                                      ...prev[driver.driver.id],
+                                      appFeePercent: newPercent,
+                                      appFeeAmount: newAmount
+                                    }
+                                  }));
+
+                                  // RULE 1 & 2: Recalculate based on who is being edited
+                                  if (isAppOwnerRow) {
+                                    // Editing App Owner → recalc Other App Fee
+                                    const sumAllDrivers = driversWithDeliveries.reduce((sum, d) => {
+                                      if (d.driver.id === driver.driver.id) return sum + newPercent;
+                                      return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                                    }, 0);
+                                    const newOtherPercent = Math.max(0, 100 - sumAllDrivers);
+                                    setOtherAppFeePercent(Math.round(newOtherPercent * 100) / 100);
+                                  } else {
+                                    // Editing regular driver → recalc App Owner fee
+                                    const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
+                                      if (d.driver.id === currentUser?.id) return sum; // Skip App Owner
+                                      if (d.driver.id === driver.driver.id) return sum + newPercent; // Use new value
+                                      return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                                    }, 0);
+                                    const newAppOwnerPercent = Math.max(0, 100 - sumNonAppOwnerDrivers - otherAppFeePercent);
+                                    setDriverEdits((prev) => ({
+                                      ...prev,
+                                      [currentUser.id]: {
+                                        ...prev[currentUser.id],
+                                        appFeePercent: newAppOwnerPercent,
+                                        appFeeAmount: calculateAppFeeAmount(currentUser.id, newAppOwnerPercent)
+                                      }
+                                    }));
+                                  }
+                                }}
+                                onBlur={(e) => {
+                                  const value = parseFloat(e.target.value) || 0;
+                                  setDriverEdits((prev) => ({
+                                    ...prev,
+                                    [driver.driver.id]: {
+                                      ...prev[driver.driver.id],
+                                      appFeeAmount: Math.round(value * 100) / 100
+                                    }
+                                  }));
+                                }}
+                                className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
+                                step="any"
+                                min="0" />
+                         </td>
+                       </tr>);
+
+                      })}
+                   {/* Other App Fee Row */}
+                   <tr style={{ background: 'var(--bg-slate-50)', borderBottom: '1px solid var(--border-slate-200)' }}>
+                     <td className="px-2 py-1.5 text-left">Other App Fee</td>
+                     <td className="text-right px-1 py-1.5">
+                       <span className="text-[11px] font-medium">{otherAppFeePercent.toFixed(2)}%</span>
+                     </td>
+                     <td className="text-right px-1 py-1.5">
+                       <input
+                            type="number"
+                            value={calculateAppFeeAmount('other-app-fee', otherAppFeePercent).toFixed(2)}
+                            onChange={(e) => {
+                              const newAmount = parseFloat(e.target.value) || 0;
+                              let totalBillableCount = 0;
+                              const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                              const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                              deliveries.forEach((d) => {
+                                if (!d || !d.store_id) return;
+                                const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                                if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+                                const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                                if (!validStatus) return;
+                                if (!d.patient_id && !d.after_hours_pickup) return;
+                                const store = stores.find((s) => s?.id === d.store_id);
+                                if (!store) return;
+                                let paysAppFees = store.pays_app_fees || false;
+                                if (store.app_fee_history && store.app_fee_history.length > 0) {
+                                  const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                                  new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                                  );
+                                  if (sortedHistory[0]) {
+                                    paysAppFees = sortedHistory[0].pays_app_fees;
+                                  }
+                                }
+                                if (paysAppFees) {
+                                  totalBillableCount++;
+                                }
+                              });
+                              const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                              const newPercent = totalMonthlyAppFees > 0 ? newAmount / totalMonthlyAppFees * 100 : 0;
+                              setOtherAppFeePercent(newPercent);
+
+                              // RULE 3: Editing Other App Fee → recalc App Owner fee
+                              const sumNonAppOwnerDrivers = driversWithDeliveries.reduce((sum, d) => {
+                                if (d.driver.id === currentUser?.id) return sum; // Skip App Owner
+                                return sum + (driverEdits[d.driver.id]?.appFeePercent || 0);
+                              }, 0);
+                              const newAppOwnerPercent = Math.max(0, 100 - sumNonAppOwnerDrivers - newPercent);
+                              setDriverEdits((prev) => ({
+                                ...prev,
+                                [currentUser.id]: {
+                                  ...prev[currentUser.id],
+                                  appFeePercent: newAppOwnerPercent,
+                                  appFeeAmount: calculateAppFeeAmount(currentUser.id, newAppOwnerPercent)
+                                }
+                              }));
+                            }}
+                            className="w-full px-1 py-0.5 border rounded text-right text-xs no-spinner"
+                            step="0.01"
+                            min="0" />
+                     </td>
+                   </tr>
+
+                   {/* App Owner Row - Shows current user's app fee since they ARE the app owner */}
+                   <tr style={{ background: 'var(--bg-slate-100)', borderTop: '2px solid var(--border-slate-300)' }}>
+                     <td className="px-2 py-1.5 font-semibold">App Owner (You)</td>
+                     <td className="text-right px-1 py-1.5">
+                       <span className="text-[11px] font-semibold">{(driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}%</span>
+                     </td>
+                     <td className="text-right px-1 py-1.5 font-semibold">${(driverEdits[currentUser?.id]?.appFeeAmount || calculateAppFeeAmount(currentUser?.id, driverEdits[currentUser?.id]?.appFeePercent || 0) || 0).toFixed(2)}</td>
+                   </tr>
+                 </tbody>
+               </table>
+             </div>
+           </div>
+
+           {/* Summary */}
+           <div className="text-xs p-2 bg-slate-50 rounded mt-3">
+             <div>Sum of Other Drivers: <strong>{sumAllDriversAppFeePercent.toFixed(2)}%</strong></div>
+             <div>App Owner (You): <strong>{(driverEdits[currentUser?.id]?.appFeePercent || 0).toFixed(2)}%</strong></div>
+             <div>Other App Fee: <strong>{otherAppFeePercent.toFixed(2)}%</strong></div>
+             <div className="text-xs text-slate-500 mt-1 font-semibold">Total: {(sumAllDriversAppFeePercent + (driverEdits[currentUser?.id]?.appFeePercent || 0) + otherAppFeePercent).toFixed(2)}% / 100%</div>
+           </div>
+           </div>
+
+           <DialogFooter>
+           <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    // Save each driver's app fee percentage and amount - direct update without recalculation
+                    for (const driver of driversWithDeliveries) {
+                      const driverAppFeePercent = driverEdits[driver.driver.id]?.appFeePercent || 0;
+                      const driverAppFeeAmount = driverEdits[driver.driver.id]?.appFeeAmount || 0;
+                      const existingRecord = getDriverPayrollRecord(driver.driver.id);
+
+                      if (existingRecord) {
+                        await base44.entities.Payroll.update(existingRecord.id, {
+                          app_fee_percentage: driverAppFeePercent,
+                          app_fee_amount: driverAppFeeAmount
+                        });
+                      }
+                    }
+
+                    // Save Extra_App_Fee_Percentage and Other_App_Fee_Percentage to AppSettings
+                    const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                    if (settings?.[0]) {
+                      await base44.entities.AppSettings.update(settings[0].id, {
+                        setting_value: {
+                          ...settings[0].setting_value,
+                          Extra_App_Fee_Percentage: extraAppFeePercent,
+                          Other_App_Fee_Percentage: otherAppFeePercent
+                        }
+                      });
+                    }
+                    setAppFeeOverlayAllDriversId(null);
+                  } catch (error) {
+                    console.error('Failed to save App Fee changes:', error);
+                  }
+                }}
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+             Save & Close
+           </Button>
+         </DialogFooter>
+       </DialogContent>
+      </Dialog>
+        }
+
+      {/* App Fee Manager Overlay Dialog */}
+      {appFeeOverlayDriverId && driverEdits[appFeeOverlayDriverId] &&
+        <Dialog open={true} onOpenChange={(open) => !open && setAppFeeOverlayDriverId(null)}>
+       <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+         <DialogHeader>
+           <DialogTitle style={{ color: 'var(--text-slate-900)' }}>Manage App Fee</DialogTitle>
+         </DialogHeader>
+
+         <div className="space-y-3">
+           <p className="text-xs text-slate-600">For {payrollData.find((d) => d.driver.id === appFeeOverlayDriverId)?.driver.user_name}:</p>
+
+           {/* Two fields side by side */}
+           <div className="grid grid-cols-2 gap-3">
+             {/* App Fee % */}
+             <div>
+               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee %</label>
+               <div className="flex gap-1">
+                 <input
+                      type="number"
+                      value={driverEdits[appFeeOverlayDriverId]?.appFeePercent || 0}
+                      onChange={(e) => {
+                        const newPercent = parseFloat(e.target.value) || 0;
+                        const calculatedAmount = calculateAppFeeAmount(appFeeOverlayDriverId, newPercent);
+                        setDriverEdits((prev) => ({
+                          ...prev,
+                          [appFeeOverlayDriverId]: {
+                            ...prev[appFeeOverlayDriverId],
+                            appFeePercent: newPercent,
+                            appFeeAmount: calculatedAmount
+                          }
+                        }));
+                      }}
+                      placeholder="0"
+                      className="flex-1 px-2 py-1 text-sm border rounded"
+                      step="0.01"
+                      min="0"
+                      max="100" />
+                 <span className="flex items-center text-slate-500">%</span>
+               </div>
+             </div>
+
+             {/* App Fee Amount */}
+             <div>
+               <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--text-slate-600)' }}>App Fee Amount</label>
+               <div className="flex gap-1">
+                 <span className="flex items-center text-slate-500">$</span>
+                 <input
+                      type="number"
+                      value={driverEdits[appFeeOverlayDriverId]?.appFeeAmount || 0}
+                      onChange={(e) => {
+                        const newAmount = parseFloat(e.target.value) || 0;
+                        // Recalculate percentage: (amount / total_monthly_app_fees) * 100
+                        // Need to get total monthly app fees for this calculation
+                        let totalBillableCount = 0;
+                        const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                        const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+
+                        deliveries.forEach((d) => {
+                          if (!d || !d.store_id) return;
+                          const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                          if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+
+                          const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                          if (!validStatus) return;
+                          if (!d.patient_id && !d.after_hours_pickup) return;
+
+                          const store = stores.find((s) => s?.id === d.store_id);
+                          if (!store) return;
+
+                          let paysAppFees = store.pays_app_fees || false;
+                          if (store.app_fee_history && store.app_fee_history.length > 0) {
+                            const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                            new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                            );
+                            if (sortedHistory[0]) {
+                              paysAppFees = sortedHistory[0].pays_app_fees;
+                            }
+                          }
+
+                          if (paysAppFees) {
+                            totalBillableCount++;
+                          }
+                        });
+
+                        const totalMonthlyAppFees = totalBillableCount * appFeesPerDelivery;
+                        const newPercent = totalMonthlyAppFees > 0 ? newAmount / totalMonthlyAppFees * 100 : 0;
+
+                        setDriverEdits((prev) => ({
+                          ...prev,
+                          [appFeeOverlayDriverId]: {
+                            ...prev[appFeeOverlayDriverId],
+                            appFeeAmount: newAmount,
+                            appFeePercent: newPercent
+                          }
+                        }));
+                      }}
+                      placeholder="0.00"
+                      className="flex-1 px-2 py-1 text-sm border rounded"
+                      step="0.01"
+                      min="0" />
+               </div>
+             </div>
+           </div>
+         </div>
+
+         <DialogFooter>
+           <Button
+                variant="outline"
+                data-dialog-close="appfee"
+                onClick={() => {
+                  // Save only the app fee percentage
+                  savePayrollChanges(appFeeOverlayDriverId, {
+                    app_fee_percentage: driverEdits[appFeeOverlayDriverId]?.appFeePercent || 0,
+                    app_fee_amount: driverEdits[appFeeOverlayDriverId]?.appFeeAmount || 0
+                  });
+                  setAppFeeOverlayDriverId(null);
+                }}
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+             Close
+           </Button>
+         </DialogFooter>
+       </DialogContent>
+      </Dialog>
+        }
+
+      {/* Admin Confirmation Dialog - but NOT for admin-drivers viewing their own payroll */}
+      <Dialog open={showConfirmDialog && isAdmin && !(userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)} onOpenChange={setShowConfirmDialog}>
+        <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+              Finalize All Driver Payrolls
+            </DialogTitle>
+            <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
+              You are about to finalize payroll for <strong>{currentPeriod?.label}</strong>.
+              <br /><br />
+              <strong>Total Gross Pay:</strong> {formatCurrency(grandTotalGross)}
+              <br />
+              <strong>Drivers Confirmed:</strong> {finalizedDriversCount}/{driversWithDeliveriesIds.length}
+              <br /><br />
+              This will lock all deliveries for this pay period. Drivers will no longer be able to edit stops.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isFinalizing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              Cancel
+            </Button>
+            <Button
+                onClick={handleAdminFinalize}
+                disabled={isFinalizing}
+                className="bg-emerald-600 hover:bg-emerald-700">
+
+              {isFinalizing ? 'Finalizing...' : 'Finalize All Payrolls'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Screenshot Share Modal */}
+      <ScreenshotShareModal
           isOpen={showScreenshotModal}
           onClose={() => setShowScreenshotModal(false)}
           imageDataUrl={screenshotDataUrl}
           filename={`payroll-summary-${currentPeriod?.label || 'report'}.png`} />
 
 
-        <CardContent ref={contentRef} className="px-3 py-6">
-          <div className="space-y-4">
-            {payrollData.filter((data) => data.totalDeliveries > 0).map((data, idx) => {
+      <CardContent ref={contentRef} className="px-3 py-6">
+        <div className="space-y-4">
+          {payrollData.filter((data) => data.totalDeliveries > 0).map((data, idx) => {
               const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
               const driverPayrollRecord = getDriverPayrollRecord(data.driver.id);
               const driverHasConfirmed = driverPayrollRecord?.status === 'driver_finalized' ||
-                driverPayrollRecord?.status === 'admin_finalized' ||
-                driverPayrollRecord?.status === 'paid';
+              driverPayrollRecord?.status === 'admin_finalized' ||
+              driverPayrollRecord?.status === 'paid';
               const adminHasFinalized = driverPayrollRecord?.status === 'admin_finalized' ||
-                driverPayrollRecord?.status === 'paid';
+              driverPayrollRecord?.status === 'paid';
 
               // For admins: show badge when driver confirmed
               // For drivers: show badge when admin finalized
@@ -2750,9 +2748,9 @@ export default function PayrollSummaryCard({
 
               // Check if this is the current admin-driver's own card in "All Drivers" mode
               const isOwnCardInAllDriversMode = isAdmin &&
-                userHasRole(currentUser, 'driver') &&
-                selectedDriverId === 'all' &&
-                data.driver.id === currentUser?.id;
+              userHasRole(currentUser, 'driver') &&
+              selectedDriverId === 'all' &&
+              data.driver.id === currentUser?.id;
               const canShowConfirmButton = isOwnCardInAllDriversMode && !driverHasConfirmed && canFinalize;
 
               // Mobile view - check for tablets in portrait mode
@@ -2795,8 +2793,9 @@ export default function PayrollSummaryCard({
                     appFeeAmount={calculateAppFeeAmount(data.driver.id, driverEdits[data.driver.id]?.appFeePercent || 0)}
                     appFeePercent={driverEdits[data.driver.id]?.appFeePercent || 0}
                     ytdDataByDriver={ytdDataByDriver}
-                    isPeriodEndOfMonth={isPeriodEndOfMonth} />
-                );
+                    isPeriodEndOfMonth={isPeriodEndOfMonth} />);
+
+
               }
 
               const driverKey = data.driver.id;
@@ -2811,701 +2810,701 @@ export default function PayrollSummaryCard({
 
               return (
                 <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
-                  {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
-                      {data.driver.user_name || data.driver.full_name}
-                      {showBadge &&
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500" title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
-                          <CheckCircle className="w-3.5 h-3.5 text-white" />
-                        </span>
+              {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
+                  {data.driver.user_name || data.driver.full_name}
+                  {showBadge &&
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500" title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
+                      <CheckCircle className="w-3.5 h-3.5 text-white" />
+                    </span>
                       }
-                    </h3>
-                    {canShowConfirmButton &&
-                      <Button
-                        size="sm"
-                        onClick={() => handleDriverFinalize(data)}
-                        disabled={isFinalizing || isLoadingRecords || driverHasConfirmed}
-                        className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs h-7 px-2"
-                        title={driverHasConfirmed ? 'Already confirmed' : ''}>
+                </h3>
+                {canShowConfirmButton &&
+                    <Button
+                      size="sm"
+                      onClick={() => handleDriverFinalize(data)}
+                      disabled={isFinalizing || isLoadingRecords || driverHasConfirmed}
+                      className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs h-7 px-2"
+                      title={driverHasConfirmed ? 'Already confirmed' : ''}>
 
-                        <CheckCircle className="w-3 h-3" />
-                        {isFinalizing ? '...' : 'Confirm My Payroll'}
-                      </Button>
+                     <CheckCircle className="w-3 h-3" />
+                     {isFinalizing ? '...' : 'Confirm My Payroll'}
+                   </Button>
                     }
+              </div>
+
+              {/* Stats and Pay Summary - Side by Side */}
+              <div>
+                <div className="flex justify-between items-start">
+                  {/* Left: 8 Stats in 4 columns x 2 rows with fixed column widths */}
+                  <div className="grid text-xs" style={{ gridTemplateColumns: '150px 140px 140px 120px', gap: '1rem 1rem', rowGap: '0.125rem' }}>
+                  {/* Row 1: Rates */}
+                  <div className="flex items-center">
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.payRate)}</span>
                   </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.oversizedRate)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
+                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">{data.failedCount}</span>
+                  </div>
+                  {/* Row 2: Totals */}
+                  <div className="flex items-center">
+                    <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                    <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
+                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.storeReturnCount || 0}</span>
+                  </div>
+                </div>
 
-                  {/* Stats and Pay Summary - Side by Side */}
-                  <div>
-                    <div className="flex justify-between items-start">
-                      {/* Left: 8 Stats in 4 columns x 2 rows with fixed column widths */}
-                      <div className="grid text-xs" style={{ gridTemplateColumns: '150px 140px 140px 120px', gap: '1rem 1rem', rowGap: '0.125rem' }}>
-                        {/* Row 1: Rates */}
-                        <div className="flex items-center">
-                          <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
-                          <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.payRate)}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                          <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                          <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.oversizedRate)}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
-                          <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">{data.failedCount}</span>
-                        </div>
-                        {/* Row 2: Totals */}
-                        <div className="flex items-center">
-                          <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
-                          <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                          <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                          <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
-                          <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.storeReturnCount || 0}</span>
-                        </div>
-                      </div>
+                {/* Right: Pay Summary with YTD */}
+                <div className="text-xs ml-4 flex gap-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {/* Period Column */}
+                  <div className="flex flex-col">
+                    <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>Period</div>
+                  <table className="border-collapse">
+                    <tbody>
+                      <tr style={{ color: 'var(--text-slate-600)' }}>
+                        <td className="text-left pr-2">Net:</td>
+                        <td className="text-right pr-0.5">$</td>
+                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.grandTotal || 0).toFixed(2)}</td>
+                      </tr>
+                      <tr style={{ color: 'var(--text-slate-600)' }}>
+                        <td className="text-left pr-2">Tax:</td>
+                        <td className="text-right pr-0.5">$</td>
+                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.taxAmount || 0).toFixed(2)}</td>
+                      </tr>
+                      <tr style={{ color: 'var(--text-slate-600)' }}>
+                        <td className="text-left pr-2">
+                          {isAdmin ?
+                                  <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                              Deductions:
+                            </button> :
 
-                      {/* Right: Pay Summary with YTD */}
-                      <div className="text-xs ml-4 flex gap-4" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {/* Period Column */}
-                        <div className="flex flex-col">
-                          <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>Period</div>
-                          <table className="border-collapse">
-                            <tbody>
-                              <tr style={{ color: 'var(--text-slate-600)' }}>
-                                <td className="text-left pr-2">Net:</td>
-                                <td className="text-right pr-0.5">$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.grandTotal || 0).toFixed(2)}</td>
-                              </tr>
-                              <tr style={{ color: 'var(--text-slate-600)' }}>
-                                <td className="text-left pr-2">Tax:</td>
-                                <td className="text-right pr-0.5">$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.taxAmount || 0).toFixed(2)}</td>
-                              </tr>
-                              <tr style={{ color: 'var(--text-slate-600)' }}>
-                                <td className="text-left pr-2">
-                                  {isAdmin ?
-                                    <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
-                                      Deductions:
-                                    </button> :
-
-                                    'Deductions:'
+                                  'Deductions:'
                                   }
-                                </td>
-                                <td className="text-right pr-0.5">-$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0).toFixed(2)}</td>
-                              </tr>
-                              <tr style={{ color: 'var(--text-slate-600)' }}>
-                                <td className="text-left pr-2">
-                                  {isAdmin ?
-                                    <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
-                                      Bonus:
-                                    </button> :
+                        </td>
+                        <td className="text-right pr-0.5">-$</td>
+                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0).toFixed(2)}</td>
+                      </tr>
+                      <tr style={{ color: 'var(--text-slate-600)' }}>
+                        <td className="text-left pr-2">
+                          {isAdmin ?
+                                  <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                              Bonus:
+                            </button> :
 
-                                    'Bonus:'
+                                  'Bonus:'
                                   }
-                                </td>
-                                <td className="text-right pr-0.5">+$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.bonusPay || 0).toFixed(2)}</td>
-                              </tr>
-                              {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0) &&
-                                <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
-                                  <td className="text-left pr-2">
-                                    <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
-                                      App Fee %:
-                                    </button>
-                                  </td>
-                                  <td className="text-right pr-0.5">+$</td>
-                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0)).toFixed(2)}</td>
-                                </tr>
+                        </td>
+                        <td className="text-right pr-0.5">+$</td>
+                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.bonusPay || 0).toFixed(2)}</td>
+                      </tr>
+                      {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0) &&
+                              <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
+                        <td className="text-left pr-2">
+                          <button onClick={() => setAppFeeOverlayDriverId(driverKey)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                            App Fee %:
+                          </button>
+                        </td>
+                        <td className="text-right pr-0.5">+$</td>
+                        <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0)).toFixed(2)}</td>
+                        </tr>
                               }
-                              <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
-                                <td colSpan="3" className="pt-1"></td>
-                              </tr>
-                              <tr className="text-lg font-bold text-emerald-600">
-                                <td className="text-left pr-2">Gross:</td>
-                                <td className="text-right pr-0.5">$</td>
-                                <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {/* Vertical Divider */}
-                        <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
-
-                        {/* YTD Column */}
-                        <div className="flex flex-col">
-                          <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>YTD</div>
-                          <table className="border-collapse">
-                            <tbody>
-                              <tr style={{ color: 'var(--text-slate-600)' }}>
-                                <td className="text-right pr-0.5">$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdNetPay ?? 0).toFixed(2)}</td>
-                              </tr>
-                              <tr style={{ color: 'var(--text-slate-600)' }}>
-                                <td className="text-right pr-0.5">$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount ?? 0).toFixed(2)}</td>
-                              </tr>
-                              <tr style={{ color: 'var(--text-slate-600)' }}>
-                                <td className="text-right pr-0.5">-$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount ?? 0).toFixed(2)}</td>
-                              </tr>
-                              <tr style={{ color: 'var(--text-slate-600)' }}>
-                                <td className="text-right pr-0.5">+$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0).toFixed(2)}</td>
-                              </tr>
-                              {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || driverEdits[data.driver.id]?.appFeePercent > 0) &&
-                                <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-ytd-row="true">
-                                  <td className="text-right pr-0.5">+$</td>
-                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0).toFixed(2)}</td>
-                                </tr>
-                              }
-                              <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
-                                <td colSpan="2" className="pt-1"></td>
-                              </tr>
-                              <tr className="text-lg font-bold text-emerald-600">
-                                <td className="text-right pr-0.5">$</td>
-                                <td className="text-right" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0).toFixed(2)}</td>
-                              </tr>
-
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                      <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
+                        <td colSpan="3" className="pt-1"></td>
+                      </tr>
+                      <tr className="text-lg font-bold text-emerald-600">
+                        <td className="text-left pr-2">Gross:</td>
+                        <td className="text-right pr-0.5">$</td>
+                        <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                    </table>
                     </div>
-                  </div>
-                </div>);
+
+                    {/* Vertical Divider */}
+                    <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
+
+                    {/* YTD Column */}
+                    <div className="flex flex-col">
+                      <div className="font-bold text-center mb-1 pb-1 border-b" style={{ borderColor: 'var(--border-slate-300)' }}>YTD</div>
+                      <table className="border-collapse">
+                        <tbody>
+                          <tr style={{ color: 'var(--text-slate-600)' }}>
+                            <td className="text-right pr-0.5">$</td>
+                            <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdNetPay ?? 0).toFixed(2)}</td>
+                          </tr>
+                          <tr style={{ color: 'var(--text-slate-600)' }}>
+                            <td className="text-right pr-0.5">$</td>
+                            <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount ?? 0).toFixed(2)}</td>
+                          </tr>
+                          <tr style={{ color: 'var(--text-slate-600)' }}>
+                            <td className="text-right pr-0.5">-$</td>
+                            <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount ?? 0).toFixed(2)}</td>
+                          </tr>
+                          <tr style={{ color: 'var(--text-slate-600)' }}>
+                            <td className="text-right pr-0.5">+$</td>
+                            <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0).toFixed(2)}</td>
+                          </tr>
+                          {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || driverEdits[data.driver.id]?.appFeePercent > 0) &&
+                              <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-ytd-row="true">
+                            <td className="text-right pr-0.5">+$</td>
+                            <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0).toFixed(2)}</td>
+                          </tr>
+                              }
+                          <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
+                            <td colSpan="2" className="pt-1"></td>
+                          </tr>
+                          <tr className="text-lg font-bold text-emerald-600">
+                            <td className="text-right pr-0.5">$</td>
+                            <td className="text-right" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0).toFixed(2)}</td>
+                          </tr>
+
+                        </tbody>
+                        </table>
+                        </div>
+                            </div>
+                             </div>
+                             </div>
+                             </div>);
 
             })}
+          
+          {/* Total App Fees Collected - App Owner Only */}
+          {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) && isAppOwner(currentUser) &&
+            <div className="pt-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-slate-50)', borderLeft: '3px solid #8b5cf6' }}>
+            {/* Desktop View */}
+            <div className="hidden md:block">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+                  Total App Fees Collected
+                </div>
+                <div className="flex gap-6 items-start">
+                  {/* Period Column */}
+                  <div className="flex flex-col">
+                    <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>Month</div>
+                    <table className="border-collapse">
+                      <tbody>
+                        <tr style={{ color: 'var(--text-slate-600)' }}>
+                          <td className="text-left pr-2">
+                            <button
+                                onClick={() => setAppFeeOverlayAllDriversId('all')}
+                                className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                              Total Fees:
+                            </button>
+                          </td>
+                          <td className="text-right pr-0.5">$</td>
+                          <td className="text-right font-semibold" style={{ width: '60px' }}>
+                            {(() => {
+                                // Calculate total billable deliveries in calendar month
+                                const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                                const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                                let totalBillableCount = 0;
+                                deliveries.forEach((d) => {
+                                  if (!d || !d.store_id) return;
+                                  const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                                  if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+                                  const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                                  if (!validStatus) return;
+                                  if (!d.patient_id && !d.after_hours_pickup) return;
+                                  const store = stores.find((s) => s?.id === d.store_id);
+                                  if (!store) return;
+                                  let paysAppFees = store.pays_app_fees || false;
+                                  if (store.app_fee_history && store.app_fee_history.length > 0) {
+                                    const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                                    new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                                    );
+                                    if (sortedHistory[0]) {
+                                      paysAppFees = sortedHistory[0].pays_app_fees;
+                                    }
+                                  }
+                                  if (paysAppFees) {
+                                    totalBillableCount++;
+                                  }
+                                });
+                                return (totalBillableCount * appFeesPerDelivery).toFixed(2);
+                              })()}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
 
-            {/* Total App Fees Collected - App Owner Only */}
-            {payrollData.length > 1 && isAdmin && isPeriodEndOfMonth && isAppOwner(currentUser) && isAppOwner(currentUser) &&
-              <div className="pt-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-slate-50)', borderLeft: '3px solid #8b5cf6' }}>
-                {/* Desktop View */}
-                <div className="hidden md:block">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
-                      Total App Fees Collected
+                  {/* Vertical Divider */}
+                  <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
+
+                  {/* YTD Column */}
+                  <div className="flex flex-col">
+                    <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>YTD</div>
+                    <table className="border-collapse">
+                      <tbody>
+                        <tr style={{ color: 'var(--text-slate-600)' }}>
+                          <td className="text-right pr-0.5">$</td>
+                          <td className="text-right font-semibold" style={{ width: '60px' }}>
+                            {(() => {
+                                // Calculate YTD total app fees (Jan 1 to current month end)
+                                const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
+                                const currentMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                                let ytdTotalBillable = 0;
+                                deliveries.forEach((d) => {
+                                  if (!d || !d.store_id) return;
+                                  const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                                  if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
+                                  const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                                  if (!validStatus) return;
+                                  if (!d.patient_id && !d.after_hours_pickup) return;
+                                  const store = stores.find((s) => s?.id === d.store_id);
+                                  if (!store) return;
+                                  let paysAppFees = store.pays_app_fees || false;
+                                  if (store.app_fee_history && store.app_fee_history.length > 0) {
+                                    const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                                    new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                                    );
+                                    const applicableEntry = sortedHistory.find((entry) =>
+                                    new Date(entry.effective_date) <= deliveryDate
+                                    );
+                                    if (applicableEntry) {
+                                      paysAppFees = applicableEntry.pays_app_fees;
+                                    }
+                                  }
+                                  if (paysAppFees) {
+                                    ytdTotalBillable++;
+                                  }
+                                });
+                                return (ytdTotalBillable * appFeesPerDelivery).toFixed(2);
+                              })()}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile View */}
+            <div className="md:hidden">
+              <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-slate-700)' }}>
+                Total App Fees Collected
+              </div>
+              
+              <div className="p-3 rounded-lg border" style={{
+                  background: 'var(--bg-white)',
+                  borderColor: 'var(--border-slate-200)',
+                  fontVariantNumeric: 'tabular-nums'
+                }}>
+                <div className="text-xs font-mono">
+                  {/* Header Row */}
+                  <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{
+                      gridTemplateColumns: '1fr 22px 60px 22px 60px',
+                      borderColor: 'var(--border-slate-200)',
+                      color: 'var(--text-slate-700)'
+                    }}>
+                    <div></div>
+                    <div></div>
+                    <div className="text-right">Month</div>
+                    <div></div>
+                    <div className="text-right">YTD</div>
+                  </div>
+
+                  {/* Total Fees */}
+                  <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
+                    <div className="text-left">Total Fees:</div>
+                    <div className="text-right pr-0.5">$</div>
+                    <div className="text-right font-semibold">
+                      {(() => {
+                          // Calculate total billable deliveries in calendar month
+                          const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                          const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                          let totalBillableCount = 0;
+                          deliveries.forEach((d) => {
+                            if (!d || !d.store_id) return;
+                            const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                            if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                            if (!validStatus) return;
+                            if (!d.patient_id && !d.after_hours_pickup) return;
+                            const store = stores.find((s) => s?.id === d.store_id);
+                            if (!store) return;
+                            let paysAppFees = store.pays_app_fees || false;
+                            if (store.app_fee_history && store.app_fee_history.length > 0) {
+                              const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                              );
+                              if (sortedHistory[0]) {
+                                paysAppFees = sortedHistory[0].pays_app_fees;
+                              }
+                            }
+                            if (paysAppFees) {
+                              totalBillableCount++;
+                            }
+                          });
+                          return (totalBillableCount * appFeesPerDelivery).toFixed(2);
+                        })()}
                     </div>
-                    <div className="flex gap-6 items-start">
-                      {/* Period Column */}
-                      <div className="flex flex-col">
-                        <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>Month</div>
+                    <div className="text-right pr-0.5">$</div>
+                    <div className="text-right font-semibold">
+                      {(() => {
+                          // Calculate YTD total app fees (Jan 1 to current month end)
+                          const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
+                          const currentMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                          let ytdTotalBillable = 0;
+                          deliveries.forEach((d) => {
+                            if (!d || !d.store_id) return;
+                            const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                            if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
+                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+                            if (!validStatus) return;
+                            if (!d.patient_id && !d.after_hours_pickup) return;
+                            const store = stores.find((s) => s?.id === d.store_id);
+                            if (!store) return;
+                            let paysAppFees = store.pays_app_fees || false;
+                            if (store.app_fee_history && store.app_fee_history.length > 0) {
+                              const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                              );
+                              const applicableEntry = sortedHistory.find((entry) =>
+                              new Date(entry.effective_date) <= deliveryDate
+                              );
+                              if (applicableEntry) {
+                                paysAppFees = applicableEntry.pays_app_fees;
+                              }
+                            }
+                            if (paysAppFees) {
+                              ytdTotalBillable++;
+                            }
+                          });
+                          return (ytdTotalBillable * appFeesPerDelivery).toFixed(2);
+                        })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+            }
+
+          {/* Grand Total for All Drivers */}
+          {payrollData.length > 1 &&
+            <div className="pt-4" style={{ borderTop: '2px solid var(--border-slate-300)' }}>
+              {/* Desktop View - hide on phones and tablets in portrait */}
+              <div style={{
+                display: (() => {
+                  if (typeof window === 'undefined') return 'block';
+                  const ua = navigator.userAgent;
+                  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
+                  const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+
+                  // Phones never show desktop
+                  if (isPhone) return 'none';
+
+                  // Tablets: portrait = hide, landscape = show
+                  if (isTabletDevice) {
+                    const isPortrait = window.innerWidth < window.innerHeight;
+                    return isPortrait ? 'none' : 'block';
+                  }
+
+                  // Desktop: show if width >= 768px
+                  return window.innerWidth >= 768 ? 'block' : 'none';
+                })()
+              }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
+                </div>
+
+                {/* Two Column Layout */}
+                <div className="flex gap-3 items-start justify-between">
+                  {/* Left Column: Period Stats Summary */}
+                  <div className="text-xs grid gap-1" style={{ gridTemplateColumns: '150px 140px 140px', rowGap: '0.125rem' }}>
+                    {/* Row 1 */}
+                    <div className="flex items-center">
+                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
+                      <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
+                        {driversWithDeliveries.reduce((sum, d) => sum + d.totalDeliveries, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalBasePay, 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                      <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
+                        {driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKm, 0).toFixed(2)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKmPay, 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                      <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
+                        {driversWithDeliveries.reduce((sum, d) => sum + d.oversizedCount, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalOversizedPay, 0).toFixed(2)}
+                      </span>
+                    </div>
+                    
+                    {/* Row 2 */}
+                    <div className="flex items-center">
+                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
+                      <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">
+                        {driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
+                      <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">
+                        {driversWithDeliveries.reduce((sum, d) => sum + d.storeReturnCount, 0)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Pay Totals with YTD */}
+                  <div className="flex items-start ml-auto gap-3">
+                  {/* Period Column */}
+                  <div className="flex flex-col">
+                    {grandTotalTax > 0 || grandTotalDeductions > 0 ?
+                      <>
+                        <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>Period</div>
                         <table className="border-collapse">
                           <tbody>
+                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <td className="text-left pr-2">Net:</td>
+                              <td className="text-right pr-0.5">$</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalAllDrivers.toFixed(2)}</td>
+                            </tr>
+                            {grandTotalTax > 0 &&
+                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <td className="text-left pr-2">Tax:</td>
+                              <td className="text-right pr-0.5">$</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalTax.toFixed(2)}</td>
+                            </tr>
+                            }
+                            {grandTotalDeductions > 0 &&
+                            <tr style={{ color: '#ef4444' }}>
+                              <td className="text-left pr-2">Deductions:</td>
+                              <td className="text-right pr-0.5">-$</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalDeductions.toFixed(2)}</td>
+                            </tr>
+                            }
+                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <td className="text-left pr-2">Bonus:</td>
+                              <td className="text-right pr-0.5">+$</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0).toFixed(2)}</td>
+                            </tr>
+                            {isPeriodEndOfMonth &&
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">
                                 <button
                                   onClick={() => setAppFeeOverlayAllDriversId('all')}
                                   className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
-                                  Total Fees:
+                                  Extra App Fee Cut:
                                 </button>
                               </td>
+                              <td className="text-right pr-0.5">-$</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
+                            </tr>
+                            }
+                            <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
+                              <td colSpan="3" className="pt-1"></td>
+                            </tr>
+                            <tr className="text-lg font-bold text-emerald-600">
+                              <td className="text-left pr-2">Gross:</td>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>
-                                {(() => {
-                                  // Calculate total billable deliveries in calendar month
-                                  const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                                  const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                                  let totalBillableCount = 0;
-                                  deliveries.forEach((d) => {
-                                    if (!d || !d.store_id) return;
-                                    const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                                    if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                                    const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                                    if (!validStatus) return;
-                                    if (!d.patient_id && !d.after_hours_pickup) return;
-                                    const store = stores.find((s) => s?.id === d.store_id);
-                                    if (!store) return;
-                                    let paysAppFees = store.pays_app_fees || false;
-                                    if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                      const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                        new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                      );
-                                      if (sortedHistory[0]) {
-                                        paysAppFees = sortedHistory[0].pays_app_fees;
-                                      }
-                                    }
-                                    if (paysAppFees) {
-                                      totalBillableCount++;
-                                    }
-                                  });
-                                  return (totalBillableCount * appFeesPerDelivery).toFixed(2);
-                                })()}
-                              </td>
+                              <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</td>
                             </tr>
                           </tbody>
                         </table>
+                      </> :
+
+                      <div className="text-lg font-bold text-emerald-700">
+                        {formatCurrency(grandTotalGross)}
                       </div>
+                      }
+                  </div>
 
-                      {/* Vertical Divider */}
-                      <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
+                  {/* Vertical Divider */}
+                  <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
 
-                      {/* YTD Column */}
-                      <div className="flex flex-col">
+                  {/* YTD Column */}
+                  <div className="flex flex-col">
+                    {ytdGrandTotalTax > 0 || ytdGrandTotalDeductions > 0 ?
+                      <>
                         <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>YTD</div>
                         <table className="border-collapse">
                           <tbody>
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>
-                                {(() => {
-                                  // Calculate YTD total app fees (Jan 1 to current month end)
-                                  const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-                                  const currentMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                                  let ytdTotalBillable = 0;
-                                  deliveries.forEach((d) => {
-                                    if (!d || !d.store_id) return;
-                                    const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                                    if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
-                                    const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                                    if (!validStatus) return;
-                                    if (!d.patient_id && !d.after_hours_pickup) return;
-                                    const store = stores.find((s) => s?.id === d.store_id);
-                                    if (!store) return;
-                                    let paysAppFees = store.pays_app_fees || false;
-                                    if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                      const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                        new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                      );
-                                      const applicableEntry = sortedHistory.find((entry) =>
-                                        new Date(entry.effective_date) <= deliveryDate
-                                      );
-                                      if (applicableEntry) {
-                                        paysAppFees = applicableEntry.pays_app_fees;
-                                      }
-                                    }
-                                    if (paysAppFees) {
-                                      ytdTotalBillable++;
-                                    }
-                                  });
-                                  return (ytdTotalBillable * appFeesPerDelivery).toFixed(2);
-                                })()}
-                              </td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalNet.toFixed(2)}</td>
+                            </tr>
+                            {ytdGrandTotalTax > 0 &&
+                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <td className="text-right pr-0.5">$</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalTax.toFixed(2)}</td>
+                            </tr>
+                            }
+                            {ytdGrandTotalDeductions > 0 &&
+                            <tr style={{ color: '#ef4444' }}>
+                              <td className="text-right pr-0.5">-$</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalDeductions.toFixed(2)}</td>
+                            </tr>
+                            }
+                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <td className="text-right pr-0.5">+$</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalBonus.toFixed(2)}</td>
+                            </tr>
+                            {isPeriodEndOfMonth &&
+                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <td className="text-right pr-0.5">-$</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
+                            </tr>
+                            }
+                            <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
+                              <td colSpan="2" className="pt-1"></td>
+                            </tr>
+                            <tr className="text-lg font-bold text-emerald-600">
+                              <td className="text-right pr-0.5">$</td>
+                              <td className="text-right" style={{ width: '60px' }}>{ytdGrandTotalGross.toFixed(2)}</td>
                             </tr>
                           </tbody>
                         </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                      </> :
 
-                {/* Mobile View */}
-                <div className="md:hidden">
-                  <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-slate-700)' }}>
-                    Total App Fees Collected
-                  </div>
-
-                  <div className="p-3 rounded-lg border" style={{
-                    background: 'var(--bg-white)',
-                    borderColor: 'var(--border-slate-200)',
-                    fontVariantNumeric: 'tabular-nums'
-                  }}>
-                    <div className="text-xs font-mono">
-                      {/* Header Row */}
-                      <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{
-                        gridTemplateColumns: '1fr 22px 60px 22px 60px',
-                        borderColor: 'var(--border-slate-200)',
-                        color: 'var(--text-slate-700)'
-                      }}>
-                        <div></div>
-                        <div></div>
-                        <div className="text-right">Month</div>
-                        <div></div>
-                        <div className="text-right">YTD</div>
+                      <div className="text-lg font-bold text-emerald-700">
+                        <div className="text-xs text-center font-bold mb-1" style={{ color: 'var(--text-slate-500)' }}>YTD</div>
+                        {formatCurrency(ytdGrandTotalGross)}
                       </div>
-
-                      {/* Total Fees */}
-                      <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
-                        <div className="text-left">Total Fees:</div>
-                        <div className="text-right pr-0.5">$</div>
-                        <div className="text-right font-semibold">
-                          {(() => {
-                            // Calculate total billable deliveries in calendar month
-                            const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                            const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                            let totalBillableCount = 0;
-                            deliveries.forEach((d) => {
-                              if (!d || !d.store_id) return;
-                              const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                              if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                              const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                              if (!validStatus) return;
-                              if (!d.patient_id && !d.after_hours_pickup) return;
-                              const store = stores.find((s) => s?.id === d.store_id);
-                              if (!store) return;
-                              let paysAppFees = store.pays_app_fees || false;
-                              if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                  new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                );
-                                if (sortedHistory[0]) {
-                                  paysAppFees = sortedHistory[0].pays_app_fees;
-                                }
-                              }
-                              if (paysAppFees) {
-                                totalBillableCount++;
-                              }
-                            });
-                            return (totalBillableCount * appFeesPerDelivery).toFixed(2);
-                          })()}
-                        </div>
-                        <div className="text-right pr-0.5">$</div>
-                        <div className="text-right font-semibold">
-                          {(() => {
-                            // Calculate YTD total app fees (Jan 1 to current month end)
-                            const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-                            const currentMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                            let ytdTotalBillable = 0;
-                            deliveries.forEach((d) => {
-                              if (!d || !d.store_id) return;
-                              const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                              if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
-                              const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-                              if (!validStatus) return;
-                              if (!d.patient_id && !d.after_hours_pickup) return;
-                              const store = stores.find((s) => s?.id === d.store_id);
-                              if (!store) return;
-                              let paysAppFees = store.pays_app_fees || false;
-                              if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                  new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                );
-                                const applicableEntry = sortedHistory.find((entry) =>
-                                  new Date(entry.effective_date) <= deliveryDate
-                                );
-                                if (applicableEntry) {
-                                  paysAppFees = applicableEntry.pays_app_fees;
-                                }
-                              }
-                              if (paysAppFees) {
-                                ytdTotalBillable++;
-                              }
-                            });
-                            return (ytdTotalBillable * appFeesPerDelivery).toFixed(2);
-                          })()}
-                        </div>
-                      </div>
-                    </div>
+                      }
                   </div>
-                </div>
+                  </div>
+                  </div>
               </div>
-            }
 
-            {/* Grand Total for All Drivers */}
-            {payrollData.length > 1 &&
-              <div className="pt-4" style={{ borderTop: '2px solid var(--border-slate-300)' }}>
-                {/* Desktop View - hide on phones and tablets in portrait */}
-                <div style={{
-                  display: (() => {
-                    if (typeof window === 'undefined') return 'block';
-                    const ua = navigator.userAgent;
-                    const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
-                    const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+              {/* Mobile View - only show on phones and tablets in portrait */}
+              <div style={{
+                display: (() => {
+                  if (typeof window === 'undefined') return 'none';
+                  const ua = navigator.userAgent;
+                  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
+                  const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
 
-                    // Phones never show desktop
-                    if (isPhone) return 'none';
+                  // Phones always show mobile
+                  if (isPhone) return 'block';
 
-                    // Tablets: portrait = hide, landscape = show
-                    if (isTabletDevice) {
-                      const isPortrait = window.innerWidth < window.innerHeight;
-                      return isPortrait ? 'none' : 'block';
-                    }
+                  // Tablets: portrait = show, landscape = hide
+                  if (isTabletDevice) {
+                    const isPortrait = window.innerWidth < window.innerHeight;
+                    return isPortrait ? 'block' : 'none';
+                  }
 
-                    // Desktop: show if width >= 768px
-                    return window.innerWidth >= 768 ? 'block' : 'none';
-                  })()
+                  // Desktop: hide if width >= 768px
+                  return window.innerWidth < 768 ? 'block' : 'none';
+                })()
+              }} className="px-4">
+                <div className="font-semibold mb-3 text-sm" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
+                
+                {/* Pay Summary Table */}
+                <div className="p-3 rounded-lg border" style={{
+                  background: 'var(--bg-white)',
+                  borderColor: 'var(--border-slate-200)',
+                  fontVariantNumeric: 'tabular-nums'
                 }}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
-                  </div>
-
-                  {/* Two Column Layout */}
-                  <div className="flex gap-3 items-start justify-between">
-                    {/* Left Column: Period Stats Summary */}
-                    <div className="text-xs grid gap-1" style={{ gridTemplateColumns: '150px 140px 140px', rowGap: '0.125rem' }}>
-                      {/* Row 1 */}
-                      <div className="flex items-center">
-                        <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
-                        <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
-                          {driversWithDeliveries.reduce((sum, d) => sum + d.totalDeliveries, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalBasePay, 0).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                        <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
-                          {driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKm, 0).toFixed(2)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalExtraKmPay, 0).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                        <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
-                          {driversWithDeliveries.reduce((sum, d) => sum + d.oversizedCount, 0)} = ${driversWithDeliveries.reduce((sum, d) => sum + d.totalOversizedPay, 0).toFixed(2)}
-                        </span>
-                      </div>
-
-                      {/* Row 2 */}
-                      <div className="flex items-center">
-                        <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
-                        <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">
-                          {driversWithDeliveries.reduce((sum, d) => sum + d.failedCount, 0)}
-                        </span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="w-16 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
-                        <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">
-                          {driversWithDeliveries.reduce((sum, d) => sum + d.storeReturnCount, 0)}
-                        </span>
-                      </div>
+                  <div className="text-xs font-mono">
+                    {/* Header Row */}
+                    <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{
+                      gridTemplateColumns: '1fr 22px 60px 22px 60px',
+                      borderColor: 'var(--border-slate-200)',
+                      color: 'var(--text-slate-700)'
+                    }}>
+                      <div></div>
+                      <div></div>
+                      <div className="text-right">Period</div>
+                      <div></div>
+                      <div className="text-right">YTD</div>
                     </div>
 
-                    {/* Right Column: Pay Totals with YTD */}
-                    <div className="flex items-start ml-auto gap-3">
-                      {/* Period Column */}
-                      <div className="flex flex-col">
-                        {grandTotalTax > 0 || grandTotalDeductions > 0 ?
-                          <>
-                            <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>Period</div>
-                            <table className="border-collapse">
-                              <tbody>
-                                <tr style={{ color: 'var(--text-slate-600)' }}>
-                                  <td className="text-left pr-2">Net:</td>
-                                  <td className="text-right pr-0.5">$</td>
-                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalAllDrivers.toFixed(2)}</td>
-                                </tr>
-                                {grandTotalTax > 0 &&
-                                  <tr style={{ color: 'var(--text-slate-600)' }}>
-                                    <td className="text-left pr-2">Tax:</td>
-                                    <td className="text-right pr-0.5">$</td>
-                                    <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalTax.toFixed(2)}</td>
-                                  </tr>
-                                }
-                                {grandTotalDeductions > 0 &&
-                                  <tr style={{ color: '#ef4444' }}>
-                                    <td className="text-left pr-2">Deductions:</td>
-                                    <td className="text-right pr-0.5">-$</td>
-                                    <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalDeductions.toFixed(2)}</td>
-                                  </tr>
-                                }
-                                <tr style={{ color: 'var(--text-slate-600)' }}>
-                                  <td className="text-left pr-2">Bonus:</td>
-                                  <td className="text-right pr-0.5">+$</td>
-                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0).toFixed(2)}</td>
-                                </tr>
-                                {isPeriodEndOfMonth &&
-                                  <tr style={{ color: 'var(--text-slate-600)' }}>
-                                    <td className="text-left pr-2">
-                                      <button
-                                        onClick={() => setAppFeeOverlayAllDriversId('all')}
-                                        className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
-                                        Extra App Fee Cut:
-                                      </button>
-                                    </td>
-                                    <td className="text-right pr-0.5">-$</td>
-                                    <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
-                                  </tr>
-                                }
-                                <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
-                                  <td colSpan="3" className="pt-1"></td>
-                                </tr>
-                                <tr className="text-lg font-bold text-emerald-600">
-                                  <td className="text-left pr-2">Gross:</td>
-                                  <td className="text-right pr-0.5">$</td>
-                                  <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </> :
-
-                          <div className="text-lg font-bold text-emerald-700">
-                            {formatCurrency(grandTotalGross)}
-                          </div>
-                        }
-                      </div>
-
-                      {/* Vertical Divider */}
-                      <div style={{ width: '1px', background: 'var(--border-slate-300)' }}></div>
-
-                      {/* YTD Column */}
-                      <div className="flex flex-col">
-                        {ytdGrandTotalTax > 0 || ytdGrandTotalDeductions > 0 ?
-                          <>
-                            <div className="text-xs text-center font-bold mb-1 pb-1 border-b" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-300)' }}>YTD</div>
-                            <table className="border-collapse">
-                              <tbody>
-                                <tr style={{ color: 'var(--text-slate-600)' }}>
-                                  <td className="text-right pr-0.5">$</td>
-                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalNet.toFixed(2)}</td>
-                                </tr>
-                                {ytdGrandTotalTax > 0 &&
-                                  <tr style={{ color: 'var(--text-slate-600)' }}>
-                                    <td className="text-right pr-0.5">$</td>
-                                    <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalTax.toFixed(2)}</td>
-                                  </tr>
-                                }
-                                {ytdGrandTotalDeductions > 0 &&
-                                  <tr style={{ color: '#ef4444' }}>
-                                    <td className="text-right pr-0.5">-$</td>
-                                    <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalDeductions.toFixed(2)}</td>
-                                  </tr>
-                                }
-                                <tr style={{ color: 'var(--text-slate-600)' }}>
-                                  <td className="text-right pr-0.5">+$</td>
-                                  <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalBonus.toFixed(2)}</td>
-                                </tr>
-                                {isPeriodEndOfMonth &&
-                                  <tr style={{ color: 'var(--text-slate-600)' }}>
-                                    <td className="text-right pr-0.5">-$</td>
-                                    <td className="text-right font-semibold" style={{ width: '60px' }}>{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
-                                  </tr>
-                                }
-                                <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
-                                  <td colSpan="2" className="pt-1"></td>
-                                </tr>
-                                <tr className="text-lg font-bold text-emerald-600">
-                                  <td className="text-right pr-0.5">$</td>
-                                  <td className="text-right" style={{ width: '60px' }}>{ytdGrandTotalGross.toFixed(2)}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </> :
-
-                          <div className="text-lg font-bold text-emerald-700">
-                            <div className="text-xs text-center font-bold mb-1" style={{ color: 'var(--text-slate-500)' }}>YTD</div>
-                            {formatCurrency(ytdGrandTotalGross)}
-                          </div>
-                        }
-                      </div>
+                    {/* Net */}
+                    <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
+                      <div className="text-left">Net:</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right font-semibold">{grandTotalAllDrivers.toFixed(2)}</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right font-semibold">{ytdGrandTotalNet.toFixed(2)}</div>
                     </div>
-                  </div>
-                </div>
 
-                {/* Mobile View - only show on phones and tablets in portrait */}
-                <div style={{
-                  display: (() => {
-                    if (typeof window === 'undefined') return 'none';
-                    const ua = navigator.userAgent;
-                    const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
-                    const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-
-                    // Phones always show mobile
-                    if (isPhone) return 'block';
-
-                    // Tablets: portrait = show, landscape = hide
-                    if (isTabletDevice) {
-                      const isPortrait = window.innerWidth < window.innerHeight;
-                      return isPortrait ? 'block' : 'none';
+                    {/* Tax */}
+                    {grandTotalTax > 0 &&
+                    <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
+                      <div className="text-left">Tax:</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right font-semibold">{grandTotalTax.toFixed(2)}</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right font-semibold">{ytdGrandTotalTax.toFixed(2)}</div>
+                    </div>
                     }
 
-                    // Desktop: hide if width >= 768px
-                    return window.innerWidth < 768 ? 'block' : 'none';
-                  })()
-                }} className="px-4">
-                  <div className="font-semibold mb-3 text-sm" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
+                    {/* Deductions */}
+                    {grandTotalDeductions > 0 &&
+                    <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
+                      <div className="text-left">Deductions:</div>
+                      <div className="text-right pr-0.5">-$</div>
+                      <div className="text-right font-semibold">{grandTotalDeductions.toFixed(2)}</div>
+                      <div className="text-right pr-0.5">-$</div>
+                      <div className="text-right font-semibold">{ytdGrandTotalDeductions.toFixed(2)}</div>
+                    </div>
+                    }
 
-                  {/* Pay Summary Table */}
-                  <div className="p-3 rounded-lg border" style={{
-                    background: 'var(--bg-white)',
-                    borderColor: 'var(--border-slate-200)',
-                    fontVariantNumeric: 'tabular-nums'
-                  }}>
-                    <div className="text-xs font-mono">
-                      {/* Header Row */}
-                      <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{
-                        gridTemplateColumns: '1fr 22px 60px 22px 60px',
-                        borderColor: 'var(--border-slate-200)',
-                        color: 'var(--text-slate-700)'
-                      }}>
-                        <div></div>
-                        <div></div>
-                        <div className="text-right">Period</div>
-                        <div></div>
-                        <div className="text-right">YTD</div>
-                      </div>
+                    {/* Bonus */}
+                    <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-blue-700)' }}>
+                      <div className="text-left">Bonus:</div>
+                      <div className="text-right pr-0.5">+$</div>
+                      <div className="text-right font-semibold">{driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0).toFixed(2)}</div>
+                      <div className="text-right pr-0.5">+$</div>
+                      <div className="text-right font-semibold">{ytdGrandTotalBonus.toFixed(2)}</div>
+                    </div>
 
-                      {/* Net */}
-                      <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
-                        <div className="text-left">Net:</div>
-                        <div className="text-right pr-0.5">$</div>
-                        <div className="text-right font-semibold">{grandTotalAllDrivers.toFixed(2)}</div>
-                        <div className="text-right pr-0.5">$</div>
-                        <div className="text-right font-semibold">{ytdGrandTotalNet.toFixed(2)}</div>
-                      </div>
+                    {/* App Fee Cut (if end of month) */}
+                    {isPeriodEndOfMonth &&
+                    <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
+                      <div className="text-left">App Fee Cut:</div>
+                      <div className="text-right pr-0.5">-$</div>
+                      <div className="text-right font-semibold">{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</div>
+                      <div className="text-right pr-0.5">-$</div>
+                      <div className="text-right font-semibold">{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</div>
+                    </div>
+                    }
 
-                      {/* Tax */}
-                      {grandTotalTax > 0 &&
-                        <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
-                          <div className="text-left">Tax:</div>
-                          <div className="text-right pr-0.5">$</div>
-                          <div className="text-right font-semibold">{grandTotalTax.toFixed(2)}</div>
-                          <div className="text-right pr-0.5">$</div>
-                          <div className="text-right font-semibold">{ytdGrandTotalTax.toFixed(2)}</div>
-                        </div>
-                      }
-
-                      {/* Deductions */}
-                      {grandTotalDeductions > 0 &&
-                        <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
-                          <div className="text-left">Deductions:</div>
-                          <div className="text-right pr-0.5">-$</div>
-                          <div className="text-right font-semibold">{grandTotalDeductions.toFixed(2)}</div>
-                          <div className="text-right pr-0.5">-$</div>
-                          <div className="text-right font-semibold">{ytdGrandTotalDeductions.toFixed(2)}</div>
-                        </div>
-                      }
-
-                      {/* Bonus */}
-                      <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-blue-700)' }}>
-                        <div className="text-left">Bonus:</div>
-                        <div className="text-right pr-0.5">+$</div>
-                        <div className="text-right font-semibold">{driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0).toFixed(2)}</div>
-                        <div className="text-right pr-0.5">+$</div>
-                        <div className="text-right font-semibold">{ytdGrandTotalBonus.toFixed(2)}</div>
-                      </div>
-
-                      {/* App Fee Cut (if end of month) */}
-                      {isPeriodEndOfMonth &&
-                        <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
-                          <div className="text-left">App Fee Cut:</div>
-                          <div className="text-right pr-0.5">-$</div>
-                          <div className="text-right font-semibold">{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</div>
-                          <div className="text-right pr-0.5">-$</div>
-                          <div className="text-right font-semibold">{(calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</div>
-                        </div>
-                      }
-
-                      {/* Gross (bold, divider) */}
-                      <div className="grid gap-1 pt-1 border-t font-bold" style={{
-                        gridTemplateColumns: '1fr 22px 60px 22px 60px',
-                        borderColor: 'var(--border-slate-200)',
-                        color: '#10b981'
-                      }}>
-                        <div className="text-left">Gross:</div>
-                        <div className="text-right pr-0.5">$</div>
-                        <div className="text-right">{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</div>
-                        <div className="text-right pr-0.5">$</div>
-                        <div className="text-right">{ytdGrandTotalGross.toFixed(2)}</div>
-                      </div>
+                    {/* Gross (bold, divider) */}
+                    <div className="grid gap-1 pt-1 border-t font-bold" style={{
+                      gridTemplateColumns: '1fr 22px 60px 22px 60px',
+                      borderColor: 'var(--border-slate-200)',
+                      color: '#10b981'
+                    }}>
+                      <div className="text-left">Gross:</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right">{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</div>
+                      <div className="text-right pr-0.5">$</div>
+                      <div className="text-right">{ytdGrandTotalGross.toFixed(2)}</div>
                     </div>
                   </div>
                 </div>
               </div>
+              </div>
             }
-          </div>
-        </CardContent>
-      </Card>
-    </>
-  );
+                  </div>
+                  </CardContent>
+                  </Card>
+        </>);
+
 }
