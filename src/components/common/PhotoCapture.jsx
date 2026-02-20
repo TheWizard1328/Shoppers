@@ -70,7 +70,10 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
 
   const stopCamera = useCallback(() => {
     if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject.getTracks().forEach(track => {
+        track.stop();
+        console.log('🛑 [PhotoCapture] Track stopped:', track.label);
+      });
       videoRef.current.srcObject = null;
     }
     setIsCameraActive(false);
