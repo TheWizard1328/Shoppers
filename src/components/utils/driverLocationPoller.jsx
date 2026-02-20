@@ -264,7 +264,11 @@ class DriverLocationPoller {
        if (user.status === 'inactive') return false;
 
        // Must be in same city (applies to all roles)
-       if (currentUserCityId && user.city_id !== currentUserCityId) return false;
+       // CRITICAL: Support both city_id (string) and city_ids (array) on AppUser
+       if (currentUserCityId) {
+         const userCityIds = user.city_ids && user.city_ids.length > 0 ? user.city_ids : (user.city_id ? [user.city_id] : []);
+         if (!userCityIds.includes(currentUserCityId)) return false;
+       }
 
        // ========================================
        // RULE 3: Admins (non-AppOwners) - can only see drivers with location sharing ON
