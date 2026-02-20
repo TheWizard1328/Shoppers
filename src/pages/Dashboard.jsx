@@ -1002,8 +1002,9 @@ function Dashboard() {
 
   // CRITICAL: Auto-start location tracking for mobile drivers (independent of toggle visibility)
   // CONDITION: isMobile && isDriver && isPrimaryDevice
+  // NOTE: isPrimaryDevice is set asynchronously, so this effect must re-run when it becomes true
   useEffect(() => {
-    if (!isMobile || !isDriver || !currentUser?.id || !isPrimaryDevice) return;
+    if (!isMobile || !isDriver || !currentUser?.id || !isPrimaryDevice || !isDataLoaded) return;
 
     const initTracking = async () => {
       // Set driver status in tracker
