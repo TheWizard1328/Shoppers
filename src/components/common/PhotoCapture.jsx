@@ -14,34 +14,49 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
 
   const startCamera = useCallback(async () => {
     console.log('📷 [PhotoCapture] Starting camera...');
+    console.log('📷 [PhotoCapture] mediaDevices available:', !!navigator.mediaDevices);
+    console.log('📷 [PhotoCapture] getUserMedia available:', !!navigator.mediaDevices?.getUserMedia);
     try {
       // Try rear camera first, fall back to any camera
       let stream;
       try {
+        console.log('📷 [PhotoCapture] Requesting rear camera (environment)...');
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
         });
-      } catch {
+        console.log('✅ [PhotoCapture] Rear camera stream acquired, tracks:', stream.getTracks().map(t => `${t.kind}:${t.label}`));
+      } catch (rearErr) {
+        console.warn('⚠️ [PhotoCapture] Rear camera failed:', rearErr.name, rearErr.message, '- trying any camera...');
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        console.log('✅ [PhotoCapture] Fallback camera stream acquired, tracks:', stream.getTracks().map(t => `${t.kind}:${t.label}`));
       }
 
       if (videoRef.current) {
+        console.log('📷 [PhotoCapture] Attaching stream to video element...');
         videoRef.current.srcObject = stream;
         // Wait for metadata to load before marking camera as active
         await new Promise((resolve) => {
           videoRef.current.onloadedmetadata = () => {
-            videoRef.current.play().then(resolve).catch(resolve);
+            console.log('📷 [PhotoCapture] Video metadata loaded, dimensions:', videoRef.current.videoWidth, 'x', videoRef.current.videoHeight);
+            videoRef.current.play()
+              .then(() => { console.log('✅ [PhotoCapture] Video playing'); resolve(); })
+              .catch((playErr) => { console.warn('⚠️ [PhotoCapture] video.play() failed:', playErr.message); resolve(); });
           };
           // Fallback timeout in case onloadedmetadata doesn't fire
-          setTimeout(resolve, 1500);
+          setTimeout(() => {
+            console.warn('⚠️ [PhotoCapture] onloadedmetadata timeout - proceeding anyway. videoWidth:', videoRef.current?.videoWidth);
+            resolve();
+          }, 1500);
         });
         setIsCameraActive(true);
         setError('');
-        console.log('✅ [PhotoCapture] Camera started successfully');
+        console.log('✅ [PhotoCapture] Camera started successfully. Video dimensions:', videoRef.current.videoWidth, 'x', videoRef.current.videoHeight);
+      } else {
+        console.error('❌ [PhotoCapture] videoRef.current is null after stream acquisition');
       }
     } catch (err) {
-      console.error('❌ [PhotoCapture] Camera error:', err);
-      setError('Could not access camera. Please check permissions and try again.');
+      console.error('❌ [PhotoCapture] Camera error:', err.name, err.message, err);
+      setError(`Could not access camera (${err.name}: ${err.message}). Please check permissions and try again.`);
     }
   }, []);
 
