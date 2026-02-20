@@ -49,7 +49,7 @@ import { invalidate } from '../utils/dataManager';
 import SignatureCapture from './SignatureCapture';
 import PhotoCapture from './PhotoCapture';
 import HelpTooltip, { HELP_CONTENT } from './HelpTooltip';
-import { Pen, Camera } from 'lucide-react';
+import { Pen, Camera, Eye } from 'lucide-react';
 
 // Global statusConfig
 const statusConfig = {
@@ -164,6 +164,7 @@ export default function StopCard({
   const { setIsEntityUpdating, forceRefreshDriverDeliveries, refreshData, updateDeliveriesLocally } = useAppData();
   const [showSignatureCapture, setShowSignatureCapture] = useState(false);
   const [showPhotoCapture, setShowPhotoCapture] = useState(false);
+  const [viewingImageUrl, setViewingImageUrl] = useState(null); // URL of image to view fullscreen
   const [selectedTransferPickupId, setSelectedTransferPickupId] = useState('');
 
   // Detect if this is a stripped delivery (from other store)
