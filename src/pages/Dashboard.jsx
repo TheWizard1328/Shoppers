@@ -1056,6 +1056,58 @@ function Dashboard() {
     };
   }, [currentUser?.id, isMobile, isDriver, isPrimaryDevice, isDataLoaded]);
 
+  // CRITICAL: Reinitialize GPS when app returns to foreground (after screen off or background)
+  useEffect(() => {
+    if (!isMobile || !isDriver || !isPrimaryDevice || !isDataLoaded) return;
+
+    let wasHidden = false;
+
+    const handleVisibilityChange = async () => {
+      if (document.hidden) {
+        wasHidden = true;
+        console.log('⏸️ [GPS Reinit] App went to background - GPS may pause');
+        return;
+      }
+
+      // App came back to foreground
+      if (wasHidden) {
+        console.log('🔄 [GPS Reinit] App returned to foreground - reinitializing GPS tracking...');
+        wasHidden = false;
+
+        try {
+          const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+          const appUser = appUsers?.[0];
+
+          if (appUser) {
+            // Check if we should be tracking
+            const shouldTrack = appUser.driver_status === 'on_duty' || appUser.driver_status === 'on_break';
+
+            if (shouldTrack && !locationTracker.isTracking) {
+              console.log('🚀 [GPS Reinit] Restarting location tracker...');
+              await locationTracker.restartTracking({
+                ...currentUser,
+                appUserId: appUser.id
+              });
+              console.log('✅ [GPS Reinit] Location tracking restarted successfully');
+            } else if (shouldTrack && locationTracker.isTracking) {
+              console.log('✅ [GPS Reinit] Location tracker already running');
+            } else {
+              console.log('⏭️ [GPS Reinit] Driver off_duty - not restarting GPS');
+            }
+          }
+        } catch (error) {
+          console.error('❌ [GPS Reinit] Failed to restart tracking:', error.message);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentUser?.id, isMobile, isDriver, isPrimaryDevice, isDataLoaded]);
+
   // Load user settings on mount - PHASE 1: Load backend values FIRST
   useEffect(() => {
     if (!currentUser?.id || userSettingsLoaded) return;
