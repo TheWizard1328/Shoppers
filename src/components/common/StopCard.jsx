@@ -1465,6 +1465,26 @@ export default function StopCard({
             document.body
           )}
 
+          {/* Fullscreen Image Viewer */}
+          {viewingImageUrl && ReactDOM.createPortal(
+            <div
+              className="fixed inset-0 flex items-center justify-center"
+              style={{ background: 'rgba(0,0,0,0.85)', zIndex: 999999, pointerEvents: 'auto' }}
+              onClick={() => setViewingImageUrl(null)}>
+              <div className="relative max-w-[95vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+                <img src={viewingImageUrl} alt="Proof of delivery" className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl" />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full w-8 h-8 p-0"
+                  onClick={() => setViewingImageUrl(null)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>,
+            document.body
+          )}
+
           {/* Signature Capture - Full Screen Landscape */}
           {showSignatureCapture &&
             <SignatureCapture
