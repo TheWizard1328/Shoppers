@@ -167,9 +167,16 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
   useEffect(() => {
     startCamera();
     return () => {
-      console.log('👋 [PhotoCapture] Unmounting');
-      if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      console.log('👋 [PhotoCapture] Unmounting - stopping all tracks');
+      // Stop via streamRef (most reliable - works even if videoRef is detached)
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop();
+          console.log('🛑 [PhotoCapture] Unmount stopped track:', track.label);
+        });
+        streamRef.current = null;
+      }
+      if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
     };
