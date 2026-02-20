@@ -5331,10 +5331,10 @@ export default function DeliveryForm({
                   } style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       {isCompletionStatus && delivery ?
                     <div className="space-y-2">
-                        {/* Row 1: Status (left) + Completion Time (right) */}
+                        {/* Row 1: Store and Status */}
                         <div className="flex gap-3">
                           <div className="flex-1 space-y-1">
-                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Status' : 'Status'}</Label>
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
                             <Select
                             value={(() => {
                               if (formData.store_id && formData.ampm_deliveries) {
@@ -5445,9 +5445,8 @@ export default function DeliveryForm({
                       </div> :
 
                     <div className="space-y-2">
-                      {/* Row 1: Status + Time Window inline (for in_transit/en_route when editing) */}
+                      {/* Row 1: Store, Status, PUID */}
                       <div className="flex gap-3">
-                        {false && <div></div> /* store selector removed for edit mode */}
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
                           <Select
