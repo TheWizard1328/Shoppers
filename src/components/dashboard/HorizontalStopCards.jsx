@@ -310,10 +310,10 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   return (
     <div
       ref={setRefs} 
-      className="flex gap-3 overflow-x-auto items-end min-h-[75px] pointer-events-auto z-[200]"
+      className="flex gap-3 overflow-x-auto overflow-y-hidden items-end min-h-[75px] pointer-events-auto z-[200]"
       style={{
-        scrollbarWidth: isMobile ? 'none' : 'thin',
-        msOverflowStyle: isMobile ? 'none' : 'auto',
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
         scrollSnapType: isMobile ? 'x mandatory' : 'none',
         scrollSnapStop: isMobile ? 'always' : 'normal',
