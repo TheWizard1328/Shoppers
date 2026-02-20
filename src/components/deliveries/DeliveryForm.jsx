@@ -5473,13 +5473,11 @@ export default function DeliveryForm({
                        </div>
                      </div>
                    )}
-                   {false && <div>
+                    </div>
 
-                    <div className="space-y-2">
-                      {/* Row 1: Store, Status, PUID */}
-                      <div className="flex gap-3">
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
+                   {/* Section 4: Patient Name/Phone/Address/Unit */}
+                   {!isPickupMode && false && <div className="flex-1 space-y-1">
+                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
                           <Select
                           value={(() => {
                             if (formData.store_id && formData.ampm_deliveries) {
