@@ -68,8 +68,12 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
           onClick={onClick}
           title={getTooltip()}
           className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
-            isLocked 
-              ? 'bg-blue-600 hover:bg-blue-700' 
+            isLocked
+              ? currentPhase === 2
+                ? 'bg-green-600 hover:bg-green-700'
+                : currentPhase === 3
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-blue-600 hover:bg-blue-700'
               : 'bg-gray-400 hover:bg-gray-500'
           }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
           {/* Mode number in top-left corner */}
