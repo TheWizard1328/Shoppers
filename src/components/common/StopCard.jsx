@@ -1472,8 +1472,9 @@ export default function StopCard({
                 try {
                   console.log('📝 [Signature] Starting upload...', signatureBlob);
 
-                  // Upload signature immediately
-                  const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureBlob });
+                  // Convert Blob to File for multipart/form-data upload
+                  const signatureFile = new File([signatureBlob], 'signature.png', { type: 'image/png' });
+                  const uploadResult = await base44.integrations.Core.UploadFile({ file: signatureFile });
                   const signatureUrl = uploadResult.file_url;
 
                   console.log('📝 [Signature] Upload complete:', signatureUrl);
