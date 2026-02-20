@@ -58,14 +58,21 @@ export const getUserAgentInfo = () => {
   const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
   const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
   
-  // Override mobile detection for wide screens (1.75 × 300px statscard width = 525px)
+  // Touch capability check - any device with touch points is likely a phone/tablet
+  const hasTouchScreen = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+  
+  // Screen width threshold (1.75 × statscard width = 525px)
   const screenWidth = window.innerWidth;
-  const MOBILE_THRESHOLD = 525; // 1.75 × statscard width (300px)
+  const MOBILE_THRESHOLD = 525;
   
   let deviceType = 'Desktop';
   if (isTabletDevice) {
     deviceType = 'Tablet';
-  } else if (isMobileUserAgent && screenWidth <= MOBILE_THRESHOLD) {
+  } else if (isMobileUserAgent) {
+    // Mobile user agent → always Mobile, regardless of screen width
+    deviceType = 'Mobile';
+  } else if (hasTouchScreen && screenWidth <= MOBILE_THRESHOLD) {
+    // Touch device within mobile screen size → Mobile
     deviceType = 'Mobile';
   }
 
