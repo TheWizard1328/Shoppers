@@ -71,6 +71,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
 
   const capturePhoto = useCallback(() => {
     console.log('📷 [PhotoCapture] Capturing photo...');
+    console.log('📷 [PhotoCapture] videoRef:', !!videoRef.current, 'canvasRef:', !!canvasRef.current, 'isCapturing:', isCapturing);
     if (!videoRef.current || !canvasRef.current || isCapturing) {
       console.warn('⚠️ [PhotoCapture] Cannot capture - video/canvas not ready or already capturing');
       return;
@@ -81,6 +82,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
+    console.log('📷 [PhotoCapture] Video dimensions at capture:', video.videoWidth, 'x', video.videoHeight, 'readyState:', video.readyState);
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     
@@ -88,6 +90,7 @@ export default function PhotoCapture({ onSave, onCancel, maxPhotos = 3 }) {
     ctx.drawImage(video, 0, 0);
 
     canvas.toBlob((blob) => {
+      console.log('📷 [PhotoCapture] Blob created:', blob ? `size=${blob.size} type=${blob.type}` : 'NULL');
       if (blob) {
         const url = URL.createObjectURL(blob);
         setCapturedPhotos(prev => {
