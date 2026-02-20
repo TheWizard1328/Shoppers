@@ -2746,23 +2746,28 @@ export default function StopCard({
                         {/* Proof of Delivery Buttons - Only on next delivery, OR completed with captured proof */}
                         {!isPickup &&
                           <div className="flex items-center gap-2">
-                            {/* Signature Button + Clear */}
+                            {/* Signature Button - Capture when active, View when completed */}
                             {(isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.signature_image_url) ?
                               <div className="flex items-center">
                                 <Button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (delivery.status !== 'completed') {
+                                    if (delivery.status === 'completed' && delivery.signature_image_url) {
+                                      setViewingImageUrl(delivery.signature_image_url);
+                                    } else {
                                       setShowSignatureCapture(true);
                                     }
                                   }}
                                   size="sm"
                                   variant="outline"
-                                  disabled={delivery.status === 'completed'}
-                                  className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.signature_image_url ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200 rounded-r-none' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}>
-                                  <Pen className={`w-5 h-5 md:w-4 md:h-4 ${delivery.signature_image_url ? 'text-emerald-700' : 'text-slate-600'}`} />
+                                  className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.signature_image_url ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}>
+                                  {delivery.status === 'completed' && delivery.signature_image_url
+                                    ? <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
+                                    : <Pen className={`w-5 h-5 md:w-4 md:h-4 ${delivery.signature_image_url ? 'text-emerald-700' : 'text-slate-600'}`} />
+                                  }
                                 </Button>
-                                {delivery.signature_image_url && (
+                                {/* Only show X (delete) button when NOT completed */}
+                                {delivery.signature_image_url && delivery.status !== 'completed' && (
                                   <Button
                                     onClick={async (e) => {
                                       e.stopPropagation();
@@ -2779,23 +2784,28 @@ export default function StopCard({
                               </div> :
                               null}
 
-                            {/* Photo Button + Clear */}
+                            {/* Photo Button - Capture when active, View when completed */}
                             {(isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0) ?
                               <div className="flex items-center">
                                 <Button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (delivery.status !== 'completed') {
+                                    if (delivery.status === 'completed' && delivery.proof_photo_urls?.length > 0) {
+                                      setViewingImageUrl(delivery.proof_photo_urls[0]);
+                                    } else {
                                       setShowPhotoCapture(true);
                                     }
                                   }}
                                   size="sm"
                                   variant="outline"
-                                  disabled={delivery.status === 'completed'}
-                                  className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200 rounded-r-none' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}>
-                                  <Camera className={`w-5 h-5 md:w-4 md:h-4 ${delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-slate-600'}`} />
+                                  className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}>
+                                  {delivery.status === 'completed' && delivery.proof_photo_urls?.length > 0
+                                    ? <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
+                                    : <Camera className={`w-5 h-5 md:w-4 md:h-4 ${delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-slate-600'}`} />
+                                  }
                                 </Button>
-                                {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 && (
+                                {/* Only show X (delete) button when NOT completed */}
+                                {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 && delivery.status !== 'completed' && (
                                   <Button
                                     onClick={async (e) => {
                                       e.stopPropagation();
