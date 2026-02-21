@@ -288,7 +288,7 @@ export default function BarcodeScanner({ barcodeValues = [], onChange, disabled 
   };
 
   const handleCameraDetected = useCallback((value) => {
-    setShowCamera(false);
+    // Don't close camera — continuous scanning mode. Just add the barcode.
     addBarcode(value);
   }, [addBarcode]);
 
