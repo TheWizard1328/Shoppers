@@ -4107,8 +4107,8 @@ export default function Layout({ children, currentPageName }) {
                     </PageTransition>
                     </main>
                     
-                    {/* Mobile Bottom Navigation - Show on narrow screens */}
-                    {currentUser && !isSnapshotModeActive && screenWidth < 900 && (
+                    {/* Mobile Bottom Navigation - Show on mobile/tablet portrait or narrow screens */}
+                    {currentUser && !isSnapshotModeActive && (isMobile || isTabletPortrait || screenWidth < 1200) && (
                       <MobileBottomNav currentPageName={currentPageName} />
                     )}
               </div>
