@@ -9512,7 +9512,7 @@ function Dashboard() {
           isAIVisible={showAIAssistant && isAIEnabled}
           isLocked={isMapViewLocked}
           stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0}
-          mobileBottomNavHeight={isMobile || isTabletPortrait ? 70 : 0} />
+          mobileBottomNavHeight={isMobile ? 70 : 0} />
 
         {/* Re-optimize Route FAB - Only for app owner (testing phase) */}
         {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
@@ -9523,7 +9523,7 @@ function Dashboard() {
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
           className="fixed z-[1001]"
           style={{
-            bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15 + (isMobile || isTabletPortrait ? 70 : 0)}px`,
+            bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15 + (isMobile ? 70 : 0)}px`,
             right: '64px'
           }}>
             <Button
