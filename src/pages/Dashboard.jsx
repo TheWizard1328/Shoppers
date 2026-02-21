@@ -8646,14 +8646,7 @@ function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
             onMouseEnter={() => handleCardInteraction(true)}
-            onMouseLeave={() => handleCardInteraction(false)}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCardInteraction(true);
-              if (retractClustersRef.current) {
-                retractClustersRef.current();
-              }
-            }} 
+            onMouseLeave={() => handleCardInteraction(false)} 
             className="px-2 py-0.5 rounded-2xl shadow-xl border min-w-[340px] max-w-[345px] cursor-pointer" 
             style={{ 
               background: 'var(--bg-white)', 
@@ -8667,7 +8660,15 @@ function Dashboard() {
             
 
             <div className="mt-1 mb-2 flex items-center justify-between">
-              <div className="pr-1 flex items-center gap-2">
+              <div 
+                className="pr-1 flex items-center gap-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCardInteraction(true);
+                  if (retractClustersRef.current) {
+                    retractClustersRef.current();
+                  }
+                }}>
                 <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
                 {currentUser &&
                 <div className="flex items-center gap-1.5">
