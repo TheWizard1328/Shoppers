@@ -171,28 +171,32 @@ function BarcodeCameraModal({ onDetected, onClose }) {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[10050] bg-black/90 flex flex-col items-center justify-center p-4"
     >
+      {/* Hidden canvas for snapshots */}
+      <canvas ref={canvasRef} className="hidden" />
+
       <div className="w-full max-w-sm bg-white rounded-xl overflow-hidden shadow-2xl">
         <div className="flex items-center justify-between p-3 border-b bg-slate-50">
           <div className="flex items-center gap-2">
             <Camera className="w-4 h-4 text-emerald-600" />
-            <span className="font-semibold text-sm">Scan Barcode</span>
+            <span className="font-semibold text-sm">Scan Barcodes</span>
+            {scannedItems.length > 0 && (
+              <Badge className="bg-emerald-100 text-emerald-700 text-xs px-1.5 py-0 h-5">{scannedItems.length}</Badge>
+            )}
           </div>
           <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
             <X className="w-4 h-4" />
           </Button>
         </div>
 
-        <div className="relative bg-black" style={{ height: '280px' }}>
+        <div className="relative bg-black" style={{ height: '240px' }}>
           <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
           {/* Targeting overlay */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="relative w-64 h-24 border-2 border-emerald-400 rounded-md opacity-90">
-              {/* Corner markers */}
               <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
               <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
               <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl" />
               <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br" />
-              {/* Animated scan line */}
               <div
                 className="absolute left-1 right-1 h-0.5 bg-emerald-400 rounded-full shadow-[0_0_6px_2px_rgba(52,211,153,0.7)]"
                 style={{ animation: 'scanline 1.8s ease-in-out infinite', top: '50%' }}
@@ -209,21 +213,41 @@ function BarcodeCameraModal({ onDetected, onClose }) {
           {!error && (
             <div className="absolute bottom-2 left-0 right-0 text-center">
               <span className="text-xs text-white bg-black/50 px-2 py-1 rounded-full">
-                Point camera at barcode
+                {scannedItems.length === 0 ? 'Point camera at barcode' : 'Keep scanning — camera stays active'}
               </span>
             </div>
           )}
         </div>
 
         {error && (
-          <div className="p-3 bg-red-50 text-red-700 text-sm text-center">
-            {error}
+          <div className="p-3 bg-red-50 text-red-700 text-sm text-center">{error}</div>
+        )}
+
+        {/* Scanned items feedback list */}
+        {scannedItems.length > 0 && (
+          <div className="max-h-36 overflow-y-auto border-t divide-y" style={{ borderColor: 'var(--border-slate-200)' }}>
+            {scannedItems.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 px-3 py-2">
+                {item.status === 'processing' && <Loader2 className="w-4 h-4 text-amber-500 animate-spin flex-shrink-0" />}
+                {item.status === 'done' && <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                {item.status === 'error' && <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}
+                <span className="text-xs font-mono text-slate-700 flex-1 truncate">{item.value}</span>
+                <span className="text-xs text-slate-400 flex-shrink-0">
+                  {item.status === 'processing' && 'Processing...'}
+                  {item.status === 'done' && 'Captured ✓'}
+                  {item.status === 'error' && 'Saved'}
+                </span>
+              </div>
+            ))}
           </div>
         )}
 
-        <div className="p-3 text-center">
+        <div className="p-3 flex justify-between items-center">
+          <span className="text-xs text-slate-400">
+            {scannedItems.length > 0 ? `${scannedItems.length} scanned` : 'Ready to scan'}
+          </span>
           <Button type="button" variant="outline" size="sm" onClick={onClose}>
-            Cancel
+            Done
           </Button>
         </div>
       </div>
