@@ -7230,8 +7230,8 @@ function Dashboard() {
         wasLastDispatcherStop = remainingDispatcherIncomplete.length === 0;
       }
       
-      // CRITICAL: If this was the last stop AND FAB is in Phase 2 or 3, switch to Phase 1
-      if ((wasLastStop || wasLastDispatcherStop) && (currentPhase === 2 || currentPhase === 3)) {
+      // CRITICAL: If this was the last stop, always flash Phase 1 for 500ms
+      if (wasLastStop || wasLastDispatcherStop) {
         console.log(`🎯 [Last Stop Complete] Switching from Phase ${currentPhase} to Phase 1 for 500ms`);
         
         // Clear any existing timers
