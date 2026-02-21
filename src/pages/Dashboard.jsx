@@ -3542,18 +3542,18 @@ function Dashboard() {
         
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
-        // CRITICAL: DISPATCHER PHASE 3 - pan/zoom to show only dispatcher's stores' completed stops
-        // plus any drivers' shared location markers for those stores
+        // CRITICAL: DISPATCHER PHASE 3 - pan/zoom to show INCOMPLETE stops for dispatcher's stores
+        // plus shared location markers for drivers who still have incomplete stops in those stores
         if (isDispatcher && !isAdmin) {
-          const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
+          const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map(id => String(id)));
           const allDateDeliveriesDisp = deliveries.filter(d => d && d.delivery_date === selectedDateStrPhase3);
           
-          // Completed stops from dispatcher's stores
-          const dispatcherCompletedStops = allDateDeliveriesDisp.filter(d =>
-            d && dispatcherStoreIds.has(d.store_id) && finishedStatuses.includes(d.status)
+          // Incomplete stops from dispatcher's stores (en_route, in_transit — not completed/failed/cancelled)
+          const dispatcherIncompleteStops = allDateDeliveriesDisp.filter(d =>
+            d && dispatcherStoreIds.has(String(d.store_id)) && !finishedStatuses.includes(d.status)
           );
           
-          dispatcherCompletedStops.forEach(delivery => {
+          dispatcherIncompleteStops.forEach(delivery => {
             if (delivery.patient_id) {
               const patient = patients.find(p => p?.id === delivery.patient_id);
               if (patient?.latitude && patient?.longitude) {
@@ -3567,12 +3567,12 @@ function Dashboard() {
             }
           });
           
-          // Driver shared location markers for drivers who have stops in dispatcher's stores
+          // Driver shared location markers ONLY for drivers who still have incomplete stops in dispatcher's stores
           if (isViewingTodayPhase3) {
-            const driversInDispatcherStores = new Set(
-              allDateDeliveriesDisp.filter(d => d && dispatcherStoreIds.has(d.store_id)).map(d => d.driver_id).filter(Boolean)
+            const driversWithIncompleteInDispatcherStores = new Set(
+              dispatcherIncompleteStops.map(d => d.driver_id).filter(Boolean)
             );
-            driversInDispatcherStores.forEach(driverId => {
+            driversWithIncompleteInDispatcherStores.forEach(driverId => {
               const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
               if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
                 allCoordinatesPhase3.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
