@@ -518,6 +518,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         // Get staleness info from poller
         const staleness = user._staleness || 'fresh';
         const ageMinutes = user._ageMinutes || 0;
+        
+        // Determine user role from app_roles
+        const userRole = user.app_roles?.includes('driver') ? 'driver' : 
+                        user.app_roles?.includes('dispatcher') ? 'dispatcher' : 'admin';
 
         return (
           <Marker
