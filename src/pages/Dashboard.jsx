@@ -7006,7 +7006,7 @@ function Dashboard() {
         }
       }
 
-      // CRITICAL: Time rounding for first/last stop
+      // CRITICAL: Time rounding ONLY for first and last stop of the day
       if (['completed', 'failed', 'delivered'].includes(newStatus) || newStatus === 'cancelled' && isPickup) {
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
         const allDriverStops = deliveriesWithStopOrder.filter((d) =>
@@ -7021,9 +7021,14 @@ function Dashboard() {
         if (isFirstStop || isLastStop) {
           currentTimeISO = roundCompletionTime(currentTimeISO);
           console.log(`⏱️ [TIME ROUNDING] Applied to ${isFirstStop ? 'FIRST' : 'LAST'} stop`);
+        } else {
+          console.log(`⏱️ [TIME ROUNDING] Skipped - middle stop (${completedStopsCount} completed, ${incompleteStopsCount} remaining)`);
         }
 
-        updateData.actual_delivery_time = currentTimeISO;
+        // Store as local timestamp string (no UTC/Z suffix)
+        const rawDate = new Date(currentTimeISO);
+        const localTS = `${rawDate.getFullYear()}-${String(rawDate.getMonth()+1).padStart(2,'0')}-${String(rawDate.getDate()).padStart(2,'0')}T${String(rawDate.getHours()).padStart(2,'0')}:${String(rawDate.getMinutes()).padStart(2,'0')}:${String(rawDate.getSeconds()).padStart(2,'0')}`;
+        updateData.actual_delivery_time = localTS;
       } else {
         updateData.actual_delivery_time = null;
       }
