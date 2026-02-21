@@ -3453,11 +3453,57 @@ function Dashboard() {
         }
         break;
 
-      case 2: // "Center on Driver & Next Stop"
+      case 2: // "Center on Driver & Next Stop" (drivers) OR "All active driver locations + next stops" (dispatchers)
         console.clear;
         // Mark that we're doing a programmatic map move (debounces interaction handler)
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
+
+        if (isDispatcher && !isAdmin) {
+          // DISPATCHER PHASE 2: Show all active drivers (for dispatcher's stores) + their next stops
+          const dispatcherStoreIds2 = new Set((currentUser?.store_ids || []).map(id => String(id)));
+          const selectedDateStr2 = format(selectedDate, 'yyyy-MM-dd');
+          const allDateDeliveries2 = deliveries.filter(d => d && d.delivery_date === selectedDateStr2);
+          const finishedStatuses2 = ['completed', 'failed', 'cancelled', 'returned'];
+
+          // Drivers with active (incomplete) stops in dispatcher's stores
+          const activeDriverIds2 = new Set(
+            allDateDeliveries2.filter(d =>
+              d && dispatcherStoreIds2.has(String(d.store_id)) && !finishedStatuses2.includes(d.status) && d.status !== 'pending'
+            ).map(d => d.driver_id).filter(Boolean)
+          );
+
+          const phase2DispatcherCoords = [];
+
+          activeDriverIds2.forEach(driverId => {
+            const driverAppUser = appUsers?.find(au => au?.user_id === driverId);
+            if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+              phase2DispatcherCoords.push([driverAppUser.current_latitude, driverAppUser.current_longitude]);
+            }
+            // Also include each driver's next stop
+            const driverNextStop = allDateDeliveries2.find(d => d && d.driver_id === driverId && d.isNextDelivery);
+            if (driverNextStop) {
+              if (driverNextStop.patient_id) {
+                const patient = patients.find(p => p?.id === driverNextStop.patient_id);
+                if (patient?.latitude && patient?.longitude) phase2DispatcherCoords.push([patient.latitude, patient.longitude]);
+              } else if (driverNextStop.store_id) {
+                const store = stores.find(s => s?.id === driverNextStop.store_id);
+                if (store?.latitude && store?.longitude) phase2DispatcherCoords.push([store.latitude, store.longitude]);
+              }
+            }
+          });
+
+          if (phase2DispatcherCoords.length > 0) {
+            const padding = getMapPadding();
+            setShouldFitBounds({
+              bounds: phase2DispatcherCoords,
+              options: { ...padding, maxZoom: 14, animate: true }
+            });
+            setMapCenter(null);
+            setMapZoom(null);
+          }
+          break;
+        }
 
         if (nextStopCoordinates) {
           // CRITICAL: Use actual driver location (blue dot or shared marker), not polyline endpoints
