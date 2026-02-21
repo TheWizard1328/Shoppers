@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
-export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 75 }) {
+export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 75, mobileBottomNavHeight = 0 }) {
   const [isFlashing, setIsFlashing] = useState(false);
 
   const flashUpdate = () => {
@@ -19,7 +19,8 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
   }, [currentPhase]);
 
   // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion
-  const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + 15;
+  // Add mobile bottom nav height to lift FAB above the nav bar
+  const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + 15 + mobileBottomNavHeight;
 
   // Get icon based on current phase (always white icon)
   const getIcon = () => {
@@ -58,7 +59,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0, opacity: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 20 }}
-      className="fixed right-4 z-10"
+      className="fixed right-4 z-[1001]"
       style={{ bottom: `${bottomPixels}px` }}>
       
       <motion.div
