@@ -1148,6 +1148,10 @@ export default function DeliveryMap({
     
     stableSortedDrivers.forEach(u => {
       map.set(u.id, u);
+      // CRITICAL: Also map by user_id so lookups work with base44 User IDs
+      if (u.user_id) {
+        map.set(u.user_id, u);
+      }
     });
     
     return map;
