@@ -78,71 +78,41 @@ function BarcodeCameraModal({ onDetected, onClose }) {
   const videoRef = useRef(null);
   const [error, setError] = useState(null);
   const codeReaderRef = useRef(null);
-  const streamRef = useRef(null);
   const detectedRef = useRef(false);
 
-  const releaseCamera = useCallback(() => {
-    // Stop zxing reader
+  const stopReader = useCallback(() => {
     if (codeReaderRef.current) {
       try { codeReaderRef.current.reset(); } catch {}
       codeReaderRef.current = null;
     }
-    // Stop raw stream tracks
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-    // Clear video element
     stopVideoStream(videoRef.current);
   }, []);
 
   useEffect(() => {
     let active = true;
-    let intervalId = null;
 
     const startScan = async () => {
       try {
         const { BrowserMultiFormatReader } = await import('@zxing/browser');
-
-        // Get camera stream manually
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } }
-        });
-
-        if (!active) {
-          stream.getTracks().forEach(t => t.stop());
-          return;
-        }
-
-        streamRef.current = stream;
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {});
-        }
-
         const codeReader = new BrowserMultiFormatReader();
         codeReaderRef.current = codeReader;
 
-        // Poll video frames for a barcode every 300ms
-        intervalId = setInterval(async () => {
-          if (!active || detectedRef.current || !videoRef.current) return;
-          if (videoRef.current.readyState < 2) return; // not ready yet
+        // List devices and prefer back camera
+        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+        const backCamera = devices.find(d => /back|rear|environment/i.test(d.label));
+        const deviceId = backCamera?.deviceId || (devices.length > 0 ? devices[devices.length - 1].deviceId : undefined);
 
-          try {
-            const result = await codeReader.decodeOnce(videoRef.current);
-            if (result && !detectedRef.current) {
-              detectedRef.current = true;
-              const text = result.getText();
-              clearInterval(intervalId);
-              releaseCamera();
-              onDetected(text);
-            }
-          } catch {
-            // NotFoundException between frames is normal — keep polling
+        // decodeFromVideoDevice is the canonical working API
+        await codeReader.decodeFromVideoDevice(deviceId, videoRef.current, (result, err) => {
+          if (!active || detectedRef.current) return;
+          if (result) {
+            detectedRef.current = true;
+            const text = result.getText();
+            stopReader();
+            onDetected(text);
           }
-        }, 300);
-
+          // err is NotFoundException on every empty frame — that's normal, ignore it
+        });
       } catch (e) {
         if (active) setError(e.message || 'Camera access failed');
       }
@@ -152,8 +122,7 @@ function BarcodeCameraModal({ onDetected, onClose }) {
 
     return () => {
       active = false;
-      if (intervalId) clearInterval(intervalId);
-      releaseCamera();
+      stopReader();
     };
   }, []);
 
