@@ -179,13 +179,26 @@ function BarcodeCameraModal({ onDetected, onClose }) {
           <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
           {/* Targeting overlay */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-64 h-24 border-2 border-emerald-400 rounded-md opacity-80">
+            <div className="relative w-64 h-24 border-2 border-emerald-400 rounded-md opacity-90">
+              {/* Corner markers */}
               <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
               <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
               <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl" />
               <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br" />
+              {/* Animated scan line */}
+              <div
+                className="absolute left-1 right-1 h-0.5 bg-emerald-400 rounded-full shadow-[0_0_6px_2px_rgba(52,211,153,0.7)]"
+                style={{ animation: 'scanline 1.8s ease-in-out infinite', top: '50%' }}
+              />
             </div>
           </div>
+          <style>{`
+            @keyframes scanline {
+              0%   { transform: translateY(-22px); opacity: 1; }
+              50%  { transform: translateY(22px);  opacity: 1; }
+              100% { transform: translateY(-22px); opacity: 1; }
+            }
+          `}</style>
           {!error && (
             <div className="absolute bottom-2 left-0 right-0 text-center">
               <span className="text-xs text-white bg-black/50 px-2 py-1 rounded-full">
