@@ -5233,8 +5233,8 @@ export default function DeliveryForm({
                     }
                   </div>
 
-                  {/* Barcode Section - only shown when editing an existing delivery */}
-                  {delivery &&
+                  {/* Barcode Section - only shown when editing an existing delivery AND user is AppOwner */}
+                  {delivery && isAppOwner(currentUser) &&
                   <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <BarcodeScanner
                       barcodeValues={formData.barcode_values || []}
