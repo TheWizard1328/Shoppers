@@ -78,13 +78,21 @@ function BarcodeCameraModal({ onDetected, onClose }) {
   const videoRef = useRef(null);
   const [error, setError] = useState(null);
   const codeReaderRef = useRef(null);
-  const detectedRef = useRef(false); // prevent multiple detections causing re-renders
+  const streamRef = useRef(null);
+  const detectedRef = useRef(false);
 
   const releaseCamera = useCallback(() => {
+    // Stop zxing reader
     if (codeReaderRef.current) {
       try { codeReaderRef.current.reset(); } catch {}
       codeReaderRef.current = null;
     }
+    // Stop raw stream tracks
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    // Clear video element
     stopVideoStream(videoRef.current);
   }, []);
 
@@ -94,42 +102,39 @@ function BarcodeCameraModal({ onDetected, onClose }) {
     const startScan = async () => {
       try {
         const { BrowserMultiFormatReader } = await import('@zxing/browser');
-        const { DecodeHintType } = await import('@zxing/library');
 
-        const hints = new Map();
-        // Reduce flicker: only decode Code128 + common formats
-        const { BarcodeFormat } = await import('@zxing/library');
-        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-          BarcodeFormat.CODE_128,
-          BarcodeFormat.CODE_39,
-          BarcodeFormat.EAN_13,
-          BarcodeFormat.EAN_8,
-          BarcodeFormat.QR_CODE,
-        ]);
-        // Try harder but less frequently
-        hints.set(DecodeHintType.TRY_HARDER, false);
+        // Get stream manually so we hold a reference for guaranteed cleanup
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
 
-        const codeReader = new BrowserMultiFormatReader(hints);
+        if (!active) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+
+        // Attach stream to video element directly — prevents flicker vs letting zxing do it
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+
+        const codeReader = new BrowserMultiFormatReader();
         codeReaderRef.current = codeReader;
 
-        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-        const backCamera = devices.find(d =>
-          /back|rear|environment/i.test(d.label)
-        ) || devices[devices.length - 1];
-
-        await codeReader.decodeFromVideoDevice(
-          backCamera?.deviceId,
-          videoRef.current,
-          (result, err) => {
-            if (!active || detectedRef.current) return;
-            if (result) {
-              detectedRef.current = true;
-              releaseCamera();
-              onDetected(result.getText());
-            }
-            // Silently ignore decode errors — they are expected between frames
+        // Decode from the already-playing video element
+        codeReader.decodeFromStream(stream, videoRef.current, (result, err) => {
+          if (!active || detectedRef.current) return;
+          if (result) {
+            detectedRef.current = true;
+            const text = result.getText();
+            releaseCamera();
+            onDetected(text);
           }
-        );
+          // decode errors between frames are normal — ignore them
+        });
       } catch (e) {
         if (active) setError(e.message || 'Camera access failed');
       }
@@ -141,7 +146,7 @@ function BarcodeCameraModal({ onDetected, onClose }) {
       active = false;
       releaseCamera();
     };
-  }, []); // empty deps — only run once on mount
+  }, []); // run once on mount only
 
   return (
     <motion.div
