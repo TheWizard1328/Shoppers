@@ -2973,11 +2973,7 @@ function Dashboard() {
 
       newMapViewPhase = nextPhase;
 
-      // CRITICAL: For non-drivers (dispatchers), skip Phase 2 (driver-centric) and go straight to Phase 3
-      if (!isDriver && newMapViewPhase === 2) {
-        newMapViewPhase = 3;
-        console.log('⏭️ [FAB] Skipping Phase 2 for dispatcher - advancing to Phase 3');
-      }
+      // NOTE: Dispatchers CAN use Phase 2 - it shows active driver locations + their next stops
       
       // CRITICAL: For drivers, check phase validity
       if (isDriver) {
