@@ -2998,9 +2998,9 @@ export default function DeliveryMap({
               // 2. driverLookupMap (stable sorted drivers)
               // 3. safeUsers (cached fallback)
               // 4. Synthetic from delivery data (last resort)
-              let driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId) || 
+              let driverAppUser = realtimeAppUsers.find(u => u && (u.id === driverId || u.user_id === driverId)) || 
                                   driverLookupMap.get(driverId) || 
-                                  safeUsers.find(u => u && u.id === driverId);
+                                  safeUsers.find(u => u && (u.id === driverId || u.user_id === driverId));
 
               if (!driverAppUser) {
                 // Fallback: Create synthetic driver from any delivery with this driver_id
@@ -3300,9 +3300,9 @@ return polylines.length > 0 ? polylines : null;
             // 2. driverLookupMap (stable sorted drivers)
             // 3. safeUsers (cached fallback)
             // 4. Synthetic from delivery data (last resort)
-            let driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId) || 
+            let driverAppUser = realtimeAppUsers.find(u => u && (u.id === driverId || u.user_id === driverId)) || 
                                 driverLookupMap.get(driverId) || 
-                                safeUsers.find(u => u && u.id === driverId);
+                                safeUsers.find(u => u && (u.id === driverId || u.user_id === driverId));
             
             if (!driverAppUser) {
               // Fallback: Create synthetic driver from any delivery with this driver_id
