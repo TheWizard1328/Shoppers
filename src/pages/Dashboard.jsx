@@ -8775,24 +8775,19 @@ function Dashboard() {
                   </PopoverContent>
                 </Popover>
 
-                <div onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                }}>
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      setEditingDelivery(null);
-                      setShowDeliveryForm(true);
-                    }}
-                    size="sm"
-                    className={`h-8 w-8 p-0 transition-colors ${hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
-                    disabled={isDateFinished && !isAdmin}
-                    title={hasRateLimitError ? 'Rate limit detected - please wait' : 'Add delivery'}>
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setEditingDelivery(null);
+                    setShowDeliveryForm(true);
+                  }}
+                  size="sm"
+                  className={`h-8 w-8 p-0 transition-colors ${hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                  disabled={isDateFinished && !isAdmin}
+                  title={hasRateLimitError ? 'Rate limit detected - please wait' : 'Add delivery'}>
+                  <Plus className="w-4 h-4" />
+                </Button>
               </div>
             </div>
 
