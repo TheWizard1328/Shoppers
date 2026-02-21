@@ -3234,12 +3234,12 @@ function Dashboard() {
 
             // Dispatcher filtering - check ALL date deliveries, not just selected driver
             if (isDispatcher && !isAdmin) {
-              const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
+              const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map(id => String(id)));
               const allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
               const hasDeliveryInDispatcherStore = allDateDeliveries.some((delivery) =>
-              delivery &&
-              delivery.driver_id === location.driver_id &&
-              dispatcherStoreIds.has(delivery.store_id)
+                delivery &&
+                delivery.driver_id === location.driver_id &&
+                dispatcherStoreIds.has(String(delivery.store_id))
               );
               if (!hasDeliveryInDispatcherStore) {
                 return;
