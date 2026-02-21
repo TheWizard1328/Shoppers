@@ -3624,30 +3624,52 @@ export default function DeliveryForm({
         }
       }
 
-      // CRITICAL: Always reorder stops after any delivery update or status change
-      if (delivery && formData.driver_id && formData.delivery_date) {
-        console.log('🔄 [DeliveryForm] Reordering stops after delivery update...');
-        try {
-          await reorderStops(formData.driver_id, formData.delivery_date, allDeliveries);
-          console.log('✅ [DeliveryForm] Stop reordering complete');
-        } catch (error) {
-          console.error('❌ [DeliveryForm] Stop reordering failed:', error);
-        }
-      }
+      // CRITICAL: Close form IMMEDIATELY before running background optimization
+      onCancel();
 
-      // CRITICAL: Trigger patient update function when delivery is completed
-      if (statusChangedToCompletion && delivery && formData.status === 'completed') {
-        console.log('🔄 [DeliveryForm] Triggering patient update after route completion...');
+      // Resume managers immediately (non-blocking)
+      setTimeout(async () => {
         try {
-          await base44.functions.invoke('updatePatientsAfterRouteCompletion', {
-            deliveryDate: formData.delivery_date,
-            driverId: formData.driver_id
-          });
-          console.log('✅ [DeliveryForm] Patient update complete');
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+          const { routePolylineManager } = await import('../utils/routePolylineManager');
+          const { fabControlEvents } = await import('../utils/fabControlEvents');
+          smartRefreshManager.resume();
+          driverLocationPoller.resume();
+          routePolylineManager?.resume?.();
+          fabControlEvents.resumeFAB();
+          console.log('▶️ [DeliveryForm] Resumed background operations');
         } catch (error) {
-          console.error('❌ [DeliveryForm] Patient update failed:', error);
+          console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
         }
-      }
+      }, 0);
+
+      // BACKGROUND: Run all route optimization tasks without blocking the UI
+      (async () => {
+        // Reorder stops after any delivery update or status change
+        if (delivery && formData.driver_id && formData.delivery_date) {
+          console.log('🔄 [DeliveryForm BG] Reordering stops...');
+          try {
+            await reorderStops(formData.driver_id, formData.delivery_date, allDeliveries);
+            console.log('✅ [DeliveryForm BG] Stop reordering complete');
+          } catch (error) {
+            console.error('❌ [DeliveryForm BG] Stop reordering failed:', error);
+          }
+        }
+
+        // Trigger patient update when delivery is completed
+        if (statusChangedToCompletion && delivery && formData.status === 'completed') {
+          console.log('🔄 [DeliveryForm BG] Triggering patient update...');
+          try {
+            await base44.functions.invoke('updatePatientsAfterRouteCompletion', {
+              deliveryDate: formData.delivery_date,
+              driverId: formData.driver_id
+            });
+            console.log('✅ [DeliveryForm BG] Patient update complete');
+          } catch (error) {
+            console.error('❌ [DeliveryForm BG] Patient update failed:', error);
+          }
+        }
 
       if (isPickupMode && delivery && formData.status === 'completed' && formData.store_id && formData.ampm_deliveries) {
         const relatedDeliveries = allDeliveries.filter((d) =>
