@@ -137,40 +137,42 @@ export default function SettingsMenu({
       {/* Theme Toggle - Mobile Devices Only (based on user agent, not screen width) */}
       {isMobileForTheme && (
         <div className="px-2 py-2">
-          <label 
-            className="font-medium mb-1.5 block" 
-            style={{ 
-              color: 'var(--text-slate-700)', 
-              fontSize: isMobileDeviceForUI ? '15px' : '14px' 
-            }}
-          >
-            Theme
-          </label>
-          <Select value={themePreference} onValueChange={onThemeChange}>
-            <SelectTrigger 
-              className="w-full h-9" 
+          <div className="space-y-1.5">
+            <label 
+              className="font-medium block" 
               style={{ 
-                background: 'var(--bg-white)', 
-                borderColor: 'var(--border-slate-300)', 
-                color: 'var(--text-slate-900)', 
-                fontSize: isMobileDeviceForUI ? '16px' : '15px' 
+                color: 'var(--text-slate-700)', 
+                fontSize: isMobileDeviceForUI ? '15px' : '14px' 
               }}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent 
-              className="z-[10003]" 
-              style={{ 
-                background: 'var(--bg-white)', 
-                borderColor: '#ffffff', 
-                fontSize: isMobileDeviceForUI ? '16px' : '15px' 
-              }}
-            >
-              <SelectItem value="auto" style={{ color: 'var(--text-slate-900)' }}>Auto (System)</SelectItem>
-              <SelectItem value="light" style={{ color: 'var(--text-slate-900)' }}>Light</SelectItem>
-              <SelectItem value="dark" style={{ color: 'var(--text-slate-900)' }}>Dark</SelectItem>
-            </SelectContent>
-          </Select>
+              Theme
+            </label>
+            <Select value={themePreference} onValueChange={onThemeChange}>
+              <SelectTrigger 
+                className="w-full h-9" 
+                style={{ 
+                  background: 'var(--bg-white)', 
+                  borderColor: 'var(--border-slate-300)', 
+                  color: 'var(--text-slate-900)', 
+                  fontSize: isMobileDeviceForUI ? '16px' : '15px' 
+                }}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent 
+                className="z-[10003]" 
+                style={{ 
+                  background: 'var(--bg-white)', 
+                  borderColor: '#ffffff', 
+                  fontSize: isMobileDeviceForUI ? '16px' : '15px' 
+                }}
+              >
+                <SelectItem value="auto" style={{ color: 'var(--text-slate-900)' }}>Auto (System)</SelectItem>
+                <SelectItem value="light" style={{ color: 'var(--text-slate-900)' }}>Light</SelectItem>
+                <SelectItem value="dark" style={{ color: 'var(--text-slate-900)' }}>Dark</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
