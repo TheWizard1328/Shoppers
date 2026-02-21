@@ -172,7 +172,7 @@ function BarcodeCameraModal({ onDetected, onClose }) {
               <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br" />
             </div>
           </div>
-          {scanning && !error && (
+          {!error && (
             <div className="absolute bottom-2 left-0 right-0 text-center">
               <span className="text-xs text-white bg-black/50 px-2 py-1 rounded-full">
                 Point camera at barcode
