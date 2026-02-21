@@ -9252,7 +9252,7 @@ function Dashboard() {
 
         <div
           ref={stopCardsContainerRef}
-          className="horizontal-cards-container absolute bottom-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end max-h-[80vh]"
+          className="horizontal-cards-container absolute bottom-0 right-0 z-[10100] px-4 pb-1 pointer-events-none flex flex-col justify-end max-h-[80vh]"
           style={{ left: isSnapshotModeActive ? '5rem' : '0' }}
           onClick={() => {
             if (retractClustersRef.current) {
@@ -9521,7 +9521,7 @@ function Dashboard() {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0, opacity: 0 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          className="fixed z-[1001]"
+          className="fixed z-[1000]"
           style={{
             bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15 + (isMobile ? 70 : 0)}px`,
             right: '64px'
