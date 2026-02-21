@@ -503,6 +503,7 @@ export default function DeliveryForm({
         after_hours_pickup: delivery.after_hours_pickup || false,
         no_charge: delivery.no_charge || false,
         extra_time: delivery.extra_time || 0,
+        barcode_values: delivery.barcode_values || [],
         recurring: delivery.recurring || false,
         recurring_daily: delivery.recurring_daily || false,
         recurring_weekly_mon: delivery.recurring_weekly_mon || false,
