@@ -98,14 +98,15 @@ function BarcodeCameraModal({ onDetected, onClose }) {
 
   useEffect(() => {
     let active = true;
+    let intervalId = null;
 
     const startScan = async () => {
       try {
         const { BrowserMultiFormatReader } = await import('@zxing/browser');
 
-        // Get stream manually so we hold a reference for guaranteed cleanup
+        // Get camera stream manually
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          video: { facingMode: { ideal: 'environment' } }
         });
 
         if (!active) {
@@ -115,7 +116,6 @@ function BarcodeCameraModal({ onDetected, onClose }) {
 
         streamRef.current = stream;
 
-        // Attach stream to video element directly — prevents flicker vs letting zxing do it
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => {});
@@ -124,17 +124,25 @@ function BarcodeCameraModal({ onDetected, onClose }) {
         const codeReader = new BrowserMultiFormatReader();
         codeReaderRef.current = codeReader;
 
-        // Decode from the already-playing video element
-        codeReader.decodeFromStream(stream, videoRef.current, (result, err) => {
-          if (!active || detectedRef.current) return;
-          if (result) {
-            detectedRef.current = true;
-            const text = result.getText();
-            releaseCamera();
-            onDetected(text);
+        // Poll video frames for a barcode every 300ms
+        intervalId = setInterval(async () => {
+          if (!active || detectedRef.current || !videoRef.current) return;
+          if (videoRef.current.readyState < 2) return; // not ready yet
+
+          try {
+            const result = await codeReader.decodeOnce(videoRef.current);
+            if (result && !detectedRef.current) {
+              detectedRef.current = true;
+              const text = result.getText();
+              clearInterval(intervalId);
+              releaseCamera();
+              onDetected(text);
+            }
+          } catch {
+            // NotFoundException between frames is normal — keep polling
           }
-          // decode errors between frames are normal — ignore them
-        });
+        }, 300);
+
       } catch (e) {
         if (active) setError(e.message || 'Camera access failed');
       }
@@ -144,9 +152,10 @@ function BarcodeCameraModal({ onDetected, onClose }) {
 
     return () => {
       active = false;
+      if (intervalId) clearInterval(intervalId);
       releaseCamera();
     };
-  }, []); // run once on mount only
+  }, []);
 
   return (
     <motion.div
