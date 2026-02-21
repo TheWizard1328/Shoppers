@@ -74,12 +74,15 @@ function stopVideoStream(videoEl) {
   } catch {}
 }
 
-// Camera scanner modal using @zxing
+// Camera scanner modal using @zxing — continuous scanning with snapshot
 function BarcodeCameraModal({ onDetected, onClose }) {
   const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   const [error, setError] = useState(null);
+  const [scannedItems, setScannedItems] = useState([]); // { value, status: 'processing'|'done'|'error', snapshotUrl }
   const codeReaderRef = useRef(null);
-  const detectedRef = useRef(false);
+  const recentlyScannedRef = useRef(new Set()); // debounce same barcode
+  const cooldownRef = useRef(false);
 
   const stopReader = useCallback(() => {
     if (codeReaderRef.current) {
@@ -88,6 +91,48 @@ function BarcodeCameraModal({ onDetected, onClose }) {
     }
     stopVideoStream(videoRef.current);
   }, []);
+
+  // Capture a snapshot from the video element
+  const captureSnapshot = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState < 2) return null;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    return canvas.toDataURL('image/jpeg', 0.8);
+  }, []);
+
+  const handleDetection = useCallback(async (barcodeValue) => {
+    // Debounce: ignore same barcode scanned within 3 seconds
+    if (recentlyScannedRef.current.has(barcodeValue) || cooldownRef.current) return;
+    recentlyScannedRef.current.add(barcodeValue);
+    cooldownRef.current = true;
+    setTimeout(() => { cooldownRef.current = false; }, 1500);
+    setTimeout(() => { recentlyScannedRef.current.delete(barcodeValue); }, 3000);
+
+    const snapshotBase64 = captureSnapshot();
+    const itemId = Date.now();
+
+    // Immediately add to list as 'processing' and notify parent
+    setScannedItems(prev => [...prev, { id: itemId, value: barcodeValue, status: 'processing', snapshotUrl: null }]);
+    onDetected(barcodeValue); // add to delivery immediately
+
+    // Fire-and-forget: send to backend
+    try {
+      const res = await processBarcode({ barcodeValue, snapshotBase64 });
+      const data = res?.data;
+      setScannedItems(prev => prev.map(item =>
+        item.id === itemId
+          ? { ...item, status: data?.success ? 'done' : 'error', snapshotUrl: data?.snapshotUrl || null }
+          : item
+      ));
+    } catch {
+      setScannedItems(prev => prev.map(item =>
+        item.id === itemId ? { ...item, status: 'error' } : item
+      ));
+    }
+  }, [captureSnapshot, onDetected]);
 
   useEffect(() => {
     let active = true;
@@ -98,21 +143,13 @@ function BarcodeCameraModal({ onDetected, onClose }) {
         const codeReader = new BrowserMultiFormatReader();
         codeReaderRef.current = codeReader;
 
-        // List devices and prefer back camera
         const devices = await BrowserMultiFormatReader.listVideoInputDevices();
         const backCamera = devices.find(d => /back|rear|environment/i.test(d.label));
         const deviceId = backCamera?.deviceId || (devices.length > 0 ? devices[devices.length - 1].deviceId : undefined);
 
-        // decodeFromVideoDevice is the canonical working API
-        await codeReader.decodeFromVideoDevice(deviceId, videoRef.current, (result, err) => {
-          if (!active || detectedRef.current) return;
-          if (result) {
-            detectedRef.current = true;
-            const text = result.getText();
-            stopReader();
-            onDetected(text);
-          }
-          // err is NotFoundException on every empty frame — that's normal, ignore it
+        await codeReader.decodeFromVideoDevice(deviceId, videoRef.current, (result) => {
+          if (!active || !result) return;
+          handleDetection(result.getText());
         });
       } catch (e) {
         if (active) setError(e.message || 'Camera access failed');
@@ -125,7 +162,7 @@ function BarcodeCameraModal({ onDetected, onClose }) {
       active = false;
       stopReader();
     };
-  }, []);
+  }, [handleDetection]);
 
   return (
     <motion.div
