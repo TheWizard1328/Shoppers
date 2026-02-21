@@ -225,20 +225,56 @@ function BarcodeCameraModal({ onDetected, onClose }) {
 
         {/* Scanned items feedback list */}
         {scannedItems.length > 0 && (
-          <div className="max-h-36 overflow-y-auto border-t divide-y" style={{ borderColor: 'var(--border-slate-200)' }}>
-            {scannedItems.map((item) => (
-              <div key={item.id} className="flex items-center gap-2 px-3 py-2">
-                {item.status === 'processing' && <Loader2 className="w-4 h-4 text-amber-500 animate-spin flex-shrink-0" />}
-                {item.status === 'done' && <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
-                {item.status === 'error' && <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}
-                <span className="text-xs font-mono text-slate-700 flex-1 truncate">{item.value}</span>
-                <span className="text-xs text-slate-400 flex-shrink-0">
-                  {item.status === 'processing' && 'Processing...'}
-                  {item.status === 'done' && 'Captured ✓'}
-                  {item.status === 'error' && 'Saved'}
-                </span>
-              </div>
-            ))}
+          <div className="max-h-40 overflow-y-auto border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+            <AnimatePresence initial={false}>
+              {[...scannedItems].reverse().map((item) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: -8, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`flex items-center gap-2 px-3 py-2 border-b last:border-b-0 transition-colors ${
+                    item.status === 'processing'
+                      ? 'bg-amber-50'
+                      : item.status === 'done'
+                      ? 'bg-emerald-50'
+                      : 'bg-red-50'
+                  }`}
+                  style={{ borderColor: 'var(--border-slate-100)' }}
+                >
+                  {/* Status icon */}
+                  <div className="flex-shrink-0">
+                    {item.status === 'processing' && <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />}
+                    {item.status === 'done' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                    {item.status === 'error' && <AlertCircle className="w-4 h-4 text-red-400" />}
+                  </div>
+
+                  {/* Barcode value */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-mono font-semibold text-slate-800 truncate">{item.value}</p>
+                    <p className={`text-[10px] font-medium mt-0.5 ${
+                      item.status === 'processing' ? 'text-amber-600'
+                      : item.status === 'done' ? 'text-emerald-600'
+                      : 'text-red-500'
+                    }`}>
+                      {item.status === 'processing' && '⏳ Capturing snapshot & processing...'}
+                      {item.status === 'done' && '✓ Barcode captured & verified'}
+                      {item.status === 'error' && '⚠ Saved (snapshot unavailable)'}
+                    </p>
+                  </div>
+
+                  {/* Snapshot thumbnail if available */}
+                  {item.snapshotUrl && (
+                    <img
+                      src={item.snapshotUrl}
+                      alt="barcode snapshot"
+                      className="w-10 h-7 object-cover rounded border border-emerald-200 flex-shrink-0"
+                    />
+                  )}
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         )}
 
