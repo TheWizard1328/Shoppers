@@ -5233,6 +5233,17 @@ export default function DeliveryForm({
                     }
                   </div>
 
+                  {/* Barcode Section - only shown when editing an existing delivery */}
+                  {delivery &&
+                  <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                    <BarcodeScanner
+                      barcodeValues={formData.barcode_values || []}
+                      onChange={(vals) => setFormData(prev => ({ ...prev, barcode_values: vals }))}
+                      disabled={isSaving}
+                    />
+                  </div>
+                  }
+
                   {/* Section 2: Delivery Options & COD */}
                   {!isPickupMode &&
                   <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
