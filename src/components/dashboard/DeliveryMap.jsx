@@ -1996,12 +1996,8 @@ export default function DeliveryMap({
 
     const homeMarkers = [];
     driversToShowHome.forEach((driverId) => {
-      // CRITICAL: Filter based on mode
-      // Single driver mode: ONLY show selected driver's home
-      // All Drivers/Show All mode: Show all drivers' homes
-      if (isSingleDriverMode) {
-        if (driverId !== selectedDriverId) return;
-      }
+      // CRITICAL: In single driver mode, ONLY show the selected driver's home marker
+      if (isSingleDriverMode && driverId !== selectedDriverId) return;
       
       if (isDriverViewingSelfToday && driverId !== currentUser.id) return;
 
