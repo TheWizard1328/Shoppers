@@ -290,43 +290,44 @@ class DriverLocationPoller {
            return false;
          }
 
-         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
-         console.log(`🔍 [Poller] Dispatcher stores: ${JSON.stringify(Array.from(dispatcherStoreIds))}, Driver: ${user.user_name}`);
-         console.log(`🔍 [Poller] Driver IDs to match: ${JSON.stringify({ user_id: user.id, user_user_id: user.user_id, driverId: driverId })}`);
+         // CRITICAL: Normalize dispatcher store IDs to strings for consistent comparison
+         const rawDispatcherStoreIds = this.currentUser.store_ids || [];
+         const dispatcherStoreIds = new Set(rawDispatcherStoreIds.map(id => String(id)));
+         console.log(`🔍 [Poller] Dispatcher stores (normalized): ${JSON.stringify(Array.from(dispatcherStoreIds))}, Driver: ${user.user_name}`);
+
+         // All possible IDs for this AppUser
+         const userIdForDeliveryMatch = user.id || user.user_id;
+         const allDriverIdFormats = [userIdForDeliveryMatch, driverId, user.user_id, user.user_user_id].filter(Boolean);
+         console.log(`🔍 [Poller] Driver ID formats to match: ${JSON.stringify(allDriverIdFormats)}`);
 
          // 2. Driver must have at least 1 en_route OR in_transit delivery from dispatcher's stores (today)
-         // Once all stops are complete/failed/cancelled, marker disappears
-         const userIdForDeliveryMatch = user.id || user.user_id;
-
-         // DEBUG: Log first 5 deliveries explicitly
-         console.log(`📋 [Poller] Total deliveries: ${deliveries?.length || 0}, todayStr: '${todayStr}', for driver: ${user.user_name}`);
-         if (deliveries && Array.isArray(deliveries)) {
-           for (let i = 0; i < Math.min(5, deliveries.length); i++) {
-             const d = deliveries[i];
-             console.log(`  [${i}] driver_id: '${d?.driver_id}', store_id: '${d?.store_id}', delivery_date: '${d?.delivery_date}', status: '${d?.status}'`);
-           }
-         }
-
          const matchingDeliveries = (deliveries || []).filter(delivery => {
            if (!delivery) return false;
+
            // CRITICAL: Match delivery.driver_id against ALL driver ID formats
-           // Some deliveries use user_user_id (from store assignments), others use AppUser.id
-           const driverMatch = delivery.driver_id === userIdForDeliveryMatch || 
-                              delivery.driver_id === driverId ||
-                              delivery.driver_id === user.user_user_id; // Also check original user_user_id
+           const driverMatch = allDriverIdFormats.some(fmt => delivery.driver_id === fmt);
            const dateMatch = delivery.delivery_date === todayStr;
-           const storeMatch = dispatcherStoreIds.has(delivery.store_id);
+           // CRITICAL: Normalize delivery store_id to string before comparing
+           const deliveryStoreIdStr = String(delivery.store_id || '');
+           const storeMatch = dispatcherStoreIds.has(deliveryStoreIdStr);
            const statusMatch = delivery.status === 'in_transit' || delivery.status === 'en_route';
 
-           console.log(`  📦 Delivery ${delivery.id}: driver=${driverMatch} (${delivery.driver_id} vs ${userIdForDeliveryMatch}/${driverId}/${user.user_user_id}), date=${dateMatch}, store=${storeMatch}, status=${statusMatch}`);
+           // Log only mismatches for dispatcher stores to catch ID format discrepancies
+           if (driverMatch && dateMatch && !storeMatch) {
+             console.log(`  ⚠️ [Poller] Store ID mismatch: delivery.store_id='${delivery.store_id}' (str:'${deliveryStoreIdStr}') not in dispatcher stores: ${JSON.stringify(Array.from(dispatcherStoreIds))}`);
+           }
 
-           if (!driverMatch || !dateMatch || !storeMatch || !statusMatch) return false;
-           return true;
+           return driverMatch && dateMatch && storeMatch && statusMatch;
          });
 
          if (matchingDeliveries.length === 0) {
-           const allDriverDeliveries = (deliveries || []).filter(d => d && (d.driver_id === userIdForDeliveryMatch || d.driver_id === driverId) && d.delivery_date === todayStr);
+           const allDriverDeliveries = (deliveries || []).filter(d => d && allDriverIdFormats.some(fmt => d.driver_id === fmt) && d.delivery_date === todayStr);
            console.log(`❌ [Poller] Dispatcher - driver ${user.user_name} has ${allDriverDeliveries.length} total deliveries today, 0 active (en_route/in_transit) from dispatcher stores`);
+           if (allDriverDeliveries.length > 0) {
+             // Log store IDs of those deliveries to help debug
+             const deliveryStoreIds = [...new Set(allDriverDeliveries.map(d => d.store_id))];
+             console.log(`  ℹ️ [Poller] Driver's delivery store_ids today: ${JSON.stringify(deliveryStoreIds)} vs dispatcher's: ${JSON.stringify(Array.from(dispatcherStoreIds))}`);
+           }
            return false;
          }
 
