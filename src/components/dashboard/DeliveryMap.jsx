@@ -2983,7 +2983,7 @@ export default function DeliveryMap({
           if (isViewingCurrentDate) {
             // Helper to get driver name (defined in parent scope)
             const getDriverNameComplete = (driverId) => {
-              const driver = safeUsers.find(u => u && u.id === driverId);
+              const driver = safeUsers.find(u => u && (u.id === driverId || u.user_id === driverId));
               return driver ? (driver.user_name || driver.full_name || `Driver-${driverId}`) : `Unknown-${driverId}`;
             };
             
@@ -3255,8 +3255,8 @@ return polylines.length > 0 ? polylines : null;
 
           // Helper to get driver name
           const getDriverName = (driverId) => {
-            const driver = safeUsers.find(u => u && u.id === driverId);
-            return driver ? (driver.user_name || driver.full_name || `Driver-${driverId}`) : `Unknown-${driverId}`;
+           const driver = safeUsers.find(u => u && (u.id === driverId || u.user_id === driverId));
+           return driver ? (driver.user_name || driver.full_name || `Driver-${driverId}`) : `Unknown-${driverId}`;
           };
 
           // CRITICAL: Build map of all driver stops to determine route completion FIRST
