@@ -7,8 +7,8 @@ import { isMobileDevice } from '../utils/deviceUtils';
 import { getCurrentDevice } from '../utils/deviceManager';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 
-// Create driver icon with thin white border ring
-const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'fresh') => {
+// Create driver/dispatcher icon with thin white border ring
+const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'fresh', userRole = 'driver') => {
   const size = 15;
   
   // Determine fill color based on status and staleness
@@ -25,7 +25,7 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'f
     fillColor = '#10B981'; // Green for fresh on duty
   }
   
-  // Thin white border ring
+  // Thin white border ring (same for drivers and dispatchers)
   const borderColor = '#FFFFFF';
   const borderWidth = 2;
   
@@ -523,7 +523,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           <Marker
             key={stableKey}
             position={position}
-            icon={createDriverIcon(user.driver_status, displayName.charAt(0).toUpperCase(), staleness)}
+            icon={createDriverIcon(user.driver_status, displayName.charAt(0).toUpperCase(), staleness, userRole)}
             zIndexOffset={isActive ? 2000 : 1000}
           >
             <Popup>
