@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Drawer,
@@ -11,7 +11,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function MobileSelect({ 
   value, 
