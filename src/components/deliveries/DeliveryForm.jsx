@@ -5289,7 +5289,7 @@ export default function DeliveryForm({
                   {!isPickupMode &&
                   <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex gap-3">
-                        <div className="flex gap-3">
+                        <div className="flex-1 space-y-2">
                           <div className="flex-1 space-y-2">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
                             <div className="space-y-3">
@@ -5326,8 +5326,10 @@ export default function DeliveryForm({
 
                             </div>
                           </div>
+                        </div>
 
                         <div className="flex-1 space-y-2">
+                          <div className="flex-1 space-y-2">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
                               <div className="space-y-3">
                                 <div className="flex items-center space-x-2">
@@ -5372,7 +5374,7 @@ export default function DeliveryForm({
                                   </div>
                             }
                               </div>
-                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
