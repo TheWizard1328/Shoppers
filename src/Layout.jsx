@@ -4108,7 +4108,7 @@ export default function Layout({ children, currentPageName }) {
                     </main>
                     
                     {/* Mobile Bottom Navigation - Only on mobile devices and below 768px */}
-                    {currentUser && !isSnapshotModeActive && screenWidth < 768 && (
+                    {currentUser && !isSnapshotModeActive && (isMobile || isTabletPortrait) && (
                       <MobileBottomNav currentPageName={currentPageName} />
                     )}
               </div>
