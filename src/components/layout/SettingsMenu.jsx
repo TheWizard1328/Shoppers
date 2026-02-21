@@ -210,47 +210,49 @@ export default function SettingsMenu({
       {/* City Filter - Admin Only */}
       {currentUser?.app_roles?.includes('admin') && cities && cities.length > 0 && (
         <div className="px-2 py-2">
-          <label 
-            className="font-medium mb-1.5 block" 
-            style={{ 
-              color: 'var(--text-slate-700)', 
-              fontSize: isMobileDeviceForUI ? '14px' : '13px' 
-            }}
-          >
-            City Filter
-          </label>
-          <Select
-            value={globalFilters.getSelectedCityId()}
-            onValueChange={(cityId) => {
-              globalFilters.setSelectedCityId(cityId);
-            }}
-          >
-            <SelectTrigger 
-              className="w-full h-9" 
+          <div className="space-y-1.5">
+            <label 
+              className="font-medium block" 
               style={{ 
-                background: 'var(--bg-white)', 
-                borderColor: 'var(--border-slate-300)', 
-                color: 'var(--text-slate-900)', 
-                fontSize: isMobileDeviceForUI ? '16px' : '15px' 
+                color: 'var(--text-slate-700)', 
+                fontSize: isMobileDeviceForUI ? '14px' : '13px' 
               }}
             >
-              <SelectValue placeholder="City" />
-            </SelectTrigger>
-            <SelectContent 
-              className="max-h-[300px] overflow-y-auto z-[10002]" 
-              style={{ 
-                background: 'var(--bg-white)', 
-                borderColor: '#ffffff', 
-                fontSize: isMobileDeviceForUI ? '16px' : '15px' 
+              City Filter
+            </label>
+            <Select
+              value={globalFilters.getSelectedCityId()}
+              onValueChange={(cityId) => {
+                globalFilters.setSelectedCityId(cityId);
               }}
             >
-              {cities.map((city) => (
-                <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
-                  {city.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <SelectTrigger 
+                className="w-full h-9" 
+                style={{ 
+                  background: 'var(--bg-white)', 
+                  borderColor: 'var(--border-slate-300)', 
+                  color: 'var(--text-slate-900)', 
+                  fontSize: isMobileDeviceForUI ? '16px' : '15px' 
+                }}
+              >
+                <SelectValue placeholder="City" />
+              </SelectTrigger>
+              <SelectContent 
+                className="max-h-[300px] overflow-y-auto z-[10002]" 
+                style={{ 
+                  background: 'var(--bg-white)', 
+                  borderColor: '#ffffff', 
+                  fontSize: isMobileDeviceForUI ? '16px' : '15px' 
+                }}
+              >
+                {cities.map((city) => (
+                  <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                    {city.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
