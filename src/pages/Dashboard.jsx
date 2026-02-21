@@ -185,17 +185,18 @@ const roundCompletionTime = (timeISO) => {
   if (!timeISO) return timeISO;
 
   try {
-    const date = new Date(timeISO);
-    const minutes = date.getMinutes();
+    // Parse as local timestamp (format: "YYYY-MM-DDTHH:MM:SS" - no timezone)
+    const [datePart, timePart] = timeISO.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hours, minutesRaw, seconds] = timePart.split(':').map(Number);
 
-    // Round to nearest 5 minutes
-    const roundedMinutes = Math.round(minutes / 5) * 5;
-    date.setMinutes(roundedMinutes);
-    date.setSeconds(0);
-    date.setMilliseconds(0);
-    console.log(`⏱️ [Round Time] Rounded to nearest 5min: ${minutes} → ${roundedMinutes} minutes`);
+    const roundedMinutes = Math.round(minutesRaw / 5) * 5;
+    const finalHours = Math.floor((hours * 60 + roundedMinutes) / 60) % 24;
+    const finalMinutes = roundedMinutes % 60;
 
-    return date.toISOString();
+    console.log(`⏱️ [Round Time] Rounded to nearest 5min: ${minutesRaw} → ${roundedMinutes} minutes`);
+
+    return `${datePart}T${String(finalHours).padStart(2,'0')}:${String(finalMinutes).padStart(2,'0')}:00`;
   } catch (error) {
     console.error('Error rounding completion time:', error);
     return timeISO;
