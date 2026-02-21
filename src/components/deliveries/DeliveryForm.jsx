@@ -5233,6 +5233,14 @@ export default function DeliveryForm({
                     }
                   </div>
 
+                  {/* AppOwner Only Section */}
+                  {isAppOwner(currentUser) && (
+                    <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <Label className="text-sm font-semibold text-purple-700">🔧 AppOwner Tools</Label>
+                      <p className="text-xs text-slate-500">Developer tools and advanced features</p>
+                    </div>
+                  )}
+
                   {/* Barcode Section - only shown when editing an existing delivery */}
                   {delivery &&
                   <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
