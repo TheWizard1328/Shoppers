@@ -62,7 +62,7 @@ export default function MobileBottomNav({ currentPageName }) {
       style={{ 
         background: 'var(--bg-white)', 
         borderColor: 'var(--border-slate-200)',
-        paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))'
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))'
       }}
     >
       <nav className="flex items-center justify-around px-2 py-2 select-none">
