@@ -44,18 +44,12 @@ class CityFilteredRealtimeSync {
    */
   start(cityId, selectedDate) {
     if (this.isActive) {
-      console.log('⚠️ [RealtimeSync] Already active - stopping existing subscriptions first');
       this.stop();
     }
 
     this.currentCityId = cityId;
     this.currentDate = selectedDate;
     this.isActive = true;
-
-    console.log(`🔌 [RealtimeSync] Starting subscriptions for city: ${cityId}`);
-
-    // Subscribe to ALL Delivery changes (NO city filtering - process everything)
-    console.log('🔌 [cityFilteredRealtimeSync] Setting up Delivery subscription - NO FILTERS');
 
     // Lazy load reconciler to avoid circular dependencies
     const getReconciler = async () => {
