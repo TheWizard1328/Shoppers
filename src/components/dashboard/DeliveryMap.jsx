@@ -1188,7 +1188,8 @@ export default function DeliveryMap({
 
       const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher');
       const isStopInDispatcherStore = isCurrentUserDispatcher && currentUser.store_ids && store && currentUser.store_ids.includes(store.id);
-      const useSimpleCircle = isCurrentUserDispatcher && !isStopInDispatcherStore;
+      // CRITICAL: Use simple circle markers for dispatchers viewing other stores, AND for all drivers in Show All mode (other drivers)
+      const useSimpleCircle = (isCurrentUserDispatcher && !isStopInDispatcherStore) || (showOtherDriverDeliveries && isOtherDriver);
 
       // CRITICAL: Use backend isNextDelivery flag directly - set by server for all deliveries
       const isNextInLine = delivery.isNextDelivery || false;
