@@ -463,39 +463,10 @@ class ErrorBoundary extends React.Component {
   }
 
   static getDerivedStateFromError(error) {
-    // CRITICAL: Only catch truly fatal errors - let most errors pass through
-    // This prevents intermittent error screens during normal operation
+    // CRITICAL: Never show error screen - just log and continue
+    // This allows errors to float up to console for debugging
+    console.error('🔴 ERROR:', error);
     
-    // Ignore Leaflet map errors
-    if (error.message && (
-    error.message.includes('l is not a function') ||
-    error.message.includes('_leaflet_pos') ||
-    error.message.includes('Leaflet'))) {
-      console.warn('Leaflet error caught by ErrorBoundary, continuing normally');
-      return { hasError: false };
-    }
-
-    // Ignore network/rate limit errors - these should be handled gracefully
-    if (error.message && (
-      error.message.includes('429') ||
-      error.message.includes('Rate limit') ||
-      error.message.includes('Network') ||
-      error.message.includes('fetch')
-    )) {
-      console.warn('Network/Rate limit error caught by ErrorBoundary, continuing normally');
-      return { hasError: false };
-    }
-
-    // Ignore React rendering errors during transitions
-    if (error.message && (
-      error.message.includes('flushSync') ||
-      error.message.includes('useEffect') ||
-      error.message.includes('setState')
-    )) {
-      console.warn('React state error caught by ErrorBoundary, continuing normally');
-      return { hasError: false };
-    }
-
     // Cache error to localStorage for debugging (survives refresh)
     try {
       localStorage.setItem('rxdeliver_last_error', JSON.stringify({
@@ -507,41 +478,23 @@ class ErrorBoundary extends React.Component {
       // Ignore localStorage errors
     }
     
-    // CRITICAL: Only show error screen for truly fatal errors
-    console.error('🔴 FATAL ERROR - Showing error screen:', error);
-    return { hasError: true, error };
+    // Always return no error state to continue app
+    return { hasError: false };
   }
 
   componentDidCatch(error, errorInfo) {
-    // Ignore known non-fatal errors
-    if (error.message && (
-    error.message.includes('l is not a function') ||
-    error.message.includes('_leaflet_pos') ||
-    error.message.includes('Leaflet') ||
-    error.message.includes('429') ||
-    error.message.includes('Rate limit') ||
-    error.message.includes('Network') ||
-    error.message.includes('fetch') ||
-    error.message.includes('flushSync') ||
-    error.message.includes('useEffect') ||
-    error.message.includes('setState')
-    )) {
-      console.warn('Non-fatal error caught and neutralized by ErrorBoundary:', error.message);
-      // CRITICAL: Reset error state to continue normally
-      this.setState({ hasError: false, error: null, errorInfo: null });
-      return;
-    }
-
-    // Store errorInfo in state for display
-    this.setState({ errorInfo });
-
+    // CRITICAL: Just log errors to console - never show error screen
+    // This allows errors to bubble up naturally for debugging
     console.error('═══════════════════════════════════════════════════');
-    console.error('❌ CRITICAL ERROR CAUGHT BY ERROR BOUNDARY');
+    console.error('❌ ERROR CAUGHT BY ERROR BOUNDARY');
     console.error('Error:', error);
     console.error('Error message:', error?.message);
     console.error('Error stack:', error?.stack);
     console.error('Component stack:', errorInfo?.componentStack);
     console.error('═══════════════════════════════════════════════════');
+    
+    // Reset error state to allow app to continue
+    this.setState({ hasError: false, error: null, errorInfo: null });
   }
 
   render() {
