@@ -4054,7 +4054,7 @@ export default function Layout({ children, currentPageName }) {
                 />
                 }
 
-                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)', paddingBottom: (isMobile || isTabletPortrait) ? '80px' : '0' }}>
+                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)', paddingBottom: (isMobile || isTabletPortrait) ? 'max(80px, calc(80px + env(safe-area-inset-bottom)))' : '0' }}>
                     <PageTransition>
                       {children}
                     </PageTransition>
