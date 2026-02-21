@@ -1188,6 +1188,11 @@ export default function DeliveryMap({
 
       const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher');
       const isStopInDispatcherStore = isCurrentUserDispatcher && currentUser.store_ids && store && currentUser.store_ids.includes(store.id);
+
+      // CRITICAL: Determine if this marker belongs to another driver (BEFORE using in useSimpleCircle)
+      // Works for ANY user (admin, driver, dispatcher) viewing a specific driver
+      const isOtherDriver = selectedDriverId && selectedDriverId !== 'all' && delivery.driver_id !== selectedDriverId;
+
       // CRITICAL: Use simple circle markers for dispatchers viewing other stores, AND for all drivers in Show All mode (other drivers)
       const useSimpleCircle = (isCurrentUserDispatcher && !isStopInDispatcherStore) || (showOtherDriverDeliveries && isOtherDriver);
 
@@ -1224,10 +1229,6 @@ export default function DeliveryMap({
           hasNoPickup = !pickupExistsInRoute && !pickupExistsInAllData;
         }
       }
-
-      // CRITICAL: Determine if this marker belongs to another driver
-      // Works for ANY user (admin, driver, dispatcher) viewing a specific driver
-      const isOtherDriver = selectedDriverId && selectedDriverId !== 'all' && delivery.driver_id !== selectedDriverId;
 
       // CRITICAL: Determine pin color based on mode - calculate ONCE, before rendering
       let pinColor;
