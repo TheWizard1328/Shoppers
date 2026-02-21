@@ -7032,10 +7032,7 @@ function Dashboard() {
           console.log(`⏱️ [TIME ROUNDING] Skipped - middle stop (${completedStopsCount} completed, ${incompleteStopsCount} remaining)`);
         }
 
-        // Store as local timestamp string (no UTC/Z suffix)
-        const rawDate = new Date(currentTimeISO);
-        const localTS = `${rawDate.getFullYear()}-${String(rawDate.getMonth()+1).padStart(2,'0')}-${String(rawDate.getDate()).padStart(2,'0')}T${String(rawDate.getHours()).padStart(2,'0')}:${String(rawDate.getMinutes()).padStart(2,'0')}:${String(rawDate.getSeconds()).padStart(2,'0')}`;
-        updateData.actual_delivery_time = localTS;
+        updateData.actual_delivery_time = currentTimeISO;
       } else {
         updateData.actual_delivery_time = null;
       }
