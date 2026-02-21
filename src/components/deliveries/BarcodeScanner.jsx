@@ -103,8 +103,17 @@ function BarcodeCameraModal({ onDetected, onClose }) {
 
     return () => {
       active = false;
+      // Stop the zxing reader
       if (codeReaderRef.current) {
         try { codeReaderRef.current.reset(); } catch {}
+        codeReaderRef.current = null;
+      }
+      // Explicitly stop all camera tracks to release the camera indicator
+      if (videoRef.current && videoRef.current.srcObject) {
+        try {
+          videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+          videoRef.current.srcObject = null;
+        } catch {}
       }
     };
   }, [onDetected]);
