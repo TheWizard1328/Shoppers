@@ -153,6 +153,7 @@ export default function DeliveryForm({
       mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
       dont_ring_bell: false, back_door: false, signature_needed: false,
       fridge_item: false, oversized: false, after_hours_pickup: false, no_charge: false, extra_time: 0,
+      barcode_values: [],
       recurring: false, recurring_daily: false,
       recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
       recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
