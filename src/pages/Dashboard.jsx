@@ -9511,7 +9511,8 @@ function Dashboard() {
           hasVisibleCards={deliveriesWithStopOrder.length > 0}
           isAIVisible={showAIAssistant && isAIEnabled}
           isLocked={isMapViewLocked}
-          stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} />
+          stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0}
+          mobileBottomNavHeight={isMobile || isTabletPortrait ? 70 : 0} />
 
         {/* Re-optimize Route FAB - Only for app owner (testing phase) */}
         {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
@@ -9520,9 +9521,9 @@ function Dashboard() {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0, opacity: 0 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          className="fixed z-10"
+          className="fixed z-[1001]"
           style={{
-            bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15}px`,
+            bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15 + (isMobile || isTabletPortrait ? 70 : 0)}px`,
             right: '64px'
           }}>
             <Button
