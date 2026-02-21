@@ -8767,7 +8767,8 @@ function Dashboard() {
                 </Popover>
 
                 <Button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setEditingDelivery(null);
                     setShowDeliveryForm(true);
                   }}
