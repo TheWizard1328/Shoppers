@@ -58,14 +58,14 @@ export default function MobileBottomNav({ currentPageName }) {
       initial={{ y: 100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="fixed bottom-0 left-0 right-0 z-[1000] border-t"
+      className="fixed bottom-0 left-0 right-0 z-[1000] border-t pointer-events-none"
       style={{ 
         background: 'var(--bg-white)', 
         borderColor: 'var(--border-slate-200)',
         paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))'
       }}
     >
-      <nav className="flex items-center justify-around px-2 py-2 select-none">
+      <nav className="flex items-center justify-around px-2 py-2 select-none pointer-events-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = mainTab === item.tabName;
