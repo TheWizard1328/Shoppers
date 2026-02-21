@@ -3,9 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { X, Camera, Barcode, Plus, Trash2, ZoomIn } from 'lucide-react';
+import { X, Camera, Barcode, Plus, Trash2, ZoomIn, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import JsBarcode from 'jsbarcode';
+import { processBarcode } from '@/functions/processBarcode';
 
 // Renders a single barcode as SVG using JsBarcode
 function BarcodeDisplay({ value, onDelete }) {
