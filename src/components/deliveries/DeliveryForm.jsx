@@ -3624,16 +3624,38 @@ export default function DeliveryForm({
         }
       }
 
-      // CRITICAL: Always reorder stops after any delivery update or status change
-      if (delivery && formData.driver_id && formData.delivery_date) {
-        console.log('🔄 [DeliveryForm] Reordering stops after delivery update...');
+      // CRITICAL: Close form IMMEDIATELY before running background optimization
+      onCancel();
+
+      // Resume managers immediately (non-blocking)
+      setTimeout(async () => {
         try {
-          await reorderStops(formData.driver_id, formData.delivery_date, allDeliveries);
-          console.log('✅ [DeliveryForm] Stop reordering complete');
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+          const { driverLocationPoller } = await import('../utils/driverLocationPoller');
+          const { routePolylineManager } = await import('../utils/routePolylineManager');
+          const { fabControlEvents } = await import('../utils/fabControlEvents');
+          smartRefreshManager.resume();
+          driverLocationPoller.resume();
+          routePolylineManager?.resume?.();
+          fabControlEvents.resumeFAB();
+          console.log('▶️ [DeliveryForm] Resumed background operations');
         } catch (error) {
-          console.error('❌ [DeliveryForm] Stop reordering failed:', error);
+          console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
         }
-      }
+      }, 0);
+
+      // BACKGROUND: Run all route optimization tasks without blocking the UI
+      (async () => {
+        // Reorder stops after any delivery update or status change
+        if (delivery && formData.driver_id && formData.delivery_date) {
+          console.log('🔄 [DeliveryForm BG] Reordering stops...');
+          try {
+            await reorderStops(formData.driver_id, formData.delivery_date, allDeliveries);
+            console.log('✅ [DeliveryForm BG] Stop reordering complete');
+          } catch (error) {
+            console.error('❌ [DeliveryForm BG] Stop reordering failed:', error);
+          }
+        }
 
       // CRITICAL: Trigger patient update function when delivery is completed
       if (statusChangedToCompletion && delivery && formData.status === 'completed') {
