@@ -6201,28 +6201,26 @@ export default function DeliveryForm({
                   {otherPickups.length > 0 ? (
                     <div className="mb-4 space-y-2">
                       <Label className="text-sm font-semibold">Transfer stops to:</Label>
-                      <div>
-                        <Select
-                          value={deleteConfirmation.transferPickupId || otherPickups[0]?.id || "delete_all"}
-                          onValueChange={(value) => setDeleteConfirmation(prev => ({
-                            ...prev,
-                            transferPickupId: value === "delete_all" ? null : value
-                          }))}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[10040]">
-                            <SelectItem value="delete_all">
-                              🗑️ Delete All Stops
+                      <Select
+                        value={deleteConfirmation.transferPickupId || otherPickups[0]?.id || "delete_all"}
+                        onValueChange={(value) => setDeleteConfirmation(prev => ({
+                          ...prev,
+                          transferPickupId: value === "delete_all" ? null : value
+                        }))}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="z-[10040]">
+                          <SelectItem value="delete_all">
+                            🗑️ Delete All Stops
+                          </SelectItem>
+                          {otherPickups.map(pickup => (
+                            <SelectItem key={pickup.id} value={pickup.id}>
+                              {pickup.store_name} [{pickup.ampm_deliveries}] (TR: {pickup.tracking_number})
                             </SelectItem>
-                            {otherPickups.map(pickup => (
-                              <SelectItem key={pickup.id} value={pickup.id}>
-                                {pickup.store_name} [{pickup.ampm_deliveries}] (TR: {pickup.tracking_number})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   ) : (
                     <p className="text-sm mb-4 text-red-600 font-medium">
