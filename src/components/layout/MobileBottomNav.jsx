@@ -1,54 +1,72 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { LayoutDashboard, Users, Package, Settings } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { useMobileNav } from '../utils/MobileNavContext';
 
 export default function MobileBottomNav({ currentPageName }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { tabState, getMainTab } = useMobileNav();
+  
   const navItems = [
     {
       name: 'Dashboard',
       icon: LayoutDashboard,
-      url: createPageUrl('Dashboard'),
-      pageName: 'Dashboard'
+      tabName: 'Dashboard'
     },
     {
       name: 'Patients',
       icon: Users,
-      url: createPageUrl('Patients'),
-      pageName: 'Patients'
+      tabName: 'Patients'
     },
     {
       name: 'Routes',
       icon: Package,
-      url: createPageUrl('Deliveries'),
-      pageName: 'Deliveries'
+      tabName: 'Deliveries'
     },
     {
       name: 'Settings',
       icon: Settings,
-      url: createPageUrl('DeviceSettings'),
-      pageName: 'DeviceSettings'
+      tabName: 'DeviceSettings'
     }
   ];
 
+  const mainTab = getMainTab(currentPageName);
+
+  const handleTabClick = useCallback((tabName) => {
+    // If clicking the active tab, go to its root
+    if (mainTab === tabName) {
+      navigate(createPageUrl(tabName));
+    } else {
+      // Otherwise, navigate to the saved path or root
+      navigate(tabState[tabName]?.path || createPageUrl(tabName));
+    }
+  }, [mainTab, navigate, tabState]);
+
   return (
-    <div 
-      className="fixed bottom-0 left-0 right-0 z-[1000] border-t safe-bottom"
+    <motion.div
+      initial={{ y: 100 }}
+      animate={{ y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      className="fixed bottom-0 left-0 right-0 z-[1000] border-t"
       style={{ 
         background: 'var(--bg-white)', 
         borderColor: 'var(--border-slate-200)',
         paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))'
       }}
     >
-      <nav className="flex items-center justify-around px-2 py-2">
+      <nav className="flex items-center justify-around px-2 py-2 select-none">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = currentPageName === item.pageName;
+          const isActive = mainTab === item.tabName;
           
           return (
-            <Link
+            <motion.button
               key={item.name}
-              to={item.url}
+              onClick={() => handleTabClick(item.tabName)}
+              whileTap={{ scale: 0.95 }}
               className={`flex flex-col items-center justify-center gap-1 px-3 py-1.5 rounded-lg transition-colors select-none ${
                 isActive 
                   ? 'text-emerald-600' 
@@ -57,10 +75,10 @@ export default function MobileBottomNav({ currentPageName }) {
             >
               <Icon className={`w-5 h-5 ${isActive ? 'fill-emerald-100' : ''}`} />
               <span className="text-[10px] font-medium">{item.name}</span>
-            </Link>
+            </motion.button>
           );
         })}
       </nav>
-    </div>
+    </motion.div>
   );
 }

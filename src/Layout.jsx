@@ -77,6 +77,9 @@ import { formatPhoneNumber } from './components/utils/phoneFormatter';
 import { sortUsers, sortStores } from './components/utils/sorting';
 import { UserProvider } from './components/utils/UserContext';
 import { AppDataProvider } from './components/utils/AppDataContext';
+import { MobileNavProvider, useMobileNav } from './components/utils/MobileNavContext';
+import MobileHeader from './components/layout/MobileHeader';
+import PageTransition from './components/layout/PageTransition';
 import { ResizableDivider } from './components/ui/resizable-divider';
 import { globalFilters } from './components/utils/globalFilters';
 import CitySelectionPopup from './components/cities/CitySelectionPopup';
@@ -2970,9 +2973,10 @@ export default function Layout({ children, currentPageName }) {
             display: flex !important;
             position: sticky;
             top: 0;
-            z-index: 10001 !important;
+            z-index: 50 !important;
             background: var(--bg-white);
             border-bottom: 1px solid var(--border-slate-200);
+            padding-top: calc(0.75rem + max(0, env(safe-area-inset-top, 0px))) !important;
           }
 
           .app-container.mobile-device main {
@@ -3046,9 +3050,10 @@ export default function Layout({ children, currentPageName }) {
           display: flex !important;
           position: sticky;
           top: 0;
-          z-index: 10001 !important;
+          z-index: 50 !important;
           background: var(--bg-white);
           border-bottom: 1px solid var(--border-slate-200);
+          padding-top: calc(0.75rem + max(0, env(safe-area-inset-top, 0px))) !important;
         }
 
         .app-container.tablet-portrait .app-sidebar {
@@ -3503,7 +3508,8 @@ export default function Layout({ children, currentPageName }) {
         </div> :
 
       <UserProvider initialUser={currentUser}>
-          <AppDataProvider value={{
+           <MobileNavProvider>
+           <AppDataProvider value={{
           deliveries: deliveries || [],
           patients: patients || [],
           stores: stores || [],
@@ -4048,140 +4054,24 @@ export default function Layout({ children, currentPageName }) {
               {/* Main Content Area */}
               <div className="main-content-area" style={isSnapshotModeActive ? { width: '100vw' } : {}}>
 
-                {/* Mobile Header - Hidden in snapshot mode */}
-                {!isSnapshotModeActive &&
-                <header
-                data-mobile-header
-                className="mobile-header border-b px-4 py-3 sticky top-0"
-                style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
-
-                  <div className="w-full flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSidebarOpen(!sidebarOpen);
-                        }}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0">
-                          {sidebarOpen ?
-                            <X className="w-6 h-6 text-slate-700" /> :
-                            <Menu className="w-6 h-6 text-slate-700" />
-                          }
-                      </button>
-
-                      {/* Logo with message badge - Left */}
-                      <div
-                        className="flex items-center gap-2 flex-shrink-0 relative cursor-pointer"
-                        onClick={() => {
-                          if (unreadMessageCount > 0) {
-                            setShowMessaging(true);
-                            setUnreadMessageCount(0);
-                          }
-                        }}>
-                        <img
-                          src={branding.logo_url || "https://cdn-icons-png.flaticon.com/512/3843/3843479.png"}
-                          alt="Company Logo"
-                          className="w-8 h-8 rounded object-contain"
-                          style={{ filter: 'var(--image-filter, none)' }} />
-                        {unreadMessageCount > 0 &&
-                          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
-                            {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
-                          </span>
-                        }
-                      </div>
-                    </div>
-
-                    {/* Centered Controls - On narrow mobile OR tablet portrait (only when sidebar is NOT open) */}
-                    {(isMobile || isTabletPortrait) && currentUser && !sidebarOpen && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
-                    <div className="flex-1 flex items-center justify-center gap-2">
-                      {/* Menu - Left */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
-                            <MoreVertical className="w-5 h-5 text-slate-500" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <SettingsMenu
-                          currentUser={currentUser}
-                          realUser={realUser}
-                          isAppOwner={isAppOwner(currentUser)}
-                          adminImportEnabled={adminImportEnabled}
-                          onAdminImportToggle={async (checked) => {
-                            if (currentUser?._isImpersonating) return;
-                            setAdminImportEnabled(checked);
-                            try {
-                              const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                              if (settings && settings.length > 0) {
-                                await base44.entities.AppSettings.update(settings[0].id, {
-                                  setting_value: {
-                                    ...settings[0].setting_value,
-                                    adminImportEnabled: checked
-                                  }
-                                });
-                              }
-                            } catch (error) {
-                              console.error('Failed to save admin import setting:', error);
-                            }
-                          }}
-                          themePreference={themePreference}
-                          onThemeChange={handleThemeChange}
-                          cities={cities}
-                          onPatientImportClick={() => setShowPatientImport(true)}
-                          onDeliveryImportClick={() => setShowDeliveryImport(true)}
-                          isMobile={true}
-                        />
-                      </DropdownMenu>
-
-                      {/* Status Toggle - Center */}
-                      <div style={{ width: userHasRole(currentUser, 'driver') ? 'auto' : '0px', overflow: 'hidden' }}>
-                        <DriverStatusToggle
-                          currentUser={currentUser}
-                          onStatusChange={async (newStatus) => {
-                            clearUserCache();
-                            const refreshedUser = await getEffectiveUser();
-                            if (refreshedUser) {
-                              setCurrentUser(refreshedUser);
-                            }
-                          }}
-                        />
-                      </div>
-
-                      {/* QR Code - Right */}
-                      <button
-                        onClick={() => setShowInviteQRModal(true)}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                        title="Generate Invite QR Code">
-                        <QrCode className="w-6 h-6 text-slate-500 hover:text-slate-700" />
-                      </button>
-                    </div>
-                    }
-
-                    {/* Battery + User Avatar on far right (all users, narrow mobile OR tablet portrait) */}
-                    {(isMobile || isTabletPortrait) && currentUser &&
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <BatteryIndicator vertical={true} />
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          userHasRole(currentUser, 'admin') ?
-                          'bg-gradient-to-br from-blue-500 to-blue-600' :
-                          userHasRole(currentUser, 'dispatcher') ?
-                          'bg-gradient-to-br from-red-500 to-red-600' :
-                          userHasRole(currentUser, 'driver') ?
-                          'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-                          'bg-gradient-to-br from-gray-400 to-gray-500'}`}>
-                        <span className="text-white font-bold text-xs">
-                          {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
-                        </span>
-                      </div>
-                    </div>
-                    }
-                  </div>
-                </header>
+                {/* Mobile Header - Integrated header with logo/back button + controls */}
+                {!isSnapshotModeActive && (isMobile || isTabletPortrait) &&
+                <MobileHeader
+                  logo={branding.logo_url}
+                  sidebarOpen={sidebarOpen}
+                  onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+                  branding={branding}
+                  unreadMessageCount={unreadMessageCount}
+                  onMessagingClick={() => setShowMessaging(true)}
+                  isMobile={isMobile}
+                  isTabletPortrait={isTabletPortrait}
+                />
                 }
 
                     <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)', paddingBottom: (isMobile || isTabletPortrait) ? '70px' : '0' }}>
-                    <div className="flex-1 overflow-y-auto">
-                    {children}
-                    </div>
+                    <PageTransition>
+                      {children}
+                    </PageTransition>
                     
                     {/* Mobile Bottom Navigation - Only on mobile devices */}
                     {(isMobile || isTabletPortrait) && currentUser && !isSnapshotModeActive && (
@@ -4191,7 +4081,8 @@ export default function Layout({ children, currentPageName }) {
               </div>
             </div>
           </AppDataProvider>
-        </UserProvider>
+          </MobileNavProvider>
+          </UserProvider>
       }
       <OptimizationSpinner />
     </ErrorBoundary>);
