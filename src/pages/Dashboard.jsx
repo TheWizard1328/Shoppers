@@ -7751,22 +7751,29 @@ function Dashboard() {
       }
       console.log(`   ✅ Updated stop_order for ${sortedIncomplete.length} incomplete stops`);
 
-      // STEP 4: Optimize remaining stops AFTER starting this delivery
-      console.log('🔄 [START] Step 4: Optimizing remaining stops...');
-      try {
-        const now = new Date();
-        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-        await base44.functions.invoke('optimizeRemainingStops', {
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocalTime: localTimeString,
-          deviceTime: now.toISOString()
-        });
-        console.log('   ✅ Remaining stops optimized');
-      } catch (optimizeError) {
-        console.warn('   ⚠️ Route optimization failed:', optimizeError.message);
-      }
+      // STEP 4: Optimize remaining stops IN BACKGROUND (non-blocking)
+      console.log('🔄 [START] Step 4: Scheduling background route optimization...');
+      const bgDriverId = driverId;
+      const bgDeliveryDate = deliveryDate;
+      (async () => {
+        try {
+          const now = new Date();
+          const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          await base44.functions.invoke('optimizeRemainingStops', {
+            driverId: bgDriverId,
+            deliveryDate: bgDeliveryDate,
+            currentLocalTime: localTimeString,
+            deviceTime: now.toISOString()
+          });
+          console.log('   ✅ [Background] Route optimization complete');
+          // Refresh UI after background optimization finishes
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { driverId: bgDriverId, deliveryDate: bgDeliveryDate, triggeredBy: 'backgroundOptimization' }
+          }));
+        } catch (optimizeError) {
+          console.warn('   ⚠️ [Background] Route optimization failed:', optimizeError.message);
+        }
+      })();
 
       // STEP 5: Update UI immediately after optimization
       console.log('🖥️ [START] Step 5: Updating UI immediately...');
