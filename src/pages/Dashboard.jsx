@@ -4037,8 +4037,8 @@ function Dashboard() {
         return;
       }
 
-      // For phase 3, require driver location
-      if (phaseToApply === 3 && (!isDriver || !driverLocation)) {
+      // For phase 3, require driver location (dispatchers can use phase 3 freely)
+      if (phaseToApply === 3 && !isDriver && !isDispatcher) {
         console.log('⚠️ [FAB Initial] Phase 3 requested but no driver location - using Phase 1');
         setMapViewPhase(1);
         setIsMapViewLocked(true);
