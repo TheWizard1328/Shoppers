@@ -3101,9 +3101,9 @@ function Dashboard() {
 
     console.log(`🗺️ [Map Position Effect] Running for trigger ${mapViewTrigger}, phase ${mapViewPhase}`);
 
-    // CRITICAL: Only skip phase 2 & 3 if not driver or no location
-    // Phase 1 can run for dispatchers/admins without driver location
-    if (mapViewPhase > 1 && (!isDriver || !driverLocation)) {
+    // CRITICAL: Only skip phase 2 (driver+next-stop) if not a driver or no location.
+    // Phase 3 CAN run for dispatchers (shows incomplete stops for their stores).
+    if (mapViewPhase === 2 && (!isDriver || !driverLocation)) {
       return;
     }
 
