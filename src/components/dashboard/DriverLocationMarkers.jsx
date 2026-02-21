@@ -151,21 +151,41 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       if (user.driver_status === 'off_duty' || user.driver_status === 'on_break') return false;
 
       // Dispatcher must have assigned stores
-      const dispatcherStoreIds = currentUser?.store_ids || [];
-      if (dispatcherStoreIds.length === 0) return false;
+      const rawDispatcherStoreIds = currentUser?.store_ids || [];
+      if (rawDispatcherStoreIds.length === 0) return false;
+
+      // CRITICAL: Normalize store IDs to strings for consistent comparison
+      const dispatcherStoreIds = new Set(rawDispatcherStoreIds.map(id => String(id)));
 
       const selectedDateStr = selectedDate instanceof Date 
         ? selectedDate.toISOString().split('T')[0]
         : selectedDate;
-      
+
+      // All possible ID formats for this driver AppUser
+      const allDriverIdFormats = [user.id, user.user_id, userId].filter(Boolean);
+
       // Driver must have at least 1 delivery from dispatcher's stores on selected date
-      const userIdForDeliveryMatch = user.id || user.user_id;
-      const hasDispatcherStoreDelivery = deliveries?.some(d => 
-        d && 
-        (d.driver_id === userIdForDeliveryMatch || d.driver_id === userId) &&
-        d.delivery_date === selectedDateStr &&
-        dispatcherStoreIds.includes(d.store_id)
-      );
+      const hasDispatcherStoreDelivery = deliveries?.some(d => {
+        if (!d) return false;
+        const driverMatch = allDriverIdFormats.some(fmt => d.driver_id === fmt);
+        const dateMatch = d.delivery_date === selectedDateStr;
+        // CRITICAL: Normalize delivery store_id to string before comparing
+        const storeMatch = dispatcherStoreIds.has(String(d.store_id || ''));
+
+        if (driverMatch && dateMatch && !storeMatch) {
+          console.log(`⚠️ [shouldShowMarker] Store mismatch: delivery store '${d.store_id}' not in dispatcher stores: ${JSON.stringify(Array.from(dispatcherStoreIds))}`);
+        }
+
+        return driverMatch && dateMatch && storeMatch;
+      });
+
+      if (!hasDispatcherStoreDelivery) {
+        const driverDeliveries = deliveries?.filter(d => d && allDriverIdFormats.some(fmt => d.driver_id === fmt) && d.delivery_date === selectedDateStr) || [];
+        if (driverDeliveries.length > 0) {
+          const deliveryStoreIds = [...new Set(driverDeliveries.map(d => String(d.store_id)))];
+          console.log(`❌ [shouldShowMarker] Dispatcher: driver ${user.user_name} has ${driverDeliveries.length} deliveries but no store match. Delivery stores: ${JSON.stringify(deliveryStoreIds)} vs dispatcher stores: ${JSON.stringify(Array.from(dispatcherStoreIds))}`);
+        }
+      }
 
       return hasDispatcherStoreDelivery && user.status !== 'inactive';
     }
