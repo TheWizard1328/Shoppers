@@ -6926,7 +6926,14 @@ function Dashboard() {
       }
 
       const currentTime = new Date();
-      let currentTimeISO = currentTime.toISOString();
+      // CRITICAL: Always use local time string - never UTC ISO (avoids timezone offset in stored timestamps)
+      const _h = String(currentTime.getHours()).padStart(2,'0');
+      const _m = String(currentTime.getMinutes()).padStart(2,'0');
+      const _s = String(currentTime.getSeconds()).padStart(2,'0');
+      const _yr = currentTime.getFullYear();
+      const _mo = String(currentTime.getMonth()+1).padStart(2,'0');
+      const _dy = String(currentTime.getDate()).padStart(2,'0');
+      let currentTimeISO = `${_yr}-${_mo}-${_dy}T${_h}:${_m}:${_s}`;
 
       const updateData = { status: newStatus, ...extraData };
 
