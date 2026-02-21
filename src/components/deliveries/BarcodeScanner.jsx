@@ -95,43 +95,6 @@ function BarcodeCameraModal({ onDetected, onClose }) {
     stopVideoStream(videoRef.current);
   }, []);
 
-  // Stable detection handler — uses refs so the scanner effect never restarts
-  const handleDetectionRef = useRef(async (barcodeValue) => {
-    if (recentlyScannedRef.current.has(barcodeValue) || cooldownRef.current) return;
-    recentlyScannedRef.current.add(barcodeValue);
-    cooldownRef.current = true;
-    setTimeout(() => { cooldownRef.current = false; }, 1500);
-    setTimeout(() => { recentlyScannedRef.current.delete(barcodeValue); }, 3000);
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    let snapshotBase64 = null;
-    if (video && canvas && video.readyState >= 2) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
-      snapshotBase64 = canvas.toDataURL('image/jpeg', 0.8);
-    }
-
-    const itemId = Date.now();
-    setScannedItems(prev => [...prev, { id: itemId, value: barcodeValue, status: 'processing', snapshotUrl: null }]);
-    onDetectedRef.current(barcodeValue);
-
-    try {
-      const res = await processBarcode({ barcodeValue, snapshotBase64 });
-      const data = res?.data;
-      setScannedItems(prev => prev.map(item =>
-        item.id === itemId
-          ? { ...item, status: data?.success ? 'done' : 'error', snapshotUrl: data?.snapshotUrl || null }
-          : item
-      ));
-    } catch {
-      setScannedItems(prev => prev.map(item =>
-        item.id === itemId ? { ...item, status: 'error' } : item
-      ));
-    }
-  });
-
   // Run once on mount — no deps that could cause restarts
   useEffect(() => {
     let active = true;
@@ -148,7 +111,41 @@ function BarcodeCameraModal({ onDetected, onClose }) {
 
         await codeReader.decodeFromVideoDevice(deviceId, videoRef.current, (result) => {
           if (!active || !result) return;
-          handleDetectionRef.current(result.getText());
+          
+          // Inline detection logic here
+          const barcodeValue = result.getText();
+          if (recentlyScannedRef.current.has(barcodeValue) || cooldownRef.current) return;
+          recentlyScannedRef.current.add(barcodeValue);
+          cooldownRef.current = true;
+          setTimeout(() => { cooldownRef.current = false; }, 1500);
+          setTimeout(() => { recentlyScannedRef.current.delete(barcodeValue); }, 3000);
+
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          let snapshotBase64 = null;
+          if (video && canvas && video.readyState >= 2) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            snapshotBase64 = canvas.toDataURL('image/jpeg', 0.8);
+          }
+
+          const itemId = Date.now();
+          setScannedItems(prev => [...prev, { id: itemId, value: barcodeValue, status: 'processing', snapshotUrl: null }]);
+          onDetectedRef.current(barcodeValue);
+
+          processBarcode({ barcodeValue, snapshotBase64 }).then(res => {
+            const data = res?.data;
+            setScannedItems(prev => prev.map(item =>
+              item.id === itemId
+                ? { ...item, status: data?.success ? 'done' : 'error', snapshotUrl: data?.snapshotUrl || null }
+                : item
+            ));
+          }).catch(() => {
+            setScannedItems(prev => prev.map(item =>
+              item.id === itemId ? { ...item, status: 'error' } : item
+            ));
+          });
         });
       } catch (e) {
         if (active) setError(e.message || 'Camera access failed');
@@ -161,8 +158,7 @@ function BarcodeCameraModal({ onDetected, onClose }) {
       active = false;
       stopReader();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stopReader]);
 
   return (
     <motion.div
