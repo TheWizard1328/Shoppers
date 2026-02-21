@@ -3,6 +3,8 @@
  * Ensures each page has fresh data based on current filters
  */
 
+import { offlineDB } from './offlineDatabase';
+
 export const pageDataReloader = {
   async reloadDashboard(selectedDate, selectedCityId, currentUser) {
     try {
