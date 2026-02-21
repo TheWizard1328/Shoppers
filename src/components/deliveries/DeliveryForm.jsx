@@ -5499,9 +5499,9 @@ export default function DeliveryForm({
                             </>
                           )}
                         </div>
-                      </div> :
-
-                    <div className="space-y-2">
+                      </div>
+                      :
+                      <div className="space-y-2">
                       {/* Row 1: Store, Status, PUID */}
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
