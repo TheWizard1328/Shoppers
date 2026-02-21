@@ -36,6 +36,7 @@ import {
   setBatchFormSaving
 } from '../utils/entityMutations';
 import DeliveryFormStaged from './DeliveryFormStaged';
+import BarcodeScanner from './BarcodeScanner';
 import { checkPayrollLock } from '../utils/payrollLockManager';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (
