@@ -7,6 +7,16 @@ import { Smartphone, Tablet, Monitor, CheckCircle, Trash2, Edit2, Plus } from 'l
 import { useUser } from '../components/utils/UserContext';
 import DeviceForm from '../components/devices/DeviceForm';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 
@@ -21,6 +31,7 @@ export default function DeviceSettings() {
   const [deviceSettings, setDeviceSettings] = useState({}); // Temporary settings before apply
   const [showChangeSettings, setShowChangeSettings] = useState(false);
   const [selectedSourceDevice, setSelectedSourceDevice] = useState(null);
+  const [showDeleteAccountDialog, setShowDeleteAccountDialog] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -128,6 +139,21 @@ export default function DeviceSettings() {
     }));
   };
 
+  const handleDeleteAccount = async () => {
+    try {
+      await base44.integrations.Core.SendEmail({
+        to: 'admin@rxdeliver.com',
+        subject: `Account Deletion Request - ${currentUser?.full_name}`,
+        body: `User ${currentUser?.full_name} (${currentUser?.email}) has requested account deletion.\n\nUser ID: ${currentUser?.id}\nRequested at: ${new Date().toISOString()}\n\nPlease review and process this request.`
+      });
+      toast.success('Deletion request sent. An administrator will contact you.');
+      setTimeout(() => base44.auth.logout(), 2000);
+    } catch (error) {
+      console.error('Failed to send deletion request:', error);
+      toast.error('Failed to send deletion request. Please try again.');
+    }
+  };
+
   const handleApplyDeviceSettings = async (sourceDevice) => {
     try {
       const currentDevice = devices.find(d => d.id === currentDeviceId);
@@ -208,25 +234,48 @@ export default function DeviceSettings() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Device Settings</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-slate-500)' }}>
-            Manage your registered devices and location tracking
-          </p>
+    <>
+      <AlertDialog open={showDeleteAccountDialog} onOpenChange={setShowDeleteAccountDialog}>
+        <AlertDialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={{ color: 'var(--text-slate-900)' }}>Delete Account?</AlertDialogTitle>
+            <AlertDialogDescription style={{ color: 'var(--text-slate-600)' }}>
+              This will send a deletion request to the administrator. Your account will be reviewed for deletion. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAccount}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Request Deletion
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Device Settings</h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-slate-500)' }}>
+              Manage your registered devices and location tracking
+            </p>
+          </div>
+          <Button
+            onClick={() => {
+              setEditingDevice(null);
+              setShowForm(true);
+            }}
+            className="gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Device
+          </Button>
         </div>
-        <Button
-          onClick={() => {
-            setEditingDevice(null);
-            setShowForm(true);
-          }}
-          className="gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Add Device
-        </Button>
-      </div>
 
       {showForm && (
         <DeviceForm
@@ -442,6 +491,34 @@ export default function DeviceSettings() {
           </div>
         )}
       </div>
+
+      {/* Account Deletion Section */}
+      <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-red-200)' }} className="border-red-200">
+          <CardHeader>
+            <CardTitle className="text-lg text-red-600">Danger Zone</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium" style={{ color: 'var(--text-slate-900)' }}>Delete Account</p>
+                <p className="text-sm mt-1" style={{ color: 'var(--text-slate-500)' }}>
+                  Permanently delete your account and all data
+                </p>
+              </div>
+              <Button
+                variant="destructive"
+                className="gap-2"
+                onClick={() => setShowDeleteAccountDialog(true)}
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Account
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
+    </>
   );
 }

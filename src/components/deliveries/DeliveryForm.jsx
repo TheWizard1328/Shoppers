@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MobileSelect } from "@/components/ui/mobile-select";
 import { format } from "date-fns";
 import { X, Save, Package, Search, Clock, Plus, Trash2, CheckCircle, Edit2, Camera, Phone, Bell, BellOff, Mailbox, StickyNote, Copy, MapPin, AlertCircle } from "lucide-react";
 import { formatPhoneNumber } from '../utils/phoneFormatter';
@@ -4997,38 +4998,77 @@ export default function DeliveryForm({
 
                 {/* Section 3: Driver Selection - STATIC */}
                 <div className={`${useMobileLayout ? 'flex-1' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
-                  <Select
-                      value={formData.driver_id || 'all'}
-                      onValueChange={(driverId) => {
-                        const newDriverId = driverId === 'all' ? '' : driverId;
-                        const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
-                        const newDriverName = driver ? getDriverNameForStorage(driver) : '';
+                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
+                {isMobileDevice ? (
+                  <MobileSelect
+                    value={formData.driver_id || 'all'}
+                    onValueChange={(driverId) => {
+                      const newDriverId = driverId === 'all' ? '' : driverId;
+                      const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
+                      const newDriverName = driver ? getDriverNameForStorage(driver) : '';
 
-                        // Update form data
-                        setFormData((prev) => ({
-                          ...prev,
-                          driver_id: newDriverId,
-                          driver_name: newDriverName
+                      setFormData((prev) => ({
+                        ...prev,
+                        driver_id: newDriverId,
+                        driver_name: newDriverName
+                      }));
+
+                      if (editingStagedId) {
+                        setStagedDeliveries((prev) => prev.map((staged) => {
+                          if (staged._tempId === editingStagedId) {
+                            console.log(`🚗 [DeliveryForm] Updating staged item driver: ${staged.patient_name} → ${newDriverName || 'All Drivers'}`);
+                            return {
+                              ...staged,
+                              driver_id: newDriverId,
+                              driver_name: newDriverName
+                            };
+                          }
+                          return staged;
                         }));
+                        setHasChanges(true);
+                      }
+                    }}
+                    placeholder="Select driver"
+                    disabled={isSaving}
+                    triggerClassName="h-9"
+                  >
+                    {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
+                    {allDrivers.map((driver) =>
+                      <SelectItem key={driver.id} value={driver.id}>
+                        {getDriverDisplayName(driver)}
+                      </SelectItem>
+                    )}
+                  </MobileSelect>
+                ) : (
+                  <Select
+                    value={formData.driver_id || 'all'}
+                    onValueChange={(driverId) => {
+                      const newDriverId = driverId === 'all' ? '' : driverId;
+                      const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
+                      const newDriverName = driver ? getDriverNameForStorage(driver) : '';
 
-                        // CRITICAL: If editing a staged item, update that item's driver assignment
-                        if (editingStagedId) {
-                          setStagedDeliveries((prev) => prev.map((staged) => {
-                            if (staged._tempId === editingStagedId) {
-                              console.log(`🚗 [DeliveryForm] Updating staged item driver: ${staged.patient_name} → ${newDriverName || 'All Drivers'}`);
-                              return {
-                                ...staged,
-                                driver_id: newDriverId,
-                                driver_name: newDriverName
-                              };
-                            }
-                            return staged;
-                          }));
-                          setHasChanges(true);
-                        }
-                      }}
-                      disabled={isSaving}>
+                      setFormData((prev) => ({
+                        ...prev,
+                        driver_id: newDriverId,
+                        driver_name: newDriverName
+                      }));
+
+                      if (editingStagedId) {
+                        setStagedDeliveries((prev) => prev.map((staged) => {
+                          if (staged._tempId === editingStagedId) {
+                            console.log(`🚗 [DeliveryForm] Updating staged item driver: ${staged.patient_name} → ${newDriverName || 'All Drivers'}`);
+                            return {
+                              ...staged,
+                              driver_id: newDriverId,
+                              driver_name: newDriverName
+                            };
+                          }
+                          return staged;
+                        }));
+                        setHasChanges(true);
+                      }
+                    }}
+                    disabled={isSaving}>
                     <SelectTrigger className="h-9">
                       <SelectValue placeholder="Select driver" />
                     </SelectTrigger>
@@ -5038,9 +5078,10 @@ export default function DeliveryForm({
                         <SelectItem key={driver.id} value={driver.id}>
                           {getDriverDisplayName(driver)}
                         </SelectItem>
-                        )}
+                      )}
                     </SelectContent>
                   </Select>
+                )}
                 </div>
                 </div>
               </div>

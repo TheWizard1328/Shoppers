@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FileText, RefreshCw, Database, Cloud, Trash2, LogOut } from 'lucide-react';
 import {
   DropdownMenuContent,
@@ -14,6 +14,16 @@ import { clearUserCache } from '../utils/auth';
 import { clearSettingsCache } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function SettingsMenu({
   currentUser,
@@ -28,10 +38,47 @@ export default function SettingsMenu({
   onDeliveryImportClick,
   isMobile
 }) {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const isMobileDeviceForUI = isMobile !== undefined ? isMobile : isMobileDevice();
   const isMobileForTheme = isMobileDeviceForTheme();
   
+  const handleDeleteAccount = async () => {
+    try {
+      await base44.integrations.Core.SendEmail({
+        to: 'admin@rxdeliver.com',
+        subject: `Account Deletion Request - ${currentUser?.full_name || currentUser?.user_name}`,
+        body: `User ${currentUser?.full_name || currentUser?.user_name} (${currentUser?.email || currentUser?.id}) has requested account deletion.\n\nUser ID: ${currentUser?.id}\nRequested at: ${new Date().toISOString()}\n\nPlease review and process this request.`
+      });
+      toast.success('Deletion request sent. An administrator will contact you.');
+      setTimeout(() => base44.auth.logout(), 2000);
+    } catch (error) {
+      toast.error('Failed to send request. Please try again.');
+    }
+  };
+  
   return (
+    <>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={{ color: 'var(--text-slate-900)' }}>Delete Account?</AlertDialogTitle>
+            <AlertDialogDescription style={{ color: 'var(--text-slate-600)' }}>
+              This will send a deletion request to the administrator. Your account will be reviewed for deletion. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAccount}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Request Deletion
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     <DropdownMenuContent 
       align="end" 
       className="w-60 z-[10002]" 
@@ -227,21 +274,7 @@ export default function SettingsMenu({
       <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
       
       <DropdownMenuItem
-        onClick={() => {
-          const confirmed = confirm('This will send an account deletion request to the administrator. Continue?');
-          if (!confirmed) return;
-          
-          base44.integrations.Core.SendEmail({
-            to: 'admin@rxdeliver.com',
-            subject: `Account Deletion Request - ${currentUser?.full_name || currentUser?.user_name}`,
-            body: `User ${currentUser?.full_name || currentUser?.user_name} (${currentUser?.email || currentUser?.id}) has requested account deletion.\n\nUser ID: ${currentUser?.id}\nRequested at: ${new Date().toISOString()}\n\nPlease review and process this request.`
-          }).then(() => {
-            toast.success('Deletion request sent. An administrator will contact you.');
-            setTimeout(() => base44.auth.logout(), 2000);
-          }).catch(() => {
-            toast.error('Failed to send request. Please try again.');
-          });
-        }}
+        onClick={() => setShowDeleteDialog(true)}
         className="text-red-600 cursor-pointer"
         style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
       >
@@ -265,5 +298,6 @@ export default function SettingsMenu({
         Sign Out
       </DropdownMenuItem>
     </DropdownMenuContent>
-  );
-}
+    </>
+    );
+    }

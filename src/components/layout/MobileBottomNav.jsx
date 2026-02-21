@@ -33,7 +33,15 @@ export default function MobileBottomNav({ currentPageName }) {
     }
   ];
 
-  const mainTab = getMainTab(currentPageName);
+  // CRITICAL: Get main tab from current page OR location pathname for nested routes
+  const mainTab = React.useMemo(() => {
+    const calculatedTab = getMainTab(currentPageName);
+    if (calculatedTab) return calculatedTab;
+    
+    // Fallback: Check pathname for nested routes
+    const pathname = location.pathname.split('/').pop() || 'Dashboard';
+    return getMainTab(pathname) || calculatedTab;
+  }, [currentPageName, location.pathname, getMainTab]);
 
   const handleTabClick = useCallback((tabName) => {
     // If clicking the active tab, go to its root
