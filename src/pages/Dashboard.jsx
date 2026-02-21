@@ -8695,7 +8695,7 @@ function Dashboard() {
                 }
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                 <Popover open={isCalendarOpen} onOpenChange={(open) => {
                   setIsCalendarOpen(open);
                   if (open) {
@@ -8703,7 +8703,12 @@ function Dashboard() {
                   }
                 }} modal={true}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="bg-transparent px-3 text-xs font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow-sm gap-2 h-8" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-transparent px-3 text-xs font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow-sm gap-2 h-8" 
+                      style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                       <CalendarIcon className="w-3.5 h-3.5" />
                       <span className="text-sm">{format(selectedDate, 'EEE MMM dd')}</span>
                     </Button>
@@ -8773,11 +8778,15 @@ function Dashboard() {
                     setEditingDelivery(null);
                     setShowDeliveryForm(true);
                   }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
                   size="sm"
                   className={`h-8 w-8 p-0 transition-colors ${hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
                   disabled={isDateFinished && !isAdmin}
                   title={hasRateLimitError ? 'Rate limit detected - please wait' : 'Add delivery'}
-                  style={{ touchAction: 'auto', pointerEvents: 'auto' }}>
+                  style={{ touchAction: 'auto', pointerEvents: 'auto', position: 'relative', zIndex: 10 }}>
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
