@@ -112,6 +112,7 @@ import SettingsMenu from './components/layout/SettingsMenu';
 import { getCompanyBranding, applyBrandingStyles } from './components/utils/brandingManager';
 import OptimizationSpinner from './components/common/OptimizationSpinner';
 import WebSocketDiagnosticsCard from './components/layout/WebSocketDiagnosticsCard';
+import MobileBottomNav from './components/layout/MobileBottomNav';
 
 
 // App version will be loaded from AppSettings
@@ -3275,8 +3276,37 @@ export default function Layout({ children, currentPageName }) {
         input:disabled,
         select:disabled,
         textarea:disabled {
-          opacity: 0.6 !important;
-          color: #64748b !important;
+        opacity: 0.6 !important;
+        color: #64748b !important;
+        }
+
+        /* Prevent text selection on UI elements */
+        button,
+        [role="button"],
+        nav,
+        nav a,
+        .select-none {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        }
+
+        /* Allow selection on text content */
+        p:not(.select-none),
+        span:not(.select-none),
+        textarea,
+        input {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
+        }
+
+        /* Mobile bottom nav safe area */
+        .safe-bottom {
+        padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
         }
 
         .bg-slate-50 {
@@ -4148,10 +4178,15 @@ export default function Layout({ children, currentPageName }) {
                 </header>
                 }
 
-                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
+                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)', paddingBottom: (isMobile || isTabletPortrait) ? '70px' : '0' }}>
                     <div className="flex-1 overflow-y-auto">
                     {children}
                     </div>
+                    
+                    {/* Mobile Bottom Navigation - Only on mobile devices */}
+                    {(isMobile || isTabletPortrait) && currentUser && !isSnapshotModeActive && (
+                      <MobileBottomNav currentPageName={currentPageName} />
+                    )}
                     </main>
               </div>
             </div>
