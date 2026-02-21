@@ -7215,9 +7215,23 @@ function Dashboard() {
       ).length;
       
       const wasLastStop = incompleteDeliveriesCount === 1; // Before this update, there was 1 incomplete (the one we just finished)
+
+      // CRITICAL: For dispatchers, check if ALL drivers assigned to their stores are now done
+      let wasLastDispatcherStop = false;
+      if (isDispatcher && !isAdmin && wasLastStop) {
+        const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map(id => String(id)));
+        const allDateDeliveries = deliveriesWithStopOrder.filter(d => d && d.delivery_date === deliveryDate);
+        // Any incomplete stops (excluding the current one being completed) in dispatcher's stores?
+        const remainingDispatcherIncomplete = allDateDeliveries.filter(d =>
+          d && d.id !== deliveryId &&
+          dispatcherStoreIds.has(String(d.store_id)) &&
+          !finishedStatuses.includes(d.status) && d.status !== 'pending'
+        );
+        wasLastDispatcherStop = remainingDispatcherIncomplete.length === 0;
+      }
       
       // CRITICAL: If this was the last stop AND FAB is in Phase 2 or 3, switch to Phase 1
-      if (wasLastStop && (currentPhase === 2 || currentPhase === 3)) {
+      if ((wasLastStop || wasLastDispatcherStop) && (currentPhase === 2 || currentPhase === 3)) {
         console.log(`🎯 [Last Stop Complete] Switching from Phase ${currentPhase} to Phase 1 for 500ms`);
         
         // Clear any existing timers
