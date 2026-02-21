@@ -4101,16 +4101,16 @@ export default function Layout({ children, currentPageName }) {
                 />
                 }
 
-                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)', paddingBottom: (isMobile || isTabletPortrait) ? '70px' : '0' }}>
+                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)', paddingBottom: (isMobile || isTabletPortrait) ? '80px' : '0' }}>
                     <PageTransition>
                       {children}
                     </PageTransition>
+                    </main>
                     
-                    {/* Mobile Bottom Navigation - Only on mobile devices */}
-                    {(isMobile || isTabletPortrait) && currentUser && !isSnapshotModeActive && (
+                    {/* Mobile Bottom Navigation - Only on mobile devices and below 768px */}
+                    {currentUser && !isSnapshotModeActive && screenWidth < 768 && (
                       <MobileBottomNav currentPageName={currentPageName} />
                     )}
-                    </main>
               </div>
             </div>
           </AppDataProvider>
