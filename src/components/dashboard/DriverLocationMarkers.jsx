@@ -7,8 +7,8 @@ import { isMobileDevice } from '../utils/deviceUtils';
 import { getCurrentDevice } from '../utils/deviceManager';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 
-// Create driver/dispatcher icon with thin white border ring
-const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'fresh', userRole = 'driver') => {
+// Create driver/dispatcher icon with border ring based on delivery status
+const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'fresh', deliveryStatus = 'incomplete') => {
   const size = 15;
   
   // Determine fill color based on status and staleness
@@ -25,8 +25,13 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'f
     fillColor = '#10B981'; // Green for fresh on duty
   }
   
-  // Thin white border ring (same for drivers and dispatchers)
-  const borderColor = '#FFFFFF';
+  // Determine border color based on delivery status
+  let borderColor = '#FFFFFF'; // White for incomplete (default)
+  if (deliveryStatus === 'completed') {
+    borderColor = '#166534'; // Dark green for completed
+  } else if (deliveryStatus === 'failed') {
+    borderColor = '#EF4444'; // Bright red for failed
+  }
   const borderWidth = 2;
   
   return L.divIcon({
@@ -519,16 +524,18 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const staleness = user._staleness || 'fresh';
         const ageMinutes = user._ageMinutes || 0;
         
-        // Determine user role from app_roles
-        const userRole = user.app_roles?.includes('driver') ? 'driver' : 
-                        user.app_roles?.includes('dispatcher') ? 'dispatcher' : 'admin';
+        // Get delivery status from user data (most recent delivery status)
+        const deliveryStatus = user._deliveryStatus || 'incomplete';
+        
+        // Higher z-index for self/shared location markers
+        const zIndexValue = isSharedLocation ? 3000 : (isActive ? 2000 : 1000);
 
         return (
           <Marker
             key={stableKey}
             position={position}
-            icon={createDriverIcon(user.driver_status, displayName.charAt(0).toUpperCase(), staleness, userRole)}
-            zIndexOffset={isActive ? 2000 : 1000}
+            icon={createDriverIcon(user.driver_status, displayName.charAt(0).toUpperCase(), staleness, deliveryStatus)}
+            zIndexOffset={zIndexValue}
           >
             <Popup>
               <div className="text-sm">
