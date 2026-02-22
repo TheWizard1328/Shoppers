@@ -588,7 +588,7 @@ export default function DriverPayroll() {
         setSmartRefreshActivity({ active: false, updatedEntities: [] });
       }
     }
-  }, [selectedYear, selectedCityId, currentUser, setSmartRefreshActivity]);
+  }, [selectedYear, selectedCityId, currentPeriod, currentUser, setSmartRefreshActivity]);
 
   // Navigation handlers - must be useCallback
   const goToPrevPeriod = useCallback(() => {
