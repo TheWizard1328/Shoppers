@@ -4100,7 +4100,7 @@ export default function Layout({ children, currentPageName }) {
                 />
                 }
 
-                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
+                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)', paddingBottom: (!isSnapshotModeActive && (isMobile || isTabletPortrait) && !sidebarOpen) ? 'calc(56px + max(0.5rem, env(safe-area-inset-bottom, 0px)))' : undefined }}>
                     <PageTransition>
                       {children}
                     </PageTransition>
