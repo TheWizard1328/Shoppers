@@ -3894,9 +3894,9 @@ export default function DeliveriesPage() {
           }
         </AnimatePresence>
 
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0" style={{ maxHeight: 'calc(100vh - 120px)' }}>
 
-          {isDriverOverviewMode ?
+           {isDriverOverviewMode ?
           <div className="flex flex-col h-full overflow-hidden">
               <Card className="backdrop-blur-sm hidden lg:block flex-shrink-0 m-4 mb-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardContent className="p-6">
