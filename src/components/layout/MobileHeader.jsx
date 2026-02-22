@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Menu, X, MoreVertical, QrCode } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { Menu, X, MoreVertical, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -37,28 +37,24 @@ export default function MobileHeader({
   onInviteQRClick,
   onCurrentUserUpdate
 }) {
-  const navigate = useNavigate();
   const location = useLocation();
-  const [showBackButton, setShowBackButton] = useState(false);
 
-  // Detect if we're on a nested route
+  // Enable browser back button on nested routes
   useEffect(() => {
     const currentPage = location.pathname.split('/').pop() || 'Dashboard';
     const isRootPage = ROOT_PAGES.includes(currentPage);
-    setShowBackButton(!isRootPage);
+    
+    if (!isRootPage) {
+      window.history.pushState(null, '', window.location.href);
+      const handlePopState = () => window.history.back();
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
   }, [location.pathname]);
-
-  const handleBack = () => {
-    navigate(-1);
-  };
 
   const handleMenuButtonClick = (e) => {
     e.stopPropagation();
-    if (showBackButton) {
-      handleBack();
-    } else {
-      onSidebarToggle();
-    }
+    onSidebarToggle();
   };
 
   if (!isMobile && !isTabletPortrait) {
@@ -86,8 +82,6 @@ export default function MobileHeader({
             className="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0">
             {sidebarOpen ? (
               <X className="w-6 h-6 text-slate-700" />
-            ) : showBackButton ? (
-              <ArrowLeft className="w-6 h-6 text-slate-700" />
             ) : (
               <Menu className="w-6 h-6 text-slate-700" />
             )}
