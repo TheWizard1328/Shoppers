@@ -217,7 +217,7 @@ export default function PullToSync({
       window.dispatchEvent(new CustomEvent('pullToSyncComplete'));
 
       // Update offline sync indicator with fresh sync metadata
-      const syncStats = await offlineDB.getSyncStats();
+      const syncStats = await offlineDB.getStats();
       window.dispatchEvent(new CustomEvent('offlineSyncUpdated', {
         detail: { syncStats }
       }));
