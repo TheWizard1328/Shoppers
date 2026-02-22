@@ -743,15 +743,11 @@ export default function DriverPayroll() {
     }
     
     // Select earliest incomplete cycle, or today's period as fallback
-    const selectedIdx = earliestIncompleteCycleIdx !== -1 ? earliestIncompleteCycleIdx : todayPeriodIdx;
+    const selectedIdx = earliestIncompleteCycleIdx !== -1 ? earliestIncompleteCycleIdx : (todayPeriodIdx !== -1 ? todayPeriodIdx : 0);
     console.log(`🔍 [DriverPayroll] Today's cycle: ${todayPeriodIdx !== -1 ? allPeriods[todayPeriodIdx].label : 'Not found'} (index ${todayPeriodIdx})`);
     
-    if (selectedIdx !== null && selectedIdx !== -1) {
-      console.log(`✅ [DriverPayroll] Initial period selected: ${allPeriods[selectedIdx].label} (index ${selectedIdx}) - ${earliestIncompleteCycleIdx !== -1 ? 'Earliest incomplete cycle' : 'Today\'s period'}`);
-      setSelectedPeriodIndex(selectedIdx);
-    } else {
-      console.warn(`⚠️ [DriverPayroll] No valid period found - earliestIncompleteCycleIdx: ${earliestIncompleteCycleIdx}, todayPeriodIdx: ${todayPeriodIdx}`);
-    }
+    console.log(`✅ [DriverPayroll] Initial period selected: ${allPeriods[selectedIdx].label} (index ${selectedIdx}) - ${earliestIncompleteCycleIdx !== -1 ? 'Earliest incomplete cycle' : 'Today\'s period'}`);
+    setSelectedPeriodIndex(selectedIdx);
     
     // Mark that initial period has been set
     initialPeriodSetRef.current = true;
