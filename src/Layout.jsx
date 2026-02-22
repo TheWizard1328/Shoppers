@@ -2912,6 +2912,7 @@ export default function Layout({ children, currentPageName }) {
           --safe-area-inset-right: env(safe-area-inset-right, 0px);
           --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
           --safe-area-inset-left: env(safe-area-inset-left, 0px);
+          --bottom-nav-height: ${(!isSnapshotModeActive && (isMobile || isTabletPortrait) && !sidebarOpen) ? 'calc(56px + max(0.5rem, env(safe-area-inset-bottom, 0px)))' : '0px'};
           color-scheme: light;
         }
 
