@@ -180,6 +180,9 @@ export default function DriverPayrollGrid({
     console.log(`   Looking for driver ID: "${selectedDriverId}"`);
     console.log(`   Match exists: ${uniqueDriverIds.includes(selectedDriverId)}`);
 
+    // Determine which driver IDs to include
+    const driverIdsToInclude = selectedDriverId === 'all' ? driversWithMatchingPayCycle : [selectedDriverId];
+
     const filtered = deliveries.filter(d => {
       if (!d || !d.delivery_date) return false;
       const date = new Date(d.delivery_date + 'T00:00:00');
@@ -188,12 +191,8 @@ export default function DriverPayrollGrid({
       const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
       if (!validStatus) return false;
 
-
-
-      // CRITICAL: Only filter by driver if selectedDriverId is set AND not 'all'
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        if (d.driver_id !== selectedDriverId) return false;
-      }
+      // Filter by driver ID(s)
+      if (!driverIdsToInclude.includes(d.driver_id)) return false;
 
       // Exclude pickups (no patient_id) unless it's an after_hours_pickup
       if (!d.patient_id && !d.after_hours_pickup) return false;
