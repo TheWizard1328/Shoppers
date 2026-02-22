@@ -3525,19 +3525,33 @@ return polylines.length > 0 ? polylines : null;
                currentDriverLocation_lng: currentDriverLocation?.longitude?.toFixed(5)
              });
 
-             // CRITICAL: Always get latest driver data from realtimeAppUsers at lookup time (not from closure)
-             // This ensures we capture the absolute freshest location, not a stale reference
+             // CRITICAL: Look for freshest location in priority order:
+             // 1. realtimeAppUsers (WebSocket updates for visible drivers)
+             // 2. safeUsers/driverLookupMap (all drivers with latest data from offline DB)
              const latestDriverData = (() => {
-               const freshLookup = realtimeAppUsers.find(u => u && u.id === driverId);
-               if (!freshLookup) {
-                 console.warn(`🔵 [Type1Poly-Incomplete] WARNING: Driver not in realtimeAppUsers, using driverAppUser fallback for ${driverName}`);
-                 return driverAppUser;
+               // Try realtimeAppUsers first (WebSocket fresh)
+               let result = realtimeAppUsers.find(u => u && u.id === driverId);
+               if (result) {
+                 console.log(`🔵 [Type1Poly-Incomplete] Found in realtimeAppUsers:`, {
+                   lat: result.current_latitude?.toFixed(6),
+                   lng: result.current_longitude?.toFixed(6)
+                 });
+                 return result;
                }
-               console.log(`🔵 [Type1Poly-Incomplete] Found in realtimeAppUsers:`, {
-                 lat: freshLookup.current_latitude?.toFixed(6),
-                 lng: freshLookup.current_longitude?.toFixed(6)
-               });
-               return freshLookup;
+
+               // Fall back to safeUsers (has ALL drivers, current location from offline DB)
+               result = safeUsers.find(u => u && u.id === driverId);
+               if (result) {
+                 console.log(`🔵 [Type1Poly-Incomplete] Found in safeUsers (not in realtimeAppUsers):`, {
+                   lat: result.current_latitude?.toFixed(6),
+                   lng: result.current_longitude?.toFixed(6)
+                 });
+                 return result;
+               }
+
+               // Last resort: use the driverAppUser from lookup
+               console.warn(`🔵 [Type1Poly-Incomplete] WARNING: Driver not found in realtimeAppUsers or safeUsers, using driverAppUser fallback for ${driverName}`);
+               return driverAppUser;
              })();
 
              let startPoint = null;
