@@ -3315,6 +3315,18 @@ export default function Layout({ children, currentPageName }) {
         padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
         }
 
+        /* Ensure Radix UI dialogs/sheets/drawers account for bottom nav */
+        [data-radix-popper-content-wrapper],
+        [role="dialog"][data-state="open"],
+        [role="alertdialog"][data-state="open"] {
+          padding-bottom: var(--bottom-nav-height) !important;
+        }
+
+        /* Sonner toasts - push above bottom nav */
+        [data-sonner-toaster][data-y-position="bottom"] {
+          bottom: calc(var(--bottom-nav-height) + 0.5rem) !important;
+        }
+
         .bg-slate-50 {
           background-color: #f8fafc !important;
         }
