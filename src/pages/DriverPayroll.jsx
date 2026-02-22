@@ -451,15 +451,30 @@ export default function DriverPayroll() {
     }
 
     try {
-      // CRITICAL: Load Cities and AppUsers from offline DB to reduce API rate limit hits
-      // Offline DB is regularly refreshed, so data is always fresh
+      // CRITICAL: Load Cities and AppUsers from offline DB, fallback to API if empty
       console.log('📥 [DriverPayroll] Loading Cities and AppUsers from offline DB...');
       const { offlineDB } = await import('../components/utils/offlineDatabase');
-      const [freshCities, freshAppUsers] = await Promise.all([
+      let [freshCities, freshAppUsers] = await Promise.all([
         offlineDB.getAll(offlineDB.STORES.CITIES),
         offlineDB.getAll(offlineDB.STORES.APP_USERS)
       ]);
-      console.log(`✅ [DriverPayroll] Loaded ${freshCities?.length || 0} cities, ${freshAppUsers?.length || 0} appUsers from offline DB`);
+      
+      // CRITICAL: If offline DB is empty, fetch from API
+      if (!freshAppUsers || freshAppUsers.length === 0) {
+        console.log('📥 [DriverPayroll] Offline DB empty - fetching AppUsers from API...');
+        freshAppUsers = await base44.entities.AppUser.list();
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+        console.log(`✅ [DriverPayroll] Fetched and saved ${freshAppUsers.length} appUsers to offline DB`);
+      }
+      
+      if (!freshCities || freshCities.length === 0) {
+        console.log('📥 [DriverPayroll] Offline DB empty - fetching Cities from API...');
+        freshCities = await base44.entities.City.list();
+        await offlineDB.bulkSave(offlineDB.STORES.CITIES, freshCities);
+        console.log(`✅ [DriverPayroll] Fetched and saved ${freshCities.length} cities to offline DB`);
+      }
+      
+      console.log(`✅ [DriverPayroll] Loaded ${freshCities?.length || 0} cities, ${freshAppUsers?.length || 0} appUsers`);
 
       // CRITICAL: Invalidate caches before fetching to ensure fresh data
       if (forceFresh) {
