@@ -77,7 +77,6 @@ import { formatPhoneNumber } from './components/utils/phoneFormatter';
 import { sortUsers, sortStores } from './components/utils/sorting';
 import { UserProvider } from './components/utils/UserContext';
 import { AppDataProvider } from './components/utils/AppDataContext';
-import { MobileNavProvider, useMobileNav } from './components/utils/MobileNavContext';
 import MobileHeader from './components/layout/MobileHeader';
 import PageTransition from './components/layout/PageTransition';
 import { ResizableDivider } from './components/ui/resizable-divider';
