@@ -234,37 +234,43 @@ export default function DriverPayroll() {
   }, [payrollData?.appUsers]);
 
   const driversInPayCycle = useMemo(() => {
-    if (!payrollData?.appUsers || !payrollData?.drivers) return [];
+    if (!payrollData?.appUsers || !payrollData?.drivers) {
+      console.log('⚠️ [driversInPayCycle] Missing appUsers or drivers', {
+        appUsers: payrollData?.appUsers?.length || 0,
+        drivers: payrollData?.drivers?.length || 0
+      });
+      return [];
+    }
     
     // CRITICAL: Ensure deliveries is always an array
     const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
 
-    // Get driver IDs that have the selected pay cycle type AND have actual deliveries in that cycle
-    const driverIdsInCycle = new Set();
+    // CRITICAL: Show all active drivers (ignore pay cycle requirement for dropdown)
+    // This ensures drivers are visible even if they don't have deliveries for this cycle
+    const driverIdsToShow = new Set();
 
     payrollData.appUsers.forEach(au => {
-      if (au.pay_cycle_type === payPeriod && au.status === 'active') {
-        // Only add if this driver has deliveries
-        const hasDeliveries = deliveries.some(d => d.driver_id === au.user_id);
-        if (hasDeliveries) {
-          driverIdsInCycle.add(au.user_id);
-        }
+      if (au.status === 'active') {
+        driverIdsToShow.add(au.user_id);
       }
     });
 
     // CRITICAL: Always include the currently selected driver to prevent dropdown mismatch during transitions
     if (selectedDriverId !== 'all') {
-      driverIdsInCycle.add(selectedDriverId);
+      driverIdsToShow.add(selectedDriverId);
     }
 
-    return sortUsers(
+    const result = sortUsers(
       payrollData.drivers.filter(d => {
         if (!d || d.status !== 'active') return false;
         const driverId = d.user_id || d.id;
-        return driverIdsInCycle.has(driverId);
+        return driverIdsToShow.has(driverId);
       })
     );
-  }, [payrollData?.appUsers, payrollData?.drivers, payrollData?.deliveries, payPeriod, selectedDriverId]);
+    
+    console.log(`📋 [driversInPayCycle] Showing ${result.length} active drivers for pay period: ${payPeriod}`);
+    return result;
+  }, [payrollData?.appUsers, payrollData?.drivers, payPeriod, selectedDriverId]);
 
   const cityFilteredDeliveries = useMemo(() => {
     // CRITICAL: Ensure deliveries is always an array
