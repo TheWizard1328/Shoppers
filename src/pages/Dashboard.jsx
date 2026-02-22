@@ -9532,7 +9532,7 @@ function Dashboard() {
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
           className="fixed z-[100]"
           style={{
-            bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15 + (isMobile ? 56 : 0)}px`,
+            bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15 + bottomNavHeight}px`,
             right: '64px'
           }}>
             <Button
