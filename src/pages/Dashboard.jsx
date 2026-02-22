@@ -9521,7 +9521,7 @@ function Dashboard() {
           isAIVisible={showAIAssistant && isAIEnabled}
           isLocked={isMapViewLocked}
           stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0}
-          bottomNavHeight={isMobile ? 56 : 0} />
+          bottomNavHeight={bottomNavHeight} />
 
         {/* Re-optimize Route FAB - Only for app owner (testing phase) */}
         {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
