@@ -95,35 +95,38 @@ Deno.serve(async (req) => {
       return metrics;
     };
 
-    const fetchPayrollData = async (year, cityId, driverId) => {
-      const payrollKey = `payroll_${year}_${cityId}_${driverId}`;
+    const fetchPayrollData = async (year, cityId, driverId, startDate, endDate) => {
+      const payrollKey = `payroll_${year}_${cityId}_${driverId}_${startDate}_${endDate}`;
       const cached = statsCache.get(payrollKey);
       
       // Cache is valid for 1 hour
       if (cached && (Date.now() - cached.timestamp < 3600000)) {
-        console.log(`📊 Using CACHED PayrollData for ${year}`);
+        console.log(`📊 Using CACHED PayrollData for ${year} (${startDate} to ${endDate})`);
         return cached.data;
       }
 
-      let storeFilter = {};
+      // Build store filter from city (Deliveries don't have city_id, only store_id)
+      let storeIds = null;
       if (cityId && cityId !== 'all') {
         const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
-        storeFilter = { store_id: { $in: cityStores.map(s => s.id) } };
+        storeIds = cityStores.map(s => s.id);
       }
 
-      // CRITICAL: Fetch all deliveries for the year, then filter on client to handle status properly
-      const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter({
-        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
-      });
+      // CRITICAL: Fetch deliveries for the specific pay period date range
+      const dateFilter = {
+        delivery_date: { $gte: startDate, $lte: endDate }
+      };
+      
+      const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter(dateFilter);
 
       // CRITICAL: Ensure response is always an array
       const allYearDeliveries = Array.isArray(allYearDeliveriesResponse) ? allYearDeliveriesResponse : [];
 
-      // Filter by store if needed, and include only completed/failed/cancelled deliveries
+      // Filter by store (via city filter) and driver, include only completed/failed/cancelled deliveries
       let payrollDeliveries = allYearDeliveries.filter(d => 
         d && d.delivery_date && 
         (d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled') &&
-        (!storeFilter.store_id || storeFilter.store_id.$in.includes(d.store_id)) &&
+        (!storeIds || storeIds.includes(d.store_id)) &&
         (!driverId || driverId === 'all' || d.driver_id === driverId)
       );
 
