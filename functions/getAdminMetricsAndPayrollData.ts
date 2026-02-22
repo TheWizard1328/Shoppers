@@ -112,9 +112,12 @@ Deno.serve(async (req) => {
       }
 
       // CRITICAL: Fetch all deliveries for the year, then filter on client to handle status properly
-      const allYearDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+      const allYearDeliveriesResponse = await base44.asServiceRole.entities.Delivery.filter({
         delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
       });
+
+      // CRITICAL: Ensure response is always an array
+      const allYearDeliveries = Array.isArray(allYearDeliveriesResponse) ? allYearDeliveriesResponse : [];
 
       // Filter by store if needed, and include only completed/failed/cancelled deliveries
       let payrollDeliveries = allYearDeliveries.filter(d => 
