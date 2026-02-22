@@ -115,24 +115,24 @@ export default function DateListPanel({
         : dateDeliveries;
       const total = deliveriesOnly.length;
 
-      // Completed: all completed deliveries (no returns, no pickups) + after hours pickups (completed or cancelled)
-      const completed = dateDeliveries.filter((d) => {
+      // Completed: all completed deliveries (no returns, no pickups) + after hours pickups (completed or cancelled only)
+      const completed = deliveriesOnly.filter((d) => {
         // Completed deliveries (exclude returns and pickups)
         if (d.status === 'completed' && !isReturnDelivery(d) && !d.after_hours_pickup) {
           return true;
         }
-        // After hours pickups (completed or cancelled only)
-        if (d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')) {
+        // After hours pickups (completed or cancelled only) - but only for admins
+        if (!isDispatcher && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')) {
           return true;
         }
         return false;
       }).length;
 
       // Failed: all failed deliveries only
-      const failed = dateDeliveries.filter((d) => d.status === 'failed').length;
+      const failed = deliveriesOnly.filter((d) => d.status === 'failed').length;
 
       // Returned: all deliveries marked as returned
-      const returned = dateDeliveries.filter((d) => isReturnDelivery(d)).length;
+      const returned = deliveriesOnly.filter((d) => isReturnDelivery(d)).length;
 
       // Parse date as local time (YYYY-MM-DD format is always local)
       const [y, m, day] = dateStr.split('-').map(Number);
