@@ -1208,18 +1208,26 @@ export default function DeliveriesPage() {
     
     if (!source || !Array.isArray(source)) return [];
 
+    let filtered = source;
+
+    // CRITICAL: For dispatchers, filter to only their assigned stores
+    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+      const dispatcherStoreIds = new Set(currentUser.store_ids || []);
+      filtered = source.filter((d) => d && d.store_id && dispatcherStoreIds.has(d.store_id));
+    }
+
     if (driverFilter === 'all') {
-      return source;
+      return filtered;
     }
 
     const selectedDriver = (effectiveDrivers || []).find((d) => d.id === driverFilter);
     if (!selectedDriver) return [];
 
-    return source.filter((d) =>
+    return filtered.filter((d) =>
     d.driver_id && (d.driver_id === selectedDriver.id || d.driver_id === selectedDriver.appUserId) ||
     !d.driver_id && d.driver_name && (d.driver_name === selectedDriver.full_name || d.driver_name === selectedDriver.user_name)
     );
-  }, [allDeliveries, effectiveDeliveries, effectiveDrivers, driverFilter, isDriverOverviewMode]);
+  }, [allDeliveries, effectiveDeliveries, effectiveDrivers, driverFilter, isDriverOverviewMode, currentUser]);
 
   const groupedDeliveries = useMemo(() => {
     // CRITICAL: Group deliveries by date within selected month/year
