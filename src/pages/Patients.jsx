@@ -927,6 +927,7 @@ export default function Patients() {
   }, [currentUser, hasAccess, contextDataLoaded, cities]);
 
   // Effect to read store filter from URL query parameters and update state
+  // ALSO: Auto-redirect dispatchers to their first assigned store (bypass Store Overview)
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const storeIdFromQuery = urlParams.get('store');
@@ -936,7 +937,19 @@ export default function Patients() {
     } else if (!storeIdFromQuery && storeFilter !== "all") {
       setStoreFilter("all");
     }
-  }, [location.search, storeFilter]);
+
+    // Auto-select store for dispatchers when no store is in URL
+    if (!storeIdFromQuery && currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+      const dispatcherStoreIds = currentUser.store_ids || [];
+      if (dispatcherStoreIds.length > 0) {
+        // Pick the first assigned store and navigate directly to it
+        const firstStoreId = dispatcherStoreIds[0];
+        const newParams = new URLSearchParams(location.search);
+        newParams.set('store', firstStoreId);
+        navigate(`${location.pathname}?${newParams.toString()}`, { replace: true });
+      }
+    }
+  }, [location.search, currentUser]);
 
   // New useEffect to handle auto-selection of city once data is loaded
   useEffect(() => {
