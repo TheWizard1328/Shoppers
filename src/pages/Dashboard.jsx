@@ -571,14 +571,24 @@ function Dashboard() {
       
       console.log(`📡 [Dashboard] deliveriesImported event - ${importedDeliveries.length} deliveries from ${source}`);
       
-      // CRITICAL: If "Show All" mode is active OR "All Drivers" mode, update UI with imported deliveries
-      if (showAllDriverMarkers || selectedDriverId === 'all') {
-        console.log(`🔄 [Dashboard] Show All/All Drivers active - updating UI with imported deliveries`);
+      // CRITICAL: ALWAYS merge imported deliveries with existing ones (never replace all)
+      // This prevents clearing data for non-imported drivers
+      if (updateDeliveriesLocally && deliveries) {
+        console.log(`🔄 [Dashboard] Merging ${importedDeliveries.length} imported deliveries with ${deliveries.length} existing`);
         
-        // Update UI immediately
-        if (updateDeliveriesLocally) {
-          updateDeliveriesLocally(importedDeliveries, false);
-        }
+        // Get IDs of imported deliveries
+        const importedIds = new Set(importedDeliveries.map(d => d?.id).filter(Boolean));
+        
+        // Keep deliveries that weren't imported (preserve other drivers' data)
+        const otherDeliveries = deliveries.filter(d => !importedIds.has(d?.id));
+        
+        // Merge imported with non-imported
+        const mergedDeliveries = [...otherDeliveries, ...importedDeliveries];
+        
+        console.log(`✅ [Dashboard] Merged: ${otherDeliveries.length} preserved + ${importedDeliveries.length} imported = ${mergedDeliveries.length} total`);
+        
+        // Update UI with merged data
+        updateDeliveriesLocally(mergedDeliveries, true);
         
         // Force map update
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -588,7 +598,7 @@ function Dashboard() {
           }
         }));
         
-        console.log('✅ [Dashboard] UI updated with imported deliveries');
+        console.log('✅ [Dashboard] UI updated with imported deliveries (merged with existing)');
       }
     };
     
