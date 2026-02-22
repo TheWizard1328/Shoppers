@@ -148,16 +148,26 @@ Deno.serve(async (req) => {
       adminMetricsYear ? fetchAdminMetrics(adminMetricsYear, adminMetricsCityId) : Promise.resolve(null),
       payrollYear ? fetchPayrollData(payrollYear, payrollCityId, payrollDriverId) : Promise.resolve(null)
     ]);
-    
+
+    console.log(`✅ [getAdminMetricsAndPayrollData] Response payload:`, {
+      hasAdminMetrics: !!adminMetrics,
+      hasPayrollData: !!payrollData,
+      payrollDataKeys: payrollData ? Object.keys(payrollData) : []
+    });
+
     return Response.json({
       adminMetrics,
       payrollData
     });
 
-  } catch (error) {
+    } catch (error) {
     console.error('❌ CRITICAL ERROR in getAdminMetricsAndPayrollData:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack
+    });
     return Response.json({ error: error.message || 'Unknown error occurred' }, { status: 500 });
-  }
+    }
 });
 
 
