@@ -365,42 +365,21 @@ export default function DriverPayroll() {
     setTimeout(() => { isManualChangeRef.current = false; }, 200);
   }, [selectedDriverId]);
 
-  const refreshPayrollRecords = useCallback(async (dateRange = null) => {
-    let startDate, endDate;
+  const refreshPayrollRecords = useCallback(async () => {
+    if (!currentPeriod) return;
     
-    if (dateRange) {
-      // Use provided date range (for year-wide load on init)
-      startDate = dateRange.start;
-      endDate = dateRange.end;
-    } else if (currentPeriod) {
-      // CRITICAL: Just filter existing year data instead of re-fetching
-      // All year data is already loaded on mount in payrollRecords
-      const periodStart = currentPeriod.start.toISOString().split('T')[0];
-      const periodEnd = currentPeriod.end.toISOString().split('T')[0];
-      
-      const filtered = payrollRecords.filter(r => 
-        r.pay_period_start === periodStart && r.pay_period_end === periodEnd
-      );
-      
-      console.log(`📊 [DriverPayroll] Filtered existing payroll records: ${filtered.length} for period ${currentPeriod.label}`);
-      setPayrollRecords(filtered);
-      return;
-    } else {
-      return;
-    }
+    // CRITICAL: Just filter existing year data - no API calls
+    // All year data is already loaded in fetchPayroll from getAdminMetricsAndPayrollData
+    const periodStart = currentPeriod.start.toISOString().split('T')[0];
+    const periodEnd = currentPeriod.end.toISOString().split('T')[0];
     
-    // Only fetch if we have a date range (initial year load)
-    console.log(`📥 [DriverPayroll] Fetching full year payroll records from ${startDate} to ${endDate}`);
-    try {
-      const records = await base44.entities.Payroll.filter({
-        pay_period_end: { $gte: startDate, $lte: endDate }
-      });
-      console.log(`✅ [DriverPayroll] Found ${records?.length || 0} payroll records for year`);
-      setPayrollRecords(records || []);
-    } catch (error) {
-      console.error('Failed to refresh payroll records:', error);
-    }
-  }, [currentPeriod, payrollRecords]);
+    const filtered = payrollData?.payrollRecords?.filter(r => 
+      r.pay_period_start === periodStart && r.pay_period_end === periodEnd
+    ) || [];
+    
+    console.log(`📊 [DriverPayroll] Filtered payroll records: ${filtered.length} for period ${currentPeriod.label}`);
+    setPayrollRecords(filtered);
+  }, [currentPeriod, payrollData?.payrollRecords]);
 
   // All useCallback hooks must be declared here, before useEffect
   const handleCaptureScreenshot = useCallback(async () => {
