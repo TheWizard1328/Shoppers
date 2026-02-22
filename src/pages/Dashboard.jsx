@@ -2739,7 +2739,7 @@ function Dashboard() {
   // CRITICAL: Listen for real-time AppUser location updates from other drivers
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
-      const { appUsers: updatedAppUsers, singleUpdate, fromRealtime, forceAll, fromPoller } = event.detail || {};
+      const { appUsers: updatedAppUsers, singleUpdate, fromRealtime, forceAll, fromPoller, mergeMode } = event.detail || {};
       
       // CRITICAL: Skip if this event came from the poller itself (prevent infinite loop)
       if (fromPoller === true) {
@@ -2751,7 +2751,36 @@ function Dashboard() {
         return;
       }
       
-      console.log(`📡 [Dashboard] Real-time location update - ${updatedAppUsers.length} drivers, fromRealtime: ${fromRealtime}, forceAll: ${forceAll}`);
+      console.log(`📡 [Dashboard] Real-time location update - ${updatedAppUsers.length} drivers, fromRealtime: ${fromRealtime}, forceAll: ${forceAll}, mergeMode: ${mergeMode}`);
+      
+      // CRITICAL: If mergeMode='merge', merge this update with existing appUsers to preserve other drivers
+      let appUsersToProcess = updatedAppUsers;
+      if (mergeMode === 'merge' && appUsers && appUsers.length > 0) {
+        console.log('🔀 [Dashboard] Merge mode - combining updated driver with existing appUsers');
+        
+        // Create a map of updated drivers by user_id
+        const updatedMap = new Map();
+        updatedAppUsers.forEach(au => {
+          if (au?.user_id) updatedMap.set(au.user_id, au);
+        });
+        
+        // Merge: keep existing drivers, replace only those that were updated
+        appUsersToProcess = appUsers.map(au => {
+          if (au?.user_id && updatedMap.has(au.user_id)) {
+            return updatedMap.get(au.user_id);
+          }
+          return au;
+        });
+        
+        // Add any new drivers that weren't in existing list
+        updatedAppUsers.forEach(au => {
+          if (au?.user_id && !appUsers.some(existing => existing?.user_id === au.user_id)) {
+            appUsersToProcess.push(au);
+          }
+        });
+        
+        console.log(`✅ [Dashboard] Merged: ${updatedAppUsers.length} updated + ${appUsers.length - updatedAppUsers.length} existing = ${appUsersToProcess.length} total`);
+      }
       
       // CRITICAL: Process through poller to update markers
       driverLocationPoller.processLocationData(
@@ -2759,7 +2788,7 @@ function Dashboard() {
         deliveries,
         drivers,
         stores,
-        updatedAppUsers,
+        appUsersToProcess,
         selectedDate,
         true, // forceNotify
         'Dashboard',
@@ -2769,7 +2798,7 @@ function Dashboard() {
     
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
-  }, [currentUser, deliveries, drivers, stores, selectedDate, showAllDriverMarkers]);
+  }, [currentUser, deliveries, drivers, stores, selectedDate, showAllDriverMarkers, appUsers]);
 
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   // CRITICAL: Initialize poller once on mount
