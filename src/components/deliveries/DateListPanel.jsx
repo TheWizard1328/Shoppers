@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, Package, CheckCircle, XCircle, RotateCcw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { isAppOwner } from '../utils/userRoles';
+import { isAppOwner, userHasRole } from '../utils/userRoles';
 
 export default function DateListPanel({
   deliveries = [],
@@ -108,8 +108,12 @@ export default function DateListPanel({
         return notesReturn || addressReturn;
       };
 
-      // Total Stops: all stops for the driver for the date (including pickups)
-      const total = dateDeliveries.length;
+      // CRITICAL: For dispatchers, exclude pickups (patient_id is null/empty) from total
+      const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
+      const deliveriesOnly = isDispatcher 
+        ? dateDeliveries.filter(d => d.patient_id && d.patient_id !== '')
+        : dateDeliveries;
+      const total = deliveriesOnly.length;
 
       // Completed: all completed deliveries (no returns, no pickups) + after hours pickups (completed or cancelled)
       const completed = dateDeliveries.filter((d) => {
@@ -147,7 +151,7 @@ export default function DateListPanel({
     });
 
     return list.sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [deliveries, patients]);
+  }, [deliveries, patients, currentUser]);
 
   const isSelected = (dateStr) => selectedDate === dateStr;
   const isToday = (date) => isSameDay(date, new Date());
