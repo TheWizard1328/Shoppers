@@ -905,10 +905,42 @@ export default function DeliveryMap({
         return;
       }
 
-      // CRITICAL: Handle bulk updates (from smart refresh) - update immediately
+      // CRITICAL: Handle bulk updates (from smart refresh or other events) - merge with existing
       if (appUsers && appUsers.length > 0) {
         console.log(`🔄 [DeliveryMap] Bulk AppUser update: ${appUsers.length} users`);
-        setRealtimeAppUsers(appUsers);
+        
+        setRealtimeAppUsers(prev => {
+          if (!prev || prev.length === 0) {
+            console.log(`📥 [DeliveryMap] No existing drivers - using ${appUsers.length} updated drivers`);
+            return appUsers;
+          }
+          
+          // Create map of updated drivers for efficient lookup
+          const updatedMap = new Map();
+          appUsers.forEach(au => {
+            const userId = au?.id || au?.user_id;
+            if (userId) {
+              updatedMap.set(userId, au);
+            }
+          });
+          
+          // Merge: update existing drivers, keep ones not in update
+          const merged = prev.map(u => {
+            const userId = u?.id || u?.user_id;
+            return userId && updatedMap.has(userId) ? updatedMap.get(userId) : u;
+          });
+          
+          // Add any new drivers not in existing list
+          appUsers.forEach(au => {
+            const userId = au?.id || au?.user_id;
+            if (userId && !prev.some(u => (u?.id || u?.user_id) === userId)) {
+              merged.push(au);
+            }
+          });
+          
+          console.log(`✅ [DeliveryMap] Merged: ${appUsers.length} updated + ${prev.filter(u => !updatedMap.has(u?.id || u?.user_id)).length} existing = ${merged.length} total`);
+          return merged;
+        });
         // CRITICAL: Force polyline re-render when driver locations change
         setPolylineRenderKey(prev => prev + 1);
         // CRITICAL: Force delivery marker refresh to update status colors
