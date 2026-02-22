@@ -111,11 +111,18 @@ Deno.serve(async (req) => {
         storeFilter = { store_id: { $in: cityStores.map(s => s.id) } };
       }
 
-      const payrollDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
-        ...storeFilter,
-        ...(driverId && driverId !== 'all' ? { driver_id: driverId } : {})
+      // CRITICAL: Fetch all deliveries for the year, then filter on client to handle status properly
+      const allYearDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` }
       });
+
+      // Filter by store if needed, and include only completed/failed/cancelled deliveries
+      let payrollDeliveries = allYearDeliveries.filter(d => 
+        d && d.delivery_date && 
+        (d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled') &&
+        (!storeFilter.store_id || storeFilter.store_id.$in.includes(d.store_id)) &&
+        (!driverId || driverId === 'all' || d.driver_id === driverId)
+      );
 
       const payrollPatients = await base44.asServiceRole.entities.Patient.list();
       const payrollAppUsers = await base44.asServiceRole.entities.AppUser.list();
