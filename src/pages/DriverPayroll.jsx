@@ -600,10 +600,16 @@ export default function DriverPayroll() {
       console.log(`✅ [DriverPayroll] Loaded full year payroll data:`, {
         deliveries: mergedData?.deliveries?.length || 0,
         drivers: mergedData?.drivers?.length || 0,
-        stores: mergedData?.stores?.length || 0
+        stores: mergedData?.stores?.length || 0,
+        payrollRecords: mergedData?.payrollRecords?.length || 0
       });
       
       setPayrollData(mergedData);
+      
+      // Initialize payroll records from the fetched data
+      if (mergedData?.payrollRecords && mergedData.payrollRecords.length > 0) {
+        setPayrollRecords(mergedData.payrollRecords);
+      }
     } catch (error) {
       console.error('Failed to fetch payroll data:', error);
       toast.error('Failed to refresh payroll data');
