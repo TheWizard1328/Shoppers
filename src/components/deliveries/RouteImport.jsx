@@ -2131,8 +2131,9 @@ export default function RouteImport({
               return await base44.entities.Delivery.bulkCreate(deliveriesForDate);
             }, 5, 3000, 2);
 
-            console.log(`✅ [RouteImport] Date ${date}: ${createdDeliveries.length} deliveries created`);
+            console.log(`✅ [RouteImport] Date ${date}: ${createdDeliveries.length} deliveries created - saving to BOTH online and offline DB`);
 
+            // CRITICAL: Save to offline DB immediately after online creation
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
 
             // CRITICAL: Broadcast immediately to all devices after each batch
@@ -2238,9 +2239,10 @@ export default function RouteImport({
             try {
               const { id, ...updatePayload } = deliveryToUpdate;
               const updatedDelivery = await retryWithBackoff(async () => {
-                return await base44.entities.Delivery.update(id, cleanDeliveryData(updatePayload));
+              return await base44.entities.Delivery.update(id, cleanDeliveryData(updatePayload));
               }, 5, 3000, 2);
 
+              // CRITICAL: Save to offline DB immediately after online update
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
 
               overallResults.updated++;
@@ -3431,29 +3433,43 @@ export default function RouteImport({
                    </Button>
                    <Button
                     onClick={async () => {
+                       console.log('🎉 [Route Import Complete] Loading fresh data from offline DB for UI update...');
+                       
+                       try {
+                         // STEP 1: Load ALL data from offline DB (both online and offline were updated during import)
+                         const selectedDateStr = globalFilters?.getSelectedDate?.() || format(new Date(), 'yyyy-MM-dd');
+                         const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+                         const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+                         const freshPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+                         
+                         console.log(`✅ [Route Import] Loaded from offline DB: ${freshDeliveries?.length || 0} deliveries, ${freshAppUsers?.length || 0} appUsers, ${freshPatients?.length || 0} patients`);
+                         
+                         // STEP 2: Dispatch immediate UI refresh events with offline data
+                         window.dispatchEvent(new CustomEvent('deliveriesImported', {
+                           detail: { 
+                             deliveries: freshDeliveries || [],
+                             source: 'route_import',
+                             created: importResult.created,
+                             updated: importResult.updated
+                           }
+                         }));
 
-                       // Data is already on backend from handleConfirmImport
-                       // Dispatch immediate UI refresh events
-                       window.dispatchEvent(new CustomEvent('deliveriesImported', {
-                         detail: { 
-                           source: 'route_import',
-                           created: importResult.created,
-                           updated: importResult.updated
-                         }
-                       }));
+                         // Trigger dashboard refresh
+                         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-                       // Trigger dashboard refresh
-                       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                         // Trigger driver location update for map
+                         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                           detail: { appUsers: freshAppUsers || [] }
+                         }));
 
-                       // Trigger driver location update for map
-                       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                         detail: { appUsers: null }
-                       }));
+                         console.log('✅ [Route Import] UI refresh events dispatched with offline data');
+                       } catch (error) {
+                         console.error('❌ [Route Import] Failed to load from offline DB:', error);
+                         // Fallback: trigger pull-to-sync
+                         window.dispatchEvent(new CustomEvent('triggerPullToSync'));
+                       }
 
-                       // Trigger pull-to-sync to refresh all data
-                       window.dispatchEvent(new CustomEvent('triggerPullToSync'));
-
-                       // Just trigger parent refresh callback
+                       // Close import dialog and trigger parent refresh
                        if (onImportComplete) {
                          await onImportComplete();
                        }
