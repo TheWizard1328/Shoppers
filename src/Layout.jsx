@@ -463,10 +463,39 @@ class ErrorBoundary extends React.Component {
   }
 
   static getDerivedStateFromError(error) {
-    // CRITICAL: Never show error screen - just log and continue
-    // This allows errors to float up to console for debugging
-    console.error('🔴 ERROR:', error);
+    // CRITICAL: Only catch truly fatal errors - let most errors pass through
+    // This prevents intermittent error screens during normal operation
     
+    // Ignore Leaflet map errors
+    if (error.message && (
+    error.message.includes('l is not a function') ||
+    error.message.includes('_leaflet_pos') ||
+    error.message.includes('Leaflet'))) {
+      console.warn('Leaflet error caught by ErrorBoundary, continuing normally');
+      return { hasError: false };
+    }
+
+    // Ignore network/rate limit errors - these should be handled gracefully
+    if (error.message && (
+      error.message.includes('429') ||
+      error.message.includes('Rate limit') ||
+      error.message.includes('Network') ||
+      error.message.includes('fetch')
+    )) {
+      console.warn('Network/Rate limit error caught by ErrorBoundary, continuing normally');
+      return { hasError: false };
+    }
+
+    // Ignore React rendering errors during transitions
+    if (error.message && (
+      error.message.includes('flushSync') ||
+      error.message.includes('useEffect') ||
+      error.message.includes('setState')
+    )) {
+      console.warn('React state error caught by ErrorBoundary, continuing normally');
+      return { hasError: false };
+    }
+
     // Cache error to localStorage for debugging (survives refresh)
     try {
       localStorage.setItem('rxdeliver_last_error', JSON.stringify({
@@ -478,23 +507,41 @@ class ErrorBoundary extends React.Component {
       // Ignore localStorage errors
     }
     
-    // Always return no error state to continue app
-    return { hasError: false };
+    // CRITICAL: Only show error screen for truly fatal errors
+    console.error('🔴 FATAL ERROR - Showing error screen:', error);
+    return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
-    // CRITICAL: Just log errors to console - never show error screen
-    // This allows errors to bubble up naturally for debugging
+    // Ignore known non-fatal errors
+    if (error.message && (
+    error.message.includes('l is not a function') ||
+    error.message.includes('_leaflet_pos') ||
+    error.message.includes('Leaflet') ||
+    error.message.includes('429') ||
+    error.message.includes('Rate limit') ||
+    error.message.includes('Network') ||
+    error.message.includes('fetch') ||
+    error.message.includes('flushSync') ||
+    error.message.includes('useEffect') ||
+    error.message.includes('setState')
+    )) {
+      console.warn('Non-fatal error caught and neutralized by ErrorBoundary:', error.message);
+      // CRITICAL: Reset error state to continue normally
+      this.setState({ hasError: false, error: null, errorInfo: null });
+      return;
+    }
+
+    // Store errorInfo in state for display
+    this.setState({ errorInfo });
+
     console.error('═══════════════════════════════════════════════════');
-    console.error('❌ ERROR CAUGHT BY ERROR BOUNDARY');
+    console.error('❌ CRITICAL ERROR CAUGHT BY ERROR BOUNDARY');
     console.error('Error:', error);
     console.error('Error message:', error?.message);
     console.error('Error stack:', error?.stack);
     console.error('Component stack:', errorInfo?.componentStack);
     console.error('═══════════════════════════════════════════════════');
-    
-    // Reset error state to allow app to continue
-    this.setState({ hasError: false, error: null, errorInfo: null });
   }
 
   render() {
@@ -4054,16 +4101,16 @@ export default function Layout({ children, currentPageName }) {
                 />
                 }
 
-                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)', paddingBottom: (isMobile || isTabletPortrait) ? 'max(80px, calc(80px + env(safe-area-inset-bottom)))' : '0' }}>
+                    <main className="flex-1 overflow-y-auto relative flex flex-col" style={{ background: 'var(--bg-slate-50)', paddingBottom: (isMobile || isTabletPortrait) ? '70px' : '0' }}>
                     <PageTransition>
                       {children}
                     </PageTransition>
-                    </main>
                     
-                    {/* Mobile Bottom Navigation - Show on mobile/tablet portrait or narrow screens */}
-                    {currentUser && !isSnapshotModeActive && (isMobile || isTabletPortrait || screenWidth < 1200) && (
+                    {/* Mobile Bottom Navigation - Only on mobile devices */}
+                    {(isMobile || isTabletPortrait) && currentUser && !isSnapshotModeActive && (
                       <MobileBottomNav currentPageName={currentPageName} />
                     )}
+                    </main>
               </div>
             </div>
           </AppDataProvider>

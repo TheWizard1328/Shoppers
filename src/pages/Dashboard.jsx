@@ -8646,7 +8646,14 @@ function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
             onMouseEnter={() => handleCardInteraction(true)}
-            onMouseLeave={() => handleCardInteraction(false)} 
+            onMouseLeave={() => handleCardInteraction(false)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCardInteraction(true);
+              if (retractClustersRef.current) {
+                retractClustersRef.current();
+              }
+            }} 
             className="px-2 py-0.5 rounded-2xl shadow-xl border min-w-[340px] max-w-[345px] cursor-pointer" 
             style={{ 
               background: 'var(--bg-white)', 
@@ -8660,15 +8667,7 @@ function Dashboard() {
             
 
             <div className="mt-1 mb-2 flex items-center justify-between">
-              <div 
-                className="pr-1 flex items-center gap-2"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCardInteraction(true);
-                  if (retractClustersRef.current) {
-                    retractClustersRef.current();
-                  }
-                }}>
+              <div className="pr-1 flex items-center gap-2">
                 <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
                 {currentUser &&
                 <div className="flex items-center gap-1.5">
@@ -8696,10 +8695,7 @@ function Dashboard() {
                 }
               </div>
 
-              <div className="flex items-center gap-3" onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-              }}>
+              <div className="flex items-center gap-3">
                 <Popover open={isCalendarOpen} onOpenChange={(open) => {
                   setIsCalendarOpen(open);
                   if (open) {
@@ -8707,12 +8703,7 @@ function Dashboard() {
                   }
                 }} modal={true}>
                   <PopoverTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={(e) => e.stopPropagation()}
-                      className="bg-transparent px-3 text-xs font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow-sm gap-2 h-8" 
-                      style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+                    <Button variant="outline" size="sm" className="bg-transparent px-3 text-xs font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow-sm gap-2 h-8" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                       <CalendarIcon className="w-3.5 h-3.5" />
                       <span className="text-sm">{format(selectedDate, 'EEE MMM dd')}</span>
                     </Button>
@@ -8776,9 +8767,7 @@ function Dashboard() {
                 </Popover>
 
                 <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
+                  onClick={() => {
                     setEditingDelivery(null);
                     setShowDeliveryForm(true);
                   }}
@@ -8828,19 +8817,20 @@ function Dashboard() {
                 className="overflow-hidden">
                   <div className="mt-2 pt-2 pb-2 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                     <Select
-                      value={selectedDriverId}
-                      onValueChange={handleDriverChange}
-                      disabled={isDriverDropdownDisabled}>
+                    value={selectedDriverId}
+                    onValueChange={handleDriverChange}
+                    disabled={isDriverDropdownDisabled}>
+
                       <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                         <SelectValue placeholder="All Drivers" />
                       </SelectTrigger>
                       <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                         <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
                         {driversList.map((driver) =>
-                          <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#047857' : 'var(--text-slate-900)', fontWeight: driver._hasDispatcherStoreDeliveries ? '700' : '400' }}>
+                      <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#047857' : 'var(--text-slate-900)', fontWeight: driver._hasDispatcherStoreDeliveries ? '700' : '400' }}>
                             {driver.user_name || driver.full_name}
                           </SelectItem>
-                        )}
+                      )}
                       </SelectContent>
                     </Select>
 
@@ -9262,7 +9252,7 @@ function Dashboard() {
 
         <div
           ref={stopCardsContainerRef}
-          className="horizontal-cards-container absolute bottom-0 right-0 z-[10100] px-4 pb-1 pointer-events-none flex flex-col justify-end max-h-[80vh]"
+          className="horizontal-cards-container absolute bottom-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end max-h-[80vh]"
           style={{ left: isSnapshotModeActive ? '5rem' : '0' }}
           onClick={() => {
             if (retractClustersRef.current) {
@@ -9531,7 +9521,7 @@ function Dashboard() {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0, opacity: 0 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          className="fixed z-[1000]"
+          className="fixed z-[1001]"
           style={{
             bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 15 + (isMobile ? 70 : 0)}px`,
             right: '64px'

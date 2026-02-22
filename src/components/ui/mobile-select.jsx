@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Drawer,
@@ -11,6 +11,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
+import { SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function MobileSelect({ 
   value, 
@@ -38,14 +39,11 @@ export function MobileSelect({
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
-        <button
-          className={`flex h-9 md:h-9 min-h-[44px] md:min-h-0 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${triggerClassName || ''}`}
-          disabled={disabled}
-          style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}
-        >
-          <span>{selectedItem ? selectedItem.props.children : placeholder}</span>
-          <ChevronDown className="h-4 w-4 opacity-50" />
-        </button>
+        <SelectTrigger className={triggerClassName} disabled={disabled}>
+          <SelectValue>
+            {selectedItem ? selectedItem.props.children : placeholder}
+          </SelectValue>
+        </SelectTrigger>
       </DrawerTrigger>
       <DrawerContent className={className}>
         <DrawerHeader className="text-left">

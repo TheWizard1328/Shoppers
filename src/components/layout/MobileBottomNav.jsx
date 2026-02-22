@@ -33,15 +33,7 @@ export default function MobileBottomNav({ currentPageName }) {
     }
   ];
 
-  // CRITICAL: Get main tab from current page OR location pathname for nested routes
-  const mainTab = React.useMemo(() => {
-    const calculatedTab = getMainTab(currentPageName);
-    if (calculatedTab) return calculatedTab;
-    
-    // Fallback: Check pathname for nested routes
-    const pathname = location.pathname.split('/').pop() || 'Dashboard';
-    return getMainTab(pathname) || calculatedTab;
-  }, [currentPageName, location.pathname, getMainTab]);
+  const mainTab = getMainTab(currentPageName);
 
   const handleTabClick = useCallback((tabName) => {
     // If clicking the active tab, go to its root
@@ -58,14 +50,14 @@ export default function MobileBottomNav({ currentPageName }) {
       initial={{ y: 100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="fixed bottom-0 left-0 right-0 z-[1000] border-t pointer-events-none"
+      className="fixed bottom-0 left-0 right-0 z-[1000] border-t"
       style={{ 
         background: 'var(--bg-white)', 
         borderColor: 'var(--border-slate-200)',
-        paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))'
+        paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))'
       }}
     >
-      <nav className="flex items-center justify-around px-2 py-2 select-none pointer-events-auto">
+      <nav className="flex items-center justify-around px-2 py-2 select-none">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = mainTab === item.tabName;
