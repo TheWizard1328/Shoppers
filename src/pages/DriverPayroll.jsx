@@ -570,7 +570,10 @@ export default function DriverPayroll() {
       setPayPeriod('semimonthly');
     }
     setHasInitialized(true);
-  }, [currentUser, isDriver, hasInitialized]);
+    
+    // Immediately fetch payroll data after initialization
+    fetchPayroll(false, false);
+  }, [currentUser, isDriver, hasInitialized, fetchPayroll]);
 
   // Load driver's pay cycle ONCE when data first loads
   useEffect(() => {
