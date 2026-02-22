@@ -5343,7 +5343,7 @@ export default function DeliveryForm({
                   ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ?
                   'opacity-50 pointer-events-none' : ''}`
                   } style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      {isCompletionStatus && delivery ?
+                      {isCompletionStatus && delivery ? (
                     <div className="space-y-2">
                         {/* Row 1: Store and Status */}
                         <div className="flex gap-3">
