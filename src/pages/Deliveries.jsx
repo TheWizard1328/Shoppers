@@ -1227,12 +1227,22 @@ export default function DeliveriesPage() {
       return {};
     }
 
+    // CRITICAL: For dispatchers, filter to only their assigned stores BEFORE grouping
+    let deliveriesToGroup = driverFilteredDeliveries;
+    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+      const dispatcherStoreIds = new Set(currentUser.store_ids || []);
+      deliveriesToGroup = driverFilteredDeliveries.filter((d) => 
+        d && d.store_id && dispatcherStoreIds.has(d.store_id)
+      );
+      console.log(`👔 [Deliveries] Dispatcher filter: ${deliveriesToGroup.length} of ${driverFilteredDeliveries.length} deliveries in assigned stores`);
+    }
+
     // When in Route Management mode (not Driver Overview), only show dates in selected month
     if (!isDriverOverviewMode && selectedYear !== undefined && selectedMonth !== undefined) {
       const monthStart = new Date(selectedYear, selectedMonth, 1);
       const monthEnd = new Date(selectedYear, selectedMonth + 1, 0);
       
-      const filtered = driverFilteredDeliveries.filter((d) => {
+      const filtered = deliveriesToGroup.filter((d) => {
         if (!d || !d.delivery_date) return false;
         const [y, m, day] = d.delivery_date.split('-').map(Number);
         const deliveryDate = new Date(y, m - 1, day);
@@ -1250,7 +1260,7 @@ export default function DeliveriesPage() {
     }
 
     // Driver Overview: show all dates
-    return driverFilteredDeliveries.reduce((acc, delivery) => {
+    return deliveriesToGroup.reduce((acc, delivery) => {
       if (!delivery || !delivery.delivery_date) {
         return acc;
       }
@@ -1261,7 +1271,7 @@ export default function DeliveriesPage() {
       acc[dateKey].push(delivery);
       return acc;
     }, {});
-  }, [driverFilteredDeliveries, isDriverOverviewMode, selectedYear, selectedMonth]);
+  }, [driverFilteredDeliveries, isDriverOverviewMode, selectedYear, selectedMonth, currentUser]);
 
   const sortedDates = useMemo(() => {
     return Object.keys(groupedDeliveries).sort((a, b) => new Date(b.replace(/-/g, '/')) - new Date(a.replace(/-/g, '/')));
