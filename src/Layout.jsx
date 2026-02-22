@@ -3507,7 +3507,6 @@ export default function Layout({ children, currentPageName }) {
         </div> :
 
       <UserProvider initialUser={currentUser}>
-           <MobileNavProvider>
            <AppDataProvider value={{
           deliveries: deliveries || [],
           patients: patients || [],
