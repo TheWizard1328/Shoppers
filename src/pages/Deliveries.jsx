@@ -2896,7 +2896,8 @@ export default function DeliveriesPage() {
     console.log(`📍 Selected City ID: ${selectedCityId}`);
     console.log(`📊 Backend stats available: ${backendDriverStats ? 'YES' : 'NO'}`);
 
-    const deliveriesToUse = allDeliveries?.length > 0 ? allDeliveries : contextDeliveries;
+    // CRITICAL: Always use allDeliveries for Driver Overview (never fall back to contextDeliveries which is date-filtered)
+    const deliveriesToUse = allDeliveries?.length > 0 ? allDeliveries : [];
     const patientsToUse = allPatients?.length > 0 ? allPatients : contextPatients;
     const usersToUse = allUsers?.length > 0 ? allUsers : contextUsers;
 
