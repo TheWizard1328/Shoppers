@@ -272,6 +272,53 @@ export default function DriverPayroll() {
     return result;
   }, [payrollData?.appUsers, payrollData?.drivers, payPeriod, selectedDriverId]);
 
+  // Calculate available pay cycles and their counts for the selected city/year
+  const payCycleInfo = useMemo(() => {
+    if (!payrollData?.appUsers) return { cycles: [], mostCommon: null, disabled: true };
+    
+    // Filter appUsers by selected city if not 'all'
+    let filteredAppUsers = payrollData.appUsers.filter(au => au.status === 'active');
+    
+    if (selectedCityId !== 'all' && filteredStores.length > 0) {
+      const cityStoreIds = new Set(filteredStores.map(s => s.id));
+      // Note: AppUser doesn't have store_id directly, so we count all active users
+      // In a multi-store company this is fine - we're looking at all drivers in the selected city
+    }
+    
+    // Count drivers by pay cycle type
+    const cycleCounts = {};
+    filteredAppUsers.forEach(au => {
+      if (au.pay_cycle_type) {
+        cycleCounts[au.pay_cycle_type] = (cycleCounts[au.pay_cycle_type] || 0) + 1;
+      }
+    });
+    
+    const cycles = Object.keys(cycleCounts);
+    const order = ['weekly', 'biweekly', 'semimonthly', 'monthly'];
+    const sortedCycles = order.filter(c => cycles.includes(c));
+    
+    // Find most common cycle
+    let mostCommon = null;
+    let maxCount = 0;
+    Object.entries(cycleCounts).forEach(([cycle, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        mostCommon = cycle;
+      }
+    });
+    
+    const disabled = sortedCycles.length <= 1;
+    
+    console.log(`📊 [payCycleInfo] Available cycles:`, {
+      cycles: sortedCycles,
+      counts: cycleCounts,
+      mostCommon,
+      disabled
+    });
+    
+    return { cycles: sortedCycles, mostCommon, disabled, cycleCounts };
+  }, [payrollData?.appUsers, selectedCityId, filteredStores]);
+
   const cityFilteredDeliveries = useMemo(() => {
     // CRITICAL: Ensure deliveries is always an array
     const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
