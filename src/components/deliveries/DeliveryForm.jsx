@@ -5559,34 +5559,34 @@ export default function DeliveryForm({
                       </div>
 
                       {/* Row 2: Time Window - hidden for completed/failed/cancelled */}
-                      {!['completed', 'failed', 'cancelled', 'returned'].includes(formData.status) && <div className="flex gap-3">
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Time Window</Label>
-                          <div className="flex gap-1">
-                            <div className="flex-1 relative">
-                              <Input
-                                type="time"
-                                value={formData.time_window_start}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
-                                disabled={isSaving}
-                                placeholder="Start"
-                                className="h-9 text-sm" />
+                      {!['completed', 'failed', 'cancelled', 'returned'].includes(formData.status) &&
+                        <div className="flex gap-3">
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Time Window</Label>
+                            <div className="flex gap-1">
+                              <div className="flex-1 relative">
+                                <Input
+                                  type="time"
+                                  value={formData.time_window_start}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
+                                  disabled={isSaving}
+                                  placeholder="Start"
+                                  className="h-9 text-sm" />
+                              </div>
+                              <div className="flex-1 relative">
+                                <Input
+                                  type="time"
+                                  value={formData.time_window_end}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
+                                  disabled={isSaving}
+                                  placeholder="End"
+                                  className="h-9 text-sm" />
+                              </div>
                             </div>
-                            <div className="flex-1 relative">
-                              <Input
-                                type="time"
-                                value={formData.time_window_end}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
-                                disabled={isSaving}
-                                placeholder="End"
-                                className="h-9 text-sm" />
-                            </div>
                           </div>
-                          </div>
-                          </div>
-                          </div>}
-                          }
-                          </div>
+                        </div>
+                      }
+                    </div>
 
                   {/* Section 4: Patient Name/Phone/Address/Unit */}
                   {!isPickupMode &&
