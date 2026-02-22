@@ -677,7 +677,7 @@ export default function DriverPayroll() {
   
   useEffect(() => {
     // CRITICAL: Wait for all data to be loaded BEFORE setting initial period
-    if (!hasInitialized || !payrollData || allPeriods.length === 0 || payrollRecords.length === 0) {
+    if (!hasInitialized || !payrollData || allPeriods.length === 0) {
       return;
     }
     
