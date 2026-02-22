@@ -206,7 +206,7 @@ export default function DriverPayrollGrid({
     }
 
     return filtered;
-  }, [deliveries, currentPeriod, selectedDriverId, driversWithMatchingPayCycle]);
+  }, [deliveries, currentPeriod, selectedDriverId]);
 
   // Get extra km limit for a driver
   const getDriverExtraKmLimit = (driverId) => {
