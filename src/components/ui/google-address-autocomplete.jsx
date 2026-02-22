@@ -299,7 +299,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       
       {/* Dropdown for suggestions */}
       {open && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-md shadow-lg z-50 max-h-60 overflow-auto">
+        <div className="absolute top-full left-0 right-0 mt-1 rounded-md shadow-lg z-50 max-h-60 overflow-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', border: '1px solid var(--border-slate-200)' }}>
           {suggestions.map((prediction, index) => (
             <button
               key={prediction.place_id}
@@ -308,15 +308,20 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
                 e.stopPropagation();
                 handleSelectAddress(prediction);
               }}
-              className={`w-full px-3 py-2 text-left text-sm flex items-start gap-2 border-b border-slate-100 last:border-b-0 transition-colors ${
-                index === selectedIndex ? 'bg-slate-200' : 'hover:bg-slate-100'
-              }`}
+              className={`w-full px-3 py-2 text-left text-sm flex items-start gap-2 last:border-b-0 transition-colors`}
+              style={{
+                background: index === selectedIndex ? 'var(--bg-slate-200)' : 'var(--bg-white)',
+                borderBottom: '1px solid var(--border-slate-200)',
+                color: 'var(--text-slate-900)'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-slate-100)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = index === selectedIndex ? 'var(--bg-slate-200)' : 'var(--bg-white)'}
             >
-              <MapPin className="w-4 h-4 mt-0.5 text-slate-500 flex-shrink-0" />
+              <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }} />
               <div className="flex-1 flex items-center justify-between gap-2">
                 <span>{prediction.description}</span>
                 {prediction.distance !== null && (
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                     {prediction.distance.toFixed(1)} km
                   </span>
                 )}
